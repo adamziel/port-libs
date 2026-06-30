@@ -31,8 +31,14 @@ final class DocxReader
     /** @var array<string, list<AstNode>> */
     private array $endnotes = [];
 
-    /** @var array<string, array{author: string, date: string, children: list<AstNode>, text: string}> */
+    /** @var array<string, array{author: string, date: string, children: list<AstNode>, inlines: list<AstNode>, text: string}> */
     private array $comments = [];
+
+    /** @var array<string, true> */
+    private array $commentRangeIds = [];
+
+    /** @var array<string, mixed> */
+    private array $bodyMetadata = [];
 
     /** @var array<string, int> */
     private array $headingIds = [];
@@ -229,8 +235,13 @@ final class DocxReader
 
         $this->headingIds = [];
         $this->suppressedBookmarkIds = [];
+        $this->commentRangeIds = [];
+        $this->bodyMetadata = [];
         $document = $this->loadXml($document_xml, 'DOCX document.xml');
         $body = $this->firstElementByLocalName($document, 'body');
+        if ($body instanceof \DOMElement) {
+            $this->commentRangeIds = $this->commentRangeIds($body);
+        }
         $headers = $this->partBlocks($header_xmls, 'DOCX header');
         $footers = $this->partBlocks($footer_xmls, 'DOCX footer');
         $sectionReferences = $body instanceof \DOMElement ? $this->sectionReferences($body) : [];
@@ -242,7 +253,8 @@ final class DocxReader
             : $this->sectionReferenceDivs($sectionReferences, 'footers', $footers, 'docx-footer');
         $this->headingIds = [];
         $this->suppressedBookmarkIds = [];
-        $children = $body instanceof \DOMElement ? $this->bodyBlocks($body) : [];
+        $this->bodyMetadata = [];
+        $children = $body instanceof \DOMElement ? $this->bodyBlocks($body, true) : [];
         $children = $this->canonicalizeHeadingBookmarkLinks($children);
         $children = $this->canonicalizeReferencedBookmarkAnchors($children);
         if ($children === []) {
@@ -252,6 +264,7 @@ final class DocxReader
         }
 
         $metadata = $core_xml !== '' ? $this->coreProperties($this->loadXml($core_xml, 'DOCX core properties')) : [];
+        $metadata = array_replace($metadata, $this->bodyMetadata);
         $metadata['docxPackageEntries'] = count($entries);
         $metadata['docxMediaFiles'] = $media;
         $metadata['docxRelationshipCount'] = count($this->relationships);
@@ -380,7 +393,7 @@ final class DocxReader
     /**
      * @return list<AstNode>
      */
-    private function bodyBlocks(\DOMElement $body): array
+    private function bodyBlocks(\DOMElement $body, bool $collectBodyMetadata = false): array
     {
         $blocks = [];
         $pendingListRecords = [];
@@ -392,6 +405,7 @@ final class DocxReader
         $pendingDropCap = null;
         $pendingTableCaption = null;
         $activeStyleNumbering = [];
+        $seenVisibleContent = false;
 
         $flushList = function () use (&$blocks, &$pendingListRecords): void {
             if ($pendingListRecords === []) {
@@ -477,11 +491,18 @@ final class DocxReader
                     $flushQuote();
                     $flushDefinitionList();
                     $pendingCodeLines[] = $this->codeTextFromParagraph($child);
+                    $seenVisibleContent = true;
                     continue;
                 }
 
                 $paragraph = $this->paragraph($child);
                 if (!$paragraph instanceof AstNode) {
+                    $flushCodeBlock();
+                    continue;
+                }
+                $metadataField = $paragraph->type === 'paragraph' ? $this->paragraphMetadataField($styleId) : null;
+                if ($collectBodyMetadata && $metadataField !== null && !$seenVisibleContent) {
+                    $this->addBodyMetadataParagraph($metadataField, $paragraph);
                     $flushCodeBlock();
                     continue;
                 }
@@ -500,6 +521,7 @@ final class DocxReader
                 if ($paragraph->type === 'paragraph' && $this->paragraphIsDropCapFrame($child)) {
                     $flushPendingBlocks();
                     $pendingDropCap = $paragraph;
+                    $seenVisibleContent = true;
                     continue;
                 }
                 if ($pendingDropCap instanceof AstNode) {
@@ -555,6 +577,7 @@ final class DocxReader
                         $record['continuation'] = true;
                     }
                     $pendingListRecords[] = $record;
+                    $seenVisibleContent = true;
                     continue;
                 }
 
@@ -583,6 +606,7 @@ final class DocxReader
                             'paragraph' => $paragraph,
                             'continuation' => true,
                         ];
+                        $seenVisibleContent = true;
                         continue;
                     }
                     if (
@@ -600,6 +624,7 @@ final class DocxReader
                             'paragraph' => $paragraph,
                             'continuation' => true,
                         ];
+                        $seenVisibleContent = true;
                         continue;
                     }
                 }
@@ -612,6 +637,7 @@ final class DocxReader
                     $pendingDefinitionTerm = new AstNode('term', [
                         'text' => (string) $paragraph->attr('text', ''),
                     ], $paragraph->children);
+                    $seenVisibleContent = true;
                     continue;
                 }
 
@@ -620,6 +646,7 @@ final class DocxReader
                     $flushCodeBlock();
                     $flushQuote();
                     $pendingDefinitionBlocks[] = $paragraph;
+                    $seenVisibleContent = true;
                     continue;
                 }
 
@@ -631,6 +658,7 @@ final class DocxReader
                     $flushCodeBlock();
                     $flushDefinitionList();
                     $pendingQuoteBlocks[] = $paragraph;
+                    $seenVisibleContent = true;
                     continue;
                 }
 
@@ -639,6 +667,7 @@ final class DocxReader
                 $flushQuote();
                 $flushDefinitionList();
                 $blocks[] = $paragraph;
+                $seenVisibleContent = true;
                 continue;
             }
             if ($child->localName === 'tbl') {
@@ -649,12 +678,14 @@ final class DocxReader
                     $pendingTableCaption = null;
                 }
                 $blocks[] = $table;
+                $seenVisibleContent = true;
                 continue;
             }
             if ($child->localName === 'sdt') {
                 $flushPendingBlocks();
                 $flushTableCaption();
                 array_push($blocks, ...$this->contentControlBlocks($child));
+                $seenVisibleContent = true;
                 continue;
             }
             if ($child->localName === 'oMathPara') {
@@ -663,6 +694,7 @@ final class DocxReader
                 $math = $this->ommlMath($child, true);
                 if ($math instanceof AstNode) {
                     $blocks[] = new AstNode('plain', [], [$math]);
+                    $seenVisibleContent = true;
                 }
             }
         }
@@ -1118,6 +1150,82 @@ final class DocxReader
         return null;
     }
 
+    private function paragraphMetadataField(string $styleId): ?string
+    {
+        if ($styleId === '') {
+            return null;
+        }
+
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $style = $this->styles[$candidateStyleId] ?? [];
+            foreach ([$candidateStyleId, (string) ($style['styleName'] ?? '')] as $candidate) {
+                $normalized = strtolower(preg_replace('/[^a-z0-9]+/i', '', $candidate) ?? '');
+                $field = match ($normalized) {
+                    'title' => 'title',
+                    'subtitle' => 'subtitle',
+                    'author' => 'author',
+                    'date' => 'date',
+                    'abstract' => 'abstract',
+                    default => null,
+                };
+                if ($field !== null) {
+                    return $field;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function addBodyMetadataParagraph(string $field, AstNode $paragraph): void
+    {
+        $inlines = $paragraph->children;
+        $text = $this->plainText($inlines);
+        if ($text === '' && !$this->hasNonWhitespaceInlineContent($inlines)) {
+            return;
+        }
+
+        if ($field === 'author') {
+            $authors = $this->bodyMetadata['author'] ?? [];
+            if (!is_array($authors) || isset($authors['type'])) {
+                $authors = [];
+            }
+            $authors[] = $text;
+            $this->bodyMetadata['author'] = $authors;
+
+            $authorInlines = $this->bodyMetadata['authorInlines'] ?? [];
+            if (!is_array($authorInlines) || !array_is_list($authorInlines)) {
+                $authorInlines = [];
+            }
+            $authorInlines[] = $inlines;
+            $this->bodyMetadata['authorInlines'] = $authorInlines;
+
+            return;
+        }
+
+        if ($field === 'title') {
+            if (!isset($this->bodyMetadata['titleInlines'])) {
+                $this->bodyMetadata['title'] = $text;
+                $this->bodyMetadata['titleInlines'] = $inlines;
+            }
+
+            return;
+        }
+
+        if ($field === 'date') {
+            if (!isset($this->bodyMetadata['dateInlines'])) {
+                $this->bodyMetadata['date'] = $text;
+                $this->bodyMetadata['dateInlines'] = $inlines;
+            }
+
+            return;
+        }
+
+        if (!isset($this->bodyMetadata[$field])) {
+            $this->bodyMetadata[$field] = ['type' => 'MetaInlines', 'value' => $inlines];
+        }
+    }
+
     private function paragraphIsDropCapFrame(\DOMElement $paragraph): bool
     {
         $pPr = $this->directChild($paragraph, 'pPr');
@@ -1467,6 +1575,9 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'commentReference') {
+                if (isset($this->commentRangeIds[$this->attr($child, self::W_NS, 'id')])) {
+                    continue;
+                }
                 $note = $this->noteReference($child, 'comment');
                 if ($note instanceof AstNode) {
                     $nodes[] = $note;
@@ -1828,10 +1939,18 @@ final class DocxReader
             }
         }
 
+        $children = [];
+        if ($range->localName === 'commentRangeStart' && is_array($comment)) {
+            $children = $comment['inlines'] ?? [];
+            if (!is_array($children) || !$this->allAstNodes($children)) {
+                $children = [];
+            }
+        }
+
         return new AstNode('span', [
             'classes' => [$range->localName === 'commentRangeStart' ? 'comment-start' : 'comment-end'],
             'attributes' => $attributes,
-        ]);
+        ], $children);
     }
 
     private function noteReference(\DOMElement $reference, string $kind): ?AstNode
@@ -4297,7 +4416,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array{author: string, date: string, children: list<AstNode>, text: string}>
+     * @return array<string, array{author: string, date: string, children: list<AstNode>, inlines: list<AstNode>, text: string}>
      */
     private function comments(\DOMDocument $dom): array
     {
@@ -4318,11 +4437,30 @@ final class DocxReader
                 'author' => $this->attr($comment, self::W_NS, 'author'),
                 'date' => $this->attr($comment, self::W_NS, 'date'),
                 'children' => $children,
+                'inlines' => $this->blocksAsInlineNodes($children),
                 'text' => trim(implode(' ', array_map(fn (AstNode $block): string => $this->nodeText($block), $children))),
             ];
         }
 
         return $comments;
+    }
+
+    /**
+     * @return array<string, true>
+     */
+    private function commentRangeIds(\DOMElement $body): array
+    {
+        $ids = [];
+        foreach (['commentRangeStart', 'commentRangeEnd'] as $localName) {
+            foreach ($this->descendantElementsByLocalName($body, $localName) as $range) {
+                $id = $this->attr($range, self::W_NS, 'id');
+                if ($id !== '') {
+                    $ids[$id] = true;
+                }
+            }
+        }
+
+        return $ids;
     }
 
     /**
@@ -4481,6 +4619,20 @@ final class DocxReader
         }
 
         return $text;
+    }
+
+    /**
+     * @param array<mixed> $nodes
+     */
+    private function allAstNodes(array $nodes): bool
+    {
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -37,6 +37,38 @@ $buildDocxReaderPackageBytes = static function (string $documentXml): string {
 
 /**
  * @param array<string, string> $parts
+ */
+$buildDocxReaderPackagePartsBytes = static function (array $parts): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary DOCX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary DOCX package');
+    }
+
+    foreach ($parts as $name => $contents) {
+        $zip->addFromString($name, $contents);
+    }
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary DOCX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
+/**
+ * @param array<string, string> $parts
  * @param array<string, int> $compressionMethodsByName
  */
 $buildDocxReaderNativeZipPackageBytes = static function (array $parts, array $compressionMethodsByName = []): string {
@@ -103,6 +135,51 @@ $buildDocxReaderNativeZipPackageBytes = static function (array $parts, array $co
 };
 
 return [
+    'maps leading docx metadata styles without consuming after-normal body paragraphs' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style><w:style w:type="paragraph" w:styleId="Author"><w:name w:val="Author"/></w:style><w:style w:type="paragraph" w:styleId="Date"><w:name w:val="Date"/></w:style><w:style w:type="paragraph" w:styleId="Abstract"><w:name w:val="Abstract"/></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Leading Title</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t>Mary Ann Evans</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t>Aurore Dupin</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Date"/></w:pPr><w:r><w:t>July 28, 2014</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Abstract"/></w:pPr><w:r><w:t>Leading abstract text.</w:t></w:r></w:p><w:p><w:r><w:t>Normal body.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>Visible After Title</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Author"/></w:pPr><w:r><w:t>Visible After Author</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Date"/></w:pPr><w:r><w:t>Visible After Date</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Abstract"/></w:pPr><w:r><w:t>Visible after abstract.</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $document = (new DocxReader())->read($bytes);
+        $meta = $document->attr('meta');
+
+        $t->same('Leading Title', $meta['title']);
+        $t->same(['Mary Ann Evans', 'Aurore Dupin'], $meta['author']);
+        $t->same('July 28, 2014', $meta['date']);
+        $t->same('MetaInlines', $meta['abstract']['type']);
+        $t->same('Leading abstract text.', $meta['abstract']['value'][0]->attr('text'));
+        $t->same([
+            'Normal body.',
+            'Visible After Title',
+            'Visible After Author',
+            'Visible After Date',
+            'Visible after abstract.',
+        ], array_map(static fn ($block): string => (string) $block->attr('text', ''), $document->children));
+    },
+    'attaches ranged docx comments to range starts and preserves scrubbed revision metadata' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>',
+            'word/comments.xml' => '<?xml version="1.0"?><w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="3" w:author="Author"><w:p><w:r><w:t>With a comment!</w:t></w:r></w:p></w:comment></w:comments>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">Here is a </w:t></w:r><w:del w:id="1" w:author="Author"><w:r><w:delText>dummy</w:delText></w:r></w:del><w:ins w:id="2" w:author="Author"><w:r><w:t>test</w:t></w:r></w:ins><w:r><w:t xml:space="preserve"> </w:t></w:r><w:commentRangeStart w:id="3"/><w:r><w:t>document</w:t></w:r><w:commentRangeEnd w:id="3"/><w:r><w:commentReference w:id="3"/></w:r><w:r><w:t>.</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $paragraph = (new DocxReader())->read($bytes)->children[0];
+        $children = $paragraph->children;
+        $types = array_map(static fn ($node): string => $node->type, $children);
+
+        $t->same(['text', 'span', 'span', 'text', 'span', 'text', 'span', 'text'], $types);
+        $t->same(['deletion'], $children[1]->attr('classes'));
+        $t->same(['author' => 'Author'], $children[1]->attr('attributes'));
+        $t->same(['insertion'], $children[2]->attr('classes'));
+        $t->same(['author' => 'Author'], $children[2]->attr('attributes'));
+        $t->same(['comment-start'], $children[4]->attr('classes'));
+        $t->same(['id' => '3', 'author' => 'Author'], $children[4]->attr('attributes'));
+        $t->same('With a comment!', $children[4]->children[0]->attr('text'));
+        $t->same(['comment-end'], $children[6]->attr('classes'));
+        $t->same([], array_values(array_filter($children, static fn ($node): bool => $node->type === 'note')));
+    },
     'resolves docx tracked revisions by configured revision mode' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">Base </w:t></w:r><w:ins w:author="Insert Reviewer" w:date="2026-06-26T12:00:00Z"><w:r><w:t xml:space="preserve">inserted </w:t></w:r></w:ins><w:del w:author="Delete Reviewer" w:date="2026-06-26T12:01:00Z"><w:r><w:delText xml:space="preserve">deleted </w:delText></w:r></w:del><w:moveFrom w:id="9" w:author="Move Reviewer" w:date="2026-06-26T12:02:00Z"><w:r><w:delText xml:space="preserve">moved-from </w:delText></w:r></w:moveFrom><w:moveTo w:id="9" w:author="Move Reviewer" w:date="2026-06-26T12:03:00Z"><w:r><w:t xml:space="preserve">moved-to </w:t></w:r></w:moveTo><w:r><w:t>tail</w:t></w:r></w:p></w:body></w:document>');
 
