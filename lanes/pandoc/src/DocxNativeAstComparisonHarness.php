@@ -1,0 +1,605 @@
+<?php
+
+declare(strict_types=1);
+
+namespace PortLibs\Pandoc;
+
+final class DocxNativeAstComparisonHarness
+{
+    private const DEFAULT_MAX_EXAMPLES = 12;
+    private const VERDICT = 'normalized-ast-comparison-not-full-docx-parity';
+    private const CLAIM = 'Compares local PHP DOCX reader output with paired upstream .native fixtures by normalized AST shape; local provenance attrs and derived paragraph text caches are excluded, but no upstream Haskell runner or DOCX writer parity is asserted.';
+
+    /** @var array<string, true> */
+    private const IGNORED_ATTRS = [
+        'alignmentConstructor' => true,
+        'alignmentConstructors' => true,
+        'alignmentNative' => true,
+        'alignmentNatives' => true,
+        'attrConstructor' => true,
+        'attrNative' => true,
+        'captionConstructor' => true,
+        'captionNative' => true,
+        'citationConstructor' => true,
+        'citationModeConstructor' => true,
+        'citationModeNative' => true,
+        'citationNative' => true,
+        'citationPrefixNative' => true,
+        'citationRecordsNative' => true,
+        'citationSuffixNative' => true,
+        'colSpanConstructor' => true,
+        'colSpanNative' => true,
+        'columnSpecNatives' => true,
+        'columnWidthConstructors' => true,
+        'columnWidthNatives' => true,
+        'constructor' => true,
+        'definitionDefinitionsNative' => true,
+        'definitionItemNative' => true,
+        'definitionNative' => true,
+        'definitionTermNative' => true,
+        'documentConstructor' => true,
+        'documentNative' => true,
+        'formatConstructor' => true,
+        'formatNative' => true,
+        'legacyTableCellBlocksNative' => true,
+        'lineNative' => true,
+        'listAttributesConstructor' => true,
+        'listAttributesNative' => true,
+        'listDelimiterConstructor' => true,
+        'listDelimiterNative' => true,
+        'listItemNative' => true,
+        'listStyleConstructor' => true,
+        'listStyleNative' => true,
+        'mathTypeConstructor' => true,
+        'mathTypeNative' => true,
+        'metaConstructorProvenance' => true,
+        'native' => true,
+        'nativeFormat' => true,
+        'nativeInlineConstructors' => true,
+        'nativeInlineParts' => true,
+        'pandocApiVersion' => true,
+        'quoteTypeConstructor' => true,
+        'quoteTypeNative' => true,
+        'rowHeadColumnsConstructor' => true,
+        'rowHeadColumnsNative' => true,
+        'rowSpanConstructor' => true,
+        'rowSpanNative' => true,
+        'shortCaptionConstructor' => true,
+        'shortCaptionMaybeConstructor' => true,
+        'shortCaptionMaybeNative' => true,
+        'shortCaptionNative' => true,
+        'targetConstructor' => true,
+        'targetNative' => true,
+    ];
+
+    /**
+     * @param array{limit?: int, maxExamples?: int} $options
+     * @return array<string, mixed>
+     */
+    public function run(string $docxDirectory, array $options = []): array
+    {
+        $limit = max(0, (int) ($options['limit'] ?? 0));
+        $maxExamples = max(0, (int) ($options['maxExamples'] ?? self::DEFAULT_MAX_EXAMPLES));
+
+        if (!is_dir($docxDirectory)) {
+            return [
+                'schemaVersion' => 1,
+                'tool' => 'pandoc-docx-native-ast',
+                'status' => 'skipped',
+                'skipped' => true,
+                'reason' => 'upstream-cache-missing',
+                'verdict' => self::VERDICT,
+                'claim' => self::CLAIM,
+                'evidenceKind' => 'docx-native-normalized-ast-comparison',
+                'upstreamDocxDirectory' => $docxDirectory,
+                'normalizationPolicy' => self::normalizationPolicy(),
+                'totalPairCount' => 0,
+                'comparedPairCount' => 0,
+                'docxParsedCount' => 0,
+                'nativeParsedCount' => 0,
+                'bothParsedCount' => 0,
+                'parseFailureCount' => 0,
+                'normalizedAstMatchCount' => 0,
+                'normalizedAstMismatchCount' => 0,
+                'normalizedAstMatchPercent' => null,
+                'astParityStatus' => 'not-evaluated-source-directory-unavailable',
+                'parseFailures' => [],
+                'mismatchComparisons' => [],
+                'mismatchCategories' => [],
+                'orderedRemainingGaps' => self::orderedRemainingGaps(false, 0, 0, 0, 0),
+            ];
+        }
+
+        $docxFiles = $this->filesByBasename($docxDirectory, 'docx');
+        $nativeFiles = $this->filesByBasename($docxDirectory, 'native');
+        $pairNames = array_values(array_intersect(array_keys($docxFiles), array_keys($nativeFiles)));
+        sort($pairNames, SORT_STRING);
+
+        $totalPairCount = count($pairNames);
+        if ($limit > 0) {
+            $pairNames = array_slice($pairNames, 0, $limit);
+        }
+
+        $docxParsedCount = 0;
+        $nativeParsedCount = 0;
+        $bothParsedCount = 0;
+        $matchCount = 0;
+        $parseFailures = [];
+        $mismatches = [];
+        $categoryCounts = [];
+
+        foreach ($pairNames as $pairName) {
+            $docxResult = $this->readDocx($docxFiles[$pairName]);
+            if ($docxResult['ok']) {
+                ++$docxParsedCount;
+            }
+
+            $nativeResult = $this->readNative($nativeFiles[$pairName]);
+            if ($nativeResult['ok']) {
+                ++$nativeParsedCount;
+            }
+
+            if (!$docxResult['ok'] || !$nativeResult['ok']) {
+                $failure = [
+                    'fixture' => $pairName,
+                    'docxError' => $docxResult['error'],
+                    'nativeError' => $nativeResult['error'],
+                ];
+                $parseFailures[] = $failure;
+                $this->addCategory($categoryCounts, 'parse-failure', $pairName, $maxExamples);
+                continue;
+            }
+
+            /** @var AstNode $docxDocument */
+            $docxDocument = $docxResult['document'];
+            /** @var AstNode $nativeDocument */
+            $nativeDocument = $nativeResult['document'];
+            ++$bothParsedCount;
+
+            $docxAst = $this->normalizedNode($docxDocument);
+            $nativeAst = $this->normalizedNode($nativeDocument);
+            if ($docxAst === $nativeAst) {
+                ++$matchCount;
+                continue;
+            }
+
+            $difference = $this->firstDifference($docxAst, $nativeAst) ?? 'unknown-normalized-ast-difference';
+            $categories = $this->mismatchCategories($difference);
+            foreach ($categories as $category) {
+                $this->addCategory($categoryCounts, $category, $pairName, $maxExamples);
+            }
+
+            if (count($mismatches) < $maxExamples) {
+                $mismatches[] = [
+                    'fixture' => $pairName,
+                    'firstDifference' => $difference,
+                    'categories' => $categories,
+                    'docxTopTypes' => $this->topTypeSequence($docxDocument),
+                    'nativeTopTypes' => $this->topTypeSequence($nativeDocument),
+                ];
+            }
+        }
+
+        ksort($categoryCounts);
+        $comparedPairCount = count($pairNames);
+        $mismatchCount = $bothParsedCount - $matchCount;
+
+        return [
+            'schemaVersion' => 1,
+            'tool' => 'pandoc-docx-native-ast',
+            'status' => 'completed',
+            'skipped' => false,
+            'reason' => null,
+            'verdict' => self::VERDICT,
+            'claim' => self::CLAIM,
+            'evidenceKind' => 'docx-native-normalized-ast-comparison',
+            'upstreamDocxDirectory' => $docxDirectory,
+            'normalizationPolicy' => self::normalizationPolicy(),
+            'totalPairCount' => $totalPairCount,
+            'comparedPairCount' => $comparedPairCount,
+            'docxParsedCount' => $docxParsedCount,
+            'nativeParsedCount' => $nativeParsedCount,
+            'bothParsedCount' => $bothParsedCount,
+            'parseFailureCount' => count($parseFailures),
+            'normalizedAstMatchCount' => $matchCount,
+            'normalizedAstMismatchCount' => $mismatchCount,
+            'normalizedAstMatchPercent' => self::percent($matchCount, $comparedPairCount),
+            'astParityStatus' => self::astParityStatus(count($parseFailures), $mismatchCount, $comparedPairCount),
+            'parseFailures' => array_slice($parseFailures, 0, $maxExamples),
+            'mismatchComparisons' => $mismatches,
+            'mismatchCategories' => array_values($categoryCounts),
+            'orderedRemainingGaps' => self::orderedRemainingGaps(
+                true,
+                $comparedPairCount,
+                count($parseFailures),
+                $matchCount,
+                $mismatchCount
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $report
+     */
+    public function formatReport(array $report): string
+    {
+        $lines = [
+            'Pandoc DOCX/native AST comparison: ' . (string) ($report['status'] ?? 'unknown'),
+            'Verdict: ' . (string) ($report['verdict'] ?? self::VERDICT),
+            'Claim: ' . (string) ($report['claim'] ?? self::CLAIM),
+            'upstreamDocxDirectory=' . (string) ($report['upstreamDocxDirectory'] ?? ''),
+        ];
+
+        if (($report['skipped'] ?? false) === true) {
+            $lines[] = 'reason=' . (string) ($report['reason'] ?? 'unknown');
+            $lines = self::appendOrderedRemainingGaps($lines, $report);
+
+            return implode(PHP_EOL, $lines) . PHP_EOL;
+        }
+
+        $lines[] = sprintf(
+            'pairs: total=%d compared=%d parsedBoth=%d parseFailures=%d',
+            (int) ($report['totalPairCount'] ?? 0),
+            (int) ($report['comparedPairCount'] ?? 0),
+            (int) ($report['bothParsedCount'] ?? 0),
+            (int) ($report['parseFailureCount'] ?? 0),
+        );
+        $lines[] = sprintf(
+            'normalizedAst: matches=%d (%s) mismatches=%d status=%s',
+            (int) ($report['normalizedAstMatchCount'] ?? 0),
+            self::formatPercent($report['normalizedAstMatchPercent'] ?? null),
+            (int) ($report['normalizedAstMismatchCount'] ?? 0),
+            (string) ($report['astParityStatus'] ?? 'unknown'),
+        );
+
+        $categories = $report['mismatchCategories'] ?? [];
+        if (is_array($categories) && $categories !== []) {
+            $lines[] = 'mismatchCategories:';
+            foreach ($categories as $category) {
+                if (!is_array($category)) {
+                    continue;
+                }
+                $examples = $category['examples'] ?? [];
+                $exampleText = is_array($examples) && $examples !== []
+                    ? ' examples=' . implode(',', array_map('strval', $examples))
+                    : '';
+                $lines[] = sprintf(
+                    '- %s count=%d%s',
+                    (string) ($category['category'] ?? 'unknown'),
+                    (int) ($category['count'] ?? 0),
+                    $exampleText
+                );
+            }
+        }
+
+        $mismatches = $report['mismatchComparisons'] ?? [];
+        if (is_array($mismatches) && $mismatches !== []) {
+            $lines[] = 'mismatchExamples:';
+            foreach ($mismatches as $mismatch) {
+                if (!is_array($mismatch)) {
+                    continue;
+                }
+                $lines[] = '- ' . (string) ($mismatch['fixture'] ?? 'unknown')
+                    . ': ' . (string) ($mismatch['firstDifference'] ?? 'unknown');
+            }
+        }
+
+        $lines = self::appendOrderedRemainingGaps($lines, $report);
+
+        return implode(PHP_EOL, $lines) . PHP_EOL;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function normalizationPolicy(): array
+    {
+        return [
+            'compares' => [
+                'node type',
+                'non-provenance node attributes',
+                'child order and child count',
+                'inline and block AST shape after local readers normalize native constructors',
+            ],
+            'excludes' => [
+                'local native/parser provenance attrs',
+                'document-level metadata added by local DOCX package parsing',
+                'derived text attrs on plain, paragraph, and heading nodes',
+            ],
+            'doesNotAssert' => [
+                'upstream Haskell/Cabal runner execution',
+                'DOCX writer golden package parity',
+                'byte-level DOCX package equality',
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function filesByBasename(string $directory, string $extension): array
+    {
+        $files = [];
+        foreach (glob(rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . '*.' . $extension) ?: [] as $path) {
+            $files[basename($path, '.' . $extension)] = $path;
+        }
+        ksort($files, SORT_STRING);
+
+        return $files;
+    }
+
+    /**
+     * @return array{ok: bool, document: ?AstNode, error: ?string}
+     */
+    private function readDocx(string $path): array
+    {
+        try {
+            return ['ok' => true, 'document' => (new DocxReader())->readDocxFile($path), 'error' => null];
+        } catch (\Throwable $exception) {
+            return ['ok' => false, 'document' => null, 'error' => $exception::class . ': ' . $exception->getMessage()];
+        }
+    }
+
+    /**
+     * @return array{ok: bool, document: ?AstNode, error: ?string}
+     */
+    private function readNative(string $path): array
+    {
+        try {
+            $native = file_get_contents($path);
+            if (!is_string($native)) {
+                throw new \RuntimeException("Unable to read native fixture '{$path}'.");
+            }
+
+            return ['ok' => true, 'document' => (new NativeReader())->read($native), 'error' => null];
+        } catch (\Throwable $exception) {
+            return ['ok' => false, 'document' => null, 'error' => $exception::class . ': ' . $exception->getMessage()];
+        }
+    }
+
+    /**
+     * @return array{type:string, attrs:array<string, mixed>, children:list<array<string, mixed>>}
+     */
+    private function normalizedNode(AstNode $node): array
+    {
+        $attrs = [];
+        foreach ($node->attrs as $key => $value) {
+            if (isset(self::IGNORED_ATTRS[(string) $key])) {
+                continue;
+            }
+            if ($node->type === 'document' && $key === 'meta') {
+                continue;
+            }
+            if ($key === 'text' && in_array($node->type, ['plain', 'paragraph', 'heading'], true)) {
+                continue;
+            }
+            $attrs[(string) $key] = $this->normalizedValue($value);
+        }
+        ksort($attrs, SORT_STRING);
+
+        return [
+            'type' => $node->type,
+            'attrs' => $attrs,
+            'children' => array_map(fn (AstNode $child): array => $this->normalizedNode($child), $node->children),
+        ];
+    }
+
+    private function normalizedValue(mixed $value): mixed
+    {
+        if ($value instanceof AstNode) {
+            return $this->normalizedNode($value);
+        }
+        if (!is_array($value)) {
+            return $value;
+        }
+        if (array_is_list($value)) {
+            return array_map(fn (mixed $item): mixed => $this->normalizedValue($item), $value);
+        }
+
+        $normalized = [];
+        foreach ($value as $key => $item) {
+            if (isset(self::IGNORED_ATTRS[(string) $key])) {
+                continue;
+            }
+            $normalized[(string) $key] = $this->normalizedValue($item);
+        }
+        ksort($normalized, SORT_STRING);
+
+        return $normalized;
+    }
+
+    private function firstDifference(mixed $docx, mixed $native, string $path = 'root'): ?string
+    {
+        if (gettype($docx) !== gettype($native)) {
+            return "{$path} type " . gettype($docx) . ' vs ' . gettype($native);
+        }
+        if (!is_array($docx)) {
+            return $docx === $native ? null : "{$path} value " . self::shortJson($docx) . ' vs ' . self::shortJson($native);
+        }
+
+        $docxKeys = array_keys($docx);
+        $nativeKeys = array_keys($native);
+        if ($docxKeys !== $nativeKeys) {
+            return "{$path} keys " . self::shortJson($docxKeys) . ' vs ' . self::shortJson($nativeKeys);
+        }
+
+        foreach ($docxKeys as $key) {
+            $difference = $this->firstDifference($docx[$key], $native[$key], $path . '.' . $key);
+            if ($difference !== null) {
+                return $difference;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function mismatchCategories(string $difference): array
+    {
+        $lower = strtolower($difference);
+        $categories = [];
+        if (str_contains($lower, '.children keys')) {
+            $categories[] = 'child-count-or-inline-granularity';
+        }
+        if (str_contains($lower, '.attrs keys') || str_contains($lower, '.attrs.')) {
+            $categories[] = 'attribute-shape';
+        }
+        if (str_contains($lower, 'numid') || str_contains($lower, 'delimiter') || str_contains($lower, 'list')) {
+            $categories[] = 'list-attribute-normalization';
+        }
+        if (str_contains($lower, 'alignment') || str_contains($lower, 'width') || str_contains($lower, 'table')) {
+            $categories[] = 'table-attribute-normalization';
+        }
+        if (str_contains($lower, '.type')) {
+            $categories[] = 'node-type';
+        }
+        if (str_contains($lower, ' value ')) {
+            $categories[] = 'scalar-value';
+        }
+        if ($categories === []) {
+            $categories[] = 'uncategorized-normalized-ast-drift';
+        }
+
+        return array_values(array_unique($categories));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function topTypeSequence(AstNode $document): array
+    {
+        return array_map(static fn (AstNode $child): string => $child->type, $document->children);
+    }
+
+    /**
+     * @param array<string, array{category: string, count: int, examples: list<string>}> $categoryCounts
+     */
+    private function addCategory(array &$categoryCounts, string $category, string $fixture, int $maxExamples): void
+    {
+        if (!isset($categoryCounts[$category])) {
+            $categoryCounts[$category] = ['category' => $category, 'count' => 0, 'examples' => []];
+        }
+
+        ++$categoryCounts[$category]['count'];
+        if (count($categoryCounts[$category]['examples']) < $maxExamples) {
+            $categoryCounts[$category]['examples'][] = $fixture;
+        }
+    }
+
+    private static function astParityStatus(int $parseFailureCount, int $mismatchCount, int $comparedPairCount): string
+    {
+        if ($comparedPairCount === 0) {
+            return 'not-evaluated-no-paired-fixtures';
+        }
+        if ($parseFailureCount > 0) {
+            return 'blocked-by-parse-failures';
+        }
+        if ($mismatchCount > 0) {
+            return 'normalized-ast-mismatches-observed';
+        }
+
+        return 'normalized-ast-equality-observed-not-runner-or-writer-parity';
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function orderedRemainingGaps(
+        bool $sourceDirectoryPresent,
+        int $comparedPairCount,
+        int $parseFailureCount,
+        int $matchCount,
+        int $mismatchCount
+    ): array {
+        $sourceEvidence = $sourceDirectoryPresent
+            ? "compared pairs={$comparedPairCount}; parse failures={$parseFailureCount}; normalized AST matches={$matchCount}; normalized AST mismatches={$mismatchCount}"
+            : 'optional upstream DOCX cache absent; normalized AST comparison did not run';
+
+        return [
+            [
+                'rank' => 1,
+                'id' => 'normalized-docx-native-ast-equality',
+                'status' => !$sourceDirectoryPresent
+                    ? 'not-evaluated'
+                    : (($parseFailureCount === 0 && $mismatchCount === 0 && $comparedPairCount > 0) ? 'covered-by-current-normalized-ast-evidence' : 'open'),
+                'currentEvidence' => $sourceEvidence,
+                'evidenceRequired' => 'Keep parse failures and normalized AST mismatches at zero for every paired root-level upstream DOCX/native fixture.',
+            ],
+            [
+                'rank' => 2,
+                'id' => 'upstream-docx-runner-results',
+                'status' => 'open',
+                'currentEvidence' => 'No upstream Haskell/Cabal test-pandoc DOCX reader or writer runner result is recorded by this AST lane.',
+                'evidenceRequired' => 'Record reproducible upstream DOCX reader/writer runner results or a native-PHP equivalent denominator with per-fixture pass/fail rows.',
+            ],
+            [
+                'rank' => 3,
+                'id' => 'writer-golden-docx-package-parity',
+                'status' => 'open',
+                'currentEvidence' => 'The AST harness reads paired DOCX/native reader fixtures only; it does not generate DOCX or compare writer golden packages.',
+                'evidenceRequired' => 'Generate DOCX output for upstream writer golden cases and compare package parts, relationships, content types, and document XML semantics.',
+            ],
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<string, mixed> $report
+     * @return list<string>
+     */
+    private static function appendOrderedRemainingGaps(array $lines, array $report): array
+    {
+        $gaps = $report['orderedRemainingGaps'] ?? [];
+        if (!is_array($gaps) || $gaps === []) {
+            return $lines;
+        }
+
+        $lines[] = 'orderedRemainingGaps:';
+        foreach ($gaps as $gap) {
+            if (!is_array($gap)) {
+                continue;
+            }
+            $lines[] = sprintf(
+                '%d. %s [%s] current=%s required=%s',
+                (int) ($gap['rank'] ?? 0),
+                (string) ($gap['id'] ?? 'unknown-gap'),
+                (string) ($gap['status'] ?? 'unknown'),
+                (string) ($gap['currentEvidence'] ?? ''),
+                (string) ($gap['evidenceRequired'] ?? '')
+            );
+        }
+
+        return $lines;
+    }
+
+    private static function percent(int $numerator, int $denominator): ?float
+    {
+        if ($denominator === 0) {
+            return null;
+        }
+
+        return round(($numerator / $denominator) * 100, 2);
+    }
+
+    private static function formatPercent(mixed $value): string
+    {
+        if (!is_int($value) && !is_float($value)) {
+            return 'n/a';
+        }
+
+        return number_format((float) $value, 2) . '%';
+    }
+
+    private static function shortJson(mixed $value): string
+    {
+        try {
+            $json = json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        } catch (\JsonException) {
+            return gettype($value);
+        }
+
+        return strlen($json) > 180 ? substr($json, 0, 177) . '...' : $json;
+    }
+}
