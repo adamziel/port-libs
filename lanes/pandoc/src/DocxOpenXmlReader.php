@@ -796,6 +796,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartRootPrefixedCount'] = $selectedXmlParts['rootPrefixedCount'];
         $packageProvenance['summary']['selectedXmlPartRootAttributeCount'] = $selectedXmlParts['rootAttributeCount'];
         $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationCount'] = $selectedXmlParts['rootNamespaceDeclarationCount'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceCount'] = count($selectedXmlParts['rootNamespaceCounts']);
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceCounts'] = $selectedXmlParts['rootNamespaceCounts'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaces'] = $selectedXmlParts['rootNamespaces'];
+        $packageProvenance['summary']['selectedXmlPartRootLocalNameCount'] = count($selectedXmlParts['rootLocalNameCounts']);
+        $packageProvenance['summary']['selectedXmlPartRootLocalNameCounts'] = $selectedXmlParts['rootLocalNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartRootLocalNames'] = $selectedXmlParts['rootLocalNames'];
+        $packageProvenance['summary']['selectedXmlPartRootQualifiedNameCount'] = count($selectedXmlParts['rootQualifiedNameCounts']);
+        $packageProvenance['summary']['selectedXmlPartRootQualifiedNameCounts'] = $selectedXmlParts['rootQualifiedNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartRootQualifiedNames'] = $selectedXmlParts['rootQualifiedNames'];
         $packageProvenance['summary']['selectedXmlPartRootNamespacePrefixes'] = $selectedXmlParts['rootNamespacePrefixes'];
         $packageProvenance['summary']['selectedXmlPartXmlDeclarationCount'] = $selectedXmlParts['xmlDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlDeclarationEncodingCounts'] = $selectedXmlParts['xmlDeclarationEncodingCounts'];
@@ -31476,6 +31485,12 @@ final class DocxOpenXmlReader
         }
 
         $rootNamespacePrefixes = [];
+        $rootNamespaceCounts = [];
+        $rootNamespaces = [];
+        $rootLocalNameCounts = [];
+        $rootLocalNames = [];
+        $rootQualifiedNameCounts = [];
+        $rootQualifiedNames = [];
         $rootAttributeCount = 0;
         $rootNamespaceDeclarationCount = 0;
         $rootPrefixedCount = 0;
@@ -31552,6 +31567,21 @@ final class DocxOpenXmlReader
             if (($item['rootPrefix'] ?? null) !== null) {
                 ++$rootPrefixedCount;
             }
+            $rootNamespace = is_string($item['rootNamespace'] ?? null) ? $item['rootNamespace'] : '';
+            if ($rootNamespace !== '') {
+                $rootNamespaceCounts[$rootNamespace] = ($rootNamespaceCounts[$rootNamespace] ?? 0) + 1;
+                $this->appendUniqueString($rootNamespaces, $rootNamespace);
+            }
+            $rootLocalName = is_string($item['rootLocalName'] ?? null) ? $item['rootLocalName'] : '';
+            if ($rootLocalName !== '') {
+                $rootLocalNameCounts[$rootLocalName] = ($rootLocalNameCounts[$rootLocalName] ?? 0) + 1;
+                $this->appendUniqueString($rootLocalNames, $rootLocalName);
+            }
+            $rootQualifiedName = is_string($item['rootQualifiedName'] ?? null) ? $item['rootQualifiedName'] : '';
+            if ($rootQualifiedName !== '') {
+                $rootQualifiedNameCounts[$rootQualifiedName] = ($rootQualifiedNameCounts[$rootQualifiedName] ?? 0) + 1;
+                $this->appendUniqueString($rootQualifiedNames, $rootQualifiedName);
+            }
             if (($item['xmlDeclarationPresent'] ?? false) === true) {
                 ++$xmlDeclarationCount;
             }
@@ -31578,7 +31608,13 @@ final class DocxOpenXmlReader
         ksort($relationshipsPartCounts, SORT_STRING);
         ksort($existingContentTypeSourceCounts, SORT_STRING);
         ksort($existingContentTypeBaseCounts, SORT_STRING);
+        ksort($rootNamespaceCounts, SORT_STRING);
+        ksort($rootLocalNameCounts, SORT_STRING);
+        ksort($rootQualifiedNameCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
+        sort($rootNamespaces, SORT_STRING);
+        sort($rootLocalNames, SORT_STRING);
+        sort($rootQualifiedNames, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -31608,6 +31644,12 @@ final class DocxOpenXmlReader
             'rootPrefixedCount' => $rootPrefixedCount,
             'rootAttributeCount' => $rootAttributeCount,
             'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespaceCounts' => $rootNamespaceCounts,
+            'rootNamespaces' => $rootNamespaces,
+            'rootLocalNameCounts' => $rootLocalNameCounts,
+            'rootLocalNames' => $rootLocalNames,
+            'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
+            'rootQualifiedNames' => $rootQualifiedNames,
             'rootNamespacePrefixes' => $rootNamespacePrefixes,
             'xmlDeclarationCount' => $xmlDeclarationCount,
             'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,

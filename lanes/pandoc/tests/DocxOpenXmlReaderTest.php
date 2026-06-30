@@ -19970,6 +19970,97 @@ XML;
         $t->same(0, $byKind['comments']['rootNamespaceDeclarationCount']);
         $t->same([], $byKind['comments']['rootNamespacePrefixes']);
     },
+    'summarizes docx selected openxml root name rollups for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/fontTable.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/theme1.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsRootNames" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '  <Relationship Id="rFontTableRootNames" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/fontTable" Target="fontTable.xml"/>' . "\n" .
+            '  <Relationship Id="rThemeRootNames" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/fontTable.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:fonts xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:font w:name="Review Sans"/>
+</w:fonts>
+XML;
+        $parts['word/theme/theme1.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Root Name Review">
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $byKind = $selected['byKind'];
+        $expectedNamespaceCounts = [
+            'http://schemas.openxmlformats.org/drawingml/2006/main' => 1,
+            'http://schemas.openxmlformats.org/package/2006/metadata/core-properties' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 5,
+        ];
+        $expectedLocalNameCounts = [
+            'coreProperties' => 1,
+            'document' => 1,
+            'fonts' => 1,
+            'numbering' => 1,
+            'settings' => 1,
+            'styles' => 1,
+            'theme' => 1,
+        ];
+        $expectedQualifiedNameCounts = [
+            'a:theme' => 1,
+            'cp:coreProperties' => 1,
+            'w:document' => 1,
+            'w:fonts' => 1,
+            'w:numbering' => 1,
+            'w:settings' => 1,
+            'w:styles' => 1,
+        ];
+
+        $t->same(18, $selected['count']);
+        $t->same(7, $selected['existingCount']);
+        $t->same(5, $selected['relationshipSelectedCount']);
+        $t->same($expectedNamespaceCounts, $selected['rootNamespaceCounts']);
+        $t->same(array_keys($expectedNamespaceCounts), $selected['rootNamespaces']);
+        $t->same($expectedLocalNameCounts, $selected['rootLocalNameCounts']);
+        $t->same(array_keys($expectedLocalNameCounts), $selected['rootLocalNames']);
+        $t->same($expectedQualifiedNameCounts, $selected['rootQualifiedNameCounts']);
+        $t->same(array_keys($expectedQualifiedNameCounts), $selected['rootQualifiedNames']);
+        $t->same(3, $summary['selectedXmlPartRootNamespaceCount']);
+        $t->same($selected['rootNamespaceCounts'], $summary['selectedXmlPartRootNamespaceCounts']);
+        $t->same($selected['rootNamespaces'], $summary['selectedXmlPartRootNamespaces']);
+        $t->same(7, $summary['selectedXmlPartRootLocalNameCount']);
+        $t->same($selected['rootLocalNameCounts'], $summary['selectedXmlPartRootLocalNameCounts']);
+        $t->same($selected['rootLocalNames'], $summary['selectedXmlPartRootLocalNames']);
+        $t->same(7, $summary['selectedXmlPartRootQualifiedNameCount']);
+        $t->same($selected['rootQualifiedNameCounts'], $summary['selectedXmlPartRootQualifiedNameCounts']);
+        $t->same($selected['rootQualifiedNames'], $summary['selectedXmlPartRootQualifiedNames']);
+        $t->same('w:settings', $byKind['settings']['rootQualifiedName']);
+        $t->same('w:fonts', $byKind['fontTable']['rootQualifiedName']);
+        $t->same('a:theme', $byKind['theme']['rootQualifiedName']);
+        $t->same(null, $byKind['comments']['rootQualifiedName']);
+        $t->true(!array_key_exists('', $selected['rootLocalNameCounts']), 'missing selected XML parts should stay out of root name rollups');
+    },
     'preserves docx selected openxml xml declaration provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
