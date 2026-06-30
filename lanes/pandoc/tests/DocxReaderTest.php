@@ -163,6 +163,13 @@ return [
         $t->same("∨∨( ", $document->children[0]->attr('text'));
         $t->same("∨∨( ", $document->children[0]->children[0]->attr('text'));
     },
+    'merges docx drop-cap frame paragraphs into following paragraph text' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:framePr w:dropCap="drop" w:lines="3"/></w:pPr><w:r><w:t>D</w:t></w:r></w:p><w:p><w:r><w:t>rop cap.</w:t></w:r></w:p><w:p><w:r><w:t>Next paragraph.</w:t></w:r></w:p><w:p><w:pPr><w:framePr w:dropCap="margin" w:lines="3"/></w:pPr><w:r><w:t>D</w:t></w:r></w:p><w:p><w:r><w:t>rop cap in margin.</w:t></w:r></w:p><w:p><w:r><w:t>Drop cap (not really).</w:t></w:r></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+
+        $t->same(['Drop cap.', 'Next paragraph.', 'Drop cap in margin.', 'Drop cap (not really).'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $document->children));
+    },
     'resolves docx paragraph style numbering and explicit numbering suppression' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/styles.xml', 'data' => <<<'XML'

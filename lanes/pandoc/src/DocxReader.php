@@ -388,6 +388,7 @@ final class DocxReader
         $pendingDefinitionItems = [];
         $pendingDefinitionTerm = null;
         $pendingDefinitionBlocks = [];
+        $pendingDropCap = null;
         $activeStyleNumbering = [];
 
         $flushList = function () use (&$blocks, &$pendingListRecords): void {
@@ -439,7 +440,16 @@ final class DocxReader
             $pendingDefinitionItems = [];
         };
 
-        $flushPendingBlocks = function () use ($flushList, $flushCodeBlock, $flushQuote, $flushDefinitionList): void {
+        $flushDropCap = function () use (&$blocks, &$pendingDropCap): void {
+            if (!$pendingDropCap instanceof AstNode) {
+                return;
+            }
+            $blocks[] = $pendingDropCap;
+            $pendingDropCap = null;
+        };
+
+        $flushPendingBlocks = function () use ($flushDropCap, $flushList, $flushCodeBlock, $flushQuote, $flushDefinitionList): void {
+            $flushDropCap();
             $flushList();
             $flushCodeBlock();
             $flushQuote();
@@ -451,6 +461,7 @@ final class DocxReader
                 $styleId = $this->paragraphStyleId($child);
                 $styleBlockKind = $this->paragraphStyleBlockKind($child, $styleId);
                 if ($styleBlockKind === 'code') {
+                    $flushDropCap();
                     $flushList();
                     $flushQuote();
                     $flushDefinitionList();
@@ -462,6 +473,19 @@ final class DocxReader
                 if (!$paragraph instanceof AstNode) {
                     $flushCodeBlock();
                     continue;
+                }
+                if ($paragraph->type === 'paragraph' && $this->paragraphIsDropCapFrame($child)) {
+                    $flushPendingBlocks();
+                    $pendingDropCap = $paragraph;
+                    continue;
+                }
+                if ($pendingDropCap instanceof AstNode) {
+                    if ($paragraph->type === 'paragraph') {
+                        $paragraph = $this->prependParagraphInlines($paragraph, $pendingDropCap->children);
+                        $pendingDropCap = null;
+                    } else {
+                        $flushDropCap();
+                    }
                 }
                 $styleNumbering = $styleId === '' ? null : ($activeStyleNumbering[$styleId] ?? null);
                 $numbering = $paragraph->type === 'paragraph' ? $this->paragraphNumbering($child, $styleNumbering) : null;
@@ -795,6 +819,29 @@ final class DocxReader
         }
 
         return null;
+    }
+
+    private function paragraphIsDropCapFrame(\DOMElement $paragraph): bool
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $framePr = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'framePr') : null;
+        if (!$framePr instanceof \DOMElement) {
+            return false;
+        }
+
+        return in_array(strtolower($this->attr($framePr, self::W_NS, 'dropCap')), ['drop', 'margin'], true);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function prependParagraphInlines(AstNode $paragraph, array $inlines): AstNode
+    {
+        $children = $this->mergeAdjacentText([...$inlines, ...$paragraph->children]);
+        $attrs = $paragraph->attrs;
+        $attrs['text'] = $this->nodeText(new AstNode($paragraph->type, [], $children));
+
+        return new AstNode($paragraph->type, $attrs, $children);
     }
 
     private function isIndentedBlockQuoteParagraph(\DOMElement $paragraph, string $styleId): bool
