@@ -24130,7 +24130,8 @@ final class XmlHtmlDom
         $commandForRaw = self::attributeOrNull($button, 'commandfor');
         $commandFor = $commandForRaw === null ? null : trim($commandForRaw);
         $commandForValid = $commandFor !== null && $commandFor !== '' && self::isHtmlIdReferenceToken($commandFor);
-        $target = $commandForValid ? self::htmlElementById($button, $commandFor) : null;
+        $targets = $commandForValid ? self::htmlElementsById($button, $commandFor) : [];
+        $target = $targets[0] ?? null;
         $issues = [];
 
         if ($commandRaw === null || trim($commandRaw) === '') {
@@ -24153,6 +24154,14 @@ final class XmlHtmlDom
             $issues[] = [
                 'code' => 'missing-button-command-target',
                 'commandFor' => $commandFor,
+            ];
+        }
+
+        if (count($targets) > 1) {
+            $issues[] = [
+                'code' => 'duplicate-button-commandfor-target-element',
+                'commandFor' => $commandFor,
+                'count' => count($targets),
             ];
         }
 
@@ -24194,8 +24203,13 @@ final class XmlHtmlDom
             'commandFor' => $commandFor === '' ? null : $commandFor,
             'commandForValid' => $commandForValid,
             'commandTargetFound' => $target instanceof \DOMElement,
-            'commandTargetKind' => self::buttonCommandTargetKind($target, $commandForRaw, $commandForValid),
+            'commandTargetCount' => count($targets),
+            'commandTargetKind' => self::buttonCommandTargetKind($target, $commandForRaw, $commandForValid, count($targets)),
             'commandTarget' => $target instanceof \DOMElement ? self::buttonCommandTargetSummary($target) : null,
+            'commandTargetElements' => array_map(
+                static fn (\DOMElement $target): array => self::buttonCommandTargetSummary($target),
+                $targets
+            ),
             'commandIssues' => $issues,
             'commandIssueCodes' => $issueCodes,
             'commandInvokesTarget' => $issues === [],
@@ -24249,7 +24263,12 @@ final class XmlHtmlDom
         ];
     }
 
-    private static function buttonCommandTargetKind(?\DOMElement $target, ?string $commandForRaw, bool $commandForValid): string
+    private static function buttonCommandTargetKind(
+        ?\DOMElement $target,
+        ?string $commandForRaw,
+        bool $commandForValid,
+        int $targetCount
+    ): string
     {
         if (!$target instanceof \DOMElement) {
             if ($commandForRaw === null || trim($commandForRaw) === '') {
@@ -24260,6 +24279,9 @@ final class XmlHtmlDom
         }
 
         $name = self::htmlElementName($target);
+        if ($targetCount > 1) {
+            return 'duplicate-target';
+        }
         if ($name === 'dialog') {
             return 'dialog';
         }
