@@ -257,6 +257,55 @@ XML],
         $t->same(5, $meta['docxPackageEntries']);
         $t->same(1, $meta['docxRelationshipCount']);
     },
+    'resolves numeric docx style ids without losing inherited properties' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="1">
+    <w:name w:val="Numeric Heading Base"/>
+    <w:pPr><w:outlineLvl w:val="0"/></w:pPr>
+  </w:style>
+  <w:style w:type="paragraph" w:styleId="2">
+    <w:name w:val="Numeric Heading Derived"/>
+    <w:basedOn w:val="1"/>
+  </w:style>
+  <w:style w:type="character" w:styleId="3">
+    <w:name w:val="Numeric Strong Base"/>
+    <w:rPr><w:b/></w:rPr>
+  </w:style>
+  <w:style w:type="character" w:styleId="4">
+    <w:name w:val="Numeric Strong Derived"/>
+    <w:basedOn w:val="3"/>
+    <w:rPr><w:i/></w:rPr>
+  </w:style>
+</w:styles>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="2"/></w:pPr><w:r><w:t>Numeric style heading</w:t></w:r></w:p>
+    <w:p><w:r><w:t xml:space="preserve">A </w:t></w:r><w:r><w:rPr><w:rStyle w:val="4"/></w:rPr><w:t>derived run</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same(1, $document->children[0]->attr('level'));
+        $t->same('Numeric style heading', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('A derived run', $document->children[1]->attr('text'));
+        $t->same('emph', $document->children[1]->children[1]->type);
+        $t->same('strong', $document->children[1]->children[1]->children[0]->type);
+        $t->same('derived run', $document->children[1]->children[1]->children[0]->children[0]->attr('text'));
+        $t->contains('<h1>Numeric style heading</h1>', $blocks);
+        $t->contains('A <em><strong>derived run</strong></em>', $blocks);
+    },
     'reads docx package body metadata notes headers footers and review spans into shared ast' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
         if ($path === false) {
@@ -516,6 +565,8 @@ XML;
         $reference = $document->children[1];
         $display = $document->children[2];
 
+        $t->same('Equation target', $target->attr('text'));
+        $t->same('See Equation target: x^{2}+y', $reference->attr('text'));
         $t->same('raw_inline', $target->children[0]->type);
         $t->same('openxml', $target->children[0]->attr('format'));
         $t->contains('w:name="_RefEquation"', $target->children[0]->attr('text'));
@@ -557,6 +608,61 @@ XML;
         $t->contains('<a href="https://example.test/review#Section_2">See <ins class="insertion" data-pandoc-change-author="Anchor Reviewer"', $blocks);
         $t->contains('data-pandoc-change-date="2026-06-30T00:00:00Z"', $blocks);
         $t->contains('>inserted anchor</ins></a> after.', $blocks);
+    },
+    'reads docx packages whose office document part uses an alternate path' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => '_rels/.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdDoc" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="/word/document2.xml"/></Relationships>'],
+            ['name' => '[Content_Types].xml', 'data' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document2.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>'],
+            ['name' => 'word/_rels/document2.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/alternate" TargetMode="External"/></Relationships>'],
+            ['name' => 'word/document2.xml', 'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body><w:p><w:r><w:t>Alternate </w:t></w:r><w:hyperlink r:id="rIdExternal"><w:r><w:t>document path</w:t></w:r></w:hyperlink></w:p></w:body></w:document>'],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $paragraph = $document->children[0];
+        $link = $paragraph->children[1];
+
+        $t->same('Alternate document path', $paragraph->attr('text'));
+        $t->same('link', $link->type);
+        $t->same('https://example.test/alternate', $link->attr('url'));
+        $t->same('document path', $link->children[0]->attr('text'));
+    },
+    'maps upstream docx paragraph block styles to code quotes and definitions' => static function (TestRunner $t): void {
+        $stylesXml = <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/></w:style>
+  <w:style w:type="paragraph" w:styleId="DefinitionTerm"><w:name w:val="Definition Term"/></w:style>
+  <w:style w:type="paragraph" w:styleId="Definition"><w:name w:val="Definition"/></w:style>
+</w:styles>
+XML;
+        $documentXml = <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Before</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="SourceCode"/></w:pPr><w:r><w:t>alpha</w:t><w:br/><w:t>beta</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="SourceCode"/></w:pPr></w:p>
+    <w:p><w:pPr><w:pStyle w:val="SourceCode"/></w:pPr><w:r><w:t>gamma</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr><w:r><w:t>Styled quote</w:t></w:r></w:p>
+    <w:p><w:pPr><w:ind w:left="1440"/></w:pPr><w:r><w:t>Indented quote</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="DefinitionTerm"/></w:pPr><w:r><w:t>Term</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Definition"/></w:pPr><w:r><w:t>Definition one</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Definition"/></w:pPr><w:r><w:t>Definition two</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML;
+        $document = (new DocxReader())->readDocument(ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => $stylesXml],
+            ['name' => 'word/document.xml', 'data' => $documentXml],
+        ]));
+
+        $t->same(['paragraph', 'code_block', 'blockquote', 'definition_list'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same("alpha\nbeta\n\ngamma", $document->children[1]->attr('text'));
+        $t->same(['Styled quote', 'Indented quote'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $document->children[2]->children));
+        $definitionItem = $document->children[3]->children[0];
+        $t->same('Term', $definitionItem->children[0]->attr('text'));
+        $t->same(['Definition one', 'Definition two'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $definitionItem->children[1]->children));
     },
     'unwraps docx smart tags and alternate content fallback in body inline field and table scopes' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"><w:body><w:smartTag w:uri="urn:example" w:element="body"><w:p><w:r><w:t>Wrapped block</w:t></w:r></w:p></w:smartTag><w:p><w:r><w:t>Inline </w:t></w:r><w:smartTag w:uri="urn:example" w:element="inline"><w:r><w:rPr><w:b/></w:rPr><w:t>smart</w:t></w:r></w:smartTag><w:r><w:t> and </w:t></w:r><w:r><mc:AlternateContent><mc:Choice Requires="wps"><w:t>choice</w:t></mc:Choice><mc:Fallback><w:t>fallback</w:t></mc:Fallback></mc:AlternateContent></w:r></w:p><w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText> REF _SmartTarget \h </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:smartTag w:uri="urn:example" w:element="field-result"><w:r><w:t>Smart target</w:t></w:r></w:smartTag><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p><w:tbl><w:tr><w:tc><w:smartTag w:uri="urn:example" w:element="cell"><w:p><w:r><w:t>Cell smart</w:t></w:r></w:p></w:smartTag></w:tc></w:tr></w:tbl></w:body></w:document>');

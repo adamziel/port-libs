@@ -78,11 +78,14 @@ final class DocxReader
         ksort($header_xmls);
         ksort($footer_xmls);
 
+        $documentPartName = $this->mainDocumentPartName($package, $entriesByName);
+        $documentRelationshipsPartName = $this->relationshipsPartName($documentPartName);
+
         return $this->readPackage(
-            $this->readRequiredPackagePart($package, $entriesByName, 'word/document.xml'),
+            $this->readRequiredPackagePart($package, $entriesByName, $documentPartName),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/styles.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/numbering.xml'),
-            $this->readOptionalPackagePart($package, $entriesByName, 'word/_rels/document.xml.rels'),
+            $this->readOptionalPackagePart($package, $entriesByName, $documentRelationshipsPartName),
             $this->readOptionalPackagePart($package, $entriesByName, 'docProps/core.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/footnotes.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/endnotes.xml'),
@@ -106,6 +109,51 @@ final class DocxReader
         }
 
         return $this->read($bytes);
+    }
+
+    /**
+     * @param array<string, ZipPackageEntry> $entriesByName
+     */
+    private function mainDocumentPartName(ZipPackage $package, array $entriesByName): string
+    {
+        $rootRelsXml = $this->readOptionalPackagePart($package, $entriesByName, '_rels/.rels');
+        if ($rootRelsXml !== '') {
+            $relationships = $this->relationships($this->loadXml($rootRelsXml, 'DOCX package relationships'));
+            foreach ($relationships as $relationship) {
+                if ($relationship['type'] !== self::R_NS . '/officeDocument') {
+                    continue;
+                }
+
+                return $this->normalizePackageTarget('', $relationship['target']);
+            }
+        }
+
+        $contentTypesXml = $this->readOptionalPackagePart($package, $entriesByName, '[Content_Types].xml');
+        if ($contentTypesXml !== '') {
+            $contentTypes = $this->loadXml($contentTypesXml, 'DOCX content types');
+            foreach ($contentTypes->getElementsByTagNameNS('http://schemas.openxmlformats.org/package/2006/content-types', 'Override') as $override) {
+                if (!$override instanceof \DOMElement) {
+                    continue;
+                }
+                if ($override->getAttribute('ContentType') !== 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml') {
+                    continue;
+                }
+
+                return $this->normalizePackageTarget('', $override->getAttribute('PartName'));
+            }
+        }
+
+        return 'word/document.xml';
+    }
+
+    private function relationshipsPartName(string $partName): string
+    {
+        $slash = strrpos($partName, '/');
+        if ($slash === false) {
+            return '_rels/' . $partName . '.rels';
+        }
+
+        return substr($partName, 0, $slash) . '/_rels/' . substr($partName, $slash + 1) . '.rels';
     }
 
     /**
@@ -324,6 +372,11 @@ final class DocxReader
     {
         $blocks = [];
         $pendingListRecords = [];
+        $pendingCodeLines = [];
+        $pendingQuoteBlocks = [];
+        $pendingDefinitionItems = [];
+        $pendingDefinitionTerm = null;
+        $pendingDefinitionBlocks = [];
         $activeStyleNumbering = [];
 
         $flushList = function () use (&$blocks, &$pendingListRecords): void {
@@ -334,16 +387,77 @@ final class DocxReader
             $pendingListRecords = [];
         };
 
+        $flushCodeBlock = function () use (&$blocks, &$pendingCodeLines): void {
+            if ($pendingCodeLines === []) {
+                return;
+            }
+            $blocks[] = new AstNode('code_block', [
+                'text' => implode("\n", $pendingCodeLines),
+            ]);
+            $pendingCodeLines = [];
+        };
+
+        $flushQuote = function () use (&$blocks, &$pendingQuoteBlocks): void {
+            if ($pendingQuoteBlocks === []) {
+                return;
+            }
+            $blocks[] = new AstNode('blockquote', [], $pendingQuoteBlocks);
+            $pendingQuoteBlocks = [];
+        };
+
+        $flushDefinitionItem = function () use (&$pendingDefinitionItems, &$pendingDefinitionTerm, &$pendingDefinitionBlocks): void {
+            if (!$pendingDefinitionTerm instanceof AstNode) {
+                return;
+            }
+            $pendingDefinitionItems[] = new AstNode('definition_item', [
+                'term' => (string) $pendingDefinitionTerm->attr('text', ''),
+            ], [
+                $pendingDefinitionTerm,
+                new AstNode('definition', [], $pendingDefinitionBlocks),
+            ]);
+            $pendingDefinitionTerm = null;
+            $pendingDefinitionBlocks = [];
+        };
+
+        $flushDefinitionList = function () use (&$blocks, &$pendingDefinitionItems, $flushDefinitionItem): void {
+            $flushDefinitionItem();
+            if ($pendingDefinitionItems === []) {
+                return;
+            }
+            $blocks[] = new AstNode('definition_list', [], $pendingDefinitionItems);
+            $pendingDefinitionItems = [];
+        };
+
+        $flushPendingBlocks = function () use ($flushList, $flushCodeBlock, $flushQuote, $flushDefinitionList): void {
+            $flushList();
+            $flushCodeBlock();
+            $flushQuote();
+            $flushDefinitionList();
+        };
+
         foreach ($this->transparentChildElements($body) as $child) {
             if ($child->localName === 'p') {
-                $paragraph = $this->paragraph($child);
-                if (!$paragraph instanceof AstNode) {
+                $styleId = $this->paragraphStyleId($child);
+                $styleBlockKind = $this->paragraphStyleBlockKind($child, $styleId);
+                if ($styleBlockKind === 'code') {
+                    $flushList();
+                    $flushQuote();
+                    $flushDefinitionList();
+                    $pendingCodeLines[] = $this->codeTextFromParagraph($child);
                     continue;
                 }
-                $styleId = $this->paragraphStyleId($child);
+
+                $paragraph = $this->paragraph($child);
+                if (!$paragraph instanceof AstNode) {
+                    $flushCodeBlock();
+                    continue;
+                }
                 $styleNumbering = $styleId === '' ? null : ($activeStyleNumbering[$styleId] ?? null);
                 $numbering = $paragraph->type === 'paragraph' ? $this->paragraphNumbering($child, $styleNumbering) : null;
                 if ($numbering !== null) {
+                    $flushCodeBlock();
+                    $flushQuote();
+                    $flushDefinitionList();
                     if ($styleId !== '') {
                         $activeStyleNumbering[$styleId] = [
                             'numId' => $numbering['numId'],
@@ -362,22 +476,53 @@ final class DocxReader
                     ];
                     continue;
                 }
+
+                if ($styleBlockKind === 'definition-term') {
+                    $flushList();
+                    $flushCodeBlock();
+                    $flushQuote();
+                    $flushDefinitionItem();
+                    $pendingDefinitionTerm = new AstNode('term', [
+                        'text' => (string) $paragraph->attr('text', ''),
+                    ], $paragraph->children);
+                    continue;
+                }
+
+                if ($styleBlockKind === 'definition' && $pendingDefinitionTerm instanceof AstNode) {
+                    $flushList();
+                    $flushCodeBlock();
+                    $flushQuote();
+                    $pendingDefinitionBlocks[] = $paragraph;
+                    continue;
+                }
+
+                if ($styleBlockKind === 'blockquote' || $this->isIndentedBlockQuoteParagraph($child)) {
+                    $flushList();
+                    $flushCodeBlock();
+                    $flushDefinitionList();
+                    $pendingQuoteBlocks[] = $paragraph;
+                    continue;
+                }
+
                 $flushList();
+                $flushCodeBlock();
+                $flushQuote();
+                $flushDefinitionList();
                 $blocks[] = $paragraph;
                 continue;
             }
             if ($child->localName === 'tbl') {
-                $flushList();
+                $flushPendingBlocks();
                 $blocks[] = $this->table($child);
                 continue;
             }
             if ($child->localName === 'sdt') {
-                $flushList();
+                $flushPendingBlocks();
                 array_push($blocks, ...$this->contentControlBlocks($child));
                 continue;
             }
             if ($child->localName === 'oMathPara') {
-                $flushList();
+                $flushPendingBlocks();
                 $math = $this->ommlMath($child, true);
                 if ($math instanceof AstNode) {
                     $blocks[] = new AstNode('plain', [], [$math]);
@@ -385,7 +530,7 @@ final class DocxReader
             }
         }
 
-        $flushList();
+        $flushPendingBlocks();
 
         return $blocks;
     }
@@ -458,7 +603,7 @@ final class DocxReader
     {
         $inlines = $this->inlineChildren($paragraph);
         $text = $this->plainText($inlines);
-        if ($text === '' && $inlines === []) {
+        if ($text === '' && !$this->hasNonWhitespaceInlineContent($inlines)) {
             return null;
         }
 
@@ -468,6 +613,114 @@ final class DocxReader
         }
 
         return new AstNode('paragraph', ['text' => $text], $inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function hasNonWhitespaceInlineContent(array $inlines): bool
+    {
+        foreach ($inlines as $inline) {
+            if (
+                $inline->type === 'linebreak'
+                || $inline->type === 'softbreak'
+                || $inline->type === 'raw_inline'
+                || $inline->type === 'raw_block'
+            ) {
+                continue;
+            }
+            if ($inline->children !== []) {
+                if ($this->hasNonWhitespaceInlineContent($inline->children)) {
+                    return true;
+                }
+                continue;
+            }
+
+            $text = (string) $inline->attr('text', '');
+            if ($text !== '') {
+                return trim($text) !== '';
+            }
+            if ($inline->type !== 'text') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function paragraphStyleBlockKind(\DOMElement $paragraph, string $styleId): ?string
+    {
+        if ($styleId === '') {
+            return null;
+        }
+
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $style = $this->styles[$candidateStyleId] ?? [];
+            $candidates = [
+                $candidateStyleId,
+                (string) ($style['styleName'] ?? ''),
+            ];
+
+            foreach ($candidates as $candidate) {
+                $normalized = strtolower(preg_replace('/[^a-z0-9]+/i', '', $candidate) ?? '');
+                if ($normalized === 'sourcecode') {
+                    return 'code';
+                }
+                if ($normalized === 'definitionterm') {
+                    return 'definition-term';
+                }
+                if ($normalized === 'definition') {
+                    return 'definition';
+                }
+                if (in_array($normalized, ['quote', 'intensequote', 'blockquote'], true)) {
+                    return 'blockquote';
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private function isIndentedBlockQuoteParagraph(\DOMElement $paragraph): bool
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $ind = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'ind') : null;
+        if (!$ind instanceof \DOMElement) {
+            return false;
+        }
+
+        $left = $this->attr($ind, self::W_NS, 'left');
+        return $left !== '' && is_numeric($left) && (int) $left >= 1000;
+    }
+
+    private function codeTextFromParagraph(\DOMElement $paragraph): string
+    {
+        $text = '';
+        $this->appendCodeText($paragraph, $text);
+
+        return $text;
+    }
+
+    private function appendCodeText(\DOMNode $node, string &$text): void
+    {
+        if ($node instanceof \DOMElement) {
+            if ($node->localName === 't' || $node->localName === 'delText') {
+                $text .= $node->textContent;
+                return;
+            }
+            if ($node->localName === 'tab') {
+                $text .= "\t";
+                return;
+            }
+            if ($node->localName === 'br' || $node->localName === 'cr') {
+                $text .= "\n";
+                return;
+            }
+        }
+
+        foreach ($node->childNodes as $child) {
+            $this->appendCodeText($child, $text);
+        }
     }
 
     /**
@@ -2388,8 +2641,9 @@ final class DocxReader
      * @param list<string> $seen
      * @return array<string, mixed>
      */
-    private function resolveStyleEntry(string $styleId, array $styles, array $seen): array
+    private function resolveStyleEntry(string|int $styleId, array $styles, array $seen): array
     {
+        $styleId = (string) $styleId;
         $entry = $styles[$styleId] ?? [];
         if ($entry === [] || in_array($styleId, $seen, true)) {
             return $entry;
@@ -2752,6 +3006,37 @@ final class DocxReader
         return $rels;
     }
 
+    private function normalizePackageTarget(string $sourcePartName, string $target): string
+    {
+        $target = str_replace('\\', '/', $target);
+        if (str_starts_with($target, '/')) {
+            return ltrim($target, '/');
+        }
+        if (preg_match('/^[a-z][a-z0-9+.-]*:/i', $target)) {
+            return $target;
+        }
+
+        $base = '';
+        if ($sourcePartName !== '') {
+            $slash = strrpos($sourcePartName, '/');
+            $base = $slash === false ? '' : substr($sourcePartName, 0, $slash + 1);
+        }
+
+        $parts = [];
+        foreach (explode('/', $base . $target) as $part) {
+            if ($part === '' || $part === '.') {
+                continue;
+            }
+            if ($part === '..') {
+                array_pop($parts);
+                continue;
+            }
+            $parts[] = $part;
+        }
+
+        return implode('/', $parts);
+    }
+
     /**
      * @return array<string, list<AstNode>>
      */
@@ -2945,6 +3230,9 @@ final class DocxReader
 
     private function nodeText(AstNode $node): string
     {
+        if ($node->type === 'raw_inline' || $node->type === 'raw_block') {
+            return '';
+        }
         if (isset($node->attrs['text'])) {
             return (string) $node->attrs['text'];
         }

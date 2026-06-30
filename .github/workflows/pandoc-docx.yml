@@ -38,6 +38,7 @@ jobs:
         run: |
           php -l lanes/pandoc/src/DocxReader.php
           php -l lanes/pandoc/src/DocxOpenXmlReader.php
+          php -l lanes/pandoc/src/ZipPackage.php
           php -l lanes/pandoc/src/ZipPackageEntry.php
           php -l lanes/pandoc/tests/DocxReaderTest.php
           php -l lanes/pandoc/tests/DocxOpenXmlReaderTest.php

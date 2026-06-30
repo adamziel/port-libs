@@ -8163,8 +8163,10 @@ final class ZipPackage
             $deflateOptionFlags = $flags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
             $localDeflateOptionFlags = $localFlags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
             $usesDeflateOptionFlags = ($deflateOptionFlags | $localDeflateOptionFlags) !== 0;
-            $deflateOptionMethodMismatch = ($deflateOptionFlags !== 0 && $method !== 8)
-                || ($localDeflateOptionFlags !== 0 && $localHeader['compressionMethod'] !== 8);
+            $isDirectory = str_ends_with($decodedName['text'], '/');
+            $localIsDirectory = str_ends_with($localHeader['name'], '/');
+            $deflateOptionMethodMismatch = (($deflateOptionFlags !== 0 && $method !== 8) && !$isDirectory)
+                || (($localDeflateOptionFlags !== 0 && $localHeader['compressionMethod'] !== 8) && !$localIsDirectory);
             $isSupportedByReader = $unsupportedFlagBits === 0
                 && $flagsMatchLocalHeader
                 && !$deflateOptionMethodMismatch;
@@ -14491,7 +14493,7 @@ final class ZipPackage
     private static function assertDeflateOptionFlagsMatchMethod(int $flags, int $method, string $entryName): void
     {
         $deflateOptionFlags = $flags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
-        if ($deflateOptionFlags === 0 || $method === 8) {
+        if ($deflateOptionFlags === 0 || $method === 8 || str_ends_with($entryName, '/')) {
             return;
         }
 
@@ -15400,10 +15402,6 @@ final class ZipPackage
 
         if ($method !== $entry->compressionMethod) {
             throw new \RuntimeException("ZIP local header compression method does not match entry {$entry->name}");
-        }
-
-        if ($modifiedTime !== $entry->lastModifiedTime || $modifiedDate !== $entry->lastModifiedDate) {
-            throw new \RuntimeException("ZIP local header modification time does not match central directory entry {$entry->name}");
         }
 
         $localExtendedTimestamps = self::extendedTimestampsFromExtraFieldData(
