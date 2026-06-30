@@ -15821,6 +15821,102 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 
+    'summarizes selected zip relationship source parts before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $rootRelsXml = '<Relationships><Relationship Id="rIdDocument" Target="word/document.xml"/></Relationships>';
+        $documentXml = '<w:document><w:body><w:p>relationship source handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $customXml = '<review><source>custom xml relationship source</source></review>';
+        $customRelsXml = '<Relationships><Relationship Id="rIdLarge" Target="../word/media/large.bin"/></Relationships>';
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '_rels/.rels', 'data' => $rootRelsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'method' => 0],
+            ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $customRelsXml, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'customXml/item1.xml', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml'],
+            ['name' => 'customXml/_rels/item1.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml-relationships', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/_rels/missing.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'missing-relationships'],
+        ], 1024);
+
+        $selectedBySource = [];
+        foreach ($summary['selectedRelationshipSourceSummaries'] as $sourceSummary) {
+            $selectedBySource[$sourceSummary['relationshipSourcePartName']] = $sourceSummary;
+        }
+        $handoffBySource = [];
+        foreach ($summary['handoffRelationshipSourceSummaries'] as $sourceSummary) {
+            $handoffBySource[$sourceSummary['relationshipSourcePartName']] = $sourceSummary;
+        }
+
+        $t->same(3, $summary['selectedRelationshipSourceCount']);
+        $t->same(3, $summary['selectedRelationshipSourceEntryCount']);
+        $t->same(2, $summary['handoffRelationshipSourceCount']);
+        $t->same(2, $summary['handoffRelationshipSourceEntryCount']);
+        $t->same(['/', '/customXml/item1.xml', '/word/document.xml'], array_keys($selectedBySource));
+        $t->same(['/', '/word/document.xml'], array_keys($handoffBySource));
+
+        $t->same([
+            'relationshipSourcePartName' => '/',
+            'relationshipSourceDirectory' => '/',
+            'relationshipSourceScope' => 'package',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($rootRelsXml),
+            'uncompressedBytes' => strlen($rootRelsXml),
+            'roles' => ['root-relationships'],
+            'relationshipPartNames' => ['/_rels/.rels'],
+            'entryNames' => ['_rels/.rels'],
+        ], $selectedBySource['/']);
+
+        $t->same([
+            'relationshipSourcePartName' => '/word/document.xml',
+            'relationshipSourceDirectory' => '/word/',
+            'relationshipSourceScope' => 'part',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentRelsXml),
+            'uncompressedBytes' => strlen($documentRelsXml),
+            'roles' => ['document-relationships'],
+            'relationshipPartNames' => ['/word/_rels/document.xml.rels'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+        ], $handoffBySource['/word/document.xml']);
+
+        $t->same([
+            'relationshipSourcePartName' => '/customXml/item1.xml',
+            'relationshipSourceDirectory' => '/customXml/',
+            'relationshipSourceScope' => 'part',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($customRelsXml),
+            'uncompressedBytes' => strlen($customRelsXml),
+            'roles' => ['custom-xml-relationships'],
+            'relationshipPartNames' => ['/customXml/_rels/item1.xml.rels'],
+            'entryNames' => ['customXml/_rels/item1.xml.rels'],
+        ], $selectedBySource['/customXml/item1.xml']);
+        $t->same(false, isset($handoffBySource['/customXml/item1.xml']));
+
+        $t->same(true, $summary['entries'][0]['isRelationshipPart']);
+        $t->same('/_rels/.rels', $summary['entries'][0]['relationshipPartName']);
+        $t->same('/', $summary['entries'][0]['relationshipSourcePartName']);
+        $t->same('package', $summary['entries'][0]['relationshipSourceScope']);
+        $t->same(false, $summary['entries'][1]['isRelationshipPart']);
+        $t->same('/word/_rels/document.xml.rels', $summary['entries'][2]['relationshipPartName']);
+        $t->same('/word/document.xml', $summary['entries'][2]['relationshipSourcePartName']);
+        $t->same('blocked', $summary['entries'][4]['status']);
+        $t->same('/customXml/item1.xml', $summary['entries'][4]['relationshipSourcePartName']);
+        $t->same(null, $summary['entries'][5]['relationshipSourcePartName']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'summarizes selected zip handoff platform metadata before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>platform metadata handoff</w:p></w:body></w:document>';
         $macResource = "appledouble resource fork metadata\n";
