@@ -2446,40 +2446,66 @@ final class PandocJsonWriter
                 return null;
             }
 
-            foreach (['citationId', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
-                if (!array_key_exists($key, $payload) || $payload[$key] !== $record[$key]) {
-                    return null;
-                }
-            }
-
-            foreach (['citationPrefix', 'citationSuffix'] as $key) {
-                if (
-                    !array_key_exists($key, $payload)
-                    || !$this->reusableCitationAffixNative($payload[$key], $record[$key])
-                ) {
-                    return null;
-                }
-            }
-
-            return $tagged;
+            return $this->citationNativeRecordMatches($payload, $record)
+                ? $tagged
+                : $this->regeneratedCitationNative($tagged, $record);
         }
 
+        return $this->citationNativeRecordMatches($native, $record) ? $native : null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $record
+     */
+    private function citationNativeRecordMatches(array $payload, array $record): bool
+    {
         foreach (['citationId', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
-            if (!array_key_exists($key, $native) || $native[$key] !== $record[$key]) {
-                return null;
+            if (!array_key_exists($key, $payload) || $payload[$key] !== $record[$key]) {
+                return false;
             }
         }
 
         foreach (['citationPrefix', 'citationSuffix'] as $key) {
             if (
-                !array_key_exists($key, $native)
-                || !$this->reusableCitationAffixNative($native[$key], $record[$key])
+                !array_key_exists($key, $payload)
+                || !$this->reusableCitationAffixNative($payload[$key], $record[$key])
             ) {
-                return null;
+                return false;
             }
         }
 
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>
+     */
+    private function regeneratedCitationNative(array $native, array $record): array
+    {
+        $native['c'] = $this->regeneratedCitationRecordContent($native['c'] ?? null, $record);
+
         return $native;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function regeneratedCitationRecordContent(mixed $content, array $record): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            return [$record];
+        }
+
+        return $record;
     }
 
     /**

@@ -14873,11 +14873,15 @@ return [
             $editedFirstCitation = new AstNode('citation', array_replace($firstCitation->attrs, [
                 'citationHash' => 1999,
             ]), $firstCitation->children);
+            $editedSecondCitation = new AstNode('citation', array_replace($secondCitation->attrs, [
+                'citationHash' => 2901,
+                'mode' => 'suppress_author',
+            ]), $secondCitation->children);
             $edited = new AstNode('document', $document->attrs, [
                 new AstNode('paragraph', [], [
                     new AstNode('citation_group', $stripWrapperAttrs($cluster), [
                         $editedFirstCitation,
-                        $secondCitation,
+                        $editedSecondCitation,
                     ]),
                 ]),
             ]);
@@ -14909,9 +14913,14 @@ return [
             ] as $writer => $encoded) {
                 $encodedRecords = $encoded['blocks'][0]['c'][0]['c'][0];
 
-                $t->same(1999, $encodedRecords[0]['citationHash'], "{$source} {$writer} edited citation regenerates plain record");
-                $t->same(false, array_key_exists('t', $encodedRecords[0]), "{$source} {$writer} edited citation drops stale Citation wrapper");
-                $t->same($secondRecord, $encodedRecords[1], "{$source} {$writer} writer preserves unchanged tagged citation wrapper");
+                $t->same('Citation', $encodedRecords[0]['t'], "{$source} {$writer} edited first citation preserves wrapper");
+                $t->same('first-tagged-citation-source', $encodedRecords[0]['reviewQueue'], "{$source} {$writer} edited first citation preserves wrapper sidecar");
+                $t->same(1999, $encodedRecords[0]['c']['citationHash'], "{$source} {$writer} edited first citation regenerates object payload");
+                $t->same(false, array_key_exists('reviewQueue', $encodedRecords[0]['c']), "{$source} {$writer} edited first citation drops stale inner sidecars");
+                $t->same('Citation', $encodedRecords[1]['t'], "{$source} {$writer} edited second citation preserves wrapper");
+                $t->same('second-tagged-citation-source', $encodedRecords[1]['reviewQueue'], "{$source} {$writer} edited second citation preserves wrapper sidecar");
+                $t->same(2901, $encodedRecords[1]['c'][0]['citationHash'], "{$source} {$writer} edited second citation preserves single-wrapped payload");
+                $t->same('SuppressAuthor', $encodedRecords[1]['c'][0]['citationMode']['t'], "{$source} {$writer} edited second citation regenerates wrapped mode");
             }
         }
     },
