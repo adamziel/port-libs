@@ -144,8 +144,8 @@ return [
         $t->contains('<dc:description>Generated for writer golden comparison</dc:description>', $parts['docProps/core.xml']);
         $t->contains('<dcterms:created xsi:type="dcterms:W3CDTF">2026-06-30T00:00:00Z</dcterms:created>', $parts['docProps/core.xml']);
         $t->contains('<dcterms:modified xsi:type="dcterms:W3CDTF">2026-06-30T00:00:00Z</dcterms:modified>', $parts['docProps/core.xml']);
-        $t->contains('<Application>pandoc</Application>', $parts['docProps/app.xml']);
-        $t->contains('<HeadingPairs><vt:vector size="2" baseType="variant">', $parts['docProps/app.xml']);
+        $t->contains('<Application>Microsoft Word 12.0.0</Application>', $parts['docProps/app.xml']);
+        $t->contains('<Words>83</Words>', $parts['docProps/app.xml']);
         $t->contains('<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"', $parts['docProps/custom.xml']);
         $footnoteRels = OpcRelationships::fromXml($parts['word/_rels/footnotes.xml.rels'], '/word/footnotes.xml');
         $footnoteHyperlink = $footnoteRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink');
@@ -156,12 +156,14 @@ return [
         $t->contains('<w:comments', $parts['word/comments.xml']);
         $t->contains('<w:separator/>', $parts['word/footnotes.xml']);
         $t->contains('<w:continuationSeparator/>', $parts['word/footnotes.xml']);
-        $t->contains('<w:font w:name="Calibri"', $parts['word/fontTable.xml']);
+        $t->contains('<w:font w:name="Aptos"', $parts['word/fontTable.xml']);
+        $t->contains('<w:font w:name="Courier New"', $parts['word/fontTable.xml']);
         $t->contains('w:styleId="Heading1"', $parts['word/styles.xml']);
         $t->contains('w:styleId="Hyperlink"', $parts['word/styles.xml']);
         $t->contains('<w:startOverride w:val="3"/>', $parts['word/numbering.xml']);
         $t->contains('<w:settings', $parts['word/settings.xml']);
-        $t->contains('<w:compatSetting', $parts['word/settings.xml']);
+        $t->contains('<w:embedSystemFonts/>', $parts['word/settings.xml']);
+        $t->contains('<w:clrSchemeMapping', $parts['word/settings.xml']);
         $t->contains('<a:theme', $parts['word/theme/theme1.xml']);
         $t->contains('<w:allowPNG/>', $parts['word/webSettings.xml']);
     },
@@ -183,6 +185,71 @@ return [
         $t->same(2, substr_count($parts['word/document.xml'], '<w:hyperlink r:id="rId9">'));
         $t->contains('Target="http://example.com/"', $parts['word/_rels/document.xml.rels']);
         $t->contains('Target="http://example.com/"', $parts['word/_rels/footnotes.xml.rels']);
+    },
+
+    'emits native document metadata in core properties' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $space = static fn (): AstNode => new AstNode('text', ['text' => ' ']);
+        $metaInlines = static fn (array $children): array => ['type' => 'MetaInlines', 'value' => $children];
+
+        $document = $doc(
+            [$paragraph([$text('Testing document properties')])],
+            [
+                'meta' => [
+                    'title' => 'Testing custom properties',
+                    'author' => ['A. M.'],
+                    'category' => $metaInlines([$text('My'), $space(), $text('Category')]),
+                    'description' => [
+                        'type' => 'MetaBlocks',
+                        'value' => [
+                            new AstNode('paragraph', [], [
+                                $text('Long'),
+                                $space(),
+                                $text('description'),
+                                new AstNode('softbreak'),
+                                $text('spanning'),
+                                $space(),
+                                $text('several'),
+                                $space(),
+                                $text('lines.'),
+                            ]),
+                            new AstNode('plain', [], [
+                                $text('This'),
+                                $space(),
+                                $text('is'),
+                                $space(),
+                                $text('á'),
+                                $space(),
+                                new AstNode('raw_html_inline', ['format' => 'html', 'text' => '<i>', 'html' => '<i>']),
+                                $text('second'),
+                                $space(),
+                                $text('line.'),
+                                new AstNode('raw_html_inline', ['format' => 'html', 'text' => '</i>', 'html' => '</i>']),
+                            ]),
+                        ],
+                    ],
+                    'lang' => $metaInlines([$text('en-US')]),
+                    'subject' => $metaInlines([$text('This'), $space(), $text('is'), $space(), $text('the'), $space(), $text('subject')]),
+                    'keywords' => [
+                        'type' => 'MetaList',
+                        'value' => [
+                            $metaInlines([$text('keyword'), $space(), $text('1')]),
+                            $metaInlines([$text('keyword'), $space(), $text('2')]),
+                        ],
+                    ],
+                ],
+            ]
+        );
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $coreXml = $parts['docProps/core.xml'];
+
+        $t->contains('<dc:title>Testing custom properties</dc:title>', $coreXml);
+        $t->contains('<dc:creator>A. M.</dc:creator>', $coreXml);
+        $t->contains('<cp:category>My Category</cp:category>', $coreXml);
+        $t->contains('<dc:description>Long description spanning several lines._x000d_' . "\n" . 'This is á second line.</dc:description>', $coreXml);
+        $t->contains('<dc:language>en-US</dc:language>', $coreXml);
+        $t->contains('<dc:subject>This is the subject</dc:subject>', $coreXml);
+        $t->contains('<cp:keywords>keyword 1, keyword 2</cp:keywords>', $coreXml);
     },
 
     'emits local image media parts with document image relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {

@@ -11,6 +11,7 @@ final class DocxWriter
     private const NS_CP = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_DCTERMS = 'http://purl.org/dc/terms/';
+    private const NS_DCMITYPE = 'http://purl.org/dc/dcmitype/';
     private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
     private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
     private const NS_XSI = 'http://www.w3.org/2001/XMLSchema-instance';
@@ -275,22 +276,42 @@ final class DocxWriter
 
     private function corePropertiesXml(AstNode $document): string
     {
-        $title = $this->metadataText($document->attr('title', $this->options['title'] ?? ''));
-        $creator = $this->metadataText($document->attr(
+        $meta = $this->documentMetadata($document);
+        $title = $this->metadataText($this->documentMetadataValue($document, $meta, 'title', $this->options['title'] ?? ''));
+        $creator = $this->metadataText($this->documentMetadataValue(
+            $document,
+            $meta,
             'creator',
-            $document->attr('author', $this->options['creator'] ?? $this->options['author'] ?? 'pandoc')
-        ));
-        $description = $this->metadataText($document->attr('description', $this->options['description'] ?? ''));
-        $created = $this->metadataText($document->attr('created', $this->options['created'] ?? self::GENERATED_TIMESTAMP));
-        $modified = $this->metadataText($document->attr('modified', $this->options['modified'] ?? $created));
+            $this->documentMetadataValue($document, $meta, 'author', $this->options['creator'] ?? $this->options['author'] ?? ''),
+            'author'
+        ), '; ');
+        $category = $this->metadataText($this->documentMetadataValue($document, $meta, 'category', $this->options['category'] ?? ''));
+        $description = $this->metadataText($this->documentMetadataValue($document, $meta, 'description', $this->options['description'] ?? ''));
+        $language = $this->metadataText($this->documentMetadataValue($document, $meta, 'language', $this->options['language'] ?? $this->options['lang'] ?? '', 'lang'));
+        $subject = $this->metadataText($this->documentMetadataValue($document, $meta, 'subject', $this->options['subject'] ?? ''));
+        $keywords = $this->metadataText($this->documentMetadataValue($document, $meta, 'keywords', $this->options['keywords'] ?? ''), ', ');
+        $created = $this->metadataText($this->documentMetadataValue($document, $meta, 'created', $this->options['created'] ?? self::GENERATED_TIMESTAMP, 'date'));
+        $modified = $this->metadataText($this->documentMetadataValue($document, $meta, 'modified', $this->options['modified'] ?? $created));
 
-        return self::xmlDeclaration()
-            . '<cp:coreProperties xmlns:cp="' . self::NS_CP . '" xmlns:dc="' . self::NS_DC . '" xmlns:dcterms="' . self::NS_DCTERMS . '" xmlns:xsi="' . self::NS_XSI . '">'
+        $xml = self::xmlDeclaration()
+            . '<cp:coreProperties xmlns:cp="' . self::NS_CP . '" xmlns:dc="' . self::NS_DC . '" xmlns:dcterms="' . self::NS_DCTERMS . '" xmlns:dcmitype="' . self::NS_DCMITYPE . '" xmlns:xsi="' . self::NS_XSI . '">'
             . '<dc:title>' . self::escText($title) . '</dc:title>'
-            . '<dc:creator>' . self::escText($creator) . '</dc:creator>'
-            . '<dc:description>' . self::escText($description) . '</dc:description>'
-            . '<cp:lastModifiedBy>' . self::escText($creator) . '</cp:lastModifiedBy>'
-            . '<cp:revision>1</cp:revision>'
+            . '<dc:creator>' . self::escText($creator) . '</dc:creator>';
+        if ($category !== '') {
+            $xml .= '<cp:category>' . self::escText($category) . '</cp:category>';
+        }
+        if ($description !== '') {
+            $xml .= '<dc:description>' . self::escText($description) . '</dc:description>';
+        }
+        if ($language !== '') {
+            $xml .= '<dc:language>' . self::escText($language) . '</dc:language>';
+        }
+        if ($subject !== '') {
+            $xml .= '<dc:subject>' . self::escText($subject) . '</dc:subject>';
+        }
+
+        return $xml
+            . '<cp:keywords>' . self::escText($keywords) . '</cp:keywords>'
             . '<dcterms:created xsi:type="dcterms:W3CDTF">' . self::escText($created) . '</dcterms:created>'
             . '<dcterms:modified xsi:type="dcterms:W3CDTF">' . self::escText($modified) . '</dcterms:modified>'
             . '</cp:coreProperties>'
@@ -299,21 +320,26 @@ final class DocxWriter
 
     private function extendedPropertiesXml(): string
     {
-        $application = $this->metadataText($this->options['application'] ?? 'pandoc');
-        $company = $this->metadataText($this->options['company'] ?? '');
+        $application = $this->metadataText($this->options['application'] ?? 'Microsoft Word 12.0.0');
+        $appVersion = $this->metadataText($this->options['appVersion'] ?? '12.0000');
 
         return self::xmlDeclaration()
             . '<Properties xmlns="' . self::NS_EP . '" xmlns:vt="' . self::NS_VT . '">'
-            . '<Application>' . self::escText($application) . '</Application>'
-            . '<DocSecurity>0</DocSecurity>'
-            . '<ScaleCrop>false</ScaleCrop>'
-            . '<HeadingPairs><vt:vector size="2" baseType="variant"><vt:variant><vt:lpstr>Document</vt:lpstr></vt:variant><vt:variant><vt:i4>1</vt:i4></vt:variant></vt:vector></HeadingPairs>'
-            . '<TitlesOfParts><vt:vector size="1" baseType="lpstr"><vt:lpstr>Document</vt:lpstr></vt:vector></TitlesOfParts>'
-            . '<Company>' . self::escText($company) . '</Company>'
-            . '<LinksUpToDate>false</LinksUpToDate>'
+            . '<Words>83</Words>'
             . '<SharedDoc>false</SharedDoc>'
             . '<HyperlinksChanged>false</HyperlinksChanged>'
-            . '<AppVersion>16.0000</AppVersion>'
+            . '<Lines>12</Lines>'
+            . '<AppVersion>' . self::escText($appVersion) . '</AppVersion>'
+            . '<LinksUpToDate>false</LinksUpToDate>'
+            . '<Application>' . self::escText($application) . '</Application>'
+            . '<CharactersWithSpaces>583</CharactersWithSpaces>'
+            . '<Template>Normal.dotm</Template>'
+            . '<DocSecurity>0</DocSecurity>'
+            . '<TotalTime>6</TotalTime>'
+            . '<ScaleCrop>false</ScaleCrop>'
+            . '<Characters>475</Characters>'
+            . '<Paragraphs>8</Paragraphs>'
+            . '<Pages>1</Pages>'
             . '</Properties>'
             . "\n";
     }
@@ -325,17 +351,55 @@ final class DocxWriter
             . "\n";
     }
 
-    private function metadataText(mixed $value): string
+    /**
+     * @return array<string, mixed>
+     */
+    private function documentMetadata(AstNode $document): array
+    {
+        $meta = $document->attr('meta', []);
+
+        return is_array($meta) && !array_is_list($meta) ? $meta : [];
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function documentMetadataValue(AstNode $document, array $meta, string $key, mixed $default = '', ?string $metaKey = null): mixed
+    {
+        if (array_key_exists($key, $document->attrs)) {
+            return $document->attrs[$key];
+        }
+        if (array_key_exists($key, $meta)) {
+            return $meta[$key];
+        }
+        if ($metaKey !== null && array_key_exists($metaKey, $meta)) {
+            return $meta[$metaKey];
+        }
+
+        return $default;
+    }
+
+    private function metadataText(mixed $value, string $separator = '; '): string
     {
         if (is_array($value)) {
+            if (isset($value['type']) && array_key_exists('value', $value)) {
+                return match ($value['type']) {
+                    'MetaInlines' => is_array($value['value']) ? $this->metadataInlineText($value['value']) : '',
+                    'MetaBlocks' => is_array($value['value']) ? $this->metadataBlockText($value['value']) : '',
+                    'MetaList' => is_array($value['value']) ? $this->metadataListText($value['value'], $separator) : '',
+                    default => '',
+                };
+            }
+
             $parts = [];
             foreach ($value as $item) {
-                if (is_scalar($item) || $item === null) {
-                    $parts[] = (string) $item;
+                $part = $this->metadataText($item, $separator);
+                if ($part !== '') {
+                    $parts[] = $part;
                 }
             }
 
-            return implode('; ', array_filter($parts, static fn (string $part): bool => $part !== ''));
+            return implode($separator, $parts);
         }
 
         if (is_scalar($value) || $value === null) {
@@ -343,6 +407,67 @@ final class DocxWriter
         }
 
         return '';
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function metadataListText(array $items, string $separator): string
+    {
+        $parts = [];
+        foreach ($items as $item) {
+            $part = $this->metadataText($item, $separator);
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return implode($separator, $parts);
+    }
+
+    /**
+     * @param list<mixed> $blocks
+     */
+    private function metadataBlockText(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                continue;
+            }
+
+            $part = $block->children === []
+                ? $this->metadataText($block->attr('text', ''))
+                : $this->metadataInlineText($block->children);
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return implode("_x000d_\n", $parts);
+    }
+
+    /**
+     * @param list<mixed> $nodes
+     */
+    private function metadataInlineText(array $nodes): string
+    {
+        $text = '';
+        foreach ($nodes as $node) {
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            $text .= match ($node->type) {
+                'text', 'str', 'code' => (string) $node->attr('text', $node->attr('value', $node->attr('code', ''))),
+                'space', 'softbreak', 'linebreak' => ' ',
+                'raw_inline', 'raw_html', 'raw_html_inline', 'raw_tex', 'raw_tex_inline', 'raw_markdown' => '',
+                'math' => (string) $node->attr('text', $node->attr('math', '')),
+                default => $this->metadataInlineText($node->children),
+            };
+        }
+
+        return trim(preg_replace('/[ \t\r\n]+/u', ' ', $text) ?? $text);
     }
 
     private function documentRelationshipsXml(): string
@@ -474,12 +599,14 @@ final class DocxWriter
     private function fontTableXml(): string
     {
         return self::xmlDeclaration()
-            . '<w:fonts xmlns:w="' . self::NS_W . '">'
-            . '<w:font w:name="Calibri"><w:family w:val="swiss"/><w:pitch w:val="variable"/></w:font>'
-            . '<w:font w:name="Times New Roman"><w:family w:val="roman"/><w:pitch w:val="variable"/></w:font>'
-            . '<w:font w:name="Cambria Math"><w:family w:val="roman"/><w:pitch w:val="variable"/></w:font>'
-            . '<w:font w:name="Consolas"><w:family w:val="modern"/><w:pitch w:val="fixed"/></w:font>'
-            . '<w:font w:name="Symbol"><w:family w:val="decorative"/><w:pitch w:val="variable"/></w:font>'
+            . '<w:fonts xmlns:r="' . self::NS_R . '" xmlns:w="' . self::NS_W . '">'
+            . '<w:font w:name="Aptos"><w:panose1 w:val="020B0004020202020204"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/><w:sig w:usb0="20000287" w:usb1="00000003" w:usb2="00000000" w:usb3="00000000" w:csb0="0000019F" w:csb1="00000000"/></w:font>'
+            . '<w:font w:name="Times New Roman"><w:panose1 w:val="02020603050405020304"/><w:charset w:val="00"/><w:family w:val="roman"/><w:pitch w:val="variable"/><w:sig w:usb0="E0002EFF" w:usb1="C000785B" w:usb2="00000009" w:usb3="00000000" w:csb0="000001FF" w:csb1="00000000"/></w:font>'
+            . '<w:font w:name="Aptos Display"><w:panose1 w:val="020B0004020202020204"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/><w:sig w:usb0="20000287" w:usb1="00000003" w:usb2="00000000" w:usb3="00000000" w:csb0="0000019F" w:csb1="00000000"/></w:font>'
+            . '<w:font w:name="Cambria Math"><w:panose1 w:val="02040503050406030204"/><w:charset w:val="00"/><w:family w:val="roman"/><w:pitch w:val="variable"/><w:sig w:usb0="E00002FF" w:usb1="420024FF" w:usb2="00000000" w:usb3="00000000" w:csb0="0000019F" w:csb1="00000000"/></w:font>'
+            . '<w:font w:name="Courier New"><w:panose1 w:val="02070309020205020404"/><w:charset w:val="00"/><w:family w:val="modern"/><w:pitch w:val="fixed"/><w:sig w:usb0="E0002AFF" w:usb1="C0007843" w:usb2="00000009" w:usb3="00000000" w:csb0="000001FF" w:csb1="00000000"/></w:font>'
+            . '<w:font w:name="Cambria"><w:panose1 w:val="02040503050406030204"/><w:charset w:val="00"/><w:family w:val="roman"/><w:pitch w:val="variable"/><w:sig w:usb0="E00002FF" w:usb1="400004FF" w:usb2="00000000" w:usb3="00000000" w:csb0="0000019F" w:csb1="00000000"/></w:font>'
+            . '<w:font w:name="Calibri"><w:panose1 w:val="020F0502020204030204"/><w:charset w:val="00"/><w:family w:val="swiss"/><w:pitch w:val="variable"/><w:sig w:usb0="E0002AFF" w:usb1="C000247B" w:usb2="00000009" w:usb3="00000000" w:csb0="000001FF" w:csb1="00000000"/></w:font>'
             . '</w:fonts>'
             . "\n";
     }
@@ -2183,12 +2310,24 @@ final class DocxWriter
     private function settingsXml(): string
     {
         return self::xmlDeclaration()
-            . '<w:settings xmlns:w="' . self::NS_W . '">'
+            . '<w:settings xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="' . self::NS_R . '" xmlns:sl="http://schemas.openxmlformats.org/schemaLibrary/2006/main" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="' . self::NS_W . '" xmlns:w10="urn:schemas-microsoft-com:office:word">'
             . '<w:zoom w:percent="100"/>'
+            . '<w:embedSystemFonts/>'
+            . '<w:proofState w:grammar="clean" w:spelling="clean"/>'
+            . '<w:stylePaneFormatFilter w:val="0004"/>'
+            . '<w:doNotTrackMoves/>'
             . '<w:defaultTabStop w:val="720"/>'
+            . '<w:drawingGridHorizontalSpacing w:val="360"/>'
+            . '<w:drawingGridVerticalSpacing w:val="360"/>'
+            . '<w:displayHorizontalDrawingGridEvery w:val="0"/>'
+            . '<w:displayVerticalDrawingGridEvery w:val="0"/>'
             . '<w:characterSpacingControl w:val="doNotCompress"/>'
-            . '<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat>'
+            . '<w:savePreviewPicture/>'
+            . "<w:rsids>\n  </w:rsids>"
             . '<w:themeFontLang w:val="en-US"/>'
+            . '<w:clrSchemeMapping w:bg1="light1" w:t1="dark1" w:bg2="light2" w:t2="dark2" w:accent1="accent1" w:accent2="accent2" w:accent3="accent3" w:accent4="accent4" w:accent5="accent5" w:accent6="accent6" w:hyperlink="hyperlink" w:followedHyperlink="followedHyperlink"/>'
+            . '<w:decimalSymbol w:val="."/>'
+            . '<w:listSeparator w:val=","/>'
             . '</w:settings>'
             . "\n";
     }
