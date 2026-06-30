@@ -16118,6 +16118,131 @@ XML;
         $t->same(1, $item['propertiesParts']['count']);
         $t->same('{55555555-6666-7777-8888-999999999999}', $properties['itemId']);
     },
+    'discovers orphan docx custom xml package items for content control bindings' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $storeItemId = '{12121212-3434-5656-7878-909090909090}';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/customXml/orphan-item.xml" ContentType="application/xml; profile=orphan-data"/>' . "\n" .
+            '  <Override PartName="/customXml/orphan-item-props.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml; profile=orphan-props"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Imported DOCX Heading</w:t></w:r></w:p>',
+            '    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Imported DOCX Heading</w:t></w:r></w:p>' . "\n" .
+            '    <w:sdt>' . "\n" .
+            '      <w:sdtPr>' . "\n" .
+            '        <w:alias w:val="Orphan custom XML binding"/>' . "\n" .
+            '        <w:tag w:val="orphan-review-field"/>' . "\n" .
+            '        <w:text/>' . "\n" .
+            '        <w:dataBinding w:storeItemID="' . $storeItemId . '" w:xpath="/review/title[1]" w:prefixMappings="xmlns:review=&quot;urn:example:orphan-review&quot;"/>' . "\n" .
+            '      </w:sdtPr>' . "\n" .
+            '      <w:sdtContent><w:p><w:r><w:t>Orphan-bound title</w:t></w:r></w:p></w:sdtContent>' . "\n" .
+            '    </w:sdt>',
+            $parts['word/document.xml']
+        );
+        $parts['customXml/orphan-item.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<review:payload xmlns:review="urn:example:orphan-review">
+  <review:title>Orphan-bound title</review:title>
+</review:payload>
+XML;
+        $parts['customXml/_rels/orphan-item.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rOrphanProps" Type="{$customXmlPropsRel}" Target="orphan-item-props.xml?source=orphan#props"/>
+</Relationships>
+XML;
+        $parts['customXml/orphan-item-props.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{$storeItemId}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="urn:example:orphan-schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $customXml = $docx['customXmlParts'];
+        $contentControls = $docx['contentControls'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $item = $customXml['byPartName']['customXml/orphan-item.xml'];
+        $properties = $item['propertiesParts']['byRelationshipId']['rOrphanProps'];
+        $binding = $contentControls['items'][0];
+        $reference = $binding['storeItemReferences'][0];
+        $relationshipType = $package['relationshipTypes'][$customXmlPropsRel];
+
+        $t->same($customXml, $package['customXmlParts']);
+        $t->same(1, $customXml['count']);
+        $t->same(0, $customXml['relationshipCount']);
+        $t->same(1, $customXml['orphanPartCount']);
+        $t->same(['customXml/orphan-item.xml'], $customXml['orphanPartNames']);
+        $t->same([], $customXml['relationshipIds']);
+        $t->same(['customXml/orphan-item.xml'], $customXml['partNames']);
+        $t->same(1, $customXml['existingCount']);
+        $t->same(0, $customXml['issueCount']);
+        $t->same(1, $customXml['propertiesPartCount']);
+        $t->same(1, $customXml['existingPropertiesPartCount']);
+        $t->same([$storeItemId], $customXml['storeItemIds']);
+        $t->same(['review:payload'], $customXml['rootNames']);
+        $t->same(1, $summary['customXmlPartCount']);
+        $t->same(1, $summary['customXmlOrphanPartCount']);
+        $t->same(1, $summary['customXmlPropertiesPartCount']);
+        $t->same(0, $summary['customXmlIssueCount']);
+
+        $t->same(null, $item['relationshipId']);
+        $t->same(false, $item['relationshipPresent']);
+        $t->same(true, $item['orphan']);
+        $t->same('customXml/orphan-item.xml', $item['partName']);
+        $t->same('customXml/orphan-item.xml', $item['resolvedTarget']);
+        $t->same(true, $item['exists']);
+        $t->same('application/xml; profile=orphan-data', $item['contentType']);
+        $t->same(['profile' => 'orphan-data'], $item['contentTypeParameterMap']);
+        $t->same(true, $item['validXml']);
+        $t->same('review:payload', $item['rootName']);
+        $t->same('urn:example:orphan-review', $item['rootNamespace']);
+        $t->same('payload', $item['rootLocalName']);
+        $t->same('Orphan-bound title', $item['textPreview']);
+        $t->same('customXml/_rels/orphan-item.xml.rels', $item['relationshipsPart']);
+        $t->same(1, $item['relationshipCount']);
+        $t->same([], $item['issues']);
+
+        $t->same('customXml/orphan-item-props.xml', $properties['partName']);
+        $t->same('orphan-item-props.xml?source=orphan#props', $properties['target']);
+        $t->same('customXml/orphan-item-props.xml?source=orphan#props', $properties['resolvedTarget']);
+        $t->same('source=orphan', $properties['targetQuery']);
+        $t->same('props', $properties['targetFragment']);
+        $t->same('application/vnd.openxmlformats-officedocument.customXmlProperties+xml; profile=orphan-props', $properties['contentType']);
+        $t->same(['profile' => 'orphan-props'], $properties['contentTypeParameterMap']);
+        $t->same($storeItemId, $properties['itemId']);
+        $t->same(['urn:example:orphan-schema'], $properties['schemaRefs']);
+        $t->same([], $properties['issues']);
+
+        $t->same(1, $contentControls['count']);
+        $t->same(1, $contentControls['matchedDataBindingCount']);
+        $t->same(0, $contentControls['unmatchedDataBindingCount']);
+        $t->same($storeItemId, $binding['storeItemId']);
+        $t->same(true, $binding['matchedStoreItem']);
+        $t->same(1, $binding['storeItemReferenceCount']);
+        $t->same('', $reference['customXmlRelationshipId']);
+        $t->same('customXml/orphan-item.xml', $reference['customXmlPartName']);
+        $t->same('rOrphanProps', $reference['propertiesRelationshipId']);
+        $t->same('customXml/orphan-item-props.xml', $reference['propertiesPartName']);
+        $t->same(['urn:example:orphan-schema'], $reference['schemaRefs']);
+
+        $t->true(in_array('custom-xml-part', $inventory['customXml/orphan-item.xml']['roles'], true), 'orphan custom XML item inventory role missing');
+        $t->true(in_array('custom-xml-properties', $inventory['customXml/orphan-item-props.xml']['roles'], true), 'orphan custom XML properties inventory role missing');
+        $t->same(1, $summary['roleCounts']['custom-xml-part']);
+        $t->same(1, $summary['roleCounts']['custom-xml-properties']);
+        $t->same(1, $relationshipType['count']);
+        $t->same(['customXml/orphan-item-props.xml'], $relationshipType['existingTargetParts']);
+        $t->true(!isset($docx['media']['customXml/orphan-item.xml']), 'orphan custom XML item should not be exposed as media');
+    },
     'summarizes docx custom xml properties schema refs and diagnostics for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';

@@ -1033,6 +1033,7 @@ final class DocxOpenXmlReader
         $packageProvenance['customXmlParts'] = $customXmlParts;
         $packageProvenance['summary']['customXmlPartCount'] = $customXmlParts['count'];
         $packageProvenance['summary']['customXmlRelationshipCount'] = $customXmlParts['relationshipCount'];
+        $packageProvenance['summary']['customXmlOrphanPartCount'] = $customXmlParts['orphanPartCount'];
         $packageProvenance['summary']['customXmlExistingPartCount'] = $customXmlParts['existingCount'];
         $packageProvenance['summary']['customXmlMissingPartCount'] = $customXmlParts['missingCount'];
         $packageProvenance['summary']['customXmlExternalPartCount'] = $customXmlParts['externalCount'];
@@ -10280,8 +10281,11 @@ final class DocxOpenXmlReader
     ): array {
         $items = [];
         $byRelationshipId = [];
+        $byPartName = [];
         $relationshipIds = [];
         $partNames = [];
+        $targetedPartNames = [];
+        $orphanPartNames = [];
         $relationshipsPart = $this->relationshipsPartFor($documentPart);
 
         foreach ($relationships as $relationship) {
@@ -10299,6 +10303,23 @@ final class DocxOpenXmlReader
                 count($items),
             );
             $items[] = $item;
+
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            if ($partName !== null) {
+                $targetedPartNames[$partName] = true;
+            }
+        }
+
+        foreach ($parts as $partName => $_contents) {
+            if (
+                isset($targetedPartNames[$partName])
+                || !$this->isOrphanCustomXmlPackageItemPart($parts, $partName, $contentTypes)
+            ) {
+                continue;
+            }
+
+            $items[] = $this->customXmlPackagePartItem($parts, $partName, $contentTypes, count($items));
+            $orphanPartNames[] = $partName;
         }
 
         $storeItemSummary = $this->annotateCustomXmlDuplicateStoreItemIds($items);
@@ -10306,12 +10327,16 @@ final class DocxOpenXmlReader
 
         foreach ($items as $item) {
             $relationshipId = is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : '';
-            if ($relationshipId === '') {
-                continue;
+            if ($relationshipId !== '') {
+                $byRelationshipId[$relationshipId] = $item;
+                $relationshipIds[] = $relationshipId;
             }
-            $byRelationshipId[$relationshipId] = $item;
-            $relationshipIds[] = $relationshipId;
-            $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $this->appendUniqueString($partNames, $partName);
+            if ($partName !== null && !isset($byPartName[$partName])) {
+                $byPartName[$partName] = $item;
+            }
             $issueCount += count($item['issues']);
             foreach (($item['propertiesParts']['items'] ?? []) as $propertiesItem) {
                 if (is_array($propertiesItem)) {
@@ -10426,6 +10451,7 @@ final class DocxOpenXmlReader
         return [
             'count' => count($items),
             'relationshipCount' => count($relationshipIds),
+            'orphanPartCount' => count($orphanPartNames),
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-item-part', $item['issues'], true))),
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
@@ -10469,8 +10495,10 @@ final class DocxOpenXmlReader
             'propertiesIssueCount' => $propertiesIssueCount,
             'propertiesIssueCodes' => array_keys($propertiesIssueCodes),
             'relationshipIds' => $relationshipIds,
+            'orphanPartNames' => $orphanPartNames,
             'partNames' => $partNames,
             'byRelationshipId' => $byRelationshipId,
+            'byPartName' => $byPartName,
             'items' => $items,
         ];
     }
@@ -11299,6 +11327,8 @@ final class DocxOpenXmlReader
         return [
             'index' => $index,
             'relationshipId' => $relationship['id'],
+            'relationshipPresent' => true,
+            'orphan' => false,
             'relationshipType' => $relationship['type'],
             'target' => $summary['target'],
             'targetMode' => $summary['targetMode'],
@@ -11350,6 +11380,124 @@ final class DocxOpenXmlReader
             'canExposeBytes' => false,
             'byteExposurePolicy' => 'custom-xml-data-store-bytes-blocked',
             'reviewPolicy' => 'custom-xml-data-store-metadata-only',
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     */
+    private function isOrphanCustomXmlPackageItemPart(array $parts, string $partName, array $contentTypes): bool
+    {
+        if (!str_starts_with($partName, 'customXml/') || $this->isRelationshipPartName($partName)) {
+            return false;
+        }
+
+        if ($this->packagePartExtension($partName) !== 'xml') {
+            return false;
+        }
+
+        $contentTypeBase = $this->contentTypeResolutionForPart($partName, $contentTypes)['contentTypeBase'];
+        if ($contentTypeBase === self::CT_CUSTOM_XML_PROPERTIES) {
+            return false;
+        }
+
+        $relationshipsPart = $this->relationshipsPartFor($partName);
+        if (!isset($parts[$relationshipsPart])) {
+            return false;
+        }
+
+        foreach ($this->readRelationshipsPart($parts, $relationshipsPart) as $relationship) {
+            if ($relationship['type'] === self::CUSTOM_XML_PROPS_REL) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function customXmlPackagePartItem(array $parts, string $partName, array $contentTypes, int $index): array
+    {
+        $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+        $relationshipsPart = $this->relationshipsPartFor($partName);
+        $partRelationships = $this->readRelationshipsPart($parts, $relationshipsPart);
+        $propertiesParts = $this->customXmlPropertiesParts(
+            $parts,
+            $partName,
+            $relationshipsPart,
+            $partRelationships,
+            $contentTypes,
+        );
+        $metadata = $this->customXmlItemMetadata($parts[$partName], $partName);
+        $issues = [];
+
+        if ($contentTypeResolution['contentTypeSource'] === 'missing') {
+            $issues[] = 'missing-content-type';
+        }
+        if ($metadata['validXml'] === false) {
+            $issues[] = 'invalid-xml';
+        }
+        if ($propertiesParts['count'] === 0) {
+            $issues[] = 'missing-properties-relationship';
+        }
+        $issues = array_values(array_unique($issues));
+
+        return [
+            'index' => $index,
+            'relationshipId' => null,
+            'relationshipPresent' => false,
+            'orphan' => true,
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => $partName,
+            'external' => false,
+            'partName' => $partName,
+            'targetPart' => $partName,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
+            'exists' => true,
+            'bytes' => strlen($parts[$partName]),
+            'contentType' => $contentTypeResolution['contentType'],
+            'contentTypeBase' => $contentTypeResolution['contentTypeBase'],
+            'contentTypeHasParameters' => $contentTypeResolution['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $contentTypeResolution['contentTypeParameterCount'],
+            'contentTypeParameters' => $contentTypeResolution['contentTypeParameters'],
+            'contentTypeParameterMap' => $contentTypeResolution['contentTypeParameterMap'],
+            'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
+            'defaultExtension' => $contentTypeResolution['defaultExtension'],
+            'overridePartName' => $contentTypeResolution['overridePartName'],
+            'validXml' => $metadata['validXml'],
+            'xmlParseError' => $metadata['xmlParseError'],
+            'rootName' => $metadata['rootName'],
+            'rootPrefix' => $metadata['rootPrefix'],
+            'rootNamespace' => $metadata['rootNamespace'],
+            'rootLocalName' => $metadata['rootLocalName'],
+            'rootAttributes' => $metadata['rootAttributes'],
+            'rootAttributeMap' => $metadata['rootAttributeMap'],
+            'rootAttributeCount' => $metadata['rootAttributeCount'],
+            'rootAttributesTruncated' => $metadata['rootAttributesTruncated'],
+            'rootNamespaceDeclarations' => $metadata['rootNamespaceDeclarations'],
+            'rootNamespaceDeclarationMap' => $metadata['rootNamespaceDeclarationMap'],
+            'rootNamespaceDeclarationCount' => $metadata['rootNamespaceDeclarationCount'],
+            'rootNamespaceDeclarationsTruncated' => $metadata['rootNamespaceDeclarationsTruncated'],
+            'textPreview' => $metadata['textPreview'],
+            'textLength' => $metadata['textLength'],
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipCount' => count($partRelationships),
+            'propertiesParts' => $propertiesParts,
+            'relationship' => null,
             'issues' => $issues,
         ];
     }
@@ -41196,8 +41344,19 @@ final class DocxOpenXmlReader
                 self::CT_WORD_COMMENTS => 'comment-hyperlink-target',
                 default => null,
             };
+            $relationshipRecords = $this->readRelationshipsPart($parts, $relationshipPart);
+            $relationshipSourceHasCustomXmlProperties = false;
+            foreach ($relationshipRecords as $relationship) {
+                if ($relationship['type'] === self::CUSTOM_XML_PROPS_REL) {
+                    $relationshipSourceHasCustomXmlProperties = true;
+                    break;
+                }
+            }
+            if ($relationshipSourceHasCustomXmlProperties) {
+                $this->addPartRole($rolesByPart, $relationshipSourcePart, 'custom-xml-part');
+            }
 
-            foreach ($this->readRelationshipsPart($parts, $relationshipPart) as $relationship) {
+            foreach ($relationshipRecords as $relationship) {
                 if ($this->isExternalRelationshipTarget($relationship)) {
                     continue;
                 }
