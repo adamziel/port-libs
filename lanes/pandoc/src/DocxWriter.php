@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class DocxWriter
 {
+    private const EMU_PER_INCH = 914400;
+    private const DEFAULT_IMAGE_DPI = 96.0;
     private const NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     private const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const NS_CP = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
@@ -2049,8 +2051,11 @@ final class DocxWriter
         $imageSize = @getimagesizefromstring($bytes);
         $naturalWidth = is_array($imageSize) && isset($imageSize[0]) ? max(1, (int) $imageSize[0]) : 200;
         $naturalHeight = is_array($imageSize) && isset($imageSize[1]) ? max(1, (int) $imageSize[1]) : 200;
-        $naturalCx = $naturalWidth * 9525;
-        $naturalCy = $naturalHeight * 9525;
+        $dpi = $this->imageDpiFromBytes($bytes);
+        $naturalDpiX = $dpi['dpiX'] ?? self::DEFAULT_IMAGE_DPI;
+        $naturalDpiY = $dpi['dpiY'] ?? self::DEFAULT_IMAGE_DPI;
+        $naturalCx = max(1, (int) round($naturalWidth * self::EMU_PER_INCH / $naturalDpiX));
+        $naturalCy = max(1, (int) round($naturalHeight * self::EMU_PER_INCH / $naturalDpiY));
         $width = $this->imageDimensionAttribute($node, 'width');
         $height = $this->imageDimensionAttribute($node, 'height');
         $cx = $width === null ? null : $this->dimensionToEmu($width);
@@ -2075,6 +2080,85 @@ final class DocxWriter
         }
 
         return ['cx' => $cx, 'cy' => $cy];
+    }
+
+    /**
+     * @return array{dpiX:float, dpiY:float}|null
+     */
+    private function imageDpiFromBytes(string $bytes): ?array
+    {
+        if (substr($bytes, 0, 2) === "\xFF\xD8") {
+            return $this->jpegJfifDpi($bytes);
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{dpiX:float, dpiY:float}|null
+     */
+    private function jpegJfifDpi(string $bytes): ?array
+    {
+        $length = strlen($bytes);
+        $offset = 2;
+        while ($offset + 4 <= $length) {
+            if ($bytes[$offset] !== "\xFF") {
+                break;
+            }
+            while ($offset < $length && $bytes[$offset] === "\xFF") {
+                ++$offset;
+            }
+            if ($offset >= $length) {
+                break;
+            }
+
+            $marker = ord($bytes[$offset]);
+            ++$offset;
+            if ($marker === 0xDA || $marker === 0xD9) {
+                break;
+            }
+            if ($marker >= 0xD0 && $marker <= 0xD7) {
+                continue;
+            }
+            if ($offset + 2 > $length) {
+                break;
+            }
+
+            $segmentLength = self::readUint16($bytes, $offset);
+            if ($segmentLength < 2 || $offset + $segmentLength > $length) {
+                break;
+            }
+
+            $segmentStart = $offset + 2;
+            $segmentDataLength = $segmentLength - 2;
+            if (
+                $marker === 0xE0
+                && $segmentDataLength >= 14
+                && substr($bytes, $segmentStart, 5) === "JFIF\0"
+            ) {
+                $units = ord($bytes[$segmentStart + 7]);
+                $densityX = self::readUint16($bytes, $segmentStart + 8);
+                $densityY = self::readUint16($bytes, $segmentStart + 10);
+                if ($densityX <= 0 || $densityY <= 0) {
+                    return null;
+                }
+
+                return match ($units) {
+                    1 => ['dpiX' => (float) $densityX, 'dpiY' => (float) $densityY],
+                    2 => ['dpiX' => $densityX * 2.54, 'dpiY' => $densityY * 2.54],
+                    default => null,
+                };
+            }
+
+            $offset += $segmentLength;
+        }
+
+        return null;
+    }
+
+    private static function readUint16(string $bytes, int $offset): int
+    {
+        return (ord($bytes[$offset]) << 8) | ord($bytes[$offset + 1]);
     }
 
     private function imageDimensionAttribute(AstNode $node, string $name): ?string

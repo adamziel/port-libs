@@ -29,6 +29,14 @@ $packageParts = static function (string $bytes): array {
 
     return [$package, $parts];
 };
+$jpeg250x250At120Dpi = static function (): string {
+    $bytes = hex2bin('FFD8FFE000104A46494600010101007800780000FFC000110800FA00FA03011100021100031100FFD9');
+    if (!is_string($bytes)) {
+        throw new RuntimeException('Unable to create DOCX writer JPEG fixture');
+    }
+
+    return $bytes;
+};
 
 return [
     'emits deterministic core docx package parts for writer golden comparison' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
@@ -254,12 +262,12 @@ return [
         $t->contains('<cp:keywords>keyword 1, keyword 2</cp:keywords>', $coreXml);
     },
 
-    'emits local image media parts with document image relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+    'emits local image media parts with document image relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $jpeg250x250At120Dpi): void {
         $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
         if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {
             throw new RuntimeException('Unable to create DOCX writer media fixture directory');
         }
-        $imageBytes = "bounded-docx-writer-jpeg-fixture\n";
+        $imageBytes = $jpeg250x250At120Dpi();
         $imagePath = $mediaDir . DIRECTORY_SEPARATOR . 'lalune.jpg';
         if (file_put_contents($imagePath, $imageBytes) === false) {
             throw new RuntimeException('Unable to write DOCX writer media fixture');
@@ -289,9 +297,11 @@ return [
             $t->same('media/rId9.jpg', $imageRel?->target);
             $t->contains('xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"', $documentXml);
             $t->contains('<w:bookmarkStart w:id="12" w:name="fig:testimg"/>', $documentXml);
+            $t->contains('<wp:extent cx="1905000" cy="1905000"/>', $documentXml);
             $t->contains('<wp:docPr descr="testimg" title="fig:" id="10" name="Picture"/>', $documentXml);
             $t->contains('<pic:cNvPr descr="lalune.jpg" id="11" name="Picture"/>', $documentXml);
             $t->contains('<a:blip r:embed="rId9"/>', $documentXml);
+            $t->contains('<a:ext cx="1905000" cy="1905000"/>', $documentXml);
             $t->contains('<w:bookmarkEnd w:id="12"/>', $documentXml);
         } finally {
             @unlink($imagePath);
