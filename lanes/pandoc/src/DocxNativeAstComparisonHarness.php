@@ -374,6 +374,12 @@ final class DocxNativeAstComparisonHarness
             if (self::isIgnoredAttrKey($key)) {
                 continue;
             }
+            if ($this->isIgnoredTableCellAttr($node, (string) $key, $value)) {
+                continue;
+            }
+            if ($key === 'attributes' && $this->isDocxProvenanceAttributeMap($value)) {
+                continue;
+            }
             if ($node->type === 'document' && $key === 'meta') {
                 continue;
             }
@@ -402,6 +408,37 @@ final class DocxNativeAstComparisonHarness
             'attrs' => $attrs,
             'children' => $this->normalizedChildren($node->children),
         ];
+    }
+
+    private function isIgnoredTableCellAttr(AstNode $node, string $key, mixed $value): bool
+    {
+        if ($node->type !== 'table_cell') {
+            return false;
+        }
+
+        if ($key === 'text' || $key === 'htmlAttributes') {
+            return true;
+        }
+        if ($key === 'colspan' || $key === 'rowspan') {
+            return (int) $value === 1;
+        }
+
+        return false;
+    }
+
+    private function isDocxProvenanceAttributeMap(mixed $value): bool
+    {
+        if (!is_array($value) || array_is_list($value) || $value === []) {
+            return false;
+        }
+
+        foreach ($value as $key => $_) {
+            if (!is_string($key) || !str_starts_with($key, 'data-docx-')) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

@@ -261,15 +261,15 @@ return [
         $boldUnderline = $document->children[1]->children[0];
         $boldItalicUnderline = $document->children[2]->children[0];
 
-        $t->same('emph', $italicUnderline->type);
-        $t->same('underline', $italicUnderline->children[0]->type);
+        $t->same('underline', $italicUnderline->type);
+        $t->same('emph', $italicUnderline->children[0]->type);
         $t->same('italic underlined', $italicUnderline->children[0]->children[0]->attr('text'));
-        $t->same('strong', $boldUnderline->type);
-        $t->same('underline', $boldUnderline->children[0]->type);
+        $t->same('underline', $boldUnderline->type);
+        $t->same('strong', $boldUnderline->children[0]->type);
         $t->same('bold underlined', $boldUnderline->children[0]->children[0]->attr('text'));
-        $t->same('emph', $boldItalicUnderline->type);
+        $t->same('underline', $boldItalicUnderline->type);
         $t->same('strong', $boldItalicUnderline->children[0]->type);
-        $t->same('underline', $boldItalicUnderline->children[0]->children[0]->type);
+        $t->same('emph', $boldItalicUnderline->children[0]->children[0]->type);
         $t->same('bold italic underlined', $boldItalicUnderline->children[0]->children[0]->children[0]->attr('text'));
     },
     'wraps docx verbatim superscript and subscript around inline code' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
@@ -795,11 +795,11 @@ XML],
         $t->same('Numeric style heading', $document->children[0]->attr('text'));
         $t->same('paragraph', $document->children[1]->type);
         $t->same('A derived run', $document->children[1]->attr('text'));
-        $t->same('emph', $document->children[1]->children[1]->type);
-        $t->same('strong', $document->children[1]->children[1]->children[0]->type);
+        $t->same('strong', $document->children[1]->children[1]->type);
+        $t->same('emph', $document->children[1]->children[1]->children[0]->type);
         $t->same('derived run', $document->children[1]->children[1]->children[0]->children[0]->attr('text'));
         $t->contains('<h1 id="numeric-style-heading">Numeric style heading</h1>', $blocks);
-        $t->contains('A <em><strong>derived run</strong></em>', $blocks);
+        $t->contains('A <strong><em>derived run</em></strong>', $blocks);
     },
     'reads docx package body metadata notes headers footers and review spans into shared ast' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
@@ -1812,12 +1812,12 @@ XML;
 
         $cell = $document->children[3]->children[1]->children[0]->children[0];
         $t->same('Cell smart', $cell->attr('text'));
-        $t->same('Cell smart', $cell->children[0]->attr('text'));
+        $t->same('Cell smart', $cell->children[0]->children[0]->attr('text'));
 
         $t->contains('<p>Wrapped block</p>', $blocks);
         $t->contains('Inline <strong>smart</strong> and fallback', $blocks);
         $t->contains('<a href="#_SmartTarget"', $blocks);
-        $t->contains('<td><p>Cell smart</p></td>', $blocks);
+        $t->contains('<td>Cell smart</td>', $blocks);
         $t->true(!str_contains($blocks, 'choice'), 'AlternateContent choice branch should not be emitted when a fallback is available');
     },
     'preserves docx content controls with block inline and table metadata' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
@@ -2097,9 +2097,9 @@ XML;
         $t->same('Total', $body->children[1]->children[0]->attr('text'));
         $t->same([], $foot->children);
 
-        $t->contains('<thead><tr><th><p>Field</p></th><th><p>Value</p></th></tr></thead>', $blocks);
-        $t->contains('<tbody><tr><td><p>Draft flag</p></td><td><p>False header row</p></td></tr><tr><td><p>Total</p></td><td><p>12</p></td></tr></tbody>', $blocks);
-        $t->true(!str_contains($blocks, '<th><p>Draft flag</p></th>'), 'Explicitly disabled tblHeader rows should stay in the table body');
+        $t->contains('<thead><tr><th>Field</th><th>Value</th></tr></thead>', $blocks);
+        $t->contains('<tbody><tr><td>Draft flag</td><td>False header row</td></tr><tr><td>Total</td><td>12</td></tr></tbody>', $blocks);
+        $t->true(!str_contains($blocks, '<th>Draft flag</th>'), 'Explicitly disabled tblHeader rows should stay in the table body');
     },
     'preserves docx table gridBefore omitted leading cells' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/><w:gridBefore w:val="1"/></w:trPr><w:tc><w:p><w:r><w:t>Field</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:gridBefore w:val="2"/></w:trPr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
@@ -2122,8 +2122,8 @@ XML;
         $t->same('North', $bodyRow->children[2]->attr('text'));
         $t->same('12', $bodyRow->children[3]->attr('text'));
 
-        $t->contains('<thead><tr><th data-docx-omitted-cell="gridBefore"></th><th><p>Field</p></th><th><p>Value</p></th></tr></thead>', $blocks);
-        $t->contains('<tbody><tr><td data-docx-omitted-cell="gridBefore"></td><td data-docx-omitted-cell="gridBefore"></td><td><p>North</p></td><td><p>12</p></td></tr></tbody>', $blocks);
+        $t->contains('<thead><tr><th data-docx-omitted-cell="gridBefore"></th><th>Field</th><th>Value</th></tr></thead>', $blocks);
+        $t->contains('<tbody><tr><td data-docx-omitted-cell="gridBefore"></td><td data-docx-omitted-cell="gridBefore"></td><td>North</td><td>12</td></tr></tbody>', $blocks);
     },
     'normalizes docx default table widths to native defaults' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Left</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Right</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
@@ -2156,7 +2156,7 @@ XML;
         $t->same('Head', $row->children[0]->attr('text'));
         $t->same('Body copy', $row->children[1]->attr('text'));
         $t->same('Tail', $row->children[2]->attr('text'));
-        $t->contains('<td><p>Body copy</p></td>', $blocks);
+        $t->contains('<td>Body copy</td>', $blocks);
     },
     'maps docx shape-only textbox paragraphs as document blocks' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:v="urn:schemas-microsoft-com:vml"><w:body><w:p><w:r><w:pict><v:shape id="TextBoxTitle" type="#_x0000_t202"><v:textbox><w:txbxContent><w:p><w:r><w:t xml:space="preserve">Last update: </w:t></w:r><w:r><w:t>May 1, 2017</w:t></w:r></w:p><w:p><w:r><w:t>Using Microsoft Word 2007/2010</w:t></w:r><w:r><w:br/></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>for Writing Technical Documents</w:t></w:r></w:p><w:p><w:r><w:t>Valter Kiisk</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p><w:p><w:bookmarkStart w:id="1" w:name="_Toc219459029"/><w:bookmarkEnd w:id="1"/></w:p></w:body></w:document>');
@@ -2273,9 +2273,9 @@ XML],
         $t->same(['comment-end'], $comment->children[2]->attr('classes'));
         $t->same(['deletion', 'move-from'], $move->children[0]->attr('classes'));
         $t->same(['insertion', 'move-to'], $move->children[2]->attr('classes'));
-        $t->same('superscript', $move->children[3]->type);
+        $t->same('underline', $move->children[3]->type);
         $t->same('strikeout', $move->children[3]->children[0]->type);
-        $t->same('underline', $move->children[3]->children[0]->children[0]->type);
+        $t->same('superscript', $move->children[3]->children[0]->children[0]->type);
         $t->same('ReviewTable', $table->attr('htmlAttributes')['data-docx-table-style']);
         $firstCell = $table->children[1]->children[0]->children[0];
         $secondRow = $table->children[1]->children[1];
@@ -2293,10 +2293,10 @@ XML],
         $t->contains('class="comment-start" data-pandoc-comment-id="5" data-pandoc-comment-author="Range Reviewer"', $blocks);
         $t->contains('<del class="deletion move-from" data-pandoc-change-author="Mover"', $blocks);
         $t->contains('<ins class="insertion move-to" data-pandoc-change-author="Mover"', $blocks);
-        $t->contains('new spot </ins><sup><del><u>styled</u></del></sup>', $blocks);
+        $t->contains('new spot </ins><u><del><sup>styled</sup></del></u>', $blocks);
         $t->contains('<table data-docx-table-style="ReviewTable">', $blocks);
         $t->contains('data-docx-vmerge="restart" rowspan="2" style="background-color:#FFFF00; vertical-align:middle"', $blocks);
-        $t->contains('<td><p>Bottom</p></td>', $blocks);
+        $t->contains('<td>Bottom</td>', $blocks);
         $t->contains('alt="Chart alt" title="Chart title" data-pandoc-width="2in" data-pandoc-height="1in"', $blocks);
         $t->contains('data-docx-image-name="Chart 1"', $blocks);
     },
@@ -2335,8 +2335,8 @@ XML],
         $t->same(['docx-textbox'], $textBox->attr('classes'));
         $t->same('vml-pict', $textBox->attr('attributes')['data-docx-textbox-source']);
         $t->same('TextBox1', $textBox->attr('attributes')['data-docx-vml-shape-id']);
-        $t->same('emph', $styledText->type);
-        $t->same('strong', $styledText->children[0]->type);
+        $t->same('strong', $styledText->type);
+        $t->same('emph', $styledText->children[0]->type);
         $t->same('strong italic', $styledText->children[0]->children[0]->attr('text'));
 
         $t->same('image', $image->type);
@@ -2361,7 +2361,7 @@ XML],
         $t->same('center', $tableAttributes['data-docx-table-style-align']);
 
         $t->contains('<span class="docx-textbox" data-docx-textbox-source="vml-pict"', $blocks);
-        $t->contains('Boxed <em><strong>strong italic</strong></em>', $blocks);
+        $t->contains('Boxed <strong><em>strong italic</em></strong>', $blocks);
         $t->contains('data-docx-image-source="vml-object"', $blocks);
         $t->contains('data-docx-vml-shape-id="_x0000_i1025"', $blocks);
         $t->contains('data-docx-table-style-chain="BaseTable DerivedTable"', $blocks);

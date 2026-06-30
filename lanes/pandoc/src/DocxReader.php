@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class DocxReader
 {
+    private const INTERNAL_STYLE_ORIGIN_ATTR = '__docxStyleOrigin';
+
     private const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     private const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const A_NS = 'http://schemas.openxmlformats.org/drawingml/2006/main';
@@ -669,13 +671,7 @@ final class DocxReader
                     $flushCodeBlock();
                     $flushQuote();
                     $flushDefinitionList();
-                    if (
-                        $styleId !== ''
-                        && (
-                            !$this->paragraphHasDirectConcreteNumbering($child)
-                            || $this->paragraphStyleNumbering($styleId) !== null
-                        )
-                    ) {
+                    if ($styleId !== '' && $this->paragraphNumberingSeedsStyleContinuation($child, $styleId, $numbering)) {
                         $activeStyleNumbering[$styleId] = [
                             'numId' => $numbering['numId'],
                             'level' => $numbering['level'],
@@ -3824,6 +3820,7 @@ final class DocxReader
     {
         $rowSpecs = [];
         $rowHeaderFlags = [];
+        $firstRowHeaderLook = $this->tableUsesFirstRowHeaderLook($table);
         foreach ($table->childNodes as $child) {
             if ($child instanceof \DOMElement && $child->localName === 'tr') {
                 $cells = [];
@@ -3850,7 +3847,8 @@ final class DocxReader
                     ];
                     $column += $colspan;
                 }
-                $rowHeaderFlags[] = $this->tableRowIsHeader($child);
+                $rowHeaderState = $this->tableRowHeaderState($child);
+                $rowHeaderFlags[] = $rowHeaderState ?? ($firstRowHeaderLook && $rowSpecs === []);
                 $rowSpecs[] = $cells;
             }
         }
@@ -3956,16 +3954,31 @@ final class DocxReader
         return max(0, (int) ($this->attr($gridBefore, self::W_NS, 'val') ?: '0'));
     }
 
-    private function tableRowIsHeader(\DOMElement $row): bool
+    private function tableUsesFirstRowHeaderLook(\DOMElement $table): bool
+    {
+        $tblPr = $this->directChild($table, 'tblPr');
+        if (!$tblPr instanceof \DOMElement) {
+            return false;
+        }
+
+        $tblLook = $this->directChild($tblPr, 'tblLook');
+        if (!$tblLook instanceof \DOMElement) {
+            return false;
+        }
+
+        return $this->onOffMetadataValue($this->attr($tblLook, self::W_NS, 'firstRow')) === 'true';
+    }
+
+    private function tableRowHeaderState(\DOMElement $row): ?bool
     {
         $trPr = $this->directChild($row, 'trPr');
         if (!$trPr instanceof \DOMElement) {
-            return false;
+            return null;
         }
 
         $tblHeader = $this->directChild($trPr, 'tblHeader');
         if (!$tblHeader instanceof \DOMElement) {
-            return false;
+            return null;
         }
 
         return $this->onOffMetadataValue($this->attr($tblHeader, self::W_NS, 'val')) !== 'false';
@@ -4025,6 +4038,9 @@ final class DocxReader
     private function tableCell(\DOMElement $cell, ?int $colspan = null, int $rowspan = 1, string $verticalMerge = ''): AstNode
     {
         $blocks = $this->bodyBlocks($cell);
+        if (count($blocks) === 1 && $blocks[0]->type === 'paragraph') {
+            $blocks = [new AstNode('plain', [], $blocks[0]->children)];
+        }
         $text = trim(implode(' ', array_map(fn (AstNode $block): string => $this->nodeText($block), $blocks)));
 
         $attrs = [
@@ -4032,12 +4048,40 @@ final class DocxReader
             'colspan' => $colspan ?? $this->gridSpan($cell),
             'rowspan' => max(1, $rowspan),
         ];
+        $align = $this->tableCellAlignment($cell);
+        if ($align !== '') {
+            $attrs['align'] = $align;
+        }
         $htmlAttributes = $this->tableCellHtmlAttributes($cell, $verticalMerge);
         if ($htmlAttributes !== []) {
             $attrs['htmlAttributes'] = $htmlAttributes;
         }
 
         return new AstNode('table_cell', $attrs, $blocks);
+    }
+
+    private function tableCellAlignment(\DOMElement $cell): string
+    {
+        foreach ($cell->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'p') {
+                continue;
+            }
+
+            $pPr = $this->directChild($child, 'pPr');
+            $jc = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'jc') : null;
+            if (!$jc instanceof \DOMElement) {
+                continue;
+            }
+
+            return match (strtolower($this->attr($jc, self::W_NS, 'val'))) {
+                'center' => 'center',
+                'right', 'end' => 'right',
+                'left', 'start' => 'left',
+                default => '',
+            };
+        }
+
+        return '';
     }
 
     private function gridSpan(\DOMElement $cell): int
@@ -4369,6 +4413,28 @@ final class DocxReader
     }
 
     /**
+     * @param array{numId: string, level: int} $numbering
+     */
+    private function paragraphNumberingSeedsStyleContinuation(\DOMElement $paragraph, string $styleId, array $numbering): bool
+    {
+        if (!$this->paragraphHasDirectConcreteNumbering($paragraph)) {
+            return true;
+        }
+
+        $definition = $this->numbering[$numbering['numId']][$numbering['level']] ?? null;
+        $definitionStyleId = is_array($definition) ? (string) ($definition['styleId'] ?? '') : '';
+        if ($definitionStyleId !== '' && in_array($definitionStyleId, $this->styleChainIds($styleId), true)) {
+            return true;
+        }
+
+        $styleNumbering = $this->paragraphStyleNumbering($styleId);
+
+        return $styleNumbering !== null
+            && $styleNumbering['numId'] === $numbering['numId']
+            && $styleNumbering['level'] === $numbering['level'];
+    }
+
+    /**
      * @return array{numId: string, level: int}|null
      */
     private function paragraphStyleNumbering(string $styleId): ?array
@@ -4426,11 +4492,13 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, bool>
+     * @return array<string, mixed>
      */
     private function runStyle(\DOMElement $run): array
     {
         $style = [];
+        $styleLayers = [];
+        $directStyle = [];
         foreach ($run->getElementsByTagNameNS(self::W_NS, 'rPr') as $rPr) {
             if (!$rPr instanceof \DOMElement || $rPr->parentNode !== $run) {
                 continue;
@@ -4442,24 +4510,60 @@ final class DocxReader
                 if ($prop->localName === 'rStyle') {
                     $styleId = $this->attr($prop, self::W_NS, 'val');
                     $style = array_replace($style, $this->styles[$styleId] ?? []);
+                    $styleLayer = $this->trueRunStyleFlags($style);
                     if ($this->runStyleIsInlineCode($styleId)) {
                         $style['code'] = true;
+                        $styleLayer['code'] = true;
                     }
                     if ($this->runStyleIsHyperlink($styleId) && !isset($style['underlineFromDirectFormatting'])) {
                         unset($style['underline']);
+                        unset($styleLayer['underline']);
+                    }
+                    if ($styleLayer !== []) {
+                        $styleLayers[] = $styleLayer;
                     }
                 }
             }
-            $directStyle = $this->runPropertyStyle($rPr);
-            if (array_key_exists('underline', $directStyle)) {
-                $directStyle['underlineFromDirectFormatting'] = true;
+            $rPrDirectStyle = $this->runPropertyStyle($rPr);
+            if (array_key_exists('underline', $rPrDirectStyle)) {
+                $rPrDirectStyle['underlineFromDirectFormatting'] = true;
             }
-            $style = array_replace($style, $directStyle);
+            $directStyle = array_replace($directStyle, $rPrDirectStyle);
+            $style = array_replace($style, $rPrDirectStyle);
         }
 
         unset($style['underlineFromDirectFormatting']);
+        unset($directStyle['underlineFromDirectFormatting']);
 
-        return array_filter($style, 'is_bool');
+        $directFalseFlags = array_keys(array_filter(
+            $directStyle,
+            static fn (mixed $value): bool => $value === false
+        ));
+        if ($directFalseFlags !== []) {
+            foreach ($styleLayers as $index => $layer) {
+                foreach ($directFalseFlags as $flag) {
+                    unset($layer[$flag]);
+                }
+                $styleLayers[$index] = $layer;
+            }
+            $styleLayers = array_values(array_filter($styleLayers, static fn (array $layer): bool => $layer !== []));
+        }
+
+        $layers = [];
+        $directLayer = $this->trueRunStyleFlags($directStyle);
+        if ($directLayer !== []) {
+            $layers[] = ['origin' => 'direct', 'style' => $directLayer];
+        }
+        foreach ($styleLayers as $styleLayer) {
+            $layers[] = ['origin' => 'style', 'style' => $styleLayer];
+        }
+
+        $flags = $this->runStyleFlags($style);
+        if ($layers !== []) {
+            $flags['__layers'] = $layers;
+        }
+
+        return $flags;
     }
 
     private function runStyleIsInlineCode(string $styleId): bool
@@ -4585,6 +4689,9 @@ final class DocxReader
                 $style['strikeout'] = $this->truthyOnOff($prop);
             } elseif ($prop->localName === 'smallCaps') {
                 $style['small_caps'] = $this->truthyOnOff($prop);
+            } elseif ($prop->localName === 'highlight') {
+                $value = strtolower($this->attr($prop, self::W_NS, 'val'));
+                $style['mark'] = !in_array($value, ['', 'none'], true);
             } elseif ($prop->localName === 'vertAlign') {
                 $value = strtolower($this->attr($prop, self::W_NS, 'val'));
                 if ($value === 'superscript') {
@@ -4604,6 +4711,58 @@ final class DocxReader
     }
 
     /**
+     * @param array<string, mixed> $style
+     * @return array<string, bool>
+     */
+    private function runStyleFlags(array $style): array
+    {
+        $flags = [];
+        foreach ($this->runStyleFlagOrder() as $flag) {
+            if (array_key_exists($flag, $style) && is_bool($style[$flag])) {
+                $flags[$flag] = $style[$flag];
+            }
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @param array<string, mixed> $style
+     * @return array<string, true>
+     */
+    private function trueRunStyleFlags(array $style): array
+    {
+        $flags = [];
+        foreach ($this->runStyleFlagOrder() as $flag) {
+            if (($style[$flag] ?? false) === true) {
+                $flags[$flag] = true;
+            }
+        }
+
+        return $flags;
+    }
+
+    /**
+     * Ordered from inner wrappers to outer wrappers.
+     *
+     * @return list<string>
+     */
+    private function runStyleFlagOrder(): array
+    {
+        return [
+            'code',
+            'subscript',
+            'superscript',
+            'strikeout',
+            'small_caps',
+            'mark',
+            'emph',
+            'strong',
+            'underline',
+        ];
+    }
+
+    /**
      * @param list<AstNode> $nodes
      * @param array<string, mixed> $style
      * @return list<AstNode>
@@ -4612,23 +4771,93 @@ final class DocxReader
     {
         if (($style['code'] ?? false) && $nodes !== [] && $this->allNodesHaveType($nodes, 'text')) {
             $nodes = [new AstNode('code', ['text' => $this->nodeText(new AstNode('span', [], $nodes))])];
+            $style['code'] = false;
+            $layers = $style['__layers'] ?? [];
+            if (is_array($layers)) {
+                $filteredLayers = [];
+                foreach ($layers as $layer) {
+                    if (!is_array($layer)) {
+                        continue;
+                    }
+                    $layerStyle = $layer['style'] ?? $layer;
+                    if (!is_array($layerStyle)) {
+                        continue;
+                    }
+                    unset($layerStyle['code']);
+                    if ($layerStyle === []) {
+                        continue;
+                    }
+                    $layer['style'] = $layerStyle;
+                    $filteredLayers[] = $layer;
+                }
+                $style['__layers'] = $filteredLayers;
+            }
         }
 
-        foreach ([
-            'underline' => 'underline',
-            'strikeout' => 'strikeout',
-            'small_caps' => 'small_caps',
-            'strong' => 'strong',
-            'emph' => 'emph',
-            'superscript' => 'superscript',
-            'subscript' => 'subscript',
-        ] as $styleKey => $nodeType) {
+        $layers = $style['__layers'] ?? [];
+        if (is_array($layers) && $layers !== []) {
+            foreach ($layers as $layer) {
+                if (!is_array($layer)) {
+                    continue;
+                }
+                $origin = (string) ($layer['origin'] ?? 'direct');
+                $layerStyle = $layer['style'] ?? $layer;
+                if (!is_array($layerStyle)) {
+                    continue;
+                }
+                $nodes = $this->styledRunNodesForLayer($nodes, $layerStyle, $origin);
+            }
+
+            return $nodes;
+        }
+
+        return $this->styledRunNodesForLayer($nodes, $style, 'direct');
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, mixed> $style
+     * @return list<AstNode>
+     */
+    private function styledRunNodesForLayer(array $nodes, array $style, string $origin): array
+    {
+        foreach ($this->runStyleNodeTypes() as $styleKey => $nodeType) {
             if (($style[$styleKey] ?? false) && $nodes !== []) {
-                $nodes = [new AstNode($nodeType, [], $nodes)];
+                $nodes = [new AstNode($nodeType, $this->runStyleNodeAttrs($styleKey, $origin), $nodes)];
             }
         }
 
         return $nodes;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function runStyleNodeAttrs(string $styleKey, string $origin): array
+    {
+        $attrs = [self::INTERNAL_STYLE_ORIGIN_ATTR => $origin];
+        if ($styleKey === 'mark') {
+            $attrs['classes'] = ['mark'];
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function runStyleNodeTypes(): array
+    {
+        return [
+            'subscript' => 'subscript',
+            'superscript' => 'superscript',
+            'strikeout' => 'strikeout',
+            'small_caps' => 'small_caps',
+            'mark' => 'span',
+            'emph' => 'emph',
+            'strong' => 'strong',
+            'underline' => 'underline',
+        ];
     }
 
     private function truthyOnOff(\DOMElement $element): bool
@@ -5523,7 +5752,16 @@ final class DocxReader
             $normalized[] = $node;
         }
 
-        return $this->mergeAdjacentText($normalized);
+        $normalized = $this->mergeInlineWrapperSandwiches($normalized);
+        $withBoundaryWhitespace = [];
+        foreach ($normalized as $node) {
+            array_push($withBoundaryWhitespace, ...$this->splitInlineBoundaryWhitespace($node));
+        }
+
+        return array_map(
+            fn (AstNode $node): AstNode => $this->stripInternalInlineAttrs($node),
+            $this->mergeAdjacentText($withBoundaryWhitespace)
+        );
     }
 
     /**
@@ -5875,6 +6113,234 @@ final class DocxReader
             'span',
             'link',
         ], true);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function mergeInlineWrapperSandwiches(array $nodes): array
+    {
+        $merged = [];
+        $count = count($nodes);
+        for ($index = 0; $index < $count; ++$index) {
+            $left = $nodes[$index];
+            $middle = $nodes[$index + 1] ?? null;
+            $right = $nodes[$index + 2] ?? null;
+            if (
+                $middle instanceof AstNode
+                && $right instanceof AstNode
+                && $this->canMergeInlineSandwich($left, $middle, $right)
+            ) {
+                /** @var AstNode $inner */
+                $inner = $middle->children[0];
+                $merged[] = new AstNode($left->type, $left->attrs, [
+                    ...$left->children,
+                    new AstNode($middle->type, $middle->attrs, $inner->children),
+                    ...$right->children,
+                ]);
+                $index += 2;
+                continue;
+            }
+
+            $merged[] = $left;
+        }
+
+        return $merged;
+    }
+
+    private function canMergeInlineSandwich(AstNode $left, AstNode $middle, AstNode $right): bool
+    {
+        if (!$this->canMergeInlineSiblings($left, $right)) {
+            return false;
+        }
+        if (!in_array($middle->type, ['strong', 'emph', 'underline', 'strikeout', 'small_caps', 'superscript', 'subscript'], true)) {
+            return false;
+        }
+        if (count($middle->children) !== 1) {
+            return false;
+        }
+
+        $inner = $middle->children[0];
+
+        return $inner->type === $left->type
+            && $this->inlineComparableAttrs($inner) === $this->inlineComparableAttrs($left);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function inlineComparableAttrs(AstNode $node): array
+    {
+        $attrs = $node->attrs;
+        unset($attrs[self::INTERNAL_STYLE_ORIGIN_ATTR]);
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function splitInlineBoundaryWhitespace(AstNode $node): array
+    {
+        if (
+            !$this->canSplitInlineBoundaryWhitespace($node)
+            || $this->inlineStyleOrigin($node) !== 'style'
+            || $node->children === []
+            || trim($this->nodeText($node)) === ''
+        ) {
+            return [$node];
+        }
+
+        $children = $node->children;
+        $before = [];
+        $after = [];
+
+        $first = $children[0] ?? null;
+        if ($first instanceof AstNode && $first->type === 'text') {
+            [$leading, $remaining] = $this->splitLeadingWhitespace((string) $first->attr('text', ''));
+            if ($leading !== '') {
+                $before[] = new AstNode('text', ['text' => $leading]);
+                if ($remaining === '') {
+                    array_shift($children);
+                } else {
+                    $children[0] = new AstNode('text', ['text' => $remaining]);
+                }
+            }
+        }
+
+        $lastIndex = count($children) - 1;
+        $last = $lastIndex >= 0 ? $children[$lastIndex] : null;
+        if ($last instanceof AstNode && $last->type === 'text') {
+            [$remaining, $trailing] = $this->splitTrailingWhitespace((string) $last->attr('text', ''));
+            if ($trailing !== '') {
+                $after[] = new AstNode('text', ['text' => $trailing]);
+                if ($remaining === '') {
+                    array_pop($children);
+                } else {
+                    $children[$lastIndex] = new AstNode('text', ['text' => $remaining]);
+                }
+            }
+        }
+
+        if ($node->type === 'emph') {
+            $segments = [];
+            $current = [];
+            $count = count($children);
+            foreach ($children as $index => $child) {
+                $next = $children[$index + 1] ?? null;
+                $previous = $index > 0 ? ($children[$index - 1] ?? null) : null;
+                if ($child->type === 'text') {
+                    $text = (string) $child->attr('text', '');
+                    if ($previous instanceof AstNode && $previous->type !== 'text') {
+                        [$leading, $remaining] = $this->splitLeadingWhitespace($text);
+                        if ($leading !== '' && $remaining !== '') {
+                            if ($current !== []) {
+                                $segments[] = ['style' => $current];
+                                $current = [];
+                            }
+                            $segments[] = ['text' => $leading];
+                            $current[] = new AstNode('text', ['text' => $remaining]);
+                            continue;
+                        }
+                    }
+                    if ($next instanceof AstNode && $next->type !== 'text') {
+                        [$remaining, $trailing] = $this->splitTrailingWhitespace($text);
+                        if ($trailing !== '' && $remaining !== '') {
+                            $current[] = new AstNode('text', ['text' => $remaining]);
+                            $segments[] = ['style' => $current];
+                            $segments[] = ['text' => $trailing];
+                            $current = [];
+                            continue;
+                        }
+                    }
+                }
+
+                $current[] = $child;
+            }
+
+            if ($current !== [] && $count > 0) {
+                $segments[] = ['style' => $current];
+            }
+
+            if (count($segments) > 1) {
+                foreach ($segments as $segment) {
+                    if (isset($segment['text'])) {
+                        $before[] = new AstNode('text', ['text' => (string) $segment['text']]);
+                        continue;
+                    }
+                    $segmentChildren = $segment['style'] ?? [];
+                    if (is_array($segmentChildren) && $segmentChildren !== []) {
+                        $before[] = new AstNode($node->type, $node->attrs, array_values($segmentChildren));
+                    }
+                }
+
+                return [...$before, ...$after];
+            }
+        }
+
+        if ($children !== []) {
+            $before[] = new AstNode($node->type, $node->attrs, array_values($children));
+        }
+
+        return [...$before, ...$after];
+    }
+
+    private function canSplitInlineBoundaryWhitespace(AstNode $node): bool
+    {
+        return in_array($node->type, [
+            'emph',
+            'strong',
+            'underline',
+            'strikeout',
+            'small_caps',
+            'superscript',
+            'subscript',
+        ], true);
+    }
+
+    private function inlineStyleOrigin(AstNode $node): string
+    {
+        $origin = $node->attr(self::INTERNAL_STYLE_ORIGIN_ATTR, '');
+
+        return is_string($origin) ? $origin : '';
+    }
+
+    private function stripInternalInlineAttrs(AstNode $node): AstNode
+    {
+        $attrs = $node->attrs;
+        unset($attrs[self::INTERNAL_STYLE_ORIGIN_ATTR]);
+
+        $children = array_map(
+            fn (AstNode $child): AstNode => $this->stripInternalInlineAttrs($child),
+            $node->children
+        );
+
+        return new AstNode($node->type, $attrs, $children);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function splitLeadingWhitespace(string $text): array
+    {
+        if (preg_match('/^(\s+)(.*)$/us', $text, $match) !== 1) {
+            return ['', $text];
+        }
+
+        return [(string) $match[1], (string) $match[2]];
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private function splitTrailingWhitespace(string $text): array
+    {
+        if (preg_match('/^(.*?)(\s+)$/us', $text, $match) !== 1) {
+            return [$text, ''];
+        }
+
+        return [(string) $match[1], (string) $match[2]];
     }
 
     private function normalizeWordTarget(string $target): string

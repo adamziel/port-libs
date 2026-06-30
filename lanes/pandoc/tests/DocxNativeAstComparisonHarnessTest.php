@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxNativeAstComparisonHarness;
+use PortLibs\Pandoc\NativeWriter;
 
 $makeTempDir = static function (): string {
     $base = tempnam(sys_get_temp_dir(), 'pandoc-docx-native-ast-');
@@ -319,7 +320,7 @@ XML,
 </w:document>
 XML);
             file_put_contents($root . '/table_one_row.native', <<<'NATIVE'
-[ Table ( "" , [  ] , [  ] ) (Caption Nothing []) [ ( AlignDefault , ColWidth 0.320512820512821 ) ] (TableHead ( "" , [  ] , [  ] ) [  ]) [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Para [ Str "Ready" ] ] ] ] ] (TableFoot ( "" , [  ] , [  ] ) [  ]) ]
+[ Table ( "" , [  ] , [  ] ) (Caption Nothing []) [ ( AlignDefault , ColWidth 0.320512820512821 ) ] (TableHead ( "" , [  ] , [  ] ) [  ]) [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ] [ Row ( "" , [  ] , [  ] ) [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [ Plain [ Str "Ready" ] ] ] ] ] (TableFoot ( "" , [  ] , [  ] ) [  ]) ]
 NATIVE);
 
             $report = (new DocxNativeAstComparisonHarness())->run($root);
@@ -330,6 +331,68 @@ NATIVE);
             $t->true(in_array('DOCX data-docx-* provenance attributes retained for local writer diagnostics', $report['normalizationPolicy']['excludes'], true));
             $t->true(in_array('default table cell spans and row-head counts omitted by native Attr tuples', $report['normalizationPolicy']['excludes'], true));
             $t->true(in_array('floating-point serialization noise in table column width fractions', $report['normalizationPolicy']['excludes'], true));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'normalizes docx table cell derived metadata in ast comparisons' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
+        $root = $makeTempDir();
+
+        try {
+            $writeDocxDocument($root . '/same.docx', <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr>
+        <w:tblLook w:firstRow="1"/>
+      </w:tblPr>
+      <w:tr>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="2400" w:type="dxa"/><w:shd w:fill="D9EAF7"/></w:tcPr>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>Head</w:t></w:r></w:p>
+        </w:tc>
+        <w:tc>
+          <w:tcPr><w:tcW w:w="2400" w:type="dxa"/><w:shd w:fill="D9EAF7"/></w:tcPr>
+          <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>Value</w:t></w:r></w:p>
+        </w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML);
+            $plain = static fn (string $text): AstNode => new AstNode('plain', [], [new AstNode('text', ['text' => $text])]);
+            $cell = static fn (string $text, array $attrs = []): AstNode => new AstNode('table_cell', $attrs, [$plain($text)]);
+            $row = static fn (array $cells): AstNode => new AstNode('table_row', [], $cells);
+            $expected = new AstNode('document', [], [
+                new AstNode('table', ['alignments' => ['default', 'default'], 'widths' => [0.0, 0.0]], [
+                    new AstNode('table_head', [], [
+                        $row([
+                            $cell('Head', ['align' => 'center']),
+                            $cell('Value', ['align' => 'center']),
+                        ]),
+                    ]),
+                    new AstNode('table_body', ['rowHeadColumns' => 0], [
+                        $row([
+                            $cell('North'),
+                            $cell('12'),
+                        ]),
+                    ]),
+                    new AstNode('table_foot'),
+                ]),
+            ]);
+            file_put_contents($root . '/same.native', (new NativeWriter())->write($expected));
+
+            $report = (new DocxNativeAstComparisonHarness())->run($root);
+
+            $t->same(1, $report['normalizedAstMatchCount']);
+            $t->same(0, $report['normalizedAstMismatchCount']);
+            $t->true(in_array('derived text attrs on plain, paragraph, heading, and table_cell nodes', $report['normalizationPolicy']['excludes'], true));
+            $t->true(in_array('default table cell spans and row-head counts omitted by native Attr tuples', $report['normalizationPolicy']['excludes'], true));
         } finally {
             $removeTree($root);
         }
