@@ -4589,6 +4589,37 @@ final class OpenDocumentPackage
         return self::withoutEmptyValues($metadata);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    private static function sidecarMediaTypeProvenance(string $manifestMediaType, ?string $inferredMediaType, bool $declared): array
+    {
+        $manifestMediaType = trim($manifestMediaType);
+        $inferredMediaType = $inferredMediaType === null ? null : trim($inferredMediaType);
+        if ($inferredMediaType === '') {
+            $inferredMediaType = null;
+        }
+
+        $manifestReport = $declared && $manifestMediaType !== ''
+            ? self::mediaTypeReport($manifestMediaType)
+            : null;
+        $inferredReport = $inferredMediaType === null ? null : self::mediaTypeReport($inferredMediaType);
+
+        return [
+            'declaredMediaType' => $manifestReport === null ? null : $manifestMediaType,
+            'declaredMediaTypeBase' => $manifestReport['mediaTypeBase'] ?? null,
+            'inferredMediaType' => $inferredMediaType,
+            'inferredMediaTypeBase' => $inferredReport['mediaTypeBase'] ?? null,
+            'mediaTypeSource' => $manifestReport !== null
+                ? 'manifest'
+                : ($inferredMediaType === null ? 'missing' : 'package-extension'),
+            'mediaTypeMatchesInferred' => $manifestReport !== null && $inferredReport !== null
+                ? $manifestReport['mediaTypeBase'] === $inferredReport['mediaTypeBase']
+                : null,
+            'missingDeclaredMediaType' => $declared && $manifestMediaType === '',
+        ];
+    }
+
     private static function rdfNodeName(\DOMNode $node): string
     {
         $prefix = $node->prefix;
@@ -4671,12 +4702,14 @@ final class OpenDocumentPackage
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
             $rawMediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $inferredMediaType = self::fontMediaTypeFromPart($packagePath);
             $mediaType = $rawMediaType;
             if ($mediaType === '') {
-                $mediaType = self::fontMediaTypeFromPart($packagePath) ?? '';
+                $mediaType = $inferredMediaType ?? '';
             }
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $mediaTypeProvenance = self::sidecarMediaTypeProvenance($rawMediaType, $inferredMediaType, $declared);
             $mediaTypeValid = $mediaType === '' || self::isFontMediaType($mediaType);
             $fontFormat = self::fontFormatProvenance(
                 $packagePath,
@@ -4748,7 +4781,7 @@ final class OpenDocumentPackage
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'reviewPolicy' => 'package-font-metadata-only',
                 'issues' => $issues,
-            ];
+            ] + $mediaTypeProvenance;
         }
 
         ksort($issueCodes, SORT_STRING);
@@ -4932,12 +4965,15 @@ final class OpenDocumentPackage
             $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
-            $mediaType = (string) ($entry['mediaType'] ?? '');
+            $rawMediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $inferredMediaType = self::thumbnailMediaTypeFromPart($packagePath);
+            $mediaType = $rawMediaType;
             if ($mediaType === '') {
-                $mediaType = self::thumbnailMediaTypeFromPart($packagePath) ?? '';
+                $mediaType = $inferredMediaType ?? '';
             }
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $mediaTypeProvenance = self::sidecarMediaTypeProvenance($rawMediaType, $inferredMediaType, $declared);
             $mediaTypeValid = str_starts_with($mediaTypeReport['mediaTypeBase'], 'image/');
             $issues = [];
             if (!$zipEntry instanceof ZipPackageEntry) {
@@ -4992,7 +5028,7 @@ final class OpenDocumentPackage
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'reviewPolicy' => 'package-thumbnail-metadata-only',
                 'issues' => $issues,
-            ];
+            ] + $mediaTypeProvenance;
         }
 
         ksort($issueCodes, SORT_STRING);
@@ -5097,10 +5133,12 @@ final class OpenDocumentPackage
             $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
-            $mediaType = is_string($entry['mediaType'] ?? null) ? (string) $entry['mediaType'] : null;
+            $rawMediaType = is_string($entry['mediaType'] ?? null) ? trim((string) $entry['mediaType']) : '';
+            $mediaType = $rawMediaType === '' ? null : $rawMediaType;
             $mediaTypeReport = self::mediaTypeReport($mediaType ?? '');
             $kind = self::signaturePackagePartKind($packagePath);
             $expectedMediaTypes = self::signatureExpectedMediaTypes($kind);
+            $mediaTypeProvenance = self::sidecarMediaTypeProvenance($rawMediaType, null, $declared);
             $mediaTypeValid = $mediaType === null
                 || self::isSignaturePackageMediaType($kind, $mediaTypeReport['mediaTypeBase']);
             $issues = [];
@@ -5155,7 +5193,7 @@ final class OpenDocumentPackage
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? ($declared ? 'signature-package-bytes-blocked' : 'undeclared-package-entry-no-bytes'),
                 'reviewPolicy' => 'package-signature-metadata-only',
                 'issues' => $issues,
-            ];
+            ] + $mediaTypeProvenance;
         }
 
         ksort($issueCodes, SORT_STRING);
@@ -5242,9 +5280,11 @@ final class OpenDocumentPackage
             $exists = $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
-            $mediaType = (string) ($entry['mediaType'] ?? '');
+            $rawMediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $inferredMediaType = self::objectReplacementMediaTypeFromPart($packagePath);
+            $mediaType = $rawMediaType;
             if ($mediaType === '') {
-                $mediaType = self::objectReplacementMediaTypeFromPart($packagePath) ?? '';
+                $mediaType = $inferredMediaType ?? '';
             }
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
@@ -5252,6 +5292,7 @@ final class OpenDocumentPackage
                 ? $mediaTypeReport['mediaTypeBase'] === ''
                 : ($mediaType !== '' && self::isObjectReplacementMediaType($mediaType));
             $kind = self::objectReplacementPackagePartKind($packagePath, $mediaType, $isDirectory);
+            $mediaTypeProvenance = self::sidecarMediaTypeProvenance($rawMediaType, $inferredMediaType, $declared);
             $issues = [];
             if (!$exists) {
                 $issues[] = 'odf-object-replacement-missing-package-part';
@@ -5306,7 +5347,7 @@ final class OpenDocumentPackage
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'object-replacement-package-bytes-blocked'),
                 'reviewPolicy' => 'object-replacement-metadata-only',
                 'issues' => $issues,
-            ];
+            ] + $mediaTypeProvenance;
         }
 
         ksort($issueCodes, SORT_STRING);
@@ -5399,11 +5440,14 @@ final class OpenDocumentPackage
             $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
-            $mediaType = (string) ($entry['mediaType'] ?? '');
+            $rawMediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $inferredMediaType = self::layoutCacheMediaTypeFromPart($packagePath);
+            $mediaType = $rawMediaType;
             if ($mediaType === '') {
-                $mediaType = self::layoutCacheMediaTypeFromPart($packagePath);
+                $mediaType = $inferredMediaType;
             }
             $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $mediaTypeProvenance = self::sidecarMediaTypeProvenance($rawMediaType, $inferredMediaType, $declared);
             $mediaTypeValid = self::isLayoutCacheMediaType($mediaType);
             $issues = [];
             if (!$zipEntry instanceof ZipPackageEntry) {
@@ -5456,7 +5500,7 @@ final class OpenDocumentPackage
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'layout-cache-package-bytes-blocked',
                 'reviewPolicy' => 'layout-cache-metadata-only',
                 'issues' => $issues,
-            ];
+            ] + $mediaTypeProvenance;
         }
 
         ksort($issueCodes, SORT_STRING);
@@ -8234,12 +8278,15 @@ final class OpenDocumentPackage
             $exists = $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
-            $mediaType = (string) ($entry['mediaType'] ?? '');
+            $rawMediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $inferredMediaType = self::scriptMediaTypeFromPart($packagePath);
+            $mediaType = $rawMediaType;
             if ($mediaType === '' && !$isDirectory) {
-                $mediaType = self::scriptMediaTypeFromPart($packagePath) ?? '';
+                $mediaType = $inferredMediaType ?? '';
             }
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $mediaTypeProvenance = self::sidecarMediaTypeProvenance($rawMediaType, $inferredMediaType, $declared);
             $pathInfo = self::scriptPackagePathInfo($packagePath, $mediaTypeReport['mediaTypeBase']);
             $mediaTypeValid = $isDirectory
                 ? $mediaTypeReport['mediaTypeBase'] === ''
@@ -8316,7 +8363,7 @@ final class OpenDocumentPackage
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? ($isDirectory ? 'directory-entry-no-bytes' : 'script-package-bytes-blocked'),
                 'reviewPolicy' => 'package-script-metadata-only',
                 'issues' => $issues,
-            ];
+            ] + $mediaTypeProvenance;
         }
 
         ksort($issueCodes, SORT_STRING);
@@ -8411,12 +8458,15 @@ final class OpenDocumentPackage
             $exists = $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = ($entry['encrypted'] ?? false) === true;
             $declared = ($entry['declared'] ?? false) === true;
-            $mediaType = (string) ($entry['mediaType'] ?? '');
+            $rawMediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $inferredMediaType = self::configurationMediaTypeFromPart($packagePath);
+            $mediaType = $rawMediaType;
             if ($mediaType === '') {
-                $mediaType = self::configurationMediaTypeFromPart($packagePath) ?? '';
+                $mediaType = $inferredMediaType ?? '';
             }
 
             $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $mediaTypeProvenance = self::sidecarMediaTypeProvenance($rawMediaType, $inferredMediaType, $declared);
             $pathInfo = self::configurationPackagePathInfo($packagePath, $mediaTypeReport['mediaTypeBase']);
             $mediaTypeValid = self::configurationMediaTypeValid($packagePath, $mediaTypeReport['mediaTypeBase'], $isDirectory);
             $issues = [];
@@ -8488,7 +8538,7 @@ final class OpenDocumentPackage
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'configuration-package-bytes-blocked',
                 'reviewPolicy' => 'configuration-package-metadata-only',
                 'issues' => $issues,
-            ];
+            ] + $mediaTypeProvenance;
         }
 
         ksort($issueCodes, SORT_STRING);

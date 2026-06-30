@@ -9171,17 +9171,23 @@ XML;
     },
     'reports ODT package thumbnails as metadata-only previews' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
+        $inferredThumbnailBytes = 'INFERRED-THUMBNAIL';
+        $invalidThumbnailBytes = 'INVALID-THUMBNAIL';
         $orphanThumbnailBytes = 'ORPHAN-THUMBNAIL';
         $manifestWithThumbnails = str_replace(
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
             . '<manifest:file-entry manifest:full-path="Thumbnails/thumbnail.png" manifest:media-type="image/png" manifest:size="' . strlen($thumbnailBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Thumbnails/inferred.png" manifest:media-type="" manifest:size="' . strlen($inferredThumbnailBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Thumbnails/not-image.png" manifest:media-type="application/octet-stream" manifest:size="' . strlen($invalidThumbnailBytes) . '"/>'
             . '<manifest:file-entry manifest:full-path="Thumbnails/missing.jpg" manifest:media-type="image/jpeg"/>',
             $manifestXml
         );
 
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithThumbnails, null, null, [
             ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/inferred.png', 'data' => $inferredThumbnailBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/not-image.png', 'data' => $invalidThumbnailBytes, 'compressionMethod' => 0],
             ['name' => 'Thumbnails/orphan.jpg', 'data' => $orphanThumbnailBytes, 'compressionMethod' => 0],
         ]));
         $report = $result['importReport']['packageThumbnails'];
@@ -9199,15 +9205,16 @@ XML;
 
         $t->same($report, $metadata);
         $t->same($report, $documentThumbnails);
-        $t->same(3, $report['count']);
-        $t->same(2, $report['readableCount']);
-        $t->same(2, $report['declaredCount']);
+        $t->same(5, $report['count']);
+        $t->same(4, $report['readableCount']);
+        $t->same(4, $report['declaredCount']);
         $t->same(1, $report['undeclaredCount']);
         $t->same(1, $report['missingCount']);
         $t->same(0, $report['encryptedCount']);
-        $t->same(0, $report['invalidMediaTypeCount']);
-        $t->same(2, $report['issueCount']);
+        $t->same(1, $report['invalidMediaTypeCount']);
+        $t->same(3, $report['issueCount']);
         $t->same([
+            'odf-thumbnail-invalid-media-type',
             'odf-thumbnail-missing-package-part',
             'odf-thumbnail-undeclared-package-part',
         ], $report['issueCodes']);
@@ -9225,6 +9232,26 @@ XML;
         $t->same('package-thumbnail-bytes-blocked', $itemsByPart['Thumbnails/thumbnail.png']['byteExposurePolicy']);
         $t->same('package-thumbnail-metadata-only', $itemsByPart['Thumbnails/thumbnail.png']['reviewPolicy']);
         $t->same([], $itemsByPart['Thumbnails/thumbnail.png']['issues']);
+        $t->same('image/png', $itemsByPart['Thumbnails/thumbnail.png']['declaredMediaType']);
+        $t->same('image/png', $itemsByPart['Thumbnails/thumbnail.png']['inferredMediaType']);
+        $t->same('manifest', $itemsByPart['Thumbnails/thumbnail.png']['mediaTypeSource']);
+        $t->same(true, $itemsByPart['Thumbnails/thumbnail.png']['mediaTypeMatchesInferred']);
+        $t->same(false, $itemsByPart['Thumbnails/thumbnail.png']['missingDeclaredMediaType']);
+
+        $t->same('image/png', $itemsByPart['Thumbnails/inferred.png']['mediaType']);
+        $t->same(null, $itemsByPart['Thumbnails/inferred.png']['declaredMediaType']);
+        $t->same('image/png', $itemsByPart['Thumbnails/inferred.png']['inferredMediaType']);
+        $t->same('package-extension', $itemsByPart['Thumbnails/inferred.png']['mediaTypeSource']);
+        $t->same(null, $itemsByPart['Thumbnails/inferred.png']['mediaTypeMatchesInferred']);
+        $t->same(true, $itemsByPart['Thumbnails/inferred.png']['missingDeclaredMediaType']);
+        $t->same([], $itemsByPart['Thumbnails/inferred.png']['issues']);
+
+        $t->same('application/octet-stream', $itemsByPart['Thumbnails/not-image.png']['mediaType']);
+        $t->same('application/octet-stream', $itemsByPart['Thumbnails/not-image.png']['declaredMediaType']);
+        $t->same('image/png', $itemsByPart['Thumbnails/not-image.png']['inferredMediaType']);
+        $t->same('manifest', $itemsByPart['Thumbnails/not-image.png']['mediaTypeSource']);
+        $t->same(false, $itemsByPart['Thumbnails/not-image.png']['mediaTypeMatchesInferred']);
+        $t->same(['odf-thumbnail-invalid-media-type'], $itemsByPart['Thumbnails/not-image.png']['issues']);
 
         $manifestThumbnail = $manifestByPart['Thumbnails/thumbnail.png'];
         $t->same(true, $manifestThumbnail['thumbnailPackagePart']);
@@ -9243,6 +9270,9 @@ XML;
         $t->same(['odf-thumbnail-missing-package-part'], $itemsByPart['Thumbnails/missing.jpg']['issues']);
         $t->same(null, $itemsByPart['Thumbnails/missing.jpg']['byteLength']);
         $t->same('image/jpeg', $itemsByPart['Thumbnails/orphan.jpg']['mediaType']);
+        $t->same(null, $itemsByPart['Thumbnails/orphan.jpg']['declaredMediaType']);
+        $t->same('image/jpeg', $itemsByPart['Thumbnails/orphan.jpg']['inferredMediaType']);
+        $t->same('package-extension', $itemsByPart['Thumbnails/orphan.jpg']['mediaTypeSource']);
         $t->same(false, $itemsByPart['Thumbnails/orphan.jpg']['declared']);
         $t->same(true, $itemsByPart['Thumbnails/orphan.jpg']['undeclared']);
         $t->same(true, $itemsByPart['Thumbnails/orphan.jpg']['exists']);

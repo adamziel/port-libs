@@ -3997,6 +3997,7 @@ XML;
     },
     'reports compact ODT package thumbnails as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
+        $inferredBytes = 'INFERREDPNG';
         $encryptedBytes = 'ENCRYPTEDPNG';
         $invalidBytes = 'NOT-IMAGE';
         $orphanBytes = 'WEBPTHUMB';
@@ -4011,6 +4012,7 @@ XML;
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
             . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Thumbnails/thumbnail.png" manifest:size="' . strlen($thumbnailBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="" manifest:full-path="Thumbnails/inferred.png" manifest:size="' . strlen($inferredBytes) . '"/>'
             . '<manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Thumbnails/missing.jpg"/>'
             . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Thumbnails/not-image.png"/>'
             . $encryptedEntry,
@@ -4021,6 +4023,7 @@ XML;
             manifest: $manifest,
             extraParts: [
                 ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/inferred.png', 'data' => $inferredBytes, 'compressionMethod' => 0],
                 ['name' => 'Thumbnails/encrypted.png', 'data' => $encryptedBytes, 'compressionMethod' => 0],
                 ['name' => 'Thumbnails/not-image.png', 'data' => $invalidBytes, 'compressionMethod' => 0],
                 ['name' => 'Thumbnails/orphan.webp', 'data' => $orphanBytes, 'compressionMethod' => 0],
@@ -4037,9 +4040,9 @@ XML;
         }
         $inventory = $summary['packageInventory']['parts'];
 
-        $t->same(5, $thumbnails['count']);
-        $t->same(3, $thumbnails['readableCount']);
-        $t->same(4, $thumbnails['declaredCount']);
+        $t->same(6, $thumbnails['count']);
+        $t->same(4, $thumbnails['readableCount']);
+        $t->same(5, $thumbnails['declaredCount']);
         $t->same(1, $thumbnails['undeclaredCount']);
         $t->same(1, $thumbnails['missingCount']);
         $t->same(1, $thumbnails['encryptedCount']);
@@ -4066,6 +4069,20 @@ XML;
         $t->same('package-thumbnail-bytes-blocked', $declared['byteExposurePolicy']);
         $t->same('package-thumbnail-metadata-only', $declared['reviewPolicy']);
         $t->same([], $declared['issues']);
+        $t->same('image/png', $declared['declaredMediaType']);
+        $t->same('image/png', $declared['inferredMediaType']);
+        $t->same('manifest', $declared['mediaTypeSource']);
+        $t->same(true, $declared['mediaTypeMatchesInferred']);
+        $t->same(false, $declared['missingDeclaredMediaType']);
+
+        $inferred = $itemsByPath['Thumbnails/inferred.png'];
+        $t->same('image/png', $inferred['mediaType']);
+        $t->same(null, $inferred['declaredMediaType']);
+        $t->same('image/png', $inferred['inferredMediaType']);
+        $t->same('package-extension', $inferred['mediaTypeSource']);
+        $t->same(null, $inferred['mediaTypeMatchesInferred']);
+        $t->same(true, $inferred['missingDeclaredMediaType']);
+        $t->same([], $inferred['issues']);
 
         $manifestDeclared = $manifestReviewByPath['Thumbnails/thumbnail.png'];
         $t->same(true, $manifestDeclared['thumbnailPackagePart']);
@@ -4095,6 +4112,10 @@ XML;
         $invalid = $itemsByPath['Thumbnails/not-image.png'];
         $t->same('application/octet-stream', $invalid['mediaType']);
         $t->same('application/octet-stream', $invalid['mediaTypeBase']);
+        $t->same('application/octet-stream', $invalid['declaredMediaType']);
+        $t->same('image/png', $invalid['inferredMediaType']);
+        $t->same('manifest', $invalid['mediaTypeSource']);
+        $t->same(false, $invalid['mediaTypeMatchesInferred']);
         $t->same(false, $invalid['valid']);
         $t->same(['odf-thumbnail-invalid-media-type'], $invalid['issues']);
 
@@ -4102,6 +4123,9 @@ XML;
         $t->same(false, $orphan['declared']);
         $t->same(true, $orphan['undeclared']);
         $t->same('image/webp', $orphan['mediaType']);
+        $t->same(null, $orphan['declaredMediaType']);
+        $t->same('image/webp', $orphan['inferredMediaType']);
+        $t->same('package-extension', $orphan['mediaTypeSource']);
         $t->same(strlen($orphanBytes), $orphan['byteLength']);
         $t->same(['odf-thumbnail-undeclared-package-part'], $orphan['issues']);
 
@@ -4111,8 +4135,8 @@ XML;
         $t->same('package-thumbnail-bytes-blocked', $inventory['Thumbnails/thumbnail.png']['byteExposurePolicy']);
         $t->same(['package-thumbnail', 'manifest-declared'], $inventory['Thumbnails/not-image.png']['roles']);
         $t->same(['package-thumbnail', 'undeclared-package-entry'], $inventory['Thumbnails/orphan.webp']['roles']);
-        $t->same(4, $summary['packageInventory']['packageThumbnailPartCount']);
-        $t->same(4, $summary['packageIdentity']['packageThumbnailPartCount']);
+        $t->same(5, $summary['packageInventory']['packageThumbnailPartCount']);
+        $t->same(5, $summary['packageIdentity']['packageThumbnailPartCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('Thumbnails/orphan.webp', $summary['undeclaredPackageEntries'][0]['path']);
         $t->same(true, $summary['undeclaredPackageEntries'][0]['thumbnailPackagePart']);
