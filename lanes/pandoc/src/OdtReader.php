@@ -12,7 +12,7 @@ final class OdtReader
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
 
-    /** @var array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, sourcePart?: string, element?: string}> */
+    /** @var array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, sourcePart?: string, element?: string}> */
     private array $textStyles = [];
 
     /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
@@ -103,7 +103,7 @@ final class OdtReader
             $styles instanceof \DOMDocument ? $this->collectListStyles($styles, 'styles.xml') : [],
             $this->collectListStyles($content, 'content.xml'),
         );
-        array_push($this->styleDiagnostics, ...$this->textStyleParentDiagnostics($this->textStyles));
+        array_push($this->styleDiagnostics, ...$this->textStyleReferenceDiagnostics($this->textStyles));
         array_push($this->styleDiagnostics, ...$this->contentStyleReferenceDiagnostics($content));
 
         $metadata = $meta_xml !== '' ? $this->metadata($this->loadXml($meta_xml, 'ODT meta.xml')) : [];
@@ -503,6 +503,10 @@ final class OdtReader
             if ($parentName !== '') {
                 $entry['parentName'] = $parentName;
             }
+            $nextStyleName = $this->attr($style, self::STYLE_NS, 'next-style-name');
+            if ($nextStyleName !== '') {
+                $entry['nextStyleName'] = $nextStyleName;
+            }
             foreach ($style->childNodes as $props) {
                 if (!$props instanceof \DOMElement || $props->localName !== 'text-properties') {
                     continue;
@@ -523,33 +527,66 @@ final class OdtReader
     }
 
     /**
-     * @param array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, sourcePart?: string, element?: string}> $styles
+     * @param array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, nextStyleName?: string, sourcePart?: string, element?: string}> $styles
      * @return list<array<string, mixed>>
      */
-    private function textStyleParentDiagnostics(array $styles): array
+    private function textStyleReferenceDiagnostics(array $styles): array
     {
         $diagnostics = [];
         foreach ($styles as $styleName => $style) {
-            $parentName = (string) ($style['parentName'] ?? '');
-            if ($parentName === '' || isset($styles[$parentName])) {
-                continue;
-            }
-
-            $diagnostic = [
-                'code' => 'odt-style-missing-parent',
-                'sourcePart' => (string) ($style['sourcePart'] ?? ''),
-                'element' => (string) ($style['element'] ?? 'style:style'),
-                'styleName' => $styleName,
-                'parentStyleName' => $parentName,
-            ];
-            $family = (string) ($style['family'] ?? '');
-            if ($family !== '') {
-                $diagnostic['family'] = $family;
-            }
-            $diagnostics[] = $diagnostic;
+            $this->appendMissingTextStyleReferenceDiagnostic(
+                $diagnostics,
+                $styles,
+                $style,
+                'odt-style-missing-parent',
+                $styleName,
+                'parentStyleName',
+                (string) ($style['parentName'] ?? '')
+            );
+            $this->appendMissingTextStyleReferenceDiagnostic(
+                $diagnostics,
+                $styles,
+                $style,
+                'odt-style-missing-next-style',
+                $styleName,
+                'nextStyleName',
+                (string) ($style['nextStyleName'] ?? '')
+            );
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @param array<string, array<string, mixed>> $styles
+     * @param array<string, mixed> $style
+     */
+    private function appendMissingTextStyleReferenceDiagnostic(
+        array &$diagnostics,
+        array $styles,
+        array $style,
+        string $code,
+        string $styleName,
+        string $referenceKey,
+        string $referenceName
+    ): void {
+        if ($referenceName === '' || isset($styles[$referenceName])) {
+            return;
+        }
+
+        $diagnostic = [
+            'code' => $code,
+            'sourcePart' => (string) ($style['sourcePart'] ?? ''),
+            'element' => (string) ($style['element'] ?? 'style:style'),
+            'styleName' => $styleName,
+            $referenceKey => $referenceName,
+        ];
+        $family = (string) ($style['family'] ?? '');
+        if ($family !== '') {
+            $diagnostic['family'] = $family;
+        }
+        $diagnostics[] = $diagnostic;
     }
 
     /**

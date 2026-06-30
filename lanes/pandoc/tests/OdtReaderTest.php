@@ -309,6 +309,64 @@ XML);
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Missing parent and known parent.', $document->children[0]->attr('text'));
     },
+    'reports direct odt missing next style diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="KnownNext" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+    <style:style style:name="MissingNextLink" style:family="text" style:next-style-name="MissingNext"><style:text-properties fo:font-style="italic"/></style:style>
+    <style:style style:name="KnownNextLink" style:family="text" style:next-style-name="KnownNext"/>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="MissingNextLink">Missing next style</text:span> and <text:span text:style-name="KnownNextLink">known next style</text:span>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnostic = $meta['odtStyleDiagnostics'][0];
+
+        $t->same(3, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtStyleDiagnosticCount']);
+        $t->same(['odt-style-missing-next-style' => 1], $meta['odtStyleDiagnosticCodeCounts']);
+        $t->same('styles.xml', $diagnostic['sourcePart']);
+        $t->same('style:style', $diagnostic['element']);
+        $t->same('MissingNextLink', $diagnostic['styleName']);
+        $t->same('MissingNext', $diagnostic['nextStyleName']);
+        $t->same('text', $diagnostic['family']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Missing next style and known next style.', $document->children[0]->attr('text'));
+    },
     'preserves odt footnotes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {
