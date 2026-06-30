@@ -3586,6 +3586,72 @@ XML;
         $t->same(2, $word['roleCounts']['document-relationship-target']);
         $t->same(1, $word['roleCounts']['embedded-package']);
     },
+    'summarizes docx package path segment positions for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/embeddings/review-cache/data.bin" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEmbeddedPosition" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="embeddings/review-cache/data.bin"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/embeddings/review-cache/data.bin'] = str_repeat('E', 41);
+        $parts['customXml/review-cache/data.bin'] = str_repeat('M', 17);
+        $parts['customXml/review-cache/meta.xml'] = '<meta/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byPosition = [];
+        foreach ($summary['partPathSegmentPositions'] as $position) {
+            $byPosition[$position['position']] = $position;
+        }
+
+        $t->same(4, $summary['partPathSegmentPositionBucketCount']);
+        $t->same($summary['partPathSegmentOccurrenceCount'], $summary['partPathSegmentPositionOccurrenceCount']);
+        $t->same([
+            'first' => 10,
+            'last' => 10,
+            'middle' => 6,
+            'only' => 1,
+        ], $summary['partPathSegmentPositionCounts']);
+        $t->same(['[Content_Types].xml'], $byPosition['only']['partNames']);
+        $t->same(['[Content_Types].xml'], $byPosition['only']['segments']);
+        $t->same(['content-types' => 1], $byPosition['only']['roleCounts']);
+        $t->same(10, $byPosition['first']['partCount']);
+        $t->same(['_rels' => 1, 'customXml' => 2, 'docProps' => 1, 'word' => 6], $byPosition['first']['segmentCounts']);
+        $t->same(['default' => 6, 'missing' => 1, 'override' => 3], $byPosition['first']['contentTypeSourceCounts']);
+        $t->same(1, $byPosition['first']['roleCounts']['embedded-package']);
+        $t->same(10, $byPosition['last']['partCount']);
+        $t->same(2, $byPosition['last']['segmentCounts']['data.bin']);
+        $t->same(1, $byPosition['last']['missingContentTypePartCount']);
+        $t->same(['default' => 6, 'missing' => 1, 'override' => 3], $byPosition['last']['contentTypeSourceCounts']);
+        $t->same(5, $byPosition['middle']['partCount']);
+        $t->same(6, $byPosition['middle']['occurrenceCount']);
+        $t->same(['_rels' => 1, 'embeddings' => 1, 'media' => 1, 'review-cache' => 3], $byPosition['middle']['segmentCounts']);
+        $t->same([1 => 5, 2 => 1], $byPosition['middle']['pathSegmentIndexCounts']);
+        $t->same(['customXml/review-cache/data.bin', 'customXml/review-cache/meta.xml', 'word/_rels/document.xml.rels', 'word/embeddings/review-cache/data.bin', 'word/media/review.png'], $byPosition['middle']['partNames']);
+        $t->same('word/_rels/document.xml.rels', $byPosition['middle']['largestPart']['partName']);
+        $t->same('application/vnd.openxmlformats-package.relationships+xml', $byPosition['middle']['largestPart']['contentTypeBase']);
+
+        $embeddedPart = $inventory['word/embeddings/review-cache/data.bin'];
+        $t->same(['first' => 1, 'last' => 1, 'middle' => 2], $embeddedPart['pathSegmentPositionCounts']);
+        $t->same('word', $embeddedPart['pathSegmentFirstSegment']);
+        $t->same('data.bin', $embeddedPart['pathSegmentLastSegment']);
+        $t->same(false, $embeddedPart['pathSegmentHasOnlySegment']);
+        $t->same('first', $embeddedPart['pathSegmentPositionReviews'][0]['position']);
+        $t->same('middle', $embeddedPart['pathSegmentPositionReviews'][1]['position']);
+        $t->same('middle', $embeddedPart['pathSegmentPositionReviews'][2]['position']);
+        $t->same('last', $embeddedPart['pathSegmentPositionReviews'][3]['position']);
+        $t->same(true, $inventory['[Content_Types].xml']['pathSegmentHasOnlySegment']);
+        $t->same(['only' => 1], $inventory['[Content_Types].xml']['pathSegmentPositionCounts']);
+    },
     'summarizes docx package part path segment lengths for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $longPart = 'customXml/length-review/very-long-segment-name-for-review/data.bin';
