@@ -913,6 +913,8 @@ final class OpenDocumentPackage
         $localHeaderOrder = $this->package->localHeaderOrderPreflight();
         $packageManifest = $this->package->packageManifestPreflight();
         $compressionMethods = $this->package->compressionMethodPreflight();
+        $generalPurposeFlags = $this->package->generalPurposeFlagPreflight();
+        $generalPurposeFlagEntriesByName = self::zipPreflightEntriesByName($generalPurposeFlags);
         $comments = $this->package->commentPreflight();
         $modificationTimes = $this->package->modificationTimePreflight();
         $modificationTimeByName = self::zipModificationTimeEntriesByName($modificationTimes);
@@ -1020,6 +1022,7 @@ final class OpenDocumentPackage
             $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared, $embeddedObjectPackage);
             $byteExposurePolicy = null;
             $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
+            $generalPurposeFlagProvenance = self::zipGeneralPurposeFlagProvenance($generalPurposeFlagEntriesByName[$entry->name] ?? null);
             if (is_array($manifestEntry)) {
                 $byteExposurePolicy = $manifestEntry['byteExposurePolicy'] ?? null;
             } elseif ($isUndeclared) {
@@ -1127,7 +1130,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $generalPurposeFlagProvenance + $platformAttributeProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -1340,6 +1343,12 @@ final class OpenDocumentPackage
             'roleCompressedByteLengths' => $roleCompressedByteLengths,
             'unsupportedCompressionPartNames' => array_keys($unsupportedCompressionPartNames),
             'localHeaderOrder' => $localHeaderOrder,
+            'generalPurposeFlags' => $generalPurposeFlags,
+            'zipUtf8NameEntryCount' => $generalPurposeFlags['utf8NameEntryCount'],
+            'zipDataDescriptorEntryCount' => $generalPurposeFlags['dataDescriptorEntryCount'],
+            'zipDeflateOptionEntryCount' => $generalPurposeFlags['deflateOptionEntryCount'],
+            'zipStrictFlagReviewEntryCount' => $generalPurposeFlags['strictReviewEntryCount'],
+            'zipUnsupportedGeneralPurposeFlagEntryCount' => $generalPurposeFlags['unsupportedFlagEntryCount'],
             'compressionMethods' => $compressionMethods,
             'comments' => $comments,
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
@@ -1419,6 +1428,16 @@ final class OpenDocumentPackage
                 'compressedByteLength' => $entry['compressedByteLength'] ?? null,
                 'compressionMethod' => $entry['compressionMethod'] ?? null,
                 'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+                'zipGeneralPurposeFlags' => $entry['zipGeneralPurposeFlags'] ?? null,
+                'zipGeneralPurposeFlagNames' => $entry['zipGeneralPurposeFlagNames'] ?? [],
+                'zipUnsupportedGeneralPurposeFlagBits' => $entry['zipUnsupportedGeneralPurposeFlagBits'] ?? null,
+                'zipGeneralPurposeFlagsSupported' => $entry['zipGeneralPurposeFlagsSupported'] ?? null,
+                'zipUsesUtf8Names' => $entry['zipUsesUtf8Names'] ?? null,
+                'zipUsesDataDescriptor' => $entry['zipUsesDataDescriptor'] ?? null,
+                'zipDeflateOptionFlags' => $entry['zipDeflateOptionFlags'] ?? null,
+                'zipDeflateOptionName' => $entry['zipDeflateOptionName'] ?? null,
+                'zipRequiresStrictFlagReview' => $entry['zipRequiresStrictFlagReview'] ?? null,
+                'zipGeneralPurposeFlagIssues' => $entry['zipGeneralPurposeFlagIssues'] ?? [],
                 'storedCrc32' => $entry['storedCrc32'] ?? null,
                 'byteSha256' => $entry['byteSha256'] ?? null,
                 'declaredSize' => $entry['declaredSize'] ?? null,
@@ -1462,6 +1481,16 @@ final class OpenDocumentPackage
                 'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
                 'compressionMethod' => $part['compressionMethod'] ?? null,
                 'compressionMethodName' => $part['compressionMethodName'] ?? null,
+                'zipGeneralPurposeFlags' => $part['zipGeneralPurposeFlags'] ?? null,
+                'zipGeneralPurposeFlagNames' => $part['zipGeneralPurposeFlagNames'] ?? [],
+                'zipUnsupportedGeneralPurposeFlagBits' => $part['zipUnsupportedGeneralPurposeFlagBits'] ?? null,
+                'zipGeneralPurposeFlagsSupported' => $part['zipGeneralPurposeFlagsSupported'] ?? null,
+                'zipUsesUtf8Names' => $part['zipUsesUtf8Names'] ?? null,
+                'zipUsesDataDescriptor' => $part['zipUsesDataDescriptor'] ?? null,
+                'zipDeflateOptionFlags' => $part['zipDeflateOptionFlags'] ?? null,
+                'zipDeflateOptionName' => $part['zipDeflateOptionName'] ?? null,
+                'zipRequiresStrictFlagReview' => $part['zipRequiresStrictFlagReview'] ?? null,
+                'zipGeneralPurposeFlagIssues' => $part['zipGeneralPurposeFlagIssues'] ?? [],
                 'byteLength' => $part['byteLength'] ?? null,
                 'compressedByteLength' => $part['compressedByteLength'] ?? null,
                 'crc32' => $part['crc32'] ?? null,
@@ -1593,6 +1622,11 @@ final class OpenDocumentPackage
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'encryptedCount' => count($this->encryptedManifestEntries()),
             'platformMetadataEntryCount' => $packageInventory['platformMetadataEntryCount'] ?? 0,
+            'zipUtf8NameEntryCount' => $packageInventory['zipUtf8NameEntryCount'] ?? 0,
+            'zipDataDescriptorEntryCount' => $packageInventory['zipDataDescriptorEntryCount'] ?? 0,
+            'zipDeflateOptionEntryCount' => $packageInventory['zipDeflateOptionEntryCount'] ?? 0,
+            'zipStrictFlagReviewEntryCount' => $packageInventory['zipStrictFlagReviewEntryCount'] ?? 0,
+            'zipUnsupportedGeneralPurposeFlagEntryCount' => $packageInventory['zipUnsupportedGeneralPurposeFlagEntryCount'] ?? 0,
             'knownCreatorHostSystemEntryCount' => $packageInventory['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $packageInventory['unknownCreatorHostSystemEntryCount'] ?? 0,
             'creatorVersionBelowNeededEntryCount' => $packageInventory['creatorVersionBelowNeededEntryCount'] ?? 0,
@@ -1948,6 +1982,26 @@ final class OpenDocumentPackage
             'zipLocalModifiedAt' => $timestamp['localModifiedAt'] ?? null,
             'zipLocalTimestampSource' => $timestamp['localTimestampSource'] ?? null,
             'zipTimestampIssues' => is_array($timestamp['issues'] ?? null) ? $timestamp['issues'] : [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipGeneralPurposeFlagProvenance(?array $entry): array
+    {
+        return [
+            'zipGeneralPurposeFlags' => is_int($entry['generalPurposeFlags'] ?? null) ? $entry['generalPurposeFlags'] : null,
+            'zipGeneralPurposeFlagNames' => is_array($entry['flagNames'] ?? null) ? $entry['flagNames'] : [],
+            'zipUnsupportedGeneralPurposeFlagBits' => is_int($entry['unsupportedFlagBits'] ?? null) ? $entry['unsupportedFlagBits'] : null,
+            'zipGeneralPurposeFlagsSupported' => is_array($entry) ? (($entry['isSupportedByReader'] ?? false) === true) : null,
+            'zipUsesUtf8Names' => is_array($entry) ? (($entry['usesUtf8Names'] ?? false) === true) : null,
+            'zipUsesDataDescriptor' => is_array($entry) ? (($entry['usesDataDescriptor'] ?? false) === true) : null,
+            'zipDeflateOptionFlags' => is_int($entry['deflateOptionFlags'] ?? null) ? $entry['deflateOptionFlags'] : null,
+            'zipDeflateOptionName' => is_string($entry['deflateOptionName'] ?? null) ? $entry['deflateOptionName'] : null,
+            'zipRequiresStrictFlagReview' => is_array($entry) ? (($entry['requiresStrictReview'] ?? false) === true) : null,
+            'zipGeneralPurposeFlagIssues' => is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
         ];
     }
 
@@ -2473,6 +2527,7 @@ final class OpenDocumentPackage
         $hydrated = [];
         $modificationTimeByName = self::zipModificationTimeEntriesByName($package->modificationTimePreflight());
         $commentEntriesByName = self::zipPreflightEntriesByName($package->commentPreflight());
+        $generalPurposeFlagEntriesByName = self::zipPreflightEntriesByName($package->generalPurposeFlagPreflight());
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($entries);
         foreach ($entries as $entry) {
             $isRoot = $entry['path'] === '/';
@@ -2508,6 +2563,9 @@ final class OpenDocumentPackage
             $timestampProvenance = $zipEntry instanceof ZipPackageEntry
                 ? self::zipTimestampProvenance($modificationTimeByName[$zipEntry->name] ?? null)
                 : self::zipTimestampProvenance(null);
+            $generalPurposeFlagProvenance = $zipEntry instanceof ZipPackageEntry
+                ? self::zipGeneralPurposeFlagProvenance($generalPurposeFlagEntriesByName[$zipEntry->name] ?? null)
+                : self::zipGeneralPurposeFlagProvenance(null);
             $exists = $isRoot || $isDirectory || $zipEntry instanceof ZipPackageEntry;
             $encrypted = is_array($entry['encryption']);
             $missingMediaType = ($entry['missingMediaType'] ?? false) === true;
@@ -2670,7 +2728,7 @@ final class OpenDocumentPackage
                     $hasSupportedCompression
                 ),
                 'diagnostics' => $diagnostics,
-            ], $timestampProvenance);
+            ], $timestampProvenance, $generalPurposeFlagProvenance);
         }
 
         return $hydrated;
@@ -8865,6 +8923,16 @@ final class OpenDocumentPackage
             'zipEntryCommentEncoding' => $entry['zipEntryCommentEncoding'] ?? null,
             'zipEntryHasComment' => ($entry['zipEntryHasComment'] ?? false) === true,
             'zipEntryCommentIssues' => $entry['zipEntryCommentIssues'] ?? [],
+            'zipGeneralPurposeFlags' => $entry['zipGeneralPurposeFlags'] ?? null,
+            'zipGeneralPurposeFlagNames' => $entry['zipGeneralPurposeFlagNames'] ?? [],
+            'zipUnsupportedGeneralPurposeFlagBits' => $entry['zipUnsupportedGeneralPurposeFlagBits'] ?? null,
+            'zipGeneralPurposeFlagsSupported' => $entry['zipGeneralPurposeFlagsSupported'] ?? null,
+            'zipUsesUtf8Names' => $entry['zipUsesUtf8Names'] ?? null,
+            'zipUsesDataDescriptor' => $entry['zipUsesDataDescriptor'] ?? null,
+            'zipDeflateOptionFlags' => $entry['zipDeflateOptionFlags'] ?? null,
+            'zipDeflateOptionName' => $entry['zipDeflateOptionName'] ?? null,
+            'zipRequiresStrictFlagReview' => $entry['zipRequiresStrictFlagReview'] ?? null,
+            'zipGeneralPurposeFlagIssues' => $entry['zipGeneralPurposeFlagIssues'] ?? [],
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
             'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
             'zipModifiedDosTime' => $entry['zipModifiedDosTime'] ?? null,
@@ -8957,6 +9025,16 @@ final class OpenDocumentPackage
             'zipEntryCommentEncoding' => $entry['zipEntryCommentEncoding'] ?? null,
             'zipEntryHasComment' => ($entry['zipEntryHasComment'] ?? false) === true,
             'zipEntryCommentIssues' => $entry['zipEntryCommentIssues'] ?? [],
+            'zipGeneralPurposeFlags' => $entry['zipGeneralPurposeFlags'] ?? null,
+            'zipGeneralPurposeFlagNames' => $entry['zipGeneralPurposeFlagNames'] ?? [],
+            'zipUnsupportedGeneralPurposeFlagBits' => $entry['zipUnsupportedGeneralPurposeFlagBits'] ?? null,
+            'zipGeneralPurposeFlagsSupported' => $entry['zipGeneralPurposeFlagsSupported'] ?? null,
+            'zipUsesUtf8Names' => $entry['zipUsesUtf8Names'] ?? null,
+            'zipUsesDataDescriptor' => $entry['zipUsesDataDescriptor'] ?? null,
+            'zipDeflateOptionFlags' => $entry['zipDeflateOptionFlags'] ?? null,
+            'zipDeflateOptionName' => $entry['zipDeflateOptionName'] ?? null,
+            'zipRequiresStrictFlagReview' => $entry['zipRequiresStrictFlagReview'] ?? null,
+            'zipGeneralPurposeFlagIssues' => $entry['zipGeneralPurposeFlagIssues'] ?? [],
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
             'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
             'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'] ?? null,

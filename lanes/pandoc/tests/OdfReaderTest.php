@@ -157,9 +157,16 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
         $data = $part['data'] ?? '';
         $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
         $flags = $part['generalPurposeFlags'] ?? 0x0800;
+        $dataDescriptor = (bool) ($part['dataDescriptor'] ?? false);
+        if ($dataDescriptor) {
+            $flags |= 0x0008;
+        }
         $compressed = $method === 8 ? gzdeflate($data) : $data;
         $offset = strlen($body);
         $crc = $crc32($data);
+        $localCrc = $dataDescriptor ? 0 : $crc;
+        $localCompressedSize = $dataDescriptor ? 0 : strlen($compressed);
+        $localUncompressedSize = $dataDescriptor ? 0 : strlen($data);
 
         $body .= pack(
             'VvvvvvVVVvv',
@@ -169,13 +176,16 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
             $method,
             0,
             0,
-            $crc,
-            strlen($compressed),
-            strlen($data),
+            $localCrc,
+            $localCompressedSize,
+            $localUncompressedSize,
             strlen($rawName),
             0
         );
         $body .= $rawName . $compressed;
+        if ($dataDescriptor) {
+            $body .= "PK\x07\x08" . pack('VVV', $crc, strlen($compressed), strlen($data));
+        }
 
         $centralRecords[$name] = pack(
             'VvvvvvvVVVvvvvvVV',
@@ -12935,6 +12945,97 @@ XML;
         $t->same(1, count($result['media']));
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(0, $provenance['undeclaredEntryCount']);
+    },
+    'surfaces ODT ZIP general purpose flags in manifest and package provenance' => static function (
+        TestRunner $t
+    ) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $package = $buildZipPackageWithCentralDirectoryOrder(
+            [
+                ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+                ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
+                ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8, 'dataDescriptor' => true],
+                ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+                ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+                ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ],
+            ['mimetype', 'META-INF/manifest.xml', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png']
+        );
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $expectedFlagReview = $package->generalPurposeFlagPreflight();
+        $expectedFlags = 0x0808;
+        $expectedFlagNames = ['data-descriptor', 'utf-8-names'];
+        $expectedIssues = ['data-descriptor-entry'];
+
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $manifestOrderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
+        $identityManifestByPath = [];
+        foreach ($provenance['packageIdentity']['manifestEntries'] as $item) {
+            $identityManifestByPath[$item['fullPath']] = $item;
+        }
+        $identityPackageByPart = [];
+        foreach ($provenance['packageIdentity']['packageEntries'] as $item) {
+            $identityPackageByPart[$item['part']] = $item;
+        }
+        $compactReviewByPath = [];
+        foreach ($compactSummary['manifestReview']['items'] as $item) {
+            $compactReviewByPath[$item['fullPath']] = $item;
+        }
+        $compactOrderByPath = [];
+        foreach ($compactSummary['manifestReview']['manifestFileEntryOrder'] as $item) {
+            $compactOrderByPath[$item['fullPath']] = $item;
+        }
+        $compactIdentityManifestByPath = [];
+        foreach ($compactSummary['packageIdentity']['manifestEntries'] as $item) {
+            $compactIdentityManifestByPath[$item['path']] = $item;
+        }
+        $compactIdentityPackageByPath = [];
+        foreach ($compactSummary['packageIdentity']['packageEntries'] as $item) {
+            $compactIdentityPackageByPath[$item['path']] = $item;
+        }
+
+        $t->same($expectedFlagReview, $provenance['generalPurposeFlags']);
+        $t->same($expectedFlagReview, $compactSummary['packageInventory']['generalPurposeFlags']);
+        $t->same(count($package->entries()), $provenance['zipUtf8NameEntryCount']);
+        $t->same(1, $provenance['zipDataDescriptorEntryCount']);
+        $t->same(1, $provenance['zipStrictFlagReviewEntryCount']);
+        $t->same(0, $provenance['zipUnsupportedGeneralPurposeFlagEntryCount']);
+        $t->same(count($package->entries()), $compactSummary['packageInventory']['zipUtf8NameEntryCount']);
+        $t->same(1, $compactSummary['packageInventory']['zipDataDescriptorEntryCount']);
+        $t->same(1, $compactSummary['packageInventory']['zipStrictFlagReviewEntryCount']);
+        $t->same(0, $compactSummary['packageInventory']['zipUnsupportedGeneralPurposeFlagEntryCount']);
+
+        foreach ([
+            'rich manifest' => $manifestByPath['content.xml'],
+            'rich manifest order' => $manifestOrderByPath['content.xml'],
+            'rich inventory part' => $provenance['parts']['content.xml'],
+            'rich identity manifest' => $identityManifestByPath['content.xml'],
+            'rich identity package' => $identityPackageByPart['content.xml'],
+            'compact manifest review' => $compactReviewByPath['content.xml'],
+            'compact manifest order' => $compactOrderByPath['content.xml'],
+            'compact inventory part' => $compactSummary['packageInventory']['parts']['content.xml'],
+            'compact identity manifest' => $compactIdentityManifestByPath['content.xml'],
+            'compact identity package' => $compactIdentityPackageByPath['content.xml'],
+        ] as $context => $item) {
+            $t->same($expectedFlags, $item['zipGeneralPurposeFlags'], "{$context} flags");
+            $t->same($expectedFlagNames, $item['zipGeneralPurposeFlagNames'], "{$context} flag names");
+            $t->same(0, $item['zipUnsupportedGeneralPurposeFlagBits'], "{$context} unsupported bits");
+            $t->same(true, $item['zipGeneralPurposeFlagsSupported'], "{$context} supported");
+            $t->same(true, $item['zipUsesUtf8Names'], "{$context} utf8 names");
+            $t->same(true, $item['zipUsesDataDescriptor'], "{$context} data descriptor");
+            $t->same(0, $item['zipDeflateOptionFlags'], "{$context} deflate flags");
+            $t->same(null, $item['zipDeflateOptionName'] ?? null, "{$context} deflate flag name");
+            $t->same(true, $item['zipRequiresStrictFlagReview'], "{$context} strict review");
+            $t->same($expectedIssues, $item['zipGeneralPurposeFlagIssues'], "{$context} issues");
+        }
     },
     'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml): void {
         $reader = new OdfReader();
