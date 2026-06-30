@@ -72,10 +72,24 @@ final class DocxWriter
     /** @var list<OpcRelationship> */
     private array $documentRelationships = [];
 
+    /** @var list<OpcRelationship> */
+    private array $footnoteRelationships = [];
+
+    /** @var list<array{id:int, blocks:list<AstNode>}> */
+    private array $footnotes = [];
+
+    /** @var list<array{id:string, author:string, date:string, children:list<AstNode>}> */
+    private array $comments = [];
+
+    /** @var array<string, true> */
+    private array $commentIds = [];
+
     /** @var array<string, array{numId:int, level:int, start:int}> */
     private array $orderedListOverrides = [];
 
     private int $nextDocumentRelationshipId = 9;
+    private int $nextFootnoteId = 9;
+    private int $nextBookmarkId = 11;
     private int $nextNumberingId = 10;
 
     /**
@@ -101,6 +115,8 @@ final class DocxWriter
 
         $this->resetState();
         $documentXml = $this->documentXml($document);
+        $commentsXml = $this->commentsXml();
+        $footnotesXml = $this->footnotesXml();
 
         return $this->normalizePackageParts([
             ['name' => '[Content_Types].xml', 'data' => $this->contentTypesXml()],
@@ -111,8 +127,8 @@ final class DocxWriter
             ['name' => 'word/document.xml', 'data' => $documentXml],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $this->documentRelationshipsXml()],
             ['name' => 'word/_rels/footnotes.xml.rels', 'data' => $this->footnotesRelationshipsXml()],
-            ['name' => 'word/comments.xml', 'data' => $this->commentsXml()],
-            ['name' => 'word/footnotes.xml', 'data' => $this->footnotesXml()],
+            ['name' => 'word/comments.xml', 'data' => $commentsXml],
+            ['name' => 'word/footnotes.xml', 'data' => $footnotesXml],
             ['name' => 'word/fontTable.xml', 'data' => $this->fontTableXml()],
             ['name' => 'word/styles.xml', 'data' => $this->stylesXml()],
             ['name' => 'word/numbering.xml', 'data' => $this->numberingXml()],
@@ -179,8 +195,14 @@ final class DocxWriter
     private function resetState(): void
     {
         $this->documentRelationships = [];
+        $this->footnoteRelationships = [];
+        $this->footnotes = [];
+        $this->comments = [];
+        $this->commentIds = [];
         $this->orderedListOverrides = [];
         $this->nextDocumentRelationshipId = 9;
+        $this->nextFootnoteId = 9;
+        $this->nextBookmarkId = 11;
         $this->nextNumberingId = 10;
     }
 
@@ -309,26 +331,110 @@ final class DocxWriter
 
     private function footnotesRelationshipsXml(): string
     {
-        return self::xmlDeclaration()
-            . '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>'
-            . "\n";
+        $relationships = new OpcRelationships('/word/footnotes.xml');
+        foreach ($this->footnoteRelationships as $relationship) {
+            $relationships->add($relationship);
+        }
+
+        return self::xmlDeclaration() . $relationships->toXml() . "\n";
     }
 
     private function commentsXml(): string
     {
+        $comments = '';
+        foreach ($this->comments as $comment) {
+            $attrs = ' w:id="' . self::escAttr($comment['id']) . '"';
+            if ($comment['author'] !== '') {
+                $attrs .= ' w:author="' . self::escAttr($comment['author']) . '"';
+            }
+            if ($comment['date'] !== '') {
+                $attrs .= ' w:date="' . self::escAttr($comment['date']) . '"';
+            }
+
+            $comments .= '<w:comment' . $attrs . '>'
+                . $this->commentParagraphXml($comment['children'])
+                . '</w:comment>';
+        }
+
         return self::xmlDeclaration()
-            . '<w:comments xmlns:w="' . self::NS_W . '" xmlns:r="' . self::NS_R . '"/>'
+            . '<w:comments xmlns:w="' . self::NS_W . '" xmlns:r="' . self::NS_R . '">'
+            . $comments
+            . '</w:comments>'
             . "\n";
     }
 
     private function footnotesXml(): string
     {
+        $footnotes = '';
+        foreach ($this->footnotes as $footnote) {
+            $footnotes .= '<w:footnote w:id="' . $footnote['id'] . '">'
+                . $this->footnoteBlocksXml($footnote['blocks'])
+                . '</w:footnote>';
+        }
+
         return self::xmlDeclaration()
-            . '<w:footnotes xmlns:w="' . self::NS_W . '">'
+            . '<w:footnotes xmlns:w="' . self::NS_W . '" xmlns:r="' . self::NS_R . '">'
             . '<w:footnote w:type="continuationSeparator" w:id="0"><w:p><w:r><w:continuationSeparator/></w:r></w:p></w:footnote>'
             . '<w:footnote w:type="separator" w:id="-1"><w:p><w:r><w:separator/></w:r></w:p></w:footnote>'
+            . $footnotes
             . '</w:footnotes>'
             . "\n";
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function commentParagraphXml(array $inlines): string
+    {
+        return $this->paragraphWrapperXml(
+            $this->annotationReferenceRun() . $this->renderInlines($inlines, [], 'comment'),
+            'CommentText',
+            null
+        );
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function footnoteBlocksXml(array $blocks): string
+    {
+        if ($blocks === []) {
+            return $this->paragraphWrapperXml($this->footnoteReferenceMarkerRun(), 'FootnoteText', null);
+        }
+
+        $xml = '';
+        $markerPending = true;
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                continue;
+            }
+
+            $runs = $this->runsForFootnoteBlock($block);
+            if ($markerPending) {
+                $runs = $this->footnoteReferenceMarkerRun() . $this->textRun(' ', []) . $runs;
+                $markerPending = false;
+            }
+            $xml .= $this->paragraphWrapperXml($runs, 'FootnoteText', null);
+        }
+
+        return $xml === '' ? $this->paragraphWrapperXml($this->footnoteReferenceMarkerRun(), 'FootnoteText', null) : $xml;
+    }
+
+    private function runsForFootnoteBlock(AstNode $block): string
+    {
+        if ($block->type === 'paragraph' || $block->type === 'plain') {
+            return $block->children === []
+                ? $this->textRun((string) $block->attr('text', ''), [])
+                : $this->renderInlines($block->children, [], 'footnote');
+        }
+
+        if ($this->isInlineNode($block)) {
+            return $this->renderInline($block, [], 'footnote');
+        }
+
+        $text = $this->plainText($block);
+
+        return $text === '' ? '' : $this->textRun($text, []);
     }
 
     private function fontTableXml(): string
@@ -415,7 +521,7 @@ final class DocxWriter
     {
         return match ($node->type) {
             'paragraph', 'plain' => [$this->paragraphXml($node, $paragraphStyle, null)],
-            'heading' => [$this->paragraphXml($node, 'Heading' . max(1, min(6, (int) $node->attr('level', 1))), null)],
+            'heading' => $this->headingBlockXml($node),
             'bullet_list' => $this->listXml($node, false, $listLevel, $paragraphStyle),
             'ordered_list' => $this->listXml($node, true, $listLevel, $paragraphStyle),
             'blockquote' => $this->blockCollectionXml($node->children, $listLevel, 'BlockText'),
@@ -426,6 +532,27 @@ final class DocxWriter
             'table' => $this->tableXml($node),
             default => $this->fallbackBlockXml($node, $listLevel, $paragraphStyle),
         };
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function headingBlockXml(AstNode $node): array
+    {
+        $xml = $this->paragraphXml($node, 'Heading' . max(1, min(6, (int) $node->attr('level', 1))), null);
+        $id = (string) $node->attr('id', '');
+        if ($id === '') {
+            return [$xml];
+        }
+
+        $bookmarkId = $this->nextBookmarkId++;
+        $name = $this->bookmarkName($id);
+
+        return [
+            '<w:bookmarkStart w:id="' . $bookmarkId . '" w:name="' . self::escAttr($name) . '"/>',
+            $xml,
+            '<w:bookmarkEnd w:id="' . $bookmarkId . '"/>',
+        ];
     }
 
     /**
@@ -762,11 +889,11 @@ final class DocxWriter
     /**
      * @param array{numId:int, level:int}|null $numbering
      */
-    private function paragraphXml(AstNode $node, ?string $styleId, ?array $numbering): string
+    private function paragraphXml(AstNode $node, ?string $styleId, ?array $numbering, string $context = 'document'): string
     {
         $runs = $node->children === []
             ? $this->textRun((string) $node->attr('text', ''), [])
-            : $this->renderInlines($node->children, []);
+            : $this->renderInlines($node->children, [], $context);
 
         return $this->paragraphWrapperXml($runs, $styleId, $numbering);
     }
@@ -775,9 +902,9 @@ final class DocxWriter
      * @param list<AstNode> $inlines
      * @param array{numId:int, level:int}|null $numbering
      */
-    private function paragraphFromInlinesXml(array $inlines, ?string $styleId, ?array $numbering): string
+    private function paragraphFromInlinesXml(array $inlines, ?string $styleId, ?array $numbering, string $context = 'document'): string
     {
-        return $this->paragraphWrapperXml($this->renderInlines($inlines, []), $styleId, $numbering);
+        return $this->paragraphWrapperXml($this->renderInlines($inlines, [], $context), $styleId, $numbering);
     }
 
     /**
@@ -810,14 +937,14 @@ final class DocxWriter
      * @param list<AstNode> $nodes
      * @param array<string, bool|string> $format
      */
-    private function renderInlines(array $nodes, array $format): string
+    private function renderInlines(array $nodes, array $format, string $context = 'document'): string
     {
         $xml = '';
         foreach ($nodes as $node) {
             if (!$node instanceof AstNode) {
                 continue;
             }
-            $xml .= $this->renderInline($node, $format);
+            $xml .= $this->renderInline($node, $format, $context);
         }
 
         return $xml;
@@ -826,47 +953,54 @@ final class DocxWriter
     /**
      * @param array<string, bool|string> $format
      */
-    private function renderInline(AstNode $node, array $format): string
+    private function renderInline(AstNode $node, array $format, string $context = 'document'): string
     {
         return match ($node->type) {
             'text', 'str' => $this->textRun((string) $node->attr('text', $node->attr('value', '')), $format),
             'space' => $this->textRun(' ', $format),
             'softbreak' => $this->textRun(' ', $format),
             'linebreak' => $this->breakRun($format),
-            'emph' => $this->renderInlines($node->children, $format + ['italic' => true]),
-            'strong' => $this->renderInlines($node->children, $format + ['bold' => true]),
-            'underline' => $this->renderInlines($node->children, $format + ['underline' => true]),
-            'strikeout', 'strike' => $this->renderInlines($node->children, $format + ['strike' => true]),
-            'superscript' => $this->renderInlines($node->children, $format + ['verticalAlign' => 'superscript']),
-            'subscript' => $this->renderInlines($node->children, $format + ['verticalAlign' => 'subscript']),
-            'smallcaps' => $this->renderInlines($node->children, $format + ['smallCaps' => true]),
+            'emph' => $this->renderInlines($node->children, $format + ['italic' => true], $context),
+            'strong' => $this->renderInlines($node->children, $format + ['bold' => true], $context),
+            'underline' => $this->renderInlines($node->children, $format + ['underline' => true], $context),
+            'strikeout', 'strike' => $this->renderInlines($node->children, $format + ['strike' => true], $context),
+            'superscript' => $this->renderInlines($node->children, $format + ['verticalAlign' => 'superscript'], $context),
+            'subscript' => $this->renderInlines($node->children, $format + ['verticalAlign' => 'subscript'], $context),
+            'smallcaps', 'small_caps' => $this->renderInlines($node->children, $format + ['smallCaps' => true], $context),
             'code' => $this->textRun((string) $node->attr('text', $node->attr('code', '')), $format + ['code' => true]),
-            'link' => $this->hyperlinkXml($node, $format),
+            'link' => $this->hyperlinkXml($node, $format, $context),
             'image' => $this->textRun($this->imageAltText($node), $format),
-            'math', 'raw_inline', 'raw_html', 'raw_tex' => $this->textRun(
+            'math' => $this->textRun((string) $node->attr('text', $node->attr('math', '')), $format),
+            'raw_inline' => $this->rawOpenXmlInlineXml($node) ?? $this->textRun(
                 (string) $node->attr('text', $node->attr('math', $node->attr('html', $node->attr('tex', '')))),
                 $format
             ),
-            'note', 'span' => $this->renderInlines($node->children, $format),
+            'raw_html', 'raw_html_inline', 'raw_tex', 'raw_tex_inline', 'raw_markdown' => $this->textRun(
+                (string) $node->attr('text', $node->attr('html', $node->attr('tex', $node->attr('markdown', '')))),
+                $format
+            ),
+            'note' => $this->footnoteReferenceXml($node),
+            'span' => $this->spanXml($node, $format, $context),
             default => $node->children === []
                 ? $this->textRun((string) $node->attr('text', ''), $format)
-                : $this->renderInlines($node->children, $format),
+                : $this->renderInlines($node->children, $format, $context),
         };
     }
 
     /**
      * @param array<string, bool|string> $format
      */
-    private function hyperlinkXml(AstNode $node, array $format): string
+    private function hyperlinkXml(AstNode $node, array $format, string $context = 'document'): string
     {
         $target = (string) $node->attr('url', $node->attr('href', ''));
         if ($target === '') {
-            return $this->renderInlines($node->children, $format);
+            return $this->renderInlines($node->children, $format, $context);
         }
 
         $content = $this->renderInlines(
             $node->children === [] ? [new AstNode('text', ['text' => $target])] : $node->children,
-            $format + ['runStyle' => 'Hyperlink']
+            $format + ['runStyle' => 'Hyperlink'],
+            $context
         );
         if (str_starts_with($target, '#')) {
             $anchor = $this->bookmarkName(substr($target, 1));
@@ -874,13 +1008,146 @@ final class DocxWriter
             return '<w:hyperlink w:anchor="' . self::escAttr($anchor) . '">' . $content . '</w:hyperlink>';
         }
 
-        $relationshipId = $this->addDocumentRelationship(
+        $relationshipId = $this->addHyperlinkRelationship($target);
+
+        return '<w:hyperlink r:id="' . self::escAttr($relationshipId) . '">' . $content . '</w:hyperlink>';
+    }
+
+    private function footnoteReferenceXml(AstNode $node): string
+    {
+        $id = $this->nextFootnoteId++;
+        if ($this->nextDocumentRelationshipId <= $id) {
+            $this->nextDocumentRelationshipId = $id + 1;
+        }
+
+        $this->footnotes[] = [
+            'id' => $id,
+            'blocks' => $node->children,
+        ];
+
+        return '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteReference w:id="' . $id . '"/></w:r>';
+    }
+
+    /**
+     * @param array<string, bool|string> $format
+     */
+    private function spanXml(AstNode $node, array $format, string $context): string
+    {
+        if ($this->hasClass($node, 'comment-start')) {
+            return $this->commentStartXml($node);
+        }
+        if ($this->hasClass($node, 'comment-end')) {
+            return $this->commentEndXml($node, $format, $context);
+        }
+
+        $content = $this->renderInlines($node->children, $format, $context);
+        $id = (string) $node->attr('id', '');
+        if ($id === '') {
+            return $content;
+        }
+
+        $bookmarkId = $this->nextBookmarkId++;
+        $name = $this->bookmarkName($id);
+
+        return '<w:bookmarkStart w:id="' . $bookmarkId . '" w:name="' . self::escAttr($name) . '"/>'
+            . $content
+            . '<w:bookmarkEnd w:id="' . $bookmarkId . '"/>';
+    }
+
+    private function commentStartXml(AstNode $node): string
+    {
+        $id = $this->nodeAttribute($node, 'id');
+        if ($id === '') {
+            $id = (string) count($this->comments);
+        }
+        if (!isset($this->commentIds[$id])) {
+            $this->commentIds[$id] = true;
+            $this->comments[] = [
+                'id' => $id,
+                'author' => $this->nodeAttribute($node, 'author'),
+                'date' => $this->nodeAttribute($node, 'date'),
+                'children' => $node->children,
+            ];
+        }
+
+        return '<w:commentRangeStart w:id="' . self::escAttr($id) . '"/>';
+    }
+
+    /**
+     * @param array<string, bool|string> $format
+     */
+    private function commentEndXml(AstNode $node, array $format, string $context): string
+    {
+        $id = $this->nodeAttribute($node, 'id');
+        if ($id === '') {
+            return $this->renderInlines($node->children, $format, $context);
+        }
+
+        return '<w:commentRangeEnd w:id="' . self::escAttr($id) . '"/>'
+            . '<w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr><w:commentReference w:id="' . self::escAttr($id) . '"/></w:r>'
+            . $this->renderInlines($node->children, $format, $context);
+    }
+
+    private function rawOpenXmlInlineXml(AstNode $node): ?string
+    {
+        if (strtolower((string) $node->attr('format', '')) !== 'openxml') {
+            return null;
+        }
+
+        $xml = trim((string) $node->attr('text', ''));
+        if (preg_match('/^<w:bookmarkStart\s+w:id="([0-9]+)"\s+w:name="([^"]+)"\s*\/>$/', $xml, $matches) === 1) {
+            return '<w:bookmarkStart w:id="' . self::escAttr($matches[1]) . '" w:name="' . self::escAttr($matches[2]) . '"/>';
+        }
+        if (preg_match('/^<w:bookmarkEnd\s+w:id="([0-9]+)"\s*\/>$/', $xml, $matches) === 1) {
+            return '<w:bookmarkEnd w:id="' . self::escAttr($matches[1]) . '"/>';
+        }
+
+        return null;
+    }
+
+    private function hasClass(AstNode $node, string $class): bool
+    {
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes)) {
+            return false;
+        }
+
+        return in_array($class, array_map('strval', $classes), true);
+    }
+
+    private function nodeAttribute(AstNode $node, string $name): string
+    {
+        if (array_key_exists($name, $node->attrs)) {
+            $value = $node->attrs[$name];
+
+            return is_scalar($value) || $value === null ? (string) $value : '';
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (is_array($attributes) && array_key_exists($name, $attributes)) {
+            $value = $attributes[$name];
+
+            return is_scalar($value) || $value === null ? (string) $value : '';
+        }
+
+        return '';
+    }
+
+    private function addHyperlinkRelationship(string $target): string
+    {
+        $id = $this->addDocumentRelationship(
+            self::REL_HYPERLINK,
+            $target,
+            OpcRelationship::TARGET_MODE_EXTERNAL
+        );
+        $this->footnoteRelationships[] = new OpcRelationship(
+            $id,
             self::REL_HYPERLINK,
             $target,
             OpcRelationship::TARGET_MODE_EXTERNAL
         );
 
-        return '<w:hyperlink r:id="' . self::escAttr($relationshipId) . '">' . $content . '</w:hyperlink>';
+        return $id;
     }
 
     private function addDocumentRelationship(string $type, string $target, string $targetMode): string
@@ -893,7 +1160,7 @@ final class DocxWriter
 
     private function bookmarkName(string $target): string
     {
-        $name = preg_replace('/[^A-Za-z0-9_]/', '_', $target) ?? '';
+        $name = preg_replace('/[^A-Za-z0-9_-]/', '_', $target) ?? '';
         $name = trim($name, '_');
         if ($name === '') {
             return '_';
@@ -948,6 +1215,16 @@ final class DocxWriter
     private function breakRun(array $format): string
     {
         return '<w:r>' . $this->runPropertiesXml($format) . '<w:br/></w:r>';
+    }
+
+    private function annotationReferenceRun(): string
+    {
+        return '<w:r><w:rPr><w:rStyle w:val="CommentReference"/></w:rPr><w:annotationRef/></w:r>';
+    }
+
+    private function footnoteReferenceMarkerRun(): string
+    {
+        return '<w:r><w:rPr><w:rStyle w:val="FootnoteReference"/></w:rPr><w:footnoteRef/></w:r>';
     }
 
     /**
@@ -1015,13 +1292,17 @@ final class DocxWriter
             'superscript',
             'subscript',
             'smallcaps',
+            'small_caps',
             'code',
             'link',
             'image',
             'math',
             'raw_inline',
             'raw_html',
+            'raw_html_inline',
             'raw_tex',
+            'raw_tex_inline',
+            'raw_markdown',
             'note',
             'span',
         ], true);
@@ -1062,7 +1343,7 @@ final class DocxWriter
                 'linebreak' => "\n",
                 'code' => (string) $node->attr('text', $node->attr('code', '')),
                 'image' => $this->imageAltText($node),
-                'math', 'raw_inline', 'raw_html', 'raw_tex' => (string) $node->attr('text', $node->attr('math', $node->attr('html', $node->attr('tex', '')))),
+                'math', 'raw_inline', 'raw_html', 'raw_html_inline', 'raw_tex', 'raw_tex_inline', 'raw_markdown' => (string) $node->attr('text', $node->attr('math', $node->attr('html', $node->attr('tex', $node->attr('markdown', ''))))),
                 default => $node->children === [] ? (string) $node->attr('text', '') : $this->plainInlineText($node->children),
             };
         }
@@ -1100,8 +1381,12 @@ final class DocxWriter
             . '<w:style w:type="paragraph" w:styleId="BlockText"><w:name w:val="Block Text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="720" w:right="720"/></w:pPr></w:style>'
             . '<w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="360" w:right="360"/></w:pPr><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr></w:style>'
             . '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/></w:pPr><w:rPr><w:i/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
+            . '<w:style w:type="paragraph" w:styleId="FootnoteText"><w:name w:val="footnote text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/><w:ind w:left="0"/></w:pPr><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
+            . '<w:style w:type="paragraph" w:styleId="CommentText"><w:name w:val="comment text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
             . '<w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
             . '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>'
+            . '<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
+            . '<w:style w:type="character" w:styleId="CommentReference"><w:name w:val="annotation reference"/><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:style>'
             . '</w:styles>'
             . "\n";
     }

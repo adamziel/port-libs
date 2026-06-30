@@ -147,7 +147,12 @@ return [
         $t->contains('<Application>pandoc</Application>', $parts['docProps/app.xml']);
         $t->contains('<HeadingPairs><vt:vector size="2" baseType="variant">', $parts['docProps/app.xml']);
         $t->contains('<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"', $parts['docProps/custom.xml']);
-        $t->contains('<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>', $parts['word/_rels/footnotes.xml.rels']);
+        $footnoteRels = OpcRelationships::fromXml($parts['word/_rels/footnotes.xml.rels'], '/word/footnotes.xml');
+        $footnoteHyperlink = $footnoteRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink');
+        $t->true($footnoteHyperlink instanceof OpcRelationship, 'Footnote hyperlink relationship mirror missing');
+        $t->same('rId9', $footnoteHyperlink?->id);
+        $t->same('https://example.test/audit?x=1&y=2', $footnoteHyperlink?->target);
+        $t->same(OpcRelationship::TARGET_MODE_EXTERNAL, $footnoteHyperlink?->targetMode);
         $t->contains('<w:comments', $parts['word/comments.xml']);
         $t->contains('<w:separator/>', $parts['word/footnotes.xml']);
         $t->contains('<w:continuationSeparator/>', $parts['word/footnotes.xml']);
@@ -209,6 +214,94 @@ return [
         $t->contains('w:styleId="Caption"', $parts['word/styles.xml']);
         $t->same('table', $roundTrip->children[0]->type);
         $t->same('Table coverage', $roundTrip->children[0]->attr('caption'));
+    },
+
+    'emits collected footnotes and footnote hyperlink relationships' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('This is a test'),
+                new AstNode('note', [], [
+                    $paragraph([
+                        new AstNode('link', ['url' => 'http://wikipedia.org/'], [$text('http://wikipedia.org/')]),
+                    ]),
+                ]),
+                $text('.'),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $footnotesXml = $parts['word/footnotes.xml'];
+        $documentRels = OpcRelationships::fromXml($parts['word/_rels/document.xml.rels'], '/word/document.xml');
+        $footnoteRels = OpcRelationships::fromXml($parts['word/_rels/footnotes.xml.rels'], '/word/footnotes.xml');
+
+        $t->contains('<w:footnoteReference w:id="9"/>', $documentXml);
+        $t->contains('<w:footnote w:id="9">', $footnotesXml);
+        $t->contains('<w:pStyle w:val="FootnoteText"/>', $footnotesXml);
+        $t->contains('<w:footnoteRef/>', $footnotesXml);
+        $t->contains('<w:hyperlink r:id="rId10">', $footnotesXml);
+        $t->same('http://wikipedia.org/', $documentRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->target);
+        $t->same('rId10', $footnoteRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->id);
+        $t->same('http://wikipedia.org/', $footnoteRels->firstOfType('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink')?->target);
+    },
+
+    'emits comment ranges and comments part records from native comment spans' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('Before '),
+                new AstNode('span', [
+                    'classes' => ['comment-start'],
+                    'attributes' => [
+                        'id' => '0',
+                        'author' => 'Jesse Rosenthal',
+                        'date' => '2016-05-09T16:13:00Z',
+                    ],
+                ], [$text('I left a comment.')]),
+                $text('target'),
+                new AstNode('span', [
+                    'classes' => ['comment-end'],
+                    'attributes' => ['id' => '0'],
+                ]),
+                $text(' after'),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $commentsXml = $parts['word/comments.xml'];
+
+        $t->contains('<w:commentRangeStart w:id="0"/>', $documentXml);
+        $t->contains('<w:commentRangeEnd w:id="0"/>', $documentXml);
+        $t->contains('<w:commentReference w:id="0"/>', $documentXml);
+        $t->contains('<w:t>target</w:t>', $documentXml);
+        $t->true(!str_contains($documentXml, 'I left a comment.'), 'Comment body leaked into document.xml');
+        $t->contains('<w:comment w:id="0" w:author="Jesse Rosenthal" w:date="2016-05-09T16:13:00Z">', $commentsXml);
+        $t->contains('<w:pStyle w:val="CommentText"/>', $commentsXml);
+        $t->contains('<w:annotationRef/>', $commentsXml);
+        $t->contains('<w:t>I left a comment.</w:t>', $commentsXml);
+    },
+
+    'preserves raw openxml bookmarks and hyphenated internal link anchors' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            new AstNode('heading', ['level' => 2, 'id' => 'a-section-for-testing-link-targets'], [$text('A section')]),
+            $paragraph([
+                new AstNode('link', ['url' => '#a-section-for-testing-link-targets'], [$text('section link')]),
+            ]),
+            $paragraph([
+                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:bookmarkStart w:id="0" w:name="Aliquam"/>']),
+                $text('Aliquam'),
+                new AstNode('raw_inline', ['format' => 'openxml', 'text' => '<w:bookmarkEnd w:id="0"/>']),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:bookmarkStart w:id="11" w:name="a-section-for-testing-link-targets"/>', $documentXml);
+        $t->contains('<w:hyperlink w:anchor="a-section-for-testing-link-targets">', $documentXml);
+        $t->contains('<w:bookmarkStart w:id="0" w:name="Aliquam"/>', $documentXml);
+        $t->contains('<w:bookmarkEnd w:id="0"/>', $documentXml);
+        $t->true(!str_contains($documentXml, '&lt;w:bookmarkStart'), 'Raw bookmark was XML-escaped');
     },
 
     'emits block text style for simple block quotes' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
