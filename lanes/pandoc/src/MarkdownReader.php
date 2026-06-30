@@ -123,6 +123,10 @@ final class MarkdownReader
     /**
      * @param array{
      *     literateHaskell?: bool,
+     *     format?: string,
+     *     extensions?: list<string>|array<string, bool>,
+     *     commonmarkAutolinks?: bool,
+     *     commonmark_autolinks?: bool,
      *     htmlNativeDivs?: bool,
      *     htmlRawHtml?: bool,
      *     rawHtml?: bool,
@@ -1518,6 +1522,10 @@ final class MarkdownReader
             return new AstNode('raw_html', ['html' => trim($line)]);
         }
 
+        if ($this->commonmarkAutolinksEnabled() && $this->startsWithCommonmarkUriAutolink($line)) {
+            return null;
+        }
+
         if (
             $tag !== null
             && (
@@ -1529,6 +1537,11 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function startsWithCommonmarkUriAutolink(string $line): bool
+    {
+        return preg_match('/^ {0,3}<[A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*>/', $line) === 1;
     }
 
     /**
@@ -10388,6 +10401,32 @@ final class MarkdownReader
             return null;
         }
 
+        if (
+            $this->commonmarkAutolinksEnabled()
+            && preg_match('/\G<([A-Za-z][A-Za-z0-9+.-]{1,31}:[^<>\s]*)>/u', $text, $m, 0, $offset) === 1
+        ) {
+            $url = $this->normalizeLinkDestination($m[1]);
+            $next = $offset + strlen($m[0]);
+            [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
+                'url' => $url,
+                'classes' => ['uri'],
+            ]);
+
+            $result = [
+                'node' => new AstNode(
+                    'link',
+                    $attrs,
+                    [new AstNode('text', ['text' => $url])]
+                ),
+                'next' => $next,
+            ];
+            if ($literalAttribute !== null) {
+                $result['literalAttribute'] = $literalAttribute;
+            }
+
+            return $result;
+        }
+
         if (preg_match('/\G<((?:https?|ftp):\/\/[^<>\s]+)>/i', $text, $m, 0, $offset) === 1) {
             $url = $this->normalizeLinkDestination($m[1]);
             $next = $offset + strlen($m[0]);
@@ -10443,6 +10482,72 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function commonmarkAutolinksEnabled(): bool
+    {
+        foreach (['commonmarkAutolinks', 'commonmark_autolinks'] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return $this->boolOption($this->options[$key], false);
+            }
+        }
+
+        $format = $this->options['format'] ?? 'markdown';
+        $enabled = in_array(MarkdownFormatProfile::canonicalFormat($format), ['commonmark', 'commonmark_x', 'gfm'], true);
+        $formatOverrides = MarkdownFormatProfile::markdownExtensionOverrides($format);
+        if (array_key_exists('commonmark_autolinks', $formatOverrides)) {
+            $enabled = $formatOverrides['commonmark_autolinks'];
+        }
+
+        return $this->optionsExtensionOverride('commonmark_autolinks', $enabled);
+    }
+
+    private function optionsExtensionOverride(string $extension, bool $default): bool
+    {
+        $extensions = $this->options['extensions'] ?? null;
+        if (!is_array($extensions)) {
+            return $default;
+        }
+
+        $enabled = $default;
+        foreach ($extensions as $key => $value) {
+            if (is_int($key) && is_string($value)) {
+                $normalized = strtolower(trim($value));
+                if (preg_match('/^([+-])' . preg_quote($extension, '/') . '$/', $normalized, $match) === 1) {
+                    $enabled = $match[1] === '+';
+                }
+                continue;
+            }
+
+            if (strtolower((string) $key) === $extension) {
+                $enabled = $this->boolOption($value, $enabled);
+            }
+        }
+
+        return $enabled;
+    }
+
+    private function boolOption(mixed $value, bool $default): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $value !== 0;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return $default;
     }
 
     /**

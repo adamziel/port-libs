@@ -9,7 +9,11 @@ use PortLibs\Pandoc\MarkdownWriter;
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
 $document = static fn (array $children): AstNode => new AstNode('document', [], [$paragraph($children)]);
-$link = static fn (string $url): AstNode => new AstNode('link', ['url' => $url], [$text($url)]);
+$link = static fn (string $url, ?string $label = null, array $attrs = []): AstNode => new AstNode(
+    'link',
+    ['url' => $url] + $attrs,
+    [$text($label ?? $url)]
+);
 
 $collectLinks = null;
 $collectLinks = static function (AstNode $node) use (&$collectLinks): array {
@@ -50,19 +54,55 @@ $cases = [
         'options' => ['format' => 'gfm'],
         'expected' => '<foo:bar>',
     ],
+    'commonmark disabled extension keeps nonstandard scheme explicit' => [
+        'options' => ['format' => 'commonmark-commonmark_autolinks'],
+        'expected' => '[foo:bar](foo:bar)',
+    ],
+    'commonmark option disables nonstandard scheme compaction' => [
+        'options' => ['format' => 'commonmark', 'extensions' => ['-commonmark_autolinks']],
+        'expected' => '[foo:bar](foo:bar)',
+    ],
+    'one letter scheme remains explicit' => [
+        'options' => ['format' => 'commonmark'],
+        'url' => 'x:source',
+        'expected' => '[x:source](x:source)',
+    ],
+    'overlong scheme remains explicit' => [
+        'options' => ['format' => 'commonmark'],
+        'url' => 'abcdefghijklmnopqrstuvwxyzabcdefg:source',
+        'expected' => '[abcdefghijklmnopqrstuvwxyzabcdefg:source](abcdefghijklmnopqrstuvwxyzabcdefg:source)',
+    ],
+    'uppercase mailto scheme compacts to email autolink' => [
+        'options' => ['format' => 'commonmark'],
+        'url' => 'MAILTO:editor@example.test',
+        'label' => 'editor@example.test',
+        'attrs' => ['classes' => ['email']],
+        'expected' => '<editor@example.test>',
+        'roundTripUrl' => 'mailto:editor@example.test',
+    ],
+    'mailto with uri class remains explicit' => [
+        'options' => ['format' => 'commonmark'],
+        'url' => 'mailto:editor@example.test',
+        'label' => 'editor@example.test',
+        'attrs' => ['classes' => ['uri']],
+        'expected' => '[editor@example.test](mailto:editor@example.test){.uri}',
+    ],
 ];
 
 $tests = [
     'records markdown writer commonmark autolink parity completion mapped case count' =>
         static function (TestRunner $t) use ($cases): void {
-            $t->same(6, count($cases));
+            $t->same(12, count($cases));
         },
 ];
 
 foreach ($cases as $label => $case) {
     $tests['maps upstream markdown writer commonmark autolink parity completion ' . $label] =
         static function (TestRunner $t) use ($case, $collectLinks, $document, $link): void {
-            $markdown = (new MarkdownWriter($case['options']))->write($document([$link('foo:bar')]));
+            $url = $case['url'] ?? 'foo:bar';
+            $markdown = (new MarkdownWriter($case['options']))->write($document([
+                $link($url, $case['label'] ?? null, $case['attrs'] ?? []),
+            ]));
 
             $t->same($case['expected'], $markdown);
 
@@ -71,7 +111,7 @@ foreach ($cases as $label => $case) {
             $node = $links[0] ?? new AstNode('missing');
 
             $t->same('link', $node->type);
-            $t->same('foo:bar', $node->attr('url'));
+            $t->same($case['roundTripUrl'] ?? $url, $node->attr('url'));
         };
 }
 

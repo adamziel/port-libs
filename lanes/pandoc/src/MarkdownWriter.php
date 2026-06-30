@@ -8431,17 +8431,14 @@ final class MarkdownWriter
     private function canRenderAutolink(AstNode $node): bool
     {
         $url = (string) $node->attr('url', '');
-        if (!$this->isUriLike($url)) {
+        $scheme = $this->uriScheme($url);
+        if ($scheme === null) {
             return false;
         }
 
         $attrs = $this->linkAttrTuple($node);
         $classes = $attrs['classes'];
-        if (
-            $attrs['id'] !== ''
-            || $attrs['attributes'] !== []
-            || ($classes !== [] && $classes !== ['uri'] && $classes !== ['email'])
-        ) {
+        if ($attrs['id'] !== '' || $attrs['attributes'] !== []) {
             return false;
         }
 
@@ -8450,16 +8447,77 @@ final class MarkdownWriter
         }
 
         $label = (string) $node->children[0]->attr('text', '');
-        $suffix = $this->autolinkText($node);
+        $scheme = strtolower($scheme);
+        if ($scheme === 'mailto') {
+            if ($classes !== [] && $classes !== ['email']) {
+                return false;
+            }
 
-        return $label === $suffix || $this->escapeUri($label) === $suffix;
+            $address = $this->mailtoAddress($url);
+            if ($address === '' || !$this->isEmailAutolinkAddress($address)) {
+                return false;
+            }
+
+            return $label === $address || $this->escapeUri($label) === $address;
+        }
+
+        if ($classes !== [] && $classes !== ['uri']) {
+            return false;
+        }
+
+        if (!$this->isAllowedUriAutolinkScheme($scheme)) {
+            return false;
+        }
+
+        return $label === $url || $this->escapeUri($label) === $url;
     }
 
     private function autolinkText(AstNode $node): string
     {
         $url = (string) $node->attr('url', '');
 
-        return str_starts_with($url, 'mailto:') ? substr($url, 7) : $url;
+        return strtolower((string) $this->uriScheme($url)) === 'mailto'
+            ? $this->mailtoAddress($url)
+            : $url;
+    }
+
+    private function uriScheme(string $url): ?string
+    {
+        return preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', $url, $match) === 1 ? $match[1] : null;
+    }
+
+    private function mailtoAddress(string $url): string
+    {
+        $colon = strpos($url, ':');
+
+        return $colon === false ? '' : substr($url, $colon + 1);
+    }
+
+    private function isEmailAutolinkAddress(string $address): bool
+    {
+        return preg_match('/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/u', $address) === 1;
+    }
+
+    private function isAllowedUriAutolinkScheme(string $scheme): bool
+    {
+        $length = strlen($scheme);
+        if ($length < 2 || $length > 32) {
+            return false;
+        }
+
+        if ($this->commonmarkAutolinksEnabled()) {
+            return true;
+        }
+
+        return in_array($scheme, [
+            'doi',
+            'ftp',
+            'ftps',
+            'http',
+            'https',
+            'tel',
+            'urn',
+        ], true);
     }
 
     /**
@@ -9039,6 +9097,19 @@ final class MarkdownWriter
     private function isCommonMarkVariant(): bool
     {
         return in_array($this->writerVariant(), ['commonmark', 'commonmark-x', 'gfm'], true);
+    }
+
+    private function commonmarkAutolinksEnabled(): bool
+    {
+        return $this->markdownExtensionEnabled('commonmarkAutolinks', 'commonmark_autolinks', [
+            'markdown' => false,
+            'commonmark' => true,
+            'commonmark_x' => true,
+            'gfm' => true,
+            'markdown_mmd' => false,
+            'markdown_phpextra' => false,
+            'markdown_strict' => false,
+        ], false);
     }
 
     private function isPlainTextVariant(): bool
