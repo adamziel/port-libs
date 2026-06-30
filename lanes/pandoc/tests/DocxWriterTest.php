@@ -585,6 +585,41 @@ return [
         $t->contains('</w:tbl><w:p/><w:tbl>', $documentXml);
     },
 
+    'preserves custom span and div styles without styling links' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            $paragraph([
+                $text('Before '),
+                new AstNode('span', ['attributes' => ['custom-style' => 'Emphatic']], [$text('marked')]),
+                $text(' and '),
+                new AstNode('span', ['attributes' => ['custom-style' => 'MyStyle']], [
+                    $text('custom '),
+                    new AstNode('link', ['url' => 'https://example.test/style'], [$text('link')]),
+                ]),
+            ]),
+            new AstNode('div', ['attributes' => ['custom-style' => 'My Block Style']], [
+                $paragraph([$text('styled paragraph')]),
+                new AstNode('heading', ['level' => 2], [$text('unstyled heading')]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $stylesXml = $parts['word/styles.xml'];
+
+        $t->contains('<w:rStyle w:val="Emphatic"/>', $documentXml);
+        $t->contains('<w:rStyle w:val="MyStyle"/>', $documentXml);
+        $t->contains('<w:hyperlink r:id="rId9"><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t>link</w:t></w:r></w:hyperlink>', $documentXml);
+        $t->contains('<w:pStyle w:val="MyBlockStyle"/>', $documentXml);
+        $t->contains('<w:pStyle w:val="Heading2"/>', $documentXml);
+        $t->contains('w:styleId="Emphatic"', $stylesXml);
+        $t->contains('w:styleId="MyStyle"', $stylesXml);
+        $t->contains('w:styleId="MyBlockStyle"', $stylesXml);
+        $t->contains('<w:name w:val="My Block Style"/>', $stylesXml);
+        $t->contains('w:styleId="Heading9Char"', $stylesXml);
+        $t->contains('w:styleId="NormalTok"', $stylesXml);
+        $t->true(!str_contains($stylesXml, 'w:styleId="CommentText"'), 'Comment-only style should not be emitted for non-comment documents');
+    },
+
     'emits block text style for simple block quotes' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
         $document = $doc([
             new AstNode('blockquote', [], [

@@ -101,6 +101,12 @@ final class DocxWriter
     /** @var array<string, true> */
     private array $commentIds = [];
 
+    /** @var array<string, string> */
+    private array $customParagraphStyles = [];
+
+    /** @var array<string, string> */
+    private array $customCharacterStyles = [];
+
     /** @var array<string, array{abstractNumId:int, style:string, delimiter:string}> */
     private array $orderedListDefinitions = [];
 
@@ -229,6 +235,8 @@ final class DocxWriter
         $this->footnotes = [];
         $this->comments = [];
         $this->commentIds = [];
+        $this->customParagraphStyles = [];
+        $this->customCharacterStyles = [];
         $this->orderedListDefinitions = [];
         $this->orderedListInstances = [];
         $this->nextDocumentRelationshipId = 9;
@@ -696,7 +704,7 @@ final class DocxWriter
             'bullet_list' => $this->listXml($node, false, $listLevel, $paragraphStyle),
             'ordered_list' => $this->listXml($node, true, $listLevel, $paragraphStyle),
             'blockquote' => $this->blockCollectionXml($node->children, $listLevel, 'BlockText'),
-            'div' => $this->blockCollectionXml($node->children, $listLevel, $paragraphStyle),
+            'div' => $this->divXml($node, $listLevel, $paragraphStyle),
             'code_block' => [$this->textParagraphXml((string) $node->attr('text', ''), 'SourceCode', ['code' => true])],
             'line_block' => $this->lineBlockXml($node),
             'horizontal_rule' => [$this->horizontalRuleXml()],
@@ -770,6 +778,20 @@ final class DocxWriter
         $text = (string) $node->attr('text', $node->attr('markdown', $node->attr('html', $node->attr('tex', ''))));
 
         return $text === '' ? [] : [$this->textParagraphXml($text, $paragraphStyle, [])];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function divXml(AstNode $node, int $listLevel, ?string $paragraphStyle): array
+    {
+        $customStyle = $this->customStyleId($node);
+        if ($customStyle !== null) {
+            $this->customParagraphStyles[$customStyle] = $this->customStyleName($node);
+            $paragraphStyle = $customStyle;
+        }
+
+        return $this->blockCollectionXml($node->children, $listLevel, $paragraphStyle);
     }
 
     /**
@@ -1518,7 +1540,7 @@ final class DocxWriter
 
         $content = $this->renderInlines(
             $node->children === [] ? [new AstNode('text', ['text' => $target])] : $node->children,
-            $format + ['runStyle' => 'Hyperlink'],
+            array_replace($format, ['runStyle' => 'Hyperlink']),
             $context
         );
         if (str_starts_with($target, '#')) {
@@ -1615,6 +1637,12 @@ final class DocxWriter
         }
         if ($this->hasClass($node, 'deletion')) {
             return $this->trackedChangeXml('del', $node, $format, $context);
+        }
+
+        $customStyle = $this->customStyleId($node);
+        if ($customStyle !== null) {
+            $this->customCharacterStyles[$customStyle] = $this->customStyleName($node);
+            $format = array_replace($format, ['runStyle' => $customStyle]);
         }
 
         $content = $this->renderInlines($node->children, $format, $context);
@@ -1735,6 +1763,30 @@ final class DocxWriter
         }
 
         return '';
+    }
+
+    private function customStyleName(AstNode $node): string
+    {
+        return trim($this->nodeAttribute($node, 'custom-style'));
+    }
+
+    private function customStyleId(AstNode $node): ?string
+    {
+        $name = $this->customStyleName($node);
+        if ($name === '') {
+            return null;
+        }
+
+        $styleId = preg_replace('/[^A-Za-z0-9_]+/', '', $name);
+        if (!is_string($styleId) || $styleId === '') {
+            return null;
+        }
+
+        if (preg_match('/^[A-Za-z_]/', $styleId) !== 1) {
+            $styleId = '_' . $styleId;
+        }
+
+        return $styleId;
     }
 
     private function addHyperlinkRelationship(string $target): string
@@ -2185,6 +2237,124 @@ final class DocxWriter
         return '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/><w:cols w:space="720"/><w:docGrid w:linePitch="360"/></w:sectPr>';
     }
 
+    private function supplementalPandocStylesXml(): string
+    {
+        $paragraphStyles = [
+            'Abstract' => 'Abstract',
+            'AbstractTitle' => 'Abstract Title',
+            'Author' => 'Author',
+            'Bibliography' => 'Bibliography',
+            'CaptionedFigure' => 'Captioned Figure',
+            'Date' => 'Date',
+            'Definition' => 'Definition',
+            'DefinitionTerm' => 'Definition Term',
+            'Figure' => 'Figure',
+            'FigurewithCaption' => 'Figure with Caption',
+            'FootnoteBlockText' => 'Footnote Block Text',
+            'Heading7' => 'heading 7',
+            'Heading8' => 'heading 8',
+            'Heading9' => 'heading 9',
+            'ImageCaption' => 'Image Caption',
+            'NoList' => 'No List',
+            'SectionNumber' => 'Section Number',
+            'Subtitle' => 'Subtitle',
+            'TOCHeading' => 'TOC Heading',
+        ];
+        $characterStyles = [
+            'DefaultParagraphFont' => 'Default Paragraph Font',
+            'BodyTextChar' => 'Body Text Char',
+            'BlockTextChar' => 'Block Text Char',
+            'CaptionChar' => 'Caption Char',
+            'TitleChar' => 'Title Char',
+            'SubtitleChar' => 'Subtitle Char',
+        ];
+        for ($level = 1; $level <= 9; $level++) {
+            $characterStyles['Heading' . $level . 'Char'] = 'Heading ' . $level . ' Char';
+        }
+        foreach ([
+            'AlertTok',
+            'AnnotationTok',
+            'AttributeTok',
+            'BaseNTok',
+            'BuiltInTok',
+            'CharTok',
+            'CommentTok',
+            'CommentVarTok',
+            'ConstantTok',
+            'ControlFlowTok',
+            'DataTypeTok',
+            'DecValTok',
+            'DocumentationTok',
+            'ErrorTok',
+            'ExtensionTok',
+            'FloatTok',
+            'FunctionTok',
+            'ImportTok',
+            'InformationTok',
+            'KeywordTok',
+            'NormalTok',
+            'OperatorTok',
+            'OtherTok',
+            'PreprocessorTok',
+            'RegionMarkerTok',
+            'SpecialCharTok',
+            'SpecialStringTok',
+            'StringTok',
+            'VariableTok',
+            'VerbatimStringTok',
+            'WarningTok',
+        ] as $styleId) {
+            $characterStyles[$styleId] = $styleId;
+        }
+
+        $xml = '';
+        foreach ($paragraphStyles as $styleId => $name) {
+            $xml .= $this->paragraphStyleXml($styleId, $name, 'Normal', false);
+        }
+        foreach ($characterStyles as $styleId => $name) {
+            $xml .= $this->characterStyleXml($styleId, $name, $styleId === 'DefaultParagraphFont' ? null : 'DefaultParagraphFont', false);
+        }
+
+        return $xml;
+    }
+
+    private function customStylesXml(): string
+    {
+        $xml = '';
+        ksort($this->customParagraphStyles, SORT_STRING);
+        foreach ($this->customParagraphStyles as $styleId => $name) {
+            $xml .= $this->paragraphStyleXml($styleId, $name, 'Normal', true);
+        }
+        ksort($this->customCharacterStyles, SORT_STRING);
+        foreach ($this->customCharacterStyles as $styleId => $name) {
+            $xml .= $this->characterStyleXml($styleId, $name, 'DefaultParagraphFont', true);
+        }
+
+        return $xml;
+    }
+
+    private function paragraphStyleXml(string $styleId, string $name, ?string $basedOn, bool $custom): string
+    {
+        $customAttr = $custom ? ' w:customStyle="1"' : '';
+        $basedOnXml = $basedOn === null ? '' : '<w:basedOn w:val="' . self::escAttr($basedOn) . '"/>';
+
+        return '<w:style w:type="paragraph"' . $customAttr . ' w:styleId="' . self::escAttr($styleId) . '">'
+            . '<w:name w:val="' . self::escAttr($name) . '"/>'
+            . $basedOnXml
+            . '</w:style>';
+    }
+
+    private function characterStyleXml(string $styleId, string $name, ?string $basedOn, bool $custom): string
+    {
+        $customAttr = $custom ? ' w:customStyle="1"' : '';
+        $basedOnXml = $basedOn === null ? '' : '<w:basedOn w:val="' . self::escAttr($basedOn) . '"/>';
+
+        return '<w:style w:type="character"' . $customAttr . ' w:styleId="' . self::escAttr($styleId) . '">'
+            . '<w:name w:val="' . self::escAttr($name) . '"/>'
+            . $basedOnXml
+            . '</w:style>';
+    }
+
     private function stylesXml(): string
     {
         $headingStyles = '';
@@ -2200,6 +2370,12 @@ final class DocxWriter
                 . '<w:rPr><w:b/><w:sz w:val="' . $fontSize . '"/><w:szCs w:val="' . $fontSize . '"/></w:rPr>'
                 . '</w:style>';
         }
+        $supplementalStyles = $this->supplementalPandocStylesXml();
+        $customStyles = $this->customStylesXml();
+        $commentStyles = $this->comments === []
+            ? ''
+            : '<w:style w:type="paragraph" w:styleId="CommentText"><w:name w:val="comment text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
+                . '<w:style w:type="character" w:styleId="CommentReference"><w:name w:val="annotation reference"/><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:style>';
 
         return self::xmlDeclaration()
             . '<w:styles xmlns:w="' . self::NS_W . '">'
@@ -2211,16 +2387,17 @@ final class DocxWriter
             . $headingStyles
             . '<w:style w:type="paragraph" w:styleId="BlockText"><w:name w:val="Block Text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="720" w:right="720"/></w:pPr></w:style>'
             . '<w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="360" w:right="360"/></w:pPr><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr></w:style>'
+            . $supplementalStyles
             . '<w:style w:type="paragraph" w:customStyle="1" w:styleId="Compact"><w:name w:val="Compact"/><w:basedOn w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:before="36" w:after="36"/></w:pPr></w:style>'
             . '<w:style w:type="table" w:default="1" w:styleId="Table"><w:name w:val="Table"/><w:basedOn w:val="TableNormal"/><w:semiHidden/><w:unhideWhenUsed/><w:qFormat/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr><w:tblStylePr w:type="firstRow"><w:tcPr><w:tcBorders><w:bottom w:val="single"/></w:tcBorders><w:vAlign w:val="bottom"/></w:tcPr></w:tblStylePr></w:style>'
             . '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/></w:pPr><w:rPr><w:i/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
             . '<w:style w:type="paragraph" w:customStyle="1" w:styleId="TableCaption"><w:name w:val="Table Caption"/><w:basedOn w:val="Caption"/><w:pPr><w:keepNext/></w:pPr></w:style>'
+            . $customStyles
             . '<w:style w:type="paragraph" w:styleId="FootnoteText"><w:name w:val="footnote text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/><w:ind w:left="0"/></w:pPr><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
-            . '<w:style w:type="paragraph" w:styleId="CommentText"><w:name w:val="comment text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="0"/></w:pPr><w:rPr><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
             . '<w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
             . '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>'
             . '<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>'
-            . '<w:style w:type="character" w:styleId="CommentReference"><w:name w:val="annotation reference"/><w:rPr><w:sz w:val="16"/><w:szCs w:val="16"/></w:rPr></w:style>'
+            . $commentStyles
             . '</w:styles>'
             . "\n";
     }
