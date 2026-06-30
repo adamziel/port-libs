@@ -4063,6 +4063,111 @@ XML;
         $t->same('customXml', $byPartName[$extensionlessPart]['topLevelSegment']);
         $t->same(['package-part'], $byPartName[$extensionlessPart]['roles']);
     },
+    'summarizes docx package part path segment character provenance for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $mixedCaseWhitespacePart = 'word/media/Review Draft.PNG';
+        $multiSegmentPart = 'word/Review Folder/review%20encoded.xml';
+        $nonAsciiPart = "word/data/caf\xC3\xA9.xml";
+        $parts[$mixedCaseWhitespacePart] = 'mixed case image bytes';
+        $parts[$multiSegmentPart] = '<encoded-review/>';
+        $parts[$nonAsciiPart] = '<cafe-review/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $bySegmentReview = [];
+        foreach ($summary['partPathSegmentCharacterReviewSegments'] as $item) {
+            $bySegmentReview[$item['partName'] . '#' . $item['pathSegmentIndex']] = $item;
+        }
+
+        $expectedUppercasePartNames = [
+            '[Content_Types].xml',
+            'docProps/core.xml',
+            $mixedCaseWhitespacePart,
+            $multiSegmentPart,
+        ];
+        sort($expectedUppercasePartNames, SORT_STRING);
+        $expectedWhitespacePartNames = [$mixedCaseWhitespacePart, $multiSegmentPart];
+        sort($expectedWhitespacePartNames, SORT_STRING);
+        $expectedUppercaseSegments = [
+            '[Content_Types].xml',
+            'docProps',
+            'Review Draft.PNG',
+            'Review Folder',
+        ];
+        sort($expectedUppercaseSegments, SORT_STRING);
+
+        $t->same(5, $summary['partPathSegmentCharacterReviewPartCount']);
+        $t->same(6, $summary['partPathSegmentCharacterReviewSegmentCount']);
+        $t->same(4, $summary['partPathSegmentUppercaseSegmentCount']);
+        $t->same(2, $summary['partPathSegmentWhitespaceSegmentCount']);
+        $t->same(1, $summary['partPathSegmentPercentEncodedOctetSegmentCount']);
+        $t->same(1, $summary['partPathSegmentNonAsciiSegmentCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 4,
+            'whitespace' => 2,
+        ], $summary['partPathSegmentCharacterFlagCounts']);
+        $t->same($expectedUppercasePartNames, $summary['partPathSegmentCharacterFlagPartNames']['uppercase']);
+        $t->same($expectedWhitespacePartNames, $summary['partPathSegmentCharacterFlagPartNames']['whitespace']);
+        $t->same([$multiSegmentPart], $summary['partPathSegmentCharacterFlagPartNames']['percent-encoded-octet']);
+        $t->same([$nonAsciiPart], $summary['partPathSegmentCharacterFlagPartNames']['non-ascii']);
+        $t->same($expectedUppercaseSegments, $summary['partPathSegmentCharacterFlagSegments']['uppercase']);
+        $t->same(['Review Draft.PNG', 'Review Folder'], $summary['partPathSegmentCharacterFlagSegments']['whitespace']);
+        $t->same(['review%20encoded.xml'], $summary['partPathSegmentCharacterFlagSegments']['percent-encoded-octet']);
+        $t->same(["caf\xC3\xA9.xml"], $summary['partPathSegmentCharacterFlagSegments']['non-ascii']);
+
+        $t->same(['percent-encoded-octet', 'uppercase', 'whitespace'], $inventory[$multiSegmentPart]['pathSegmentCharacterFlags']);
+        $t->same([
+            'percent-encoded-octet' => 1,
+            'uppercase' => 1,
+            'whitespace' => 1,
+        ], $inventory[$multiSegmentPart]['pathSegmentCharacterFlagCounts']);
+        $t->same(2, $inventory[$multiSegmentPart]['pathSegmentCharacterReviewCount']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'Review Folder',
+                'flags' => ['uppercase', 'whitespace'],
+            ],
+            [
+                'pathSegmentIndex' => 2,
+                'segment' => 'review%20encoded.xml',
+                'flags' => ['percent-encoded-octet'],
+            ],
+        ], $inventory[$multiSegmentPart]['pathSegmentCharacterReviews']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasUppercase']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasWhitespace']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$multiSegmentPart]['pathSegmentHasNonAscii']);
+
+        $t->same(['non-ascii'], $inventory[$nonAsciiPart]['pathSegmentCharacterFlags']);
+        $t->same(['non-ascii' => 1], $inventory[$nonAsciiPart]['pathSegmentCharacterFlagCounts']);
+        $t->same(1, $inventory[$nonAsciiPart]['pathSegmentCharacterReviewCount']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 2,
+                'segment' => "caf\xC3\xA9.xml",
+                'flags' => ['non-ascii'],
+            ],
+        ], $inventory[$nonAsciiPart]['pathSegmentCharacterReviews']);
+        $t->same(false, $inventory[$nonAsciiPart]['pathSegmentHasPercentEncodedOctet']);
+        $t->same(true, $inventory[$nonAsciiPart]['pathSegmentHasNonAscii']);
+
+        $t->same('Review Folder', $bySegmentReview[$multiSegmentPart . '#1']['segment']);
+        $t->same(['uppercase', 'whitespace'], $bySegmentReview[$multiSegmentPart . '#1']['flags']);
+        $t->same('word/Review Folder', $bySegmentReview[$multiSegmentPart . '#1']['directory']);
+        $t->same('review%20encoded.xml', $bySegmentReview[$multiSegmentPart . '#2']['segment']);
+        $t->same(['percent-encoded-octet'], $bySegmentReview[$multiSegmentPart . '#2']['flags']);
+        $t->same('default', $bySegmentReview[$multiSegmentPart . '#2']['contentTypeSource']);
+        $t->same(['package-part'], $bySegmentReview[$multiSegmentPart . '#2']['roles']);
+        $t->same('Review Draft.PNG', $bySegmentReview[$mixedCaseWhitespacePart . '#2']['segment']);
+        $t->same(['uppercase', 'whitespace'], $bySegmentReview[$mixedCaseWhitespacePart . '#2']['flags']);
+        $t->same("caf\xC3\xA9.xml", $bySegmentReview[$nonAsciiPart . '#2']['segment']);
+        $t->same(['non-ascii'], $bySegmentReview[$nonAsciiPart . '#2']['flags']);
+    },
     'preserves docx content type parameters across package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
