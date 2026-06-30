@@ -1124,6 +1124,30 @@ XML;
             $paragraphStyle = $customStyle;
         }
 
+        if ($this->nodeAttribute($node, 'id') === 'refs') {
+            $blocks = [];
+            $bibliographyStarted = false;
+            foreach ($node->children as $child) {
+                if (!$child instanceof AstNode) {
+                    continue;
+                }
+
+                if (!$bibliographyStarted && $child->type === 'heading') {
+                    foreach ($this->renderBlock($child, $listLevel, $paragraphStyle) as $blockXml) {
+                        $blocks[] = $blockXml;
+                    }
+                    continue;
+                }
+
+                $bibliographyStarted = true;
+                foreach ($this->renderBlock($child, $listLevel, 'Bibliography') as $blockXml) {
+                    $blocks[] = $blockXml;
+                }
+            }
+
+            return $blocks;
+        }
+
         return $this->blockCollectionXml($node->children, $listLevel, $paragraphStyle);
     }
 
@@ -1471,7 +1495,7 @@ XML;
                 }
                 if ($child->type === 'bullet_list') {
                     if (!$numberedParagraphEmitted) {
-                        $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, $primaryNumbering);
+                        $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle ?? 'Compact', $primaryNumbering);
                         $numberedParagraphEmitted = true;
                         $stripTaskMarker = false;
                     }
@@ -1482,7 +1506,7 @@ XML;
                 }
                 if ($child->type === 'ordered_list') {
                     if (!$numberedParagraphEmitted) {
-                        $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, $primaryNumbering);
+                        $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle ?? 'Compact', $primaryNumbering);
                         $numberedParagraphEmitted = true;
                         $stripTaskMarker = false;
                     }

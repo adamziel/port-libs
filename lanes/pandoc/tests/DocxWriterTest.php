@@ -755,6 +755,43 @@ return [
         $t->contains('<w:t xml:space="preserve">nested first</w:t>', $documentXml);
     },
 
+    'emits compact placeholder paragraph for list items that begin with nested lists' => static function (TestRunner $t) use ($doc, $text, $paragraph, $item, $packageParts): void {
+        $document = $doc([
+            new AstNode('bullet_list', [], [
+                $item([
+                    new AstNode('bullet_list', [], [
+                        $item([$paragraph([$text('nested first')])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="Compact"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1001"/></w:numPr></w:pPr></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="1002"/></w:numPr></w:pPr><w:r><w:t xml:space="preserve">nested first</w:t></w:r></w:p>', $documentXml);
+    },
+
+    'uses bibliography continuation style for refs div content inside lists' => static function (TestRunner $t) use ($doc, $text, $paragraph, $item, $packageParts): void {
+        $document = $doc([
+            new AstNode('bullet_list', [], [
+                $item([
+                    new AstNode('div', ['id' => 'refs'], [
+                        new AstNode('heading', ['level' => 1], [$text('three')]),
+                        $paragraph([$text('four')]),
+                    ]),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="Heading1"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1001"/></w:numPr></w:pPr><w:r><w:t xml:space="preserve">three</w:t></w:r></w:p>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="Bibliography"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1000"/></w:numPr></w:pPr><w:r><w:t xml:space="preserve">four</w:t></w:r></w:p>', $documentXml);
+    },
+
     'emits task list checkboxes as numbering markers without duplicated text glyphs' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
         $document = $doc([
             new AstNode('bullet_list', [], [
