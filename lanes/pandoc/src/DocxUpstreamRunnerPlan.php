@@ -20,8 +20,11 @@ final class DocxUpstreamRunnerPlan
     public const RESULT_ARTIFACT_GATE_STATUS_ADMISSIBLE = 'admissible-targeted-runner-result-artifacts-no-parity-claim';
     public const DEFAULT_RELATIVE_ARTIFACT_ROOT = '.port-libs/pandoc-runner/artifacts/docx-targeted-run';
     public const DEFAULT_RELATIVE_LOG_ROOT = '.port-libs/pandoc-runner/logs';
+    public const LOCAL_READINESS_STATUS_READY = 'ready-for-targeted-docx-runner-execution';
+    public const LOCAL_READINESS_STATUS_BLOCKED = 'blocked-targeted-docx-runner-local-prerequisites';
     public const TASTY_PATTERN = '($2 == "Readers" || $2 == "Writers") && $3 == "Docx"';
     public const RUNNER_TARGET = 'test:test-pandoc';
+    public const MINIMUM_SUGGESTED_FREE_BYTES = 1073741824;
 
     /** @var list<string> */
     private const SELECTED_GROUPS = [
@@ -110,6 +113,7 @@ final class DocxUpstreamRunnerPlan
             'tastyPattern' => self::TASTY_PATTERN,
             'sourcePreflight' => $sourcePreflight,
             'selectedTestInventory' => $selectedTestInventory,
+            'localExecutionReadiness' => $this->localExecutionReadiness($sourcePreflight, $ready),
             'workspace' => $this->workspace(),
             'commands' => $this->commands(),
             'resultArtifactContract' => $this->resultArtifactContract(),
@@ -150,6 +154,14 @@ final class DocxUpstreamRunnerPlan
                 . (int) ($fixtureCounts['pairedRootDocxNativeStems'] ?? 0)
                 . '; writer golden packages='
                 . (int) ($fixtureCounts['goldenDocxPackageFiles'] ?? 0);
+        }
+
+        $readiness = $report['localExecutionReadiness'] ?? [];
+        if (is_array($readiness)) {
+            $lines[] = 'Local execution readiness: '
+                . (string) ($readiness['status'] ?? 'unknown')
+                . '; blockers='
+                . count(is_array($readiness['blockers'] ?? null) ? $readiness['blockers'] : []);
         }
 
         $artifact = $report['selectedTestInventoryArtifact'] ?? [];
@@ -241,6 +253,59 @@ final class DocxUpstreamRunnerPlan
                 'goldenDocxPackageFiles' => $this->countDirectFiles($this->upstreamPath('test/docx/golden'), 'docx'),
             ],
             'packageBytePolicy' => 'filesystem names/counts only; preflight does not read DOCX package bytes',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $sourcePreflight
+     * @return array<string, mixed>
+     */
+    private function localExecutionReadiness(array $sourcePreflight, bool $sourceReady): array
+    {
+        $cabalPath = self::executableOnPath('cabal');
+        $ghcPath = self::executableOnPath('ghc');
+        $freeBytesRaw = disk_free_space($this->repoRoot);
+        $freeBytes = $freeBytesRaw === false ? null : (int) $freeBytesRaw;
+        $sufficientDisk = $freeBytes === null ? null : $freeBytes >= self::MINIMUM_SUGGESTED_FREE_BYTES;
+
+        $blockers = [];
+        if (!$sourceReady) {
+            $blockers[] = 'missing DOCX upstream source paths under '
+                . $this->displayPath($this->upstreamRoot)
+                . ': files='
+                . implode(',', array_map('strval', $sourcePreflight['missingFiles'] ?? []))
+                . '; directories='
+                . implode(',', array_map('strval', $sourcePreflight['missingDirectories'] ?? []));
+        }
+        if ($cabalPath === null) {
+            $blockers[] = 'cabal executable not found on PATH';
+        }
+        if ($ghcPath === null) {
+            $blockers[] = 'ghc executable not found on PATH';
+        }
+        if ($sufficientDisk === false) {
+            $blockers[] = 'available disk space is below the suggested targeted-runner workspace floor: freeBytes='
+                . (string) $freeBytes
+                . '; minimumSuggestedFreeBytes='
+                . (string) self::MINIMUM_SUGGESTED_FREE_BYTES;
+        }
+
+        return [
+            'schemaVersion' => 1,
+            'status' => $blockers === [] ? self::LOCAL_READINESS_STATUS_READY : self::LOCAL_READINESS_STATUS_BLOCKED,
+            'runnerExecutionAttemptedByThisTool' => false,
+            'resultRecordedByThisTool' => false,
+            'checks' => [
+                'sourcePreflightReady' => $sourceReady,
+                'upstreamRootPresent' => (bool) ($sourcePreflight['upstreamRootPresent'] ?? false),
+                'cabalExecutable' => $cabalPath,
+                'ghcExecutable' => $ghcPath,
+                'freeBytes' => $freeBytes,
+                'minimumSuggestedFreeBytes' => self::MINIMUM_SUGGESTED_FREE_BYTES,
+                'sufficientDiskForTargetedWorkspace' => $sufficientDisk,
+            ],
+            'blockers' => $blockers,
+            'claim' => 'Local source/tool/disk readiness for a possible targeted DOCX Cabal/Tasty run only; this does not execute the runner or admit artifacts.',
         ];
     }
 
@@ -596,6 +661,7 @@ final class DocxUpstreamRunnerPlan
                 'doesNotAssert' => [
                     'that this PHP tool executed Cabal, Tasty, or upstream Pandoc',
                     'that a runner result is authentic without external transcript review',
+                    'that this local machine currently has hydrated upstream source, Cabal/GHC tooling, or enough disk to reproduce the run',
                     'that selected DOCX reader or writer tests pass unless the result artifact records those counts',
                     'writer package parity or full DOCX/OpenXML parity',
                 ],
@@ -1017,6 +1083,26 @@ final class DocxUpstreamRunnerPlan
         }
 
         return escapeshellarg($value);
+    }
+
+    private static function executableOnPath(string $name): ?string
+    {
+        $path = getenv('PATH');
+        if (!is_string($path) || $path === '') {
+            return null;
+        }
+
+        foreach (explode(PATH_SEPARATOR, $path) as $directory) {
+            if ($directory === '') {
+                continue;
+            }
+            $candidate = rtrim($directory, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $name;
+            if (is_file($candidate) && is_executable($candidate)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private static function boolText(mixed $value): string

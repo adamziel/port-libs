@@ -97,6 +97,14 @@ return [
             $t->same(false, $report['selectedTestInventory']['runnerExecuted']);
             $t->same(false, $report['selectedTestInventory']['cabalExecuted']);
             $t->same(false, $report['selectedTestInventory']['docxPackageBytesRead']);
+            $readiness = $report['localExecutionReadiness'];
+            $t->same(DocxUpstreamRunnerPlan::LOCAL_READINESS_STATUS_BLOCKED, $readiness['status']);
+            $t->same(false, $readiness['runnerExecutionAttemptedByThisTool']);
+            $t->same(false, $readiness['resultRecordedByThisTool']);
+            $t->same(false, $readiness['checks']['sourcePreflightReady']);
+            $t->same(false, $readiness['checks']['upstreamRootPresent']);
+            $t->contains('missing DOCX upstream source paths', implode("\n", $readiness['blockers']));
+            $t->contains('Local execution readiness: blocked-targeted-docx-runner-local-prerequisites', $text);
             $t->contains('--dry-run --only-dependencies', $report['commands']['dependencyDryRun']['commandLine']);
             $t->contains('--list-tests --pattern', $report['commands']['listDocxTests']['commandLine']);
             $t->contains('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $report['commands']['targetedDocxRun']['commandLine']);
@@ -142,6 +150,12 @@ return [
             $t->same(['b'], $inventory['fixtures']['unpairedRootDocxPackageStems']);
             $t->same('test/docx/golden/writer.docx', $inventory['fixtures']['goldenDocxPackages'][0]['path']);
             $t->contains('not Tasty --list-tests output', $inventory['claim']);
+            $readiness = $report['localExecutionReadiness'];
+            $t->same(true, $readiness['checks']['sourcePreflightReady']);
+            $t->same(true, $readiness['checks']['upstreamRootPresent']);
+            $t->same(false, $readiness['runnerExecutionAttemptedByThisTool']);
+            $t->same(false, $readiness['resultRecordedByThisTool']);
+            $t->true(is_array($readiness['blockers']), 'Readiness blockers must be a list even when local tooling availability varies');
             $t->same('cache/pandoc-current', $report['commands']['targetedDocxRun']['workingDirectory']);
             $t->same('.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $report['workspace']['directories']['targetedRunBuild']);
             $t->same('.port-libs/pandoc-runner/tmp', $report['workspace']['environmentVariables']['TMPDIR']);
