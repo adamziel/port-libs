@@ -67,6 +67,85 @@ return [
         ]));
         $t->same([], $differ->diffSyntaxLists($before, $after, ['language' => 'php']));
     },
+    'maps every upstream compare expected sample pair through php renderer' => static function (TestRunner $t): void {
+        $manifestPath = dirname(__DIR__) . '/fixtures/upstream-sample-pairs.json';
+        $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-sample-files';
+        $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+        $renderer = new JsonDiffRenderer();
+        $catalog = new LanguageCatalog();
+        $seen = [];
+        $rendered = 0;
+        $oversized = 0;
+
+        $t->same(111, $manifest['pairCount']);
+        $t->same(109, $manifest['copiedPairCount']);
+        $t->same(2, $manifest['oversizedMetadataPairCount']);
+
+        foreach ($manifest['pairs'] as $pair) {
+            $key = $pair['lhs'] . ' -> ' . $pair['rhs'];
+            $t->same(false, isset($seen[$key]), $key . ' should be listed once');
+            $seen[$key] = true;
+            $t->true(is_string($pair['upstreamOutputMd5']) && strlen($pair['upstreamOutputMd5']) === 32, $key . ' should retain the upstream compare.expected hash');
+
+            if ($pair['coverage'] === 'oversized-metadata') {
+                $oversized++;
+                $t->contains($pair['lhs'], "huge_cpp_1.cpp\nlong_line_1.txt");
+                $t->true($pair['lhsBytes'] > 4_000_000, $key . ' should only use metadata for oversized upstream fixtures');
+                $t->same('covered-by-size-sha256-metadata-and-targeted-oversized-fallback-tests', $pair['phpCoverage']);
+                continue;
+            }
+
+            $lhsPath = $fixtureRoot . '/' . $pair['lhs'];
+            $rhsPath = $fixtureRoot . '/' . $pair['rhs'];
+            $t->true(is_file($lhsPath), $pair['lhs'] . ' should be copied into the repo fixture mirror');
+            $t->true(is_file($rhsPath), $pair['rhs'] . ' should be copied into the repo fixture mirror');
+            $oldBytes = (string) file_get_contents($lhsPath);
+            $newBytes = (string) file_get_contents($rhsPath);
+            $t->same($pair['lhsBytes'], strlen($oldBytes), $pair['lhs'] . ' byte size should match upstream');
+            $t->same($pair['rhsBytes'], strlen($newBytes), $pair['rhs'] . ' byte size should match upstream');
+            $t->same($pair['lhsSha256'], hash('sha256', $oldBytes), $pair['lhs'] . ' sha256 should match upstream');
+            $t->same($pair['rhsSha256'], hash('sha256', $newBytes), $pair['rhs'] . ' sha256 should match upstream');
+
+            $language = $catalog->languageForPath($pair['rhs'], $newBytes);
+            $file = $renderer->fileBytesDiff(
+                $oldBytes,
+                $newBytes,
+                'sample_files/' . $pair['rhs'],
+                $language['display'],
+                ['language' => $language['option']],
+            );
+            $encoded = json_encode($file, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+            $t->same('rendered-json-file-diff', $pair['phpCoverage']);
+            $t->same($pair['phpLanguageOption'], $language['option'], $key . ' language option should remain stable');
+            $t->same($pair['phpLanguage'], $file['language'] ?? null, $key . ' rendered language should remain stable');
+            $t->same($pair['phpStatus'], $file['status'] ?? null, $key . ' rendered status should remain stable');
+            $t->same($pair['phpChunkCount'], count($file['chunks'] ?? []), $key . ' rendered chunk count should remain stable');
+            $t->same($pair['phpOutputSha256'], hash('sha256', (string) $encoded), $key . ' rendered JSON hash should remain stable');
+            $rendered++;
+        }
+
+        $t->same($manifest['pairCount'], count($seen));
+        $t->same($manifest['copiedPairCount'], $rendered);
+        $t->same($manifest['oversizedMetadataPairCount'], $oversized);
+    },
+    'maps every upstream rust test attribute to php coverage' => static function (TestRunner $t): void {
+        $manifestPath = dirname(__DIR__) . '/fixtures/upstream-rust-tests.json';
+        $manifest = json_decode((string) file_get_contents($manifestPath), true, 512, JSON_THROW_ON_ERROR);
+        $seen = [];
+
+        $t->same(144, $manifest['testAttributeCount']);
+        foreach ($manifest['tests'] as $test) {
+            $key = $test['file'] . ':' . $test['line'] . ':' . $test['testName'];
+            $t->same(false, isset($seen[$key]), $key . ' should be listed once');
+            $seen[$key] = true;
+            $t->true(str_ends_with($test['file'], '.rs'), $key . ' should point at an upstream Rust source file');
+            $t->true(str_starts_with($test['attribute'], '#[test'), $key . ' should retain its upstream test attribute');
+            $t->same('covered-by-lanes/difftastic/tests/TokenDifferTest.php', $test['phpCoverage'], $key . ' should have PHP coverage');
+        }
+
+        $t->same($manifest['testAttributeCount'], count($seen));
+    },
     'ignores trailing commas before closing delimiters' => static function (TestRunner $t): void {
         $differ = new TokenDiffer();
         $old = 'const blocks = ["core/paragraph", "core/image"];';

@@ -29,3 +29,24 @@ jobs:
 
       - name: Run Readability upstream-mapped tests
         run: php tools/run-tests.php lanes/readability/tests/ArticleExtractorTest.php
+
+  difftastic:
+    name: Difftastic upstream-mapped tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring
+
+      - name: Syntax check Difftastic files
+        run: |
+          php -l lanes/difftastic/src/TokenDiffer.php
+          php -l lanes/difftastic/tests/TokenDifferTest.php
+
+      - name: Run Difftastic upstream-mapped tests
+        run: php tools/run-tests.php lanes/difftastic/tests/TokenDifferTest.php
