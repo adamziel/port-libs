@@ -469,7 +469,13 @@ final class DocxReader
                     $flushCodeBlock();
                     $flushQuote();
                     $flushDefinitionList();
-                    if ($styleId !== '') {
+                    if (
+                        $styleId !== ''
+                        && (
+                            !$this->paragraphHasDirectConcreteNumbering($child)
+                            || $this->paragraphStyleNumbering($styleId) !== null
+                        )
+                    ) {
                         $activeStyleNumbering[$styleId] = [
                             'numId' => $numbering['numId'],
                             'level' => $numbering['level'],
@@ -2915,6 +2921,20 @@ final class DocxReader
         $numId = $numPr instanceof \DOMElement ? $this->directChild($numPr, 'numId') : null;
 
         return $numId instanceof \DOMElement && $this->attr($numId, self::W_NS, 'val') === '0';
+    }
+
+    private function paragraphHasDirectConcreteNumbering(\DOMElement $paragraph): bool
+    {
+        $pPr = $this->directChild($paragraph, 'pPr');
+        $numPr = $pPr instanceof \DOMElement ? $this->directChild($pPr, 'numPr') : null;
+        $numId = $numPr instanceof \DOMElement ? $this->directChild($numPr, 'numId') : null;
+        if (!$numId instanceof \DOMElement) {
+            return false;
+        }
+
+        $value = $this->attr($numId, self::W_NS, 'val');
+
+        return $value !== '' && $value !== '0';
     }
 
     /**

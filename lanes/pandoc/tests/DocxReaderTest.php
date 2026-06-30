@@ -266,6 +266,51 @@ XML],
         $t->same('One', $item->children[0]->attr('text'));
         $t->contains('Para [ Str "Two" , LineBreak , LineBreak , Str "Three" ]', $native);
     },
+    'does not continue direct numbering through same-style unnumbered paragraphs' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Bodytext21">
+    <w:name w:val="Body Text 2"/>
+  </w:style>
+</w:styles>
+XML],
+            ['name' => 'word/numbering.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="8">
+    <w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="8"/></w:num>
+</w:numbering>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Bodytext21"/><w:numPr><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>Foo</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Bodytext21"/><w:numPr><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>Bar</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Bodytext21"/><w:numPr><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>Baz</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Bodytext21"/></w:pPr><w:r><w:t>Interruption.</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Bodytext21"/><w:numPr><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>Bop</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['ordered_list', 'paragraph', 'ordered_list'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Foo', $document->children[0]->children[0]->children[0]->attr('text'));
+        $t->same('Baz', $document->children[0]->children[2]->children[0]->attr('text'));
+        $t->same('Interruption.', $document->children[1]->attr('text'));
+        $t->same('Bop', $document->children[2]->children[0]->children[0]->attr('text'));
+        $t->contains('<ol><li>Foo</li><li>Bar</li><li>Baz</li></ol>', $blocks);
+        $t->contains('<p>Interruption.</p>', $blocks);
+        $t->contains('<ol><li>Bop</li></ol>', $blocks);
+    },
     'preserves docx task-list numbering glyphs and blank bullet continuations' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => 'word/numbering.xml', 'data' => <<<'XML'
