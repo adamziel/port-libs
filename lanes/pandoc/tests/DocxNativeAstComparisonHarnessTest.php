@@ -495,7 +495,7 @@ XML);
             $removeTree($root);
         }
     },
-    'matches docx table header rowspan fixture after column alignment derivation' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
+    'matches docx table header rowspan fixture after tblLook continuation inference' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxDocument): void {
         $root = $makeTempDir();
 
         try {
@@ -504,13 +504,12 @@ XML);
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     <w:tbl>
+      <w:tblPr><w:tblLook w:firstRow="1"/></w:tblPr>
       <w:tr>
-        <w:trPr><w:tblHeader/></w:trPr>
         <w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc>
         <w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc>
       </w:tr>
       <w:tr>
-        <w:trPr><w:tblHeader/></w:trPr>
         <w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>
         <w:tc><w:p><w:r><w:t>G</w:t></w:r></w:p></w:tc>
         <w:tc><w:p><w:r><w:t>H</w:t></w:r></w:p></w:tc>

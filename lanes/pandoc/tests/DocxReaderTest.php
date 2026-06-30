@@ -2215,6 +2215,46 @@ XML;
         $t->contains('<tbody><tr><td>Draft flag</td><td>False header row</td></tr><tr><td>Total</td><td>12</td></tr></tbody>', $blocks);
         $t->true(!str_contains($blocks, '<th>Draft flag</th>'), 'Explicitly disabled tblHeader rows should stay in the table body');
     },
+    'keeps docx tblLook rowspan continuation rows in table head' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes(<<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:tbl>
+      <w:tblPr><w:tblLook w:firstRow="1"/></w:tblPr>
+      <w:tr>
+        <w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>A</w:t></w:r></w:p></w:tc>
+        <w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>B</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>
+        <w:tc><w:p><w:r><w:t>G</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>H</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:tc><w:p><w:r><w:t>1</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>2</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>3</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+  </w:body>
+</w:document>
+XML);
+
+        $document = (new DocxReader())->read($bytes);
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $body = $table->children[1];
+
+        $t->same(2, count($head->children));
+        $t->same(1, count($body->children));
+        $t->same('A', $head->children[0]->children[0]->attr('text'));
+        $t->same(2, $head->children[0]->children[0]->attr('rowspan'));
+        $t->same('B', $head->children[0]->children[1]->attr('text'));
+        $t->same(2, $head->children[0]->children[1]->attr('colspan'));
+        $t->same(['G', 'H'], array_map(static fn ($cell): string => $cell->attr('text'), $head->children[1]->children));
+        $t->same(['1', '2', '3'], array_map(static fn ($cell): string => $cell->attr('text'), $body->children[0]->children));
+    },
     'preserves docx table gridBefore omitted leading cells' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/><w:gridBefore w:val="1"/></w:trPr><w:tc><w:p><w:r><w:t>Field</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:gridBefore w:val="2"/></w:trPr><w:tc><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
 

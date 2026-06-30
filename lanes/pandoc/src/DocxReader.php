@@ -3930,7 +3930,7 @@ final class DocxReader
     private function table(\DOMElement $table): AstNode
     {
         $rowSpecs = [];
-        $rowHeaderFlags = [];
+        $rowHeaderStates = [];
         $firstRowHeaderLook = $this->tableUsesFirstRowHeaderLook($table);
         foreach ($table->childNodes as $child) {
             if ($child instanceof \DOMElement && $child->localName === 'tr') {
@@ -3958,12 +3958,12 @@ final class DocxReader
                     ];
                     $column += $colspan;
                 }
-                $rowHeaderState = $this->tableRowHeaderState($child);
-                $rowHeaderFlags[] = $rowHeaderState ?? ($firstRowHeaderLook && $rowSpecs === []);
+                $rowHeaderStates[] = $this->tableRowHeaderState($child);
                 $rowSpecs[] = $cells;
             }
         }
 
+        $rowHeaderFlags = $this->tableRowHeaderFlags($rowSpecs, $rowHeaderStates, $firstRowHeaderLook);
         $rowspans = [];
         $skip = [];
         $active = [];
@@ -3971,7 +3971,7 @@ final class DocxReader
             foreach ($cells as $cellIndex => $cell) {
                 $key = $rowIndex . ':' . $cellIndex;
                 $rowspans[$key] = 1;
-                $coveredColumns = range((int) $cell['column'], (int) $cell['column'] + (int) $cell['colspan'] - 1);
+                $coveredColumns = $this->tableCellCoveredColumns($cell);
 
                 if ($cell['vMerge'] === 'continue') {
                     $owners = [];
@@ -4035,6 +4035,72 @@ final class DocxReader
             new AstNode('table_body', [], $rows),
             new AstNode('table_foot'),
         ]);
+    }
+
+    /**
+     * @param list<list<array{element: ?\DOMElement, column: int, colspan: int, vMerge: string, omitted: string}>> $rowSpecs
+     * @param list<?bool> $rowHeaderStates
+     * @return list<bool>
+     */
+    private function tableRowHeaderFlags(array $rowSpecs, array $rowHeaderStates, bool $firstRowHeaderLook): array
+    {
+        $flags = [];
+        $activeHeaderColumns = [];
+        $headerGroupOpen = false;
+
+        foreach ($rowSpecs as $rowIndex => $cells) {
+            $continuesHeaderMerge = false;
+            foreach ($cells as $cell) {
+                if ($cell['vMerge'] !== 'continue') {
+                    continue;
+                }
+                foreach ($this->tableCellCoveredColumns($cell) as $column) {
+                    if (($activeHeaderColumns[$column] ?? false) === true) {
+                        $continuesHeaderMerge = true;
+                        break 2;
+                    }
+                }
+            }
+
+            $explicitHeaderState = $rowHeaderStates[$rowIndex] ?? null;
+            $isHeader = $explicitHeaderState ?? (
+                ($firstRowHeaderLook && $rowIndex === 0)
+                || ($headerGroupOpen && $continuesHeaderMerge)
+            );
+            $flags[] = $isHeader;
+
+            foreach ($cells as $cell) {
+                if ($cell['vMerge'] === 'continue') {
+                    continue;
+                }
+
+                foreach ($this->tableCellCoveredColumns($cell) as $column) {
+                    unset($activeHeaderColumns[$column]);
+                    if ($cell['vMerge'] === 'restart' && $isHeader) {
+                        $activeHeaderColumns[$column] = true;
+                    }
+                }
+            }
+
+            if ($isHeader) {
+                $headerGroupOpen = true;
+            } elseif ($explicitHeaderState === false || !$continuesHeaderMerge) {
+                $headerGroupOpen = false;
+            }
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @param array{column: int, colspan: int} $cell
+     * @return list<int>
+     */
+    private function tableCellCoveredColumns(array $cell): array
+    {
+        $start = (int) $cell['column'];
+
+        return range($start, $start + max(1, (int) $cell['colspan']) - 1);
     }
 
     /**
