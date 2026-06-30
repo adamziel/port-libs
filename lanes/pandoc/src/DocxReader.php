@@ -1203,6 +1203,13 @@ final class DocxReader
     {
         $records = [];
         foreach ($this->descendantElementsByLocalName($container, 'txbxContent') as $textBox) {
+            if ($source !== 'drawing') {
+                $shape = $this->nearestAncestorByLocalName($textBox, 'shape');
+                if ($shape instanceof \DOMElement && !$this->vmlShapeIsVisible($shape)) {
+                    continue;
+                }
+            }
+
             $blocks = $this->stripRawBookmarkInlines($this->bodyBlocks($textBox));
             if ($blocks === []) {
                 continue;
@@ -1212,6 +1219,16 @@ final class DocxReader
         }
 
         return $records;
+    }
+
+    private function vmlShapeIsVisible(\DOMElement $shape): bool
+    {
+        $style = strtolower($shape->getAttribute('style'));
+        if ($style === '') {
+            return true;
+        }
+
+        return !preg_match('/(?:^|;)\s*(?:display\s*:\s*none|visibility\s*:\s*hidden)\s*(?:;|$)/', $style);
     }
 
     /**

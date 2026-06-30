@@ -1836,6 +1836,27 @@ XML],
         $t->contains('class="diagram" data-pandoc-diagram="unsupported-docx-diagram"', $blocks);
         $t->contains('<span class="chart">[CHART]</span>', $blocks);
     },
+    'maps visible vml textbox shape text as document blocks' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:v="urn:schemas-microsoft-com:vml"><w:body><w:p><w:r><w:pict><v:shape id="TextBoxUpdated" type="#_x0000_t202" style="visibility:visible"><v:textbox><w:txbxContent><w:p><w:r><w:t xml:space="preserve">Last update: </w:t></w:r><w:r><w:t>May 1, 2017</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r><w:r><w:pict><v:shape id="TextBoxTitle" type="#_x0000_t202" style="visibility:visible"><v:textbox><w:txbxContent><w:p><w:r><w:t>Using Microsoft Word 2007/2010</w:t></w:r><w:r><w:br/></w:r><w:r><w:rPr><w:b/></w:rPr><w:t>for Writing Technical Documents</w:t></w:r></w:p><w:p><w:r><w:t>Valter Kiisk</w:t></w:r></w:p><w:p><w:bookmarkStart w:id="4" w:name="_RefGenerated"/><w:bookmarkEnd w:id="4"/><w:r><w:t>Institute of Physics, University of Tartu</w:t></w:r></w:p></w:txbxContent></v:textbox></v:shape></w:pict></w:r></w:p><w:p><w:bookmarkStart w:id="1" w:name="_Toc219459029"/><w:bookmarkEnd w:id="1"/></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $native = (new NativeWriter())->write($document);
+
+        $t->same(['paragraph', 'paragraph', 'paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Last update: May 1, 2017', $document->children[0]->attr('text'));
+        $t->same('Using Microsoft Word 2007/2010 for Writing Technical Documents', $document->children[1]->attr('text'));
+        $t->same('linebreak', $document->children[1]->children[1]->type);
+        $t->same('strong', $document->children[1]->children[2]->type);
+        $t->same('for Writing Technical Documents', $document->children[1]->children[2]->children[0]->attr('text'));
+        $t->same('Valter Kiisk', $document->children[2]->attr('text'));
+        $t->same('Institute of Physics, University of Tartu', $document->children[3]->attr('text'));
+        $t->same('', $document->children[4]->attr('text'));
+        $t->true(!str_contains($native, '_RefGenerated'), 'Generated bookmarks inside visible VML textbox text should not leak into native output');
+        $t->true(!str_contains($native, '_Toc219459029'), 'Generated trailing shape bookmarks should not leak into native output');
+        $t->true(!str_contains($blocks, 'docx-textbox'), 'Visible shape-only textboxes should surface as document blocks');
+        $t->contains('<strong>for Writing Technical Documents</strong>', $blocks);
+    },
     'maps upstream docx paragraph block styles to code quotes and definitions' => static function (TestRunner $t): void {
         $stylesXml = <<<'XML'
 <?xml version="1.0"?>
