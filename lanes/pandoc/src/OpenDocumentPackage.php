@@ -8725,6 +8725,10 @@ final class OpenDocumentPackage
             'manifestMediaFamilyByteLengths' => [],
             'manifestMediaFamilyCompressedByteLengths' => [],
             'manifestMediaFamilyItems' => [],
+            'manifestParameterizedMediaTypeCount' => 0,
+            'manifestParameterizedMediaTypeItems' => [],
+            'manifestMediaTypeParameterNames' => [],
+            'manifestMediaTypeParameterNameCounts' => [],
             'manifestRootAttributeCount' => $manifestRootAttributes['attributeCount'] ?? 0,
             'manifestRootAttributeNames' => $manifestRootAttributes['attributeNames'] ?? [],
             'manifestRootAttributes' => $manifestRootAttributes['attributes'] ?? [],
@@ -8830,6 +8834,46 @@ final class OpenDocumentPackage
                     $summary['manifestMediaFamilyCompressedByteLengths'][$family] = ($summary['manifestMediaFamilyCompressedByteLengths'][$family] ?? 0) + $entry['compressedByteLength'];
                 }
                 $summary['manifestMediaFamilyItems'][] = self::manifestMediaFamilyItem($entry);
+            }
+            $mediaTypeParameters = is_array($entry['mediaTypeParameters'] ?? null)
+                ? $entry['mediaTypeParameters']
+                : [];
+            $mediaTypeParameterMap = is_array($entry['mediaTypeParameterMap'] ?? null)
+                ? $entry['mediaTypeParameterMap']
+                : [];
+            if (($entry['mediaTypeHasParameters'] ?? false) === true || $mediaTypeParameters !== []) {
+                ++$summary['manifestParameterizedMediaTypeCount'];
+                $summary['manifestParameterizedMediaTypeItems'][] = self::withoutEmptyValues([
+                    'manifestIndex' => $entry['manifestIndex'] ?? null,
+                    'fullPath' => $entry['path'],
+                    'path' => $entry['path'],
+                    'part' => $entry['packagePath'] ?? null,
+                    'packagePath' => $entry['packagePath'] ?? null,
+                    'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
+                    'mediaType' => $entry['mediaType'] ?? null,
+                    'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
+                    'mediaTypeParameterCount' => count($mediaTypeParameters),
+                    'mediaTypeParameters' => $mediaTypeParameters,
+                    'mediaTypeParameterMap' => $mediaTypeParameterMap,
+                    'exists' => ($entry['exists'] ?? false) === true,
+                    'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                    'encrypted' => ($entry['encrypted'] ?? false) === true,
+                    'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                    'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+                ]);
+            }
+            foreach ($mediaTypeParameters as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+                $name = (string) ($parameter['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
+                if (!in_array($name, $summary['manifestMediaTypeParameterNames'], true)) {
+                    $summary['manifestMediaTypeParameterNames'][] = $name;
+                }
+                $summary['manifestMediaTypeParameterNameCounts'][$name] = ($summary['manifestMediaTypeParameterNameCounts'][$name] ?? 0) + 1;
             }
             $customManifestAttributes = is_array($entry['customManifestAttributes'] ?? null)
                 ? $entry['customManifestAttributes']
@@ -9056,6 +9100,8 @@ final class OpenDocumentPackage
         $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
         sort($summary['manifestCustomAttributeNames'], SORT_STRING);
         sort($summary['manifestCustomChildElementNames'], SORT_STRING);
+        sort($summary['manifestMediaTypeParameterNames'], SORT_STRING);
+        ksort($summary['manifestMediaTypeParameterNameCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyByteLengths'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCompressedByteLengths'], SORT_STRING);
@@ -10107,6 +10153,11 @@ final class OpenDocumentPackage
             'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
             'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
             'mediaType' => $entry['mediaType'],
+            'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
+            'mediaTypeHasParameters' => ($entry['mediaTypeHasParameters'] ?? false) === true,
+            'mediaTypeParameterCount' => $entry['mediaTypeParameterCount'] ?? 0,
+            'mediaTypeParameters' => $entry['mediaTypeParameters'] ?? [],
+            'mediaTypeParameterMap' => $entry['mediaTypeParameterMap'] ?? [],
             'manifestAttributeCount' => $entry['manifestAttributeCount'] ?? 0,
             'manifestAttributeNames' => $entry['manifestAttributeNames'] ?? [],
             'customManifestAttributeCount' => $entry['customManifestAttributeCount'] ?? 0,

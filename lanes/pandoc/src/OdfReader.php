@@ -21704,6 +21704,8 @@ final class OdfReader
         $emptyMediaTypeNonDirectoryItems = [];
         $invalidDeclaredSizeItems = [];
         $diagnostics = [];
+        $parameterizedItems = [];
+        $mediaTypeParameterNameCounts = [];
         $summary = [
             'manifestItemCount' => count($manifest),
             'typedItemCount' => 0,
@@ -21730,7 +21732,9 @@ final class OdfReader
             'invalidDeclaredSizeCount' => 0,
             'invalidDeclaredSizeItems' => [],
             'parameterizedItemCount' => 0,
+            'parameterizedItems' => [],
             'mediaTypeParameterNames' => [],
+            'mediaTypeParameterNameCounts' => [],
             'storedByteLength' => 0,
             'compressedByteLength' => 0,
             'exposableByteLength' => 0,
@@ -21749,6 +21753,9 @@ final class OdfReader
             $mediaTypeParameters = is_array($item['mediaTypeParameters'] ?? null)
                 ? $item['mediaTypeParameters']
                 : $mediaTypeReport['mediaTypeParameters'];
+            $mediaTypeParameterMap = is_array($item['mediaTypeParameterMap'] ?? null)
+                ? $item['mediaTypeParameterMap']
+                : $mediaTypeReport['mediaTypeParameterMap'];
             $exists = ($item['exists'] ?? false) === true;
             $isDirectory = ($item['isDirectory'] ?? false) === true;
             $encrypted = ($item['encrypted'] ?? false) === true;
@@ -21884,6 +21891,7 @@ final class OdfReader
                     'rawMediaTypeCount' => 0,
                     'parameterizedItemCount' => 0,
                     'mediaTypeParameterNames' => [],
+                    'mediaTypeParameterNameCounts' => [],
                     'existsCount' => 0,
                     'missingCount' => 0,
                     'directoryCount' => 0,
@@ -21914,6 +21922,21 @@ final class OdfReader
             if (($item['mediaTypeHasParameters'] ?? $mediaTypeReport['mediaTypeHasParameters']) === true) {
                 ++$summary['parameterizedItemCount'];
                 ++$groups[$groupMediaType]['parameterizedItemCount'];
+                $parameterizedItems[] = self::withoutEmpty([
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $item['part'] ?? null,
+                    'mediaType' => $mediaType,
+                    'mediaTypeBase' => $mediaTypeBase,
+                    'mediaTypeParameterCount' => count($mediaTypeParameters),
+                    'mediaTypeParameters' => $mediaTypeParameters,
+                    'mediaTypeParameterMap' => $mediaTypeParameterMap,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                    'encrypted' => $encrypted,
+                    'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                    'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
+                    'diagnostics' => $itemDiagnostics,
+                ]);
             }
             foreach ($mediaTypeParameters as $parameter) {
                 if (!is_array($parameter)) {
@@ -21926,9 +21949,11 @@ final class OdfReader
                 if (!in_array($name, $summary['mediaTypeParameterNames'], true)) {
                     $summary['mediaTypeParameterNames'][] = $name;
                 }
+                $mediaTypeParameterNameCounts[$name] = ($mediaTypeParameterNameCounts[$name] ?? 0) + 1;
                 if (!in_array($name, $groups[$groupMediaType]['mediaTypeParameterNames'], true)) {
                     $groups[$groupMediaType]['mediaTypeParameterNames'][] = $name;
                 }
+                $groups[$groupMediaType]['mediaTypeParameterNameCounts'][$name] = ($groups[$groupMediaType]['mediaTypeParameterNameCounts'][$name] ?? 0) + 1;
             }
             if ($exists) {
                 ++$groups[$groupMediaType]['existsCount'];
@@ -21982,8 +22007,12 @@ final class OdfReader
 
         $items = [];
         sort($summary['mediaTypeParameterNames'], SORT_STRING);
+        ksort($mediaTypeParameterNameCounts, SORT_STRING);
+        $summary['mediaTypeParameterNameCounts'] = $mediaTypeParameterNameCounts;
+        $summary['parameterizedItems'] = $parameterizedItems;
         foreach ($groupOrder as $mediaType) {
             sort($groups[$mediaType]['mediaTypeParameterNames'], SORT_STRING);
+            ksort($groups[$mediaType]['mediaTypeParameterNameCounts'], SORT_STRING);
             $groups[$mediaType]['rawMediaTypeCount'] = count($groups[$mediaType]['rawMediaTypes']);
             $items[] = $groups[$mediaType];
         }
