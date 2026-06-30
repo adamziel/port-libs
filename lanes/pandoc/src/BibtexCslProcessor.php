@@ -342,6 +342,17 @@ final class BibtexCslProcessor
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
+        foreach ([
+            'pagination' => 'Pagination',
+            'book-pagination' => 'Book pagination',
+            'part' => 'Part',
+            'printing-number' => 'Printing number',
+            'supplement-number' => 'Supplement number',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . (string) $item[$field];
+            }
+        }
         $containerTitleShort = (string) ($item['container-title-short'] ?? $item['journal-abbreviation'] ?? '');
         if ($containerTitleShort !== '') {
             $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.');
@@ -744,6 +755,11 @@ final class BibtexCslProcessor
             'article-number' => ['eid', 'article-number', 'articlenumber'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
+            'pagination' => ['pagination', 'page-label'],
+            'book-pagination' => ['bookpagination', 'book-pagination'],
+            'part' => ['part', 'partnumber', 'part-number'],
+            'printing-number' => ['printingnumber', 'printing-number', 'printnumber', 'print-number', 'printing'],
+            'supplement-number' => ['supplementnumber', 'supplement-number'],
             'source' => ['source', 'sourcetitle', 'source-title'],
             'section' => ['section'],
             'supplement' => ['supplement'],
