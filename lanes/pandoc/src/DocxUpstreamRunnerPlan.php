@@ -681,6 +681,9 @@ final class DocxUpstreamRunnerPlan
             'artifactRoot' => $this->displayPath($artifactRootAbsolute),
             'logRoot' => $this->displayPath($logRootAbsolute),
             'requiredArtifacts' => $artifacts,
+            'evidenceGap' => $admissionReady
+                ? null
+                : 'No admissible targeted Cabal/Tasty DOCX runner result is present; missing or invalid artifacts remain a hard evidence gap.',
             'resultSummary' => is_array($result) ? [
                 'upstreamCommit' => $result['upstreamCommit'] ?? null,
                 'exitCode' => $result['exitCode'] ?? null,
@@ -695,6 +698,7 @@ final class DocxUpstreamRunnerPlan
                 'doesAssert' => [
                     'required transcript, selected inventory, and result JSON artifacts are present and structurally valid when admissionReady=true',
                     'result JSON references the pinned DOCX runner target, Tasty pattern, counts, and artifact SHA-256 hashes',
+                    'transcripts include the exact Cabal command line, exit-code marker, and Tasty DOCX list/run output required by the artifact contract',
                 ],
                 'doesNotAssert' => [
                     'that this PHP tool executed Cabal, Tasty, or upstream Pandoc',
@@ -885,6 +889,168 @@ final class DocxUpstreamRunnerPlan
         ) {
             $problems[] = 'result.json finishedAtUtc must not be earlier than startedAtUtc';
         }
+
+        $this->validateTranscriptEvidence($result, $artifacts, $problems);
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @param array<string, array<string, mixed>> $artifacts
+     * @param list<string> $problems
+     */
+    private function validateTranscriptEvidence(array $result, array $artifacts, array &$problems): void
+    {
+        $commands = $this->commands();
+        $dependencyTranscript = $this->artifactContents($artifacts['dependencyDryRunTranscript']['absolutePath'] ?? null);
+        $listTestsTranscript = $this->artifactContents($artifacts['listTestsTranscript']['absolutePath'] ?? null);
+        $targetedRunTranscript = $this->artifactContents($artifacts['targetedRunTranscript']['absolutePath'] ?? null);
+
+        $this->requireTranscriptContains(
+            $dependencyTranscript,
+            $commands['dependencyDryRun']['commandLine'],
+            'dependency dry-run transcript',
+            'the exact Cabal dry-run command line',
+            $problems
+        );
+        $this->requireTranscriptExitCode(
+            $dependencyTranscript,
+            0,
+            'dependency dry-run transcript',
+            'the expected successful dependency dry-run exitCode marker',
+            $problems
+        );
+
+        $this->requireTranscriptContains(
+            $listTestsTranscript,
+            $commands['listDocxTests']['commandLine'],
+            'list-tests transcript',
+            'the exact Cabal/Tasty --list-tests command line',
+            $problems
+        );
+        $this->requireTranscriptExitCode(
+            $listTestsTranscript,
+            0,
+            'list-tests transcript',
+            'the expected successful --list-tests exitCode marker',
+            $problems
+        );
+
+        $listedDocxTests = $this->countDocxListTestLines($listTestsTranscript);
+        if ($listedDocxTests === 0) {
+            $problems[] = 'list-tests transcript must contain DOCX Tasty test labels before a runner result can be admitted';
+        } elseif (is_int($result['selectedTestCount'] ?? null) && $listedDocxTests !== $result['selectedTestCount']) {
+            $problems[] = 'list-tests transcript DOCX test label count must equal result.json selectedTestCount';
+        }
+
+        $this->requireTranscriptContains(
+            $targetedRunTranscript,
+            $commands['targetedDocxRun']['commandLine'],
+            'targeted-run transcript',
+            'the exact targeted Cabal/Tasty command line',
+            $problems
+        );
+        $this->requireTranscriptExitCode(
+            $targetedRunTranscript,
+            is_int($result['exitCode'] ?? null) ? $result['exitCode'] : null,
+            'targeted-run transcript',
+            'an exitCode marker matching result.json exitCode',
+            $problems
+        );
+        if (!$this->hasTastyDocxResultEvidence($targetedRunTranscript)) {
+            $problems[] = 'targeted-run transcript must contain Tasty result output for DOCX tests before a runner result can be admitted';
+        }
+    }
+
+    /**
+     * @param list<string> $problems
+     */
+    private function requireTranscriptContains(
+        ?string $contents,
+        string $needle,
+        string $label,
+        string $requirement,
+        array &$problems
+    ): void {
+        if ($contents === null || !str_contains($contents, $needle)) {
+            $problems[] = "{$label} must include {$requirement}";
+        }
+    }
+
+    /**
+     * @param list<string> $problems
+     */
+    private function requireTranscriptExitCode(
+        ?string $contents,
+        ?int $expectedExitCode,
+        string $label,
+        string $requirement,
+        array &$problems
+    ): void {
+        if ($expectedExitCode === null) {
+            return;
+        }
+
+        $observedExitCode = self::transcriptExitCode($contents);
+        if ($observedExitCode === null) {
+            $problems[] = "{$label} must include {$requirement}";
+
+            return;
+        }
+        if ($observedExitCode !== $expectedExitCode) {
+            $problems[] = "{$label} exitCode marker must match the expected result code";
+        }
+    }
+
+    private function artifactContents(mixed $absolutePath): ?string
+    {
+        if (!is_string($absolutePath) || !is_file($absolutePath) || !is_readable($absolutePath)) {
+            return null;
+        }
+
+        $contents = file_get_contents($absolutePath);
+
+        return $contents === false ? null : $contents;
+    }
+
+    private function countDocxListTestLines(?string $contents): int
+    {
+        if ($contents === null) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach (preg_split('/\R/', $contents) ?: [] as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '' || str_contains($trimmed, 'cabal v2-run') || str_starts_with($trimmed, 'exitCode')) {
+                continue;
+            }
+            if (preg_match('/\b(?:Readers|Writers)\.Docx\./', $trimmed) === 1) {
+                ++$count;
+            }
+        }
+
+        return $count;
+    }
+
+    private function hasTastyDocxResultEvidence(?string $contents): bool
+    {
+        if ($contents === null || preg_match('/\b(?:Readers|Writers)\b[\s\S]*\bDocx\b/', $contents) !== 1) {
+            return false;
+        }
+
+        return preg_match('/(?:^|\R)\s*(?:[^\r\n:]+:\s*)?(?:OK|FAIL|SKIP|All \d+ tests? passed)\b/', $contents) === 1;
+    }
+
+    private static function transcriptExitCode(?string $contents): ?int
+    {
+        if ($contents === null) {
+            return null;
+        }
+        if (preg_match('/(?:^|\R)\s*(?:exitCode|exit-code|exit code|EXIT_CODE)\s*[:=]\s*(-?\d+)\s*(?:\R|$)/i', $contents, $matches) !== 1) {
+            return null;
+        }
+
+        return (int) $matches[1];
     }
 
     /**
@@ -1019,7 +1185,12 @@ final class DocxUpstreamRunnerPlan
                 'listTestsTranscriptSha256',
                 'targetedRunTranscriptSha256',
             ],
-            'admissionRule' => 'Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout.',
+            'transcriptEvidenceRequirements' => [
+                'dependencyDryRunTranscript' => 'must include the exact Cabal dry-run command line and exitCode: 0 marker',
+                'listTestsTranscript' => 'must include the exact Cabal/Tasty --list-tests command line, exitCode: 0 marker, and DOCX Tasty test labels',
+                'targetedRunTranscript' => 'must include the exact targeted Cabal/Tasty command line, an exitCode marker matching result.json, and DOCX Tasty result output',
+            ],
+            'admissionRule' => 'Do not set resultRecorded=true until command transcript, exit code, selected test inventory, pass/fail counts, and concrete Tasty DOCX list/run output are captured for the pinned upstream checkout.',
         ];
     }
 

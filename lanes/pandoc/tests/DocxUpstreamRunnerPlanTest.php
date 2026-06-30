@@ -85,6 +85,39 @@ $markSelectedInventoryPinned = static function (string $inventoryPath): void {
     );
 };
 
+$writeValidRunnerTranscripts = static function (string $repoRoot, string $upstreamRoot, string $logRoot) use ($writeFile): array {
+    $commands = (new DocxUpstreamRunnerPlan($repoRoot, $upstreamRoot))->report()['commands'];
+
+    $writeFile(
+        $repoRoot,
+        $logRoot . '/runner-test-dependencies.txt',
+        '$ ' . $commands['dependencyDryRun']['commandLine'] . "\nResolving dependencies...\nexitCode: 0\n"
+    );
+    $writeFile(
+        $repoRoot,
+        $logRoot . '/docx-targeted-list-tests.txt',
+        '$ ' . $commands['listDocxTests']['commandLine'] . "\n"
+            . "Readers.Docx.reader simple paragraph\n"
+            . "Writers.Docx.writer plain paragraph\n"
+            . "exitCode: 0\n"
+    );
+    $writeFile(
+        $repoRoot,
+        $logRoot . '/docx-targeted-run.txt',
+        '$ ' . $commands['targetedDocxRun']['commandLine'] . "\n"
+            . "Readers\n"
+            . "  Docx\n"
+            . "    reader simple paragraph: OK\n"
+            . "Writers\n"
+            . "  Docx\n"
+            . "    writer plain paragraph: OK\n"
+            . "All 2 tests passed\n"
+            . "exitCode: 0\n"
+    );
+
+    return $commands;
+};
+
 return [
     'reports blocked docx runner preflight without hydrated upstream source' => static function (TestRunner $t) use ($makeTempRoot, $removeTree): void {
         $repoRoot = $makeTempRoot();
@@ -240,7 +273,7 @@ return [
         }
     },
 
-    'cli validates targeted runner result artifacts without executing runner' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture, $writeFile, $markSelectedInventoryPinned): void {
+    'cli validates targeted runner result artifacts without executing runner' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture, $writeFile, $markSelectedInventoryPinned, $writeValidRunnerTranscripts): void {
         $repoRoot = $makeTempRoot();
         try {
             $upstreamRoot = $repoRoot . '/cache/pandoc-current';
@@ -264,14 +297,12 @@ return [
             $t->same(0, $writeExitCode, implode("\n", $writeOutput));
             $markSelectedInventoryPinned($repoRoot . '/' . $selectedInventoryPath);
 
-            $writeFile($repoRoot, $logRoot . '/runner-test-dependencies.txt', "dependency dry-run transcript\n");
-            $writeFile($repoRoot, $logRoot . '/docx-targeted-list-tests.txt', "Readers.Docx.reader simple paragraph\nWriters.Docx.writer plain paragraph\n");
-            $writeFile($repoRoot, $logRoot . '/docx-targeted-run.txt', "targeted docx run transcript\n");
+            $commands = $writeValidRunnerTranscripts($repoRoot, 'cache/pandoc-current', $logRoot);
 
             $result = [
                 'runnerExecuted' => true,
                 'upstreamCommit' => DocxUpstreamRunnerPlan::PINNED_UPSTREAM_COMMIT,
-                'commandLine' => 'cabal v2-run --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run test:test-pandoc -- --pattern ' . escapeshellarg(DocxUpstreamRunnerPlan::TASTY_PATTERN),
+                'commandLine' => $commands['targetedDocxRun']['commandLine'],
                 'exitCode' => 0,
                 'runnerTarget' => DocxUpstreamRunnerPlan::RUNNER_TARGET,
                 'tastyPattern' => DocxUpstreamRunnerPlan::TASTY_PATTERN,
@@ -315,10 +346,73 @@ return [
             $t->same(false, $gate['runnerExecutedByThisTool']);
             $t->same(false, $gate['resultRecordedByThisTool']);
             $t->same(true, $gate['runnerExecutedClaimFromResult']);
+            $t->same(null, $gate['evidenceGap']);
             $t->same([], $gate['problems']);
             $t->same(2, $gate['resultSummary']['selectedTestCount']);
             $t->same(hash_file('sha256', $repoRoot . '/' . $artifactRoot . '/result.json'), $gate['requiredArtifacts']['resultJson']['sha256']);
             $t->contains('does not execute Cabal/Tasty', $gate['claim']);
+            $t->contains('transcripts include the exact Cabal command line', implode("\n", $gate['claimBoundaries']['doesAssert']));
+        } finally {
+            $removeTree($repoRoot);
+        }
+    },
+
+    'rejects self consistent runner result without real cabal tasty transcript evidence' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture, $writeFile, $markSelectedInventoryPinned): void {
+        $repoRoot = $makeTempRoot();
+        try {
+            $upstreamRoot = $repoRoot . '/cache/pandoc-current';
+            $hydrateRunnerPlanFixture($upstreamRoot);
+            $artifactRoot = 'artifacts/docx-targeted-run';
+            $logRoot = 'logs';
+            $selectedInventoryPath = $artifactRoot . '/selected-test-inventory.json';
+            $plan = new DocxUpstreamRunnerPlan($repoRoot, 'cache/pandoc-current');
+            $report = $plan->report();
+
+            $writeFile(
+                $repoRoot,
+                $selectedInventoryPath,
+                json_encode($report['selectedTestInventory'], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
+            );
+            $markSelectedInventoryPinned($repoRoot . '/' . $selectedInventoryPath);
+
+            $writeFile($repoRoot, $logRoot . '/runner-test-dependencies.txt', "dependency dry-run transcript\n");
+            $writeFile($repoRoot, $logRoot . '/docx-targeted-list-tests.txt', "Readers.Docx.reader simple paragraph\nWriters.Docx.writer plain paragraph\n");
+            $writeFile($repoRoot, $logRoot . '/docx-targeted-run.txt', "targeted docx run transcript\n");
+
+            $commands = $report['commands'];
+            $result = [
+                'runnerExecuted' => true,
+                'upstreamCommit' => DocxUpstreamRunnerPlan::PINNED_UPSTREAM_COMMIT,
+                'commandLine' => $commands['targetedDocxRun']['commandLine'],
+                'exitCode' => 0,
+                'runnerTarget' => DocxUpstreamRunnerPlan::RUNNER_TARGET,
+                'tastyPattern' => DocxUpstreamRunnerPlan::TASTY_PATTERN,
+                'selectedTestCount' => 2,
+                'passedCount' => 2,
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'startedAtUtc' => '2026-06-30T00:00:00Z',
+                'finishedAtUtc' => '2026-06-30T00:00:01Z',
+                'selectedTestInventorySha256' => hash_file('sha256', $repoRoot . '/' . $selectedInventoryPath),
+                'dependencyDryRunTranscriptSha256' => hash_file('sha256', $repoRoot . '/' . $logRoot . '/runner-test-dependencies.txt'),
+                'listTestsTranscriptSha256' => hash_file('sha256', $repoRoot . '/' . $logRoot . '/docx-targeted-list-tests.txt'),
+                'targetedRunTranscriptSha256' => hash_file('sha256', $repoRoot . '/' . $logRoot . '/docx-targeted-run.txt'),
+            ];
+            $writeFile(
+                $repoRoot,
+                $artifactRoot . '/result.json',
+                json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
+            );
+
+            $gate = $plan->resultArtifactGate($artifactRoot, $logRoot);
+            $problems = implode("\n", $gate['problems']);
+            $t->same(DocxUpstreamRunnerPlan::RESULT_ARTIFACT_GATE_STATUS_INVALID, $gate['status']);
+            $t->same(false, $gate['admissionReady']);
+            $t->contains('hard evidence gap', (string) $gate['evidenceGap']);
+            $t->contains('dependency dry-run transcript must include the exact Cabal dry-run command line', $problems);
+            $t->contains('list-tests transcript must include the exact Cabal/Tasty --list-tests command line', $problems);
+            $t->contains('targeted-run transcript must include the exact targeted Cabal/Tasty command line', $problems);
+            $t->contains('targeted-run transcript must contain Tasty result output for DOCX tests', $problems);
         } finally {
             $removeTree($repoRoot);
         }

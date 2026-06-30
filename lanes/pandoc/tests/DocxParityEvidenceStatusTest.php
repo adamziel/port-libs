@@ -288,7 +288,10 @@ return [
         $t->same('targeted-docx-runner-result-artifact-gate-only', $resultArtifactGate['evidenceKind'] ?? null);
         $t->same('admissible-targeted-runner-result-artifacts-no-parity-claim', $resultArtifactGate['admissibleStatus'] ?? null);
         $t->contains('result.json SHA-256 fields bound', implode("\n", is_array($resultArtifactGate['checks'] ?? null) ? $resultArtifactGate['checks'] : []));
+        $t->contains('transcripts include exact Cabal command lines', implode("\n", is_array($resultArtifactGate['checks'] ?? null) ? $resultArtifactGate['checks'] : []));
+        $t->contains('hard evidence gap', implode("\n", is_array($resultArtifactGate['checks'] ?? null) ? $resultArtifactGate['checks'] : []));
         $t->contains('does not execute Cabal/Tasty', (string) ($resultArtifactGate['executionPolicy'] ?? ''));
+        $t->contains('transcript-evidence', (string) ($resultArtifactGate['executionPolicy'] ?? ''));
         $t->same(false, $runnerPlan['resultRecorded'] ?? null);
         $t->same(false, $runnerPlan['runnerExecuted'] ?? null);
         $t->same('test:test-pandoc', $runnerPlan['runnerTarget'] ?? null);
@@ -316,6 +319,8 @@ return [
         $t->contains('exitCode', implode(',', $runnerPlan['resultArtifactContract']['resultJsonRequiredFields'] ?? []));
         $t->contains('selectedTestInventorySha256', implode(',', $runnerPlan['resultArtifactContract']['resultJsonRequiredFields'] ?? []));
         $t->contains('targetedRunTranscriptSha256', implode(',', $runnerPlan['resultArtifactContract']['resultJsonRequiredFields'] ?? []));
+        $t->contains('DOCX Tasty result output', (string) ($runnerPlan['resultArtifactContract']['transcriptEvidenceRequirements']['targetedRunTranscript'] ?? ''));
+        $t->contains('concrete Tasty DOCX list/run output', (string) ($runnerPlan['resultArtifactContract']['admissionRule'] ?? ''));
         $t->contains('not executed by this audit', (string) ($runnerPlan['futureTargetedRunCommand']['executionPolicy'] ?? ''));
         $t->contains('not an upstream DOCX runner result', (string) ($runnerPlan['honestClaim'] ?? ''));
 
@@ -326,6 +331,7 @@ return [
         $t->contains('DOCX runner evidence plan records `test:test-pandoc`', $pandocStatus);
         $t->contains('--write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', $pandocStatus);
         $t->contains('--validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs', $pandocStatus);
+        $t->contains('Missing or placeholder targeted runner transcripts are a hard evidence gap, not pass evidence', $pandocStatus);
         $t->contains('With `--generate-supported-dir`, it uses the bounded `PortLibs\\Pandoc\\DocxWriter`', $pandocStatus);
         $t->contains('current generated comparison coverage is 38/38 compared, 0/38 matched, 0 missing, and 38 mismatched', $pandocStatus);
         $t->contains('Focused DOCX parity CI now runs the bounded `DocxWriterTest.php` writer-core package test', $pandocStatus);

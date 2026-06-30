@@ -2146,9 +2146,11 @@
                     "required artifact presence and non-empty readability",
                     "result.json required fields, pinned upstream commit, runner target, Tasty pattern, and pass/fail/skip count consistency",
                     "result.json SHA-256 fields bound to the selected inventory and transcript artifacts",
-                    "runnerExecuted=true inside result.json before artifacts can be admitted"
+                    "runnerExecuted=true inside result.json before artifacts can be admitted",
+                    "transcripts include exact Cabal command lines, exit-code markers, DOCX Tasty --list-tests labels, and DOCX Tasty run result output",
+                    "missing or placeholder runner transcripts remain a blocking hard evidence gap, not pass evidence"
                 ],
-                "executionPolicy": "artifact-shape and hash-binding validation only; this PHP gate does not execute Cabal/Tasty, independently prove transcript authenticity, record a runner result, or claim DOCX/OpenXML parity"
+                "executionPolicy": "artifact-shape, transcript-evidence, and hash-binding validation only; this PHP gate does not execute Cabal/Tasty, independently prove transcript authenticity, record a runner result, or claim DOCX/OpenXML parity"
             },
             "resultRecorded": false,
             "runnerExecuted": false,
@@ -2268,7 +2270,7 @@
                 "workingDirectory": "hydrated Pandoc upstream checkout root",
                 "executionPolicy": "future targeted runner only after reviewed dry-run plan; not executed by this audit",
                 "tastyPatternSource": "Tasty AWK-like pattern fields from test tree: $1 outer group, $2 reader/writer group, $3 Docx subgroup.",
-                "requiredResultArtifact": "A future run must record command transcript, exit code, upstream commit, selected test names or --list-tests output, and per-test pass/fail rows before closing upstream-docx-runner-results."
+                "requiredResultArtifact": "A future run must record exact Cabal command transcripts, exit-code markers, upstream commit, DOCX --list-tests labels, targeted Tasty run output, and pass/fail/skip counts before closing upstream-docx-runner-results."
             },
             "resultArtifactContract": {
                 "requiredBeforeResultRecorded": [
@@ -2296,7 +2298,12 @@
                     "listTestsTranscriptSha256",
                     "targetedRunTranscriptSha256"
                 ],
-                "admissionRule": "Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout."
+                "transcriptEvidenceRequirements": {
+                    "dependencyDryRunTranscript": "must include the exact Cabal dry-run command line and exitCode: 0 marker",
+                    "listTestsTranscript": "must include the exact Cabal/Tasty --list-tests command line, exitCode: 0 marker, and DOCX Tasty test labels",
+                    "targetedRunTranscript": "must include the exact targeted Cabal/Tasty command line, an exitCode marker matching result.json, and DOCX Tasty result output"
+                },
+                "admissionRule": "Do not set resultRecorded=true until command transcript, exit code, selected test inventory, pass/fail counts, and concrete Tasty DOCX list/run output are captured for the pinned upstream checkout."
             },
             "honestClaim": "This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result."
         },
