@@ -5697,6 +5697,13 @@ final class OpenDocumentPackage
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
 
         return match ($extension) {
+            'odt' => self::TEXT_MIMETYPE,
+            'odm' => 'application/vnd.oasis.opendocument.text-master',
+            'ods' => 'application/vnd.oasis.opendocument.spreadsheet',
+            'odp' => 'application/vnd.oasis.opendocument.presentation',
+            'odg' => 'application/vnd.oasis.opendocument.graphics',
+            'odf' => 'application/vnd.oasis.opendocument.formula',
+            'odc' => 'application/vnd.oasis.opendocument.chart',
             'ott' => 'application/vnd.oasis.opendocument.text-template',
             'ots' => 'application/vnd.oasis.opendocument.spreadsheet-template',
             'otp' => 'application/vnd.oasis.opendocument.presentation-template',
