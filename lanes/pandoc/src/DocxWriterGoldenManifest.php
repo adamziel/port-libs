@@ -6,6 +6,51 @@ namespace PortLibs\Pandoc;
 
 final class DocxWriterGoldenManifest
 {
+    private const NS_WORDPROCESSINGML = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    private const NS_OFFICE_RELATIONSHIPS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const NS_WORDPROCESSING_DRAWING = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
+    private const NS_DRAWINGML = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+    private const NS_DRAWINGML_PICTURE = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
+    private const NS_VML = 'urn:schemas-microsoft-com:vml';
+    private const NS_WORDPROCESSING_SHAPE = 'http://schemas.microsoft.com/office/word/2010/wordprocessingShape';
+
+    /**
+     * @var list<string>
+     */
+    private const XML_FEATURE_NAMES = [
+        'wordParagraph',
+        'wordRun',
+        'wordTable',
+        'wordTableRow',
+        'wordTableCell',
+        'wordTableGrid',
+        'wordGridSpan',
+        'wordVerticalMerge',
+        'wordTableCaption',
+        'wordDrawing',
+        'wordPict',
+        'wordSdt',
+        'wordSdtPr',
+        'wordSdtContent',
+        'wordTextBoxContent',
+        'wordParagraphCaptionStyle',
+        'wordParagraphTableCaptionStyle',
+        'wordStyleCaption',
+        'wordStyleTableCaption',
+        'drawingInline',
+        'drawingAnchor',
+        'drawingGraphic',
+        'drawingBlip',
+        'drawingPicture',
+        'drawingRelationshipEmbed',
+        'drawingRelationshipLink',
+        'vmlShape',
+        'vmlTextBox',
+        'vmlImageData',
+        'wordprocessingShape',
+        'wordprocessingShapeTextBox',
+    ];
+
     public const DEFAULT_RELATIVE_DOCX_DIR = DocxParityCorpusAudit::DEFAULT_RELATIVE_DOCX_DIR;
     public const PINNED_UPSTREAM_GOLDEN_PACKAGE_COUNT = 38;
     public const STATUS_REPORTED = 'reported_writer_golden_package_inventory';
@@ -1487,6 +1532,7 @@ final class DocxWriterGoldenManifest
                 'OPC [Content_Types].xml Default and Override records sorted by semantic key',
                 'all OPC .rels relationship records sorted by source part, relationship id, type, target mode, and resolved target',
                 'XML document-part semantics using namespace/local-name element and attribute records with formatting-only whitespace ignored',
+                'targeted XML feature-count summaries for tables, captions, drawings, VML textboxes, and SDT markers',
                 'binary part uncompressed byte size and SHA-256 payload digests',
             ],
             'ignores' => [
@@ -1837,13 +1883,27 @@ final class DocxWriterGoldenManifest
             if (($goldenRow['semanticSha256'] ?? null) === ($generatedRow['semanticSha256'] ?? null)) {
                 continue;
             }
-            $changed[] = [
+            $changedRow = [
                 'partName' => $name,
                 'goldenSemanticStatus' => (string) ($goldenRow['semanticStatus'] ?? 'unknown'),
                 'generatedSemanticStatus' => (string) ($generatedRow['semanticStatus'] ?? 'unknown'),
                 'goldenSemanticSha256' => (string) ($goldenRow['semanticSha256'] ?? ''),
                 'generatedSemanticSha256' => (string) ($generatedRow['semanticSha256'] ?? ''),
             ];
+            $goldenFeatureSha256 = (string) ($goldenRow['xmlFeatureSha256'] ?? '');
+            $generatedFeatureSha256 = (string) ($generatedRow['xmlFeatureSha256'] ?? '');
+            if ($goldenFeatureSha256 !== '' || $generatedFeatureSha256 !== '') {
+                $changedRow['goldenXmlFeatureSha256'] = $goldenFeatureSha256;
+                $changedRow['generatedXmlFeatureSha256'] = $generatedFeatureSha256;
+            }
+            if ($goldenFeatureSha256 !== $generatedFeatureSha256) {
+                $changedRow['xmlFeatureDeltas'] = self::xmlFeatureCountDelta(
+                    is_array($goldenRow['xmlFeatureCounts'] ?? null) ? $goldenRow['xmlFeatureCounts'] : [],
+                    is_array($generatedRow['xmlFeatureCounts'] ?? null) ? $generatedRow['xmlFeatureCounts'] : []
+                );
+            }
+
+            $changed[] = $changedRow;
         }
 
         return [
@@ -1851,6 +1911,31 @@ final class DocxWriterGoldenManifest
             'extra' => $extra,
             'changed' => $changed,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $golden
+     * @param array<string, mixed> $generated
+     * @return list<array{feature:string, goldenCount:int, generatedCount:int}>
+     */
+    private static function xmlFeatureCountDelta(array $golden, array $generated): array
+    {
+        $rows = [];
+        foreach (self::XML_FEATURE_NAMES as $feature) {
+            $goldenCount = (int) ($golden[$feature] ?? 0);
+            $generatedCount = (int) ($generated[$feature] ?? 0);
+            if ($goldenCount === $generatedCount) {
+                continue;
+            }
+
+            $rows[] = [
+                'feature' => $feature,
+                'goldenCount' => $goldenCount,
+                'generatedCount' => $generatedCount,
+            ];
+        }
+
+        return $rows;
     }
 
     /**
@@ -2054,6 +2139,7 @@ final class DocxWriterGoldenManifest
 
         $partNames = [];
         $xmlPartRows = [];
+        $xmlFeaturePartRows = [];
         $binaryPartRows = [];
         foreach ($entries as $entry) {
             if ($entry->isDirectory()) {
@@ -2065,6 +2151,10 @@ final class DocxWriterGoldenManifest
             $partRow = self::stablePartSemanticRow($entry->name, $data);
             if (($partRow['semanticKind'] ?? null) === 'xml') {
                 $xmlPartRows[] = self::xmlPartComparisonRow($partRow);
+                $featureRow = self::xmlFeaturePartRow($partRow);
+                if ($featureRow !== null) {
+                    $xmlFeaturePartRows[] = $featureRow;
+                }
             } elseif (($partRow['semanticKind'] ?? null) === 'binary') {
                 $binaryPartRows[] = $partRow;
             }
@@ -2072,11 +2162,16 @@ final class DocxWriterGoldenManifest
 
         $contentTypes = self::contentTypesSemantics($package);
         $relationships = self::relationshipsSemantics($package);
+        $xmlFeatureSummary = [
+            'partRows' => $xmlFeaturePartRows,
+            'totals' => self::xmlFeatureTotals($xmlFeaturePartRows),
+        ];
         $signature = [
             'partNames' => $partNames,
             'contentTypes' => $contentTypes,
             'relationships' => $relationships,
             'xmlParts' => $xmlPartRows,
+            'xmlFeatureSummary' => $xmlFeatureSummary,
             'binaryParts' => $binaryPartRows,
         ];
 
@@ -2093,6 +2188,9 @@ final class DocxWriterGoldenManifest
             'relationshipsSha256' => self::stableHash($relationships),
             'xmlPartCount' => count($xmlPartRows),
             'xmlPartSemanticsSha256' => self::stableHash($xmlPartRows),
+            'xmlFeaturePartCount' => count($xmlFeaturePartRows),
+            'xmlFeatureSummarySha256' => self::stableHash($xmlFeatureSummary),
+            'xmlFeatureSummary' => $xmlFeatureSummary,
             'binaryPartCount' => count($binaryPartRows),
             'binaryPartPayloadSha256' => self::stableHash($binaryPartRows),
             'packageStableSemanticsSha256' => self::stableHash($signature),
@@ -2119,8 +2217,30 @@ final class DocxWriterGoldenManifest
         if (isset($row['message'])) {
             $comparison['message'] = (string) $row['message'];
         }
+        if (is_array($row['xmlFeatureCounts'] ?? null)) {
+            $comparison['xmlFeatureCounts'] = $row['xmlFeatureCounts'];
+            $comparison['xmlFeatureSha256'] = (string) ($row['xmlFeatureSha256'] ?? self::stableHash($row['xmlFeatureCounts']));
+        }
 
         return $comparison;
+    }
+
+    /**
+     * @param array<string, mixed> $row
+     * @return array<string, mixed>|null
+     */
+    private static function xmlFeaturePartRow(array $row): ?array
+    {
+        $counts = is_array($row['xmlFeatureCounts'] ?? null) ? $row['xmlFeatureCounts'] : [];
+        if ($counts === []) {
+            return null;
+        }
+
+        return [
+            'partName' => (string) ($row['name'] ?? ''),
+            'featureCounts' => $counts,
+            'featureSha256' => (string) ($row['xmlFeatureSha256'] ?? self::stableHash($counts)),
+        ];
     }
 
     /**
@@ -2141,11 +2261,19 @@ final class DocxWriterGoldenManifest
         }
 
         try {
-            $xmlSemantics = self::xmlSemantics($data, $name);
+            $dom = self::loadXmlDocument($data, $name);
+            if (!$dom->documentElement instanceof \DOMElement) {
+                throw new \RuntimeException("XML part has no document element: {$name}");
+            }
+
+            $xmlSemantics = self::xmlNodeSemantics($dom->documentElement);
+            $xmlFeatureCounts = self::xmlFeatureCounts($dom);
 
             return array_replace($row, [
                 'semanticStatus' => 'parsed-xml',
                 'semanticSha256' => self::stableHash($xmlSemantics),
+                'xmlFeatureCounts' => $xmlFeatureCounts,
+                'xmlFeatureSha256' => self::stableHash($xmlFeatureCounts),
             ]);
         } catch (\Throwable $throwable) {
             return array_replace($row, [
@@ -2171,6 +2299,248 @@ final class DocxWriterGoldenManifest
         }
 
         return 'binary';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $partRows
+     * @return array<string, int>
+     */
+    private static function xmlFeatureTotals(array $partRows): array
+    {
+        $totals = self::emptyXmlFeatureCounts();
+        foreach ($partRows as $row) {
+            $counts = is_array($row['featureCounts'] ?? null) ? $row['featureCounts'] : [];
+            foreach ($counts as $feature => $count) {
+                if (!isset($totals[$feature])) {
+                    continue;
+                }
+
+                $totals[$feature] += (int) $count;
+            }
+        }
+
+        return self::compactXmlFeatureCounts($totals);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function xmlFeatureCounts(\DOMDocument $dom): array
+    {
+        if (!$dom->documentElement instanceof \DOMElement) {
+            return [];
+        }
+
+        $counts = self::emptyXmlFeatureCounts();
+        self::accumulateXmlFeatureCounts($dom->documentElement, $counts);
+
+        return self::compactXmlFeatureCounts($counts);
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function emptyXmlFeatureCounts(): array
+    {
+        return array_fill_keys(self::XML_FEATURE_NAMES, 0);
+    }
+
+    /**
+     * @param array<string, int> $counts
+     * @return array<string, int>
+     */
+    private static function compactXmlFeatureCounts(array $counts): array
+    {
+        $compact = [];
+        foreach (self::XML_FEATURE_NAMES as $feature) {
+            $count = (int) ($counts[$feature] ?? 0);
+            if ($count > 0) {
+                $compact[$feature] = $count;
+            }
+        }
+
+        return $compact;
+    }
+
+    /**
+     * @param array<string, int> $counts
+     */
+    private static function accumulateXmlFeatureCounts(\DOMNode $node, array &$counts): void
+    {
+        if ($node instanceof \DOMElement) {
+            self::countXmlElementFeature($node, $counts);
+        }
+
+        foreach ($node->childNodes as $child) {
+            self::accumulateXmlFeatureCounts($child, $counts);
+        }
+    }
+
+    /**
+     * @param array<string, int> $counts
+     */
+    private static function countXmlElementFeature(\DOMElement $element, array &$counts): void
+    {
+        $namespace = (string) ($element->namespaceURI ?? '');
+        $name = (string) ($element->localName ?: $element->nodeName);
+
+        if ($namespace === self::NS_WORDPROCESSINGML) {
+            self::countWordprocessingFeature($element, $name, $counts);
+            return;
+        }
+
+        if ($namespace === self::NS_WORDPROCESSING_DRAWING) {
+            if ($name === 'inline') {
+                ++$counts['drawingInline'];
+            } elseif ($name === 'anchor') {
+                ++$counts['drawingAnchor'];
+            }
+            return;
+        }
+
+        if ($namespace === self::NS_DRAWINGML) {
+            if ($name === 'graphic') {
+                ++$counts['drawingGraphic'];
+            } elseif ($name === 'blip') {
+                ++$counts['drawingBlip'];
+                if (self::xmlAttributeValue($element, self::NS_OFFICE_RELATIONSHIPS, 'embed') !== null) {
+                    ++$counts['drawingRelationshipEmbed'];
+                }
+                if (self::xmlAttributeValue($element, self::NS_OFFICE_RELATIONSHIPS, 'link') !== null) {
+                    ++$counts['drawingRelationshipLink'];
+                }
+            }
+            return;
+        }
+
+        if ($namespace === self::NS_DRAWINGML_PICTURE && $name === 'pic') {
+            ++$counts['drawingPicture'];
+            return;
+        }
+
+        if ($namespace === self::NS_VML) {
+            if ($name === 'shape') {
+                ++$counts['vmlShape'];
+            } elseif ($name === 'textbox') {
+                ++$counts['vmlTextBox'];
+            } elseif ($name === 'imagedata') {
+                ++$counts['vmlImageData'];
+            }
+            return;
+        }
+
+        if ($namespace === self::NS_WORDPROCESSING_SHAPE) {
+            if ($name === 'wsp') {
+                ++$counts['wordprocessingShape'];
+            } elseif ($name === 'txbx') {
+                ++$counts['wordprocessingShapeTextBox'];
+            }
+        }
+    }
+
+    /**
+     * @param array<string, int> $counts
+     */
+    private static function countWordprocessingFeature(\DOMElement $element, string $name, array &$counts): void
+    {
+        switch ($name) {
+            case 'p':
+                ++$counts['wordParagraph'];
+                break;
+            case 'r':
+                ++$counts['wordRun'];
+                break;
+            case 'tbl':
+                ++$counts['wordTable'];
+                break;
+            case 'tr':
+                ++$counts['wordTableRow'];
+                break;
+            case 'tc':
+                ++$counts['wordTableCell'];
+                break;
+            case 'tblGrid':
+                ++$counts['wordTableGrid'];
+                break;
+            case 'gridSpan':
+                ++$counts['wordGridSpan'];
+                break;
+            case 'vMerge':
+                ++$counts['wordVerticalMerge'];
+                break;
+            case 'tblCaption':
+                ++$counts['wordTableCaption'];
+                break;
+            case 'drawing':
+                ++$counts['wordDrawing'];
+                break;
+            case 'pict':
+                ++$counts['wordPict'];
+                break;
+            case 'sdt':
+                ++$counts['wordSdt'];
+                break;
+            case 'sdtPr':
+                ++$counts['wordSdtPr'];
+                break;
+            case 'sdtContent':
+                ++$counts['wordSdtContent'];
+                break;
+            case 'txbxContent':
+                ++$counts['wordTextBoxContent'];
+                break;
+            case 'pStyle':
+                self::countCaptionStyleFeature(
+                    self::xmlAttributeValue($element, self::NS_WORDPROCESSINGML, 'val'),
+                    $counts,
+                    'wordParagraphCaptionStyle',
+                    'wordParagraphTableCaptionStyle'
+                );
+                break;
+            case 'style':
+                self::countCaptionStyleFeature(
+                    self::xmlAttributeValue($element, self::NS_WORDPROCESSINGML, 'styleId'),
+                    $counts,
+                    'wordStyleCaption',
+                    'wordStyleTableCaption'
+                );
+                break;
+        }
+    }
+
+    /**
+     * @param array<string, int> $counts
+     */
+    private static function countCaptionStyleFeature(
+        ?string $styleId,
+        array &$counts,
+        string $captionFeature,
+        string $tableCaptionFeature
+    ): void {
+        $normalized = self::normalizedStyleId($styleId);
+        if ($normalized === 'caption') {
+            ++$counts[$captionFeature];
+        } elseif ($normalized === 'tablecaption') {
+            ++$counts[$tableCaptionFeature];
+        }
+    }
+
+    private static function normalizedStyleId(?string $styleId): string
+    {
+        if ($styleId === null) {
+            return '';
+        }
+
+        return strtolower(str_replace([' ', '-', '_'], '', trim($styleId)));
+    }
+
+    private static function xmlAttributeValue(\DOMElement $element, string $namespace, string $localName): ?string
+    {
+        if (!$element->hasAttributeNS($namespace, $localName)) {
+            return null;
+        }
+
+        return $element->getAttributeNS($namespace, $localName);
     }
 
     /**

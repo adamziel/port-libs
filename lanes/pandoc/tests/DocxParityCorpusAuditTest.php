@@ -61,6 +61,31 @@ $minimalDocx = static function (string $text) use ($minimalDocxDocumentXml): str
     ]);
 };
 
+$featureDocx = static function (bool $withTargetFeatures): string {
+    $document = $withTargetFeatures
+        ? <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape">
+  <w:body>
+    <w:sdt><w:sdtPr/><w:sdtContent><w:p><w:pPr><w:pStyle w:val="TableCaption"/></w:pPr><w:r><w:t>Caption</w:t></w:r></w:p></w:sdtContent></w:sdt>
+    <w:tbl><w:tblPr><w:tblCaption w:val="Data table"/></w:tblPr><w:tblGrid/><w:tr><w:tc><w:p><w:r><w:drawing><wp:inline><a:graphic><pic:pic/><a:blip r:embed="rId9"/></a:graphic></wp:inline></w:drawing></w:r></w:p></w:tc></w:tr></w:tbl>
+    <w:p><w:r><w:pict><v:shape><v:textbox><w:txbxContent><w:p><w:r><w:t>Box</w:t></w:r></w:p></w:txbxContent></v:textbox><v:imagedata r:id="rId10"/></v:shape></w:pict></w:r><w:r><wps:wsp><wps:txbx/></wps:wsp></w:r></w:p>
+  </w:body>
+</w:document>
+XML
+        : <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Plain</w:t></w:r></w:p></w:body></w:document>
+XML;
+
+    return ZipPackage::build([
+        [
+            'name' => 'word/document.xml',
+            'data' => $document,
+        ],
+    ]);
+};
+
 $semanticDocx = static function (string $text, bool $variant = false): string {
     $xmlText = htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     $contentTypes = $variant
@@ -454,6 +479,61 @@ return [
             $t->same([], $shape['optionalPartNameRows']);
             $t->same(0, $shape['commonContentTypeRecordCount']);
             $t->same(0, $shape['commonRelationshipRecordCount']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'writer golden stable semantics records targeted xml feature summaries' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $featureDocx): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $writeFile($root, "{$docxRoot}/golden/features.docx", $featureDocx(true));
+            $writeFile($root, 'generated-docx/features.docx', $featureDocx(false));
+
+            $report = (new DocxWriterGoldenManifest($root, DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR, 8, 'generated-docx'))->report();
+            $semantics = $report['packageRows'][0]['stableSemantics'];
+            $featureSummary = $semantics['xmlFeatureSummary'];
+            $totals = $featureSummary['totals'];
+
+            $t->same(1, $semantics['xmlFeaturePartCount']);
+            $t->same('word/document.xml', $featureSummary['partRows'][0]['partName']);
+            $t->same(1, $totals['wordTable']);
+            $t->same(1, $totals['wordTableCaption']);
+            $t->same(1, $totals['wordParagraphTableCaptionStyle']);
+            $t->same(1, $totals['wordDrawing']);
+            $t->same(1, $totals['drawingInline']);
+            $t->same(1, $totals['drawingBlip']);
+            $t->same(1, $totals['drawingRelationshipEmbed']);
+            $t->same(1, $totals['drawingPicture']);
+            $t->same(1, $totals['vmlShape']);
+            $t->same(1, $totals['vmlTextBox']);
+            $t->same(1, $totals['vmlImageData']);
+            $t->same(1, $totals['wordTextBoxContent']);
+            $t->same(1, $totals['wordprocessingShape']);
+            $t->same(1, $totals['wordprocessingShapeTextBox']);
+            $t->same(1, $totals['wordSdt']);
+            $t->same(1, $totals['wordSdtPr']);
+            $t->same(1, $totals['wordSdtContent']);
+            $t->true(is_string($semantics['xmlFeatureSummarySha256']) && $semantics['xmlFeatureSummarySha256'] !== '');
+
+            $changed = $report['packageComparison']['comparisonRows'][0]['mismatchDetails']['xmlPartDeltas']['changedXmlParts'][0];
+            $deltasByFeature = [];
+            foreach ($changed['xmlFeatureDeltas'] as $delta) {
+                $deltasByFeature[$delta['feature']] = $delta;
+            }
+
+            $t->same('word/document.xml', $changed['partName']);
+            $t->same(1, $deltasByFeature['wordTable']['goldenCount']);
+            $t->same(0, $deltasByFeature['wordTable']['generatedCount']);
+            $t->same(1, $deltasByFeature['wordParagraphTableCaptionStyle']['goldenCount']);
+            $t->same(0, $deltasByFeature['wordParagraphTableCaptionStyle']['generatedCount']);
+            $t->same(1, $deltasByFeature['wordSdt']['goldenCount']);
+            $t->same(0, $deltasByFeature['wordSdt']['generatedCount']);
+            $t->same(1, $deltasByFeature['vmlTextBox']['goldenCount']);
+            $t->same(0, $deltasByFeature['vmlTextBox']['generatedCount']);
+            $t->same(1, $deltasByFeature['drawingBlip']['goldenCount']);
+            $t->same(0, $deltasByFeature['drawingBlip']['generatedCount']);
         } finally {
             $removeTree($root);
         }
