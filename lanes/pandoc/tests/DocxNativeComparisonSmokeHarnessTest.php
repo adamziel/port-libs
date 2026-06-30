@@ -53,15 +53,26 @@ XML);
     $zip->close();
 };
 
-$writeDocxDocumentXml = static function (string $path, string $documentXml): void {
+/**
+ * @param array<string, string> $parts
+ */
+$writeDocxParts = static function (string $path, array $parts): void {
     $zip = new ZipArchive();
     if ($zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
         throw new RuntimeException("Unable to create DOCX fixture {$path}");
     }
 
-    $zip->addFromString('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
-    $zip->addFromString('word/document.xml', $documentXml);
+    foreach ($parts as $name => $contents) {
+        $zip->addFromString($name, $contents);
+    }
     $zip->close();
+};
+
+$writeDocxDocumentXml = static function (string $path, string $documentXml) use ($writeDocxParts): void {
+    $writeDocxParts($path, [
+        '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml' => $documentXml,
+    ]);
 };
 
 return [
@@ -219,6 +230,62 @@ XML);
                 static fn (array $comparison): string => (string) $comparison['fixture'],
                 $report['semanticGapComparisons']
             ));
+        } finally {
+            $removeTree($root);
+        }
+    },
+    'clears targeted docx smoke gaps for heading zero and anchor before heading boundaries' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeDocxParts): void {
+        $root = $makeTempDir();
+
+        try {
+            $writeDocxParts($root . '/0_level_headers.docx', [
+                'word/styles.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Heading0"><w:name w:val="Heading 0"/></w:style>
+</w:styles>
+XML,
+                'word/document.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Heading0"/></w:pPr><w:r><w:t>CONTENTS</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Section body</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML,
+            ]);
+            file_put_contents(
+                $root . '/0_level_headers.native',
+                '[Header 1 ("contents",["Heading-0"],[]) [Str "CONTENTS"],Para [Str "Section",Space,Str "body"]]'
+            );
+
+            $writeDocxParts($root . '/anchor_header_after_anchor.docx', [
+                'word/document.xml' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:hyperlink w:anchor="_RefHeading"><w:r><w:t>Jump</w:t></w:r></w:hyperlink></w:p>
+    <w:p><w:bookmarkStart w:id="1" w:name="BoundaryAnchor"/><w:bookmarkEnd w:id="1"/></w:p>
+    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:bookmarkStart w:id="2" w:name="_RefHeading"/><w:r><w:t>Referenced title</w:t></w:r><w:bookmarkEnd w:id="2"/></w:p>
+  </w:body>
+</w:document>
+XML,
+            ]);
+            file_put_contents(
+                $root . '/anchor_header_after_anchor.native',
+                '[Para [Link ("",[],[]) [Str "Jump"] ("#referenced-title","")],Para [],Header 1 ("referenced-title",[],[]) [Str "Referenced",Space,Str "title"]]'
+            );
+
+            $report = (new DocxNativeComparisonSmokeHarness())->run($root, ['maxExamples' => 5]);
+
+            $t->same('completed', $report['status']);
+            $t->same(2, $report['comparedPairCount']);
+            $t->same(2, $report['sameTextCount']);
+            $t->same(2, $report['sameTopTypeSequenceCount']);
+            $t->same(0, $report['semanticGapPairCount']);
+            $t->same([], $report['semanticGapComparisons']);
+            $t->same('smoke-text-and-top-types-match-not-full-parity', $report['semanticParityStatus']);
         } finally {
             $removeTree($root);
         }

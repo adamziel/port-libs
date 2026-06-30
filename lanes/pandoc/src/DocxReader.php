@@ -452,6 +452,7 @@ final class DocxReader
         $pendingDefinitionBlocks = [];
         $pendingDropCap = null;
         $pendingTableCaption = null;
+        $pendingBookmarkOnlyEmptyParagraph = null;
         $activeStyleNumbering = [];
         $seenVisibleContent = false;
         $preserveNextBookmarkOnlyEmptyParagraph = false;
@@ -530,11 +531,21 @@ final class DocxReader
             $pendingTableCaption = null;
         };
 
+        $flushPendingBookmarkOnlyEmptyParagraph = function () use (&$blocks, &$pendingBookmarkOnlyEmptyParagraph): void {
+            if (!$pendingBookmarkOnlyEmptyParagraph instanceof AstNode) {
+                return;
+            }
+
+            $blocks[] = $pendingBookmarkOnlyEmptyParagraph;
+            $pendingBookmarkOnlyEmptyParagraph = null;
+        };
+
         foreach ($this->transparentChildElements($body) as $child) {
             if ($child->localName === 'p') {
                 $styleId = $this->paragraphStyleId($child);
                 $styleBlockKind = $this->paragraphStyleBlockKind($child, $styleId);
                 if ($styleBlockKind === 'code') {
+                    $pendingBookmarkOnlyEmptyParagraph = null;
                     $flushDropCap();
                     $flushList();
                     $flushQuote();
@@ -547,6 +558,7 @@ final class DocxReader
 
                 $shapeBlocks = $this->paragraphFloatingShapeBlocks($child);
                 if ($shapeBlocks !== null) {
+                    $pendingBookmarkOnlyEmptyParagraph = null;
                     $flushPendingBlocks();
                     array_push($blocks, ...$shapeBlocks);
                     $seenVisibleContent = true;
@@ -564,9 +576,23 @@ final class DocxReader
                         $flushDefinitionList();
                         $blocks[] = new AstNode('paragraph', ['text' => '']);
                         $seenVisibleContent = true;
+                    } elseif ($this->paragraphHasOnlyBookmarkMarkup($child)) {
+                        $pendingBookmarkOnlyEmptyParagraph = new AstNode('paragraph', ['text' => '']);
+                    } else {
+                        $pendingBookmarkOnlyEmptyParagraph = null;
                     }
                     $preserveNextBookmarkOnlyEmptyParagraph = false;
                     continue;
+                }
+                if ($pendingBookmarkOnlyEmptyParagraph instanceof AstNode) {
+                    if ($paragraph->type === 'heading') {
+                        $flushPendingBlocks();
+                        $flushTableCaption();
+                        $flushPendingBookmarkOnlyEmptyParagraph();
+                        $seenVisibleContent = true;
+                    } else {
+                        $pendingBookmarkOnlyEmptyParagraph = null;
+                    }
                 }
                 $metadataField = $paragraph->type === 'paragraph' ? $this->paragraphMetadataField($styleId) : null;
                 if ($collectBodyMetadata && $metadataField !== null && !$seenVisibleContent) {
@@ -740,6 +766,7 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'tbl') {
+                $pendingBookmarkOnlyEmptyParagraph = null;
                 $flushPendingBlocks();
                 $table = $this->table($child);
                 if ($pendingTableCaption instanceof AstNode) {
@@ -752,6 +779,7 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'sdt') {
+                $pendingBookmarkOnlyEmptyParagraph = null;
                 $flushPendingBlocks();
                 $flushTableCaption();
                 array_push($blocks, ...$this->contentControlBlocks($child));
@@ -760,6 +788,7 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'oMathPara') {
+                $pendingBookmarkOnlyEmptyParagraph = null;
                 $flushPendingBlocks();
                 $flushTableCaption();
                 $math = $this->ommlMath($child, true);
@@ -1331,11 +1360,7 @@ final class DocxReader
                 return null;
             }
 
-            return new AstNode('heading', [
-                'level' => $level,
-                'id' => $this->uniqueHeadingIdentifier($text),
-                'text' => $text,
-            ], $inlines);
+            return new AstNode('heading', $this->headingAttrs($paragraph, $level, $text), $inlines);
         }
 
         $figure = $this->figureFromImageWithTextboxCaption($inlines);
@@ -1344,14 +1369,29 @@ final class DocxReader
         }
 
         if ($level !== null) {
-            return new AstNode('heading', [
-                'level' => $level,
-                'id' => $this->uniqueHeadingIdentifier($text),
-                'text' => $text,
-            ], $inlines);
+            return new AstNode('heading', $this->headingAttrs($paragraph, $level, $text), $inlines);
         }
 
         return new AstNode('paragraph', ['text' => $text], $inlines);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function headingAttrs(\DOMElement $paragraph, int $level, string $text): array
+    {
+        $attrs = [
+            'level' => $level,
+            'id' => $this->uniqueHeadingIdentifier($text),
+            'text' => $text,
+        ];
+
+        $styleId = $this->paragraphStyleId($paragraph);
+        if ($styleId !== '' && $this->paragraphUsesHeadingZeroStyle($styleId)) {
+            $attrs['classes'] = ['Heading-0'];
+        }
+
+        return $attrs;
     }
 
     /**
@@ -3864,6 +3904,9 @@ final class DocxReader
             if (preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m)) {
                 return (int) ($m[1] !== '' ? $m[1] : $m[2]);
             }
+            if ($this->headingZeroStyleMatches($styleId, '')) {
+                return 1;
+            }
         }
         return null;
     }
@@ -4260,6 +4303,12 @@ final class DocxReader
             if (!isset($entry['headingLevel']) && preg_match('/heading\s*([1-6])|Heading([1-6])/i', $styleId, $m)) {
                 $entry['headingLevel'] = (int) ($m[1] !== '' ? $m[1] : $m[2]);
             }
+            if ($this->headingZeroStyleMatches($styleId, (string) ($entry['styleName'] ?? ''))) {
+                $entry['headingZeroStyle'] = true;
+                if (!isset($entry['headingLevel'])) {
+                    $entry['headingLevel'] = 1;
+                }
+            }
             $styles[$styleId] = $entry;
         }
 
@@ -4349,6 +4398,33 @@ final class DocxReader
         ))));
 
         return $ids === [] ? [$styleId] : $ids;
+    }
+
+    private function paragraphUsesHeadingZeroStyle(string $styleId): bool
+    {
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $style = $this->styles[$candidateStyleId] ?? [];
+            if (($style['headingZeroStyle'] ?? false) === true) {
+                return true;
+            }
+            if ($this->headingZeroStyleMatches($candidateStyleId, (string) ($style['styleName'] ?? ''))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function headingZeroStyleMatches(string $styleId, string $styleName): bool
+    {
+        foreach ([$styleId, $styleName] as $candidate) {
+            $normalized = strtolower(preg_replace('/[^a-z0-9]+/i', '', $candidate) ?? '');
+            if ($normalized === 'heading0') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

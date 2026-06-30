@@ -1129,6 +1129,37 @@ XML],
         $t->true(!str_contains($blocks, '_GoBack'), 'Word _GoBack bookmarks should not leak into rendered output');
         $t->true(!str_contains($blocks, 'pandoc-openxml-bookmark-start'), 'Heading bookmarks should canonicalize to the heading id instead of raw bookmark spans');
     },
+    'maps explicit docx heading zero styles without broad heading fallback' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/styles.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:style w:type="paragraph" w:styleId="Heading0"><w:name w:val="Heading 0"/></w:style>
+  <w:style w:type="paragraph" w:styleId="NotHeading0"><w:name w:val="Not Heading 0"/></w:style>
+</w:styles>
+XML],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:pPr><w:pStyle w:val="Heading0"/></w:pPr><w:r><w:t>CONTENTS</w:t></w:r></w:p>
+    <w:p><w:pPr><w:pStyle w:val="NotHeading0"/></w:pPr><w:r><w:t>Plain zero label</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $heading = $document->children[0];
+        $paragraph = $document->children[1];
+
+        $t->same('heading', $heading->type);
+        $t->same(1, $heading->attr('level'));
+        $t->same('contents', $heading->attr('id'));
+        $t->same(['Heading-0'], $heading->attr('classes'));
+        $t->same('paragraph', $paragraph->type);
+        $t->same('Plain zero label', $paragraph->attr('text'));
+    },
     'preserves nested docx instrText fields inside linked field results' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes(<<<'XML'
 <?xml version="1.0"?>
