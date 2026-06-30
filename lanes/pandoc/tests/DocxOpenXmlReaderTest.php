@@ -22889,12 +22889,24 @@ XML;
         $settingsPart = $package['parts']['word/settings-comment.xml'];
         $comments = $summary['partXmlComments'];
         $commentByteLength = strlen($rootComment) + strlen($childComment) + strlen($itemComment) + strlen($settingsComment);
+        $commentMaxByteLength = max(
+            strlen($rootComment),
+            strlen($childComment),
+            strlen($itemComment),
+            strlen($settingsComment),
+        );
 
         $t->same(9, $summary['partXmlInspectableCount']);
         $t->same(2, $summary['partXmlCommentPartCount']);
         $t->same(4, $summary['partXmlCommentCount']);
         $t->same($commentByteLength, $summary['partXmlCommentByteLength']);
+        $t->same($commentMaxByteLength, $summary['partXmlCommentMaxByteLength']);
         $t->same(['customXml/comment-review.xml', 'word/settings-comment.xml'], $summary['partXmlCommentPartNames']);
+        $t->same(2, $summary['partXmlCommentByteLengthBucketCount']);
+        $t->same(['medium' => 3, 'small' => 1], $summary['partXmlCommentByteLengthBucketCounts']);
+        $t->same(['medium', 'small'], $summary['partXmlCommentByteLengthBuckets']);
+        $t->same(['customXml/comment-review.xml', 'word/settings-comment.xml'], $summary['partXmlCommentByteLengthBucketPartNames']['medium']);
+        $t->same(['customXml/comment-review.xml'], $summary['partXmlCommentByteLengthBucketPartNames']['small']);
         $t->same([
             '/' => 1,
             '/review:packet' => 1,
@@ -22922,6 +22934,9 @@ XML;
         $t->same(true, $reviewPart['xmlInspectable']);
         $t->same(3, $reviewPart['xmlCommentCount']);
         $t->same(strlen($rootComment) + strlen($childComment) + strlen($itemComment), $reviewPart['xmlCommentByteLength']);
+        $t->same(strlen($rootComment), $reviewPart['xmlCommentMaxByteLength']);
+        $t->same(['medium' => 2, 'small' => 1], $reviewPart['xmlCommentByteLengthBucketCounts']);
+        $t->same(['medium', 'small'], $reviewPart['xmlCommentByteLengthBuckets']);
         $t->same([
             '/' => 1,
             '/review:packet' => 1,
@@ -22935,23 +22950,30 @@ XML;
         $t->same(null, $reviewPart['xmlComments'][0]['parentLocalName']);
         $t->same(null, $reviewPart['xmlComments'][0]['parentQualifiedName']);
         $t->same('/review:packet', $reviewPart['xmlComments'][1]['parentPath']);
+        $t->same('medium', $reviewPart['xmlComments'][1]['byteLengthBucket']);
         $t->same('urn:review-comments', $reviewPart['xmlComments'][1]['parentNamespace']);
         $t->same('packet', $reviewPart['xmlComments'][1]['parentLocalName']);
         $t->same('review:packet', $reviewPart['xmlComments'][1]['parentQualifiedName']);
         $t->same('/review:packet/review:item', $reviewPart['xmlComments'][2]['parentPath']);
+        $t->same('small', $reviewPart['xmlComments'][2]['byteLengthBucket']);
         $t->same('urn:review-comments', $reviewPart['xmlComments'][2]['parentNamespace']);
         $t->same('item', $reviewPart['xmlComments'][2]['parentLocalName']);
         $t->same('review:item', $reviewPart['xmlComments'][2]['parentQualifiedName']);
         $t->same(strlen($rootComment), $reviewPart['xmlComments'][0]['byteLength']);
+        $t->same('medium', $reviewPart['xmlComments'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($rootComment)), $reviewPart['xmlComments'][0]['crc32']);
         $t->same(hash('sha256', $rootComment), $reviewPart['xmlComments'][0]['sha256']);
 
         $t->same(1, $settingsPart['xmlCommentCount']);
         $t->same(strlen($settingsComment), $settingsPart['xmlCommentByteLength']);
+        $t->same(strlen($settingsComment), $settingsPart['xmlCommentMaxByteLength']);
+        $t->same(['medium' => 1], $settingsPart['xmlCommentByteLengthBucketCounts']);
+        $t->same(['medium'], $settingsPart['xmlCommentByteLengthBuckets']);
         $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1], $settingsPart['xmlCommentParentNamespaceCounts']);
         $t->same(['settings' => 1], $settingsPart['xmlCommentParentLocalNameCounts']);
         $t->same(['w:settings' => 1], $settingsPart['xmlCommentParentQualifiedNameCounts']);
         $t->same('/w:settings', $settingsPart['xmlComments'][0]['parentPath']);
+        $t->same('medium', $settingsPart['xmlComments'][0]['byteLengthBucket']);
         $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlComments'][0]['parentNamespace']);
         $t->same('settings', $settingsPart['xmlComments'][0]['parentLocalName']);
         $t->same('w:settings', $settingsPart['xmlComments'][0]['parentQualifiedName']);
@@ -22961,16 +22983,80 @@ XML;
         $t->same('customXml/comment-review.xml', $comments[0]['partName']);
         $t->same('/', $comments[0]['parentPath']);
         $t->same(null, $comments[0]['parentNamespace']);
+        $t->same('medium', $comments[0]['byteLengthBucket']);
         $t->same('customXml/comment-review.xml', $comments[2]['partName']);
         $t->same('/review:packet/review:item', $comments[2]['parentPath']);
         $t->same('review:item', $comments[2]['parentQualifiedName']);
+        $t->same('small', $comments[2]['byteLengthBucket']);
         $t->same('word/settings-comment.xml', $comments[3]['partName']);
         $t->same('/w:settings', $comments[3]['parentPath']);
         $t->same('w:settings', $comments[3]['parentQualifiedName']);
+        $t->same('medium', $comments[3]['byteLengthBucket']);
         $t->true(!isset($reviewPart['xmlComments'][0]['data']), 'raw XML comment text should not be exposed on part metadata');
         $encodedComments = json_encode([$reviewPart['xmlComments'], $settingsPart['xmlComments'], $comments]);
         $t->true(is_string($encodedComments), 'XML comment metadata should encode for review');
         $t->true(!str_contains((string) $encodedComments, 'hidden-contents'), 'raw XML comment text should not be exposed in summary metadata');
+    },
+    'summarizes docx package xml comment byte length buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $smallComment = 'small';
+        $mediumComment = str_repeat('m', 32);
+        $largeComment = str_repeat('l', 129);
+        $parts['customXml/comment-buckets.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!---->
+<review:packet xmlns:review="urn:review-comment-buckets">
+  <review:small><!--{$smallComment}--></review:small>
+  <review:medium><!--{$mediumComment}--></review:medium>
+  <review:large><!--{$largeComment}--></review:large>
+</review:packet>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $part = $package['parts']['customXml/comment-buckets.xml'];
+        $comments = $summary['partXmlComments'];
+        $commentByteLength = strlen($smallComment) + strlen($mediumComment) + strlen($largeComment);
+
+        $t->same(4, $summary['partXmlCommentCount']);
+        $t->same($commentByteLength, $summary['partXmlCommentByteLength']);
+        $t->same(strlen($largeComment), $summary['partXmlCommentMaxByteLength']);
+        $t->same(4, $summary['partXmlCommentByteLengthBucketCount']);
+        $t->same([
+            'empty' => 1,
+            'large' => 1,
+            'medium' => 1,
+            'small' => 1,
+        ], $summary['partXmlCommentByteLengthBucketCounts']);
+        $t->same(['empty', 'large', 'medium', 'small'], $summary['partXmlCommentByteLengthBuckets']);
+        $t->same(['customXml/comment-buckets.xml'], $summary['partXmlCommentByteLengthBucketPartNames']['empty']);
+        $t->same(['customXml/comment-buckets.xml'], $summary['partXmlCommentByteLengthBucketPartNames']['large']);
+        $t->same(['customXml/comment-buckets.xml'], $summary['partXmlCommentByteLengthBucketPartNames']['medium']);
+        $t->same(['customXml/comment-buckets.xml'], $summary['partXmlCommentByteLengthBucketPartNames']['small']);
+
+        $t->same(4, $part['xmlCommentCount']);
+        $t->same($commentByteLength, $part['xmlCommentByteLength']);
+        $t->same(strlen($largeComment), $part['xmlCommentMaxByteLength']);
+        $t->same([
+            'empty' => 1,
+            'large' => 1,
+            'medium' => 1,
+            'small' => 1,
+        ], $part['xmlCommentByteLengthBucketCounts']);
+        $t->same(['empty', 'large', 'medium', 'small'], $part['xmlCommentByteLengthBuckets']);
+        $t->same('empty', $part['xmlComments'][0]['byteLengthBucket']);
+        $t->same(0, $part['xmlComments'][0]['byteLength']);
+        $t->same(null, $part['xmlComments'][0]['crc32']);
+        $t->same(null, $part['xmlComments'][0]['sha256']);
+        $t->same('small', $part['xmlComments'][1]['byteLengthBucket']);
+        $t->same('medium', $part['xmlComments'][2]['byteLengthBucket']);
+        $t->same('large', $part['xmlComments'][3]['byteLengthBucket']);
+        $t->same('large', $comments[3]['byteLengthBucket']);
+        $t->same(strlen($largeComment), $comments[3]['byteLength']);
+        $encodedComments = json_encode([$part['xmlComments'], $comments]);
+        $t->true(is_string($encodedComments), 'XML comment bucket metadata should encode for review');
+        $t->true(!str_contains((string) $encodedComments, $largeComment), 'raw XML comment text should not be exposed in bucket metadata');
     },
     'summarizes docx package xml cdata sections without exposing text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

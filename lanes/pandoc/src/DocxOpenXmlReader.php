@@ -17919,7 +17919,12 @@ final class DocxOpenXmlReader
             'partXmlCommentPartCount' => $partXmlRoots['xmlCommentPartCount'],
             'partXmlCommentCount' => $partXmlRoots['xmlCommentCount'],
             'partXmlCommentByteLength' => $partXmlRoots['xmlCommentByteLength'],
+            'partXmlCommentMaxByteLength' => $partXmlRoots['xmlCommentMaxByteLength'],
             'partXmlCommentPartNames' => $partXmlRoots['xmlCommentPartNames'],
+            'partXmlCommentByteLengthBucketCount' => $partXmlRoots['xmlCommentByteLengthBucketCount'],
+            'partXmlCommentByteLengthBucketCounts' => $partXmlRoots['xmlCommentByteLengthBucketCounts'],
+            'partXmlCommentByteLengthBuckets' => $partXmlRoots['xmlCommentByteLengthBuckets'],
+            'partXmlCommentByteLengthBucketPartNames' => $partXmlRoots['xmlCommentByteLengthBucketPartNames'],
             'partXmlCommentParentPathCount' => $partXmlRoots['xmlCommentParentPathCount'],
             'partXmlCommentParentPathCounts' => $partXmlRoots['xmlCommentParentPathCounts'],
             'partXmlCommentParentPaths' => $partXmlRoots['xmlCommentParentPaths'],
@@ -25290,6 +25295,9 @@ final class DocxOpenXmlReader
         $xmlCommentParentNamespaceCounts = [];
         $xmlCommentParentLocalNameCounts = [];
         $xmlCommentParentQualifiedNameCounts = [];
+        $xmlCommentByteLengthBucketCounts = [];
+        $xmlCommentByteLengthBuckets = [];
+        $xmlCommentByteLengthBucketPartNames = [];
         $xmlComments = [];
         $xmlCdataSectionPartNames = [];
         $xmlCdataSectionParentPathCounts = [];
@@ -25568,6 +25576,7 @@ final class DocxOpenXmlReader
         $xmlCommentPartCount = 0;
         $xmlCommentCount = 0;
         $xmlCommentByteLength = 0;
+        $xmlCommentMaxByteLength = 0;
         $xmlCdataSectionPartCount = 0;
         $xmlCdataSectionCount = 0;
         $xmlCdataSectionByteLength = 0;
@@ -26147,7 +26156,22 @@ final class DocxOpenXmlReader
                 ++$xmlCommentPartCount;
                 $xmlCommentCount += $partCommentCount;
                 $xmlCommentByteLength += (int) ($part['xmlCommentByteLength'] ?? 0);
+                $xmlCommentMaxByteLength = max(
+                    $xmlCommentMaxByteLength,
+                    (int) ($part['xmlCommentMaxByteLength'] ?? 0),
+                );
                 $xmlCommentPartNames[] = $partName;
+            }
+            foreach (($part['xmlCommentByteLengthBucketCounts'] ?? []) as $bucket => $count) {
+                if (!is_string($bucket) || $bucket === '') {
+                    continue;
+                }
+
+                $xmlCommentByteLengthBucketCounts[$bucket] =
+                    ($xmlCommentByteLengthBucketCounts[$bucket] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlCommentByteLengthBuckets, $bucket);
+                $xmlCommentByteLengthBucketPartNames[$bucket] ??= [];
+                $this->appendUniqueString($xmlCommentByteLengthBucketPartNames[$bucket], $partName);
             }
             foreach (($part['xmlCommentParentPathCounts'] ?? []) as $parentPath => $count) {
                 if (!is_string($parentPath) || $parentPath === '') {
@@ -26207,6 +26231,9 @@ final class DocxOpenXmlReader
                         ? $comment['parentQualifiedName']
                         : null,
                     'byteLength' => (int) ($comment['byteLength'] ?? 0),
+                    'byteLengthBucket' => is_string($comment['byteLengthBucket'] ?? null)
+                        ? $comment['byteLengthBucket']
+                        : $this->xmlTextByteLengthBucket((int) ($comment['byteLength'] ?? 0)),
                     'crc32' => is_string($comment['crc32'] ?? null) ? $comment['crc32'] : null,
                     'sha256' => is_string($comment['sha256'] ?? null) ? $comment['sha256'] : null,
                 ];
@@ -29524,7 +29551,14 @@ final class DocxOpenXmlReader
         sort($xmlDoctypePartNames, SORT_STRING);
         sort($xmlProcessingInstructionPartNames, SORT_STRING);
         sort($xmlProcessingInstructionParentPaths, SORT_STRING);
+        ksort($xmlCommentByteLengthBucketCounts, SORT_STRING);
+        ksort($xmlCommentByteLengthBucketPartNames, SORT_STRING);
+        foreach ($xmlCommentByteLengthBucketPartNames as &$xmlCommentBucketPartNames) {
+            sort($xmlCommentBucketPartNames, SORT_STRING);
+        }
+        unset($xmlCommentBucketPartNames);
         sort($xmlCommentPartNames, SORT_STRING);
+        sort($xmlCommentByteLengthBuckets, SORT_STRING);
         sort($xmlCommentParentPaths, SORT_STRING);
         sort($xmlCdataSectionPartNames, SORT_STRING);
         sort($xmlCdataSectionParentPaths, SORT_STRING);
@@ -29816,7 +29850,12 @@ final class DocxOpenXmlReader
             'xmlCommentPartCount' => $xmlCommentPartCount,
             'xmlCommentCount' => $xmlCommentCount,
             'xmlCommentByteLength' => $xmlCommentByteLength,
+            'xmlCommentMaxByteLength' => $xmlCommentMaxByteLength,
             'xmlCommentPartNames' => $xmlCommentPartNames,
+            'xmlCommentByteLengthBucketCount' => count($xmlCommentByteLengthBucketCounts),
+            'xmlCommentByteLengthBucketCounts' => $xmlCommentByteLengthBucketCounts,
+            'xmlCommentByteLengthBuckets' => $xmlCommentByteLengthBuckets,
+            'xmlCommentByteLengthBucketPartNames' => $xmlCommentByteLengthBucketPartNames,
             'xmlCommentParentPathCount' => count($xmlCommentParentPathCounts),
             'xmlCommentParentPathCounts' => $xmlCommentParentPathCounts,
             'xmlCommentParentPaths' => $xmlCommentParentPaths,
@@ -32975,7 +33014,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, byteLength:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     * @return array{count:int, byteLength:int, maxByteLength:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlCommentProvenance(string $xml, string $partName): array
     {
@@ -32984,6 +33023,9 @@ final class DocxOpenXmlReader
             return [
                 'count' => 0,
                 'byteLength' => 0,
+                'maxByteLength' => 0,
+                'byteLengthBucketCounts' => [],
+                'byteLengthBuckets' => [],
                 'parentPathCounts' => [],
                 'parentPaths' => [],
                 'parentNamespaceCounts' => [],
@@ -32999,8 +33041,11 @@ final class DocxOpenXmlReader
         $parentNamespaceCounts = [];
         $parentLocalNameCounts = [];
         $parentQualifiedNameCounts = [];
+        $byteLengthBucketCounts = [];
+        $byteLengthBuckets = [];
         $ordinal = 0;
         $byteLength = 0;
+        $maxByteLength = 0;
         $walk = function (\DOMNode $node) use (
             &$walk,
             &$items,
@@ -33009,8 +33054,11 @@ final class DocxOpenXmlReader
             &$parentNamespaceCounts,
             &$parentLocalNameCounts,
             &$parentQualifiedNameCounts,
+            &$byteLengthBucketCounts,
+            &$byteLengthBuckets,
             &$ordinal,
             &$byteLength,
+            &$maxByteLength,
         ): void {
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMComment) {
@@ -33032,7 +33080,12 @@ final class DocxOpenXmlReader
                     $parentQualifiedNameKey = $parentQualifiedName ?? '(none)';
                     ++$ordinal;
                     $commentByteLength = strlen($data);
+                    $commentByteLengthBucket = $this->xmlTextByteLengthBucket($commentByteLength);
                     $byteLength += $commentByteLength;
+                    $maxByteLength = max($maxByteLength, $commentByteLength);
+                    $byteLengthBucketCounts[$commentByteLengthBucket] =
+                        ($byteLengthBucketCounts[$commentByteLengthBucket] ?? 0) + 1;
+                    $this->appendUniqueString($byteLengthBuckets, $commentByteLengthBucket);
                     $parentPathCounts[$commentParentPath] = ($parentPathCounts[$commentParentPath] ?? 0) + 1;
                     $this->appendUniqueString($parentPaths, $commentParentPath);
                     $parentNamespaceCounts[$parentNamespaceKey] = ($parentNamespaceCounts[$parentNamespaceKey] ?? 0) + 1;
@@ -33046,6 +33099,7 @@ final class DocxOpenXmlReader
                         'parentLocalName' => $parentLocalName,
                         'parentQualifiedName' => $parentQualifiedName,
                         'byteLength' => $commentByteLength,
+                        'byteLengthBucket' => $commentByteLengthBucket,
                         'crc32' => $data === '' ? null : sprintf('%08x', crc32($data)),
                         'sha256' => $data === '' ? null : hash('sha256', $data),
                     ];
@@ -33058,15 +33112,20 @@ final class DocxOpenXmlReader
         };
         $walk($dom);
 
+        ksort($byteLengthBucketCounts, SORT_STRING);
         ksort($parentPathCounts, SORT_STRING);
         ksort($parentNamespaceCounts, SORT_STRING);
         ksort($parentLocalNameCounts, SORT_STRING);
         ksort($parentQualifiedNameCounts, SORT_STRING);
+        sort($byteLengthBuckets, SORT_STRING);
         sort($parentPaths, SORT_STRING);
 
         return [
             'count' => count($items),
             'byteLength' => $byteLength,
+            'maxByteLength' => $maxByteLength,
+            'byteLengthBucketCounts' => $byteLengthBucketCounts,
+            'byteLengthBuckets' => $byteLengthBuckets,
             'parentPathCounts' => $parentPathCounts,
             'parentPaths' => $parentPaths,
             'parentNamespaceCounts' => $parentNamespaceCounts,
@@ -40414,6 +40473,9 @@ final class DocxOpenXmlReader
                 'xmlProcessingInstructions' => [],
                 'xmlCommentCount' => 0,
                 'xmlCommentByteLength' => 0,
+                'xmlCommentMaxByteLength' => 0,
+                'xmlCommentByteLengthBucketCounts' => [],
+                'xmlCommentByteLengthBuckets' => [],
                 'xmlCommentParentPathCounts' => [],
                 'xmlCommentParentPaths' => [],
                 'xmlCommentParentNamespaceCounts' => [],
@@ -40931,6 +40993,9 @@ final class DocxOpenXmlReader
             'xmlProcessingInstructions' => $processingInstructions['items'],
             'xmlCommentCount' => $comments['count'],
             'xmlCommentByteLength' => $comments['byteLength'],
+            'xmlCommentMaxByteLength' => $comments['maxByteLength'],
+            'xmlCommentByteLengthBucketCounts' => $comments['byteLengthBucketCounts'],
+            'xmlCommentByteLengthBuckets' => $comments['byteLengthBuckets'],
             'xmlCommentParentPathCounts' => $comments['parentPathCounts'],
             'xmlCommentParentPaths' => $comments['parentPaths'],
             'xmlCommentParentNamespaceCounts' => $comments['parentNamespaceCounts'],
