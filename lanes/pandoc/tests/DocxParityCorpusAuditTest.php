@@ -459,6 +459,42 @@ return [
         }
     },
 
+    'writer golden cli filters inventory by golden package name' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $minimalDocx): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $writeFile($root, "{$docxRoot}/golden/writer-output.docx", $minimalDocx('Writer inventory'));
+            $writeFile($root, "{$docxRoot}/golden/other-output.docx", $minimalDocx('Other inventory'));
+
+            $command = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg(dirname(__DIR__, 3) . '/tools/pandoc-docx-writer-golden-audit.php')
+                . ' --repo-root='
+                . escapeshellarg($root)
+                . ' --json'
+                . ' --golden=writer-output';
+            $output = [];
+            $exitCode = 0;
+            exec($command, $output, $exitCode);
+            $decoded = json_decode(implode("\n", $output), true, 512, JSON_THROW_ON_ERROR);
+
+            $t->same(0, $exitCode);
+            $t->same(true, $decoded['caseFilter']['active']);
+            $t->same(['writer-output'], $decoded['caseFilter']['values']);
+            $t->same(0, $decoded['caseFilter']['selectedPinnedGoldenCaseCount']);
+            $t->same(2, $decoded['caseFilter']['unfilteredGoldenPackageCount']);
+            $t->same(1, $decoded['caseFilter']['matchingGoldenPackageCount']);
+            $t->same(['writer-output.docx'], $decoded['caseFilter']['matchingGoldenPackageFiles']);
+            $t->same(2, $decoded['unfilteredGoldenPackageCount']);
+            $t->same(1, $decoded['goldenPackageCount']);
+            $t->same('writer-output.docx', $decoded['packageRows'][0]['fileName']);
+            $t->same(1, $decoded['packageComparison']['expectedGoldenPackageCount']);
+            $t->same(1, $decoded['packageComparison']['missingGeneratedPackageCount']);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
     'writer golden comparison matches generated docx packages by stable package semantics' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $semanticDocx): void {
         $root = $makeTempRoot();
         try {
@@ -541,6 +577,8 @@ return [
             $t->same(1, $report['packageComparison']['mismatchDiagnostics']['stableMismatchPackageCount']);
             $t->same(1, $report['packageComparison']['mismatchDiagnostics']['mismatchKindCounts']['xml-part-semantics']);
             $t->same(1, $report['packageComparison']['mismatchDiagnostics']['xmlPartDeltas']['packagesWithChangedXmlParts']);
+            $t->same(1, $rowsByName['a.docx']['mismatchDetails']['xmlPartDeltas']['changedXmlPartCount']);
+            $t->same('word/document.xml', $rowsByName['a.docx']['mismatchDetails']['xmlPartDeltas']['changedXmlParts'][0]['partName']);
             $t->same('missing-generated', $rowsByName['b.docx']['status']);
             $t->same('unexpected-generated', $rowsByName['c.docx']['status']);
         } finally {
@@ -576,6 +614,20 @@ return [
             $t->same(1, $diagnostics['xmlPartDeltas']['packagesWithExtraXmlParts']);
             $t->same(1, $diagnostics['xmlPartDeltas']['packagesWithChangedXmlParts']);
             $t->same('word/document.xml', $diagnostics['xmlPartDeltas']['changedXmlPartCounts'][0]['partName']);
+            $details = $report['packageComparison']['comparisonRows'][0]['mismatchDetails'];
+            $t->same(1, $details['partNameDeltas']['missingPartCount']);
+            $t->same(1, $details['partNameDeltas']['extraPartCount']);
+            $t->same('word/styles.xml', $details['partNameDeltas']['missingPartNames'][0]);
+            $t->same('word/numbering.xml', $details['partNameDeltas']['extraPartNames'][0]);
+            $t->same(1, $details['contentTypeDeltas']['missingRecordCount']);
+            $t->same(1, $details['contentTypeDeltas']['extraRecordCount']);
+            $t->same('/word/styles.xml', $details['contentTypeDeltas']['missingRecords'][0]['partName']);
+            $t->same('/word/numbering.xml', $details['contentTypeDeltas']['extraRecords'][0]['partName']);
+            $t->same(1, $details['relationshipDeltas']['missingRecordCount']);
+            $t->same(1, $details['relationshipDeltas']['extraRecordCount']);
+            $t->same(1, $details['xmlPartDeltas']['missingXmlPartCount']);
+            $t->same(1, $details['xmlPartDeltas']['extraXmlPartCount']);
+            $t->same(1, $details['xmlPartDeltas']['changedXmlPartCount']);
         } finally {
             $removeTree($root);
         }
@@ -652,6 +704,54 @@ return [
             $t->same(0, $report['packageComparison']['missingGeneratedPackageCount']);
             $t->same(true, $report['packageComparison']['allStableSemanticsMatch']);
             $t->contains('Generated package production: run; generated=1/38', $text);
+            $t->contains('Generated package comparison: run; compared=1/1; matched=1', $text);
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'writer golden generation and comparison can focus a single case' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $writeFile, $writerDocxFromNative, $minimalDocx, $findRowByGoldenFile): void {
+        $root = $makeTempRoot();
+        try {
+            $docxRoot = '.upstream-cache/pandoc-current/test/docx';
+            $native = '[ Para [ Str "Focused" , Space , Str "case" ] ]';
+            $writeFile($root, "{$docxRoot}/comments.native", $native);
+            $writeFile($root, "{$docxRoot}/golden/comments.docx", $writerDocxFromNative($native));
+            $writeFile($root, "{$docxRoot}/golden/codeblock.docx", $minimalDocx('Unselected golden'));
+            $writeFile($root, 'generated-docx/codeblock.docx', $minimalDocx('Unselected generated'));
+
+            $report = (new DocxWriterGoldenManifest(
+                $root,
+                DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR,
+                8,
+                null,
+                'generated-docx',
+                ['comments']
+            ))->report();
+            $text = DocxWriterGoldenManifest::formatTextReport($report);
+            $commentsGeneration = $findRowByGoldenFile($report['generation']['caseRows'], 'comments.docx');
+
+            $t->same(true, $report['caseFilter']['active']);
+            $t->same(['comments'], $report['caseFilter']['values']);
+            $t->same(1, $report['caseFilter']['selectedPinnedGoldenCaseCount']);
+            $t->same(['comments.docx'], $report['caseFilter']['matchingGoldenPackageFiles']);
+            $t->same(2, $report['unfilteredGoldenPackageCount']);
+            $t->same(1, $report['goldenPackageCount']);
+            $t->same('comments.docx', $report['packageRows'][0]['fileName']);
+            $t->same(true, $report['generation']['caseFilterActive']);
+            $t->same(1, $report['generation']['expectedGoldenCaseCount']);
+            $t->same(1, $report['generation']['attemptedCaseCount']);
+            $t->same(1, $report['generation']['generatedPackageCount']);
+            $t->same(0, $report['generation']['skippedCaseCount']);
+            $t->same('generated', $commentsGeneration['status']);
+            $t->same(true, $report['packageComparison']['caseFilterActive']);
+            $t->same(['comments'], $report['packageComparison']['caseFilterValues']);
+            $t->same(1, $report['packageComparison']['expectedGoldenPackageCount']);
+            $t->same(1, $report['packageComparison']['generatedPackageCount']);
+            $t->same(1, $report['packageComparison']['matchedPackageCount']);
+            $t->same(0, $report['packageComparison']['unexpectedGeneratedPackageCount']);
+            $t->contains('Case filter: active; values=comments; selected pinned cases=1/38; matching golden packages=1/2', $text);
+            $t->contains('Generated package production: run; generated=1/1', $text);
             $t->contains('Generated package comparison: run; compared=1/1; matched=1', $text);
         } finally {
             $removeTree($root);

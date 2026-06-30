@@ -80,13 +80,16 @@ final class DocxWriterGoldenManifest
     private readonly string $docxDirectory;
     private readonly ?string $generatedDocxDirectory;
     private readonly ?string $generationOutputDirectory;
+    /** @var list<string> */
+    private readonly array $caseFilters;
 
     public function __construct(
         string $repoRoot,
         string $docxDirectory = self::DEFAULT_RELATIVE_DOCX_DIR,
         private readonly int $sampleLimit = 8,
         ?string $generatedDocxDirectory = null,
-        ?string $generationOutputDirectory = null
+        ?string $generationOutputDirectory = null,
+        array $caseFilters = []
     ) {
         if ($repoRoot === '') {
             throw new \InvalidArgumentException('Repository root must not be empty');
@@ -108,6 +111,7 @@ final class DocxWriterGoldenManifest
         $this->docxDirectory = $docxDirectory;
         $this->generationOutputDirectory = $generationOutputDirectory;
         $this->generatedDocxDirectory = $generatedDocxDirectory ?? $generationOutputDirectory;
+        $this->caseFilters = self::normalizeCaseFilters($caseFilters);
     }
 
     /**
@@ -136,6 +140,8 @@ final class DocxWriterGoldenManifest
             );
         }
 
+        $goldenPackageFileNames = $this->packageFileNames($goldenDir);
+        $caseFilter = $this->caseFilterReport($goldenPackageFileNames);
         $packageRows = $this->packageRows($goldenDir);
         $packageCount = count($packageRows);
         $readablePackages = count(array_filter(
@@ -170,9 +176,11 @@ final class DocxWriterGoldenManifest
             'goldenDirectoryDisplay' => $this->displayPath($goldenDir),
             'goldenDirectoryPresent' => true,
             'expectedUpstreamWriterSourceReferences' => self::expectedUpstreamWriterSourceReferences(),
+            'caseFilter' => $caseFilter,
             'localWriter' => $writer,
             'generation' => $generation,
             'packageComparison' => $packageComparison,
+            'unfilteredGoldenPackageCount' => count($goldenPackageFileNames),
             'goldenPackageCount' => $packageCount,
             'readableGoldenPackageCount' => $readablePackages,
             'unreadableGoldenPackageCount' => $packageCount - $readablePackages,
@@ -201,6 +209,20 @@ final class DocxWriterGoldenManifest
             'Claim: ' . (string) ($report['claim'] ?? self::CLAIM),
             'Golden directory: ' . (string) ($report['goldenDirectoryDisplay'] ?? $report['goldenDirectory'] ?? ''),
         ];
+
+        $caseFilter = $report['caseFilter'] ?? [];
+        if (is_array($caseFilter) && ($caseFilter['active'] ?? false) === true) {
+            $lines[] = 'Case filter: active; values='
+                . implode(',', array_map('strval', is_array($caseFilter['values'] ?? null) ? $caseFilter['values'] : []))
+                . '; selected pinned cases='
+                . (int) ($caseFilter['selectedPinnedGoldenCaseCount'] ?? 0)
+                . '/'
+                . (int) ($caseFilter['totalPinnedGoldenCaseCount'] ?? self::PINNED_UPSTREAM_GOLDEN_PACKAGE_COUNT)
+                . '; matching golden packages='
+                . (int) ($caseFilter['matchingGoldenPackageCount'] ?? 0)
+                . '/'
+                . (int) ($caseFilter['unfilteredGoldenPackageCount'] ?? 0);
+        }
 
         $writer = $report['localWriter'] ?? [];
         if (is_array($writer)) {
@@ -371,6 +393,227 @@ final class DocxWriterGoldenManifest
     }
 
     /**
+     * @param array<mixed> $filters
+     * @return list<string>
+     */
+    private static function normalizeCaseFilters(array $filters): array
+    {
+        $normalized = [];
+        foreach ($filters as $filter) {
+            if (!is_scalar($filter)) {
+                throw new \InvalidArgumentException('Writer golden case filters must be strings');
+            }
+
+            foreach (explode(',', (string) $filter) as $candidate) {
+                $candidate = trim($candidate);
+                if ($candidate === '') {
+                    throw new \InvalidArgumentException('Writer golden case filter must not be empty');
+                }
+                if (str_contains($candidate, "\0")) {
+                    throw new \InvalidArgumentException('Writer golden case filter must not contain NUL bytes');
+                }
+
+                $normalized[$candidate] = true;
+            }
+        }
+
+        $values = array_keys($normalized);
+        sort($values, SORT_STRING);
+
+        return $values;
+    }
+
+    private function caseFilterActive(): bool
+    {
+        return $this->caseFilters !== [];
+    }
+
+    /**
+     * @return list<array{goldenFile:string, nativeFile:string, referenceDoc?:string}>
+     */
+    private function selectedWriterGoldenCases(): array
+    {
+        if (!$this->caseFilterActive()) {
+            return self::WRITER_GOLDEN_CASES;
+        }
+
+        $selected = [];
+        foreach (self::WRITER_GOLDEN_CASES as $case) {
+            if (self::writerGoldenCaseMatchesFilters($case, $this->caseFilters)) {
+                $selected[] = $case;
+            }
+        }
+
+        return $selected;
+    }
+
+    private function selectedGoldenCaseCount(): int
+    {
+        return count($this->selectedWriterGoldenCases());
+    }
+
+    /**
+     * @param list<string>|null $goldenPackageFileNames
+     * @return array<string, mixed>
+     */
+    private function caseFilterReport(?array $goldenPackageFileNames = null): array
+    {
+        $selectedCases = $this->selectedWriterGoldenCases();
+        $selectedGoldenFiles = array_map(
+            static fn (array $case): string => $case['goldenFile'],
+            $selectedCases
+        );
+        $selectedNativeFiles = array_map(
+            static fn (array $case): string => $case['nativeFile'],
+            $selectedCases
+        );
+        $matchingGoldenPackageFiles = [];
+        if ($goldenPackageFileNames !== null) {
+            foreach ($goldenPackageFileNames as $fileName) {
+                if (!$this->caseFilterActive() || self::fileNameMatchesCaseFilters($fileName, $this->caseFilters)) {
+                    $matchingGoldenPackageFiles[] = $fileName;
+                }
+            }
+        }
+
+        return [
+            'active' => $this->caseFilterActive(),
+            'values' => $this->caseFilters,
+            'totalPinnedGoldenCaseCount' => count(self::WRITER_GOLDEN_CASES),
+            'selectedPinnedGoldenCaseCount' => count($selectedCases),
+            'selectedPinnedGoldenFiles' => $selectedGoldenFiles,
+            'selectedPinnedNativeFiles' => $selectedNativeFiles,
+            'unfilteredGoldenPackageCount' => $goldenPackageFileNames === null ? null : count($goldenPackageFileNames),
+            'matchingGoldenPackageCount' => $goldenPackageFileNames === null ? null : count($matchingGoldenPackageFiles),
+            'matchingGoldenPackageFiles' => $goldenPackageFileNames === null ? null : $matchingGoldenPackageFiles,
+            'unmatchedValues' => $this->unmatchedCaseFilters($goldenPackageFileNames),
+            'claim' => $this->caseFilterActive()
+                ? 'Filters scope writer-golden inventory, generation, and generated comparison to selected case/package names; matching a focused subset is not full writer parity evidence.'
+                : 'No writer-golden case filter is active.',
+        ];
+    }
+
+    /**
+     * @param list<string>|null $goldenPackageFileNames
+     * @return list<string>
+     */
+    private function unmatchedCaseFilters(?array $goldenPackageFileNames): array
+    {
+        $unmatched = [];
+        foreach ($this->caseFilters as $filter) {
+            $matched = false;
+            foreach (self::WRITER_GOLDEN_CASES as $case) {
+                if (self::writerGoldenCaseMatchesFilter($case, $filter)) {
+                    $matched = true;
+                    break;
+                }
+            }
+            if (!$matched && $goldenPackageFileNames !== null) {
+                foreach ($goldenPackageFileNames as $fileName) {
+                    if (self::fileNameMatchesCaseFilter($fileName, $filter)) {
+                        $matched = true;
+                        break;
+                    }
+                }
+            }
+            if (!$matched) {
+                $unmatched[] = $filter;
+            }
+        }
+
+        return $unmatched;
+    }
+
+    /**
+     * @param array{goldenFile:string, nativeFile:string, referenceDoc?:string} $case
+     * @param list<string> $filters
+     */
+    private static function writerGoldenCaseMatchesFilters(array $case, array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if (self::writerGoldenCaseMatchesFilter($case, $filter)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array{goldenFile:string, nativeFile:string, referenceDoc?:string} $case
+     */
+    private static function writerGoldenCaseMatchesFilter(array $case, string $filter): bool
+    {
+        $candidates = [
+            $case['goldenFile'],
+            $case['nativeFile'],
+        ];
+        if (isset($case['referenceDoc'])) {
+            $candidates[] = $case['referenceDoc'];
+        }
+
+        return self::filterMatchesCandidates($filter, $candidates);
+    }
+
+    /**
+     * @param list<string> $filters
+     */
+    private static function fileNameMatchesCaseFilters(string $fileName, array $filters): bool
+    {
+        foreach ($filters as $filter) {
+            if (self::fileNameMatchesCaseFilter($fileName, $filter)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function fileNameMatchesCaseFilter(string $fileName, string $filter): bool
+    {
+        return self::filterMatchesCandidates($filter, [$fileName]);
+    }
+
+    /**
+     * @param list<string> $candidates
+     */
+    private static function filterMatchesCandidates(string $filter, array $candidates): bool
+    {
+        $needle = self::caseFilterKey($filter);
+        $needleBase = basename($needle);
+        $needleStem = self::caseFilterStem($needleBase);
+        foreach ($candidates as $candidate) {
+            $candidateKey = self::caseFilterKey($candidate);
+            $candidateBase = basename($candidateKey);
+            $candidateStem = self::caseFilterStem($candidateBase);
+            if (
+                $needle === $candidateKey
+                || $needleBase === $candidateBase
+                || $needleStem === $candidateStem
+            ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function caseFilterKey(string $value): string
+    {
+        return strtolower(str_replace('\\', '/', trim($value)));
+    }
+
+    private static function caseFilterStem(string $value): string
+    {
+        $extension = strtolower(pathinfo($value, PATHINFO_EXTENSION));
+        if (in_array($extension, ['docx', 'native'], true)) {
+            return substr($value, 0, -strlen($extension) - 1);
+        }
+
+        return $value;
+    }
+
+    /**
      * @param array<string, mixed> $writer
      * @param array<string, mixed> $generation
      * @return array<string, mixed>
@@ -392,16 +635,18 @@ final class DocxWriterGoldenManifest
             'goldenDirectoryPresent' => false,
             'reason' => $reason,
             'expectedUpstreamWriterSourceReferences' => self::expectedUpstreamWriterSourceReferences(),
+            'caseFilter' => $this->caseFilterReport(),
             'localWriter' => $writer,
             'generation' => $generation,
             'packageComparison' => $this->packageComparisonEvidence(
                 $writer,
                 [],
-                self::PINNED_UPSTREAM_GOLDEN_PACKAGE_COUNT,
+                $this->selectedGoldenCaseCount(),
                 $status === self::STATUS_SKIPPED_MISSING_GOLDEN_DIRECTORY
                     ? self::GOLDEN_DIRECTORY_MISSING_REASON
                     : self::GOLDEN_DIRECTORY_UNREADABLE_REASON
             ),
+            'unfilteredGoldenPackageCount' => 0,
             'goldenPackageCount' => 0,
             'readableGoldenPackageCount' => 0,
             'unreadableGoldenPackageCount' => 0,
@@ -675,7 +920,8 @@ final class DocxWriterGoldenManifest
         $outputDir = $this->absoluteGenerationOutputDirectory();
         $outputDirConfigured = $outputDir !== null;
         $sourceDir = $this->absoluteDocxDirectory();
-        $expectedCount = count(self::WRITER_GOLDEN_CASES);
+        $writerGoldenCases = $this->selectedWriterGoldenCases();
+        $expectedCount = count($writerGoldenCases);
         $base = [
             'run' => false,
             'status' => 'not-run',
@@ -687,6 +933,8 @@ final class DocxWriterGoldenManifest
             'outputDirectory' => $outputDir,
             'outputDirectoryDisplay' => $outputDir === null ? null : $this->displayPath($outputDir),
             'outputDirectoryPresent' => $outputDir !== null && is_dir($outputDir),
+            'caseFilterActive' => $this->caseFilterActive(),
+            'totalPinnedGoldenCaseCount' => count(self::WRITER_GOLDEN_CASES),
             'expectedGoldenCaseCount' => $expectedCount,
             'attemptedCaseCount' => 0,
             'generatedPackageCount' => 0,
@@ -767,7 +1015,7 @@ final class DocxWriterGoldenManifest
         $failed = 0;
         $blockerCounts = [];
 
-        foreach (self::WRITER_GOLDEN_CASES as $case) {
+        foreach ($writerGoldenCases as $case) {
             $nativeFile = $case['nativeFile'];
             $goldenFile = $case['goldenFile'];
             $nativePath = $sourceDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $nativeFile);
@@ -853,7 +1101,7 @@ final class DocxWriterGoldenManifest
         $sourceDir = $this->absoluteDocxDirectory();
         $outputDir = $this->absoluteGenerationOutputDirectory();
         $rows = [];
-        foreach (self::WRITER_GOLDEN_CASES as $case) {
+        foreach ($this->selectedWriterGoldenCases() as $case) {
             $nativePath = $sourceDir . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $case['nativeFile']);
             $row = [
                 'goldenFile' => $case['goldenFile'],
@@ -896,6 +1144,8 @@ final class DocxWriterGoldenManifest
             'generatedDirectory' => $generatedDir,
             'generatedDirectoryDisplay' => $generatedDir === null ? null : $this->displayPath($generatedDir),
             'generatedDirectoryPresent' => $generatedDir !== null && is_dir($generatedDir),
+            'caseFilterActive' => $this->caseFilterActive(),
+            'caseFilterValues' => $this->caseFilters,
             'stableComparisonContract' => self::stableComparisonContract(),
             'expectedGoldenPackageCount' => $expectedGoldenPackageCount,
             'generatedPackageCount' => 0,
@@ -1295,7 +1545,7 @@ final class DocxWriterGoldenManifest
             $goldenSemantics = is_array($goldenRow['stableSemantics'] ?? null) ? $goldenRow['stableSemantics'] : [];
             $generatedSemantics = is_array($generatedRow['stableSemantics'] ?? null) ? $generatedRow['stableSemantics'] : [];
             $mismatchKinds = self::stableSemanticMismatchKinds($goldenSemantics, $generatedSemantics);
-            $rows[] = [
+            $row = [
                 'fileName' => $fileName,
                 'status' => $mismatchKinds === [] ? 'stable-match' : 'stable-mismatch',
                 'compared' => true,
@@ -1307,6 +1557,11 @@ final class DocxWriterGoldenManifest
                 'generatedStablePackageSha256' => $generatedSemantics['packageStableSemanticsSha256'] ?? null,
                 'mismatchKinds' => $mismatchKinds,
             ];
+            if ($mismatchKinds !== []) {
+                $row['mismatchDetails'] = self::caseMismatchDetails($goldenSemantics, $generatedSemantics, max(8, $this->sampleLimit));
+            }
+
+            $rows[] = $row;
         }
 
         foreach ($generatedRows as $generatedRow) {
@@ -1361,6 +1616,64 @@ final class DocxWriterGoldenManifest
         }
 
         return $mismatches;
+    }
+
+    /**
+     * @param array<string, mixed> $golden
+     * @param array<string, mixed> $generated
+     * @return array<string, mixed>
+     */
+    private static function caseMismatchDetails(array $golden, array $generated, int $limit): array
+    {
+        $partDelta = self::stringSetDelta(
+            self::stringList($golden['partNames'] ?? []),
+            self::stringList($generated['partNames'] ?? [])
+        );
+        $contentTypeDelta = self::recordSetDelta(
+            self::recordList($golden['contentTypes']['records'] ?? []),
+            self::recordList($generated['contentTypes']['records'] ?? []),
+            'contentTypeRecordKey'
+        );
+        $relationshipDelta = self::recordSetDelta(
+            self::recordList($golden['relationships']['records'] ?? []),
+            self::recordList($generated['relationships']['records'] ?? []),
+            'relationshipRecordKey'
+        );
+        $xmlDelta = self::xmlPartDelta(
+            self::recordList($golden['xmlPartRows'] ?? []),
+            self::recordList($generated['xmlPartRows'] ?? [])
+        );
+
+        return [
+            'schemaVersion' => 1,
+            'sampleLimit' => $limit,
+            'partNameDeltas' => [
+                'missingPartCount' => count($partDelta['missing']),
+                'extraPartCount' => count($partDelta['extra']),
+                'missingPartNames' => array_slice($partDelta['missing'], 0, $limit),
+                'extraPartNames' => array_slice($partDelta['extra'], 0, $limit),
+            ],
+            'contentTypeDeltas' => [
+                'missingRecordCount' => count($contentTypeDelta['missing']),
+                'extraRecordCount' => count($contentTypeDelta['extra']),
+                'missingRecords' => array_slice($contentTypeDelta['missing'], 0, $limit),
+                'extraRecords' => array_slice($contentTypeDelta['extra'], 0, $limit),
+            ],
+            'relationshipDeltas' => [
+                'missingRecordCount' => count($relationshipDelta['missing']),
+                'extraRecordCount' => count($relationshipDelta['extra']),
+                'missingRecords' => array_slice($relationshipDelta['missing'], 0, $limit),
+                'extraRecords' => array_slice($relationshipDelta['extra'], 0, $limit),
+            ],
+            'xmlPartDeltas' => [
+                'missingXmlPartCount' => count($xmlDelta['missing']),
+                'extraXmlPartCount' => count($xmlDelta['extra']),
+                'changedXmlPartCount' => count($xmlDelta['changed']),
+                'missingXmlParts' => array_slice($xmlDelta['missing'], 0, $limit),
+                'extraXmlParts' => array_slice($xmlDelta['extra'], 0, $limit),
+                'changedXmlParts' => array_slice($xmlDelta['changed'], 0, $limit),
+            ],
+        ];
     }
 
     /**
@@ -1581,20 +1894,51 @@ final class DocxWriterGoldenManifest
      */
     private function packageRows(string $goldenDir): array
     {
-        $paths = [];
-        foreach (new \DirectoryIterator($goldenDir) as $entry) {
-            if (!$entry->isDot() && $entry->isFile() && strtolower($entry->getExtension()) === 'docx') {
-                $paths[] = $entry->getPathname();
-            }
-        }
-        sort($paths, SORT_STRING);
-
         $rows = [];
-        foreach ($paths as $path) {
+        foreach ($this->packagePaths($goldenDir) as $path) {
             $rows[] = $this->packageRow($path);
         }
 
         return $rows;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function packagePaths(string $directory): array
+    {
+        $paths = [];
+        foreach (new \DirectoryIterator($directory) as $entry) {
+            if ($entry->isDot() || !$entry->isFile() || strtolower($entry->getExtension()) !== 'docx') {
+                continue;
+            }
+
+            $fileName = $entry->getFilename();
+            if ($this->caseFilterActive() && !self::fileNameMatchesCaseFilters($fileName, $this->caseFilters)) {
+                continue;
+            }
+
+            $paths[] = $entry->getPathname();
+        }
+        sort($paths, SORT_STRING);
+
+        return $paths;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function packageFileNames(string $directory): array
+    {
+        $fileNames = [];
+        foreach (new \DirectoryIterator($directory) as $entry) {
+            if (!$entry->isDot() && $entry->isFile() && strtolower($entry->getExtension()) === 'docx') {
+                $fileNames[] = $entry->getFilename();
+            }
+        }
+        sort($fileNames, SORT_STRING);
+
+        return $fileNames;
     }
 
     /**

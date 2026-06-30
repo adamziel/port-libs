@@ -26,6 +26,11 @@ Options:
                     Relative paths are resolved from the repository root.
                     When --generated-dir is omitted, this directory is also
                     used for stable package comparison.
+  --case NAME       Focus inventory, generation, and comparison on matching
+                    writer-golden case names. NAME may be a golden .docx file,
+                    native fixture file, stem, or comma-separated list.
+                    May be repeated.
+  --golden NAME     Alias for --case, intended for golden .docx filenames.
   --help            Show this help.
 
 The audit is evidence-only. It inventories upstream golden DOCX packages and the
@@ -42,6 +47,7 @@ try {
     $docxDir = DocxWriterGoldenManifest::DEFAULT_RELATIVE_DOCX_DIR;
     $generatedDir = null;
     $generationOutputDir = null;
+    $caseFilters = [];
     $json = false;
     $args = array_slice($argv, 1);
 
@@ -97,11 +103,27 @@ try {
             $generationOutputDir = substr($arg, strlen('--generate-supported-dir='));
             continue;
         }
+        if ($arg === '--case') {
+            $caseFilters[] = $nextValue('--case');
+            continue;
+        }
+        if (str_starts_with($arg, '--case=')) {
+            $caseFilters[] = substr($arg, strlen('--case='));
+            continue;
+        }
+        if ($arg === '--golden') {
+            $caseFilters[] = $nextValue('--golden');
+            continue;
+        }
+        if (str_starts_with($arg, '--golden=')) {
+            $caseFilters[] = substr($arg, strlen('--golden='));
+            continue;
+        }
 
         throw new InvalidArgumentException("Unknown option: {$arg}");
     }
 
-    $report = (new DocxWriterGoldenManifest($repoRoot, $docxDir, 8, $generatedDir, $generationOutputDir))->report();
+    $report = (new DocxWriterGoldenManifest($repoRoot, $docxDir, 8, $generatedDir, $generationOutputDir, $caseFilters))->report();
 
     if ($json) {
         fwrite(STDOUT, json_encode(
