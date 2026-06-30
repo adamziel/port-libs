@@ -62,6 +62,28 @@ BIB;
         $t->contains('Obscure Archive Packet: Source Review Appendix', $blocks);
         $t->contains('https://example.test/preprint', $blocks);
     },
+    'keeps biblatex available and submitted dates visible through the registered reader path' => static function (TestRunner $t): void {
+        $biblatex = <<<'BIB'
+@online{date-review,
+  author        = {Ng, Nia},
+  title         = {Archive Availability Packet},
+  date          = {2026},
+  availabledate = {2026-05-01},
+  submitteddate = {2026-05-03},
+  url           = {https://example.test/date-review}
+}
+BIB;
+
+        $document = PandocConverter::read($biblatex, 'biblatex');
+        $blocks = PandocConverter::write($document, 'blocks');
+        $item = $document->attr('cslItems')[0] ?? [];
+
+        $t->same('date-review', $item['id'] ?? null);
+        $t->same([2026, 5, 1], $item['available-date']['date-parts'][0] ?? null);
+        $t->same([2026, 5, 3], $item['submitted']['date-parts'][0] ?? null);
+        $t->contains('Available date: 2026-05-01.', $blocks);
+        $t->contains('Submitted date: 2026-05-03.', $blocks);
+    },
     'converts csl json ris and endnote xml bibliography inputs through the registered reader path' => static function (TestRunner $t): void {
         $cslJson = json_encode([
             [
