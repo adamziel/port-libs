@@ -4406,17 +4406,28 @@ final class MarkdownReader
             $start = (int) $rawStart;
         }
 
-        return [
+        $attrs = [
             'start' => $start,
             'style' => $this->htmlOrderedListStyle($list),
             'delimiter' => 'default',
             'sourceFormat' => 'html',
         ];
+
+        if ($list->hasAttribute('reversed')) {
+            $attrs['reversed'] = true;
+            $attrs['attributes'] = ['reversed' => ''];
+            $attrs['htmlAttributes'] = ['reversed' => ''];
+        }
+
+        return $attrs;
     }
 
     private function htmlOrderedListStyle(\DOMElement $list): string
     {
         $type = trim($list->getAttribute('type'));
+        if ($type === '1') {
+            return 'decimal';
+        }
         if ($type === 'a') {
             return 'lower_alpha';
         }
