@@ -22,7 +22,7 @@ final class MarkdownWriter
     /** @var array<string, bool> */
     private array $referenceUsedLabels = [];
 
-    /** @var array<string, string> */
+    /** @var array<string, array{plain:string, markdown:string}> */
     private array $referenceTargetLabels = [];
 
     /** @var array<string, int> */
@@ -33,6 +33,8 @@ final class MarkdownWriter
     private int $lastReferenceIndex = 0;
 
     private bool $escapeInlineSpaces = false;
+
+    private int $linkLabelRenderDepth = 0;
 
     /** @var list<string> */
     private array $plainTemplatePartialStack = [];
@@ -6125,7 +6127,13 @@ final class MarkdownWriter
     {
         $text = '';
         foreach ($nodes as $index => $node) {
-            $text .= $this->renderInline($node, array_slice($nodes, $index + 1), $escapeInitialPlainMarker && $index === 0);
+            $text .= $this->renderInline(
+                $node,
+                array_slice($nodes, $index + 1),
+                $escapeInitialPlainMarker && $index === 0,
+                $nodes[$index - 1] ?? null,
+                $nodes[$index - 2] ?? null
+            );
             $next = $nodes[$index + 1] ?? null;
             if ($node->type === 'math' && $next instanceof AstNode && $next->type === 'text') {
                 $nextText = (string) $next->attr('text', '');
@@ -6141,16 +6149,24 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function renderInline(AstNode $node, array $following = [], bool $escapeInitialPlainMarker = false): string
+    private function renderInline(
+        AstNode $node,
+        array $following = [],
+        bool $escapeInitialPlainMarker = false,
+        ?AstNode $previous = null,
+        ?AstNode $beforePrevious = null
+    ): string
     {
         return match ($node->type) {
             'text' => $this->escapeText(
                 (string) $node->attr('text', ''),
                 $following,
                 $escapeInitialPlainMarker,
-                (bool) $node->attr('preserveSmartPunctuation', false)
+                (bool) $node->attr('preserveSmartPunctuation', false),
+                $this->previousInlineCouldRenderReference($previous),
+                $this->previousBreakFollowsReference($previous, $beforePrevious)
             ),
-            'softbreak' => $this->renderSoftBreak($following),
+            'softbreak' => $this->renderSoftBreak($following, $previous),
             'space' => ' ',
             'linebreak' => $this->renderLineBreak(),
             'code' => $this->renderCode($node),
@@ -6365,7 +6381,7 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function renderSoftBreak(array $following = []): string
+    private function renderSoftBreak(array $following = [], ?AstNode $previous = null): string
     {
         $next = $following[0] ?? null;
         if (
@@ -6377,7 +6393,69 @@ final class MarkdownWriter
             return "\n";
         }
 
+        if ($this->linkLabelRenderDepth > 0) {
+            return "\n";
+        }
+
+        if (
+            $this->previousInlineCouldRenderReference($previous)
+            && $this->followingStartsReferenceSuffixConflict($following)
+        ) {
+            return "\n";
+        }
+
         return $this->writerWrapText() === 'preserve' ? "\n" : ' ';
+    }
+
+    private function previousBreakFollowsReference(?AstNode $previous, ?AstNode $beforePrevious): bool
+    {
+        return $previous instanceof AstNode
+            && in_array($previous->type, ['softbreak', 'linebreak'], true)
+            && $this->previousInlineCouldRenderReference($beforePrevious);
+    }
+
+    private function previousInlineCouldRenderReference(?AstNode $node): bool
+    {
+        if (!$node instanceof AstNode || !(bool) ($this->options['referenceLinks'] ?? false)) {
+            return false;
+        }
+
+        if ($node->type === 'link') {
+            return !$this->canRenderAutolink($node) && $this->renderWikiLink($node) === null;
+        }
+
+        if ($node->type === 'image') {
+            return !$this->shouldRenderRawHtmlFallback($this->imageAttrTuple($node));
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function followingStartsReferenceSuffixConflict(array $following): bool
+    {
+        $next = $following[0] ?? null;
+        if (!$next instanceof AstNode) {
+            return false;
+        }
+
+        if (in_array($next->type, ['space', 'softbreak', 'linebreak'], true)) {
+            return $this->followingStartsReferenceSuffixConflict(array_slice($following, 1));
+        }
+
+        if ($next->type === 'text') {
+            $text = (string) $next->attr('text', '');
+        } elseif (in_array($next->type, ['raw_inline', 'raw_markdown', 'raw_html_inline'], true)) {
+            $text = (string) $next->attr('text', $next->attr('markdown', $next->attr('html', '')));
+        } else {
+            return false;
+        }
+
+        $text = ltrim($text, " \t\r\n");
+
+        return $text !== '' && $this->startsWithReferenceSuffixConflict($text);
     }
 
     /**
@@ -7222,11 +7300,83 @@ final class MarkdownWriter
             ? (string) $node->attr('url', '')
             : $this->renderLinkDestination((string) $node->attr('url', ''));
 
-        return '[' . $this->renderInlines($node->children) . ']('
+        return '[' . $this->renderLinkLabelInlines($node->children) . ']('
             . $destination
             . $titleMarkdown
             . ')'
             . $this->renderLinkAttributes($node);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderLinkLabelInlines(array $nodes): string
+    {
+        $this->linkLabelRenderDepth++;
+        try {
+            return $this->restoreBalancedLinkLabelBrackets($this->renderInlines($nodes));
+        } finally {
+            $this->linkLabelRenderDepth--;
+        }
+    }
+
+    private function renderReferenceLabelText(string $label): string
+    {
+        return $this->restoreBalancedLinkLabelBrackets($this->escapeText($label));
+    }
+
+    private function restoreBalancedLinkLabelBrackets(string $text): string
+    {
+        $length = strlen($text);
+        $tokens = [];
+        $stack = [];
+        for ($offset = 0; $offset < $length - 1; $offset++) {
+            $token = substr($text, $offset, 2);
+            if ($token === '\\[') {
+                $index = count($tokens);
+                $tokens[] = ['offset' => $offset, 'paired' => false];
+                $stack[] = $index;
+                $offset++;
+                continue;
+            }
+
+            if ($token === '\\]') {
+                $openIndex = array_pop($stack);
+                if ($openIndex !== null) {
+                    $tokens[$openIndex]['paired'] = true;
+                    $tokens[] = ['offset' => $offset, 'paired' => true];
+                }
+                $offset++;
+            }
+        }
+
+        if ($tokens === []) {
+            return $text;
+        }
+
+        $pairedOffsets = [];
+        foreach ($tokens as $token) {
+            if ($token['paired']) {
+                $pairedOffsets[$token['offset']] = true;
+            }
+        }
+
+        if ($pairedOffsets === []) {
+            return $text;
+        }
+
+        $restored = '';
+        for ($offset = 0; $offset < $length; $offset++) {
+            if (isset($pairedOffsets[$offset]) && isset($text[$offset + 1])) {
+                $restored .= $text[$offset + 1];
+                $offset++;
+                continue;
+            }
+
+            $restored .= $text[$offset];
+        }
+
+        return $restored;
     }
 
     private function renderWikiLink(AstNode $node): ?string
@@ -7329,7 +7479,7 @@ final class MarkdownWriter
      */
     private function renderReferenceLink(AstNode $node, array $following): string
     {
-        $labelText = $this->renderInlines($node->children);
+        $labelText = $this->renderLinkLabelInlines($node->children);
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
@@ -7338,12 +7488,12 @@ final class MarkdownWriter
             $this->linkAttrTuple($node)
         );
 
-        $shortcutable = $referenceLabel === $plainLabel && $this->canUseShortcutReference($following);
+        $shortcutable = $referenceLabel['plain'] === $plainLabel && $this->canUseShortcutReference($following);
         if ($shortcutable) {
             return '[' . $labelText . ']';
         }
 
-        $suffix = $referenceLabel === $plainLabel ? '[]' : '[' . $referenceLabel . ']';
+        $suffix = $referenceLabel['plain'] === $plainLabel ? '[]' : '[' . $referenceLabel['markdown'] . ']';
 
         return '[' . $labelText . ']' . $suffix;
     }
@@ -7373,8 +7523,9 @@ final class MarkdownWriter
 
     /**
      * @param array<string, mixed> $attrs
+     * @return array{plain:string, markdown:string}
      */
-    private function registerReference(string $suggestedLabel, string $url, string $title, array $attrs): string
+    private function registerReference(string $suggestedLabel, string $url, string $title, array $attrs): array
     {
         $targetKey = $url . "\0" . $title . "\0" . $this->attributeSignature($attrs);
         if (isset($this->referenceTargetLabels[$targetKey])) {
@@ -7383,20 +7534,24 @@ final class MarkdownWriter
 
         $label = $this->normalizeReferenceLabelText($suggestedLabel);
         if ($this->requiresGeneratedReferenceLabel($label)) {
-            $actualLabel = $this->nextGeneratedReferenceLabel();
+            $actualPlainLabel = $this->nextGeneratedReferenceLabel();
         } else {
-            $key = strtolower($label);
+            $key = $this->referenceLabelKey($label);
             $use = $this->referenceLabelUses[$key] ?? 0;
             $this->referenceLabelUses[$key] = $use + 1;
-            $actualLabel = $use === 0 && !isset($this->referenceUsedLabels[$key])
+            $actualPlainLabel = $use === 0 && !isset($this->referenceUsedLabels[$key])
                 ? $label
                 : $this->nextGeneratedReferenceLabel();
         }
 
-        $this->referenceUsedLabels[strtolower($actualLabel)] = true;
+        $actualLabel = [
+            'plain' => $actualPlainLabel,
+            'markdown' => $this->renderReferenceLabelText($actualPlainLabel),
+        ];
+        $this->referenceUsedLabels[$this->referenceLabelKey($actualPlainLabel)] = true;
         $this->referenceTargetLabels[$targetKey] = $actualLabel;
         $this->references[] = [
-            'label' => $actualLabel,
+            'label' => $actualLabel['markdown'],
             'url' => $url,
             'title' => $title,
             'attrs' => $attrs,
@@ -7408,9 +7563,7 @@ final class MarkdownWriter
     private function requiresGeneratedReferenceLabel(string $label): bool
     {
         return $label === ''
-            || strlen($label) > 999
-            || str_contains($label, '[')
-            || str_contains($label, ']');
+            || mb_strlen($label, 'UTF-8') > 999;
     }
 
     private function nextGeneratedReferenceLabel(): string
@@ -7418,9 +7571,14 @@ final class MarkdownWriter
         do {
             $this->lastReferenceIndex++;
             $candidate = (string) $this->lastReferenceIndex;
-        } while (isset($this->referenceUsedLabels[strtolower($candidate)]));
+        } while (isset($this->referenceUsedLabels[$this->referenceLabelKey($candidate)]));
 
         return $candidate;
+    }
+
+    private function referenceLabelKey(string $label): string
+    {
+        return mb_strtolower($label, 'UTF-8');
     }
 
     /**
@@ -7437,15 +7595,15 @@ final class MarkdownWriter
             return false;
         }
 
-        if ($next->type === 'softbreak' || $next->type === 'linebreak') {
+        if ($next->type === 'space' || $next->type === 'softbreak' || $next->type === 'linebreak') {
             return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
         }
 
         if ($next->type === 'raw_inline' || $next->type === 'raw_markdown' || $next->type === 'raw_html_inline') {
-            return !$this->startsWithReferenceSuffixConflict((string) $next->attr(
+            return !$this->startsWithReferenceSuffixConflict(ltrim((string) $next->attr(
                 'text',
                 $next->attr('markdown', $next->attr('html', ''))
-            ));
+            ), " \t\r\n"));
         }
 
         if ($next->type !== 'text') {
@@ -7464,7 +7622,7 @@ final class MarkdownWriter
         $withoutLeadingSpace = ltrim($text, " \t\r\n");
         if ($withoutLeadingSpace !== $text) {
             if ($withoutLeadingSpace !== '') {
-                return !str_starts_with($withoutLeadingSpace, '[');
+                return !$this->startsWithReferenceSuffixConflict($withoutLeadingSpace);
             }
 
             return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
@@ -7487,16 +7645,20 @@ final class MarkdownWriter
             return false;
         }
 
+        if ($next->type === 'space' || $next->type === 'softbreak' || $next->type === 'linebreak') {
+            return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
+        }
+
         if ($next->type === 'text') {
             $text = (string) $next->attr('text', '');
 
-            return $text === '' || !str_starts_with(ltrim($text, " \t\r\n"), '[');
+            return $text === '' || !$this->startsWithReferenceSuffixConflict(ltrim($text, " \t\r\n"));
         }
 
         if ($next->type === 'raw_inline' || $next->type === 'raw_markdown' || $next->type === 'raw_html_inline') {
             $raw = (string) $next->attr('text', $next->attr('markdown', $next->attr('html', '')));
 
-            return !str_starts_with(ltrim($raw, " \t\r\n"), '[');
+            return !$this->startsWithReferenceSuffixConflict(ltrim($raw, " \t\r\n"));
         }
 
         return true;
@@ -7507,6 +7669,7 @@ final class MarkdownWriter
         return str_starts_with($text, '[')
             || str_starts_with($text, '(')
             || str_starts_with($text, ':')
+            || str_starts_with($text, '{')
             || str_starts_with($text, ' [');
     }
 
@@ -7534,8 +7697,14 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function escapeText(string $text, array $following = [], bool $escapeInitialPlainMarker = false, bool $preserveSmartPunctuation = false): string
-    {
+    private function escapeText(
+        string $text,
+        array $following = [],
+        bool $escapeInitialPlainMarker = false,
+        bool $preserveSmartPunctuation = false,
+        bool $escapeAfterReference = false,
+        bool $escapeAfterReferenceBreak = false
+    ): string {
         $escaped = '';
         $length = strlen($text);
         $plainMarkerPrefixLength = $escapeInitialPlainMarker
@@ -7545,6 +7714,23 @@ final class MarkdownWriter
         for ($i = 0; $i < $length; $i++) {
             $char = $text[$i];
             $tail = substr($text, $i);
+
+            if ($i === 0 && $escapeAfterReference && preg_match('/^\t+(?=\{)/', $text, $match) === 1) {
+                $tabRunLength = strlen($match[0]);
+                $escaped .= str_repeat('&#9;', $tabRunLength);
+                $i += $tabRunLength - 1;
+                continue;
+            }
+
+            if ($i === 0 && $escapeAfterReference && $char === '{') {
+                $escaped .= '\\{';
+                continue;
+            }
+
+            if ($i === 0 && $escapeAfterReferenceBreak && $char === ':') {
+                $escaped .= '\\:';
+                continue;
+            }
 
             if ($i < $plainMarkerPrefixLength && str_contains('.()+-%', $char)) {
                 $escaped .= '\\' . $char;
@@ -8602,7 +8788,7 @@ final class MarkdownWriter
     private function linkDestinationNeedsAngles(string $url): bool
     {
         return $url === ''
-            || preg_match('/[\x00-\x1F\x7F<>]/u', $url) === 1;
+            || preg_match('/[\x00-\x20\x7F<>]/u', $url) === 1;
     }
 
     /**

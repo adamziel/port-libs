@@ -581,10 +581,13 @@ final class MarkdownReader
                 [$targetSource, $nextIndex] = $this->collectReferenceDefinitionTarget($lines, $index, $reference['content']);
                 $target = $this->parseLinkDestinationAndTitle($targetSource);
                 if ($target !== null) {
-                    $references[$this->normalizeReferenceLabel($reference['label'])] = [
-                        'url' => $target['url'],
-                        'title' => $target['title'],
-                    ];
+                    $referenceKey = $this->normalizeReferenceLabel($reference['label']);
+                    if (!isset($references[$referenceKey])) {
+                        $references[$referenceKey] = [
+                            'url' => $target['url'],
+                            'title' => $target['title'],
+                        ];
+                    }
                     $index = $nextIndex - 1;
                     continue;
                 }
@@ -661,7 +664,10 @@ final class MarkdownReader
 
     private function normalizeReferenceLabel(string $label): string
     {
-        return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
+        $label = $this->decodeHtmlEntities($this->unescapeLinkComponent($label));
+        $label = trim(preg_replace('/\s+/u', ' ', $label) ?? $label);
+
+        return mb_strtolower($label, 'UTF-8');
     }
 
     /**
@@ -914,14 +920,34 @@ final class MarkdownReader
      */
     private function tryParseReferenceDefinitionStart(string $line): ?array
     {
-        if (preg_match('/^ {0,3}\[(?!\^)([^\]\r\n]+)\]:[ \t]*(.*)$/', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}/', $line, $m) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($m[0]);
+        if (substr($line, $offset, 2) === '[^') {
+            return null;
+        }
+
+        $label = $this->parseBracketedLabel($line, $offset);
+        if (
+            $label === null
+            || $label['text'] === ''
+            || !$this->referenceLabelWithinLimit($label['text'])
+            || ($line[$label['next']] ?? '') !== ':'
+        ) {
             return null;
         }
 
         return [
-            'label' => $m[1],
-            'content' => rtrim($m[2]),
+            'label' => $label['text'],
+            'content' => rtrim(substr($line, $label['next'] + 1)),
         ];
+    }
+
+    private function referenceLabelWithinLimit(string $label): bool
+    {
+        return mb_strlen($this->normalizeReferenceLabel($label), 'UTF-8') <= 999;
     }
 
     /**
@@ -941,15 +967,77 @@ final class MarkdownReader
             }
         }
 
+        if ($this->referenceTargetCouldHaveMultilineTitle($target)) {
+            while ($cursor < $count && trim($lines[$cursor]) !== '') {
+                $target .= "\n" . trim($this->expandTabsToSpaces($lines[$cursor]));
+                $cursor++;
+                if ($this->parseLinkDestinationAndTitle($target) !== null) {
+                    return [$target, $cursor];
+                }
+            }
+        }
+
         if ($cursor < $count) {
             $candidate = trim($this->expandTabsToSpaces($lines[$cursor]));
             if ($this->parseLinkTitle($candidate) !== null) {
                 $target .= ' ' . $candidate;
                 $cursor++;
+            } elseif ($this->startsLinkTitle($candidate)) {
+                $title = $candidate;
+                $titleCursor = $cursor + 1;
+                while ($titleCursor < $count && trim($lines[$titleCursor]) !== '') {
+                    $title .= "\n" . trim($this->expandTabsToSpaces($lines[$titleCursor]));
+                    $titleCursor++;
+                    if ($this->parseLinkTitle($title) !== null) {
+                        $target .= ' ' . $title;
+                        $cursor = $titleCursor;
+                        break;
+                    }
+                }
             }
         }
 
         return [$target, $cursor];
+    }
+
+    private function referenceTargetCouldHaveMultilineTitle(string $target): bool
+    {
+        $target = trim($target);
+        if ($target === '') {
+            return false;
+        }
+
+        if ($target[0] === '<') {
+            [$destination, $rest] = $this->readLinkDestination($target);
+            if ($destination === null) {
+                return false;
+            }
+
+            $rest = trim($rest);
+
+            return $this->startsLinkTitle($rest) && $this->parseLinkTitle($rest) === null;
+        }
+
+        $length = strlen($target);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if (!ctype_space($target[$cursor])) {
+                continue;
+            }
+
+            $suffix = ltrim(substr($target, $cursor + 1));
+            if ($this->startsLinkTitle($suffix)) {
+                return $this->parseLinkTitle($suffix) === null;
+            }
+        }
+
+        return false;
+    }
+
+    private function startsLinkTitle(string $text): bool
+    {
+        $text = ltrim($text);
+
+        return $text !== '' && in_array($text[0], ['"', "'", '('], true);
     }
 
     /**
