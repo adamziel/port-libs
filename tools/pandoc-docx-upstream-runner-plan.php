@@ -19,6 +19,15 @@ Options:
   --write-selected-inventory PATH
                         Write the static selected DOCX test inventory JSON
                         artifact, relative to repo root unless absolute.
+  --validate-result-artifacts
+                        Validate targeted-runner result artifacts without
+                        executing Cabal/Tasty or recording a result.
+  --artifact-root PATH  Directory containing selected-test-inventory.json and
+                        result.json for --validate-result-artifacts. Defaults
+                        to .port-libs/pandoc-runner/artifacts/docx-targeted-run.
+  --log-root PATH       Directory containing targeted-runner transcripts for
+                        --validate-result-artifacts. Defaults to
+                        .port-libs/pandoc-runner/logs.
   --help                Show this help.
 
 The plan is evidence-only. It checks the DOCX-specific upstream runner source
@@ -52,6 +61,9 @@ try {
     $repoRoot = dirname(__DIR__);
     $upstreamRoot = DocxUpstreamRunnerPlan::DEFAULT_RELATIVE_UPSTREAM_ROOT;
     $selectedInventoryOutput = null;
+    $validateResultArtifacts = false;
+    $artifactRoot = DocxUpstreamRunnerPlan::DEFAULT_RELATIVE_ARTIFACT_ROOT;
+    $logRoot = DocxUpstreamRunnerPlan::DEFAULT_RELATIVE_LOG_ROOT;
     $json = false;
     $args = array_slice($argv, 1);
 
@@ -99,11 +111,32 @@ try {
             $selectedInventoryOutput = substr($arg, strlen('--write-selected-inventory='));
             continue;
         }
+        if ($arg === '--validate-result-artifacts') {
+            $validateResultArtifacts = true;
+            continue;
+        }
+        if ($arg === '--artifact-root') {
+            $artifactRoot = $nextValue('--artifact-root');
+            continue;
+        }
+        if (str_starts_with($arg, '--artifact-root=')) {
+            $artifactRoot = substr($arg, strlen('--artifact-root='));
+            continue;
+        }
+        if ($arg === '--log-root') {
+            $logRoot = $nextValue('--log-root');
+            continue;
+        }
+        if (str_starts_with($arg, '--log-root=')) {
+            $logRoot = substr($arg, strlen('--log-root='));
+            continue;
+        }
 
         throw new InvalidArgumentException("Unknown option: {$arg}");
     }
 
-    $report = (new DocxUpstreamRunnerPlan($repoRoot, $upstreamRoot))->report();
+    $plan = new DocxUpstreamRunnerPlan($repoRoot, $upstreamRoot);
+    $report = $plan->report();
 
     if ($selectedInventoryOutput !== null) {
         if ($selectedInventoryOutput === '') {
@@ -132,6 +165,10 @@ try {
             'evidenceKind' => DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_EVIDENCE_KIND,
             'claim' => 'Static selected DOCX source and fixture inventory artifact only; no Cabal command, upstream runner, or DOCX package comparison was executed.',
         ];
+    }
+
+    if ($validateResultArtifacts) {
+        $report['resultArtifactGate'] = $plan->resultArtifactGate($artifactRoot, $logRoot);
     }
 
     if ($json) {

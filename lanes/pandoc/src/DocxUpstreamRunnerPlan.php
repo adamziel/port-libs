@@ -14,6 +14,12 @@ final class DocxUpstreamRunnerPlan
     public const SELECTED_TEST_INVENTORY_EVIDENCE_KIND = 'static-docx-selected-test-inventory-only';
     public const SELECTED_TEST_INVENTORY_STATUS_REPORTED = 'reported-static-docx-selected-test-inventory';
     public const SELECTED_TEST_INVENTORY_STATUS_BLOCKED = 'blocked-missing-docx-upstream-source';
+    public const RESULT_ARTIFACT_GATE_EVIDENCE_KIND = 'targeted-docx-runner-result-artifact-gate-only';
+    public const RESULT_ARTIFACT_GATE_STATUS_MISSING = 'blocked-missing-targeted-runner-result-artifacts';
+    public const RESULT_ARTIFACT_GATE_STATUS_INVALID = 'blocked-invalid-targeted-runner-result-artifacts';
+    public const RESULT_ARTIFACT_GATE_STATUS_ADMISSIBLE = 'admissible-targeted-runner-result-artifacts-no-parity-claim';
+    public const DEFAULT_RELATIVE_ARTIFACT_ROOT = '.port-libs/pandoc-runner/artifacts/docx-targeted-run';
+    public const DEFAULT_RELATIVE_LOG_ROOT = '.port-libs/pandoc-runner/logs';
     public const TASTY_PATTERN = '($2 == "Readers" || $2 == "Writers") && $3 == "Docx"';
     public const RUNNER_TARGET = 'test:test-pandoc';
 
@@ -143,6 +149,16 @@ final class DocxUpstreamRunnerPlan
         $artifact = $report['selectedTestInventoryArtifact'] ?? [];
         if (is_array($artifact) && ($artifact['written'] ?? false) === true) {
             $lines[] = 'Selected inventory artifact: ' . (string) ($artifact['path'] ?? '');
+        }
+
+        $gate = $report['resultArtifactGate'] ?? [];
+        if (is_array($gate)) {
+            $lines[] = 'Result artifact gate: '
+                . (string) ($gate['status'] ?? 'unknown')
+                . '; admissionReady='
+                . self::boolText($gate['admissionReady'] ?? false)
+                . '; problems='
+                . count(is_array($gate['problems'] ?? null) ? $gate['problems'] : []);
         }
 
         $commands = $report['commands'] ?? [];
@@ -480,6 +496,228 @@ final class DocxUpstreamRunnerPlan
     /**
      * @return array<string, mixed>
      */
+    public function resultArtifactGate(
+        string $artifactRoot = self::DEFAULT_RELATIVE_ARTIFACT_ROOT,
+        string $logRoot = self::DEFAULT_RELATIVE_LOG_ROOT
+    ): array {
+        if ($artifactRoot === '') {
+            throw new \InvalidArgumentException('Runner artifact root must not be empty');
+        }
+        if ($logRoot === '') {
+            throw new \InvalidArgumentException('Runner log root must not be empty');
+        }
+
+        $artifactRootAbsolute = $this->absolutePath($artifactRoot);
+        $logRootAbsolute = $this->absolutePath($logRoot);
+        $artifacts = [
+            'dependencyDryRunTranscript' => $this->artifactFileRow(
+                $logRootAbsolute . DIRECTORY_SEPARATOR . 'runner-test-dependencies.txt'
+            ),
+            'listTestsTranscript' => $this->artifactFileRow(
+                $logRootAbsolute . DIRECTORY_SEPARATOR . 'docx-targeted-list-tests.txt'
+            ),
+            'targetedRunTranscript' => $this->artifactFileRow(
+                $logRootAbsolute . DIRECTORY_SEPARATOR . 'docx-targeted-run.txt'
+            ),
+            'selectedTestInventory' => $this->artifactFileRow(
+                $artifactRootAbsolute . DIRECTORY_SEPARATOR . 'selected-test-inventory.json'
+            ),
+            'resultJson' => $this->artifactFileRow(
+                $artifactRootAbsolute . DIRECTORY_SEPARATOR . 'result.json'
+            ),
+        ];
+
+        $problems = [];
+        foreach ($artifacts as $name => $row) {
+            if (($row['present'] ?? false) !== true) {
+                $problems[] = "Missing required artifact: {$name}";
+                continue;
+            }
+            if (($row['readable'] ?? false) !== true) {
+                $problems[] = "Required artifact is not readable: {$name}";
+                continue;
+            }
+            if ((int) ($row['bytes'] ?? 0) <= 0) {
+                $problems[] = "Required artifact is empty: {$name}";
+            }
+        }
+
+        $selectedInventory = $this->decodeJsonArtifact($artifacts['selectedTestInventory']['absolutePath'], 'selectedTestInventory', $problems);
+        if (is_array($selectedInventory)) {
+            if (($selectedInventory['evidenceKind'] ?? null) !== self::SELECTED_TEST_INVENTORY_EVIDENCE_KIND) {
+                $problems[] = 'Selected test inventory artifact has an unexpected evidenceKind';
+            }
+            if (($selectedInventory['skipped'] ?? true) !== false) {
+                $problems[] = 'Selected test inventory artifact is skipped and cannot gate a runner result';
+            }
+        }
+
+        $result = $this->decodeJsonArtifact($artifacts['resultJson']['absolutePath'], 'resultJson', $problems);
+        if (is_array($result)) {
+            $this->validateResultJson($result, $artifacts, $problems);
+        }
+
+        $missing = array_filter(
+            $artifacts,
+            static fn (array $row): bool => ($row['present'] ?? false) !== true
+                || ($row['readable'] ?? false) !== true
+                || (int) ($row['bytes'] ?? 0) <= 0
+        );
+        $admissionReady = $missing === [] && $problems === [];
+        $status = $admissionReady
+            ? self::RESULT_ARTIFACT_GATE_STATUS_ADMISSIBLE
+            : ($missing !== [] ? self::RESULT_ARTIFACT_GATE_STATUS_MISSING : self::RESULT_ARTIFACT_GATE_STATUS_INVALID);
+
+        return [
+            'schemaVersion' => 1,
+            'tool' => 'pandoc-docx-upstream-runner-plan',
+            'status' => $status,
+            'evidenceKind' => self::RESULT_ARTIFACT_GATE_EVIDENCE_KIND,
+            'admissionReady' => $admissionReady,
+            'runnerExecutedByThisTool' => false,
+            'resultRecordedByThisTool' => false,
+            'runnerExecutedClaimFromResult' => is_array($result) ? ($result['runnerExecuted'] ?? null) : null,
+            'artifactRoot' => $this->displayPath($artifactRootAbsolute),
+            'logRoot' => $this->displayPath($logRootAbsolute),
+            'requiredArtifacts' => $artifacts,
+            'resultSummary' => is_array($result) ? [
+                'upstreamCommit' => $result['upstreamCommit'] ?? null,
+                'exitCode' => $result['exitCode'] ?? null,
+                'selectedTestCount' => $result['selectedTestCount'] ?? null,
+                'passedCount' => $result['passedCount'] ?? null,
+                'failedCount' => $result['failedCount'] ?? null,
+                'skippedCount' => $result['skippedCount'] ?? null,
+            ] : null,
+            'problems' => $problems,
+            'claim' => 'Validates targeted DOCX runner artifact shape and hash binding only; it does not execute Cabal/Tasty or independently prove runner results.',
+            'claimBoundaries' => [
+                'doesAssert' => [
+                    'required transcript, selected inventory, and result JSON artifacts are present and structurally valid when admissionReady=true',
+                    'result JSON references the pinned DOCX runner target, Tasty pattern, counts, and artifact SHA-256 hashes',
+                ],
+                'doesNotAssert' => [
+                    'that this PHP tool executed Cabal, Tasty, or upstream Pandoc',
+                    'that a runner result is authentic without external transcript review',
+                    'that selected DOCX reader or writer tests pass unless the result artifact records those counts',
+                    'writer package parity or full DOCX/OpenXML parity',
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function artifactFileRow(string $absolutePath): array
+    {
+        $present = is_file($absolutePath);
+        $readable = $present && is_readable($absolutePath);
+        $contents = $readable ? file_get_contents($absolutePath) : false;
+
+        return [
+            'path' => $this->displayPath($absolutePath),
+            'absolutePath' => $absolutePath,
+            'present' => $present,
+            'readable' => $readable,
+            'bytes' => $contents === false ? 0 : strlen($contents),
+            'sha256' => $contents === false ? null : hash('sha256', $contents),
+        ];
+    }
+
+    /**
+     * @param list<string> $problems
+     * @return array<string, mixed>|null
+     */
+    private function decodeJsonArtifact(string $absolutePath, string $artifactName, array &$problems): ?array
+    {
+        if (!is_file($absolutePath) || !is_readable($absolutePath)) {
+            return null;
+        }
+
+        try {
+            $decoded = json_decode((string) file_get_contents($absolutePath), true, 512, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $exception) {
+            $problems[] = "{$artifactName} is not valid JSON: " . $exception->getMessage();
+
+            return null;
+        }
+
+        if (!is_array($decoded)) {
+            $problems[] = "{$artifactName} must decode to a JSON object";
+
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * @param array<string, mixed> $result
+     * @param array<string, array<string, mixed>> $artifacts
+     * @param list<string> $problems
+     */
+    private function validateResultJson(array $result, array $artifacts, array &$problems): void
+    {
+        foreach ($this->resultArtifactContract()['resultJsonRequiredFields'] as $field) {
+            if (!array_key_exists($field, $result)) {
+                $problems[] = "result.json is missing required field: {$field}";
+            }
+        }
+
+        if (($result['runnerExecuted'] ?? null) !== true) {
+            $problems[] = 'result.json must record runnerExecuted=true before a runner result can be admitted';
+        }
+        if (($result['upstreamCommit'] ?? null) !== self::PINNED_UPSTREAM_COMMIT) {
+            $problems[] = 'result.json upstreamCommit does not match the pinned DOCX runner commit';
+        }
+        if (($result['runnerTarget'] ?? null) !== self::RUNNER_TARGET) {
+            $problems[] = 'result.json runnerTarget does not match the targeted DOCX runner';
+        }
+        if (($result['tastyPattern'] ?? null) !== self::TASTY_PATTERN) {
+            $problems[] = 'result.json tastyPattern does not match the targeted DOCX pattern';
+        }
+
+        foreach (['exitCode', 'selectedTestCount', 'passedCount', 'failedCount', 'skippedCount'] as $field) {
+            if (!array_key_exists($field, $result) || !is_int($result[$field]) || $result[$field] < 0) {
+                $problems[] = "result.json {$field} must be a non-negative integer";
+            }
+        }
+
+        if (
+            is_int($result['selectedTestCount'] ?? null)
+            && is_int($result['passedCount'] ?? null)
+            && is_int($result['failedCount'] ?? null)
+            && is_int($result['skippedCount'] ?? null)
+            && $result['selectedTestCount'] !== $result['passedCount'] + $result['failedCount'] + $result['skippedCount']
+        ) {
+            $problems[] = 'result.json selectedTestCount must equal passedCount + failedCount + skippedCount';
+        }
+
+        $expectedHashes = [
+            'selectedTestInventorySha256' => $artifacts['selectedTestInventory']['sha256'] ?? null,
+            'dependencyDryRunTranscriptSha256' => $artifacts['dependencyDryRunTranscript']['sha256'] ?? null,
+            'listTestsTranscriptSha256' => $artifacts['listTestsTranscript']['sha256'] ?? null,
+            'targetedRunTranscriptSha256' => $artifacts['targetedRunTranscript']['sha256'] ?? null,
+        ];
+        foreach ($expectedHashes as $field => $expectedHash) {
+            if (is_string($expectedHash) && ($result[$field] ?? null) !== $expectedHash) {
+                $problems[] = "result.json {$field} does not match the recorded artifact SHA-256";
+            }
+        }
+
+        if (!is_string($result['commandLine'] ?? null) || !str_contains($result['commandLine'], self::RUNNER_TARGET)) {
+            $problems[] = 'result.json commandLine must include the targeted DOCX runner target';
+        }
+        foreach (['startedAtUtc', 'finishedAtUtc'] as $field) {
+            if (!is_string($result[$field] ?? null) || preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $result[$field]) !== 1) {
+                $problems[] = "result.json {$field} must be an ISO-8601 UTC timestamp";
+            }
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function workspace(): array
     {
         return [
@@ -580,9 +818,11 @@ final class DocxUpstreamRunnerPlan
                 '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
                 '.port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt',
                 '.port-libs/pandoc-runner/logs/docx-targeted-run.txt',
+                '.port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json',
                 '.port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json',
             ],
             'resultJsonRequiredFields' => [
+                'runnerExecuted',
                 'upstreamCommit',
                 'commandLine',
                 'exitCode',
@@ -594,6 +834,10 @@ final class DocxUpstreamRunnerPlan
                 'skippedCount',
                 'startedAtUtc',
                 'finishedAtUtc',
+                'selectedTestInventorySha256',
+                'dependencyDryRunTranscriptSha256',
+                'listTestsTranscriptSha256',
+                'targetedRunTranscriptSha256',
             ],
             'admissionRule' => 'Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout.',
         ];

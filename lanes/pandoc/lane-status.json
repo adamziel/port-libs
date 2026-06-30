@@ -126,6 +126,25 @@
                 ],
                 "executionPolicy": "metadata-only static source/fixture inventory; no Cabal command, Tasty runner, DOCX package-byte read, generated writer output, or pass/fail result is executed or asserted"
             },
+            "resultArtifactGate": {
+                "command": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs",
+                "evidenceKind": "targeted-docx-runner-result-artifact-gate-only",
+                "admissibleStatus": "admissible-targeted-runner-result-artifacts-no-parity-claim",
+                "requires": [
+                    ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-run.txt",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json"
+                ],
+                "checks": [
+                    "required artifact presence and non-empty readability",
+                    "result.json required fields, pinned upstream commit, runner target, Tasty pattern, and pass/fail/skip count consistency",
+                    "result.json SHA-256 fields bound to the selected inventory and transcript artifacts",
+                    "runnerExecuted=true inside result.json before artifacts can be admitted"
+                ],
+                "executionPolicy": "artifact-shape and hash-binding validation only; this PHP gate does not execute Cabal/Tasty, independently prove transcript authenticity, record a runner result, or claim DOCX/OpenXML parity"
+            },
             "resultRecorded": false,
             "runnerExecuted": false,
             "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
@@ -251,9 +270,11 @@
                     ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
                     ".port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt",
                     ".port-libs/pandoc-runner/logs/docx-targeted-run.txt",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
                     ".port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json"
                 ],
                 "resultJsonRequiredFields": [
+                    "runnerExecuted",
                     "upstreamCommit",
                     "commandLine",
                     "exitCode",
@@ -264,12 +285,16 @@
                     "failedCount",
                     "skippedCount",
                     "startedAtUtc",
-                    "finishedAtUtc"
+                    "finishedAtUtc",
+                    "selectedTestInventorySha256",
+                    "dependencyDryRunTranscriptSha256",
+                    "listTestsTranscriptSha256",
+                    "targetedRunTranscriptSha256"
                 ],
                 "admissionRule": "Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout."
             },
             "honestClaim": "This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result."
         }
     },
-    "latestFocusedSlice": "2026-06-30 docx-r9-writer-runner: extended the guarded DOCX upstream runner preflight plan so a hydrated checkout can write .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json with selected DOCX reader/writer source group identifiers, candidate static Haskell source labels, and root/golden fixture names, stems, and byte sizes. The artifact remains static inventory only: no Cabal command, Tasty --list-tests output, upstream Haskell runner, DOCX package-byte read, generated DocxWriter output, writer package comparison, or full DOCX/OpenXML parity is claimed. Focused validation passed php -l for DocxUpstreamRunnerPlan.php, pandoc-docx-upstream-runner-plan.php, DocxUpstreamRunnerPlanTest.php, and DocxParityEvidenceStatusTest.php; JSON metadata decode for lane-status and UPSTREAM_TEST_MANIFEST; CLI blocked-preflight JSON smoke; and php tools/run-tests.php for DocxUpstreamRunnerPlanTest.php plus DocxParityEvidenceStatusTest.php with 220 assertions and 0 failures."
+    "latestFocusedSlice": "2026-06-30 docx-r10-writer-runner-progress: added an executable targeted DOCX runner result artifact gate to pandoc-docx-upstream-runner-plan. The gate validates required dry-run/list/run transcripts, selected-test-inventory.json, result.json required fields, pinned upstream commit, runner target, Tasty pattern, count consistency, and SHA-256 binding across artifacts before any future runner result can be admitted. It does not execute Cabal/Tasty, independently prove transcript authenticity, record runner results, generate DocxWriter output, compare writer packages, or claim full DOCX/OpenXML parity. Focused validation passed php -l for DocxUpstreamRunnerPlan.php, pandoc-docx-upstream-runner-plan.php, DocxUpstreamRunnerPlanTest.php, and DocxParityEvidenceStatusTest.php; JSON metadata decode for lane-status and UPSTREAM_TEST_MANIFEST; CLI blocked-preflight/result-gate smoke; and php tools/run-tests.php for DocxUpstreamRunnerPlanTest.php plus DocxParityEvidenceStatusTest.php with 243 assertions and 0 failures."
 }

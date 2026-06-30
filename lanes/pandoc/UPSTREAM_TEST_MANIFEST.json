@@ -1738,6 +1738,25 @@
                 ],
                 "executionPolicy": "metadata-only static source/fixture inventory; no Cabal command, Tasty runner, DOCX package-byte read, generated writer output, or pass/fail result is executed or asserted"
             },
+            "resultArtifactGate": {
+                "command": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs",
+                "evidenceKind": "targeted-docx-runner-result-artifact-gate-only",
+                "admissibleStatus": "admissible-targeted-runner-result-artifacts-no-parity-claim",
+                "requires": [
+                    ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt",
+                    ".port-libs/pandoc-runner/logs/docx-targeted-run.txt",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json"
+                ],
+                "checks": [
+                    "required artifact presence and non-empty readability",
+                    "result.json required fields, pinned upstream commit, runner target, Tasty pattern, and pass/fail/skip count consistency",
+                    "result.json SHA-256 fields bound to the selected inventory and transcript artifacts",
+                    "runnerExecuted=true inside result.json before artifacts can be admitted"
+                ],
+                "executionPolicy": "artifact-shape and hash-binding validation only; this PHP gate does not execute Cabal/Tasty, independently prove transcript authenticity, record a runner result, or claim DOCX/OpenXML parity"
+            },
             "resultRecorded": false,
             "runnerExecuted": false,
             "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
@@ -1863,9 +1882,11 @@
                     ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
                     ".port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt",
                     ".port-libs/pandoc-runner/logs/docx-targeted-run.txt",
+                    ".port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json",
                     ".port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json"
                 ],
                 "resultJsonRequiredFields": [
+                    "runnerExecuted",
                     "upstreamCommit",
                     "commandLine",
                     "exitCode",
@@ -1876,7 +1897,11 @@
                     "failedCount",
                     "skippedCount",
                     "startedAtUtc",
-                    "finishedAtUtc"
+                    "finishedAtUtc",
+                    "selectedTestInventorySha256",
+                    "dependencyDryRunTranscriptSha256",
+                    "listTestsTranscriptSha256",
+                    "targetedRunTranscriptSha256"
                 ],
                 "admissionRule": "Do not set resultRecorded=true until command transcript, exit code, selected test inventory, and pass/fail counts are captured for the pinned upstream checkout."
             },

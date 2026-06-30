@@ -182,6 +182,13 @@ return [
         $t->same('reported-static-docx-selected-test-inventory', $selectedInventoryArtifact['statusWhenHydrated'] ?? null);
         $t->contains('static source/fixture inventory', (string) ($selectedInventoryArtifact['executionPolicy'] ?? ''));
         $t->contains('no Cabal command', (string) ($selectedInventoryArtifact['executionPolicy'] ?? ''));
+        $resultArtifactGate = $runnerPlan['resultArtifactGate'] ?? [];
+        $t->true(is_array($resultArtifactGate), 'DOCX runner plan must name the result artifact gate');
+        $t->same('tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs', $resultArtifactGate['command'] ?? null);
+        $t->same('targeted-docx-runner-result-artifact-gate-only', $resultArtifactGate['evidenceKind'] ?? null);
+        $t->same('admissible-targeted-runner-result-artifacts-no-parity-claim', $resultArtifactGate['admissibleStatus'] ?? null);
+        $t->contains('result.json SHA-256 fields bound', implode("\n", is_array($resultArtifactGate['checks'] ?? null) ? $resultArtifactGate['checks'] : []));
+        $t->contains('does not execute Cabal/Tasty', (string) ($resultArtifactGate['executionPolicy'] ?? ''));
         $t->same(false, $runnerPlan['resultRecorded'] ?? null);
         $t->same(false, $runnerPlan['runnerExecuted'] ?? null);
         $t->same('test:test-pandoc', $runnerPlan['runnerTarget'] ?? null);
@@ -203,8 +210,12 @@ return [
         $t->contains('--list-tests --pattern', (string) ($runnerPlan['futureListTestsCommand']['commandLine'] ?? ''));
         $t->same('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $runnerPlan['futureListTestsCommand']['arguments'][8] ?? null);
         $t->same('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $runnerPlan['futureTargetedRunCommand']['arguments'][7] ?? null);
+        $t->contains('.port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', implode(',', $runnerPlan['resultArtifactContract']['requiredBeforeResultRecorded'] ?? []));
         $t->contains('.port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json', implode(',', $runnerPlan['resultArtifactContract']['requiredBeforeResultRecorded'] ?? []));
+        $t->contains('runnerExecuted', implode(',', $runnerPlan['resultArtifactContract']['resultJsonRequiredFields'] ?? []));
         $t->contains('exitCode', implode(',', $runnerPlan['resultArtifactContract']['resultJsonRequiredFields'] ?? []));
+        $t->contains('selectedTestInventorySha256', implode(',', $runnerPlan['resultArtifactContract']['resultJsonRequiredFields'] ?? []));
+        $t->contains('targetedRunTranscriptSha256', implode(',', $runnerPlan['resultArtifactContract']['resultJsonRequiredFields'] ?? []));
         $t->contains('not executed by this audit', (string) ($runnerPlan['futureTargetedRunCommand']['executionPolicy'] ?? ''));
         $t->contains('not an upstream DOCX runner result', (string) ($runnerPlan['honestClaim'] ?? ''));
 
@@ -213,7 +224,8 @@ return [
         $t->contains('full upstream DOCX parity is not defensible', $pandocStatus);
         $t->contains('DOCX runner evidence plan records `test:test-pandoc`', $pandocStatus);
         $t->contains('--write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json', $pandocStatus);
-        $t->contains('no upstream Haskell/Cabal DOCX runner result, Tasty `--list-tests` output, DOCX package-byte read', $pandocStatus);
+        $t->contains('--validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs', $pandocStatus);
+        $t->contains('no upstream Haskell/Cabal DOCX runner result, Tasty `--list-tests` output', $pandocStatus);
         $t->contains('2 checked-in current-upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('0 checked-in pinned upstream `.docx` package fixtures', $pandocStatus);
         $t->contains('UPSTREAM_DOCX_CACHE_MANIFEST.json', $pandocStatus);
