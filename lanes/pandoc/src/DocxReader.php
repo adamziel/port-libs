@@ -1409,7 +1409,7 @@ final class DocxReader
 
     private function paragraph(\DOMElement $paragraph): ?AstNode
     {
-        $inlines = $this->inlineChildren($paragraph);
+        $inlines = $this->trimInlineBoundaryText($this->inlineChildren($paragraph));
         $text = $this->plainText($inlines);
         $level = $this->headingLevel($paragraph);
         if ($text === '' && !$this->hasNonWhitespaceInlineContent($inlines)) {
@@ -4608,15 +4608,15 @@ final class DocxReader
     private function styledRunNodes(array $nodes, array $style): array
     {
         if (($style['code'] ?? false) && $nodes !== [] && $this->allNodesHaveType($nodes, 'text')) {
-            return [new AstNode('code', ['text' => $this->nodeText(new AstNode('span', [], $nodes))])];
+            $nodes = [new AstNode('code', ['text' => $this->nodeText(new AstNode('span', [], $nodes))])];
         }
 
         foreach ([
-            'strong' => 'strong',
-            'emph' => 'emph',
             'underline' => 'underline',
             'strikeout' => 'strikeout',
             'small_caps' => 'small_caps',
+            'strong' => 'strong',
+            'emph' => 'emph',
             'superscript' => 'superscript',
             'subscript' => 'subscript',
         ] as $styleKey => $nodeType) {
@@ -5510,6 +5510,37 @@ final class DocxReader
         }
 
         return $this->mergeAdjacentText($normalized);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function trimInlineBoundaryText(array $nodes): array
+    {
+        $firstIndex = array_key_first($nodes);
+        if ($firstIndex !== null && $nodes[$firstIndex]->type === 'text') {
+            $text = (string) $nodes[$firstIndex]->attr('text', '');
+            $trimmed = preg_replace('/^\s+/u', '', $text) ?? $text;
+            if ($trimmed === '') {
+                unset($nodes[$firstIndex]);
+            } elseif ($trimmed !== $text) {
+                $nodes[$firstIndex] = new AstNode('text', ['text' => $trimmed]);
+            }
+        }
+
+        $lastIndex = array_key_last($nodes);
+        if ($lastIndex !== null && $nodes[$lastIndex]->type === 'text') {
+            $text = (string) $nodes[$lastIndex]->attr('text', '');
+            $trimmed = preg_replace('/\s+$/u', '', $text) ?? $text;
+            if ($trimmed === '') {
+                unset($nodes[$lastIndex]);
+            } elseif ($trimmed !== $text) {
+                $nodes[$lastIndex] = new AstNode('text', ['text' => $trimmed]);
+            }
+        }
+
+        return array_values($nodes);
     }
 
     private function canMergeInlineSiblings(?AstNode $left, AstNode $right): bool

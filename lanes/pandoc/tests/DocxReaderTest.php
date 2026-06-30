@@ -253,6 +253,53 @@ return [
         $t->same(['text', 'code', 'text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
         $t->same('inline   code', $paragraph->children[1]->attr('text'));
     },
+    'nests docx direct underline inside strong and emphasis wrappers' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:rPr><w:i/><w:u w:val="single"/></w:rPr><w:t>italic underlined</w:t></w:r></w:p><w:p><w:r><w:rPr><w:b/><w:u w:val="single"/></w:rPr><w:t>bold underlined</w:t></w:r></w:p><w:p><w:r><w:rPr><w:b/><w:i/><w:u w:val="single"/></w:rPr><w:t>bold italic underlined</w:t></w:r></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $italicUnderline = $document->children[0]->children[0];
+        $boldUnderline = $document->children[1]->children[0];
+        $boldItalicUnderline = $document->children[2]->children[0];
+
+        $t->same('emph', $italicUnderline->type);
+        $t->same('underline', $italicUnderline->children[0]->type);
+        $t->same('italic underlined', $italicUnderline->children[0]->children[0]->attr('text'));
+        $t->same('strong', $boldUnderline->type);
+        $t->same('underline', $boldUnderline->children[0]->type);
+        $t->same('bold underlined', $boldUnderline->children[0]->children[0]->attr('text'));
+        $t->same('emph', $boldItalicUnderline->type);
+        $t->same('strong', $boldItalicUnderline->children[0]->type);
+        $t->same('underline', $boldItalicUnderline->children[0]->children[0]->type);
+        $t->same('bold italic underlined', $boldItalicUnderline->children[0]->children[0]->children[0]->attr('text'));
+    },
+    'wraps docx verbatim superscript and subscript around inline code' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
+        $bytes = $buildDocxReaderPackagePartsBytes([
+            '[Content_Types].xml' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/></Types>',
+            'word/styles.xml' => '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/></w:style></w:styles>',
+            'word/document.xml' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>m</w:t></w:r><w:r><w:rPr><w:rStyle w:val="VerbatimChar"/><w:vertAlign w:val="superscript"/></w:rPr><w:t>2</w:t></w:r></w:p><w:p><w:r><w:t>m</w:t></w:r><w:r><w:rPr><w:rStyle w:val="VerbatimChar"/><w:vertAlign w:val="subscript"/></w:rPr><w:t>2</w:t></w:r></w:p></w:body></w:document>',
+        ]);
+
+        $document = (new DocxReader())->read($bytes);
+        $superscript = $document->children[0]->children[1];
+        $subscript = $document->children[1]->children[1];
+
+        $t->same('superscript', $superscript->type);
+        $t->same('code', $superscript->children[0]->type);
+        $t->same('2', $superscript->children[0]->attr('text'));
+        $t->same('subscript', $subscript->type);
+        $t->same('code', $subscript->children[0]->type);
+        $t->same('2', $subscript->children[0]->attr('text'));
+    },
+    'trims docx paragraph boundary text while preserving interior spaces' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">  List paragraph with more indent </w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve">Keep </w:t></w:r><w:r><w:t>middle</w:t></w:r><w:r><w:t xml:space="preserve"> space </w:t></w:r></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+
+        $t->same('List paragraph with more indent', $document->children[0]->attr('text'));
+        $t->same('List paragraph with more indent', $document->children[0]->children[0]->attr('text'));
+        $t->same('Keep middle space', $document->children[1]->attr('text'));
+        $t->same('Keep middle space', $document->children[1]->children[0]->attr('text'));
+    },
     'merges docx drop-cap frame paragraphs into following paragraph text' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:framePr w:dropCap="drop" w:lines="3"/></w:pPr><w:r><w:t>D</w:t></w:r></w:p><w:p><w:r><w:t>rop cap.</w:t></w:r></w:p><w:p><w:r><w:t>Next paragraph.</w:t></w:r></w:p><w:p><w:pPr><w:framePr w:dropCap="margin" w:lines="3"/></w:pPr><w:r><w:t>D</w:t></w:r></w:p><w:p><w:r><w:t>rop cap in margin.</w:t></w:r></w:p><w:p><w:r><w:t>Drop cap (not really).</w:t></w:r></w:p></w:body></w:document>');
 
