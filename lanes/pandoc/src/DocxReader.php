@@ -390,6 +390,7 @@ final class DocxReader
         $pendingDefinitionTerm = null;
         $pendingDefinitionBlocks = [];
         $pendingDropCap = null;
+        $pendingTableCaption = null;
         $activeStyleNumbering = [];
 
         $flushList = function () use (&$blocks, &$pendingListRecords): void {
@@ -457,6 +458,15 @@ final class DocxReader
             $flushDefinitionList();
         };
 
+        $flushTableCaption = function () use (&$blocks, &$pendingTableCaption): void {
+            if (!$pendingTableCaption instanceof AstNode) {
+                return;
+            }
+
+            $blocks[] = $pendingTableCaption;
+            $pendingTableCaption = null;
+        };
+
         foreach ($this->transparentChildElements($body) as $child) {
             if ($child->localName === 'p') {
                 $styleId = $this->paragraphStyleId($child);
@@ -474,6 +484,18 @@ final class DocxReader
                 if (!$paragraph instanceof AstNode) {
                     $flushCodeBlock();
                     continue;
+                }
+                if ($paragraph->type === 'paragraph' && $this->isTableCaptionParagraph($child, $paragraph, $styleId)) {
+                    $flushPendingBlocks();
+                    if (!$this->attachCaptionToLastTable($blocks, $paragraph, 'following-table')) {
+                        $flushTableCaption();
+                        $pendingTableCaption = $paragraph;
+                    }
+                    continue;
+                }
+                if ($pendingTableCaption instanceof AstNode) {
+                    $flushPendingBlocks();
+                    $flushTableCaption();
                 }
                 if ($paragraph->type === 'paragraph' && $this->paragraphIsDropCapFrame($child)) {
                     $flushPendingBlocks();
@@ -621,16 +643,23 @@ final class DocxReader
             }
             if ($child->localName === 'tbl') {
                 $flushPendingBlocks();
-                $blocks[] = $this->table($child);
+                $table = $this->table($child);
+                if ($pendingTableCaption instanceof AstNode) {
+                    $table = $this->tableWithCaption($table, $pendingTableCaption, 'preceding-table');
+                    $pendingTableCaption = null;
+                }
+                $blocks[] = $table;
                 continue;
             }
             if ($child->localName === 'sdt') {
                 $flushPendingBlocks();
+                $flushTableCaption();
                 array_push($blocks, ...$this->contentControlBlocks($child));
                 continue;
             }
             if ($child->localName === 'oMathPara') {
                 $flushPendingBlocks();
+                $flushTableCaption();
                 $math = $this->ommlMath($child, true);
                 if ($math instanceof AstNode) {
                     $blocks[] = new AstNode('plain', [], [$math]);
@@ -639,8 +668,170 @@ final class DocxReader
         }
 
         $flushPendingBlocks();
+        $flushTableCaption();
 
         return $blocks;
+    }
+
+    private function isTableCaptionParagraph(\DOMElement $paragraph, AstNode $node, string $styleId): bool
+    {
+        if (!$this->paragraphHasCaptionStyle($styleId)) {
+            return false;
+        }
+
+        $text = trim((string) $node->attr('text', ''));
+        if (preg_match('/^Table\b/u', $text) === 1) {
+            return true;
+        }
+
+        return $this->paragraphHasSequenceField($paragraph, 'Table');
+    }
+
+    private function paragraphHasCaptionStyle(string $styleId): bool
+    {
+        if ($styleId === '') {
+            return false;
+        }
+
+        foreach ($this->styleChainIds($styleId) as $candidateStyleId) {
+            $style = $this->styles[$candidateStyleId] ?? [];
+            foreach ([$candidateStyleId, (string) ($style['styleName'] ?? '')] as $candidate) {
+                $normalized = strtolower(preg_replace('/[^a-z0-9]+/i', '', $candidate) ?? '');
+                if ($normalized === 'caption') {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private function paragraphHasSequenceField(\DOMElement $paragraph, string $sequenceName): bool
+    {
+        $needle = 'seq ' . strtolower($sequenceName);
+        foreach ($paragraph->getElementsByTagNameNS(self::W_NS, 'instrText') as $instruction) {
+            if ($instruction instanceof \DOMElement && str_contains(strtolower($this->normalizeFieldInstruction($instruction->textContent)), $needle)) {
+                return true;
+            }
+        }
+
+        foreach ($paragraph->getElementsByTagNameNS(self::W_NS, 'fldSimple') as $field) {
+            if (!$field instanceof \DOMElement) {
+                continue;
+            }
+            if (str_contains(strtolower($this->normalizeFieldInstruction($this->attr($field, self::W_NS, 'instr'))), $needle)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function attachCaptionToLastTable(array &$blocks, AstNode $caption, string $position): bool
+    {
+        $lastIndex = array_key_last($blocks);
+        $last = $lastIndex === null ? null : $blocks[$lastIndex];
+        if (!$last instanceof AstNode || $last->type !== 'table' || (string) $last->attr('caption', '') !== '') {
+            return false;
+        }
+
+        $blocks[$lastIndex] = $this->tableWithCaption($last, $caption, $position);
+
+        return true;
+    }
+
+    private function tableWithCaption(AstNode $table, AstNode $caption, string $position): AstNode
+    {
+        $captionInlines = $this->tableCaptionInlines($caption->children);
+        $captionText = $this->plainText($captionInlines);
+        if ($captionText === '') {
+            return $table;
+        }
+
+        return new AstNode('table', array_replace($table->attrs, [
+            'caption' => $captionText,
+            'captionInlines' => $captionInlines,
+            'captionBlocks' => [
+                new AstNode('paragraph', ['text' => $captionText], $captionInlines),
+            ],
+            'captionSource' => [
+                'source' => 'docx-table-caption-paragraph',
+                'sourceElement' => 'w:p',
+                'sourcePosition' => $position,
+                'sourceAttributes' => [
+                    'classes' => ['docx-table-caption'],
+                    'attributes' => [
+                        'data-docx-table-caption-source' => $position,
+                    ],
+                ],
+            ],
+        ]), $table->children);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<AstNode>
+     */
+    private function tableCaptionInlines(array $inlines): array
+    {
+        $captionInlines = [];
+        foreach ($inlines as $inline) {
+            $anchor = $this->captionBookmarkAnchor($inline);
+            if ($anchor instanceof AstNode) {
+                $captionInlines[] = $anchor;
+                continue;
+            }
+
+            if ($this->isRawBookmarkInline($inline)) {
+                continue;
+            }
+
+            if ($this->isSequenceFieldSpan($inline)) {
+                array_push($captionInlines, ...$inline->children);
+                continue;
+            }
+
+            $captionInlines[] = $inline;
+        }
+
+        return $this->mergeAdjacentText($captionInlines);
+    }
+
+    private function captionBookmarkAnchor(AstNode $node): ?AstNode
+    {
+        $name = $this->rawBookmarkStartName($node);
+        if ($name === null || !str_starts_with($name, '_Ref')) {
+            return null;
+        }
+
+        return new AstNode('span', [
+            'id' => $name,
+            'classes' => ['anchor'],
+        ]);
+    }
+
+    private function isSequenceFieldSpan(AstNode $node): bool
+    {
+        if ($node->type !== 'span') {
+            return false;
+        }
+
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes) || !in_array('docx-field', $classes, true)) {
+            return false;
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($attributes)) {
+            return false;
+        }
+
+        $instruction = (string) ($attributes['data-docx-field-instruction'] ?? '');
+
+        return str_starts_with(strtoupper($instruction), 'SEQ ');
     }
 
     /**
@@ -743,11 +934,24 @@ final class DocxReader
     {
         $inlines = $this->inlineChildren($paragraph);
         $text = $this->plainText($inlines);
+        $level = $this->headingLevel($paragraph);
         if ($text === '' && !$this->hasNonWhitespaceInlineContent($inlines)) {
-            return null;
+            if ($level === null) {
+                return null;
+            }
+
+            return new AstNode('heading', [
+                'level' => $level,
+                'id' => $this->uniqueHeadingIdentifier($text),
+                'text' => $text,
+            ], $inlines);
         }
 
-        $level = $this->headingLevel($paragraph);
+        $figure = $this->figureFromImageWithTextboxCaption($inlines);
+        if ($figure instanceof AstNode) {
+            return $figure;
+        }
+
         if ($level !== null) {
             return new AstNode('heading', [
                 'level' => $level,
@@ -757,6 +961,95 @@ final class DocxReader
         }
 
         return new AstNode('paragraph', ['text' => $text], $inlines);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function figureFromImageWithTextboxCaption(array $inlines): ?AstNode
+    {
+        $image = null;
+        $caption = null;
+
+        foreach ($inlines as $inline) {
+            if ($inline->type === 'image') {
+                if ($image instanceof AstNode) {
+                    return null;
+                }
+                $image = $inline;
+                continue;
+            }
+
+            if ($this->isTextboxCaptionSpan($inline)) {
+                if ($caption instanceof AstNode) {
+                    return null;
+                }
+                $caption = $inline;
+                continue;
+            }
+
+            if (!$this->isWhitespaceInlineNode($inline)) {
+                return null;
+            }
+        }
+
+        if (!$image instanceof AstNode || !$caption instanceof AstNode) {
+            return null;
+        }
+
+        $captionInlines = $caption->children;
+        $captionText = $this->plainText($captionInlines);
+        if ($captionText === '') {
+            return null;
+        }
+
+        $attributes = [
+            'data-docx-figure-caption-source' => 'textbox',
+        ];
+        $captionAttributes = $caption->attr('attributes', []);
+        if (is_array($captionAttributes)) {
+            foreach ($captionAttributes as $name => $value) {
+                $attributes[(string) $name] = $value;
+            }
+        }
+
+        return new AstNode('figure', [
+            'caption' => $captionText,
+            'captionInlines' => $captionInlines,
+            'captionBlocks' => [
+                new AstNode('plain', [], $captionInlines),
+            ],
+            'attributes' => $attributes,
+        ], [
+            new AstNode('plain', [], [$image]),
+        ]);
+    }
+
+    private function isTextboxCaptionSpan(AstNode $node): bool
+    {
+        if ($node->type !== 'span') {
+            return false;
+        }
+
+        $classes = $node->attr('classes', []);
+        if (!is_array($classes) || !in_array('docx-textbox', $classes, true)) {
+            return false;
+        }
+
+        return $this->plainText($node->children) !== '';
+    }
+
+    private function isWhitespaceInlineNode(AstNode $node): bool
+    {
+        if (in_array($node->type, ['space', 'softbreak', 'linebreak'], true)) {
+            return true;
+        }
+
+        if ($node->type === 'text') {
+            return trim((string) $node->attr('text', '')) === '';
+        }
+
+        return false;
     }
 
     /**
@@ -1244,14 +1537,14 @@ final class DocxReader
             return [];
         }
 
-        $attrs = $this->contentControlAttributes($control, 'block');
-        if ($this->contentControlHasOnlyGeneratedIdAttributes($attrs)) {
+        $attributes = $this->contentControlAttributes($control, 'block');
+        if ($this->shouldUnwrapContentControl($attributes)) {
             return $blocks;
         }
 
         return [new AstNode('div', [
             'classes' => ['docx-content-control', 'docx-content-control-block'],
-            'attributes' => $attrs,
+            'attributes' => $attributes,
         ], $blocks)];
     }
 
@@ -1273,15 +1566,30 @@ final class DocxReader
             return [];
         }
 
-        $attrs = $this->contentControlAttributes($control, 'inline');
-        if ($this->contentControlHasOnlyGeneratedIdAttributes($attrs)) {
+        $attributes = $this->contentControlAttributes($control, 'inline');
+        if ($this->shouldUnwrapContentControl($attributes)) {
             return $inlines;
         }
 
         return [new AstNode('span', [
             'classes' => ['docx-content-control', 'docx-content-control-inline'],
-            'attributes' => $attrs,
+            'attributes' => $attributes,
         ], $inlines)];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function shouldUnwrapContentControl(array $attributes): bool
+    {
+        $metadata = $attributes;
+        unset(
+            $metadata['data-docx-content-control-display'],
+            $metadata['data-docx-content-control-id'],
+            $metadata['data-docx-content-control-metadata']
+        );
+
+        return $metadata === [];
     }
 
     /**
@@ -1369,20 +1677,6 @@ final class DocxReader
         }
 
         return $attrs;
-    }
-
-    /**
-     * @param array<string, string> $attrs
-     */
-    private function contentControlHasOnlyGeneratedIdAttributes(array $attrs): bool
-    {
-        foreach (array_keys($attrs) as $name) {
-            if (!in_array($name, ['data-docx-content-control-display', 'data-docx-content-control-id'], true)) {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     private function contentControlTypeElement(\DOMElement $properties): ?\DOMElement

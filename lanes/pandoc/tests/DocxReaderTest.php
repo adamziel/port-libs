@@ -1467,6 +1467,37 @@ XML;
         $t->contains('<p>Generated block</p>', $blocks);
         $t->contains('<p>Inline generated control</p>', $blocks);
     },
+    'unwraps metadata-light nested docx content controls' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:sdt><w:sdtPr><w:id w:val="2002772120"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Test Paragraph1</w:t></w:r></w:p><w:p/><w:sdt><w:sdtPr><w:id w:val="725036187"/></w:sdtPr><w:sdtContent><w:p><w:r><w:t>Test Paragraph2</w:t></w:r></w:p></w:sdtContent></w:sdt><w:p/><w:p><w:r><w:t>Test Paragraph3</w:t></w:r></w:p></w:sdtContent></w:sdt></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same(['Test Paragraph1', 'Test Paragraph2', 'Test Paragraph3'], array_map(static fn ($node): string => (string) $node->attr('text', ''), $document->children));
+        $t->true(!str_contains($blocks, 'docx-content-control'), 'Metadata-light SDTs should not introduce wrapper blocks');
+    },
+    'folds docx table caption paragraphs into adjacent tables' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
+        $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>See Table 1.</w:t></w:r></w:p><w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:bookmarkStart w:id="1" w:name="_RefTable1"/><w:r><w:t xml:space="preserve">Table </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> SEQ Table \* ARABIC </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:bookmarkEnd w:id="1"/></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>Count</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:pStyle w:val="Heading2"/></w:pPr><w:bookmarkStart w:id="2" w:name="_TocHeading"/><w:bookmarkEnd w:id="2"/></w:p><w:tbl><w:tr><w:tc><w:p><w:r><w:t>One</w:t></w:r></w:p></w:tc></w:tr></w:tbl><w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr><w:bookmarkStart w:id="3" w:name="_RefTable2"/><w:r><w:t xml:space="preserve">Table </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> SEQ Table \* ARABIC </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>2</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r><w:bookmarkEnd w:id="3"/></w:p><w:p><w:r><w:t>See Table 2.</w:t></w:r></w:p></w:body></w:document>');
+
+        $document = (new DocxReader())->read($bytes);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $firstTable = $document->children[1];
+        $heading = $document->children[2];
+        $secondTable = $document->children[3];
+
+        $t->same(['paragraph', 'table', 'heading', 'table', 'paragraph'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('Table 1', $firstTable->attr('caption'));
+        $t->same('Table 2', $secondTable->attr('caption'));
+        $t->same('preceding-table', $firstTable->attr('captionSource')['sourcePosition']);
+        $t->same('following-table', $secondTable->attr('captionSource')['sourcePosition']);
+        $t->same('span', $firstTable->attr('captionInlines')[0]->type);
+        $t->same('_RefTable1', $firstTable->attr('captionInlines')[0]->attr('id'));
+        $t->same('heading', $heading->type);
+        $t->same(2, $heading->attr('level'));
+        $t->contains('data-docx-table-caption-source="preceding-table"><p><span id="_RefTable1" class="anchor"', $blocks);
+        $t->contains('data-docx-table-caption-source="following-table"><p><span id="_RefTable2" class="anchor"', $blocks);
+    },
     'places docx table header rows in table head' => static function (TestRunner $t) use ($buildDocxReaderPackageBytes): void {
         $bytes = $buildDocxReaderPackageBytes('<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:tbl><w:tr><w:trPr><w:tblHeader/></w:trPr><w:tc><w:p><w:r><w:t>Field</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Value</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:trPr><w:tblHeader w:val="0"/></w:trPr><w:tc><w:p><w:r><w:t>Draft flag</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>False header row</w:t></w:r></w:p></w:tc></w:tr><w:tr><w:tc><w:p><w:r><w:t>Total</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr></w:tbl></w:body></w:document>');
 
@@ -1526,6 +1557,68 @@ XML;
         $t->same('Body copy', $row->children[1]->attr('text'));
         $t->same('Tail', $row->children[2]->attr('text'));
         $t->contains('<td><p>Body copy</p></td>', $blocks);
+    },
+    'promotes docx image paragraphs with textbox captions to figures' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/_rels/document.xml.rels', 'data' => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/captioned.emf"/></Relationships>'],
+            ['name' => 'word/document.xml', 'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:v="urn:schemas-microsoft-com:vml">
+  <w:body>
+    <w:p>
+      <w:r>
+        <w:drawing>
+          <wp:inline>
+            <wp:extent cx="2165350" cy="854075"/>
+            <wp:docPr id="1" name="Picture 1"/>
+            <a:graphic>
+              <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                <pic:pic>
+                  <pic:blipFill><a:blip r:embed="rIdImage"/></pic:blipFill>
+                </pic:pic>
+              </a:graphicData>
+            </a:graphic>
+          </wp:inline>
+        </w:drawing>
+      </w:r>
+      <w:r>
+        <w:pict>
+          <v:shape id="CaptionBox" type="#_x0000_t202" style="width:198pt;height:12pt">
+            <v:textbox>
+              <w:txbxContent>
+                <w:p>
+                  <w:r><w:fldChar w:fldCharType="begin"/></w:r>
+                  <w:r><w:instrText xml:space="preserve"> SEQ Figure \* ARABIC </w:instrText></w:r>
+                  <w:r><w:fldChar w:fldCharType="separate"/></w:r>
+                  <w:r><w:t>1</w:t></w:r>
+                  <w:r><w:fldChar w:fldCharType="end"/></w:r>
+                  <w:r><w:t xml:space="preserve"> Caption text</w:t></w:r>
+                </w:p>
+              </w:txbxContent>
+            </v:textbox>
+          </v:shape>
+        </w:pict>
+      </w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML],
+        ]);
+
+        $document = (new DocxReader())->readDocument($package);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $figure = $document->children[0];
+        $image = $figure->children[0]->children[0];
+
+        $t->same(['figure'], array_map(static fn ($node): string => $node->type, $document->children));
+        $t->same('1 Caption text', $figure->attr('caption'));
+        $t->same('plain', $figure->children[0]->type);
+        $t->same('image', $image->type);
+        $t->same('word/media/captioned.emf', $image->attr('url'));
+        $t->same('textbox', $figure->attr('attributes')['data-docx-figure-caption-source']);
+        $t->same('CaptionBox', $figure->attr('attributes')['data-docx-vml-shape-id']);
+        $t->contains('<figure', $blocks);
+        $t->contains('Caption text', $blocks);
     },
     'preserves docx comment ranges moves table merges styles and image metadata' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-docx-');
