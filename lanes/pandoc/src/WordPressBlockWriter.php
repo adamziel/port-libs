@@ -401,6 +401,9 @@ final class WordPressBlockWriter
             if ($start > 1) {
                 $attrs['start'] = $start;
             }
+            if ((bool) $node->attr('reversed', false)) {
+                $attrs['reversed'] = true;
+            }
             $tagAttrs = $this->renderOrderedListTagAttrs($node);
             $comment = '<!-- wp:list ' . json_encode($attrs, JSON_THROW_ON_ERROR) . ' -->';
         } elseif ($this->listIsTaskList($node)) {
@@ -445,6 +448,10 @@ final class WordPressBlockWriter
         $type = $this->orderedListHtmlType((string) $node->attr('style', 'default'));
         if ($type !== '') {
             $attrs .= ' type="' . $this->esc($type) . '"';
+        }
+
+        if ((bool) $node->attr('reversed', false)) {
+            $attrs .= ' reversed';
         }
 
         if ((bool) ($this->options['preserveListAttributes'] ?? false)) {
