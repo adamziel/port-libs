@@ -1699,6 +1699,91 @@ BIB;
         $t->contains('<dt>legacy-status-hyphen</dt>', $blocks);
         $t->contains('Legacy Status Camel Packet', $blocks);
     },
+    'carries biblatex entry subtype metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-entry-subtype,
+  author       = {Ng, Nia},
+  title        = {Legacy Entry Subtype Packet},
+  journaltitle = {Migration Review},
+  date         = {2026},
+  type         = {review article},
+  entrysubtype = {source-note},
+  status       = {forthcoming}
+}
+
+@online{hyphen-entry-subtype,
+  author        = {Roe, Rae},
+  title         = {Hyphen Entry Subtype Packet},
+  date          = {2025},
+  entry-subtype = {archive-update},
+  pubstate      = {prepublished},
+  url           = {https://example.test/entry-subtype}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $legacy = $items['legacy-entry-subtype'];
+        $hyphen = $items['hyphen-entry-subtype'];
+
+        $t->same('review article', $legacy['genre']);
+        $t->same('source-note', $legacy['entry-subtype']);
+        $t->same('archive-update', $hyphen['entry-subtype']);
+        $t->same('source-note', $legacy['rawBibtex']['fields']['entrysubtype']);
+        $t->same('archive-update', $hyphen['rawBibtex']['fields']['entry-subtype']);
+        $t->contains('Entry subtype: source-note', $processor->renderBibliographyText($legacy));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Entry Subtype Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-entry-subtype-review</id>
+    <updated>2026-06-30T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="genre"/>
+        <text variable="entry-subtype"/>
+        <text variable="status"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="entry-subtype"/>
+      <text variable="status"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledLegacy = $styled->item('legacy-entry-subtype');
+        $styledHyphen = $styled->item('hyphen-entry-subtype');
+        $t->same('Bounded Legacy BibLaTeX Entry Subtype Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('source-note', $styledLegacy['entrySubtype'] ?? null);
+        $t->same('archive-update', $styledHyphen['entrySubtype'] ?? null);
+        $t->same('[Legacy Entry Subtype Packet | review article | source-note | forthcoming; Hyphen Entry Subtype Packet | archive-update | prepublished]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-entry-subtype', 'text' => '[@legacy-entry-subtype]']),
+            new AstNode('citation', ['id' => 'hyphen-entry-subtype', 'text' => '[@hyphen-entry-subtype]']),
+        ]));
+        $t->same('Legacy Entry Subtype Packet :: source-note :: forthcoming', $styled->renderBibliographyEntry('legacy-entry-subtype'));
+        $t->same('Hyphen Entry Subtype Packet :: archive-update :: prepublished', $styled->renderBibliographyEntry('hyphen-entry-subtype'));
+
+        $document = (new MarkdownReader())->read('Subtype metadata [@legacy-entry-subtype; @hyphen-entry-subtype] stays reviewable.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-entry-subtype', 'hyphen-entry-subtype'], $handoff['citedKeys']);
+        $t->same('source-note', $handoff['items'][0]['entry-subtype'] ?? null);
+        $t->same('archive-update', $handoff['bibliography']->children[1]->attr('cslItem')['entry-subtype'] ?? null);
+        $t->contains('<p>Subtype metadata [Legacy Entry Subtype Packet | review article | source-note | forthcoming; Hyphen Entry Subtype Packet | archive-update | prepublished] stays reviewable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy Entry Subtype Packet :: source-note :: forthcoming</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Entry Subtype Packet :: archive-update :: prepublished</dd>', $blocks);
+    },
     'carries biblatex rights metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @dataset{rights-dataset,

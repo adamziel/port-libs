@@ -393,6 +393,7 @@ final class BibtexCslProcessor
             'version' => 'Version',
             'status' => 'Status',
             'medium' => 'Medium',
+            'entry-subtype' => 'Entry subtype',
         ] as $field => $label) {
             if ($field === 'status' && in_array((string) ($item['type'] ?? ''), ['patent', 'legislation', 'legal_case'], true)) {
                 continue;
@@ -956,6 +957,7 @@ final class BibtexCslProcessor
             'note' => ['note', 'addendum'],
             'name-addon' => ['nameaddon', 'name-addon'],
             'genre' => ['type', 'entrysubtype'],
+            'entry-subtype' => ['entrysubtype', 'entry-subtype'],
             'patent-type' => ['patenttype', 'patent-type'],
             'jurisdiction' => ['jurisdiction'],
             'related' => ['related'],
