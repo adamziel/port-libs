@@ -145,7 +145,7 @@ return [
         $t->contains('<w:numId w:val="1001"/>', $documentXml);
         $t->contains('<w:numId w:val="1002"/>', $documentXml);
         $t->contains('<w:hyperlink r:id="rId9">', $documentXml);
-        $t->contains('<w:sectPr>', $documentXml);
+        $t->contains('<w:sectPr><w:footnotePr><w:numRestart w:val="eachSect"/></w:footnotePr></w:sectPr>', $documentXml);
 
         $t->contains('<dc:title>Package core</dc:title>', $parts['docProps/core.xml']);
         $t->contains('<dc:creator>Port Libs</dc:creator>', $parts['docProps/core.xml']);
