@@ -739,6 +739,9 @@ return [
                 'compressedSize' => strlen(gzdeflate($contentXhtml)),
                 'uncompressedSize' => strlen($contentXhtml),
                 'compressedDataSha256' => hash('sha256', gzdeflate($contentXhtml)),
+                'usesDataDescriptor' => false,
+                'dataDescriptorLength' => null,
+                'dataDescriptorSha256' => null,
             ],
             [
                 'name' => 'OEBPS/images/',
@@ -750,6 +753,9 @@ return [
                 'compressedSize' => 0,
                 'uncompressedSize' => 0,
                 'compressedDataSha256' => hash('sha256', ''),
+                'usesDataDescriptor' => false,
+                'dataDescriptorLength' => null,
+                'dataDescriptorSha256' => null,
             ],
             [
                 'name' => 'mimetype',
@@ -761,6 +767,9 @@ return [
                 'compressedSize' => strlen($mimetype),
                 'uncompressedSize' => strlen($mimetype),
                 'compressedDataSha256' => hash('sha256', $mimetype),
+                'usesDataDescriptor' => false,
+                'dataDescriptorLength' => null,
+                'dataDescriptorSha256' => null,
             ],
         ];
         $expectedEntries = array_map(static function (array $entry) use ($manifest, $zip): array {
@@ -786,6 +795,9 @@ return [
                         substr($zip, $manifestEntry['localHeaderOffset'], $manifestEntry['localHeaderLength'])
                     ),
                     'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'usesDataDescriptor' => $entry['usesDataDescriptor'],
+                    'dataDescriptorLength' => $entry['dataDescriptorLength'],
+                    'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
                     'centralDirectoryRecordSha256' => hash(
                         'sha256',
                         substr($zip, $manifestEntry['centralDirectoryRecordOffset'], $centralDirectoryRecordBytes)
@@ -812,6 +824,8 @@ return [
         $t->same(2, $manifest['storedEntryCount']);
         $t->same(1, $manifest['deflatedEntryCount']);
         $t->same(0, $manifest['unsupportedCompressionMethodCount']);
+        $t->same(0, $manifest['dataDescriptorEntryCount']);
+        $t->same(0, $manifest['dataDescriptorBytes']);
         $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
         $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);
         $t->same(false, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
@@ -827,6 +841,9 @@ return [
                 'uncompressedSize' => $entry['uncompressedSize'],
                 'localHeaderSha256' => $entry['localHeaderSha256'],
                 'compressedDataSha256' => $entry['compressedDataSha256'],
+                'usesDataDescriptor' => $entry['usesDataDescriptor'],
+                'dataDescriptorLength' => $entry['dataDescriptorLength'],
+                'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
                 'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
             ],
             $manifest['entries']
@@ -918,6 +935,98 @@ return [
         $t->same(30 + strlen('word/comments.xml') + strlen($commentsExtra), $commentsEntry['localHeaderLength']);
         $t->same(46 + strlen('word/comments.xml') + strlen($commentsExtra) + strlen($commentsComment), $commentsCentralDirectoryRecordBytes);
         $t->same(hash('sha256', gzdeflate($commentsXml)), $commentsEntry['compressedDataSha256']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest data descriptor source records for streamed handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $documentXml = '<w:document><w:body><w:p>manifest descriptor peer</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>manifest descriptor bytes</w:comment></w:comments>';
+        $commentsCompressed = gzdeflate($commentsXml);
+        $descriptorBytes = pack(
+            'VVVV',
+            0x08074b50,
+            $crc32($commentsXml),
+            strlen($commentsCompressed),
+            strlen($commentsXml)
+        );
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $documentEntry = $manifest['entries'][0];
+        $commentsEntry = $manifest['entries'][1];
+        $expectedManifestEntries = [
+            [
+                'name' => 'word/document.xml',
+                'isDirectory' => false,
+                'centralDirectoryIndex' => 0,
+                'localHeaderOrder' => 0,
+                'compressionMethod' => 8,
+                'crc32Hex' => sprintf('%08x', $crc32($documentXml)),
+                'compressedSize' => strlen(gzdeflate($documentXml)),
+                'uncompressedSize' => strlen($documentXml),
+                'localHeaderSha256' => $documentEntry['localHeaderSha256'],
+                'compressedDataSha256' => hash('sha256', gzdeflate($documentXml)),
+                'usesDataDescriptor' => false,
+                'dataDescriptorLength' => null,
+                'dataDescriptorSha256' => null,
+                'centralDirectoryRecordSha256' => $documentEntry['centralDirectoryRecordSha256'],
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'isDirectory' => false,
+                'centralDirectoryIndex' => 1,
+                'localHeaderOrder' => 1,
+                'compressionMethod' => 8,
+                'crc32Hex' => sprintf('%08x', $crc32($commentsXml)),
+                'compressedSize' => strlen($commentsCompressed),
+                'uncompressedSize' => strlen($commentsXml),
+                'localHeaderSha256' => $commentsEntry['localHeaderSha256'],
+                'compressedDataSha256' => hash('sha256', $commentsCompressed),
+                'usesDataDescriptor' => true,
+                'dataDescriptorLength' => strlen($descriptorBytes),
+                'dataDescriptorSha256' => hash('sha256', $descriptorBytes),
+                'centralDirectoryRecordSha256' => $commentsEntry['centralDirectoryRecordSha256'],
+            ],
+        ];
+        $expectedHash = hash('sha256', json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => ['word/document.xml', 'word/comments.xml'],
+            'localHeaderOrderNames' => ['word/document.xml', 'word/comments.xml'],
+            'entries' => $expectedManifestEntries,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        $t->same(1, $manifest['dataDescriptorEntryCount']);
+        $t->same(strlen($descriptorBytes), $manifest['dataDescriptorBytes']);
+        $t->same(false, $documentEntry['usesDataDescriptor']);
+        $t->same(null, $documentEntry['dataDescriptorOffset']);
+        $t->same(null, $documentEntry['dataDescriptorLength']);
+        $t->same(null, $documentEntry['dataDescriptorEnd']);
+        $t->same(null, $documentEntry['dataDescriptorSha256']);
+        $t->same(true, $commentsEntry['usesDataDescriptor']);
+        $t->same($commentsEntry['compressedDataEnd'], $commentsEntry['dataDescriptorOffset']);
+        $t->same(strlen($descriptorBytes), $commentsEntry['dataDescriptorLength']);
+        $t->same($commentsEntry['compressedDataEnd'] + strlen($descriptorBytes), $commentsEntry['dataDescriptorEnd']);
+        $t->same(hash('sha256', $descriptorBytes), $commentsEntry['dataDescriptorSha256']);
+        $t->same(
+            hash('sha256', substr($zip, $commentsEntry['dataDescriptorOffset'], $commentsEntry['dataDescriptorLength'])),
+            $commentsEntry['dataDescriptorSha256']
+        );
+        $t->same($expectedHash, $manifest['manifestSha256']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
