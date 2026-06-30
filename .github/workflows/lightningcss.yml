@@ -31,10 +31,17 @@ jobs:
           php-version: '8.2'
           coverage: none
 
-      - name: Validate LightningCSS metadata JSON
+      - name: Assert LightningCSS mapping metadata
         run: |
           jq . lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json >/dev/null
           jq . lanes/lightningcss/lane-status.json >/dev/null
+          test "$(jq -r '.mapped' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json)" = "3532"
+          test "$(jq -r '.benchmarkDenominator.total' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json)" = "3532"
+          test "$(jq -r '.benchmarkDenominator.mapped' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json)" = "3532"
+          test "$(jq -r '.focusedCoverage.remaining' lanes/lightningcss/UPSTREAM_TEST_MANIFEST.json)" = "0"
+          test "$(jq -r '.estimatedProgress' lanes/lightningcss/lane-status.json)" = "100"
+          test "$(jq -r '.phpPass' lanes/lightningcss/lane-status.json)" = "10837"
+          test "$(jq -r '.phpFail' lanes/lightningcss/lane-status.json)" = "0"
 
       - name: Run LightningCSS PHP tests
         shell: bash
