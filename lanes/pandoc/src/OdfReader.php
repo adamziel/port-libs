@@ -15376,7 +15376,14 @@ final class OdfReader
 
         $expectedBase = self::mediaTypeReport($expected)['mediaTypeBase'];
         if ($expectedBase === 'application/javascript') {
-            return in_array($mediaTypeBase, ['application/javascript', 'text/javascript'], true);
+            return in_array($mediaTypeBase, [
+                'application/ecmascript',
+                'application/javascript',
+                'application/x-javascript',
+                'text/ecmascript',
+                'text/javascript',
+                'text/x-javascript',
+            ], true);
         }
         if ($expectedBase === 'text/xml') {
             return in_array($mediaTypeBase, ['text/xml', 'application/xml'], true);
@@ -15432,7 +15439,12 @@ final class OdfReader
                     default => 'script-xml',
                 },
             default => match ($mediaTypeBase) {
-                'application/javascript', 'text/javascript' => 'javascript',
+                'application/ecmascript',
+                'application/javascript',
+                'application/x-javascript',
+                'text/ecmascript',
+                'text/javascript',
+                'text/x-javascript' => 'javascript',
                 'application/x-beanshell', 'text/x-beanshell', 'application/x-bsh' => 'beanshell',
                 'application/java-archive' => 'java-archive',
                 'application/java-vm' => 'java-class',
@@ -15699,7 +15711,17 @@ final class OdfReader
         if (in_array($mediaType, ['text/x-python', 'application/x-python'], true) || str_ends_with($normalized, '.py')) {
             return 'python-script';
         }
-        if (in_array($mediaType, ['application/javascript', 'text/javascript'], true) || str_ends_with($normalized, '.js')) {
+        if (
+            in_array($mediaType, [
+                'application/ecmascript',
+                'application/javascript',
+                'application/x-javascript',
+                'text/ecmascript',
+                'text/javascript',
+                'text/x-javascript',
+            ], true)
+            || str_ends_with($normalized, '.js')
+        ) {
             return 'javascript-script';
         }
         if (in_array($mediaType, ['application/x-beanshell', 'text/x-beanshell', 'application/x-bsh'], true) || str_ends_with($normalized, '.bsh')) {

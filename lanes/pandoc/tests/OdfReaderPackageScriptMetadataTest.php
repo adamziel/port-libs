@@ -358,6 +358,88 @@ return [
         $t->same(true, $compactItems['Scripts/ruby/review.rb']['valid']);
         $t->same(false, $compactItems['Scripts/ruby/review.rb']['canExposeBytes']);
     },
+    'accepts ODT JavaScript package script media-type aliases as metadata-only review data' => static function (TestRunner $t) use (
+        $buildPackage,
+        $indexBy,
+        $manifestXml
+    ): void {
+        $extensionlessJavaScript = 'return "extensionless script review";';
+        $javaScriptAliasManifest = str_replace(
+            [
+                'manifest:full-path="Scripts/review.js" manifest:media-type="application/javascript"',
+                '  <manifest:file-entry manifest:full-path="Scripts/missing.js" manifest:media-type="application/javascript"/>',
+            ],
+            [
+                'manifest:full-path="Scripts/review.js" manifest:media-type="application/x-javascript"',
+                '  <manifest:file-entry manifest:full-path="Scripts/javascript/audit" manifest:media-type="application/ecmascript" manifest:size="' . strlen($extensionlessJavaScript) . '"/>' . "\n"
+                    . '  <manifest:file-entry manifest:full-path="Scripts/missing.js" manifest:media-type="application/javascript"/>',
+            ],
+            $manifestXml
+        );
+        $package = $buildPackage($javaScriptAliasManifest, [
+            ['name' => 'Scripts/javascript/audit', 'data' => $extensionlessJavaScript, 'compressionMethod' => 0],
+        ]);
+        $result = (new OdfReader())->readPackage($package);
+        $scripts = $result['packageScripts'];
+        $items = $indexBy($scripts['items'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+        $scriptMetadataParts = $indexBy($result['scriptMetadata']['parts'], 'part');
+
+        $t->same(0, $scripts['invalidMediaTypeCount']);
+        $javaScript = $items['Scripts/review.js'];
+        $t->same('application/x-javascript', $javaScript['mediaType']);
+        $t->same('application/x-javascript', $javaScript['mediaTypeBase']);
+        $t->same(true, $javaScript['mediaTypeValid']);
+        $t->same('javascript', $javaScript['scriptKind']);
+        $t->same(true, $javaScript['valid']);
+        $t->same([], $javaScript['issues']);
+        $t->same(false, $javaScript['canExposeBytes']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Scripts/review.js']['byteExposurePolicy']);
+
+        $extensionless = $items['Scripts/javascript/audit'];
+        $t->same('application/ecmascript', $extensionless['mediaType']);
+        $t->same('application/ecmascript', $extensionless['mediaTypeBase']);
+        $t->same(true, $extensionless['mediaTypeValid']);
+        $t->same('javascript', $extensionless['scriptKind']);
+        $t->same('javascript/audit', $extensionless['scriptPath']);
+        $t->same('javascript', $extensionless['scriptLibrary']);
+        $t->same('audit', $extensionless['scriptModule']);
+        $t->same(null, $extensionless['extension']);
+        $t->same(true, $extensionless['valid']);
+        $t->same([], $extensionless['issues']);
+        $t->same(strlen($extensionlessJavaScript), $extensionless['byteLength']);
+        $t->same(false, $extensionless['canExposeBytes']);
+        $t->same(false, $extensionless['canExposeAsDocumentMedia']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Scripts/javascript/audit']['byteExposurePolicy']);
+
+        $runtimeJavaScript = $scriptMetadataParts['Scripts/javascript/audit'];
+        $t->same('javascript-script', $runtimeJavaScript['kind']);
+        $t->same('JavaScript', $runtimeJavaScript['language']);
+        $t->same('javascript', $runtimeJavaScript['libraryName']);
+        $t->same('audit', $runtimeJavaScript['moduleName']);
+        $t->same(false, $runtimeJavaScript['canExposeBytes']);
+        $t->same(null, $runtimeJavaScript['byteLength']);
+        $t->same(strlen($extensionlessJavaScript), $runtimeJavaScript['storedByteLength']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactItems = $indexBy($compactSummary['packageScripts']['items'], 'part');
+        $compactJavaScript = $compactItems['Scripts/review.js'];
+        $t->same('application/x-javascript', $compactJavaScript['mediaType']);
+        $t->same('javascript', $compactJavaScript['scriptKind']);
+        $t->same(true, $compactJavaScript['valid']);
+        $t->same(false, $compactJavaScript['canExposeBytes']);
+
+        $compactExtensionless = $compactItems['Scripts/javascript/audit'];
+        $t->same('application/ecmascript', $compactExtensionless['mediaType']);
+        $t->same('javascript', $compactExtensionless['scriptKind']);
+        $t->same('javascript/audit', $compactExtensionless['scriptPath']);
+        $t->same('javascript', $compactExtensionless['scriptLibrary']);
+        $t->same('audit', $compactExtensionless['scriptModule']);
+        $t->same(null, $compactExtensionless['extension']);
+        $t->same(true, $compactExtensionless['valid']);
+        $t->same(false, $compactExtensionless['canExposeBytes']);
+        $t->same(false, $compactExtensionless['canExposeAsDocumentMedia']);
+    },
     'classifies extensionless ODT package scripts from script media-type aliases' => static function (TestRunner $t) use (
         $buildPackage,
         $indexBy,

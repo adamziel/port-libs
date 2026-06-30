@@ -7108,7 +7108,14 @@ final class OpenDocumentPackage
 
         $expectedBase = self::mediaTypeReport($expected)['mediaTypeBase'];
         if ($expectedBase === 'application/javascript') {
-            return in_array($mediaTypeBase, ['application/javascript', 'text/javascript'], true);
+            return in_array($mediaTypeBase, [
+                'application/ecmascript',
+                'application/javascript',
+                'application/x-javascript',
+                'text/ecmascript',
+                'text/javascript',
+                'text/x-javascript',
+            ], true);
         }
         if ($expectedBase === 'text/xml') {
             return in_array($mediaTypeBase, ['text/xml', 'application/xml'], true);
@@ -7164,7 +7171,12 @@ final class OpenDocumentPackage
                     default => 'script-xml',
                 },
             default => match ($mediaTypeBase) {
-                'application/javascript', 'text/javascript' => 'javascript',
+                'application/ecmascript',
+                'application/javascript',
+                'application/x-javascript',
+                'text/ecmascript',
+                'text/javascript',
+                'text/x-javascript' => 'javascript',
                 'application/x-beanshell', 'text/x-beanshell', 'application/x-bsh' => 'beanshell',
                 'application/java-archive' => 'java-archive',
                 'application/java-vm' => 'java-class',

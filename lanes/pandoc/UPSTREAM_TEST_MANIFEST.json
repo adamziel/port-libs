@@ -18,6 +18,8 @@
     "odfBeanShellPackageScriptAssertions": 35,
     "mappedOdfScriptMediaAliasCases": 1,
     "odfScriptMediaAliasAssertions": 52,
+    "mappedOdfJavaScriptPackageScriptAliasCases": 1,
+    "odfJavaScriptPackageScriptAliasAssertions": 43,
     "mappedOdfPythonPackageScriptAliasCases": 1,
     "odfPythonPackageScriptAliasAssertions": 34,
     "upstream": {
