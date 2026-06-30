@@ -15888,6 +15888,24 @@ return [
             }
         }
     },
+    'preserves textual native inline separator constructors through json writers' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ Para [ Str "Alpha", Space, Str "Beta", SoftBreak, Str "Gamma", LineBreak, Str "Delta" ] ]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $paragraph = $document->children[0];
+        $packet = (new PandocJsonWriter())->toArray($document);
+        $encodedInlines = $packet['blocks'][0]['c'];
+
+        $t->same(['text', 'space', 'text', 'softbreak', 'text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('Alpha Beta Gamma Delta', $paragraph->attr('text'));
+        $t->same(['Str', 'Space', 'Str', 'SoftBreak', 'Str', 'LineBreak', 'Str'], array_map(static fn (array $inline): string => $inline['t'], $encodedInlines));
+        $t->same('Alpha', $encodedInlines[0]['c']);
+        $t->same(false, array_key_exists('c', $encodedInlines[1]));
+        $t->same(false, array_key_exists('c', $encodedInlines[3]));
+        $t->same(false, array_key_exists('c', $encodedInlines[5]));
+    },
     'maps textual native raw markdown and tex aliases into specific ast constructors' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 [ RawBlock (Format "markdown") "**raw block**"
