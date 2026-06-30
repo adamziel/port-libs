@@ -6490,6 +6490,8 @@ final class ZipPackage
         $handoffByteExposurePolicySummaries = self::entryHandoffByteExposurePolicySummaries($handoffEntries);
         $declaredContentTypeSummaries = self::entryHandoffDeclaredContentTypeSummaries($entries);
         $handoffDeclaredContentTypeSummaries = self::entryHandoffDeclaredContentTypeSummaries($handoffEntries);
+        $declaredContentTypeSourceSummaries = self::entryHandoffDeclaredContentTypeSourceSummaries($entries);
+        $handoffDeclaredContentTypeSourceSummaries = self::entryHandoffDeclaredContentTypeSourceSummaries($handoffEntries);
         $declaredContentTypeFamilySummaries = self::entryHandoffDeclaredContentTypeFamilySummaries($entries);
         $handoffDeclaredContentTypeFamilySummaries = self::entryHandoffDeclaredContentTypeFamilySummaries($handoffEntries);
         $declaredContentTypeTopLevelSummaries = self::entryHandoffDeclaredContentTypeTopLevelSummaries($entries);
@@ -6662,6 +6664,29 @@ final class ZipPackage
             'handoffDeclaredContentTypeEntryCount' => self::entryHandoffSummaryTotal($handoffDeclaredContentTypeSummaries, 'entryCount'),
             'declaredContentTypeSummaryCount' => count($declaredContentTypeSummaries),
             'handoffDeclaredContentTypeSummaryCount' => count($handoffDeclaredContentTypeSummaries),
+            'declaredContentTypeSourceEntryCount' => self::entryHandoffSummaryTotal($declaredContentTypeSourceSummaries, 'entryCount'),
+            'handoffDeclaredContentTypeSourceEntryCount' => self::entryHandoffSummaryTotal(
+                $handoffDeclaredContentTypeSourceSummaries,
+                'entryCount'
+            ),
+            'declaredContentTypeSourceSummaryCount' => count($declaredContentTypeSourceSummaries),
+            'handoffDeclaredContentTypeSourceSummaryCount' => count($handoffDeclaredContentTypeSourceSummaries),
+            'invalidDeclaredContentTypeSourceEntryCount' => self::entryHandoffSummaryTotal(
+                $declaredContentTypeSourceSummaries,
+                'invalidEntryCount'
+            ),
+            'handoffInvalidDeclaredContentTypeSourceEntryCount' => self::entryHandoffSummaryTotal(
+                $handoffDeclaredContentTypeSourceSummaries,
+                'invalidEntryCount'
+            ),
+            'declaredContentTypeSourceParameterEntryCount' => self::entryHandoffSummaryTotal(
+                $declaredContentTypeSourceSummaries,
+                'parameterEntryCount'
+            ),
+            'handoffDeclaredContentTypeSourceParameterEntryCount' => self::entryHandoffSummaryTotal(
+                $handoffDeclaredContentTypeSourceSummaries,
+                'parameterEntryCount'
+            ),
             'declaredContentTypeFamilyEntryCount' => self::entryHandoffSummaryTotal($declaredContentTypeFamilySummaries, 'entryCount'),
             'handoffDeclaredContentTypeFamilyEntryCount' => self::entryHandoffSummaryTotal($handoffDeclaredContentTypeFamilySummaries, 'entryCount'),
             'declaredContentTypeFamilySummaryCount' => count($declaredContentTypeFamilySummaries),
@@ -6924,6 +6949,8 @@ final class ZipPackage
             'handoffByteExposurePolicySummaries' => $handoffByteExposurePolicySummaries,
             'declaredContentTypeSummaries' => $declaredContentTypeSummaries,
             'handoffDeclaredContentTypeSummaries' => $handoffDeclaredContentTypeSummaries,
+            'declaredContentTypeSourceSummaries' => $declaredContentTypeSourceSummaries,
+            'handoffDeclaredContentTypeSourceSummaries' => $handoffDeclaredContentTypeSourceSummaries,
             'declaredContentTypeFamilySummaries' => $declaredContentTypeFamilySummaries,
             'handoffDeclaredContentTypeFamilySummaries' => $handoffDeclaredContentTypeFamilySummaries,
             'declaredContentTypeTopLevelSummaries' => $declaredContentTypeTopLevelSummaries,
@@ -7347,6 +7374,192 @@ final class ZipPackage
         foreach ($summaries as &$summary) {
             sort($summary['declaredContentTypes'], SORT_STRING);
             sort($summary['sources'], SORT_STRING);
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['declaredContentTypeIssues'], SORT_STRING);
+            ksort($summary['declaredContentTypeIssueCounts'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffDeclaredContentTypeSourceSummaries(array $entries): array
+    {
+        $summaries = [];
+        $seenNamesBySource = [];
+        $seenHandoffNamesBySource = [];
+
+        foreach ($entries as $entry) {
+            $contentType = is_string($entry['declaredContentType'] ?? null)
+                ? $entry['declaredContentType']
+                : null;
+            if ($contentType === null || $contentType === '') {
+                continue;
+            }
+
+            $source = is_string($entry['declaredContentTypeSource'] ?? null)
+                && $entry['declaredContentTypeSource'] !== ''
+                ? $entry['declaredContentTypeSource']
+                : 'request';
+            if (!isset($summaries[$source])) {
+                $summaries[$source] = [
+                    'declaredContentTypeSource' => $source,
+                    'entryCount' => 0,
+                    'validEntryCount' => 0,
+                    'invalidEntryCount' => 0,
+                    'parameterEntryCount' => 0,
+                    'parameterCount' => 0,
+                    'requiredCount' => 0,
+                    'optionalCount' => 0,
+                    'presentEntryCount' => 0,
+                    'missingEntryCount' => 0,
+                    'handoffEntryCount' => 0,
+                    'handoffUniqueEntryCount' => 0,
+                    'failedEntryCount' => 0,
+                    'duplicateRequestCount' => 0,
+                    'selectedUniqueEntryCount' => 0,
+                    'selectedCompressedBytes' => 0,
+                    'selectedUncompressedBytes' => 0,
+                    'handoffCompressedBytes' => 0,
+                    'handoffUncompressedBytes' => 0,
+                    'declaredContentTypeFamilies' => [],
+                    'declaredContentTypeBases' => [],
+                    'declaredContentTypes' => [],
+                    'declaredContentTypeTopLevels' => [],
+                    'declaredContentTypeSubtypes' => [],
+                    'declaredContentTypeStructuredSuffixes' => [],
+                    'roles' => [],
+                    'entryNames' => [],
+                    'selectedEntryNames' => [],
+                    'handoffEntryNames' => [],
+                    'missingEntryNames' => [],
+                    'failedEntryNames' => [],
+                    'declaredContentTypeIssues' => [],
+                    'declaredContentTypeIssueCounts' => [],
+                    'issues' => [],
+                    'issueCounts' => [],
+                ];
+                $seenNamesBySource[$source] = [];
+                $seenHandoffNamesBySource[$source] = [];
+            }
+
+            ++$summaries[$source]['entryCount'];
+            if (($entry['required'] ?? false) === true) {
+                ++$summaries[$source]['requiredCount'];
+            } else {
+                ++$summaries[$source]['optionalCount'];
+            }
+            if (($entry['declaredContentTypeIsValid'] ?? true) === true) {
+                ++$summaries[$source]['validEntryCount'];
+            } else {
+                ++$summaries[$source]['invalidEntryCount'];
+            }
+            if (($entry['declaredContentTypeParameterCount'] ?? 0) > 0) {
+                ++$summaries[$source]['parameterEntryCount'];
+                $summaries[$source]['parameterCount'] += (int) $entry['declaredContentTypeParameterCount'];
+            }
+
+            foreach ([
+                'declaredContentTypeFamily' => 'declaredContentTypeFamilies',
+                'declaredContentTypeBase' => 'declaredContentTypeBases',
+                'declaredContentType' => 'declaredContentTypes',
+                'declaredContentTypeTopLevel' => 'declaredContentTypeTopLevels',
+                'declaredContentTypeSubtype' => 'declaredContentTypeSubtypes',
+                'declaredContentTypeStructuredSuffix' => 'declaredContentTypeStructuredSuffixes',
+            ] as $entryField => $summaryField) {
+                $value = is_string($entry[$entryField] ?? null) ? $entry[$entryField] : null;
+                if ($value !== null && $value !== '' && !in_array($value, $summaries[$source][$summaryField], true)) {
+                    $summaries[$source][$summaryField][] = $value;
+                }
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$source]['roles'], true)) {
+                    $summaries[$source]['roles'][] = $role;
+                }
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name !== '') {
+                $summaries[$source]['entryNames'][] = $name;
+            }
+
+            if (($entry['exists'] ?? false) === true) {
+                ++$summaries[$source]['presentEntryCount'];
+                if ($name !== '' && !isset($seenNamesBySource[$source][$name])) {
+                    $seenNamesBySource[$source][$name] = true;
+                    ++$summaries[$source]['selectedUniqueEntryCount'];
+                    $summaries[$source]['selectedEntryNames'][] = $name;
+                    $summaries[$source]['selectedCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$source]['selectedUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            } else {
+                ++$summaries[$source]['missingEntryCount'];
+                if ($name !== '') {
+                    $summaries[$source]['missingEntryNames'][] = $name;
+                }
+            }
+
+            if (($entry['isDuplicateRequest'] ?? false) === true) {
+                ++$summaries[$source]['duplicateRequestCount'];
+            }
+
+            if (($entry['status'] ?? null) === 'ready' && ($entry['exists'] ?? false) === true) {
+                ++$summaries[$source]['handoffEntryCount'];
+                if ($name !== '' && !isset($seenHandoffNamesBySource[$source][$name])) {
+                    $seenHandoffNamesBySource[$source][$name] = true;
+                    ++$summaries[$source]['handoffUniqueEntryCount'];
+                    $summaries[$source]['handoffEntryNames'][] = $name;
+                    $summaries[$source]['handoffCompressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                    $summaries[$source]['handoffUncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                }
+            }
+
+            $contentTypeIssues = array_values(array_filter(
+                is_array($entry['declaredContentTypeIssues'] ?? null) ? $entry['declaredContentTypeIssues'] : [],
+                'is_string'
+            ));
+            foreach ($contentTypeIssues as $issue) {
+                if (!in_array($issue, $summaries[$source]['declaredContentTypeIssues'], true)) {
+                    $summaries[$source]['declaredContentTypeIssues'][] = $issue;
+                }
+                $summaries[$source]['declaredContentTypeIssueCounts'][$issue] =
+                    ($summaries[$source]['declaredContentTypeIssueCounts'][$issue] ?? 0) + 1;
+            }
+
+            $issues = array_values(array_filter(array_merge(
+                $contentTypeIssues,
+                is_array($entry['issues'] ?? null) ? $entry['issues'] : []
+            ), 'is_string'));
+            if ($issues !== [] && (($entry['status'] ?? null) !== 'ready' || ($entry['declaredContentTypeIsValid'] ?? true) !== true)) {
+                ++$summaries[$source]['failedEntryCount'];
+                if ($name !== '') {
+                    $summaries[$source]['failedEntryNames'][] = $name;
+                }
+                foreach ($issues as $issue) {
+                    if (!in_array($issue, $summaries[$source]['issues'], true)) {
+                        $summaries[$source]['issues'][] = $issue;
+                    }
+                    $summaries[$source]['issueCounts'][$issue] =
+                        ($summaries[$source]['issueCounts'][$issue] ?? 0) + 1;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['declaredContentTypeFamilies'], SORT_STRING);
+            sort($summary['declaredContentTypeBases'], SORT_STRING);
+            sort($summary['declaredContentTypes'], SORT_STRING);
+            sort($summary['declaredContentTypeTopLevels'], SORT_STRING);
+            sort($summary['declaredContentTypeSubtypes'], SORT_STRING);
+            sort($summary['declaredContentTypeStructuredSuffixes'], SORT_STRING);
             sort($summary['roles'], SORT_STRING);
             sort($summary['declaredContentTypeIssues'], SORT_STRING);
             ksort($summary['declaredContentTypeIssueCounts'], SORT_STRING);

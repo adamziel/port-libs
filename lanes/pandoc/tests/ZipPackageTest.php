@@ -13953,6 +13953,14 @@ return [
             $key = $contentTypeSummary['declaredContentTypeBase'] ?? $contentTypeSummary['declaredContentTypes'][0];
             $handoffByContentType[$key] = $contentTypeSummary;
         }
+        $bySource = [];
+        foreach ($summary['declaredContentTypeSourceSummaries'] as $sourceSummary) {
+            $bySource[$sourceSummary['declaredContentTypeSource']] = $sourceSummary;
+        }
+        $handoffBySource = [];
+        foreach ($summary['handoffDeclaredContentTypeSourceSummaries'] as $sourceSummary) {
+            $handoffBySource[$sourceSummary['declaredContentTypeSource']] = $sourceSummary;
+        }
         $byFamily = [];
         foreach ($summary['declaredContentTypeFamilySummaries'] as $familySummary) {
             $byFamily[$familySummary['declaredContentTypeFamily']] = $familySummary;
@@ -13994,6 +14002,10 @@ return [
         $t->same(4, $summary['handoffDeclaredContentTypeSummaryCount']);
         $t->same(6, $summary['declaredContentTypeFamilyEntryCount']);
         $t->same(4, $summary['handoffDeclaredContentTypeFamilyEntryCount']);
+        $t->same(6, $summary['declaredContentTypeSourceEntryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeSourceEntryCount']);
+        $t->same(2, $summary['declaredContentTypeSourceSummaryCount']);
+        $t->same(2, $summary['handoffDeclaredContentTypeSourceSummaryCount']);
         $t->same(5, $summary['declaredContentTypeFamilySummaryCount']);
         $t->same(4, $summary['handoffDeclaredContentTypeFamilySummaryCount']);
         $t->same(2, $summary['declaredContentTypeTopLevelSummaryCount']);
@@ -14006,8 +14018,12 @@ return [
         $t->same(1, $summary['handoffInvalidDeclaredContentTypeEntryCount']);
         $t->same(1, $summary['invalidDeclaredContentTypeFamilyEntryCount']);
         $t->same(1, $summary['handoffInvalidDeclaredContentTypeFamilyEntryCount']);
+        $t->same(1, $summary['invalidDeclaredContentTypeSourceEntryCount']);
+        $t->same(1, $summary['handoffInvalidDeclaredContentTypeSourceEntryCount']);
         $t->same(1, $summary['declaredContentTypeParameterEntryCount']);
         $t->same(1, $summary['handoffDeclaredContentTypeParameterEntryCount']);
+        $t->same(1, $summary['declaredContentTypeSourceParameterEntryCount']);
+        $t->same(1, $summary['handoffDeclaredContentTypeSourceParameterEntryCount']);
         $t->same(['invalid-declared-content-type'], $summary['declaredContentTypeIssues']);
         $t->same(['invalid-declared-content-type'], $summary['handoffDeclaredContentTypeIssues']);
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
@@ -14054,6 +14070,113 @@ return [
         $t->same(false, isset($handoffByContentType['application/octet-stream']));
         $t->same(false, isset($handoffByContentType['application/xml']));
         $t->same(['custom/invalid-type.bin'], $handoffByContentType['not a content type']['handoffEntryNames']);
+
+        $t->same(['content-types-default', 'content-types-override'], array_keys($bySource));
+        $t->same(['content-types-default', 'content-types-override'], array_keys($handoffBySource));
+        $t->same([
+            'declaredContentTypeSource' => 'content-types-default',
+            'entryCount' => 4,
+            'validEntryCount' => 4,
+            'invalidEntryCount' => 0,
+            'parameterEntryCount' => 1,
+            'parameterCount' => 1,
+            'requiredCount' => 0,
+            'optionalCount' => 4,
+            'presentEntryCount' => 3,
+            'missingEntryCount' => 1,
+            'handoffEntryCount' => 2,
+            'handoffUniqueEntryCount' => 2,
+            'failedEntryCount' => 1,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 3,
+            'selectedCompressedBytes' => strlen($relsXml) + strlen($largeBytes) + strlen($svgBytes),
+            'selectedUncompressedBytes' => strlen($relsXml) + strlen($largeBytes) + strlen($svgBytes),
+            'handoffCompressedBytes' => strlen($relsXml) + strlen($svgBytes),
+            'handoffUncompressedBytes' => strlen($relsXml) + strlen($svgBytes),
+            'declaredContentTypeFamilies' => ['binary', 'opc-relationships', 'xml'],
+            'declaredContentTypeBases' => [
+                'application/octet-stream',
+                'application/vnd.openxmlformats-package.relationships+xml',
+                'application/xml',
+                'image/svg+xml',
+            ],
+            'declaredContentTypes' => [
+                'application/octet-stream',
+                'application/vnd.openxmlformats-package.relationships+xml; charset=UTF-8',
+                'application/xml',
+                'image/svg+xml',
+            ],
+            'declaredContentTypeTopLevels' => ['application', 'image'],
+            'declaredContentTypeSubtypes' => [
+                'octet-stream',
+                'svg+xml',
+                'vnd.openxmlformats-package.relationships+xml',
+                'xml',
+            ],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'roles' => ['document-relationships', 'media', 'optional-sidecar'],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+                'word/missing.xml',
+                'word/media/vector.svg',
+            ],
+            'selectedEntryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+                'word/media/vector.svg',
+            ],
+            'handoffEntryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/media/vector.svg',
+            ],
+            'missingEntryNames' => ['word/missing.xml'],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'declaredContentTypeIssues' => [],
+            'declaredContentTypeIssueCounts' => [],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $bySource['content-types-default']);
+        $t->same([
+            'declaredContentTypeSource' => 'content-types-override',
+            'entryCount' => 2,
+            'validEntryCount' => 1,
+            'invalidEntryCount' => 1,
+            'parameterEntryCount' => 0,
+            'parameterCount' => 0,
+            'requiredCount' => 1,
+            'optionalCount' => 1,
+            'presentEntryCount' => 2,
+            'missingEntryCount' => 0,
+            'handoffEntryCount' => 2,
+            'handoffUniqueEntryCount' => 2,
+            'failedEntryCount' => 1,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($documentXml) + strlen($invalidBytes),
+            'selectedUncompressedBytes' => strlen($documentXml) + strlen($invalidBytes),
+            'handoffCompressedBytes' => strlen($documentXml) + strlen($invalidBytes),
+            'handoffUncompressedBytes' => strlen($documentXml) + strlen($invalidBytes),
+            'declaredContentTypeFamilies' => ['invalid', 'openxml-wordprocessing'],
+            'declaredContentTypeBases' => [$mainType],
+            'declaredContentTypes' => [$mainType, 'not a content type'],
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeSubtypes' => ['vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'roles' => ['custom-review', 'main-document'],
+            'entryNames' => ['word/document.xml', 'custom/invalid-type.bin'],
+            'selectedEntryNames' => ['word/document.xml', 'custom/invalid-type.bin'],
+            'handoffEntryNames' => ['word/document.xml', 'custom/invalid-type.bin'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => ['custom/invalid-type.bin'],
+            'declaredContentTypeIssues' => ['invalid-declared-content-type'],
+            'declaredContentTypeIssueCounts' => ['invalid-declared-content-type' => 1],
+            'issues' => ['invalid-declared-content-type'],
+            'issueCounts' => ['invalid-declared-content-type' => 1],
+        ], $bySource['content-types-override']);
+        $t->same(2, $handoffBySource['content-types-default']['entryCount']);
+        $t->same(['word/_rels/document.xml.rels', 'word/media/vector.svg'], $handoffBySource['content-types-default']['handoffEntryNames']);
+        $t->same($bySource['content-types-override'], $handoffBySource['content-types-override']);
 
         $t->same(['binary', 'invalid', 'opc-relationships', 'openxml-wordprocessing', 'xml'], array_keys($byFamily));
         $t->same(['invalid', 'opc-relationships', 'openxml-wordprocessing', 'xml'], array_keys($handoffByFamily));
