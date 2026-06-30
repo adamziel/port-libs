@@ -5587,6 +5587,8 @@ final class ZipPackage
                 'pathPrefixes' => self::entryHandoffPathPrefixes($entry->name),
                 'parentDirectory' => self::entryHandoffParentDirectory($entry->name),
                 'leafName' => self::entryHandoffLeafName($entry->name),
+                'caseFoldName' => self::caseFoldZipEntryName($entry->name),
+                'caseFoldLeafName' => self::entryHandoffCaseFoldLeafName($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
                 'madeByHostSystem' => $entry->madeByHostSystem(),
                 'madeByHostSystemName' => self::creatorHostSystemName($entry->madeByHostSystem()),
@@ -6212,6 +6214,8 @@ final class ZipPackage
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
             $summary['parentDirectory'] = self::entryHandoffParentDirectory($entry->name);
             $summary['leafName'] = self::entryHandoffLeafName($entry->name);
+            $summary['caseFoldName'] = self::caseFoldZipEntryName($entry->name);
+            $summary['caseFoldLeafName'] = self::entryHandoffCaseFoldLeafName($entry->name);
             $summary['packagePartKind'] = self::entryHandoffPackagePartKind($entry->name, $isDirectory);
             $summary = array_merge($summary, self::entryPlatformMetadataHandoffProvenance($entry->name));
             $summary['centralDirectoryIndex'] = $centralDirectoryIndexByName[$entry->name] ?? null;
@@ -6402,6 +6406,16 @@ final class ZipPackage
         $handoffSharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($handoffLeafNameSummaries);
         $selectedLeafNameCollisionSummaries = $selectedSharedLeafNameSummaries;
         $handoffLeafNameCollisionSummaries = $handoffSharedLeafNameSummaries;
+        $selectedCaseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries(
+            $selectedDirectoryRootSummaryEntries
+        );
+        $handoffCaseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries($handoffEntries);
+        $selectedCaseFoldLeafNameCollisionSummaries = self::entryHandoffCaseFoldLeafNameCollisionSummaries(
+            $selectedDirectoryRootSummaryEntries
+        );
+        $handoffCaseFoldLeafNameCollisionSummaries = self::entryHandoffCaseFoldLeafNameCollisionSummaries(
+            $handoffEntries
+        );
         $selectedPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($selectedDirectoryRootSummaryEntries);
         $handoffPlatformMetadataSummary = self::entryHandoffPlatformMetadataSummary($handoffEntries);
         $selectedSizeBucketSummaries = self::entryHandoffSizeBucketSummaries($selectedDirectoryRootSummaryEntries);
@@ -6487,6 +6501,16 @@ final class ZipPackage
                 $selectedLeafNameCollisionSummaries,
                 'entryCount'
             ),
+            'selectedCaseFoldNameCollisionCount' => count($selectedCaseFoldNameCollisionSummaries),
+            'selectedCaseFoldNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
+                $selectedCaseFoldNameCollisionSummaries,
+                'entryCount'
+            ),
+            'selectedCaseFoldLeafNameCollisionCount' => count($selectedCaseFoldLeafNameCollisionSummaries),
+            'selectedCaseFoldLeafNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
+                $selectedCaseFoldLeafNameCollisionSummaries,
+                'entryCount'
+            ),
             'selectedPlatformMetadataEntryCount' => $selectedPlatformMetadataSummary['entryCount'],
             'selectedMacosSidecarEntryCount' => $selectedPlatformMetadataSummary['macosSidecarEntryCount'],
             'selectedAppleDoubleEntryCount' => $selectedPlatformMetadataSummary['appleDoubleEntryCount'],
@@ -6539,6 +6563,16 @@ final class ZipPackage
             'handoffLeafNameCollisionCount' => count($handoffLeafNameCollisionSummaries),
             'handoffLeafNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
                 $handoffLeafNameCollisionSummaries,
+                'entryCount'
+            ),
+            'handoffCaseFoldNameCollisionCount' => count($handoffCaseFoldNameCollisionSummaries),
+            'handoffCaseFoldNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
+                $handoffCaseFoldNameCollisionSummaries,
+                'entryCount'
+            ),
+            'handoffCaseFoldLeafNameCollisionCount' => count($handoffCaseFoldLeafNameCollisionSummaries),
+            'handoffCaseFoldLeafNameCollisionEntryCount' => self::entryHandoffSummaryTotal(
+                $handoffCaseFoldLeafNameCollisionSummaries,
                 'entryCount'
             ),
             'handoffPlatformMetadataEntryCount' => $handoffPlatformMetadataSummary['entryCount'],
@@ -6865,6 +6899,10 @@ final class ZipPackage
             'handoffSharedLeafNameSummaries' => $handoffSharedLeafNameSummaries,
             'selectedLeafNameCollisionSummaries' => $selectedLeafNameCollisionSummaries,
             'handoffLeafNameCollisionSummaries' => $handoffLeafNameCollisionSummaries,
+            'selectedCaseFoldNameCollisionSummaries' => $selectedCaseFoldNameCollisionSummaries,
+            'handoffCaseFoldNameCollisionSummaries' => $handoffCaseFoldNameCollisionSummaries,
+            'selectedCaseFoldLeafNameCollisionSummaries' => $selectedCaseFoldLeafNameCollisionSummaries,
+            'handoffCaseFoldLeafNameCollisionSummaries' => $handoffCaseFoldLeafNameCollisionSummaries,
             'selectedPlatformMetadataIssues' => $selectedPlatformMetadataSummary['issues'],
             'handoffPlatformMetadataIssues' => $handoffPlatformMetadataSummary['issues'],
             'selectedPlatformMetadataSummaries' => $selectedPlatformMetadataSummary['platformSummaries'],
@@ -10626,6 +10664,159 @@ final class ZipPackage
         $separator = strrpos($trimmedName, '/');
 
         return $separator === false ? $trimmedName : substr($trimmedName, $separator + 1);
+    }
+
+    private static function entryHandoffCaseFoldLeafName(string $name): string
+    {
+        $leafName = self::entryHandoffLeafName($name);
+
+        return $leafName === '' ? '' : self::caseFoldZipEntryName($leafName);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffCaseFoldNameCollisionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $caseFoldName = is_string($entry['caseFoldName'] ?? null) && $entry['caseFoldName'] !== ''
+                ? $entry['caseFoldName']
+                : self::caseFoldZipEntryName($name);
+            if (!isset($summaries[$caseFoldName])) {
+                $summaries[$caseFoldName] = [
+                    'caseFoldName' => $caseFoldName,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'exactEntryNames' => [],
+                ];
+            }
+
+            ++$summaries[$caseFoldName]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$caseFoldName]['directoryEntryCount'];
+            } else {
+                ++$summaries[$caseFoldName]['fileEntryCount'];
+            }
+
+            $summaries[$caseFoldName]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$caseFoldName]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$caseFoldName]['entryNames'][] = $name;
+            if (!in_array($name, $summaries[$caseFoldName]['exactEntryNames'], true)) {
+                $summaries[$caseFoldName]['exactEntryNames'][] = $name;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$caseFoldName]['roles'], true)) {
+                    $summaries[$caseFoldName]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as $caseFoldName => &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['exactEntryNames'], SORT_STRING);
+            if (count($summary['exactEntryNames']) < 2) {
+                unset($summaries[$caseFoldName]);
+            }
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffCaseFoldLeafNameCollisionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $leafName = is_string($entry['leafName'] ?? null) && $entry['leafName'] !== ''
+                ? $entry['leafName']
+                : self::entryHandoffLeafName($name);
+            if ($leafName === '') {
+                continue;
+            }
+
+            $caseFoldLeafName = is_string($entry['caseFoldLeafName'] ?? null) && $entry['caseFoldLeafName'] !== ''
+                ? $entry['caseFoldLeafName']
+                : self::caseFoldZipEntryName($leafName);
+            if (!isset($summaries[$caseFoldLeafName])) {
+                $summaries[$caseFoldLeafName] = [
+                    'caseFoldLeafName' => $caseFoldLeafName,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'parentDirectories' => [],
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                    'leafNames' => [],
+                ];
+            }
+
+            ++$summaries[$caseFoldLeafName]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$caseFoldLeafName]['directoryEntryCount'];
+            } else {
+                ++$summaries[$caseFoldLeafName]['fileEntryCount'];
+            }
+
+            $summaries[$caseFoldLeafName]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$caseFoldLeafName]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$caseFoldLeafName]['entryNames'][] = $name;
+            if (!in_array($leafName, $summaries[$caseFoldLeafName]['leafNames'], true)) {
+                $summaries[$caseFoldLeafName]['leafNames'][] = $leafName;
+            }
+
+            $parentDirectory = is_string($entry['parentDirectory'] ?? null) && $entry['parentDirectory'] !== ''
+                ? $entry['parentDirectory']
+                : self::entryHandoffParentDirectory($name);
+            if (!in_array($parentDirectory, $summaries[$caseFoldLeafName]['parentDirectories'], true)) {
+                $summaries[$caseFoldLeafName]['parentDirectories'][] = $parentDirectory;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$caseFoldLeafName]['roles'], true)) {
+                    $summaries[$caseFoldLeafName]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as $caseFoldLeafName => &$summary) {
+            sort($summary['roles'], SORT_STRING);
+            sort($summary['parentDirectories'], SORT_STRING);
+            sort($summary['leafNames'], SORT_STRING);
+            if (count($summary['leafNames']) < 2) {
+                unset($summaries[$caseFoldLeafName]);
+            }
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
     }
 
     /**

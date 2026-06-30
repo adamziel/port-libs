@@ -14879,6 +14879,111 @@ return [
         $t->same('missing-optional', $summary['entries'][6]['status']);
     },
 
+    'summarizes selected zip handoff case-folded name collisions for package review' => static function (TestRunner $t): void {
+        $mainDocumentXml = '<w:document><w:body><w:p>case folded handoff</w:p></w:body></w:document>';
+        $alternateDocumentXml = '<w:document><w:body><w:p>case folded alternate</w:p></w:body></w:document>';
+        $previewImageBytes = "case folded preview image\n";
+        $blockedImageBytes = "blocked case folded image bytes\n";
+        $coreXml = '<cp:coreProperties/>';
+
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => $mainDocumentXml, 'compressionMethod' => 0],
+            ['name' => 'Word/Document.XML', 'data' => $alternateDocumentXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/Image.PNG', 'data' => $previewImageBytes, 'compressionMethod' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $blockedImageBytes, 'compressionMethod' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'compressionMethod' => 0],
+        ]);
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'Word/Document.XML', 'required' => false, 'kind' => 'file', 'role' => 'alternate-main'],
+            ['name' => 'word/media/Image.PNG', 'required' => false, 'kind' => 'file', 'role' => 'preview'],
+            ['name' => 'ppt/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'docProps/core.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+        ], 1024);
+
+        $selectedByNameFold = [];
+        foreach ($summary['selectedCaseFoldNameCollisionSummaries'] as $foldSummary) {
+            $selectedByNameFold[$foldSummary['caseFoldName']] = $foldSummary;
+        }
+        $handoffByNameFold = [];
+        foreach ($summary['handoffCaseFoldNameCollisionSummaries'] as $foldSummary) {
+            $handoffByNameFold[$foldSummary['caseFoldName']] = $foldSummary;
+        }
+        $selectedByLeafFold = [];
+        foreach ($summary['selectedCaseFoldLeafNameCollisionSummaries'] as $foldSummary) {
+            $selectedByLeafFold[$foldSummary['caseFoldLeafName']] = $foldSummary;
+        }
+        $handoffByLeafFold = [];
+        foreach ($summary['handoffCaseFoldLeafNameCollisionSummaries'] as $foldSummary) {
+            $handoffByLeafFold[$foldSummary['caseFoldLeafName']] = $foldSummary;
+        }
+
+        $t->same(1, $summary['selectedCaseFoldNameCollisionCount']);
+        $t->same(2, $summary['selectedCaseFoldNameCollisionEntryCount']);
+        $t->same(1, $summary['handoffCaseFoldNameCollisionCount']);
+        $t->same(2, $summary['handoffCaseFoldNameCollisionEntryCount']);
+        $t->same(2, $summary['selectedCaseFoldLeafNameCollisionCount']);
+        $t->same(4, $summary['selectedCaseFoldLeafNameCollisionEntryCount']);
+        $t->same(1, $summary['handoffCaseFoldLeafNameCollisionCount']);
+        $t->same(2, $summary['handoffCaseFoldLeafNameCollisionEntryCount']);
+        $t->same(['word/document.xml'], array_keys($selectedByNameFold));
+        $t->same(['word/document.xml'], array_keys($handoffByNameFold));
+        $t->same(['document.xml', 'image.png'], array_keys($selectedByLeafFold));
+        $t->same(['document.xml'], array_keys($handoffByLeafFold));
+
+        $expectedDocumentNameFold = [
+            'caseFoldName' => 'word/document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mainDocumentXml) + strlen($alternateDocumentXml),
+            'uncompressedBytes' => strlen($mainDocumentXml) + strlen($alternateDocumentXml),
+            'roles' => ['alternate-main', 'main-document'],
+            'entryNames' => ['word/document.xml', 'Word/Document.XML'],
+            'exactEntryNames' => ['Word/Document.XML', 'word/document.xml'],
+        ];
+        $t->same($expectedDocumentNameFold, $selectedByNameFold['word/document.xml']);
+        $t->same($expectedDocumentNameFold, $handoffByNameFold['word/document.xml']);
+
+        $expectedDocumentLeafFold = [
+            'caseFoldLeafName' => 'document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['Word/', 'word/'],
+            'compressedBytes' => strlen($mainDocumentXml) + strlen($alternateDocumentXml),
+            'uncompressedBytes' => strlen($mainDocumentXml) + strlen($alternateDocumentXml),
+            'roles' => ['alternate-main', 'main-document'],
+            'entryNames' => ['word/document.xml', 'Word/Document.XML'],
+            'leafNames' => ['Document.XML', 'document.xml'],
+        ];
+        $t->same($expectedDocumentLeafFold, $selectedByLeafFold['document.xml']);
+        $t->same($expectedDocumentLeafFold, $handoffByLeafFold['document.xml']);
+
+        $t->same([
+            'caseFoldLeafName' => 'image.png',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'compressedBytes' => strlen($previewImageBytes) + strlen($blockedImageBytes),
+            'uncompressedBytes' => strlen($previewImageBytes) + strlen($blockedImageBytes),
+            'roles' => ['media', 'preview'],
+            'entryNames' => ['word/media/Image.PNG', 'ppt/media/image.png'],
+            'leafNames' => ['Image.PNG', 'image.png'],
+        ], $selectedByLeafFold['image.png']);
+
+        $t->same('word/document.xml', $summary['entries'][0]['caseFoldName']);
+        $t->same('document.xml', $summary['entries'][0]['caseFoldLeafName']);
+        $t->same('word/document.xml', $summary['entries'][1]['caseFoldName']);
+        $t->same('document.xml', $summary['entries'][1]['caseFoldLeafName']);
+        $t->same('word/media/image.png', $summary['entries'][2]['caseFoldName']);
+        $t->same('image.png', $summary['entries'][2]['caseFoldLeafName']);
+        $t->same('blocked', $summary['entries'][3]['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'summarizes selected zip handoff path prefixes for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $contentTypesXml = '<Types/>';
         $packageRelsXml = '<Relationships/>';
