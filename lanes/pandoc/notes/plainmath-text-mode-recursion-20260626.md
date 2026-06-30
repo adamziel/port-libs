@@ -28,6 +28,9 @@ to text expressions.
 - The TexMath `text.test` glyph and punctuation fixture is mapped through a
   bounded text-mode path: selected text glyph commands, `\"` umlaut targets, and
   TeX quote/dash ligatures normalize inside `<mtext>`.
+- The 2026-06-30 fixture addendum covers recursive text-mode spacing commands
+  inside plain, styled, and nested `\mbox` chunks, plus `\textstyle` wrapping
+  `\mbox` content that contains inner math and local styled text.
 - Unsupported text accent targets fall back to literal text instead of widening
   the text-mode parser into broad Unicode or TeX accent parity.
 - Nonbraced one-token text-mode behavior remains unchanged.
@@ -49,6 +52,20 @@ Focused test run: 4 selected test files (root lock skipped)
 The focused run covers the recursive text-mode case, the TexMath `text.test`
 glyph/ligature fixture assertion, static PlainMath TexMath fixtures, EPUB MathML
 XHTML packaging/fallback behavior, and HTML5 MathML foreign-content handling.
+
+2026-06-30 fixture addendum:
+
+```text
+php -l lanes/pandoc/tests/MathTexConverterTest.php
+No syntax errors detected in lanes/pandoc/tests/MathTexConverterTest.php
+
+php tools/run-tests.php lanes/pandoc/tests/MathTexConverterTest.php lanes/pandoc/tests/PlainMathStaticTexmathFixtureTest.php lanes/pandoc/tests/EpubWriterTest.php lanes/pandoc/tests/Html5DomTest.php
+Focused test run: 4 selected test files (root lock skipped)
+4 test files, 2049 assertions, 0 failures
+```
+
+The addendum maps the text-mode spacing/style fixture through the same bounded
+native parser path without broadening runtime TeX or upstream-converter scope.
 
 ## Scope
 

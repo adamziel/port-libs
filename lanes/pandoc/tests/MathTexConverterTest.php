@@ -460,6 +460,30 @@ return [
         $t->true(!str_contains($nestedBody, '<mtext>\\mbox'));
         $t->true(!str_contains($nestedBody, '<mtext>\\textbf'));
     },
+    'converts bounded tex text mode spacing and style wrappers to mathml' => static function (TestRunner $t): void {
+        $converter = new MathTexConverter();
+        $spacingMathml = $converter->texToMathMl('\\text{alpha\\thinspace beta\\quad \\textsf{sans\\!tight}\\enspace\\mbox{box\\;semi}}', true);
+        $styleMathml = $converter->texToMathMl('\\textstyle \\mbox{mode $x_i$ \\textbf{bold}} + q');
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+
+        $t->true(
+            $dom->loadXML($spacingMathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+            'text-mode spacing fixture emits well-formed MathML'
+        );
+        $t->true(
+            $dom->loadXML($styleMathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING),
+            'textstyle text-mode fixture emits well-formed MathML'
+        );
+        $t->contains('<mtext>alpha</mtext><mspace width="0.1667em"></mspace><mtext> beta</mtext><mspace width="1em"></mspace><mtext> </mtext>', $spacingMathml);
+        $t->contains('<mrow><mstyle mathvariant="sans-serif"><mtext>sans</mtext></mstyle><mspace width="-0.1667em"></mspace><mstyle mathvariant="sans-serif"><mtext>tight</mtext></mstyle></mrow>', $spacingMathml);
+        $t->contains('<mspace width="0.5em"></mspace><mrow><mtext>box</mtext><mspace width="0.2778em"></mspace><mtext>semi</mtext></mrow>', $spacingMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\text{alpha\\thinspace beta\\quad \\textsf{sans\\!tight}\\enspace\\mbox{box\\;semi}}</annotation>', $spacingMathml);
+        $t->contains('<mstyle displaystyle="false"><mrow><mtext>mode </mtext><msub><mi>x</mi><mi>i</mi></msub><mtext> </mtext><mstyle mathvariant="bold"><mtext>bold</mtext></mstyle></mrow></mstyle><mo>+</mo><mi>q</mi>', $styleMathml);
+        $t->contains('<annotation encoding="application/x-tex">\\textstyle \\mbox{mode $x_i$ \\textbf{bold}} + q</annotation>', $styleMathml);
+        $t->true(!str_contains($spacingMathml . $styleMathml, '<mi>\\textstyle</mi>'));
+        $t->true(!str_contains($spacingMathml . $styleMathml, '<mtext>\\thinspace'));
+        $t->true(!str_contains($spacingMathml . $styleMathml, '<mtext>\\mbox'));
+    },
     'converts texmath text fixture glyphs and ligatures in text mode' => static function (TestRunner $t): void {
         $converter = new MathTexConverter();
         $normalMathml = $converter->texToMathMl('\\text{(\\L ukasiewicz, G\\"{o}del, and G\\"odel)}', true);
