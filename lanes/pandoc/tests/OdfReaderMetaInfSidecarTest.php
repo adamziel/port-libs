@@ -13,6 +13,7 @@ $orphanBytes = '<orphan-review/>';
 $reviewSize = strlen($reviewXml);
 $previewSize = strlen($previewBytes);
 $encryptedSize = strlen($encryptedBytes);
+$invalidReviewSize = $reviewSize . 'bytes';
 
 $manifestXml = <<<XML
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
@@ -21,7 +22,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
-  <manifest:file-entry manifest:full-path="META-INF/review-state.xml" manifest:media-type="text/xml" manifest:size="{$reviewSize}"/>
+  <manifest:file-entry manifest:full-path="META-INF/review-state.xml" manifest:media-type="text/xml" manifest:size="{$invalidReviewSize}"/>
   <manifest:file-entry manifest:full-path="META-INF/missing-review.xml" manifest:media-type="application/xml"/>
   <manifest:file-entry manifest:full-path="META-INF/encrypted-review.xml" manifest:media-type="text/xml" manifest:size="{$encryptedSize}">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="meta-inf-checksum"/>
@@ -116,12 +117,14 @@ return [
         $t->same(1, $sidecars['missingCount']);
         $t->same(1, $sidecars['encryptedCount']);
         $t->same(0, $sidecars['invalidMediaTypeCount']);
-        $t->same(3, $sidecars['issueCount']);
+        $t->same(4, $sidecars['issueCount']);
         $t->same([
             'odf-meta-inf-sidecar-encrypted-package-part',
+            'odf-meta-inf-sidecar-invalid-declared-size',
             'odf-meta-inf-sidecar-missing-package-part',
             'odf-meta-inf-sidecar-undeclared-package-part',
         ], $sidecars['issueCodes']);
+        $t->same(1, $sidecars['invalidDeclaredSizeCount']);
         $t->same('meta-inf-sidecar-package-bytes-blocked', $sidecars['byteExposurePolicy']);
         $t->same('meta-inf-sidecar-metadata-only', $sidecars['reviewPolicy']);
 
@@ -130,10 +133,15 @@ return [
         $t->same(true, $review['declared']);
         $t->same(true, $review['valid']);
         $t->same(strlen($reviewXml), $review['byteLength']);
+        $t->same(null, $review['declaredSize']);
+        $t->same(strlen($reviewXml) . 'bytes', $review['declaredSizeRaw']);
+        $t->same(false, $review['declaredSizeValid']);
+        $t->same(true, $review['declaredSizeInvalid']);
+        $t->same(false, $review['declaredSizeMismatch']);
         $t->same(sprintf('%08x', crc32($reviewXml)), $review['crc32']);
         $t->same(false, $review['canExposeAsDocumentMedia']);
         $t->same('meta-inf-sidecar-package-bytes-blocked', $review['byteExposurePolicy']);
-        $t->same([], $review['issues']);
+        $t->same(['odf-meta-inf-sidecar-invalid-declared-size'], $review['issues']);
 
         $missing = $items['META-INF/missing-review.xml'];
         $t->same(false, $missing['exists']);
@@ -188,9 +196,16 @@ return [
         $t->same(1, $compactSidecars['missingCount']);
         $t->same(1, $compactSidecars['encryptedCount']);
         $t->same($sidecars['issueCodes'], $compactSidecars['issueCodes']);
+        $t->same(1, $compactSidecars['invalidDeclaredSizeCount']);
         $t->same('meta-inf-sidecar-package-bytes-blocked', $compactSidecars['byteExposurePolicy']);
         $t->same('meta-inf-sidecar-metadata-only', $compactSidecars['reviewPolicy']);
         $t->same(strlen($reviewXml), $compactItems['META-INF/review-state.xml']['byteLength']);
+        $t->same(null, $compactItems['META-INF/review-state.xml']['declaredSize']);
+        $t->same(strlen($reviewXml) . 'bytes', $compactItems['META-INF/review-state.xml']['declaredSizeRaw']);
+        $t->same(false, $compactItems['META-INF/review-state.xml']['declaredSizeValid']);
+        $t->same(true, $compactItems['META-INF/review-state.xml']['declaredSizeInvalid']);
+        $t->same(false, $compactItems['META-INF/review-state.xml']['declaredSizeMismatch']);
+        $t->same(['odf-meta-inf-sidecar-invalid-declared-size'], $compactItems['META-INF/review-state.xml']['issues']);
         $t->same(strlen($previewBytes), $compactItems['META-INF/preview.png']['byteLength']);
         $t->same(['odf-meta-inf-sidecar-missing-package-part'], $compactItems['META-INF/missing-review.xml']['issues']);
         $t->same(['odf-meta-inf-sidecar-encrypted-package-part'], $compactItems['META-INF/encrypted-review.xml']['issues']);
