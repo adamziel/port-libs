@@ -28575,6 +28575,106 @@ XML;
         $t->true(!str_contains((string) $encoded, 'hidden note image bytes'), 'note image bytes must not be exposed');
         $t->true(!str_contains((string) $encoded, 'hidden comment image bytes'), 'comment image bytes must not be exposed');
     },
+    'preflights deterministic docx package identity provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $document = (new DocxOpenXmlReader())->readZipPackage(
+            ZipPackage::fromParts(docx_openxml_reader_zip_parts($parts), 'docx identity review')
+        );
+        $package = $document->attr('docx')['packageProvenance'];
+        $identity = $package['packageIdentity'];
+        $repeatIdentity = (new DocxOpenXmlReader())->readZipPackage(
+            ZipPackage::fromParts(docx_openxml_reader_zip_parts($parts), 'docx identity review')
+        )->attr('docx')['packageProvenance']['packageIdentity'];
+        $changedParts = $parts;
+        $changedParts['word/media/review.png'] = 'changed png identity bytes';
+        $changedIdentity = (new DocxOpenXmlReader())->readZipPackage(
+            ZipPackage::fromParts(docx_openxml_reader_zip_parts($changedParts), 'docx identity review')
+        )->attr('docx')['packageProvenance']['packageIdentity'];
+        $changedCommentIdentity = (new DocxOpenXmlReader())->readZipPackage(
+            ZipPackage::fromParts(docx_openxml_reader_zip_parts($parts), 'docx identity review changed')
+        )->attr('docx')['packageProvenance']['packageIdentity'];
+        $packageEntries = [];
+        foreach ($identity['packageEntries'] as $item) {
+            $packageEntries[$item['partName']] = $item;
+        }
+        $relationshipParts = [];
+        foreach ($identity['relationshipParts'] as $item) {
+            $relationshipParts[$item['partName']] = $item;
+        }
+
+        $t->same(1, $identity['identityVersion']);
+        $t->same('wordprocessing-document', $identity['packageType']);
+        $t->same('word/document.xml', $identity['documentPart']);
+        $t->same('word/_rels/document.xml.rels', $identity['documentRelationshipsPart']);
+        $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $identity['documentContentTypeBase']);
+        $t->same(count($parts), $identity['packageEntryCount']);
+        $t->same(2, $identity['relationshipPartCount']);
+        $t->same(4, $identity['relationshipCount']);
+        $t->same(3, $identity['internalRelationshipCount']);
+        $t->same(1, $identity['externalRelationshipCount']);
+        $t->same(false, $identity['canExposeBytes']);
+        $t->same('docx-package-identity-metadata-only', $identity['byteExposurePolicy']);
+        $t->same(true, $identity['zipPackagePresent']);
+        $t->same(count($parts), $identity['zipEntryCount']);
+        $t->same(0, $identity['zipDirectoryEntryCount']);
+        $t->same(count($parts), $identity['zipLoadedPartCount']);
+        $t->same(true, $identity['hasPackageComment']);
+        $t->same(false, $identity['hasEntryComments']);
+        $t->same(64, strlen($identity['identitySha256']));
+        $t->true($identity['identityPayloadByteLength'] > 0);
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedCommentIdentity['identitySha256']);
+        $t->same($identity['identitySha256'], $package['summary']['packageIdentitySha256']);
+        $t->same($identity['identityPayloadByteLength'], $package['summary']['packageIdentityPayloadByteLength']);
+        $t->same($identity['packageEntryCount'], $package['summary']['packageIdentityEntryCount']);
+
+        $t->same([
+            '[Content_Types].xml',
+            '_rels/.rels',
+            'docProps/core.xml',
+            'word/_rels/document.xml.rels',
+            'word/document.xml',
+            'word/media/review.png',
+            'word/numbering.xml',
+            'word/styles.xml',
+        ], $identity['packageParts']);
+        $t->same(['default' => 6, 'override' => 2], $identity['contentTypeSourceCounts']);
+        $t->same(1, $identity['roleCounts']['office-document']);
+        $t->same(1, $identity['roleCounts']['office-document-relationships']);
+        $t->same(1, $identity['roleCounts']['core-properties']);
+
+        $documentEntry = $packageEntries['word/document.xml'];
+        $mediaEntry = $packageEntries['word/media/review.png'];
+        $contentTypesEntry = $packageEntries['[Content_Types].xml'];
+        $t->same(['office-document', 'root-relationship-target'], $documentEntry['roles']);
+        $t->same(strlen($parts['word/document.xml']), $documentEntry['bytes']);
+        $t->same(hash('sha256', $parts['word/document.xml']), $documentEntry['sha256']);
+        $t->same(true, $documentEntry['zipEntryPresent']);
+        $t->same('docx-package-part-metadata-only', $documentEntry['byteExposurePolicy']);
+        $t->same('image/png', $mediaEntry['contentTypeBase']);
+        $t->same(hash('sha256', $parts['word/media/review.png']), $mediaEntry['sha256']);
+        $t->same(['content-types'], $contentTypesEntry['roles']);
+
+        $rootRelationships = $relationshipParts['_rels/.rels'];
+        $documentRelationships = $relationshipParts['word/_rels/document.xml.rels'];
+        $t->same('/', $rootRelationships['sourcePart']);
+        $t->same(2, $rootRelationships['relationshipCount']);
+        $t->same(2, $rootRelationships['internalRelationshipCount']);
+        $t->same(0, $rootRelationships['externalRelationshipCount']);
+        $t->same(['word/document.xml', 'docProps/core.xml'], $rootRelationships['targetParts']);
+        $t->same('word/document.xml', $documentRelationships['sourcePart']);
+        $t->same(2, $documentRelationships['relationshipCount']);
+        $t->same(1, $documentRelationships['internalRelationshipCount']);
+        $t->same(1, $documentRelationships['externalRelationshipCount']);
+        $t->same(['word/media/review.png'], $documentRelationships['targetParts']);
+        $t->same(['https://example.test/source?post=42'], $documentRelationships['externalTargets']);
+
+        $encoded = json_encode($identity);
+        $t->true(is_string($encoded), 'identity metadata should encode for review');
+        $t->true(!str_contains((string) $encoded, 'fake png bytes'), 'identity metadata must not expose media bytes');
+        $t->true(!str_contains((string) $encoded, $parts['word/document.xml']), 'identity metadata must not expose document XML bytes');
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {

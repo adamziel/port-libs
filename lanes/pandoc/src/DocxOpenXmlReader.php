@@ -11895,12 +11895,28 @@ final class DocxOpenXmlReader
         $summary['partNameNormalizationIssueCodes'] = is_array($partNameNormalization['issueCodes'] ?? null)
             ? $partNameNormalization['issueCodes']
             : [];
+        $packageIdentity = $this->packageIdentityProvenance(
+            $contentTypesPart,
+            $relationshipParts,
+            $partInventory,
+            $zipPackage,
+            $documentPart,
+            $documentRelationshipsPart,
+            $summary,
+        );
+        $summary['packageIdentityVersion'] = $packageIdentity['identityVersion'];
+        $summary['packageIdentitySha256'] = $packageIdentity['identitySha256'];
+        $summary['packageIdentityPayloadByteLength'] = $packageIdentity['identityPayloadByteLength'];
+        $summary['packageIdentityEntryCount'] = $packageIdentity['packageEntryCount'];
+        $summary['packageIdentityRelationshipPartCount'] = $packageIdentity['relationshipPartCount'];
+        $summary['packageIdentityByteExposurePolicy'] = $packageIdentity['byteExposurePolicy'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
             'relationshipParts' => $relationshipParts,
             'relationshipTypes' => $this->relationshipTypeProvenance($relationshipParts, $partInventory),
             'xmlRelationshipReferences' => $xmlRelationshipReferences,
+            'packageIdentity' => $packageIdentity,
             'documentPart' => $documentPart,
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $partInventory,
@@ -11908,6 +11924,191 @@ final class DocxOpenXmlReader
             'partNameNormalization' => $partNameNormalization,
             'summary' => $summary,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $contentTypesPart
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @param array<string, array<string, mixed>> $partInventory
+     * @param array<string, mixed> $zipPackage
+     * @param array<string, mixed> $summary
+     * @return array<string, mixed>
+     */
+    private function packageIdentityProvenance(
+        array $contentTypesPart,
+        array $relationshipParts,
+        array $partInventory,
+        array $zipPackage,
+        string $documentPart,
+        string $documentRelationshipsPart,
+        array $summary,
+    ): array {
+        $packageEntries = [];
+        $packageParts = array_keys($partInventory);
+        sort($packageParts, SORT_STRING);
+        foreach ($packageParts as $partName) {
+            $part = $partInventory[$partName];
+            $packageEntries[] = [
+                'partName' => $partName,
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : '',
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : '',
+                'partExtension' => is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                'contentTypeParameterMap' => is_array($part['contentTypeParameterMap'] ?? null)
+                    ? $part['contentTypeParameterMap']
+                    : [],
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'relationshipSourcePart' => $part['relationshipSourcePart'] ?? null,
+                'relationshipSourceExists' => $part['relationshipSourceExists'] ?? null,
+                'zipEntryPresent' => (bool) ($part['zipEntryPresent'] ?? false),
+                'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
+                'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
+                'compressionMethod' => $part['compressionMethod'] ?? null,
+                'compressionMethodName' => $part['compressionMethodName'] ?? null,
+                'compressedByteLength' => $part['compressedByteLength'] ?? null,
+                'zipCrc32' => $part['zipCrc32'] ?? null,
+                'zipLastModifiedTimestamp' => $part['zipLastModifiedTimestamp'] ?? null,
+                'zipLastModifiedSource' => $part['zipLastModifiedSource'] ?? null,
+                'zipEntryCommentPresent' => (bool) ($part['zipEntryCommentPresent'] ?? false),
+                'zipEntryCommentLength' => (int) ($part['zipEntryCommentLength'] ?? 0),
+                'byteExposurePolicy' => 'docx-package-part-metadata-only',
+            ];
+        }
+
+        $relationshipPartEntries = [];
+        $relationshipPartNames = array_keys($relationshipParts);
+        sort($relationshipPartNames, SORT_STRING);
+        foreach ($relationshipPartNames as $relationshipPartName) {
+            $relationshipPart = $relationshipParts[$relationshipPartName];
+            $relationshipPartEntries[] = [
+                'partName' => $relationshipPartName,
+                'sourcePart' => is_string($relationshipPart['sourcePart'] ?? null)
+                    ? $relationshipPart['sourcePart']
+                    : null,
+                'sourceExists' => (bool) ($relationshipPart['sourceExists'] ?? false),
+                'exists' => (bool) ($relationshipPart['exists'] ?? false),
+                'relationshipCount' => (int) ($relationshipPart['relationshipCount'] ?? 0),
+                'internalRelationshipCount' => (int) ($relationshipPart['internalRelationshipCount'] ?? 0),
+                'externalRelationshipCount' => (int) ($relationshipPart['externalRelationshipCount'] ?? 0),
+                'existingTargetCount' => (int) ($relationshipPart['existingTargetCount'] ?? 0),
+                'missingTargetCount' => (int) ($relationshipPart['missingTargetCount'] ?? 0),
+                'missingContentTypeTargetCount' => (int) ($relationshipPart['missingContentTypeTargetCount'] ?? 0),
+                'relationshipIds' => is_array($relationshipPart['relationshipIds'] ?? null)
+                    ? $relationshipPart['relationshipIds']
+                    : [],
+                'relationshipTypes' => is_array($relationshipPart['relationshipTypes'] ?? null)
+                    ? $relationshipPart['relationshipTypes']
+                    : [],
+                'targetParts' => is_array($relationshipPart['targetParts'] ?? null)
+                    ? $relationshipPart['targetParts']
+                    : [],
+                'existingTargetParts' => is_array($relationshipPart['existingTargetParts'] ?? null)
+                    ? $relationshipPart['existingTargetParts']
+                    : [],
+                'missingTargetParts' => is_array($relationshipPart['missingTargetParts'] ?? null)
+                    ? $relationshipPart['missingTargetParts']
+                    : [],
+                'externalTargets' => is_array($relationshipPart['externalTargets'] ?? null)
+                    ? $relationshipPart['externalTargets']
+                    : [],
+                'targetReferenceSuffixes' => is_array($relationshipPart['targetReferenceSuffixes'] ?? null)
+                    ? $relationshipPart['targetReferenceSuffixes']
+                    : [],
+                'issueCodes' => is_array($relationshipPart['issueCodes'] ?? null)
+                    ? $relationshipPart['issueCodes']
+                    : [],
+            ];
+        }
+
+        $documentEntry = $partInventory[$documentPart] ?? [];
+        $zipComments = is_array($zipPackage['comments'] ?? null) ? $zipPackage['comments'] : [];
+        $payload = [
+            'identityVersion' => 1,
+            'packageType' => $this->docxPackageType(
+                is_string($documentEntry['contentTypeBase'] ?? null) ? $documentEntry['contentTypeBase'] : ''
+            ),
+            'documentPart' => $documentPart,
+            'documentRelationshipsPart' => $documentRelationshipsPart,
+            'documentContentType' => is_string($documentEntry['contentType'] ?? null)
+                ? $documentEntry['contentType']
+                : '',
+            'documentContentTypeBase' => is_string($documentEntry['contentTypeBase'] ?? null)
+                ? $documentEntry['contentTypeBase']
+                : '',
+            'contentTypesPartExists' => (bool) ($contentTypesPart['exists'] ?? false),
+            'contentTypeDefaultCount' => count(is_array($contentTypesPart['defaults'] ?? null) ? $contentTypesPart['defaults'] : []),
+            'contentTypeOverrideCount' => count(is_array($contentTypesPart['overrides'] ?? null) ? $contentTypesPart['overrides'] : []),
+            'packageEntryCount' => count($packageEntries),
+            'packageParts' => $packageParts,
+            'packageByteLength' => (int) ($summary['packageByteLength'] ?? 0),
+            'relationshipPartCount' => count($relationshipPartEntries),
+            'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
+            'internalRelationshipCount' => (int) ($summary['internalRelationshipCount'] ?? 0),
+            'externalRelationshipCount' => (int) ($summary['externalRelationshipCount'] ?? 0),
+            'existingRelationshipTargetCount' => (int) ($summary['existingRelationshipTargetCount'] ?? 0),
+            'missingRelationshipTargetCount' => (int) ($summary['missingRelationshipTargetCount'] ?? 0),
+            'roleCounts' => is_array($summary['roleCounts'] ?? null) ? $summary['roleCounts'] : [],
+            'contentTypeBaseCounts' => is_array($summary['contentTypeBaseCounts'] ?? null)
+                ? $summary['contentTypeBaseCounts']
+                : [],
+            'contentTypeSourceCounts' => is_array($summary['contentTypeSourceCounts'] ?? null)
+                ? $summary['contentTypeSourceCounts']
+                : [],
+            'zipPackagePresent' => (bool) ($zipPackage['present'] ?? false),
+            'zipEntryCount' => (int) ($zipPackage['entryCount'] ?? 0),
+            'zipFileEntryCount' => (int) ($zipPackage['fileEntryCount'] ?? 0),
+            'zipDirectoryEntryCount' => (int) ($zipPackage['directoryEntryCount'] ?? 0),
+            'zipLoadedPartCount' => (int) ($zipPackage['loadedPartCount'] ?? 0),
+            'zipUnsupportedCompressionMethodCount' => (int) ($zipPackage['unsupportedCompressionMethodCount'] ?? 0),
+            'zipCentralDirectoryOrderMatchesLocalHeaderOrder' =>
+                $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null,
+            'hasPackageComment' => (bool) ($zipComments['hasPackageComment'] ?? false),
+            'hasEntryComments' => (bool) ($zipComments['hasEntryComments'] ?? false),
+            'packageCommentLength' => (int) ($zipComments['packageCommentLength'] ?? 0),
+            'packageCommentEncoding' => $zipComments['packageCommentEncoding'] ?? null,
+            'packageCommentHasControlBytes' => (bool) ($zipComments['packageCommentHasControlBytes'] ?? false),
+            'packageCommentHasUnicodeFormatControls' =>
+                (bool) ($zipComments['packageCommentHasUnicodeFormatControls'] ?? false),
+            'packageCommentHasBidiControls' => (bool) ($zipComments['packageCommentHasBidiControls'] ?? false),
+            'entryCommentCount' => (int) ($zipComments['entryCommentCount'] ?? 0),
+            'commentedEntryNames' => is_array($zipComments['commentedEntryNames'] ?? null)
+                ? $zipComments['commentedEntryNames']
+                : [],
+            'zipCommentIssueCodes' => is_array($zipComments['issueCodes'] ?? null)
+                ? $zipComments['issueCodes']
+                : [],
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'docx-package-identity-metadata-only',
+            'packageEntries' => $packageEntries,
+            'relationshipParts' => $relationshipPartEntries,
+        ];
+
+        $identityPayload = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        if (!is_string($identityPayload)) {
+            $identityPayload = '';
+        }
+
+        return [
+            'identitySha256' => hash('sha256', $identityPayload),
+            'identityPayloadByteLength' => strlen($identityPayload),
+        ] + $payload;
+    }
+
+    private function docxPackageType(string $documentContentTypeBase): string
+    {
+        return match ($documentContentTypeBase) {
+            self::CT_WORD_DOCUMENT => 'wordprocessing-document',
+            self::CT_WORD_TEMPLATE => 'wordprocessing-template',
+            self::CT_WORD_MACRO_ENABLED_DOCUMENT => 'wordprocessing-macro-enabled-document',
+            self::CT_WORD_MACRO_ENABLED_TEMPLATE => 'wordprocessing-macro-enabled-template',
+            default => 'openxml-package',
+        };
     }
 
     /**
