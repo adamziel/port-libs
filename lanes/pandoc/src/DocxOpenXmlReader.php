@@ -13835,6 +13835,13 @@ final class DocxOpenXmlReader
             $partContentTypeSubtypeCounts[$subtypeKey] = (int) ($subtypeSummary['partCount'] ?? 0);
         }
         ksort($partContentTypeSubtypeCounts, SORT_STRING);
+        $partContentTypeTrees = $this->packagePartContentTypeTreeSummary($partInventory);
+        $partContentTypeTreeCounts = [];
+        foreach ($partContentTypeTrees as $treeSummary) {
+            $treeKey = (string) ($treeSummary['contentTypeTreeKey'] ?? '');
+            $partContentTypeTreeCounts[$treeKey] = (int) ($treeSummary['partCount'] ?? 0);
+        }
+        ksort($partContentTypeTreeCounts, SORT_STRING);
         $partRoles = $this->packagePartRoleSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
@@ -17016,6 +17023,8 @@ final class DocxOpenXmlReader
             'partContentTypeMediaTypeCounts' => $partContentTypeMediaTypeCounts,
             'partContentTypeSubtypeCount' => count($partContentTypeSubtypes),
             'partContentTypeSubtypeCounts' => $partContentTypeSubtypeCounts,
+            'partContentTypeTreeCount' => count($partContentTypeTrees),
+            'partContentTypeTreeCounts' => $partContentTypeTreeCounts,
             'contentTypeExtensionMismatchCount' => $contentTypeExtensionMismatches['count'],
             'contentTypeExtensionMismatchIssueCodes' => $contentTypeExtensionMismatches['issueCodes'],
             'contentTypeExtensionMismatchPartNames' => $contentTypeExtensionMismatches['partNames'],
@@ -17372,6 +17381,7 @@ final class DocxOpenXmlReader
             'partContentTypeParameterSources' => $partContentTypeParameterSources,
             'partContentTypeMediaTypes' => $partContentTypeMediaTypes,
             'partContentTypeSubtypes' => $partContentTypeSubtypes,
+            'partContentTypeTrees' => $partContentTypeTrees,
             'partRoles' => $partRoles,
             'largestPart' => $largestPart,
             'largestParts' => $largestParts,
@@ -18717,6 +18727,139 @@ final class DocxOpenXmlReader
         }
 
         return array_values($subtypes);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartContentTypeTreeSummary(array $partInventory): array
+    {
+        $trees = [];
+        foreach ($partInventory as $partName => $part) {
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $treeKey = $this->contentTypeTreeKey($contentTypeBase);
+            $tree = $treeKey[0] === '(' ? null : $treeKey;
+            $mediaTypeKey = $this->contentTypeMediaTypeKey($contentTypeBase);
+            $mediaType = $mediaTypeKey[0] === '(' ? null : $mediaTypeKey;
+            $subtypeKey = $this->contentTypeSubtypeKey($contentTypeBase);
+            $subtype = $subtypeKey[0] === '(' ? null : $subtypeKey;
+            if (!isset($trees[$treeKey])) {
+                $trees[$treeKey] = [
+                    'contentTypeTreeKey' => $treeKey,
+                    'contentTypeTree' => $tree,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'invalidContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'contentTypes' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'mediaTypeCounts' => [],
+                    'subtypeCounts' => [],
+                    'defaultExtensions' => [],
+                    'overridePartNames' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$trees[$treeKey]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $trees[$treeKey]['byteLength'] += $bytes;
+            $trees[$treeKey]['partNames'][] = (string) $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$trees[$treeKey]['relationshipPartCount'];
+            }
+            if ($contentTypeBase === '') {
+                ++$trees[$treeKey]['missingContentTypePartCount'];
+            } elseif ($tree === null) {
+                ++$trees[$treeKey]['invalidContentTypePartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$trees[$treeKey]['parameterizedPartCount'];
+            }
+
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $trees[$treeKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($trees[$treeKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $trees[$treeKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($trees[$treeKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $trees[$treeKey]['mediaTypeCounts'][$mediaTypeKey] =
+                ($trees[$treeKey]['mediaTypeCounts'][$mediaTypeKey] ?? 0) + 1;
+            $trees[$treeKey]['subtypeCounts'][$subtypeKey] =
+                ($trees[$treeKey]['subtypeCounts'][$subtypeKey] ?? 0) + 1;
+
+            $this->appendUniqueString(
+                $trees[$treeKey]['contentTypes'],
+                is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+            );
+            $this->appendUniqueString(
+                $trees[$treeKey]['defaultExtensions'],
+                is_string($part['defaultExtension'] ?? null) ? $part['defaultExtension'] : null,
+            );
+            $this->appendUniqueString(
+                $trees[$treeKey]['overridePartNames'],
+                is_string($part['overridePartName'] ?? null) ? $part['overridePartName'] : null,
+            );
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $trees[$treeKey]['roleCounts'][$role] =
+                    ($trees[$treeKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName((string) $partName),
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeMediaType' => $mediaType,
+                'contentTypeSubtype' => $subtype,
+                'contentTypeTree' => $tree,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $trees[$treeKey]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $trees[$treeKey]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($trees, SORT_STRING);
+        foreach ($trees as $treeKey => $summary) {
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['defaultExtensions'], SORT_STRING);
+            sort($summary['overridePartNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['mediaTypeCounts'], SORT_STRING);
+            ksort($summary['subtypeCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $trees[$treeKey] = $summary;
+        }
+
+        return array_values($trees);
     }
 
     /**
@@ -39750,6 +39893,27 @@ final class DocxOpenXmlReader
         }
 
         return strtolower($subtype);
+    }
+
+    private function contentTypeTreeKey(string $contentTypeBase): string
+    {
+        $subtype = $this->contentTypeSubtypeKey($contentTypeBase);
+        if ($subtype[0] === '(') {
+            return $subtype;
+        }
+
+        if (!str_starts_with($subtype, 'vnd.')) {
+            return 'standard';
+        }
+
+        $structuredSuffixPosition = strpos($subtype, '+');
+        $vendorSubtype = $structuredSuffixPosition === false ? $subtype : substr($subtype, 0, $structuredSuffixPosition);
+        $segments = explode('.', $vendorSubtype);
+        if (!isset($segments[1]) || $segments[1] === '') {
+            return 'vnd';
+        }
+
+        return 'vnd.' . $segments[1];
     }
 
     /**

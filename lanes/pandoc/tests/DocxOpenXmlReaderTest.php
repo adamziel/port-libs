@@ -12750,6 +12750,162 @@ XML;
         $t->same(['payload'], $missing['defaultExtensions']);
         $t->same('customXml/no-type.payload', $missing['largestPart']['partName']);
     },
+    'summarizes docx package part content type tree buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Default Extension="txt" ContentType="text/plain; charset=UTF-8"/>' . "\n" .
+            '  <Override PartName="/customXml/review.json" ContentType="application/vnd.example.review+json; profile=tree-bucket"/>' . "\n" .
+            '  <Override PartName="/word/media/vector.svg" ContentType="image/svg+xml; profile=vector"/>' . "\n" .
+            '  <Override PartName="/customXml/invalid.dat" ContentType="review-tree"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/review.json'] = '{"review":true}';
+        $parts['word/media/vector.svg'] = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+        $parts['customXml/readme.txt'] = 'plain text tree notes';
+        $parts['customXml/raw.bin'] = 'raw tree bytes';
+        $parts['customXml/invalid.dat'] = 'invalid tree payload';
+        $parts['customXml/no-type.payload'] = 'missing tree payload';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $byTree = [];
+        foreach ($summary['partContentTypeTrees'] as $tree) {
+            $byTree[$tree['contentTypeTreeKey']] = $tree;
+        }
+
+        $t->same(6, $summary['partContentTypeTreeCount']);
+        $t->same([
+            '(invalid)' => 1,
+            '(missing)' => 1,
+            'standard' => 7,
+            'vnd.example' => 1,
+            'vnd.openxmlformats-officedocument' => 1,
+            'vnd.openxmlformats-package' => 3,
+        ], $summary['partContentTypeTreeCounts']);
+        $t->same([
+            '(invalid)',
+            '(missing)',
+            'standard',
+            'vnd.example',
+            'vnd.openxmlformats-officedocument',
+            'vnd.openxmlformats-package',
+        ], array_column($summary['partContentTypeTrees'], 'contentTypeTreeKey'));
+
+        $standard = $byTree['standard'];
+        $t->same('standard', $standard['contentTypeTree']);
+        $t->same(7, $standard['partCount']);
+        $t->same(2, $standard['parameterizedPartCount']);
+        $t->same(['default' => 6, 'override' => 1], $standard['contentTypeSourceCounts']);
+        $t->same(['application' => 4, 'image' => 2, 'text' => 1], $standard['mediaTypeCounts']);
+        $t->same([
+            'octet-stream' => 1,
+            'plain' => 1,
+            'png' => 1,
+            'svg+xml' => 1,
+            'xml' => 3,
+        ], $standard['subtypeCounts']);
+        $t->same([
+            'application/octet-stream' => 1,
+            'application/xml' => 3,
+            'image/png' => 1,
+            'image/svg+xml' => 1,
+            'text/plain' => 1,
+        ], $standard['contentTypeBaseCounts']);
+        $t->same(['bin', 'png', 'txt', 'xml'], $standard['defaultExtensions']);
+        $t->same(['word/media/vector.svg'], $standard['overridePartNames']);
+        $t->same([
+            'content-types' => 1,
+            'document-relationship-target' => 1,
+            'package-part' => 5,
+        ], $standard['roleCounts']);
+        $t->same([
+            '[Content_Types].xml',
+            'customXml/raw.bin',
+            'customXml/readme.txt',
+            'word/media/review.png',
+            'word/media/vector.svg',
+            'word/numbering.xml',
+            'word/styles.xml',
+        ], $standard['partNames']);
+        $t->same('standard', $standard['largestPart']['contentTypeTree']);
+
+        $customVendor = $byTree['vnd.example'];
+        $t->same('vnd.example', $customVendor['contentTypeTree']);
+        $t->same(1, $customVendor['partCount']);
+        $t->same(1, $customVendor['parameterizedPartCount']);
+        $t->same(['application' => 1], $customVendor['mediaTypeCounts']);
+        $t->same(['vnd.example.review+json' => 1], $customVendor['subtypeCounts']);
+        $t->same(['application/vnd.example.review+json; profile=tree-bucket'], $customVendor['contentTypes']);
+        $t->same(['application/vnd.example.review+json' => 1], $customVendor['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $customVendor['contentTypeSourceCounts']);
+        $t->same(['customXml/review.json'], $customVendor['overridePartNames']);
+        $t->same(['package-part' => 1], $customVendor['roleCounts']);
+        $t->same('customXml/review.json', $customVendor['largestPart']['partName']);
+        $t->same('vnd.example.review+json', $customVendor['largestPart']['contentTypeSubtype']);
+        $t->same('vnd.example', $customVendor['largestPart']['contentTypeTree']);
+
+        $officeDocument = $byTree['vnd.openxmlformats-officedocument'];
+        $t->same(1, $officeDocument['partCount']);
+        $t->same(['application' => 1], $officeDocument['mediaTypeCounts']);
+        $t->same([
+            'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+        ], $officeDocument['subtypeCounts']);
+        $t->same(['override' => 1], $officeDocument['contentTypeSourceCounts']);
+        $t->same(['word/document.xml'], $officeDocument['overridePartNames']);
+        $t->same(['office-document' => 1, 'root-relationship-target' => 1], $officeDocument['roleCounts']);
+        $t->same('word/document.xml', $officeDocument['largestPart']['partName']);
+        $t->same('vnd.openxmlformats-officedocument', $officeDocument['largestPart']['contentTypeTree']);
+
+        $openXmlPackage = $byTree['vnd.openxmlformats-package'];
+        $t->same('vnd.openxmlformats-package', $openXmlPackage['contentTypeTree']);
+        $t->same(3, $openXmlPackage['partCount']);
+        $t->same(2, $openXmlPackage['relationshipPartCount']);
+        $t->same(['default' => 2, 'override' => 1], $openXmlPackage['contentTypeSourceCounts']);
+        $t->same(['application' => 3], $openXmlPackage['mediaTypeCounts']);
+        $t->same([
+            'vnd.openxmlformats-package.core-properties+xml' => 1,
+            'vnd.openxmlformats-package.relationships+xml' => 2,
+        ], $openXmlPackage['subtypeCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 2,
+        ], $openXmlPackage['contentTypeBaseCounts']);
+        $t->same(['rels'], $openXmlPackage['defaultExtensions']);
+        $t->same(['docProps/core.xml'], $openXmlPackage['overridePartNames']);
+        $t->same([
+            'core-properties' => 1,
+            'office-document-relationships' => 1,
+            'package-relationships' => 1,
+            'relationship-part' => 2,
+            'root-relationship-target' => 1,
+        ], $openXmlPackage['roleCounts']);
+        $t->same(['_rels/.rels', 'docProps/core.xml', 'word/_rels/document.xml.rels'], $openXmlPackage['partNames']);
+        $t->same('docProps/core.xml', $openXmlPackage['largestPart']['partName']);
+        $t->same('vnd.openxmlformats-package', $openXmlPackage['largestPart']['contentTypeTree']);
+
+        $invalid = $byTree['(invalid)'];
+        $t->same(null, $invalid['contentTypeTree']);
+        $t->same(1, $invalid['invalidContentTypePartCount']);
+        $t->same(['(invalid)' => 1], $invalid['mediaTypeCounts']);
+        $t->same(['(invalid)' => 1], $invalid['subtypeCounts']);
+        $t->same(['review-tree' => 1], $invalid['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $invalid['contentTypeSourceCounts']);
+        $t->same(['customXml/invalid.dat'], $invalid['overridePartNames']);
+        $t->same('customXml/invalid.dat', $invalid['largestPart']['partName']);
+
+        $missing = $byTree['(missing)'];
+        $t->same(null, $missing['contentTypeTree']);
+        $t->same(1, $missing['missingContentTypePartCount']);
+        $t->same(['(missing)' => 1], $missing['mediaTypeCounts']);
+        $t->same(['(missing)' => 1], $missing['subtypeCounts']);
+        $t->same(['(missing)' => 1], $missing['contentTypeBaseCounts']);
+        $t->same(['missing' => 1], $missing['contentTypeSourceCounts']);
+        $t->same(['payload'], $missing['defaultExtensions']);
+        $t->same('customXml/no-type.payload', $missing['largestPart']['partName']);
+    },
     'summarizes docx package part content type buckets for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
