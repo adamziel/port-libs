@@ -662,6 +662,12 @@ final class OpcRelationshipGraph
         foreach ($package->packageManifestPreflight()['entries'] as $manifestEntry) {
             $packageManifestEntriesByCentralDirectoryIndex[$manifestEntry['centralDirectoryIndex']] = $manifestEntry;
         }
+        $packageBytes = $package->bytes();
+        $centralDirectoryVariableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($packageBytes);
+        $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex = [];
+        foreach ($centralDirectoryVariableFields['entries'] as $variableFieldEntry) {
+            $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex[$variableFieldEntry['centralDirectoryIndex']] = $variableFieldEntry;
+        }
 
         foreach ($package->entries() as $entryIndex => $entry) {
             $isDirectory = $entry->isDirectory();
@@ -678,6 +684,34 @@ final class OpcRelationshipGraph
                 ?? $entry->centralDirectoryRecordEnd;
             $centralDirectoryRecordBytes = is_int($centralDirectoryRecordOffset) && is_int($centralDirectoryRecordEnd)
                 ? max(0, $centralDirectoryRecordEnd - $centralDirectoryRecordOffset)
+                : null;
+            $variableFieldEntry = $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex[$entryIndex] ?? null;
+            $centralDirectoryVariableFieldOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['variableFieldsOffset'] ?? null)
+                : null;
+            $centralDirectoryVariableFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['variableFieldsLength'] ?? null)
+                : null;
+            $centralDirectoryRawNameOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawNameOffset'] ?? null)
+                : null;
+            $centralDirectoryRawNameBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawNameLength'] ?? null)
+                : null;
+            $centralDirectoryExtraFieldOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['centralExtraFieldOffset'] ?? null)
+                : null;
+            $centralDirectoryExtraFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['centralExtraFieldLength'] ?? null)
+                : null;
+            $centralDirectoryRawCommentOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawCommentOffset'] ?? null)
+                : null;
+            $centralDirectoryRawCommentBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawCommentLength'] ?? null)
+                : null;
+            $centralDirectoryReviewFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['reviewFieldBytes'] ?? null)
                 : null;
 
             if (!$isDirectory) {
@@ -708,6 +742,38 @@ final class OpcRelationshipGraph
                 'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
                 'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
+                'centralDirectoryFixedHeaderBytes' => is_array($variableFieldEntry) ? ($variableFieldEntry['fixedHeaderLength'] ?? null) : null,
+                'centralDirectoryVariableFieldOffset' => $centralDirectoryVariableFieldOffset,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryVariableFieldSha256' => self::zipByteRangeSha256(
+                    $packageBytes,
+                    $centralDirectoryVariableFieldOffset,
+                    $centralDirectoryVariableFieldBytes
+                ),
+                'centralDirectoryRawNameOffset' => $centralDirectoryRawNameOffset,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryRawNameSha256' => self::zipByteRangeSha256(
+                    $packageBytes,
+                    $centralDirectoryRawNameOffset,
+                    $centralDirectoryRawNameBytes
+                ),
+                'centralDirectoryExtraFieldOffset' => $centralDirectoryExtraFieldOffset,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryExtraFieldSha256' => self::zipByteRangeSha256(
+                    $packageBytes,
+                    $centralDirectoryExtraFieldOffset,
+                    $centralDirectoryExtraFieldBytes
+                ),
+                'centralDirectoryRawCommentOffset' => $centralDirectoryRawCommentOffset,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryRawCommentSha256' => self::zipByteRangeSha256(
+                    $packageBytes,
+                    $centralDirectoryRawCommentOffset,
+                    $centralDirectoryRawCommentBytes
+                ),
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'hasCentralDirectoryReviewFields' => is_int($centralDirectoryReviewFieldBytes)
+                    && $centralDirectoryReviewFieldBytes > 0,
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
                 'localHeaderOffset' => $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset,
                 'rawName' => $entry->rawName,
@@ -1403,6 +1469,18 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFields['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryNameBytes' => $centralDirectoryVariableFields['centralDirectoryNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryVariableFields['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryCommentBytes' => $centralDirectoryVariableFields['centralDirectoryCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryVariableFields['centralDirectoryReviewFieldBytes'],
+            'centralExtraFieldEntryCount' => $centralDirectoryVariableFields['centralExtraFieldEntryCount'],
+            'entryCommentCount' => $centralDirectoryVariableFields['entryCommentCount'],
+            'centralDirectoryReviewFieldEntryCount' => $centralDirectoryVariableFields['reviewFieldEntryCount'],
+            'hasCentralDirectoryVariableFields' => $centralDirectoryVariableFields['hasCentralDirectoryVariableFields'],
+            'hasCentralExtraFields' => $centralDirectoryVariableFields['hasCentralExtraFields'],
+            'hasEntryComments' => $centralDirectoryVariableFields['hasEntryComments'],
+            'hasCentralDirectoryReviewFields' => $centralDirectoryVariableFields['hasCentralDirectoryReviewFields'],
             'contentTypesItemCount' => count($contentTypesItems),
             'contentTypeDeclarationAvailable' => $contentTypes instanceof OpcContentTypes,
             'contentTypesParseError' => $contentTypesParseError,
@@ -1524,6 +1602,11 @@ final class OpcRelationshipGraph
     public static function preflightZipCentralDirectoryManifest(string $bytes): array
     {
         $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
+        $centralDirectoryVariableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($bytes);
+        $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex = [];
+        foreach ($centralDirectoryVariableFields['entries'] as $variableFieldEntry) {
+            $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex[$variableFieldEntry['centralDirectoryIndex']] = $variableFieldEntry;
+        }
         $localHeaderOrder = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($bytes);
         $localHeaderOrderByCentralDirectoryIndex = [];
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
@@ -1580,6 +1663,34 @@ final class OpcRelationshipGraph
                 }
             }
             $centralDirectoryRecordBytes = max(0, $centralEntry['recordEnd'] - $centralEntry['centralDirectoryOffset']);
+            $variableFieldEntry = $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $centralDirectoryVariableFieldOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['variableFieldsOffset'] ?? null)
+                : null;
+            $centralDirectoryVariableFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['variableFieldsLength'] ?? null)
+                : null;
+            $centralDirectoryRawNameOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawNameOffset'] ?? null)
+                : null;
+            $centralDirectoryRawNameBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawNameLength'] ?? null)
+                : null;
+            $centralDirectoryExtraFieldOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['centralExtraFieldOffset'] ?? null)
+                : null;
+            $centralDirectoryExtraFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['centralExtraFieldLength'] ?? null)
+                : null;
+            $centralDirectoryRawCommentOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawCommentOffset'] ?? null)
+                : null;
+            $centralDirectoryRawCommentBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawCommentLength'] ?? null)
+                : null;
+            $centralDirectoryReviewFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['reviewFieldBytes'] ?? null)
+                : null;
 
             $entries[] = [
                 'entryIndex' => $entryIndex,
@@ -1613,6 +1724,38 @@ final class OpcRelationshipGraph
                     'sha256',
                     substr($bytes, $centralEntry['centralDirectoryOffset'], $centralDirectoryRecordBytes)
                 ),
+                'centralDirectoryFixedHeaderBytes' => is_array($variableFieldEntry) ? ($variableFieldEntry['fixedHeaderLength'] ?? null) : null,
+                'centralDirectoryVariableFieldOffset' => $centralDirectoryVariableFieldOffset,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryVariableFieldSha256' => self::zipByteRangeSha256(
+                    $bytes,
+                    $centralDirectoryVariableFieldOffset,
+                    $centralDirectoryVariableFieldBytes
+                ),
+                'centralDirectoryRawNameOffset' => $centralDirectoryRawNameOffset,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryRawNameSha256' => self::zipByteRangeSha256(
+                    $bytes,
+                    $centralDirectoryRawNameOffset,
+                    $centralDirectoryRawNameBytes
+                ),
+                'centralDirectoryExtraFieldOffset' => $centralDirectoryExtraFieldOffset,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryExtraFieldSha256' => self::zipByteRangeSha256(
+                    $bytes,
+                    $centralDirectoryExtraFieldOffset,
+                    $centralDirectoryExtraFieldBytes
+                ),
+                'centralDirectoryRawCommentOffset' => $centralDirectoryRawCommentOffset,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryRawCommentSha256' => self::zipByteRangeSha256(
+                    $bytes,
+                    $centralDirectoryRawCommentOffset,
+                    $centralDirectoryRawCommentBytes
+                ),
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'hasCentralDirectoryReviewFields' => is_int($centralDirectoryReviewFieldBytes)
+                    && $centralDirectoryReviewFieldBytes > 0,
                 'localHeaderOffset' => $centralEntry['localHeaderOffset'],
                 'compressionMethod' => $centralEntry['compressionMethod'],
                 'compressionMethodName' => $centralEntry['compressionMethodName'],
@@ -2039,6 +2182,18 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFields['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryNameBytes' => $centralDirectoryVariableFields['centralDirectoryNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryVariableFields['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryCommentBytes' => $centralDirectoryVariableFields['centralDirectoryCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryVariableFields['centralDirectoryReviewFieldBytes'],
+            'centralExtraFieldEntryCount' => $centralDirectoryVariableFields['centralExtraFieldEntryCount'],
+            'entryCommentCount' => $centralDirectoryVariableFields['entryCommentCount'],
+            'centralDirectoryReviewFieldEntryCount' => $centralDirectoryVariableFields['reviewFieldEntryCount'],
+            'hasCentralDirectoryVariableFields' => $centralDirectoryVariableFields['hasCentralDirectoryVariableFields'],
+            'hasCentralExtraFields' => $centralDirectoryVariableFields['hasCentralExtraFields'],
+            'hasEntryComments' => $centralDirectoryVariableFields['hasEntryComments'],
+            'hasCentralDirectoryReviewFields' => $centralDirectoryVariableFields['hasCentralDirectoryReviewFields'],
             'contentTypesItemCount' => count($contentTypesItems),
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
@@ -8821,6 +8976,15 @@ final class OpcRelationshipGraph
             8 => 'deflated',
             default => 'unsupported',
         };
+    }
+
+    private static function zipByteRangeSha256(string $bytes, mixed $offset, mixed $length): ?string
+    {
+        if (!is_int($offset) || !is_int($length) || $offset < 0 || $length < 0) {
+            return null;
+        }
+
+        return hash('sha256', substr($bytes, $offset, $length));
     }
 
     /**

@@ -582,13 +582,45 @@ XML;
 
         $documentEntry = $entries['word/document.xml'];
         $rawDocumentEntry = $rawEntries['word/document.xml'];
+        $expectedCentralNameBytes = array_sum(array_map(
+            static fn (array $part): int => strlen($part['name']),
+            $parts
+        ));
         $expectedCentralRecordBytes = 46
             + strlen('word/document.xml')
             + strlen($documentExtra)
             + strlen($documentComment);
+        $expectedCentralVariableFieldBytes = strlen('word/document.xml')
+            + strlen($documentExtra)
+            + strlen($documentComment);
+        $expectedCentralReviewFieldBytes = strlen($documentExtra) + strlen($documentComment);
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
+        $t->same($expectedCentralNameBytes + $expectedCentralReviewFieldBytes, $summary['centralDirectoryVariableFieldBytes']);
+        $t->same($summary['centralDirectoryVariableFieldBytes'], $rawSummary['centralDirectoryVariableFieldBytes']);
+        $t->same($expectedCentralNameBytes, $summary['centralDirectoryNameBytes']);
+        $t->same($summary['centralDirectoryNameBytes'], $rawSummary['centralDirectoryNameBytes']);
+        $t->same(strlen($documentExtra), $summary['centralDirectoryExtraFieldBytes']);
+        $t->same($summary['centralDirectoryExtraFieldBytes'], $rawSummary['centralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment), $summary['centralDirectoryCommentBytes']);
+        $t->same($summary['centralDirectoryCommentBytes'], $rawSummary['centralDirectoryCommentBytes']);
+        $t->same($expectedCentralReviewFieldBytes, $summary['centralDirectoryReviewFieldBytes']);
+        $t->same($summary['centralDirectoryReviewFieldBytes'], $rawSummary['centralDirectoryReviewFieldBytes']);
+        $t->same(1, $summary['centralExtraFieldEntryCount']);
+        $t->same($summary['centralExtraFieldEntryCount'], $rawSummary['centralExtraFieldEntryCount']);
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same($summary['entryCommentCount'], $rawSummary['entryCommentCount']);
+        $t->same(1, $summary['centralDirectoryReviewFieldEntryCount']);
+        $t->same($summary['centralDirectoryReviewFieldEntryCount'], $rawSummary['centralDirectoryReviewFieldEntryCount']);
+        $t->same(true, $summary['hasCentralDirectoryVariableFields']);
+        $t->same($summary['hasCentralDirectoryVariableFields'], $rawSummary['hasCentralDirectoryVariableFields']);
+        $t->same(true, $summary['hasCentralExtraFields']);
+        $t->same($summary['hasCentralExtraFields'], $rawSummary['hasCentralExtraFields']);
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same($summary['hasEntryComments'], $rawSummary['hasEntryComments']);
+        $t->same(true, $summary['hasCentralDirectoryReviewFields']);
+        $t->same($summary['hasCentralDirectoryReviewFields'], $rawSummary['hasCentralDirectoryReviewFields']);
         $t->same($documentEntry['entryIndex'], $documentEntry['centralDirectoryIndex']);
         $t->same(2, $documentEntry['centralDirectoryIndex']);
         $t->same($rawDocumentEntry['centralDirectoryOffset'], $rawDocumentEntry['centralDirectoryRecordOffset']);
@@ -612,6 +644,51 @@ XML;
             $documentEntry['centralDirectoryRecordSha256']
         );
         $t->same($documentEntry['centralDirectoryRecordSha256'], $rawDocumentEntry['centralDirectoryRecordSha256']);
+        $t->same(46, $documentEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same($documentEntry['centralDirectoryFixedHeaderBytes'], $rawDocumentEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(
+            $documentEntry['centralDirectoryRecordOffset'] + 46,
+            $documentEntry['centralDirectoryVariableFieldOffset']
+        );
+        $t->same($documentEntry['centralDirectoryVariableFieldOffset'], $rawDocumentEntry['centralDirectoryVariableFieldOffset']);
+        $t->same($expectedCentralVariableFieldBytes, $documentEntry['centralDirectoryVariableFieldBytes']);
+        $t->same($documentEntry['centralDirectoryVariableFieldBytes'], $rawDocumentEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(
+            hash(
+                'sha256',
+                substr($zip, $documentEntry['centralDirectoryVariableFieldOffset'], $documentEntry['centralDirectoryVariableFieldBytes'])
+            ),
+            $documentEntry['centralDirectoryVariableFieldSha256']
+        );
+        $t->same($documentEntry['centralDirectoryVariableFieldSha256'], $rawDocumentEntry['centralDirectoryVariableFieldSha256']);
+        $t->same($documentEntry['centralDirectoryVariableFieldOffset'], $documentEntry['centralDirectoryRawNameOffset']);
+        $t->same($documentEntry['centralDirectoryRawNameOffset'], $rawDocumentEntry['centralDirectoryRawNameOffset']);
+        $t->same(strlen('word/document.xml'), $documentEntry['centralDirectoryRawNameBytes']);
+        $t->same($documentEntry['centralDirectoryRawNameBytes'], $rawDocumentEntry['centralDirectoryRawNameBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentEntry['centralDirectoryRawNameSha256']);
+        $t->same($documentEntry['centralDirectoryRawNameSha256'], $rawDocumentEntry['centralDirectoryRawNameSha256']);
+        $t->same(
+            $documentEntry['centralDirectoryRawNameOffset'] + strlen('word/document.xml'),
+            $documentEntry['centralDirectoryExtraFieldOffset']
+        );
+        $t->same($documentEntry['centralDirectoryExtraFieldOffset'], $rawDocumentEntry['centralDirectoryExtraFieldOffset']);
+        $t->same(strlen($documentExtra), $documentEntry['centralDirectoryExtraFieldBytes']);
+        $t->same($documentEntry['centralDirectoryExtraFieldBytes'], $rawDocumentEntry['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', $documentExtra), $documentEntry['centralDirectoryExtraFieldSha256']);
+        $t->same($documentEntry['centralDirectoryExtraFieldSha256'], $rawDocumentEntry['centralDirectoryExtraFieldSha256']);
+        $t->same(
+            $documentEntry['centralDirectoryExtraFieldOffset'] + strlen($documentExtra),
+            $documentEntry['centralDirectoryRawCommentOffset']
+        );
+        $t->same($documentEntry['centralDirectoryRawCommentOffset'], $rawDocumentEntry['centralDirectoryRawCommentOffset']);
+        $t->same(strlen($documentComment), $documentEntry['centralDirectoryRawCommentBytes']);
+        $t->same($documentEntry['centralDirectoryRawCommentBytes'], $rawDocumentEntry['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $documentComment), $documentEntry['centralDirectoryRawCommentSha256']);
+        $t->same($documentEntry['centralDirectoryRawCommentSha256'], $rawDocumentEntry['centralDirectoryRawCommentSha256']);
+        $t->same($expectedCentralReviewFieldBytes, $documentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same($documentEntry['centralDirectoryReviewFieldBytes'], $rawDocumentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same(true, $documentEntry['hasCentralDirectoryReviewFields']);
+        $t->same($documentEntry['hasCentralDirectoryReviewFields'], $rawDocumentEntry['hasCentralDirectoryReviewFields']);
     },
     'carries OPC ZIP raw entry-name provenance through manifest preflights' => static function (TestRunner $t) use ($buildOpcZipPackage, $buildUnicodeExtra): void {
         $contentTypesXml = <<<'XML'
