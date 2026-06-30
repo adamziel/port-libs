@@ -6,6 +6,7 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
 
 return [
@@ -43,7 +44,9 @@ NATIVE;
         $emphasis = $paragraph->children[2];
         $json = (new PandocJsonWriter())->toArray(new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
         ], $document->children));
+        $roundTrip = (new PandocJsonReader())->readPacket($json);
 
         $t->same(['text', 'space', 'emph', 'space', 'text'], array_map(
             static fn (AstNode $node): string => $node->type,
@@ -67,6 +70,10 @@ NATIVE;
             '[ Para [ Str "left" , Space , Emph [ Str "middle" , Space , Str "right" ] , Space , Str "tail" ]' . "\n" . ']',
             (new NativeWriter(['blocksOnly' => true]))->write($document)
         );
+        $t->same(['text', 'space', 'emph', 'space', 'text'], array_map(
+            static fn (AstNode $node): string => $node->type,
+            $roundTrip->children[0]->children
+        ));
     },
     'classifies textual native tex-family raw constructors through shared ast writers' => static function (TestRunner $t): void {
         $native = <<<'NATIVE'
