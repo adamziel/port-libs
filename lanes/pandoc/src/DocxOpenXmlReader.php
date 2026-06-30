@@ -12558,8 +12558,47 @@ final class DocxOpenXmlReader
                 ? $documentEntry['contentTypeBase']
                 : '',
             'contentTypesPartExists' => (bool) ($contentTypesPart['exists'] ?? false),
+            'contentTypesPartByteLength' => (int) ($contentTypesPart['bytes'] ?? 0),
+            'contentTypesPartValid' => (bool) ($contentTypesPart['valid'] ?? false),
             'contentTypeDefaultCount' => count(is_array($contentTypesPart['defaults'] ?? null) ? $contentTypesPart['defaults'] : []),
             'contentTypeOverrideCount' => count(is_array($contentTypesPart['overrides'] ?? null) ? $contentTypesPart['overrides'] : []),
+            'contentTypeRecordCount' => (int) ($contentTypesPart['recordCount'] ?? 0),
+            'contentTypeInvalidRecordCount' => (int) ($contentTypesPart['invalidRecordCount'] ?? 0),
+            'contentTypeDeclaredDefaultRecordCount' => (int) ($contentTypesPart['declaredDefaultRecordCount'] ?? 0),
+            'contentTypeDeclaredOverrideRecordCount' => (int) ($contentTypesPart['declaredOverrideRecordCount'] ?? 0),
+            'contentTypeDuplicateDefaultExtensionCount' =>
+                (int) ($contentTypesPart['duplicateDefaultExtensionCount'] ?? 0),
+            'contentTypeDuplicateOverridePartNameCount' =>
+                (int) ($contentTypesPart['duplicateOverridePartNameCount'] ?? 0),
+            'contentTypeDuplicateDefaultExtensions' =>
+                is_array($contentTypesPart['duplicateDefaultExtensions'] ?? null)
+                    ? $contentTypesPart['duplicateDefaultExtensions']
+                    : [],
+            'contentTypeDuplicateOverridePartNames' =>
+                is_array($contentTypesPart['duplicateOverridePartNames'] ?? null)
+                    ? $contentTypesPart['duplicateOverridePartNames']
+                    : [],
+            'contentTypeDuplicateDefaultExtensionGroups' =>
+                is_array($contentTypesPart['duplicateDefaultExtensionGroups'] ?? null)
+                    ? $contentTypesPart['duplicateDefaultExtensionGroups']
+                    : [],
+            'contentTypeDuplicateOverridePartNameGroups' =>
+                is_array($contentTypesPart['duplicateOverridePartNameGroups'] ?? null)
+                    ? $contentTypesPart['duplicateOverridePartNameGroups']
+                    : [],
+            'contentTypeRecordIssueCounts' => is_array($contentTypesPart['issueCounts'] ?? null)
+                ? $contentTypesPart['issueCounts']
+                : [],
+            'contentTypeRecordIssueCodes' => is_array($contentTypesPart['issues'] ?? null)
+                ? $contentTypesPart['issues']
+                : [],
+            'invalidContentTypeRecordIssueBuckets' =>
+                is_array($contentTypesPart['invalidContentTypeRecordIssueBuckets'] ?? null)
+                    ? $contentTypesPart['invalidContentTypeRecordIssueBuckets']
+                    : [],
+            'invalidContentTypeRecords' => is_array($contentTypesPart['invalidContentTypeRecords'] ?? null)
+                ? $contentTypesPart['invalidContentTypeRecords']
+                : [],
             'packageEntryCount' => count($packageEntries),
             'packageParts' => $packageParts,
             'packageByteLength' => (int) ($summary['packageByteLength'] ?? 0),

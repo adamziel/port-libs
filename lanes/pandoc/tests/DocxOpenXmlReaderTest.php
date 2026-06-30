@@ -4107,6 +4107,7 @@ XML;
         $contentTypesPart = $package['contentTypesPart'];
         $preflight = $contentTypesPart['preflight'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $invalidRecords = $contentTypesPart['invalidContentTypeRecords'];
 
         $t->same('Imported DOCX Batch', $document->attr('meta')['title']);
@@ -4179,6 +4180,26 @@ XML;
         $t->same($contentTypesPart['issueCounts'], $summary['contentTypeRecordIssueCounts']);
         $t->same($contentTypesPart['invalidContentTypeRecordIssueBuckets'], $summary['invalidContentTypeRecordIssueBuckets']);
         $t->same($invalidRecords, $summary['invalidContentTypeRecords']);
+
+        $t->same(strlen($parts['[Content_Types].xml']), $identity['contentTypesPartByteLength']);
+        $t->same(false, $identity['contentTypesPartValid']);
+        $t->same($contentTypesPart['recordCount'], $identity['contentTypeRecordCount']);
+        $t->same($contentTypesPart['invalidRecordCount'], $identity['contentTypeInvalidRecordCount']);
+        $t->same($contentTypesPart['declaredDefaultRecordCount'], $identity['contentTypeDeclaredDefaultRecordCount']);
+        $t->same($contentTypesPart['declaredOverrideRecordCount'], $identity['contentTypeDeclaredOverrideRecordCount']);
+        $t->same($contentTypesPart['duplicateDefaultExtensionCount'], $identity['contentTypeDuplicateDefaultExtensionCount']);
+        $t->same($contentTypesPart['duplicateOverridePartNameCount'], $identity['contentTypeDuplicateOverridePartNameCount']);
+        $t->same($contentTypesPart['duplicateDefaultExtensions'], $identity['contentTypeDuplicateDefaultExtensions']);
+        $t->same($contentTypesPart['duplicateOverridePartNames'], $identity['contentTypeDuplicateOverridePartNames']);
+        $t->same($contentTypesPart['duplicateDefaultExtensionGroups'], $identity['contentTypeDuplicateDefaultExtensionGroups']);
+        $t->same($contentTypesPart['duplicateOverridePartNameGroups'], $identity['contentTypeDuplicateOverridePartNameGroups']);
+        $t->same($contentTypesPart['issueCounts'], $identity['contentTypeRecordIssueCounts']);
+        $t->same($contentTypesPart['issues'], $identity['contentTypeRecordIssueCodes']);
+        $t->same($contentTypesPart['invalidContentTypeRecordIssueBuckets'], $identity['invalidContentTypeRecordIssueBuckets']);
+        $t->same($invalidRecords, $identity['invalidContentTypeRecords']);
+        $encodedIdentity = json_encode($identity);
+        $t->true(is_string($encodedIdentity), 'content-type identity metadata should encode for review');
+        $t->true(!str_contains((string) $encodedIdentity, $parts['[Content_Types].xml']), 'content-type identity metadata must not expose raw content-types XML');
     },
     'reports malformed docx content types xml without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
