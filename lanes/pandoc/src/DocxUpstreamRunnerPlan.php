@@ -24,6 +24,12 @@ final class DocxUpstreamRunnerPlan
     public const RUNNER_TARGET = 'test:test-pandoc';
 
     /** @var list<string> */
+    private const SELECTED_GROUPS = [
+        'Tests.Readers.Docx.tests',
+        'Tests.Writers.Docx.tests',
+    ];
+
+    /** @var list<string> */
     private const REQUIRED_FILES = [
         'cabal.project',
         'pandoc.cabal',
@@ -260,10 +266,7 @@ final class DocxUpstreamRunnerPlan
             'selection' => [
                 'runnerTarget' => self::RUNNER_TARGET,
                 'tastyPattern' => self::TASTY_PATTERN,
-                'selectedGroups' => [
-                    'Tests.Readers.Docx.tests',
-                    'Tests.Writers.Docx.tests',
-                ],
+                'selectedGroups' => self::SELECTED_GROUPS,
             ],
             'claim' => 'Static selected DOCX reader/writer source and fixture inventory only; this is not Tasty --list-tests output and not an upstream DOCX runner result.',
             'claimBoundaries' => [
@@ -544,12 +547,7 @@ final class DocxUpstreamRunnerPlan
 
         $selectedInventory = $this->decodeJsonArtifact($artifacts['selectedTestInventory']['absolutePath'], 'selectedTestInventory', $problems);
         if (is_array($selectedInventory)) {
-            if (($selectedInventory['evidenceKind'] ?? null) !== self::SELECTED_TEST_INVENTORY_EVIDENCE_KIND) {
-                $problems[] = 'Selected test inventory artifact has an unexpected evidenceKind';
-            }
-            if (($selectedInventory['skipped'] ?? true) !== false) {
-                $problems[] = 'Selected test inventory artifact is skipped and cannot gate a runner result';
-            }
+            $this->validateSelectedInventoryArtifact($selectedInventory, $problems);
         }
 
         $result = $this->decodeJsonArtifact($artifacts['resultJson']['absolutePath'], 'resultJson', $problems);
@@ -652,6 +650,49 @@ final class DocxUpstreamRunnerPlan
     }
 
     /**
+     * @param array<string, mixed> $selectedInventory
+     * @param list<string> $problems
+     */
+    private function validateSelectedInventoryArtifact(array $selectedInventory, array &$problems): void
+    {
+        if (($selectedInventory['evidenceKind'] ?? null) !== self::SELECTED_TEST_INVENTORY_EVIDENCE_KIND) {
+            $problems[] = 'Selected test inventory artifact has an unexpected evidenceKind';
+        }
+        if (($selectedInventory['status'] ?? null) !== self::SELECTED_TEST_INVENTORY_STATUS_REPORTED) {
+            $problems[] = 'Selected test inventory artifact status must be reported before gating a runner result';
+        }
+        if (($selectedInventory['skipped'] ?? true) !== false) {
+            $problems[] = 'Selected test inventory artifact is skipped and cannot gate a runner result';
+        }
+        foreach (['runnerExecuted', 'cabalExecuted', 'docxPackageBytesRead'] as $field) {
+            if (($selectedInventory[$field] ?? null) !== false) {
+                $problems[] = "Selected test inventory artifact must record {$field}=false";
+            }
+        }
+
+        $upstream = $selectedInventory['upstream'] ?? null;
+        if (!is_array($upstream) || ($upstream['pinnedCommit'] ?? null) !== self::PINNED_UPSTREAM_COMMIT) {
+            $problems[] = 'Selected test inventory artifact upstream pinnedCommit does not match the DOCX runner commit';
+        }
+
+        $selection = $selectedInventory['selection'] ?? null;
+        if (!is_array($selection)) {
+            $problems[] = 'Selected test inventory artifact is missing selection metadata';
+
+            return;
+        }
+        if (($selection['runnerTarget'] ?? null) !== self::RUNNER_TARGET) {
+            $problems[] = 'Selected test inventory artifact runnerTarget does not match the targeted DOCX runner';
+        }
+        if (($selection['tastyPattern'] ?? null) !== self::TASTY_PATTERN) {
+            $problems[] = 'Selected test inventory artifact tastyPattern does not match the targeted DOCX pattern';
+        }
+        if (($selection['selectedGroups'] ?? null) !== self::SELECTED_GROUPS) {
+            $problems[] = 'Selected test inventory artifact selectedGroups must be the DOCX reader and writer groups';
+        }
+    }
+
+    /**
      * @param array<string, mixed> $result
      * @param array<string, array<string, mixed>> $artifacts
      * @param list<string> $problems
@@ -692,6 +733,9 @@ final class DocxUpstreamRunnerPlan
         ) {
             $problems[] = 'result.json selectedTestCount must equal passedCount + failedCount + skippedCount';
         }
+        if (is_int($result['selectedTestCount'] ?? null) && $result['selectedTestCount'] === 0) {
+            $problems[] = 'result.json selectedTestCount must be greater than zero for a targeted DOCX runner result';
+        }
 
         $expectedHashes = [
             'selectedTestInventorySha256' => $artifacts['selectedTestInventory']['sha256'] ?? null,
@@ -705,13 +749,31 @@ final class DocxUpstreamRunnerPlan
             }
         }
 
-        if (!is_string($result['commandLine'] ?? null) || !str_contains($result['commandLine'], self::RUNNER_TARGET)) {
-            $problems[] = 'result.json commandLine must include the targeted DOCX runner target';
+        $expectedCommandLine = $this->commands()['targetedDocxRun']['commandLine'];
+        if (!is_string($result['commandLine'] ?? null)) {
+            $problems[] = 'result.json commandLine must be a string';
+        } elseif ($result['commandLine'] !== $expectedCommandLine) {
+            $problems[] = 'result.json commandLine must exactly match the targeted DOCX runner command descriptor';
         }
+
+        $timestamps = [];
         foreach (['startedAtUtc', 'finishedAtUtc'] as $field) {
             if (!is_string($result[$field] ?? null) || preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $result[$field]) !== 1) {
                 $problems[] = "result.json {$field} must be an ISO-8601 UTC timestamp";
+                continue;
             }
+            $timestamp = self::parseUtcTimestamp($result[$field]);
+            if ($timestamp === null) {
+                $problems[] = "result.json {$field} must be a valid UTC timestamp";
+                continue;
+            }
+            $timestamps[$field] = $timestamp;
+        }
+        if (
+            isset($timestamps['startedAtUtc'], $timestamps['finishedAtUtc'])
+            && $timestamps['finishedAtUtc'] < $timestamps['startedAtUtc']
+        ) {
+            $problems[] = 'result.json finishedAtUtc must not be earlier than startedAtUtc';
         }
     }
 
@@ -960,5 +1022,23 @@ final class DocxUpstreamRunnerPlan
     private static function boolText(mixed $value): string
     {
         return $value === true ? 'yes' : 'no';
+    }
+
+    private static function parseUtcTimestamp(string $value): ?\DateTimeImmutable
+    {
+        $timestamp = \DateTimeImmutable::createFromFormat(
+            '!Y-m-d\TH:i:s\Z',
+            $value,
+            new \DateTimeZone('UTC')
+        );
+        $errors = \DateTimeImmutable::getLastErrors();
+        if (
+            is_array($errors)
+            && ((int) ($errors['warning_count'] ?? 0) > 0 || (int) ($errors['error_count'] ?? 0) > 0)
+        ) {
+            return null;
+        }
+
+        return $timestamp === false ? null : $timestamp;
     }
 }

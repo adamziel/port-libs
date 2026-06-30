@@ -284,6 +284,95 @@ return [
         }
     },
 
+    'rejects non-targeted or empty runner result artifact admission' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture, $writeFile): void {
+        $repoRoot = $makeTempRoot();
+        try {
+            $upstreamRoot = $repoRoot . '/cache/pandoc-current';
+            $hydrateRunnerPlanFixture($upstreamRoot);
+            $tool = dirname(__DIR__, 3) . '/tools/pandoc-docx-upstream-runner-plan.php';
+            $artifactRoot = 'artifacts/docx-targeted-run';
+            $logRoot = 'logs';
+            $selectedInventoryPath = $artifactRoot . '/selected-test-inventory.json';
+
+            $writeInventoryCommand = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($tool)
+                . ' --repo-root '
+                . escapeshellarg($repoRoot)
+                . ' --upstream-root cache/pandoc-current --write-selected-inventory '
+                . escapeshellarg($selectedInventoryPath)
+                . ' --json 2>&1';
+            $writeOutput = [];
+            $writeExitCode = 0;
+            exec($writeInventoryCommand, $writeOutput, $writeExitCode);
+            $t->same(0, $writeExitCode, implode("\n", $writeOutput));
+
+            $inventoryPath = $repoRoot . '/' . $selectedInventoryPath;
+            $inventory = json_decode((string) file_get_contents($inventoryPath), true, 512, JSON_THROW_ON_ERROR);
+            $inventory['selection']['tastyPattern'] = 'Docx';
+            $writeFile(
+                $repoRoot,
+                $selectedInventoryPath,
+                json_encode($inventory, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
+            );
+
+            $writeFile($repoRoot, $logRoot . '/runner-test-dependencies.txt', "dependency dry-run transcript\n");
+            $writeFile($repoRoot, $logRoot . '/docx-targeted-list-tests.txt', "Readers.Docx.reader simple paragraph\n");
+            $writeFile($repoRoot, $logRoot . '/docx-targeted-run.txt', "targeted docx run transcript\n");
+
+            $result = [
+                'runnerExecuted' => true,
+                'upstreamCommit' => DocxUpstreamRunnerPlan::PINNED_UPSTREAM_COMMIT,
+                'commandLine' => 'cabal v2-run --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run test:test-pandoc',
+                'exitCode' => 0,
+                'runnerTarget' => DocxUpstreamRunnerPlan::RUNNER_TARGET,
+                'tastyPattern' => DocxUpstreamRunnerPlan::TASTY_PATTERN,
+                'selectedTestCount' => 0,
+                'passedCount' => 0,
+                'failedCount' => 0,
+                'skippedCount' => 0,
+                'startedAtUtc' => '2026-06-30T00:00:02Z',
+                'finishedAtUtc' => '2026-06-30T00:00:01Z',
+                'selectedTestInventorySha256' => hash_file('sha256', $inventoryPath),
+                'dependencyDryRunTranscriptSha256' => hash_file('sha256', $repoRoot . '/' . $logRoot . '/runner-test-dependencies.txt'),
+                'listTestsTranscriptSha256' => hash_file('sha256', $repoRoot . '/' . $logRoot . '/docx-targeted-list-tests.txt'),
+                'targetedRunTranscriptSha256' => hash_file('sha256', $repoRoot . '/' . $logRoot . '/docx-targeted-run.txt'),
+            ];
+            $writeFile(
+                $repoRoot,
+                $artifactRoot . '/result.json',
+                json_encode($result, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR) . "\n"
+            );
+
+            $validateCommand = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($tool)
+                . ' --repo-root '
+                . escapeshellarg($repoRoot)
+                . ' --upstream-root cache/pandoc-current --validate-result-artifacts --artifact-root '
+                . escapeshellarg($artifactRoot)
+                . ' --log-root '
+                . escapeshellarg($logRoot)
+                . ' --json 2>&1';
+            $validateOutput = [];
+            $validateExitCode = 0;
+            exec($validateCommand, $validateOutput, $validateExitCode);
+            $t->same(0, $validateExitCode, implode("\n", $validateOutput));
+
+            $decoded = json_decode(implode("\n", $validateOutput), true, 512, JSON_THROW_ON_ERROR);
+            $gate = $decoded['resultArtifactGate'];
+            $problems = implode("\n", $gate['problems']);
+            $t->same(DocxUpstreamRunnerPlan::RESULT_ARTIFACT_GATE_STATUS_INVALID, $gate['status']);
+            $t->same(false, $gate['admissionReady']);
+            $t->contains('Selected test inventory artifact tastyPattern does not match the targeted DOCX pattern', $problems);
+            $t->contains('result.json commandLine must exactly match the targeted DOCX runner command descriptor', $problems);
+            $t->contains('result.json selectedTestCount must be greater than zero for a targeted DOCX runner result', $problems);
+            $t->contains('result.json finishedAtUtc must not be earlier than startedAtUtc', $problems);
+        } finally {
+            $removeTree($repoRoot);
+        }
+    },
+
     'rejects empty roots before emitting runner commands' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): DocxUpstreamRunnerPlan => new DocxUpstreamRunnerPlan(''));
         $t->throws(InvalidArgumentException::class, static fn (): DocxUpstreamRunnerPlan => new DocxUpstreamRunnerPlan(__DIR__, ''));
