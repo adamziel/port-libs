@@ -211,6 +211,29 @@ return [
         $t->same('Table coverage', $roundTrip->children[0]->attr('caption'));
     },
 
+    'emits block text style for simple block quotes' => static function (TestRunner $t) use ($doc, $text, $paragraph, $plain, $item, $packageParts): void {
+        $document = $doc([
+            new AstNode('blockquote', [], [
+                $paragraph([$text('quoted paragraph')]),
+                new AstNode('bullet_list', [], [
+                    $item([$plain([$text('quoted bullet')])]),
+                ]),
+            ]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+        $roundTrip = (new DocxReader())->read((new DocxWriter())->write($document));
+
+        $t->contains('w:styleId="BlockText"', $parts['word/styles.xml']);
+        $t->contains('<w:name w:val="Block Text"/>', $parts['word/styles.xml']);
+        $t->contains('<w:pStyle w:val="BlockText"/>', $documentXml);
+        $t->contains('<w:t>quoted paragraph</w:t>', $documentXml);
+        $t->contains('<w:numId w:val="1"/>', $documentXml);
+        $t->contains('<w:t>quoted bullet</w:t>', $documentXml);
+        $t->same('blockquote', $roundTrip->children[0]->type);
+    },
+
     'normalizes docx package part names and fixed zip timestamps' => static function (TestRunner $t) use ($doc, $text, $paragraph): void {
         $writer = new DocxWriter();
         $parts = $writer->packageParts($doc([$paragraph([$text('Stable package')])]));

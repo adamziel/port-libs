@@ -389,7 +389,7 @@ final class DocxWriter
             if (!$child instanceof AstNode) {
                 continue;
             }
-            foreach ($this->renderBlock($child, 0) as $blockXml) {
+            foreach ($this->renderBlock($child, 0, null) as $blockXml) {
                 if ($blockXml !== '') {
                     $blocks[] = $blockXml;
                 }
@@ -411,19 +411,20 @@ final class DocxWriter
     /**
      * @return list<string>
      */
-    private function renderBlock(AstNode $node, int $listLevel): array
+    private function renderBlock(AstNode $node, int $listLevel, ?string $paragraphStyle): array
     {
         return match ($node->type) {
-            'paragraph', 'plain' => [$this->paragraphXml($node, null, null)],
+            'paragraph', 'plain' => [$this->paragraphXml($node, $paragraphStyle, null)],
             'heading' => [$this->paragraphXml($node, 'Heading' . max(1, min(6, (int) $node->attr('level', 1))), null)],
-            'bullet_list' => $this->listXml($node, false, $listLevel),
-            'ordered_list' => $this->listXml($node, true, $listLevel),
-            'blockquote', 'div' => $this->blockCollectionXml($node->children, $listLevel),
+            'bullet_list' => $this->listXml($node, false, $listLevel, $paragraphStyle),
+            'ordered_list' => $this->listXml($node, true, $listLevel, $paragraphStyle),
+            'blockquote' => $this->blockCollectionXml($node->children, $listLevel, 'BlockText'),
+            'div' => $this->blockCollectionXml($node->children, $listLevel, $paragraphStyle),
             'code_block' => [$this->textParagraphXml((string) $node->attr('text', ''), 'SourceCode', ['code' => true])],
             'line_block' => $this->lineBlockXml($node),
             'horizontal_rule' => [$this->horizontalRuleXml()],
             'table' => $this->tableXml($node),
-            default => $this->fallbackBlockXml($node, $listLevel),
+            default => $this->fallbackBlockXml($node, $listLevel, $paragraphStyle),
         };
     }
 
@@ -431,7 +432,7 @@ final class DocxWriter
      * @param list<AstNode> $children
      * @return list<string>
      */
-    private function blockCollectionXml(array $children, int $listLevel): array
+    private function blockCollectionXml(array $children, int $listLevel, ?string $paragraphStyle): array
     {
         $blocks = [];
         $inlineBuffer = [];
@@ -444,15 +445,15 @@ final class DocxWriter
                 continue;
             }
             if ($inlineBuffer !== []) {
-                $blocks[] = $this->paragraphFromInlinesXml($inlineBuffer, null, null);
+                $blocks[] = $this->paragraphFromInlinesXml($inlineBuffer, $paragraphStyle, null);
                 $inlineBuffer = [];
             }
-            foreach ($this->renderBlock($child, $listLevel) as $blockXml) {
+            foreach ($this->renderBlock($child, $listLevel, $paragraphStyle) as $blockXml) {
                 $blocks[] = $blockXml;
             }
         }
         if ($inlineBuffer !== []) {
-            $blocks[] = $this->paragraphFromInlinesXml($inlineBuffer, null, null);
+            $blocks[] = $this->paragraphFromInlinesXml($inlineBuffer, $paragraphStyle, null);
         }
 
         return $blocks;
@@ -461,15 +462,15 @@ final class DocxWriter
     /**
      * @return list<string>
      */
-    private function fallbackBlockXml(AstNode $node, int $listLevel): array
+    private function fallbackBlockXml(AstNode $node, int $listLevel, ?string $paragraphStyle): array
     {
         if ($node->children !== []) {
-            return $this->blockCollectionXml($node->children, $listLevel);
+            return $this->blockCollectionXml($node->children, $listLevel, $paragraphStyle);
         }
 
         $text = (string) $node->attr('text', $node->attr('markdown', $node->attr('html', $node->attr('tex', ''))));
 
-        return $text === '' ? [] : [$this->textParagraphXml($text, null, [])];
+        return $text === '' ? [] : [$this->textParagraphXml($text, $paragraphStyle, [])];
     }
 
     /**
@@ -587,7 +588,7 @@ final class DocxWriter
             $text = (string) $cell->attr('text', '');
             $content = $this->textParagraphXml($text, null, []);
         } else {
-            foreach ($this->blockCollectionXml($cell->children, 0) as $blockXml) {
+            foreach ($this->blockCollectionXml($cell->children, 0, null) as $blockXml) {
                 $content .= $blockXml;
             }
         }
@@ -665,7 +666,7 @@ final class DocxWriter
     /**
      * @return list<string>
      */
-    private function listXml(AstNode $list, bool $ordered, int $listLevel): array
+    private function listXml(AstNode $list, bool $ordered, int $listLevel, ?string $paragraphStyle): array
     {
         $numId = $ordered ? $this->orderedListNumId($list, $listLevel) : self::BULLET_NUM_ID;
         $blocks = [];
@@ -685,13 +686,13 @@ final class DocxWriter
                     continue;
                 }
                 if ($child->type === 'bullet_list') {
-                    foreach ($this->listXml($child, false, $listLevel + 1) as $nested) {
+                    foreach ($this->listXml($child, false, $listLevel + 1, $paragraphStyle) as $nested) {
                         $blocks[] = $nested;
                     }
                     continue;
                 }
                 if ($child->type === 'ordered_list') {
-                    foreach ($this->listXml($child, true, $listLevel + 1) as $nested) {
+                    foreach ($this->listXml($child, true, $listLevel + 1, $paragraphStyle) as $nested) {
                         $blocks[] = $nested;
                     }
                     continue;
@@ -700,7 +701,7 @@ final class DocxWriter
                 if ($child->type === 'paragraph' || $child->type === 'plain') {
                     $blocks[] = $this->paragraphXml(
                         $child,
-                        null,
+                        $paragraphStyle,
                         $numberedParagraphEmitted ? null : ['numId' => $numId, 'level' => $listLevel]
                     );
                     $numberedParagraphEmitted = true;
@@ -710,18 +711,18 @@ final class DocxWriter
                 if ($this->isInlineNode($child)) {
                     $blocks[] = $this->paragraphFromInlinesXml(
                         [$child],
-                        null,
+                        $paragraphStyle,
                         $numberedParagraphEmitted ? null : ['numId' => $numId, 'level' => $listLevel]
                     );
                     $numberedParagraphEmitted = true;
                     continue;
                 }
 
-                foreach ($this->renderBlock($child, $listLevel + 1) as $blockXml) {
+                foreach ($this->renderBlock($child, $listLevel + 1, $paragraphStyle) as $blockXml) {
                     if (!$numberedParagraphEmitted && str_starts_with($blockXml, '<w:p>')) {
                         $blocks[] = $this->paragraphXml(
                             new AstNode('plain', [], [new AstNode('text', ['text' => $this->plainText($child)])]),
-                            null,
+                            $paragraphStyle,
                             ['numId' => $numId, 'level' => $listLevel]
                         );
                         $numberedParagraphEmitted = true;
@@ -732,7 +733,7 @@ final class DocxWriter
             }
 
             if (!$numberedParagraphEmitted) {
-                $blocks[] = $this->paragraphFromInlinesXml([], null, ['numId' => $numId, 'level' => $listLevel]);
+                $blocks[] = $this->paragraphFromInlinesXml([], $paragraphStyle, ['numId' => $numId, 'level' => $listLevel]);
             }
         }
 
@@ -1096,6 +1097,7 @@ final class DocxWriter
             . '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
             . '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr><w:spacing w:after="240"/></w:pPr><w:rPr><w:b/><w:sz w:val="52"/><w:szCs w:val="52"/></w:rPr></w:style>'
             . $headingStyles
+            . '<w:style w:type="paragraph" w:styleId="BlockText"><w:name w:val="Block Text"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="720" w:right="720"/></w:pPr></w:style>'
             . '<w:style w:type="paragraph" w:styleId="SourceCode"><w:name w:val="Source Code"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/><w:ind w:left="360" w:right="360"/></w:pPr><w:rPr><w:rStyle w:val="VerbatimChar"/></w:rPr></w:style>'
             . '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/><w:pPr><w:spacing w:before="120" w:after="120"/></w:pPr><w:rPr><w:i/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
             . '<w:style w:type="character" w:styleId="VerbatimChar"><w:name w:val="Verbatim Char"/><w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="20"/><w:szCs w:val="20"/></w:rPr></w:style>'
