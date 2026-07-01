@@ -766,6 +766,7 @@ final class PdfEngineHandoff
      *     engineBoundaryRoot: string|null,
      *     engineBoundaryViolations: list<string>,
      *     typstReadBoundaryPolicy: array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{},
+     *     typstTimingSourcePolicy: array<string, mixed>,
      *     engineTranscriptInputFiles: list<string>,
      *     engineTranscriptExternalInputFiles: list<string>,
      *     missingEngineInputFiles: list<string>,
@@ -1020,6 +1021,7 @@ final class PdfEngineHandoff
         $sourceMapInputFiles = [];
         $sourceMapExternalInputs = [];
         $sourceMapLineRangesByKey = [];
+        $typstTimingSourcePolicy = [];
         $engineLogFiles = [];
         $engineLogTexts = [];
         $status = 'ok';
@@ -1261,11 +1263,18 @@ final class PdfEngineHandoff
                 $diagnostics[] = 'engine-boundary-violation:' . $violation;
             }
         }
+        $typstRoot = $this->typstRootPathFromBoundaryProvenance($typstBoundaryProvenance);
         $typstReadBoundaryPolicy = $this->typstReadBoundaryPolicy(
             $engine,
-            $this->typstRootPathFromBoundaryProvenance($typstBoundaryProvenance),
+            $typstRoot,
             $sourceFile,
             $engineInputFileList
+        );
+        $typstTimingSourcePolicy = $this->typstTimingSourcePolicy(
+            $engine,
+            $typstBoundaryProvenance,
+            $files,
+            $typstRoot
         );
         foreach ($engineInputFileList as $inputFile) {
             if (array_key_exists($inputFile, $files)) {
@@ -1389,6 +1398,19 @@ final class PdfEngineHandoff
         if ($sourceMapExternalInputList !== []) {
             $diagnostics[] = 'source-map-external-inputs:' . count($sourceMapExternalInputList);
         }
+        if ($typstTimingSourcePolicy !== []) {
+            $diagnostics[] = 'typst-timing-source-policy:' . $typstTimingSourcePolicy['reviewStatus'];
+            $diagnostics[] = 'typst-timing-source-files:' . $typstTimingSourcePolicy['sourceFileCount'];
+            if (($typstTimingSourcePolicy['outsideRootCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-timing-source-outside-root:' . $typstTimingSourcePolicy['outsideRootCount'];
+            }
+            if (($typstTimingSourcePolicy['externalSourceCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-timing-source-external:' . $typstTimingSourcePolicy['externalSourceCount'];
+            }
+            if (($typstTimingSourcePolicy['issues'] ?? []) !== []) {
+                $diagnostics[] = 'typst-timing-source-issues:' . count($typstTimingSourcePolicy['issues']);
+            }
+        }
         if ($sourceMapFiles !== [] && $sourceMapInputs === [] && $reason === null) {
             $status = 'failed';
             $reason = 'source-map-empty';
@@ -1459,7 +1481,7 @@ final class PdfEngineHandoff
         $typstWarningProvenance = $this->extractTypstWarningProvenance(
             $engine,
             $engineTexts,
-            $this->typstRootPathFromBoundaryProvenance($typstBoundaryProvenance)
+            $typstRoot
         );
         $typstWarningSourceIssueCount = $this->countTypstWarningSourceIssues($typstWarningProvenance);
         $engineMissingDependencies = $this->extractEngineMissingDependencies($engineTexts);
@@ -1497,6 +1519,7 @@ final class PdfEngineHandoff
             $typstDependencyOutputPolicy,
             $typstExternalDependencyPolicy,
             $typstPackageDependencyPolicy,
+            $typstTimingSourcePolicy,
             $typstWarningProvenance
         );
         if ($typstBoundaryMatrix !== []) {
@@ -5157,6 +5180,9 @@ final class PdfEngineHandoff
         if (($typstOutputFormatPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-output-format-policy:' . $typstOutputFormatPolicy['reviewStatus'];
         }
+        if (($typstTimingSourcePolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-timing-source-policy:' . $typstTimingSourcePolicy['reviewStatus'];
+        }
         if (($sourceInput['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-source-input:' . $sourceInput['reviewStatus'];
         }
@@ -5211,6 +5237,7 @@ final class PdfEngineHandoff
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
+            'typstTimingSourcePolicy' => $typstTimingSourcePolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
             'engineDependencyEdges' => $engineDependencyEdges,
             'typstDependencyEdgePackageProvenance' => $typstDependencyEdgePackageProvenance,
@@ -5252,6 +5279,7 @@ final class PdfEngineHandoff
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
+            'typstTimingSourcePolicy' => $typstTimingSourcePolicy,
             'engineBoundaryRoot' => $engineBoundaryRoot,
             'engineBoundaryViolations' => $engineBoundaryViolations,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
@@ -5957,6 +5985,7 @@ final class PdfEngineHandoff
             'finalTypstBoundaryMatrix' => is_array($finalRun) && is_array($finalRun['typstBoundaryMatrix'] ?? null) ? $finalRun['typstBoundaryMatrix'] : [],
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
+            'finalTypstTimingSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstTimingSourcePolicy'] ?? null) ? $finalRun['typstTimingSourcePolicy'] : [],
             'finalTypstWarningProvenance' => is_array($finalRun) && is_array($finalRun['typstWarningProvenance'] ?? null) ? $finalRun['typstWarningProvenance'] : [],
             'finalEngineBoundaryRoot' => is_array($finalRun) && is_string($finalRun['engineBoundaryRoot'] ?? null) ? $finalRun['engineBoundaryRoot'] : null,
             'finalEngineBoundaryViolations' => is_array($finalRun) && is_array($finalRun['engineBoundaryViolations'] ?? null) ? $finalRun['engineBoundaryViolations'] : [],
@@ -7805,6 +7834,7 @@ final class PdfEngineHandoff
      * @param array<string, mixed> $dependencyOutputPolicy
      * @param array<string, mixed> $externalDependencyPolicy
      * @param array<string, mixed> $packageDependencyPolicy
+     * @param array<string, mixed> $timingSourcePolicy
      * @param list<array<string, mixed>> $warningProvenance
      * @return array<string, mixed>
      */
@@ -7818,12 +7848,14 @@ final class PdfEngineHandoff
         array $dependencyOutputPolicy = [],
         array $externalDependencyPolicy = [],
         array $packageDependencyPolicy = [],
+        array $timingSourcePolicy = [],
         array $warningProvenance = []
     ): array {
         $hasRuntimeProvenance = $readBoundaryPolicy !== []
             || $dependencyOutputPolicy !== []
             || $externalDependencyPolicy !== []
             || $packageDependencyPolicy !== []
+            || $timingSourcePolicy !== []
             || $warningProvenance !== [];
         if ($engine !== 'typst' || ($provenance === [] && $sourceInput === [] && !$hasRuntimeProvenance)) {
             return [];
@@ -8753,6 +8785,31 @@ final class PdfEngineHandoff
                 'sourceClassCounts' => $countMap($packageDependencyPolicy['sourceClassCounts'] ?? null),
                 'unsupportedReasonCounts' => $countMap($packageDependencyPolicy['unsupportedReasonCounts'] ?? null),
             ], $packageDependencyIssues);
+        }
+
+        if ($timingSourcePolicy !== []) {
+            $timingIssues = is_array($timingSourcePolicy['issues'] ?? null) ? $timingSourcePolicy['issues'] : [];
+            $timingSourceFiles = [];
+            foreach (is_array($timingSourcePolicy['sourceFiles'] ?? null) ? $timingSourcePolicy['sourceFiles'] : [] as $sourceFile) {
+                if (!is_array($sourceFile) || !is_string($sourceFile['sourceFile'] ?? null) || $sourceFile['sourceFile'] === '') {
+                    continue;
+                }
+
+                $timingSourceFiles[] = $sourceFile['sourceFile'];
+            }
+            $timingSourceFiles = array_values(array_unique($timingSourceFiles));
+            sort($timingSourceFiles);
+
+            $appendCase('timing-provenance', ($timingSourcePolicy['reviewStatus'] ?? 'ok') === 'ok' && $timingIssues === [] ? 'ok' : 'review', is_int($timingSourcePolicy['sourceFileCount'] ?? null) ? $timingSourcePolicy['sourceFileCount'] : count($timingSourceFiles), [
+                'timingsFile' => is_string($timingSourcePolicy['timingsFile'] ?? null) ? $timingSourcePolicy['timingsFile'] : null,
+                'sourceFileCount' => is_int($timingSourcePolicy['sourceFileCount'] ?? null) ? $timingSourcePolicy['sourceFileCount'] : count($timingSourceFiles),
+                'sourceFiles' => $timingSourceFiles,
+                'insideRootCount' => is_int($timingSourcePolicy['insideRootCount'] ?? null) ? $timingSourcePolicy['insideRootCount'] : 0,
+                'outsideRootCount' => is_int($timingSourcePolicy['outsideRootCount'] ?? null) ? $timingSourcePolicy['outsideRootCount'] : 0,
+                'unboundedCount' => is_int($timingSourcePolicy['unboundedCount'] ?? null) ? $timingSourcePolicy['unboundedCount'] : 0,
+                'externalSourceCount' => is_int($timingSourcePolicy['externalSourceCount'] ?? null) ? $timingSourcePolicy['externalSourceCount'] : 0,
+                'unknownSourceCount' => is_int($timingSourcePolicy['unknownSourceCount'] ?? null) ? $timingSourcePolicy['unknownSourceCount'] : 0,
+            ], $timingIssues);
         }
 
         if ($warningProvenance !== []) {
@@ -11831,6 +11888,226 @@ final class PdfEngineHandoff
             'dependencyOutputFiles' => $engineOutputFiles,
             'declaredOutputPresent' => $declaredOutputPresent,
             'extraOutputFiles' => $extraOutputFiles,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $typstBoundaryProvenance
+     * @param array<string, string> $files
+     * @return array<string, mixed>
+     */
+    private function typstTimingSourcePolicy(string $engine, array $typstBoundaryProvenance, array $files, ?string $root): array
+    {
+        if ($engine !== 'typst') {
+            return [];
+        }
+
+        $timingsOutput = $typstBoundaryProvenance['timingsOutput'] ?? null;
+        if (
+            !is_array($timingsOutput)
+            || ($timingsOutput['safe'] ?? false) !== true
+            || !is_string($timingsOutput['path'] ?? null)
+            || $timingsOutput['path'] === ''
+        ) {
+            return [];
+        }
+
+        $timingsFile = $timingsOutput['path'];
+        if (!array_key_exists($timingsFile, $files)) {
+            return [];
+        }
+
+        $bytes = $files[$timingsFile];
+        if (strlen($bytes) > self::MAX_DEPENDENCY_FILE_BYTES) {
+            return $this->typstTimingSourcePolicyFromEntries($timingsFile, [], ['timing-source-json-too-large']);
+        }
+
+        $decoded = json_decode(trim($bytes), true);
+        if (!is_array($decoded)) {
+            return $this->typstTimingSourcePolicyFromEntries($timingsFile, [], ['timing-source-json-invalid']);
+        }
+
+        $events = is_array($decoded['traceEvents'] ?? null)
+            ? $decoded['traceEvents']
+            : (array_is_list($decoded) ? $decoded : [$decoded]);
+        $entries = [];
+        $seen = [];
+        foreach ($events as $event) {
+            if (!is_array($event)) {
+                continue;
+            }
+
+            foreach ($this->typstTimingSourceCandidates($event) as $candidate) {
+                $entry = $this->typstTimingSourceEntry(
+                    $timingsFile,
+                    $candidate['eventName'],
+                    $candidate['rawPath'],
+                    $candidate['line'],
+                    $root
+                );
+                $key = implode("\0", [
+                    (string) $entry['eventName'],
+                    $entry['rawPath'],
+                    $entry['sourceFile'],
+                    (string) ($entry['line'] ?? ''),
+                ]);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $entries[] = $entry;
+            }
+        }
+
+        return $this->typstTimingSourcePolicyFromEntries($timingsFile, $entries, []);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<string> $extraIssues
+     * @return array<string, mixed>
+     */
+    private function typstTimingSourcePolicyFromEntries(string $timingsFile, array $entries, array $extraIssues): array
+    {
+        if ($entries === [] && $extraIssues === []) {
+            return [];
+        }
+
+        $insideRootCount = 0;
+        $outsideRootCount = 0;
+        $unboundedCount = 0;
+        $externalSourceCount = 0;
+        $unknownSourceCount = 0;
+        $issues = $extraIssues;
+        foreach ($entries as $entry) {
+            match ($entry['boundaryStatus'] ?? null) {
+                'inside-root' => ++$insideRootCount,
+                'outside-root' => ++$outsideRootCount,
+                'unbounded' => ++$unboundedCount,
+                'external-source' => ++$externalSourceCount,
+                'unknown-source' => ++$unknownSourceCount,
+                default => null,
+            };
+            foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
+        }
+        $issues = array_values(array_unique($issues));
+        sort($issues);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'timingsFile' => $timingsFile,
+            'sourceFiles' => $entries,
+            'sourceFileCount' => count($entries),
+            'insideRootCount' => $insideRootCount,
+            'outsideRootCount' => $outsideRootCount,
+            'unboundedCount' => $unboundedCount,
+            'externalSourceCount' => $externalSourceCount,
+            'unknownSourceCount' => $unknownSourceCount,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return list<array{eventName:string|null, rawPath:string, line:int|null}>
+     */
+    private function typstTimingSourceCandidates(mixed $value, ?string $eventName = null, ?int $line = null, int $depth = 0): array
+    {
+        if (!is_array($value) || $depth > 6) {
+            return [];
+        }
+
+        if ($eventName === null && is_string($value['name'] ?? null) && trim($value['name']) !== '') {
+            $eventName = trim($value['name']);
+        }
+        $line = $this->positiveIntFromKeys($value, ['line', 'lineNumber']) ?? $line;
+
+        $candidates = [];
+        foreach (['file', 'path', 'source', 'input'] as $key) {
+            $rawPath = $value[$key] ?? null;
+            if (!is_string($rawPath) || !$this->isLikelyTypstTimingSourcePath($rawPath)) {
+                continue;
+            }
+
+            $candidates[] = [
+                'eventName' => $eventName,
+                'rawPath' => trim($rawPath),
+                'line' => $line,
+            ];
+        }
+
+        foreach ($value as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+
+            array_push($candidates, ...$this->typstTimingSourceCandidates($child, $eventName, $line, $depth + 1));
+        }
+
+        return $candidates;
+    }
+
+    private function isLikelyTypstTimingSourcePath(string $path): bool
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return false;
+        }
+
+        if (str_starts_with($path, 'typst-package:') || $this->isTypstPackageReference($path) || $this->isUriResourceReference($path)) {
+            return true;
+        }
+
+        return preg_match('/\.(?:typ|bib|csl|csv|tsv|json|ya?ml|toml|xml|svg|png|jpe?g|gif|webp|pdf|txt)\z/i', $path) === 1;
+    }
+
+    /**
+     * @return array{timingsFile:string, eventName:string|null, rawPath:string, sourceFile:string, line:int|null, root:string|null, insideRoot:bool|null, boundaryStatus:string, issues:list<string>}
+     */
+    private function typstTimingSourceEntry(string $timingsFile, ?string $eventName, string $rawPath, ?int $line, ?string $root): array
+    {
+        try {
+            $classified = $this->normalizeEngineDependencyPath($rawPath, 'Typst timings source path');
+        } catch (\RuntimeException) {
+            $classified = [
+                'path' => $this->externalSourceMapInputName($rawPath),
+                'local' => false,
+            ];
+        }
+
+        $sourceFile = is_string($classified['path'] ?? null) ? $classified['path'] : 'external-source';
+        $insideRoot = null;
+        $boundaryStatus = 'unknown-source';
+        $issues = [];
+        if (($classified['local'] ?? false) !== true) {
+            $insideRoot = false;
+            $boundaryStatus = 'external-source';
+            $issues[] = 'timing-source-external';
+        } elseif ($root === null) {
+            $boundaryStatus = 'unbounded';
+        } elseif ($this->pathIsInsideTypstRoot($sourceFile, $root)) {
+            $insideRoot = true;
+            $boundaryStatus = 'inside-root';
+        } else {
+            $insideRoot = false;
+            $boundaryStatus = 'outside-root';
+            $issues[] = 'timing-source-outside-root';
+        }
+
+        return [
+            'timingsFile' => $timingsFile,
+            'eventName' => $eventName,
+            'rawPath' => $rawPath,
+            'sourceFile' => $sourceFile,
+            'line' => $line,
+            'root' => $root,
+            'insideRoot' => $insideRoot,
+            'boundaryStatus' => $boundaryStatus,
             'issues' => $issues,
         ];
     }

@@ -4210,6 +4210,147 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $externalResult['artifactProvenanceReview']['issues']));
     },
 
+    'maps typst timings source paths into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/main.typ',
+            'outputPath' => 'build/timing-sources.pdf',
+            'source' => '= Typst Timing Source Packet',
+            'engineOptions' => ['--root=workspace', '--timings=build/timing-sources.json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst timing source packet\n%%EOF\n";
+        $timingsBytes = json_encode([
+            'traceEvents' => [
+                ['name' => 'parse', 'args' => ['file' => 'workspace/main.typ', 'line' => 1]],
+                ['name' => 'load', 'args' => ['path' => 'workspace/assets/chart.svg', 'lineNumber' => 4]],
+                ['name' => 'load', 'args' => ['file' => 'shared/theme.typ', 'line' => 8]],
+                ['name' => 'fetch', 'args' => ['file' => 'https://cdn.example.invalid/typst/theme.typ']],
+                ['name' => 'package', 'args' => ['source' => '@preview/cetz:0.3.2']],
+            ],
+        ], JSON_THROW_ON_ERROR);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'timingsFile' => 'build/timing-sources.json',
+            'sourceFiles' => [
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'parse',
+                    'rawPath' => 'workspace/main.typ',
+                    'sourceFile' => 'workspace/main.typ',
+                    'line' => 1,
+                    'root' => 'workspace',
+                    'insideRoot' => true,
+                    'boundaryStatus' => 'inside-root',
+                    'issues' => [],
+                ],
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'load',
+                    'rawPath' => 'workspace/assets/chart.svg',
+                    'sourceFile' => 'workspace/assets/chart.svg',
+                    'line' => 4,
+                    'root' => 'workspace',
+                    'insideRoot' => true,
+                    'boundaryStatus' => 'inside-root',
+                    'issues' => [],
+                ],
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'load',
+                    'rawPath' => 'shared/theme.typ',
+                    'sourceFile' => 'shared/theme.typ',
+                    'line' => 8,
+                    'root' => 'workspace',
+                    'insideRoot' => false,
+                    'boundaryStatus' => 'outside-root',
+                    'issues' => ['timing-source-outside-root'],
+                ],
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'fetch',
+                    'rawPath' => 'https://cdn.example.invalid/typst/theme.typ',
+                    'sourceFile' => 'theme.typ',
+                    'line' => null,
+                    'root' => 'workspace',
+                    'insideRoot' => false,
+                    'boundaryStatus' => 'external-source',
+                    'issues' => ['timing-source-external'],
+                ],
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'package',
+                    'rawPath' => '@preview/cetz:0.3.2',
+                    'sourceFile' => 'typst-package:@preview/cetz:0.3.2',
+                    'line' => null,
+                    'root' => 'workspace',
+                    'insideRoot' => false,
+                    'boundaryStatus' => 'external-source',
+                    'issues' => ['timing-source-external'],
+                ],
+            ],
+            'sourceFileCount' => 5,
+            'insideRootCount' => 2,
+            'outsideRootCount' => 1,
+            'unboundedCount' => 0,
+            'externalSourceCount' => 2,
+            'unknownSourceCount' => 0,
+            'issues' => ['timing-source-external', 'timing-source-outside-root'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/timing-sources.pdf' => $pdfBytes,
+                'build/timing-sources.json' => $timingsBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/timing-sources.pdf' => $pdfBytes,
+                'build/timing-sources.json' => $timingsBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstTimingSourcePolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstTimingSourcePolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-timing-source-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('typst-timing-source-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-timing-source-files:5', implode(',', $result['diagnostics']));
+        $t->contains('typst-timing-source-outside-root:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-timing-source-external:2', implode(',', $result['diagnostics']));
+        $t->same('timing-provenance', $cases['timing-provenance']['case']);
+        $t->same('review', $cases['timing-provenance']['reviewStatus']);
+        $t->same(5, $cases['timing-provenance']['observed']);
+        $t->same([
+            'timingsFile' => 'build/timing-sources.json',
+            'sourceFileCount' => 5,
+            'sourceFiles' => [
+                'shared/theme.typ',
+                'theme.typ',
+                'typst-package:@preview/cetz:0.3.2',
+                'workspace/assets/chart.svg',
+                'workspace/main.typ',
+            ],
+            'insideRootCount' => 2,
+            'outsideRootCount' => 1,
+            'unboundedCount' => 0,
+            'externalSourceCount' => 2,
+            'unknownSourceCount' => 0,
+        ], $cases['timing-provenance']['details']);
+        $t->same(['timing-source-external', 'timing-source-outside-root'], $cases['timing-provenance']['issues']);
+        $t->contains('timing-provenance:timing-source-external', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->contains('timing-provenance:timing-source-outside-root', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($expectedPolicy, $sequence['finalTypstTimingSourcePolicy']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst short timings sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -8906,10 +9047,11 @@ return [
             'dependency-output-policy',
             'external-dependencies',
             'package-dependencies',
+            'timing-provenance',
             'warning-provenance',
         ], array_column($matrix['cases'], 'case'));
         $t->same('review', $matrix['reviewStatus']);
-        $t->same(21, $matrix['caseCount']);
+        $t->same(22, $matrix['caseCount']);
         $t->same(12, $matrix['reviewCaseCount']);
         $t->same('workspace', $cases['root-boundary']['details']['path']);
         $t->same('relative', $cases['root-boundary']['details']['kind']);
@@ -8943,10 +9085,13 @@ return [
         $t->same(0, $cases['external-dependencies']['details']['nonPackageDependencyCount']);
         $t->same(3, $cases['package-dependencies']['observed']);
         $t->same(1, $cases['package-dependencies']['details']['versionConflictCount']);
+        $t->same(1, $cases['timing-provenance']['observed']);
+        $t->same(1, $cases['timing-provenance']['details']['insideRootCount']);
+        $t->same(0, $cases['timing-provenance']['details']['outsideRootCount']);
         $t->same(1, $cases['warning-provenance']['details']['outsideRootCount']);
         $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
-        $t->contains('typst-boundary-matrix-cases:21', implode(',', $result['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:22', implode(',', $result['diagnostics']));
         $t->contains('environment-shadows:root-environment-shadowed', implode(',', $matrix['issues']));
         $t->contains('font-path-policy:font-path-external-boundary', implode(',', $matrix['issues']));
         $t->contains('input-variables:input-variable-boundary-overridden:audience', implode(',', $matrix['issues']));
