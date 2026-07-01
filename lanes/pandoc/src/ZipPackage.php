@@ -12983,9 +12983,16 @@ final class ZipPackage
         $unsupportedCompressionMethodCount = 0;
         $compressedBytes = 0;
         $uncompressedBytes = 0;
+        $entryCommentSummaries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
+            $dataDescriptorProvenance = $this->entryDataDescriptorHandoffProvenance($entry, $localHeader);
+            $sourceByteSpanProvenance = $this->entrySourceByteSpanHandoffProvenance(
+                $entry,
+                $localHeader,
+                $dataDescriptorProvenance
+            );
             $isDirectory = $entry->isDirectory();
             if ($isDirectory) {
                 ++$directoryEntryCount;
@@ -13042,10 +13049,33 @@ final class ZipPackage
                 'compressedDataEnd' => $compressedDataOffset + $entry->compressedSize,
                 'compressedDataSha256' => $compressedDataSha256,
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
+                'centralDirectoryRecordBytes' => $sourceByteSpanProvenance['centralDirectoryRecordBytes'],
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
+                'centralDirectoryRawCommentOffset' => $sourceByteSpanProvenance['centralDirectoryRawCommentOffset'],
+                'centralDirectoryRawCommentBytes' => $sourceByteSpanProvenance['centralDirectoryRawCommentBytes'],
+                'centralDirectoryRawCommentSha256' => $sourceByteSpanProvenance['centralDirectoryRawCommentSha256'],
+                'centralDirectoryReviewFieldBytes' => $sourceByteSpanProvenance['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $sourceByteSpanProvenance['sourceRecordBytes'],
             ];
             $entries[] = $summary;
+            if ($entry->rawComment !== '') {
+                $entryCommentSummaries[] = [
+                    'name' => $entry->name,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                    'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
+                    'compressionMethod' => $entry->compressionMethod,
+                    'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                    'centralDirectoryRawCommentOffset' => $sourceByteSpanProvenance['centralDirectoryRawCommentOffset'],
+                    'centralDirectoryRawCommentBytes' => strlen($entry->rawComment),
+                    'centralDirectoryRawCommentSha256' => $sourceByteSpanProvenance['centralDirectoryRawCommentSha256'],
+                    'centralDirectoryRecordBytes' => $sourceByteSpanProvenance['centralDirectoryRecordBytes'],
+                    'centralDirectoryReviewFieldBytes' => $sourceByteSpanProvenance['centralDirectoryReviewFieldBytes'],
+                    'sourceRecordBytes' => $sourceByteSpanProvenance['sourceRecordBytes'],
+                    'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
+                    'entryCommentCanExposeBytes' => false,
+                ];
+            }
             $manifestEntries[] = [
                 'name' => $summary['name'],
                 'isDirectory' => $summary['isDirectory'],
@@ -13063,10 +13093,23 @@ final class ZipPackage
 
         $centralDirectoryOrderNames = $this->names();
         $localHeaderOrderNames = $this->localNames();
+        $commentedEntryNames = array_map(
+            static fn (array $summary): string => (string) $summary['name'],
+            $entryCommentSummaries
+        );
+        $entryCommentSourceRecordBytes = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['sourceRecordBytes'],
+            $entryCommentSummaries
+        ));
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
+            'hasEntryComments' => $entryCommentSummaries !== [],
+            'commentedEntryNames' => $commentedEntryNames,
+            'entryCommentSummaryCount' => count($entryCommentSummaries),
+            'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
+            'entryCommentSummaries' => $entryCommentSummaries,
             'entries' => $manifestEntries,
         ];
         $manifestJson = json_encode(
@@ -13085,6 +13128,11 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'hasEntryComments' => $entryCommentSummaries !== [],
+            'commentedEntryNames' => $commentedEntryNames,
+            'entryCommentSummaryCount' => count($entryCommentSummaries),
+            'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
+            'entryCommentSummaries' => $entryCommentSummaries,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,

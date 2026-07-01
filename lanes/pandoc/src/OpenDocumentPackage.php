@@ -1722,6 +1722,11 @@ final class OpenDocumentPackage
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+            'zipPackageManifestHasEntryComments' => ($packageManifest['hasEntryComments'] ?? false) === true,
+            'zipPackageManifestCommentedEntryNames' => is_array($packageManifest['commentedEntryNames'] ?? null) ? $packageManifest['commentedEntryNames'] : [],
+            'zipPackageManifestEntryCommentSummaryCount' => is_int($packageManifest['entryCommentSummaryCount'] ?? null) ? $packageManifest['entryCommentSummaryCount'] : 0,
+            'zipPackageManifestEntryCommentSourceRecordBytes' => is_int($packageManifest['entryCommentSourceRecordBytes'] ?? null) ? $packageManifest['entryCommentSourceRecordBytes'] : 0,
+            'zipPackageManifestEntryCommentSummaries' => is_array($packageManifest['entryCommentSummaries'] ?? null) ? $packageManifest['entryCommentSummaries'] : [],
             'extraFields' => $extraFields,
             'zipExtraFieldEntryCount' => $extraFields['extraFieldEntryCount'],
             'zipDuplicateExtraFieldEntryCount' => $extraFields['duplicateExtraFieldEntryCount'],
@@ -2479,6 +2484,11 @@ final class OpenDocumentPackage
                 'commentedEntryNames' => $comments['commentedEntryNames'] ?? [],
                 'entries' => $comments['entries'] ?? [],
             ],
+            'zipPackageManifestHasEntryComments' => ($packageInventory['zipPackageManifestHasEntryComments'] ?? false) === true,
+            'zipPackageManifestCommentedEntryNames' => is_array($packageInventory['zipPackageManifestCommentedEntryNames'] ?? null) ? $packageInventory['zipPackageManifestCommentedEntryNames'] : [],
+            'zipPackageManifestEntryCommentSummaryCount' => is_int($packageInventory['zipPackageManifestEntryCommentSummaryCount'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSummaryCount'] : 0,
+            'zipPackageManifestEntryCommentSourceRecordBytes' => is_int($packageInventory['zipPackageManifestEntryCommentSourceRecordBytes'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSourceRecordBytes'] : 0,
+            'zipPackageManifestEntryCommentSummaries' => is_array($packageInventory['zipPackageManifestEntryCommentSummaries'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSummaries'] : [],
             'totalByteLength' => $packageInventory['totalByteLength'] ?? 0,
             'totalCompressedByteLength' => $packageInventory['totalCompressedByteLength'] ?? 0,
             'exposableByteLength' => $packageInventory['exposableByteLength'] ?? 0,
@@ -2497,6 +2507,11 @@ final class OpenDocumentPackage
         $payload['hasEntryComments'] = ($comments['hasEntryComments'] ?? false) === true;
         $payload['entryCommentCount'] = is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0;
         $payload['commentedEntryNames'] = is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [];
+        $payload['zipPackageManifestHasEntryComments'] = ($packageInventory['zipPackageManifestHasEntryComments'] ?? false) === true;
+        $payload['zipPackageManifestCommentedEntryNames'] = is_array($packageInventory['zipPackageManifestCommentedEntryNames'] ?? null) ? $packageInventory['zipPackageManifestCommentedEntryNames'] : [];
+        $payload['zipPackageManifestEntryCommentSummaryCount'] = is_int($packageInventory['zipPackageManifestEntryCommentSummaryCount'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSummaryCount'] : 0;
+        $payload['zipPackageManifestEntryCommentSourceRecordBytes'] = is_int($packageInventory['zipPackageManifestEntryCommentSourceRecordBytes'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSourceRecordBytes'] : 0;
+        $payload['zipPackageManifestEntryCommentSummaries'] = is_array($packageInventory['zipPackageManifestEntryCommentSummaries'] ?? null) ? $packageInventory['zipPackageManifestEntryCommentSummaries'] : [];
 
         return $payload;
     }
