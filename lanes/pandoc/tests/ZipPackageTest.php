@@ -893,6 +893,9 @@ return [
                     'packagePartCaseFoldBaseNameStem' => $entry['packagePartCaseFoldBaseNameStem'],
                     'packagePartExtension' => $entry['packagePartExtension'],
                     'packagePartExtensionKey' => $entry['packagePartExtensionKey'],
+                    'rawPackagePartExtension' => $manifestEntry['rawPackagePartExtension'],
+                    'packagePartExtensionHasUppercase' => $manifestEntry['packagePartExtensionHasUppercase'],
+                    'packagePartExtensionWasNormalized' => $manifestEntry['packagePartExtensionWasNormalized'],
                     'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                     'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                     'localHeaderOrder' => $entry['localHeaderOrder'],
@@ -1369,6 +1372,13 @@ return [
             'creatorVersionBelowNeededEntries' => [],
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 1,
+            'packagePartRawExtensionCount' => $manifest['packagePartRawExtensionCount'],
+            'packagePartRawExtensionCounts' => $manifest['packagePartRawExtensionCounts'],
+            'entryNamesByPackagePartRawExtension' => $manifest['entryNamesByPackagePartRawExtension'],
+            'packagePartRawExtensionUppercasePartCount' => $manifest['packagePartRawExtensionUppercasePartCount'],
+            'packagePartRawExtensionNormalizedPartCount' => $manifest['packagePartRawExtensionNormalizedPartCount'],
+            'packagePartRawExtensionSummaryCount' => $manifest['packagePartRawExtensionSummaryCount'],
+            'packagePartRawExtensionSummaries' => $manifest['packagePartRawExtensionSummaries'],
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
             'packagePartBaseNameSummaryCount' => $manifest['packagePartBaseNameSummaryCount'],
@@ -1589,6 +1599,9 @@ return [
                 'packagePartCaseFoldBaseNameStem' => $entry['packagePartCaseFoldBaseNameStem'],
                 'packagePartExtension' => $entry['packagePartExtension'],
                 'packagePartExtensionKey' => $entry['packagePartExtensionKey'],
+                'rawPackagePartExtension' => $entry['rawPackagePartExtension'],
+                'packagePartExtensionHasUppercase' => $entry['packagePartExtensionHasUppercase'],
+                'packagePartExtensionWasNormalized' => $entry['packagePartExtensionWasNormalized'],
                 'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],
@@ -1985,6 +1998,170 @@ return [
         $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
         $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
+    'summarizes zip package manifest raw package part extensions before XML package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document/>';
+        $imageBytes = str_repeat('P', 320);
+        $iconBytes = str_repeat('i', 64);
+        $binaryBytes = 'binary payload';
+        $extensionlessBytes = 'extensionless payload';
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => '<Types/>',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.XML',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/IMAGE.PNG',
+                'data' => $imageBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/icon.PnG',
+                'data' => $iconBytes,
+                'method' => 8,
+            ],
+            [
+                'name' => 'customXml/data.bin',
+                'data' => $binaryBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'customXml/extensionless',
+                'data' => $extensionlessBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $summariesByRawExtension = array_column(
+            $manifest['packagePartRawExtensionSummaries'],
+            null,
+            'rawExtensionKey'
+        );
+
+        $t->same(6, $manifest['packagePartRawExtensionCount']);
+        $t->same([
+            '(none)' => 2,
+            'PNG' => 1,
+            'PnG' => 1,
+            'XML' => 1,
+            'bin' => 1,
+            'xml' => 1,
+        ], $manifest['packagePartRawExtensionCounts']);
+        $t->same([
+            '(none)' => ['customXml/extensionless', 'word/media/'],
+            'PNG' => ['word/media/IMAGE.PNG'],
+            'PnG' => ['word/media/icon.PnG'],
+            'XML' => ['word/document.XML'],
+            'bin' => ['customXml/data.bin'],
+            'xml' => ['[Content_Types].xml'],
+        ], $manifest['entryNamesByPackagePartRawExtension']);
+        $t->same(3, $manifest['packagePartRawExtensionUppercasePartCount']);
+        $t->same(3, $manifest['packagePartRawExtensionNormalizedPartCount']);
+        $t->same(6, $manifest['packagePartRawExtensionSummaryCount']);
+        $t->same(
+            ['(none)', 'PNG', 'PnG', 'XML', 'bin', 'xml'],
+            array_column($manifest['packagePartRawExtensionSummaries'], 'rawExtensionKey')
+        );
+
+        $document = $entriesByName['word/document.XML'];
+        $t->same('XML', $document['rawPackagePartExtension']);
+        $t->same('xml', $document['packagePartExtension']);
+        $t->same(true, $document['packagePartExtensionHasUppercase']);
+        $t->same(true, $document['packagePartExtensionWasNormalized']);
+        $t->same('PNG', $entriesByName['word/media/IMAGE.PNG']['rawPackagePartExtension']);
+        $t->same(true, $entriesByName['word/media/IMAGE.PNG']['packagePartExtensionHasUppercase']);
+        $t->same(true, $entriesByName['word/media/IMAGE.PNG']['packagePartExtensionWasNormalized']);
+        $t->same(null, $entriesByName['customXml/extensionless']['rawPackagePartExtension']);
+        $t->same(false, $entriesByName['customXml/extensionless']['packagePartExtensionHasUppercase']);
+        $t->same(false, $entriesByName['customXml/extensionless']['packagePartExtensionWasNormalized']);
+        $t->same(null, $entriesByName['word/media/']['rawPackagePartExtension']);
+
+        $png = $summariesByRawExtension['PNG'];
+        $t->same('PNG', $png['rawPackagePartExtension']);
+        $t->same(false, $png['extensionlessPackagePart']);
+        $t->same(1, $png['entryCount']);
+        $t->same(1, $png['fileEntryCount']);
+        $t->same(0, $png['directoryEntryCount']);
+        $t->same(strlen($imageBytes), $png['uncompressedBytes']);
+        $t->same(['png' => 1], $png['packagePartExtensionCounts']);
+        $t->same(['word/' => 1], $png['directoryRootCounts']);
+        $t->same(['stored' => 1], $png['compressionMethodCounts']);
+        $t->same(['16-to-63-bytes' => 1], $png['entryNameLengthBucketCounts']);
+        $t->same(1, $png['uppercasePartCount']);
+        $t->same(1, $png['normalizedPartCount']);
+        $t->same(['word/media/IMAGE.PNG'], $png['entryNames']);
+        $t->same('word/media/IMAGE.PNG', $png['largestEntry']['name']);
+        $t->same('PNG', $png['largestEntry']['rawPackagePartExtension']);
+        $t->same('png', $png['largestEntry']['packagePartExtension']);
+        $t->same(true, $png['largestEntry']['packagePartExtensionHasUppercase']);
+        $t->same(true, $png['largestEntry']['packagePartExtensionWasNormalized']);
+        $t->same(false, array_key_exists('contents', $png['largestEntry']));
+
+        $mixedPng = $summariesByRawExtension['PnG'];
+        $t->same(['png' => 1], $mixedPng['packagePartExtensionCounts']);
+        $t->same(['deflated' => 1], $mixedPng['compressionMethodCounts']);
+        $t->same(1, $mixedPng['uppercasePartCount']);
+        $t->same(1, $mixedPng['normalizedPartCount']);
+        $t->same('word/media/icon.PnG', $mixedPng['largestEntry']['name']);
+
+        $xml = $summariesByRawExtension['XML'];
+        $t->same(['xml' => 1], $xml['packagePartExtensionCounts']);
+        $t->same(['deflated' => 1], $xml['compressionMethodCounts']);
+        $t->same(1, $xml['uppercasePartCount']);
+        $t->same(1, $xml['normalizedPartCount']);
+        $t->same('word/document.XML', $xml['largestEntry']['name']);
+
+        $lowerXml = $summariesByRawExtension['xml'];
+        $t->same('xml', $lowerXml['rawPackagePartExtension']);
+        $t->same(['xml' => 1], $lowerXml['packagePartExtensionCounts']);
+        $t->same(0, $lowerXml['uppercasePartCount']);
+        $t->same(0, $lowerXml['normalizedPartCount']);
+        $t->same('[Content_Types].xml', $lowerXml['largestEntry']['name']);
+
+        $extensionless = $summariesByRawExtension['(none)'];
+        $t->same(null, $extensionless['rawPackagePartExtension']);
+        $t->same(true, $extensionless['extensionlessPackagePart']);
+        $t->same(2, $extensionless['entryCount']);
+        $t->same(1, $extensionless['fileEntryCount']);
+        $t->same(1, $extensionless['directoryEntryCount']);
+        $t->same(['(none)' => 2], $extensionless['packagePartExtensionCounts']);
+        $t->same(['customXml/' => 1, 'word/' => 1], $extensionless['directoryRootCounts']);
+        $t->same(['stored' => 2], $extensionless['compressionMethodCounts']);
+        $t->same(['customXml/extensionless', 'word/media/'], $extensionless['entryNames']);
+        $t->same(0, $extensionless['uppercasePartCount']);
+        $t->same(0, $extensionless['normalizedPartCount']);
+        $t->same('customXml/extensionless', $extensionless['largestEntry']['name']);
+        $t->same(false, array_key_exists('contents', $extensionless['largestEntry']));
+
+        $t->same(
+            $manifest['packagePartRawExtensionSummaries'],
+            $strict['packageManifest']['packagePartRawExtensionSummaries']
+        );
+        $t->same(
+            $manifest['packagePartRawExtensionSummaries'],
+            $raw['packageManifest']['packagePartRawExtensionSummaries']
+        );
+        $t->same(
+            $manifest['packagePartRawExtensionSummaries'],
+            $raw['strictImport']['packageManifest']['packagePartRawExtensionSummaries']
+        );
     },
 
     'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
@@ -3026,6 +3203,9 @@ return [
                 'packagePartCaseFoldBaseNameStem' => 'document',
                 'packagePartExtension' => 'xml',
                 'packagePartExtensionKey' => 'xml',
+                'rawPackagePartExtension' => 'xml',
+                'packagePartExtensionHasUppercase' => false,
+                'packagePartExtensionWasNormalized' => false,
                 'extensionlessPackagePart' => false,
                 'centralDirectoryIndex' => 0,
                 'localHeaderOrder' => 0,
@@ -3107,6 +3287,9 @@ return [
                 'packagePartCaseFoldBaseNameStem' => 'comments',
                 'packagePartExtension' => 'xml',
                 'packagePartExtensionKey' => 'xml',
+                'rawPackagePartExtension' => 'xml',
+                'packagePartExtensionHasUppercase' => false,
+                'packagePartExtensionWasNormalized' => false,
                 'extensionlessPackagePart' => false,
                 'centralDirectoryIndex' => 1,
                 'localHeaderOrder' => 1,
@@ -3420,6 +3603,13 @@ return [
             'creatorVersionBelowNeededEntries' => [],
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 0,
+            'packagePartRawExtensionCount' => $manifest['packagePartRawExtensionCount'],
+            'packagePartRawExtensionCounts' => $manifest['packagePartRawExtensionCounts'],
+            'entryNamesByPackagePartRawExtension' => $manifest['entryNamesByPackagePartRawExtension'],
+            'packagePartRawExtensionUppercasePartCount' => $manifest['packagePartRawExtensionUppercasePartCount'],
+            'packagePartRawExtensionNormalizedPartCount' => $manifest['packagePartRawExtensionNormalizedPartCount'],
+            'packagePartRawExtensionSummaryCount' => $manifest['packagePartRawExtensionSummaryCount'],
+            'packagePartRawExtensionSummaries' => $manifest['packagePartRawExtensionSummaries'],
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
             'packagePartBaseNameSummaryCount' => $manifest['packagePartBaseNameSummaryCount'],
@@ -3565,6 +3755,9 @@ return [
                 'packagePartCaseFoldBaseNameStem' => $entry['packagePartCaseFoldBaseNameStem'],
                 'packagePartExtension' => $entry['packagePartExtension'],
                 'packagePartExtensionKey' => $entry['packagePartExtensionKey'],
+                'rawPackagePartExtension' => $entry['rawPackagePartExtension'],
+                'packagePartExtensionHasUppercase' => $entry['packagePartExtensionHasUppercase'],
+                'packagePartExtensionWasNormalized' => $entry['packagePartExtensionWasNormalized'],
                 'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],

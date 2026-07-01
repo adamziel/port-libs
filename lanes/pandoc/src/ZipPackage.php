@@ -7386,6 +7386,139 @@ final class ZipPackage
      * @param list<array<string, mixed>> $entries
      * @return list<array<string, mixed>>
      */
+    private static function packageManifestPartRawExtensionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $rawExtension = is_string($entry['rawPackagePartExtension'] ?? null)
+                ? $entry['rawPackagePartExtension']
+                : null;
+            $rawExtensionKey = $rawExtension ?? '(none)';
+            if (!isset($summaries[$rawExtensionKey])) {
+                $summaries[$rawExtensionKey] = [
+                    'rawExtensionKey' => $rawExtensionKey,
+                    'rawPackagePartExtension' => $rawExtension,
+                    'extensionlessPackagePart' => $rawExtension === null,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'packagePartExtensionCounts' => [],
+                    'directoryRootCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'entryNameLengthBucketCounts' => [],
+                    'uppercasePartCount' => 0,
+                    'normalizedPartCount' => 0,
+                    'entryNames' => [],
+                    'largestEntry' => null,
+                ];
+            }
+
+            ++$summaries[$rawExtensionKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$rawExtensionKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$rawExtensionKey]['fileEntryCount'];
+            }
+
+            $compressedSize = (int) ($entry['compressedSize'] ?? 0);
+            $uncompressedSize = (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$rawExtensionKey]['compressedBytes'] += $compressedSize;
+            $summaries[$rawExtensionKey]['uncompressedBytes'] += $uncompressedSize;
+            $summaries[$rawExtensionKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$rawExtensionKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$rawExtensionKey]['dataDescriptorEntryCount'];
+                $summaries[$rawExtensionKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+
+            $packagePartExtensionKey = is_string($entry['packagePartExtension'] ?? null)
+                ? $entry['packagePartExtension']
+                : '(none)';
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null)
+                ? $entry['directoryRoot']
+                : self::entryHandoffDirectoryRoot($name);
+            $compressionMethodName = is_string($entry['compressionMethodName'] ?? null)
+                ? $entry['compressionMethodName']
+                : (is_int($entry['compressionMethod'] ?? null)
+                    ? self::compressionMethodName((int) $entry['compressionMethod'])
+                    : 'unknown');
+            $entryNameLengthBucket = is_string($entry['entryNameLengthBucket'] ?? null)
+                ? $entry['entryNameLengthBucket']
+                : self::packageManifestNameLengthBucket(strlen($name))['nameLengthBucket'];
+            foreach ([
+                'packagePartExtensionCounts' => $packagePartExtensionKey,
+                'directoryRootCounts' => $directoryRoot,
+                'compressionMethodCounts' => $compressionMethodName,
+                'entryNameLengthBucketCounts' => $entryNameLengthBucket,
+            ] as $field => $key) {
+                $summaries[$rawExtensionKey][$field][$key] = ($summaries[$rawExtensionKey][$field][$key] ?? 0) + 1;
+            }
+            if (($entry['packagePartExtensionHasUppercase'] ?? false) === true) {
+                ++$summaries[$rawExtensionKey]['uppercasePartCount'];
+            }
+            if (($entry['packagePartExtensionWasNormalized'] ?? false) === true) {
+                ++$summaries[$rawExtensionKey]['normalizedPartCount'];
+            }
+            $summaries[$rawExtensionKey]['entryNames'][] = $name;
+
+            $largestEntry = $summaries[$rawExtensionKey]['largestEntry'];
+            if (
+                !is_array($largestEntry)
+                || $uncompressedSize > (int) ($largestEntry['uncompressedSize'] ?? 0)
+                || (
+                    $uncompressedSize === (int) ($largestEntry['uncompressedSize'] ?? 0)
+                    && $name < (string) ($largestEntry['name'] ?? '')
+                )
+            ) {
+                $summaries[$rawExtensionKey]['largestEntry'] = [
+                    'name' => $name,
+                    'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+                    'rawPackagePartExtension' => $rawExtension,
+                    'packagePartExtension' => is_string($entry['packagePartExtension'] ?? null)
+                        ? $entry['packagePartExtension']
+                        : null,
+                    'packagePartExtensionKey' => $packagePartExtensionKey,
+                    'packagePartExtensionHasUppercase' => ($entry['packagePartExtensionHasUppercase'] ?? false) === true,
+                    'packagePartExtensionWasNormalized' => ($entry['packagePartExtensionWasNormalized'] ?? false) === true,
+                    'compressedSize' => $compressedSize,
+                    'uncompressedSize' => $uncompressedSize,
+                    'compressionMethodName' => $compressionMethodName,
+                    'directoryRoot' => $directoryRoot,
+                    'entryNameLengthBucket' => $entryNameLengthBucket,
+                    'sourceRecordBytes' => (int) ($entry['sourceRecordBytes'] ?? 0),
+                ];
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['packagePartExtensionCounts'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['entryNameLengthBucketCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
     private static function packageManifestPartBaseNameSummaries(array $entries): array
     {
         $summaries = [];
@@ -8075,6 +8208,17 @@ final class ZipPackage
         $extension = pathinfo($name, PATHINFO_EXTENSION);
 
         return $extension === '' ? null : strtolower($extension);
+    }
+
+    private static function zipPackagePartRawExtension(string $name, bool $isDirectory): ?string
+    {
+        if ($isDirectory) {
+            return null;
+        }
+
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+
+        return $extension === '' ? null : $extension;
     }
 
     /**
@@ -15046,6 +15190,12 @@ final class ZipPackage
                 $creatorHostSystemIssues[] = 'creator-version-below-version-needed';
             }
             $packagePartExtension = self::zipPackagePartExtension($entry->name, $isDirectory);
+            $rawPackagePartExtension = self::zipPackagePartRawExtension($entry->name, $isDirectory);
+            $packagePartExtensionHasUppercase = $rawPackagePartExtension !== null
+                && preg_match('/[A-Z]/', $rawPackagePartExtension) === 1;
+            $packagePartExtensionWasNormalized = $packagePartExtension !== null
+                && $rawPackagePartExtension !== null
+                && $rawPackagePartExtension !== $packagePartExtension;
             $packagePartExtensionKey = $isDirectory
                 ? '(directory)'
                 : ($packagePartExtension ?? '(none)');
@@ -15465,6 +15615,9 @@ final class ZipPackage
                 'packagePartCaseFoldBaseNameStem' => $packagePartCaseFoldBaseNameStem,
                 'packagePartExtension' => $packagePartExtension,
                 'packagePartExtensionKey' => $packagePartExtensionKey,
+                'rawPackagePartExtension' => $rawPackagePartExtension,
+                'packagePartExtensionHasUppercase' => $packagePartExtensionHasUppercase,
+                'packagePartExtensionWasNormalized' => $packagePartExtensionWasNormalized,
                 'extensionlessPackagePart' => $extensionlessPackagePart,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => $localHeaderOrder,
@@ -15619,6 +15772,9 @@ final class ZipPackage
                 'packagePartCaseFoldBaseNameStem' => $summary['packagePartCaseFoldBaseNameStem'],
                 'packagePartExtension' => $summary['packagePartExtension'],
                 'packagePartExtensionKey' => $summary['packagePartExtensionKey'],
+                'rawPackagePartExtension' => $summary['rawPackagePartExtension'],
+                'packagePartExtensionHasUppercase' => $summary['packagePartExtensionHasUppercase'],
+                'packagePartExtensionWasNormalized' => $summary['packagePartExtensionWasNormalized'],
                 'extensionlessPackagePart' => $summary['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $summary['centralDirectoryIndex'],
                 'localHeaderOrder' => $summary['localHeaderOrder'],
@@ -15703,6 +15859,20 @@ final class ZipPackage
                 static fn (array $summary): bool => is_string($summary['packagePartExtension'] ?? null)
             )
         ));
+        $packagePartRawExtensionSummaries = self::packageManifestPartRawExtensionSummaries($entries);
+        $packagePartRawExtensionCounts = [];
+        $entryNamesByPackagePartRawExtension = [];
+        $packagePartRawExtensionUppercasePartCount = 0;
+        $packagePartRawExtensionNormalizedPartCount = 0;
+        foreach ($packagePartRawExtensionSummaries as $summary) {
+            $rawExtensionKey = (string) $summary['rawExtensionKey'];
+            $packagePartRawExtensionCounts[$rawExtensionKey] = (int) $summary['entryCount'];
+            $entryNamesByPackagePartRawExtension[$rawExtensionKey] = $summary['entryNames'];
+            $packagePartRawExtensionUppercasePartCount += (int) $summary['uppercasePartCount'];
+            $packagePartRawExtensionNormalizedPartCount += (int) $summary['normalizedPartCount'];
+        }
+        ksort($packagePartRawExtensionCounts, SORT_STRING);
+        ksort($entryNamesByPackagePartRawExtension, SORT_STRING);
         $pathSegmentSummaries = self::packageManifestPathSegmentSummaries($entries);
         $pathSegmentCounts = [];
         $pathSegmentEntryCounts = [];
@@ -15947,6 +16117,13 @@ final class ZipPackage
             'creatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries,
             'directoryRootSummaries' => $directoryRootSummaries,
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
+            'packagePartRawExtensionCount' => count($packagePartRawExtensionSummaries),
+            'packagePartRawExtensionCounts' => $packagePartRawExtensionCounts,
+            'entryNamesByPackagePartRawExtension' => $entryNamesByPackagePartRawExtension,
+            'packagePartRawExtensionUppercasePartCount' => $packagePartRawExtensionUppercasePartCount,
+            'packagePartRawExtensionNormalizedPartCount' => $packagePartRawExtensionNormalizedPartCount,
+            'packagePartRawExtensionSummaryCount' => count($packagePartRawExtensionSummaries),
+            'packagePartRawExtensionSummaries' => $packagePartRawExtensionSummaries,
             'packagePartExtensions' => $packagePartExtensions,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
             'packagePartBaseNameSummaryCount' => count($packagePartBaseNameSummaries),
@@ -16157,6 +16334,13 @@ final class ZipPackage
             'directoryRootSummaries' => $directoryRootSummaries,
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'hasExtensionlessPackageParts' => $extensionlessPackagePartCount > 0,
+            'packagePartRawExtensionCount' => count($packagePartRawExtensionSummaries),
+            'packagePartRawExtensionCounts' => $packagePartRawExtensionCounts,
+            'entryNamesByPackagePartRawExtension' => $entryNamesByPackagePartRawExtension,
+            'packagePartRawExtensionUppercasePartCount' => $packagePartRawExtensionUppercasePartCount,
+            'packagePartRawExtensionNormalizedPartCount' => $packagePartRawExtensionNormalizedPartCount,
+            'packagePartRawExtensionSummaryCount' => count($packagePartRawExtensionSummaries),
+            'packagePartRawExtensionSummaries' => $packagePartRawExtensionSummaries,
             'packagePartExtensionSummaryCount' => count($packagePartExtensionSummaries),
             'packagePartExtensions' => $packagePartExtensions,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
