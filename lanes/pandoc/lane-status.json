@@ -43,5 +43,15 @@
             "No external Pandoc, office suite, zip/unzip, browser renderer, or validator was invoked."
         ]
     },
+    "docxOpenXmlPackageXmlDoctypeProvenance": {
+        "status": "implemented",
+        "issue": "plib-7jqg4",
+        "date": "2026-07-01",
+        "evidence": [
+            "DOCX/OpenXML package ingestion now records metadata-only XML doctype provenance for XML-like package parts.",
+            "Package summaries include doctype part/name/issue-code rollups, external-reference counts, internal-subset counts, entity declaration counts, byte lengths, hashes, and affected part names without exposing raw doctype declarations or internal-subset text.",
+            "Direct-format parity remains active; no external Pandoc, office suite, TeX/browser engine, Typst, Node, zip/unzip, validator, or live service is invoked."
+        ]
+    },
     "lastUpdated": "2026-07-01"
 }
