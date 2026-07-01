@@ -45,9 +45,14 @@ return [
         ];
         ksort($expectedAreaCounts, SORT_STRING);
         ksort($expectedAreaBytes, SORT_STRING);
+        $expectedAreaRatios = docx_package_area_byte_identity_expansion_ratio_map($expectedAreaBytes, $expectedAreaBytes);
         $zipCompressedAreaBytes = docx_package_area_byte_identity_sum_inventory_by_area(
             $zipPackage['parts'],
             'compressedByteLength'
+        );
+        $zipAreaRatios = docx_package_area_byte_identity_expansion_ratio_map(
+            $expectedAreaBytes,
+            $zipCompressedAreaBytes
         );
 
         $t->same('DOCX package area byte identity.', $directDocument->children[0]->attr('text'));
@@ -55,9 +60,11 @@ return [
         $t->same($expectedAreaCounts, $directSummary['packageAreaCounts']);
         $t->same($expectedAreaBytes, $directSummary['packageAreaByteLengths']);
         $t->same($expectedAreaBytes, $directSummary['packageAreaCompressedByteLengths']);
+        $t->same($expectedAreaRatios, $directSummary['packageAreaExpansionRatios']);
         $t->same($expectedAreaCounts, $directIdentity['packageAreaCounts']);
         $t->same($expectedAreaBytes, $directIdentity['packageAreaByteLengths']);
         $t->same($expectedAreaBytes, $directIdentity['packageAreaCompressedByteLengths']);
+        $t->same($expectedAreaRatios, $directIdentity['packageAreaExpansionRatios']);
         $t->same($directIdentity['packageAreaCount'], $directSummary['packageIdentityPackageAreaCount']);
         $t->same($directIdentity['packageAreaCounts'], $directSummary['packageIdentityPackageAreaCounts']);
         $t->same($directIdentity['packageAreaByteLengths'], $directSummary['packageIdentityPackageAreaByteLengths']);
@@ -65,10 +72,15 @@ return [
             $directIdentity['packageAreaCompressedByteLengths'],
             $directSummary['packageIdentityPackageAreaCompressedByteLengths']
         );
+        $t->same(
+            $directIdentity['packageAreaExpansionRatios'],
+            $directSummary['packageIdentityPackageAreaExpansionRatios']
+        );
 
         $t->same($expectedAreaCounts, $directDocumentIdentity['packageAreaCounts']);
         $t->same($expectedAreaBytes, $directDocumentIdentity['packageAreaByteLengths']);
         $t->same($expectedAreaBytes, $directDocumentIdentity['packageAreaCompressedByteLengths']);
+        $t->same($expectedAreaRatios, $directDocumentIdentity['packageAreaExpansionRatios']);
         $t->same($directDocumentIdentity['packageAreaCount'], $directSummary['documentPackageIdentityPackageAreaCount']);
         $t->same($directDocumentIdentity['packageAreaCounts'], $directSummary['documentPackageIdentityPackageAreaCounts']);
         $t->same(
@@ -78,6 +90,10 @@ return [
         $t->same(
             $directDocumentIdentity['packageAreaCompressedByteLengths'],
             $directSummary['documentPackageIdentityPackageAreaCompressedByteLengths']
+        );
+        $t->same(
+            $directDocumentIdentity['packageAreaExpansionRatios'],
+            $directSummary['documentPackageIdentityPackageAreaExpansionRatios']
         );
 
         $t->same($directSummary['packageAreaSummaries'], $directIdentity['packageAreaSummaries']);
@@ -99,6 +115,7 @@ return [
         $t->same(5, $directAreas['word/']['partCount']);
         $t->same($expectedAreaBytes['word/'], $directAreas['word/']['byteLength']);
         $t->same($expectedAreaBytes['word/'], $directAreas['word/']['compressedByteLength']);
+        $t->same(1.0, $directAreas['word/']['expansionRatio']);
         $t->same(1, $directAreas['word/']['relationshipPartCount']);
         $t->same(0, $directAreas['word/']['missingContentTypePartCount']);
         $t->same(['docx-package-part-bytes-blocked' => 5], $directAreas['word/']['byteExposurePolicyCounts']);
@@ -117,12 +134,15 @@ return [
         $t->same($expectedAreaCounts, $zipSummary['packageAreaCounts']);
         $t->same($expectedAreaBytes, $zipSummary['packageAreaByteLengths']);
         $t->same($zipCompressedAreaBytes, $zipSummary['packageAreaCompressedByteLengths']);
+        $t->same($zipAreaRatios, $zipSummary['packageAreaExpansionRatios']);
         $t->same($expectedAreaCounts, $zipIdentity['packageAreaCounts']);
         $t->same($expectedAreaBytes, $zipIdentity['packageAreaByteLengths']);
         $t->same($zipCompressedAreaBytes, $zipIdentity['packageAreaCompressedByteLengths']);
+        $t->same($zipAreaRatios, $zipIdentity['packageAreaExpansionRatios']);
         $t->same($zipSummary['packageAreaSummaries'], $zipIdentity['packageAreaSummaries']);
         $t->same($zipSummary['partNamesByPackageArea'], $zipIdentity['entryNamesByPackageArea']);
         $t->same($zipCompressedAreaBytes['word/'], $zipAreas['word/']['compressedByteLength']);
+        $t->same($zipAreaRatios['word/'], $zipAreas['word/']['expansionRatio']);
         $t->same(['docx-zip-entry-metadata-only' => 5], $zipAreas['word/']['byteExposurePolicyCounts']);
         $t->same('docx-zip-entry-metadata-only', $zipIdentity['packageEntries'][0]['byteExposurePolicy']);
         $t->same(false, $zipIdentity['packageEntries'][0]['canExposeBytes']);
@@ -222,6 +242,34 @@ function docx_package_area_byte_identity_sum_inventory_by_area(array $inventory,
     ksort($sums, SORT_STRING);
 
     return $sums;
+}
+
+/**
+ * @param array<string, int> $uncompressedBytes
+ * @param array<string, int> $compressedBytes
+ * @return array<string, ?float>
+ */
+function docx_package_area_byte_identity_expansion_ratio_map(
+    array $uncompressedBytes,
+    array $compressedBytes
+): array {
+    $ratios = [];
+    foreach ($uncompressedBytes as $area => $uncompressedByteLength) {
+        $compressedByteLength = (int) ($compressedBytes[$area] ?? 0);
+        if ((int) $uncompressedByteLength === 0) {
+            $ratios[$area] = 0.0;
+            continue;
+        }
+        if ($compressedByteLength === 0) {
+            $ratios[$area] = null;
+            continue;
+        }
+
+        $ratios[$area] = (float) $uncompressedByteLength / $compressedByteLength;
+    }
+    ksort($ratios, SORT_STRING);
+
+    return $ratios;
 }
 
 /**

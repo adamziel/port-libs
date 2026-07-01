@@ -220,6 +220,7 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['documentPackageIdentityPackageAreaCounts'] = $documentPackageIdentity['packageAreaCounts'];
         $packageProvenance['summary']['documentPackageIdentityPackageAreaByteLengths'] = $documentPackageIdentity['packageAreaByteLengths'];
         $packageProvenance['summary']['documentPackageIdentityPackageAreaCompressedByteLengths'] = $documentPackageIdentity['packageAreaCompressedByteLengths'];
+        $packageProvenance['summary']['documentPackageIdentityPackageAreaExpansionRatios'] = $documentPackageIdentity['packageAreaExpansionRatios'];
         $packageProvenance['summary']['documentPackageIdentityRootRelationshipCount'] = $documentPackageIdentity['rootRelationshipCount'];
         $packageProvenance['summary']['documentPackageIdentityRootRelationshipRecordCount'] = $documentPackageIdentity['rootRelationshipRecordCount'];
         $packageProvenance['summary']['documentPackageIdentityRootOfficeDocumentRelationshipId'] = $documentPackageIdentity['rootOfficeDocumentRelationshipId'];
@@ -13113,6 +13114,7 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPackageAreaByteLengths'] = $packageIdentity['packageAreaByteLengths'];
         $summary['packageIdentityPackageAreaCompressedByteLengths'] =
             $packageIdentity['packageAreaCompressedByteLengths'];
+        $summary['packageIdentityPackageAreaExpansionRatios'] = $packageIdentity['packageAreaExpansionRatios'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -19547,6 +19549,7 @@ final class DocxOpenXmlReader
             'packageAreaCounts' => $packageAreas['packageAreaCounts'],
             'packageAreaByteLengths' => $packageAreas['packageAreaByteLengths'],
             'packageAreaCompressedByteLengths' => $packageAreas['packageAreaCompressedByteLengths'],
+            'packageAreaExpansionRatios' => $packageAreas['packageAreaExpansionRatios'],
             'packageAreaSummaries' => $packageAreas['packageAreaSummaries'],
             'partNamesByPackageArea' => $packageAreas['partNamesByPackageArea'],
             'partDirectoryCount' => count($partDirectories),
@@ -32130,13 +32133,14 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{packageAreaCount:int, packageAreaCounts:array<string, int>, packageAreaByteLengths:array<string, int>, packageAreaCompressedByteLengths:array<string, int>, packageAreaSummaries:list<array<string, mixed>>, partNamesByPackageArea:array<string, list<string>>}
+     * @return array{packageAreaCount:int, packageAreaCounts:array<string, int>, packageAreaByteLengths:array<string, int>, packageAreaCompressedByteLengths:array<string, int>, packageAreaExpansionRatios:array<string, ?float>, packageAreaSummaries:list<array<string, mixed>>, partNamesByPackageArea:array<string, list<string>>}
      */
     private function packagePartAreaSummary(array $partInventory): array
     {
         $areaCounts = [];
         $areaByteLengths = [];
         $areaCompressedByteLengths = [];
+        $areaExpansionRatios = [];
         $partNamesByArea = [];
         $summaries = [];
         foreach ($partInventory as $partName => $part) {
@@ -32178,6 +32182,7 @@ final class DocxOpenXmlReader
                     'partCount' => 0,
                     'byteLength' => 0,
                     'compressedByteLength' => 0,
+                    'expansionRatio' => 0.0,
                     'relationshipPartCount' => 0,
                     'missingContentTypePartCount' => 0,
                     'parameterizedPartCount' => 0,
@@ -32244,6 +32249,13 @@ final class DocxOpenXmlReader
         ksort($areaCounts, SORT_STRING);
         ksort($areaByteLengths, SORT_STRING);
         ksort($areaCompressedByteLengths, SORT_STRING);
+        foreach ($areaByteLengths as $area => $byteLength) {
+            $areaExpansionRatios[$area] = self::zipExpansionRatio(
+                (int) $byteLength,
+                (int) ($areaCompressedByteLengths[$area] ?? 0)
+            );
+        }
+        ksort($areaExpansionRatios, SORT_STRING);
         ksort($partNamesByArea, SORT_STRING);
         foreach ($partNamesByArea as &$partNames) {
             $partNames = array_values(array_unique(array_map('strval', $partNames)));
@@ -32252,6 +32264,10 @@ final class DocxOpenXmlReader
         unset($partNames);
         ksort($summaries, SORT_STRING);
         foreach ($summaries as $area => $summary) {
+            $summary['expansionRatio'] = self::zipExpansionRatio(
+                (int) ($summary['byteLength'] ?? 0),
+                (int) ($summary['compressedByteLength'] ?? 0)
+            );
             sort($summary['partNames'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
             ksort($summary['contentTypeBaseCounts'], SORT_STRING);
@@ -32265,6 +32281,7 @@ final class DocxOpenXmlReader
             'packageAreaCounts' => $areaCounts,
             'packageAreaByteLengths' => $areaByteLengths,
             'packageAreaCompressedByteLengths' => $areaCompressedByteLengths,
+            'packageAreaExpansionRatios' => $areaExpansionRatios,
             'packageAreaSummaries' => array_values($summaries),
             'partNamesByPackageArea' => $partNamesByArea,
         ];
@@ -44601,6 +44618,9 @@ final class DocxOpenXmlReader
             'packageAreaCompressedByteLengths' => $this->packageIdentityCountMap(
                 $summary['packageAreaCompressedByteLengths'] ?? []
             ),
+            'packageAreaExpansionRatios' => $this->packageIdentityNumericOrNullMap(
+                $summary['packageAreaExpansionRatios'] ?? []
+            ),
             'packageAreaSummaries' => is_array($summary['packageAreaSummaries'] ?? null)
                 ? array_values($summary['packageAreaSummaries'])
                 : [],
@@ -45461,6 +45481,9 @@ final class DocxOpenXmlReader
             'packageAreaByteLengths' => $this->packageIdentityCountMap($summary['packageAreaByteLengths'] ?? []),
             'packageAreaCompressedByteLengths' => $this->packageIdentityCountMap(
                 $summary['packageAreaCompressedByteLengths'] ?? []
+            ),
+            'packageAreaExpansionRatios' => $this->packageIdentityNumericOrNullMap(
+                $summary['packageAreaExpansionRatios'] ?? []
             ),
             'entryNamesByPackageArea' => $this->packageIdentityStringListMap(
                 $summary['partNamesByPackageArea'] ?? []
