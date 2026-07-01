@@ -8381,6 +8381,7 @@ final class PdfEngineHandoff
                 'page' => 0,
                 'range' => 0,
                 'range-from' => 0,
+                'range-to' => 0,
                 'invalid' => 0,
             ];
             foreach (is_array($pageSelection['segments'] ?? null) ? $pageSelection['segments'] : [] as $segment) {
@@ -8426,6 +8427,7 @@ final class PdfEngineHandoff
                 'pageSelectionPageSegmentCount' => is_int($pageSelectionPolicy['pageSegmentCount'] ?? null) ? $pageSelectionPolicy['pageSegmentCount'] : $pageSelectionSegmentCounts['page'],
                 'pageSelectionRangeSegmentCount' => is_int($pageSelectionPolicy['rangeSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeSegmentCount'] : $pageSelectionSegmentCounts['range'],
                 'pageSelectionRangeFromSegmentCount' => is_int($pageSelectionPolicy['rangeFromSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeFromSegmentCount'] : $pageSelectionSegmentCounts['range-from'],
+                'pageSelectionRangeToSegmentCount' => is_int($pageSelectionPolicy['rangeToSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeToSegmentCount'] : $pageSelectionSegmentCounts['range-to'],
                 'pageSelectionInvalidSegmentCount' => is_int($pageSelectionPolicy['invalidSegmentCount'] ?? null) ? $pageSelectionPolicy['invalidSegmentCount'] : $pageSelectionSegmentCounts['invalid'],
                 'pageSelectionOverlapCount' => is_int($pageSelectionPolicy['overlapCount'] ?? null) ? $pageSelectionPolicy['overlapCount'] : 0,
                 'pageSelectionHistoryCount' => count($pageSelectionHistory),
@@ -9998,6 +10000,9 @@ final class PdfEngineHandoff
                 } elseif (preg_match('/\A([1-9][0-9]*)-\z/', $segment, $matches) === 1) {
                     $kind = 'range-from';
                     $start = (int) $matches[1];
+                } elseif (preg_match('/\A-([1-9][0-9]*)\z/', $segment, $matches) === 1) {
+                    $kind = 'range-to';
+                    $end = (int) $matches[1];
                 } else {
                     $segmentIssues[] = 'pages-invalid-segment-boundary:' . $segment;
                 }
@@ -10038,6 +10043,7 @@ final class PdfEngineHandoff
             'page' => 0,
             'range' => 0,
             'range-from' => 0,
+            'range-to' => 0,
             'invalid' => 0,
         ];
         $intervals = [];
@@ -10055,6 +10061,18 @@ final class PdfEngineHandoff
 
             $start = $segment['start'] ?? null;
             $end = $segment['end'] ?? null;
+            if ($kind === 'range-to') {
+                if (!is_int($end)) {
+                    continue;
+                }
+                $intervals[] = [
+                    'raw' => is_string($segment['raw'] ?? null) ? $segment['raw'] : '',
+                    'start' => 1,
+                    'end' => $end,
+                ];
+                continue;
+            }
+
             if (!is_int($start) || !in_array($kind, ['page', 'range', 'range-from'], true)) {
                 continue;
             }
@@ -10093,8 +10111,9 @@ final class PdfEngineHandoff
             'pageSegmentCount' => $kindCounts['page'],
             'rangeSegmentCount' => $kindCounts['range'],
             'rangeFromSegmentCount' => $kindCounts['range-from'],
+            'rangeToSegmentCount' => $kindCounts['range-to'],
             'invalidSegmentCount' => $kindCounts['invalid'],
-            'finiteRangeCount' => $kindCounts['page'] + $kindCounts['range'],
+            'finiteRangeCount' => $kindCounts['page'] + $kindCounts['range'] + $kindCounts['range-to'],
             'openEndedRangeCount' => $kindCounts['range-from'],
             'overlapCount' => count($overlaps),
             'overlaps' => $overlaps,

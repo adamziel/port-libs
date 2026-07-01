@@ -2789,6 +2789,7 @@ return [
                     'pageSegmentCount' => 1,
                     'rangeSegmentCount' => 2,
                     'rangeFromSegmentCount' => 1,
+                    'rangeToSegmentCount' => 0,
                     'invalidSegmentCount' => 0,
                     'finiteRangeCount' => 3,
                     'openEndedRangeCount' => 1,
@@ -4006,7 +4007,6 @@ return [
             'inputVariables' => [],
             'issues' => [
                 'creation-timestamp-invalid-boundary',
-                'pages-invalid-segment-boundary:-3',
                 'ppi-invalid-boundary',
                 'jobs-invalid-boundary',
             ],
@@ -4038,17 +4038,16 @@ return [
                     'segments' => [
                         [
                             'raw' => '-3',
-                            'kind' => 'invalid',
+                            'kind' => 'range-to',
                             'start' => null,
-                            'end' => null,
-                            'issues' => ['pages-invalid-segment-boundary:-3'],
+                            'end' => 3,
+                            'issues' => [],
                         ],
                     ],
-                    'safe' => false,
-                    'issues' => ['pages-invalid-segment-boundary:-3'],
+                    'safe' => true,
+                    'issues' => [],
                 ],
                 'issues' => [
-                    'pages-invalid-segment-boundary:-3',
                     'ppi-invalid-boundary',
                 ],
                 'ppi' => [
@@ -4078,12 +4077,75 @@ return [
         $t->contains('typst-pdf-pages:-3', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-ppi:invalid', implode(',', $plan['diagnostics']));
         $t->contains('typst-creation-timestamp:invalid', implode(',', $plan['diagnostics']));
-        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans typst open-start page selection boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/open-start-pages-boundary.pdf',
+            'source' => '= Typst Open Start Pages Packet',
+            'engineOptions' => ['--pages=-3,5-'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst open-start pages packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'ok',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [],
+            'pdfExport' => [
+                'pageSelection' => [
+                    'raw' => '-3,5-',
+                    'value' => '-3,5-',
+                    'segments' => [
+                        ['raw' => '-3', 'kind' => 'range-to', 'start' => null, 'end' => 3, 'issues' => []],
+                        ['raw' => '5-', 'kind' => 'range-from', 'start' => 5, 'end' => null, 'issues' => []],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => [],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/open-start-pages-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/open-start-pages-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $matrixCases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $matrixCases[$case['case']] = $case;
+        }
+        $pdfExportDetails = $matrixCases['pdf-export-controls']['details'];
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-boundary-provenance:ok', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages:-3,5-', implode(',', $plan['diagnostics']));
+        $t->same('ok', $matrixCases['pdf-export-controls']['reviewStatus']);
+        $t->same(2, $pdfExportDetails['pageSelectionSegmentCount']);
+        $t->same(1, $pdfExportDetails['pageSelectionRangeToSegmentCount']);
+        $t->same(1, $pdfExportDetails['pageSelectionRangeFromSegmentCount']);
+        $t->same(0, $pdfExportDetails['pageSelectionInvalidSegmentCount']);
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('ok', $result['artifactProvenanceReview']['reviewStatus']);
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
