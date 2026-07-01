@@ -911,6 +911,8 @@ final class OpenDocumentPackage
                 'fontPackagePart' => self::isFontPackagePart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'rdfMetadataPart' => self::isRdfMetadataPart($entry->name, is_array($manifestEntry) ? (string) ($manifestEntry['mediaType'] ?? '') : null),
                 'layoutCachePackagePart' => self::isLayoutCachePackagePartName($entry->name),
+                'metaInfSidecarPackagePart' => self::isMetaInfSidecarPackagePartName($entry->name),
+                'databasePackagePart' => self::isDatabasePackagePartName($entry->name),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
@@ -1351,6 +1353,15 @@ final class OpenDocumentPackage
                 'exists' => ($entry['exists'] ?? false) === true,
                 'isDirectory' => ($entry['isDirectory'] ?? false) === true,
                 'encrypted' => ($entry['encrypted'] ?? false) === true,
+                'scriptPackagePart' => ($entry['scriptPackagePart'] ?? false) === true,
+                'signaturePackagePart' => ($entry['signaturePackagePart'] ?? false) === true,
+                'configurationPackagePart' => ($entry['configurationPackagePart'] ?? false) === true,
+                'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
+                'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
+                'objectReplacementPackagePart' => ($entry['objectReplacementPackagePart'] ?? false) === true,
+                'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
+                'metaInfSidecarPackagePart' => ($entry['metaInfSidecarPackagePart'] ?? false) === true,
+                'databasePackagePart' => ($entry['databasePackagePart'] ?? false) === true,
                 'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
                 'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -1564,6 +1575,15 @@ final class OpenDocumentPackage
                 'customManifestChildElementCount' => $part['customManifestChildElementCount'] ?? 0,
                 'customManifestChildElementNames' => $part['customManifestChildElementNames'] ?? [],
                 'manifestDiagnostics' => $part['manifestDiagnostics'] ?? [],
+                'scriptPackagePart' => ($part['scriptPackagePart'] ?? false) === true,
+                'signaturePackagePart' => ($part['signaturePackagePart'] ?? false) === true,
+                'configurationPackagePart' => ($part['configurationPackagePart'] ?? false) === true,
+                'fontPackagePart' => ($part['fontPackagePart'] ?? false) === true,
+                'rdfMetadataPart' => ($part['rdfMetadataPart'] ?? false) === true,
+                'objectReplacementPackagePart' => ($part['objectReplacementPackagePart'] ?? false) === true,
+                'layoutCachePackagePart' => ($part['layoutCachePackagePart'] ?? false) === true,
+                'metaInfSidecarPackagePart' => ($part['metaInfSidecarPackagePart'] ?? false) === true,
+                'databasePackagePart' => ($part['databasePackagePart'] ?? false) === true,
                 'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
                 'undeclared' => ($part['undeclared'] ?? false) === true,
@@ -2761,6 +2781,12 @@ final class OpenDocumentPackage
         if (self::isLayoutCachePackagePartName($entry->name)) {
             $roles[] = 'layout-cache';
         }
+        if (self::isMetaInfSidecarPackagePartName($entry->name)) {
+            $roles[] = 'meta-inf-sidecar';
+        }
+        if (self::isDatabasePackagePartName($entry->name)) {
+            $roles[] = 'database-package';
+        }
         if (is_array($manifestEntry)) {
             $roles[] = 'manifest-declared';
             if (!$entry->isDirectory() && self::isMediaResourceManifestEntry($manifestEntry)) {
@@ -2833,6 +2859,30 @@ final class OpenDocumentPackage
     private static function isLayoutCachePackagePartName(string $path): bool
     {
         return strtolower(ltrim($path, '/')) === 'layout-cache';
+    }
+
+    private static function isMetaInfSidecarPackagePartName(string $path): bool
+    {
+        $normalized = strtolower(ltrim($path, '/'));
+        if (
+            $normalized === 'meta-inf/manifest.xml'
+            || str_ends_with($normalized, '/')
+            || self::isSignaturePackagePartName($path)
+        ) {
+            return false;
+        }
+
+        return str_starts_with($normalized, 'meta-inf/');
+    }
+
+    private static function isDatabasePackagePartName(string $path): bool
+    {
+        $normalized = strtolower(ltrim($path, '/'));
+        if (str_ends_with($normalized, '/')) {
+            return false;
+        }
+
+        return str_starts_with($normalized, 'database/');
     }
 
     private static function layoutCacheMediaTypeFromPart(string $path): string
@@ -2991,6 +3041,12 @@ final class OpenDocumentPackage
         if (is_string($packagePath) && self::isLayoutCachePackagePartName($packagePath)) {
             return false;
         }
+        if (is_string($packagePath) && self::isMetaInfSidecarPackagePartName($packagePath)) {
+            return false;
+        }
+        if (is_string($packagePath) && self::isDatabasePackagePartName($packagePath)) {
+            return false;
+        }
 
         $mediaTypeBase = (string) ($entry['mediaTypeBase'] ?? $entry['mediaType'] ?? '');
         if (
@@ -3032,6 +3088,8 @@ final class OpenDocumentPackage
             $rdfMetadataPart = is_string($packagePath) && self::isRdfMetadataPart($packagePath, (string) ($entry['mediaType'] ?? ''));
             $objectReplacementPackagePart = is_string($packagePath) && self::isObjectReplacementPackagePartName($packagePath);
             $layoutCachePackagePart = is_string($packagePath) && self::isLayoutCachePackagePartName($packagePath);
+            $metaInfSidecarPackagePart = is_string($packagePath) && self::isMetaInfSidecarPackagePartName($packagePath);
+            $databasePackagePart = is_string($packagePath) && self::isDatabasePackagePartName($packagePath);
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
@@ -3057,6 +3115,8 @@ final class OpenDocumentPackage
                 && !$rdfMetadataPart
                 && !$objectReplacementPackagePart
                 && !$layoutCachePackagePart
+                && !$metaInfSidecarPackagePart
+                && !$databasePackagePart
                 && !$missingMediaType
                 && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
@@ -3091,7 +3151,9 @@ final class OpenDocumentPackage
                 $fontPackagePart,
                 $rdfMetadataPart,
                 $objectReplacementPackagePart,
-                $layoutCachePackagePart
+                $layoutCachePackagePart,
+                $metaInfSidecarPackagePart,
+                $databasePackagePart
             );
 
             $hydrated[] = array_merge($entry, [
@@ -3123,6 +3185,8 @@ final class OpenDocumentPackage
                 'rdfMetadataPart' => $rdfMetadataPart,
                 'objectReplacementPackagePart' => $objectReplacementPackagePart,
                 'layoutCachePackagePart' => $layoutCachePackagePart,
+                'metaInfSidecarPackagePart' => $metaInfSidecarPackagePart,
+                'databasePackagePart' => $databasePackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => self::byteExposurePolicy(
                     $isRoot,
@@ -3138,6 +3202,8 @@ final class OpenDocumentPackage
                     $rdfMetadataPart,
                     $objectReplacementPackagePart,
                     $layoutCachePackagePart,
+                    $metaInfSidecarPackagePart,
+                    $databasePackagePart,
                     $missingMediaType,
                     $hasSupportedCompression
                 ),
@@ -3162,6 +3228,8 @@ final class OpenDocumentPackage
         bool $rdfMetadataPart,
         bool $objectReplacementPackagePart,
         bool $layoutCachePackagePart,
+        bool $metaInfSidecarPackagePart,
+        bool $databasePackagePart,
         bool $missingMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -3201,6 +3269,12 @@ final class OpenDocumentPackage
         if ($layoutCachePackagePart) {
             return 'layout-cache-package-bytes-blocked';
         }
+        if ($metaInfSidecarPackagePart) {
+            return 'meta-inf-sidecar-package-bytes-blocked';
+        }
+        if ($databasePackagePart) {
+            return 'database-package-bytes-blocked';
+        }
         if ($missingMediaType) {
             return 'missing-media-type-bytes-blocked';
         }
@@ -3225,7 +3299,9 @@ final class OpenDocumentPackage
         bool $fontPackagePart,
         bool $rdfMetadataPart,
         bool $objectReplacementPackagePart,
-        bool $layoutCachePackagePart
+        bool $layoutCachePackagePart,
+        bool $metaInfSidecarPackagePart,
+        bool $databasePackagePart
     ): string {
         if ($isRoot) {
             return 'opendocument-text-package';
@@ -3257,6 +3333,12 @@ final class OpenDocumentPackage
         }
         if ($layoutCachePackagePart) {
             return 'layout-cache';
+        }
+        if ($metaInfSidecarPackagePart) {
+            return 'meta-inf-sidecar';
+        }
+        if ($databasePackagePart) {
+            return 'database';
         }
         if ($fontPackagePart || ($mediaTypeBase !== '' && self::isFontMediaType($mediaTypeBase))) {
             return 'font';
@@ -3332,11 +3414,14 @@ final class OpenDocumentPackage
                 'byteSha256' => null,
                 'thumbnailPackagePart' => self::isThumbnailPackagePartName($path),
                 'scriptPackagePart' => self::isScriptPackagePartName($path),
+                'signaturePackagePart' => self::isSignaturePackagePartName($path),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($path),
                 'fontPackagePart' => self::isFontPackagePartName($path),
                 'rdfMetadataPart' => self::isRdfPartName($path),
                 'objectReplacementPackagePart' => self::isObjectReplacementPackagePartName($path),
                 'layoutCachePackagePart' => self::isLayoutCachePackagePartName($path),
+                'metaInfSidecarPackagePart' => self::isMetaInfSidecarPackagePartName($path),
+                'databasePackagePart' => self::isDatabasePackagePartName($path),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => self::undeclaredPackageEntryByteExposurePolicy($path, $embeddedObjectPackage),
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
@@ -3377,6 +3462,12 @@ final class OpenDocumentPackage
         }
         if (self::isLayoutCachePackagePartName($path)) {
             return 'layout-cache-package-bytes-blocked';
+        }
+        if (self::isMetaInfSidecarPackagePartName($path)) {
+            return 'meta-inf-sidecar-package-bytes-blocked';
+        }
+        if (self::isDatabasePackagePartName($path)) {
+            return 'database-package-bytes-blocked';
         }
 
         return 'undeclared-package-entry-no-bytes';
@@ -5841,6 +5932,12 @@ final class OpenDocumentPackage
         if (($entry['layoutCachePackagePart'] ?? false) === true || self::isLayoutCachePackagePartName($path)) {
             $roles[] = 'layout-cache';
         }
+        if (($entry['metaInfSidecarPackagePart'] ?? false) === true || self::isMetaInfSidecarPackagePartName($path)) {
+            $roles[] = 'meta-inf-sidecar';
+        }
+        if (($entry['databasePackagePart'] ?? false) === true || self::isDatabasePackagePartName($path)) {
+            $roles[] = 'database-package';
+        }
 
         $embeddedObjectPackagePart = ($entry['embeddedObjectPackagePart'] ?? false) === true;
         if ($embeddedObjectPackagePart) {
@@ -6299,6 +6396,8 @@ final class OpenDocumentPackage
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
+            'metaInfSidecarPackagePart' => ($entry['metaInfSidecarPackagePart'] ?? false) === true,
+            'databasePackagePart' => ($entry['databasePackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -6382,6 +6481,8 @@ final class OpenDocumentPackage
             'fontPackagePart' => ($entry['fontPackagePart'] ?? false) === true,
             'rdfMetadataPart' => ($entry['rdfMetadataPart'] ?? false) === true,
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
+            'metaInfSidecarPackagePart' => ($entry['metaInfSidecarPackagePart'] ?? false) === true,
+            'databasePackagePart' => ($entry['databasePackagePart'] ?? false) === true,
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
             'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
             'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'] ?? null,
