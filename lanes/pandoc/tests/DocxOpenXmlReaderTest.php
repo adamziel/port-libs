@@ -445,6 +445,100 @@ return [
         $t->same(2, $methodBuckets[0]['entryCount']);
         $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
     },
+    'preserves docx source zip platform attribute provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['externalAttributes'] = 0x81a40020;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['externalAttributes'] = 0x81ed0000;
+            }
+            if ($zipPart['name'] === 'docProps/core.xml') {
+                $zipPart['creatorHostSystem'] = 10;
+                $zipPart['externalAttributes'] = 0x00000022;
+            }
+            if ($zipPart['name'] === 'word/styles.xml') {
+                $zipPart['internalAttributes'] = 0x0001;
+            }
+        }
+        unset($zipPart);
+
+        $zip = ZipPackage::fromParts($zipParts, 'docx platform attribute review');
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $zipPackage = $package['zipPackage'];
+        $sourceRecords = $zipPackage['sourceRecords'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
+        $coreEntry = $zipPackage['byPackagePath']['docProps/core.xml'];
+        $stylesEntry = $zipPackage['byPackagePath']['word/styles.xml'];
+
+        $t->same(4, $sourceRecords['platformAttributeProvenanceEntryCount']);
+        $t->same(3, $sourceRecords['externalAttributeEntryCount']);
+        $t->same(1, $sourceRecords['internalAttributeEntryCount']);
+        $t->same(2, $sourceRecords['dosAttributeEntryCount']);
+        $t->same(2, $sourceRecords['unixModeEntryCount']);
+        $t->same(1, $sourceRecords['executableFileEntryCount']);
+        $t->same(0, $sourceRecords['writablePermissionEntryCount']);
+        $t->same(3, $sourceRecords['platformAttributeIssueEntryCount']);
+        $t->same([
+            'dos-hidden-attribute',
+            'internal-text-attribute',
+            'unix-executable-file',
+        ], $sourceRecords['platformAttributeIssues']);
+        $t->same($sourceRecords['platformAttributeProvenanceEntryCount'], $summary['zipSourcePlatformAttributeProvenanceEntryCount']);
+        $t->same($sourceRecords['externalAttributeEntryCount'], $summary['zipSourceExternalAttributeEntryCount']);
+        $t->same($sourceRecords['internalAttributeEntryCount'], $summary['zipSourceInternalAttributeEntryCount']);
+        $t->same($sourceRecords['dosAttributeEntryCount'], $summary['zipSourceDosAttributeEntryCount']);
+        $t->same($sourceRecords['unixModeEntryCount'], $summary['zipSourceUnixModeEntryCount']);
+        $t->same($sourceRecords['executableFileEntryCount'], $summary['zipSourceExecutableFileEntryCount']);
+        $t->same($sourceRecords['writablePermissionEntryCount'], $summary['zipSourceWritablePermissionEntryCount']);
+        $t->same($sourceRecords['platformAttributeIssueEntryCount'], $summary['zipSourcePlatformAttributeIssueEntryCount']);
+        $t->same($sourceRecords['platformAttributeIssues'], $summary['zipSourcePlatformAttributeIssues']);
+        $t->same($sourceRecords['platformAttributeProvenanceEntries'], $summary['zipSourcePlatformAttributeProvenanceEntries']);
+        $t->same($sourceRecords['platformAttributeIssueEntries'], $summary['zipSourcePlatformAttributeIssueEntries']);
+
+        $t->same(3, $documentEntry['madeByHostSystem']);
+        $t->same('unix', $documentEntry['madeByHostSystemName']);
+        $t->same(0x81a40020, $documentEntry['externalAttributes']);
+        $t->same('81a40020', $documentEntry['externalAttributesHex']);
+        $t->same(['archive'], $documentEntry['dosAttributeNames']);
+        $t->same(0x81a4, $documentEntry['unixMode']);
+        $t->same('100644', $documentEntry['unixModeOctal']);
+        $t->same('0644', $documentEntry['unixPermissionsOctal']);
+        $t->same(true, $documentEntry['hasPlatformAttributeProvenance']);
+        $t->same([], $documentEntry['platformAttributeIssues']);
+
+        $t->same(0x81ed0000, $mediaEntry['externalAttributes']);
+        $t->same('81ed0000', $mediaEntry['externalAttributesHex']);
+        $t->same(0x81ed, $mediaEntry['unixMode']);
+        $t->same('100755', $mediaEntry['unixModeOctal']);
+        $t->same(true, $mediaEntry['isUnixExecutableFile']);
+        $t->same(['unix-executable-file'], $mediaEntry['platformAttributeIssues']);
+
+        $t->same(10, $coreEntry['madeByHostSystem']);
+        $t->same('windows-ntfs', $coreEntry['madeByHostSystemName']);
+        $t->same(0x00000022, $coreEntry['externalAttributes']);
+        $t->same('00000022', $coreEntry['externalAttributesHex']);
+        $t->same(['hidden', 'archive'], $coreEntry['dosAttributeNames']);
+        $t->same(true, $coreEntry['hasDosHiddenAttribute']);
+        $t->same(['dos-hidden-attribute'], $coreEntry['platformAttributeIssues']);
+
+        $t->same(0x0001, $stylesEntry['internalFileAttributes']);
+        $t->same('0001', $stylesEntry['internalFileAttributesHex']);
+        $t->same(['apparently-text'], $stylesEntry['internalAttributeNames']);
+        $t->same(true, $stylesEntry['hasTextInternalAttribute']);
+        $t->same(['internal-text-attribute'], $stylesEntry['platformAttributeIssues']);
+
+        $t->same([
+            'docProps/core.xml',
+            'word/styles.xml',
+            'word/media/review.png',
+        ], array_column($sourceRecords['platformAttributeIssueEntries'], 'name'));
+    },
     'preserves docx source zip extra-field provenance across package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customExtraPayload = 'docx-extra-field-review';

@@ -11280,6 +11280,23 @@ final class DocxOpenXmlReader
         $summary['zipSourceCentralDirectoryExtraFieldBytes'] = (int) ($zipSourceRecords['centralDirectoryExtraFieldBytes'] ?? 0);
         $summary['zipSourceCentralDirectoryRawCommentBytes'] = (int) ($zipSourceRecords['centralDirectoryRawCommentBytes'] ?? 0);
         $summary['zipSourceCentralDirectoryReviewFieldBytes'] = (int) ($zipSourceRecords['centralDirectoryReviewFieldBytes'] ?? 0);
+        $summary['zipSourcePlatformAttributeProvenanceEntryCount'] = (int) ($zipSourceRecords['platformAttributeProvenanceEntryCount'] ?? 0);
+        $summary['zipSourceExternalAttributeEntryCount'] = (int) ($zipSourceRecords['externalAttributeEntryCount'] ?? 0);
+        $summary['zipSourceInternalAttributeEntryCount'] = (int) ($zipSourceRecords['internalAttributeEntryCount'] ?? 0);
+        $summary['zipSourceDosAttributeEntryCount'] = (int) ($zipSourceRecords['dosAttributeEntryCount'] ?? 0);
+        $summary['zipSourceUnixModeEntryCount'] = (int) ($zipSourceRecords['unixModeEntryCount'] ?? 0);
+        $summary['zipSourceExecutableFileEntryCount'] = (int) ($zipSourceRecords['executableFileEntryCount'] ?? 0);
+        $summary['zipSourceWritablePermissionEntryCount'] = (int) ($zipSourceRecords['writablePermissionEntryCount'] ?? 0);
+        $summary['zipSourcePlatformAttributeIssueEntryCount'] = (int) ($zipSourceRecords['platformAttributeIssueEntryCount'] ?? 0);
+        $summary['zipSourcePlatformAttributeIssues'] = is_array($zipSourceRecords['platformAttributeIssues'] ?? null)
+            ? $zipSourceRecords['platformAttributeIssues']
+            : [];
+        $summary['zipSourcePlatformAttributeProvenanceEntries'] = is_array($zipSourceRecords['platformAttributeProvenanceEntries'] ?? null)
+            ? $zipSourceRecords['platformAttributeProvenanceEntries']
+            : [];
+        $summary['zipSourcePlatformAttributeIssueEntries'] = is_array($zipSourceRecords['platformAttributeIssueEntries'] ?? null)
+            ? $zipSourceRecords['platformAttributeIssueEntries']
+            : [];
         $summary['zipSourceTotalRecordBytes'] = (int) ($zipSourceRecords['totalRecordBytes'] ?? 0);
         $zipExtraFields = is_array($zipPackage['extraFields'] ?? null)
             ? $zipPackage['extraFields']
@@ -11645,6 +11662,17 @@ final class DocxOpenXmlReader
             'centralDirectoryExtraFieldBytes' => 0,
             'centralDirectoryRawCommentBytes' => 0,
             'centralDirectoryReviewFieldBytes' => 0,
+            'platformAttributeProvenanceEntryCount' => 0,
+            'externalAttributeEntryCount' => 0,
+            'internalAttributeEntryCount' => 0,
+            'dosAttributeEntryCount' => 0,
+            'unixModeEntryCount' => 0,
+            'executableFileEntryCount' => 0,
+            'writablePermissionEntryCount' => 0,
+            'platformAttributeIssueEntryCount' => 0,
+            'platformAttributeIssues' => [],
+            'platformAttributeProvenanceEntries' => [],
+            'platformAttributeIssueEntries' => [],
             'totalRecordBytes' => 0,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
@@ -11679,6 +11707,12 @@ final class DocxOpenXmlReader
         $sourceEntries = is_array($preflight['selectedSourceByteSpanEntries'] ?? null)
             ? $preflight['selectedSourceByteSpanEntries']
             : [];
+        $platformAttributeEntriesByName = [];
+        foreach (($preflight['selectedPlatformAttributeProvenanceEntries'] ?? []) as $platformAttributeEntry) {
+            if (is_array($platformAttributeEntry) && is_string($platformAttributeEntry['name'] ?? null)) {
+                $platformAttributeEntriesByName[$platformAttributeEntry['name']] = $platformAttributeEntry;
+            }
+        }
         $entries = [];
         $byPackagePath = [];
         foreach ($sourceEntries as $entry) {
@@ -11691,7 +11725,7 @@ final class DocxOpenXmlReader
                 'partName' => $entry['name'],
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
-            ] + $entry;
+            ] + $entry + ($platformAttributeEntriesByName[$entry['name']] ?? []);
             $entries[] = $sourceEntry;
             $byPackagePath[$entry['name']] = $sourceEntry;
         }
@@ -11725,6 +11759,23 @@ final class DocxOpenXmlReader
             'centralDirectoryExtraFieldBytes' => (int) ($preflight['selectedSourceCentralDirectoryExtraFieldBytes'] ?? 0),
             'centralDirectoryRawCommentBytes' => (int) ($preflight['selectedSourceCentralDirectoryRawCommentBytes'] ?? 0),
             'centralDirectoryReviewFieldBytes' => (int) ($preflight['selectedSourceCentralDirectoryReviewFieldBytes'] ?? 0),
+            'platformAttributeProvenanceEntryCount' => (int) ($preflight['selectedPlatformAttributeProvenanceEntryCount'] ?? 0),
+            'externalAttributeEntryCount' => (int) ($preflight['selectedExternalAttributeEntryCount'] ?? 0),
+            'internalAttributeEntryCount' => (int) ($preflight['selectedInternalAttributeEntryCount'] ?? 0),
+            'dosAttributeEntryCount' => (int) ($preflight['selectedDosAttributeEntryCount'] ?? 0),
+            'unixModeEntryCount' => (int) ($preflight['selectedUnixModeEntryCount'] ?? 0),
+            'executableFileEntryCount' => (int) ($preflight['selectedExecutableFileEntryCount'] ?? 0),
+            'writablePermissionEntryCount' => (int) ($preflight['selectedWritablePermissionEntryCount'] ?? 0),
+            'platformAttributeIssueEntryCount' => (int) ($preflight['selectedPlatformAttributeIssueEntryCount'] ?? 0),
+            'platformAttributeIssues' => is_array($preflight['selectedPlatformAttributeIssues'] ?? null)
+                ? $preflight['selectedPlatformAttributeIssues']
+                : [],
+            'platformAttributeProvenanceEntries' => is_array($preflight['selectedPlatformAttributeProvenanceEntries'] ?? null)
+                ? $preflight['selectedPlatformAttributeProvenanceEntries']
+                : [],
+            'platformAttributeIssueEntries' => is_array($preflight['selectedPlatformAttributeIssueEntries'] ?? null)
+                ? $preflight['selectedPlatformAttributeIssueEntries']
+                : [],
             'totalRecordBytes' => (int) ($preflight['selectedSourceTotalRecordBytes'] ?? 0),
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
@@ -12065,6 +12116,42 @@ final class DocxOpenXmlReader
             'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'] ?? null,
             'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'] ?? null,
             'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'] ?? null,
+            'madeByHostSystem' => $entry['madeByHostSystem'] ?? null,
+            'madeByHostSystemName' => $entry['madeByHostSystemName'] ?? null,
+            'madeByVersion' => $entry['madeByVersion'] ?? null,
+            'versionMadeBy' => $entry['versionMadeBy'] ?? null,
+            'versionNeededToExtract' => $entry['versionNeededToExtract'] ?? null,
+            'creatorVersionMeetsNeeded' => $entry['creatorVersionMeetsNeeded'] ?? null,
+            'externalAttributes' => $entry['externalAttributes'] ?? null,
+            'externalAttributesHex' => $entry['externalAttributesHex'] ?? null,
+            'hasExternalAttributes' => ($entry['hasExternalAttributes'] ?? false) === true,
+            'dosAttributes' => $entry['dosAttributes'] ?? null,
+            'dosAttributeNames' => is_array($entry['dosAttributeNames'] ?? null) ? $entry['dosAttributeNames'] : [],
+            'hasDosAttributes' => ($entry['hasDosAttributes'] ?? false) === true,
+            'hasDosHiddenAttribute' => ($entry['hasDosHiddenAttribute'] ?? false) === true,
+            'hasDosSystemAttribute' => ($entry['hasDosSystemAttribute'] ?? false) === true,
+            'hasDosVolumeLabelAttribute' => ($entry['hasDosVolumeLabelAttribute'] ?? false) === true,
+            'hasDosArchiveAttribute' => ($entry['hasDosArchiveAttribute'] ?? false) === true,
+            'internalFileAttributes' => $entry['internalFileAttributes'] ?? null,
+            'internalFileAttributesHex' => $entry['internalFileAttributesHex'] ?? null,
+            'internalAttributeNames' => is_array($entry['internalAttributeNames'] ?? null) ? $entry['internalAttributeNames'] : [],
+            'hasInternalFileAttributes' => ($entry['hasInternalFileAttributes'] ?? false) === true,
+            'hasTextInternalAttribute' => ($entry['hasTextInternalAttribute'] ?? false) === true,
+            'hasUnknownInternalAttributeBits' => ($entry['hasUnknownInternalAttributeBits'] ?? false) === true,
+            'unknownInternalAttributeBits' => $entry['unknownInternalAttributeBits'] ?? null,
+            'unixMode' => $entry['unixMode'] ?? null,
+            'unixModeOctal' => $entry['unixModeOctal'] ?? null,
+            'unixPermissions' => $entry['unixPermissions'] ?? null,
+            'unixPermissionsOctal' => $entry['unixPermissionsOctal'] ?? null,
+            'hasUnixMode' => ($entry['hasUnixMode'] ?? false) === true,
+            'unixFileType' => $entry['unixFileType'] ?? null,
+            'unixFileTypeName' => $entry['unixFileTypeName'] ?? null,
+            'isUnixExecutableFile' => ($entry['isUnixExecutableFile'] ?? false) === true,
+            'isGroupWritable' => ($entry['isGroupWritable'] ?? false) === true,
+            'isWorldWritable' => ($entry['isWorldWritable'] ?? false) === true,
+            'hasWritablePermissions' => ($entry['hasWritablePermissions'] ?? false) === true,
+            'hasPlatformAttributeProvenance' => ($entry['hasPlatformAttributeProvenance'] ?? false) === true,
+            'platformAttributeIssues' => is_array($entry['platformAttributeIssues'] ?? null) ? $entry['platformAttributeIssues'] : [],
             'sourceRecordBytes' => $entry['sourceRecordBytes'] ?? null,
             'sourceByteSpanIssueCount' => count($issues),
             'sourceByteSpanIssues' => $issues,
