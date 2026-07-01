@@ -1709,6 +1709,7 @@ final class OpenDocumentPackage
         }
 
         $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
+        $preferredViewModes = self::manifestPreferredViewModeSummary($this->manifestEntries);
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -1729,6 +1730,7 @@ final class OpenDocumentPackage
             'packagePaths' => array_column($packageEntries, 'path'),
             'manifestPackageCoverage' => $packageInventory['manifestPackageCoverage'] ?? [],
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
+            'preferredViewModes' => $preferredViewModes,
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,

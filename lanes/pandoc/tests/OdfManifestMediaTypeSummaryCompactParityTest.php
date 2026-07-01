@@ -78,8 +78,13 @@ return [
         $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
         $compactMediaTypes = $compactSummary['manifestMediaTypeSummary'];
         $compactIdentity = $compactSummary['packageIdentity'];
+        $compactPreferredViewModes = $compactSummary['manifestReview']['preferredViewModes'];
         $richResult = (new OdfReader())->readPackage($package);
         $richMediaTypes = $richResult['importReport']['manifest']['mediaTypeSummary'];
+        $richProvenance = $richResult['importReport']['manifest']['packageProvenance'];
+        $richIdentity = $richProvenance['packageIdentity'];
+        $documentIdentity = $richResult['document']->attr('manifest')['packageProvenance']['packageIdentity'];
+        $richPreferredViewModes = $richProvenance['preferredViewModes'];
         $compactByType = $indexByMediaType($compactMediaTypes['items']);
         $richByType = $indexByMediaType($richMediaTypes['items']);
 
@@ -142,12 +147,38 @@ return [
         }
         $t->same(['odf-manifest-directory-entry' => 1], $compactMediaTypes['diagnosticCodeCounts']);
         $t->same($compactMediaTypes, $compactIdentity['manifestMediaTypeSummary']);
+        $t->same($richMediaTypes, $richIdentity['manifestMediaTypeSummary']);
+        $t->same($richIdentity['manifestMediaTypeSummary'], $documentIdentity['manifestMediaTypeSummary']);
         $t->same(4, $compactIdentity['manifestMediaTypeCount']);
+        $t->same(4, $richIdentity['manifestMediaTypeCount']);
         $t->same(2, $compactIdentity['manifestMediaTypeParameterizedItemCount']);
+        $t->same(2, $richIdentity['manifestMediaTypeParameterizedItemCount']);
         $t->same(['charset', 'profile', 'role'], $compactIdentity['manifestMediaTypeParameterNames']);
+        $t->same(['charset', 'profile', 'role'], $richIdentity['manifestMediaTypeParameterNames']);
         $t->same(1, $compactIdentity['manifestEmptyMediaTypeCount']);
+        $t->same(1, $richIdentity['manifestEmptyMediaTypeCount']);
         $t->same(1, $compactIdentity['manifestEmptyMediaTypeDirectoryCount']);
+        $t->same(1, $richIdentity['manifestEmptyMediaTypeDirectoryCount']);
         $t->same(0, $compactIdentity['manifestEmptyMediaTypeNonDirectoryCount']);
+        $t->same(0, $richIdentity['manifestEmptyMediaTypeNonDirectoryCount']);
+        $t->same($compactPreferredViewModes, $compactIdentity['preferredViewModes']);
+        $t->same($richPreferredViewModes, $richIdentity['preferredViewModes']);
+        $t->same($richIdentity['preferredViewModes'], $documentIdentity['preferredViewModes']);
+        foreach ([
+            'count',
+            'itemCount',
+            'rootMode',
+            'definedModeCount',
+            'namespacedTokenCount',
+            'invalidTokenCount',
+            'nonRootEntryCount',
+            'issueCount',
+            'issueCodes',
+            'issueCodeCounts',
+            'modeCounts',
+        ] as $key) {
+            $t->same($compactPreferredViewModes[$key], $richPreferredViewModes[$key], "shared preferred view mode field {$key}");
+        }
         $t->same(['Configurations2/'], $compactMediaTypes['emptyMediaTypeDirectoryParts']);
         $t->same(['charset', 'profile'], $compactByType['image/jpeg']['mediaTypeParameterNames']);
         $t->same(['Pictures/hero.jpg'], $compactByType['image/jpeg']['parts']);

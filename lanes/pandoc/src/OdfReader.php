@@ -1463,6 +1463,7 @@ final class OdfReader
         $manifestByPart = [];
         $undeclaredByPart = [];
         $mediaResourceSummary = $this->manifestMediaResourceRoleSummary($manifest);
+        $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
         $preferredViewModeSummary = self::manifestPreferredViewModeSummary($manifest);
         $manifestEncryptionSummary = self::manifestEncryptionSummary($manifest);
         $packageDirectoryCount = 0;
@@ -2130,6 +2131,7 @@ final class OdfReader
             'duplicatePackageCaseFoldDirectoryBaseNameStems' => $packageDirectoryBaseNames['duplicatePackageCaseFoldDirectoryBaseNameStems'],
             'packageCaseFoldDirectoryBaseNameStems' => $packageDirectoryBaseNames['packageCaseFoldDirectoryBaseNameStems'],
             'mediaResources' => $mediaResourceSummary,
+            'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'preferredViewModes' => $preferredViewModeSummary,
             'manifestEncryption' => $manifestEncryptionSummary,
             'roleCounts' => $roleCounts,
@@ -2401,6 +2403,12 @@ final class OdfReader
         $zipPackageManifestSummary = self::zipPackageManifestAggregateProvenance(
             is_array($provenance['zipPackageManifest'] ?? null) ? $provenance['zipPackageManifest'] : []
         );
+        $manifestMediaTypeSummary = is_array($provenance['manifestMediaTypeSummary'] ?? null)
+            ? $provenance['manifestMediaTypeSummary']
+            : [];
+        $preferredViewModes = is_array($provenance['preferredViewModes'] ?? null)
+            ? $provenance['preferredViewModes']
+            : [];
         $manifestEntries = [];
         foreach ($provenance['manifestFileEntryOrder'] ?? [] as $item) {
             if (!is_array($item)) {
@@ -2720,6 +2728,14 @@ final class OdfReader
             'packageEntries' => $packageEntries,
             'manifestPackageCoverage' => $provenance['manifestPackageCoverage'] ?? [],
             'manifestEncryption' => $provenance['manifestEncryption'] ?? [],
+            'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
+            'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
+            'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
+            'manifestMediaTypeParameterNames' => $manifestMediaTypeSummary['mediaTypeParameterNames'] ?? [],
+            'manifestEmptyMediaTypeCount' => $manifestMediaTypeSummary['emptyMediaTypeCount'] ?? 0,
+            'manifestEmptyMediaTypeDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeDirectoryCount'] ?? 0,
+            'manifestEmptyMediaTypeNonDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeNonDirectoryCount'] ?? 0,
+            'preferredViewModes' => $preferredViewModes,
             'roleCounts' => $provenance['roleCounts'] ?? [],
             'undeclaredRoleCounts' => $provenance['undeclaredRoleCounts'] ?? [],
             'centralDirectoryOrderMismatchRoleCount' => $provenance['centralDirectoryOrderMismatchRoleCount'] ?? 0,
@@ -2921,6 +2937,14 @@ final class OdfReader
             'packageParts' => array_column($packageEntries, 'part'),
             'manifestPackageCoverage' => $provenance['manifestPackageCoverage'] ?? [],
             'manifestEncryption' => $provenance['manifestEncryption'] ?? [],
+            'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
+            'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
+            'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
+            'manifestMediaTypeParameterNames' => $manifestMediaTypeSummary['mediaTypeParameterNames'] ?? [],
+            'manifestEmptyMediaTypeCount' => $manifestMediaTypeSummary['emptyMediaTypeCount'] ?? 0,
+            'manifestEmptyMediaTypeDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeDirectoryCount'] ?? 0,
+            'manifestEmptyMediaTypeNonDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeNonDirectoryCount'] ?? 0,
+            'preferredViewModes' => $preferredViewModes,
             'manifestRootCustomAttributeCount' => $provenance['manifestRootCustomAttributeCount'] ?? 0,
             'manifestRootCustomAttributeNames' => $provenance['manifestRootCustomAttributeNames'] ?? [],
             'manifestRootExtensionElementCount' => $provenance['manifestRootExtensionElementCount'] ?? 0,
