@@ -904,6 +904,91 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public static function roffManualExtensionDirectionSummary(): array
+    {
+        $extensionDirections = self::roffManualExtensionDirections();
+        $directionBuckets = [
+            'input-output' => [],
+            'input-only' => [],
+            'output-only' => [],
+        ];
+        $formatBuckets = [];
+        $inputStatusBuckets = [];
+        $outputStatusBuckets = [];
+        $kindBuckets = [];
+        $manualSectionExtensionPatterns = [];
+        $literalExtensionPatterns = [];
+        $unsupportedInputExtensions = [];
+        $unsupportedOutputExtensions = [];
+        $directParityClaimed = false;
+
+        foreach ($extensionDirections as $extension => $direction) {
+            $format = $direction['format'];
+            $metadata = self::ROFF_MANUAL_EXTENSION_PATTERN_METADATA[$extension] ?? [
+                'kind' => 'unknown',
+                'manualSection' => false,
+            ];
+            $directionBuckets[$direction['direction']][] = $extension;
+            $formatBuckets[$format][] = $extension;
+            $inputStatusBuckets[$direction['inputStatus']][] = $extension;
+            $outputStatusBuckets[$direction['outputStatus']][] = $extension;
+            $kindBuckets[$metadata['kind']][] = $extension;
+
+            if ($metadata['manualSection']) {
+                $manualSectionExtensionPatterns[] = $extension;
+            } else {
+                $literalExtensionPatterns[] = $extension;
+            }
+
+            if ($direction['inputStatus'] === 'unsupported') {
+                $unsupportedInputExtensions[] = $extension;
+            }
+            if ($direction['outputStatus'] === 'unsupported') {
+                $unsupportedOutputExtensions[] = $extension;
+            }
+            if (
+                !in_array($direction['inputStatus'], ['unsupported', 'not-applicable'], true)
+                || !in_array($direction['outputStatus'], ['unsupported', 'not-applicable'], true)
+            ) {
+                $directParityClaimed = true;
+            }
+        }
+
+        ksort($formatBuckets, SORT_STRING);
+        ksort($inputStatusBuckets, SORT_STRING);
+        ksort($outputStatusBuckets, SORT_STRING);
+        ksort($kindBuckets, SORT_STRING);
+
+        return [
+            'extensionCount' => count($extensionDirections),
+            'extensions' => array_keys($extensionDirections),
+            'formatBuckets' => $formatBuckets,
+            'directionBuckets' => $directionBuckets,
+            'inputStatusBuckets' => $inputStatusBuckets,
+            'outputStatusBuckets' => $outputStatusBuckets,
+            'kindBuckets' => $kindBuckets,
+            'manualSectionExtensionPatterns' => $manualSectionExtensionPatterns,
+            'literalExtensionPatterns' => $literalExtensionPatterns,
+            'unsupportedInputExtensions' => $unsupportedInputExtensions,
+            'unsupportedInputExtensionCount' => count($unsupportedInputExtensions),
+            'unsupportedOutputExtensions' => $unsupportedOutputExtensions,
+            'unsupportedOutputExtensionCount' => count($unsupportedOutputExtensions),
+            'directParityClaimed' => $directParityClaimed,
+            'reviewStatus' => $directParityClaimed ? 'partial' : 'unsupported',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function roffExtensionDirectionSummary(): array
+    {
+        return self::roffManualExtensionDirectionSummary();
+    }
+
+    /**
      * @return array<string, array{
      *     label:string,
      *     direction:string,
@@ -1304,6 +1389,7 @@ final class PandocFormatRegistry
             'extensionInferredFormats' => self::roffManualFormatsWithExtensionInference(),
             'nonExtensionInferredFormats' => self::roffManualFormatsWithoutExtensionInference(),
             'paritySummary' => self::roffManualFormatParitySummary(),
+            'extensionDirectionSummary' => self::roffManualExtensionDirectionSummary(),
             'unsupportedExtensionSurfaces' => self::roffManualUnsupportedExtensionSurfaces(),
             'unsupportedInputFormats' => self::formatsWithStatus($inputSupport, 'unsupported'),
             'unsupportedOutputFormats' => self::formatsWithStatus($outputSupport, 'unsupported'),
