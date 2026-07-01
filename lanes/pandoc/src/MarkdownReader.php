@@ -1451,6 +1451,10 @@ final class MarkdownReader
             return $this->readRawHtmlUntilMarker($lines, $index, '>');
         }
 
+        if ($this->isAngleAutolinkOnlyLine($line)) {
+            return null;
+        }
+
         $tag = $this->tryParseRawHtmlOpeningTag($line);
         if (
             $tag !== null
@@ -7944,6 +7948,19 @@ final class MarkdownReader
         return null;
     }
 
+    private function isAngleAutolinkOnlyLine(string $line): bool
+    {
+        $trimmed = trim($this->expandTabsToSpaces($line));
+        if (!str_starts_with($trimmed, '<') || !str_ends_with($trimmed, '>')) {
+            return false;
+        }
+
+        $source = substr($trimmed, 1, -1);
+        $decoded = $this->decodeHtmlEntities($source);
+
+        return $this->isValidAngleAutolinkUri($decoded) || $this->isValidAutolinkEmailAddress($decoded);
+    }
+
     /**
      * @return array{name:string}|null
      */
@@ -10987,11 +11004,17 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G<((?:https?|ftp):\/\/[^<>\s]+)>/i', $text, $m, 0, $offset) === 1) {
-            $url = $this->normalizeLinkDestination($m[1]);
-            $next = $offset + strlen($m[0]);
+        $close = $this->findUnescapedCharacter($text, '>', $offset + 1);
+        if ($close === null) {
+            return null;
+        }
+
+        $source = substr($text, $offset + 1, $close - $offset - 1);
+        $decoded = $this->decodeHtmlEntities($source);
+        if ($this->isValidAngleAutolinkUri($decoded)) {
+            $next = $close + 1;
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
-                'url' => $url,
+                'url' => $decoded,
                 'classes' => ['uri'],
             ]);
 
@@ -10999,7 +11022,7 @@ final class MarkdownReader
                 'node' => new AstNode(
                     'link',
                     $attrs,
-                    [new AstNode('text', ['text' => $url])]
+                    [new AstNode('text', ['text' => $decoded])]
                 ),
                 'next' => $next,
             ];
@@ -11010,19 +11033,10 @@ final class MarkdownReader
             return $result;
         }
 
-        if (
-            preg_match(
-                '/\G<([^\s<>@]+@[^\s<>@]+\.[^\s<>@]+)>/u',
-                $text,
-                $m,
-                0,
-                $offset
-            ) === 1
-        ) {
-            $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($m[1]));
-            $next = $offset + strlen($m[0]);
+        if ($this->isValidAutolinkEmailAddress($decoded)) {
+            $next = $close + 1;
             [$attrs, $next, $literalAttribute] = $this->readTrailingAutolinkAttributes($text, $next, [
-                'url' => 'mailto:' . $address,
+                'url' => 'mailto:' . $decoded,
                 'classes' => ['email'],
             ]);
 
@@ -11030,7 +11044,7 @@ final class MarkdownReader
                 'node' => new AstNode(
                     'link',
                     $attrs,
-                    [new AstNode('text', ['text' => $address])]
+                    [new AstNode('text', ['text' => $decoded])]
                 ),
                 'next' => $next,
             ];
@@ -11042,6 +11056,40 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    private function isValidAngleAutolinkUri(string $value): bool
+    {
+        return preg_match('/\A[A-Za-z][A-Za-z0-9.+-]{1,31}:[^\s<>\x00-\x20\x7F]*\z/u', $value) === 1;
+    }
+
+    private function isValidAutolinkEmailAddress(string $value): bool
+    {
+        if (preg_match('/[\s<>\x00-\x20\x7F]/u', $value) === 1 || substr_count($value, '@') !== 1) {
+            return false;
+        }
+
+        [$local, $domain] = explode('@', $value, 2);
+        if ($local === '' || $domain === '') {
+            return false;
+        }
+
+        return $this->isValidAutolinkEmailDomain($domain);
+    }
+
+    private function isValidAutolinkEmailDomain(string $domain): bool
+    {
+        if (!str_contains($domain, '.')) {
+            return false;
+        }
+
+        foreach (explode('.', $domain) as $label) {
+            if ($label === '' || preg_match('/\A[\pL\pN](?:[\pL\pN-]*[\pL\pN])?\z/u', $label) !== 1) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -11319,6 +11367,10 @@ final class MarkdownReader
             return null;
         }
 
+        if ($this->isInsideUnresolvedAngleSpan($text, $offset)) {
+            return null;
+        }
+
         $previous = $offset === 0 ? '' : $text[$offset - 1];
         if ($previous !== '' && preg_match('/[A-Za-z0-9_@.\/-]/', $previous) === 1) {
             return null;
@@ -11326,7 +11378,7 @@ final class MarkdownReader
 
         if (
             preg_match(
-                '~\G(?:(?:https?|git|file)://[^\s<>"\']+|mailto:[^\s<>"\']+|doi:10\.[^\s<>"\']+|www\.[^\s<>"\']+)~iu',
+                '~\G(?:(?<uri>(?:https?|git|file)://[^\s<>"\']+|mailto:[^\s<>"\']+|doi:10\.[^\s<>"\']+|www\.[^\s<>"\']+)|(?<email>[^\s<>"@:]+@[^\s<>"@]+\.[^\s<>"@]+))~iu',
                 $text,
                 $m,
                 0,
@@ -11339,6 +11391,25 @@ final class MarkdownReader
         $candidate = $this->trimBareUriAutolinkCandidate($m[0]);
         if ($candidate === '') {
             return null;
+        }
+
+        if (($m['email'] ?? '') !== '') {
+            $address = $this->decodeHtmlEntities($this->unescapeLinkComponent($candidate));
+            if (!$this->isValidAutolinkEmailAddress($address)) {
+                return null;
+            }
+
+            return [
+                'node' => new AstNode(
+                    'link',
+                    [
+                        'url' => 'mailto:' . $address,
+                        'classes' => ['email'],
+                    ],
+                    [new AstNode('text', ['text' => $address])]
+                ),
+                'next' => $offset + strlen($candidate),
+            ];
         }
 
         $url = $this->normalizeBareUriDestination($candidate);
@@ -11355,6 +11426,22 @@ final class MarkdownReader
             ),
             'next' => $offset + strlen($candidate),
         ];
+    }
+
+    private function isInsideUnresolvedAngleSpan(string $text, int $offset): bool
+    {
+        $before = substr($text, 0, $offset);
+        $open = strrpos($before, '<');
+        if ($open === false) {
+            return false;
+        }
+
+        $close = strrpos($before, '>');
+        if ($close !== false && $close > $open) {
+            return false;
+        }
+
+        return strpos($text, '>', $offset) !== false;
     }
 
     private function trimBareUriAutolinkCandidate(string $candidate): string
