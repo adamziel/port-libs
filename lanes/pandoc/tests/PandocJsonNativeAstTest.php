@@ -12552,6 +12552,197 @@ return [
             }
         }
     },
+    'preserves table head and body row group payload sidecars through safe rebuilds' => static function (TestRunner $t): void {
+        $headCell = ['t' => 'Cell', 'c' => [[
+            ['head-cell', ['group'], []],
+            ['t' => 'AlignCenter', 'reviewQueue' => 'head-align-source'],
+            ['t' => 'RowSpan', 'c' => [1], 'reviewQueue' => 'head-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => [1], 'reviewQueue' => 'head-colspan-source'],
+            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Head']]]],
+        ]], 'reviewQueue' => 'head-cell-source'];
+        $headRow = ['t' => 'Row', 'c' => [[
+            ['head-row', ['group-row'], []],
+            [$headCell],
+        ]], 'reviewQueue' => 'head-row-source'];
+        $headRows = [[$headRow]];
+        $tableHead = ['t' => 'TableHead', 'c' => [[
+            ['head-section', ['thead'], []],
+            $headRows,
+        ]], 'reviewQueue' => 'head-section-source'];
+
+        $bodyHeadCell = ['t' => 'Cell', 'c' => [[
+            ['body-head-cell', ['group'], []],
+            ['t' => 'AlignLeft', 'reviewQueue' => 'body-head-align-source'],
+            ['t' => 'RowSpan', 'c' => [1], 'reviewQueue' => 'body-head-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => [1], 'reviewQueue' => 'body-head-colspan-source'],
+            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'BodyHead']]]],
+        ]], 'reviewQueue' => 'body-head-cell-source'];
+        $bodyHeadRow = ['t' => 'Row', 'c' => [[
+            ['body-head-row', ['group-row'], []],
+            [$bodyHeadCell],
+        ]], 'reviewQueue' => 'body-head-row-source'];
+        $bodyHeadRows = [[$bodyHeadRow]];
+
+        $bodyCell = ['t' => 'Cell', 'c' => [[
+            ['body-cell', ['group'], []],
+            ['t' => 'AlignRight', 'reviewQueue' => 'body-align-source'],
+            ['t' => 'RowSpan', 'c' => [2], 'reviewQueue' => 'body-rowspan-source'],
+            ['t' => 'ColSpan', 'c' => [1], 'reviewQueue' => 'body-colspan-source'],
+            [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Body']]]],
+        ]], 'reviewQueue' => 'body-cell-source'];
+        $bodyRow = ['t' => 'Row', 'c' => [[
+            ['body-row', ['group-row'], []],
+            [$bodyCell],
+        ]], 'reviewQueue' => 'body-row-source'];
+        $bodyRows = [[$bodyRow]];
+
+        $rowHeadColumns = ['t' => 'RowHeadColumns', 'c' => [1], 'reviewQueue' => 'row-head-source'];
+        $tableBody = ['t' => 'TableBody', 'c' => [[
+            ['body-section', ['tbody'], []],
+            $rowHeadColumns,
+            $bodyHeadRows,
+            $bodyRows,
+        ]], 'reviewQueue' => 'body-section-source'];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['group-table', ['json-native'], []],
+                ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                $tableHead,
+                [$tableBody],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'table-wrapper-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $stripWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+        $editedRow = static function (AstNode $row, string $text): AstNode {
+            $cell = $row->children[0];
+
+            return new AstNode('table_row', $row->attrs, [
+                new AstNode('table_cell', $cell->attrs, [
+                    new AstNode('text', ['text' => $text]),
+                ]),
+            ]);
+        };
+        $rebuiltDocument = static function (AstNode $document, AstNode $head, AstNode $body) use ($stripWrapper): AstNode {
+            $table = $document->children[0];
+
+            return new AstNode('document', $document->attrs, [
+                new AstNode('table', $stripWrapper($table), [$head, $body]),
+            ]);
+        };
+        $assertGroupPayloads = static function (
+            TestRunner $t,
+            string $label,
+            array $encoded,
+            mixed $expectedHeadRows,
+            mixed $expectedBodyHeadRows,
+            mixed $expectedBodyRows
+        ) use ($rowHeadColumns): void {
+            $encodedTable = $encoded['blocks'][0];
+            $encodedHead = $encodedTable['c'][3];
+            $encodedBody = $encodedTable['c'][4][0];
+
+            $t->same(false, array_key_exists('reviewQueue', $encodedTable), "{$label} drops rebuilt table sidecar");
+            $t->same('TableHead', $encodedHead['t'], "{$label} emits table head constructor");
+            $t->same(false, array_key_exists('reviewQueue', $encodedHead), "{$label} drops rebuilt table head sidecar");
+            $t->same($expectedHeadRows, $encodedHead['c'][1], "{$label} table head row group payload");
+            $t->same('TableBody', $encodedBody['t'], "{$label} emits table body constructor");
+            $t->same(false, array_key_exists('reviewQueue', $encodedBody), "{$label} drops rebuilt table body sidecar");
+            $t->same($rowHeadColumns, $encodedBody['c'][1], "{$label} preserves row head columns payload");
+            $t->same($expectedBodyHeadRows, $encodedBody['c'][2], "{$label} body head row group payload");
+            $t->same($expectedBodyRows, $encodedBody['c'][3], "{$label} body row group payload");
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $table = $document->children[0];
+            $head = $table->children[0];
+            $body = $table->children[1];
+            $bodyIntermediateRows = $body->attr('headRows');
+
+            $t->same($tableHead, $head->attr('native'), "{$source} reads table head native payload");
+            $t->same($headRows, $head->attr('tableRowsNative'), "{$source} records table head row group payload");
+            $t->same($tableBody, $body->attr('native'), "{$source} reads table body native payload");
+            $t->same($rowHeadColumns, $body->attr('rowHeadColumnsNative'), "{$source} records row head columns payload");
+            $t->same($bodyHeadRows, $body->attr('headRowsNative'), "{$source} records body intermediate row group payload");
+            $t->same($bodyRows, $body->attr('tableRowsNative'), "{$source} records body row group payload");
+
+            $rebuiltHead = new AstNode('table_head', $stripWrapper($head), $head->children);
+            $rebuiltBody = new AstNode('table_body', $stripWrapper($body), $body->children);
+            $rebuilt = $rebuiltDocument($document, $rebuiltHead, $rebuiltBody);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $assertGroupPayloads($t, "{$source} {$writer} rebuilt groups", $encoded, $headRows, $bodyHeadRows, $bodyRows);
+            }
+
+            $editedHead = new AstNode('table_head', $stripWrapper($head), [
+                $editedRow($head->children[0], 'EditedHead'),
+            ]);
+            $editedHeadDocument = $rebuiltDocument($document, $editedHead, $rebuiltBody);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedHeadDocument),
+                'native' => json_decode((new NativeWriter())->write($editedHeadDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedHeadRows = $encoded['blocks'][0]['c'][3]['c'][1];
+
+                $assertGroupPayloads($t, "{$source} {$writer} edited head row", $encoded, $encodedHeadRows, $bodyHeadRows, $bodyRows);
+                $t->same('Row', $encodedHeadRows[0]['t'], "{$source} {$writer} edited head row regenerates row constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedHeadRows[0]), "{$source} {$writer} edited head row drops stale row sidecar");
+            }
+
+            $editedIntermediateRows = [$editedRow($bodyIntermediateRows[0], 'EditedIntermediate')];
+            $editedIntermediateAttrs = $stripWrapper($body);
+            $editedIntermediateAttrs['headRows'] = $editedIntermediateRows;
+            $editedIntermediateBody = new AstNode('table_body', $editedIntermediateAttrs, $body->children);
+            $editedIntermediateDocument = $rebuiltDocument($document, $rebuiltHead, $editedIntermediateBody);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedIntermediateDocument),
+                'native' => json_decode((new NativeWriter())->write($editedIntermediateDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedBodyHeadRows = $encoded['blocks'][0]['c'][4][0]['c'][2];
+
+                $assertGroupPayloads($t, "{$source} {$writer} edited intermediate row", $encoded, $headRows, $encodedBodyHeadRows, $bodyRows);
+                $t->same('Row', $encodedBodyHeadRows[0]['t'], "{$source} {$writer} edited intermediate row regenerates row constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedBodyHeadRows[0]), "{$source} {$writer} edited intermediate row drops stale row sidecar");
+            }
+
+            $editedBody = new AstNode('table_body', $stripWrapper($body), [
+                $editedRow($body->children[0], 'EditedBody'),
+            ]);
+            $editedBodyDocument = $rebuiltDocument($document, $rebuiltHead, $editedBody);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedBodyDocument),
+                'native' => json_decode((new NativeWriter())->write($editedBodyDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedBodyRows = $encoded['blocks'][0]['c'][4][0]['c'][3];
+
+                $assertGroupPayloads($t, "{$source} {$writer} edited body row", $encoded, $headRows, $bodyHeadRows, $encodedBodyRows);
+                $t->same('Row', $encodedBodyRows[0]['t'], "{$source} {$writer} edited body row regenerates row constructor");
+                $t->same(false, array_key_exists('reviewQueue', $encodedBodyRows[0]), "{$source} {$writer} edited body row drops stale row sidecar");
+            }
+        }
+    },
     'preserves single wrapped table wrapper tuple constructors through regenerated table shells' => static function (TestRunner $t): void {
         $headCell = ['t' => 'Cell', 'c' => [[
             ['head-cell', ['cell'], [['data-kind', 'head']]],
