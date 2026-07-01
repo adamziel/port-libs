@@ -14709,6 +14709,11 @@ final class ZipPackage
         foreach ($localEntries as $localHeaderOrder => $entry) {
             $localOrderByName[$entry->name] = $localHeaderOrder;
         }
+        $centralDirectoryOrderNames = $this->names();
+        $localHeaderOrderNames = array_map(
+            static fn (ZipPackageEntry $entry): string => $entry->name,
+            $localEntries
+        );
         $entryNamesByCaseFoldKey = [];
         foreach ($this->entries as $entry) {
             $entryNamesByCaseFoldKey[self::caseFoldZipEntryName($entry->name)][] = $entry->name;
@@ -14781,6 +14786,14 @@ final class ZipPackage
         $creatorVersionBelowNeededEntries = [];
         $creatorVersionBelowNeededKnownHostEntryCount = 0;
         $creatorVersionBelowNeededUnknownHostEntryCount = 0;
+        $localHeaderOrderRelationCounts = [
+            'same-order' => 0,
+            'local-before-central-order' => 0,
+            'local-after-central-order' => 0,
+            'missing-local-header-order' => 0,
+        ];
+        $localHeaderOrderDisplacementEntries = [];
+        $maxLocalHeaderOrderDisplacement = 0;
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -14901,6 +14914,34 @@ final class ZipPackage
                 $largestEntry = $entrySizeSummary;
             }
             $localHeaderOrder = $localOrderByName[$entry->name] ?? null;
+            $localHeaderOrderDelta = $localHeaderOrder === null
+                ? null
+                : $localHeaderOrder - $centralDirectoryIndex;
+            if ($localHeaderOrderDelta === null) {
+                $localHeaderOrderRelation = 'missing-local-header-order';
+                $localHeaderOrderDisplacement = null;
+            } elseif ($localHeaderOrderDelta < 0) {
+                $localHeaderOrderRelation = 'local-before-central-order';
+                $localHeaderOrderDisplacement = abs($localHeaderOrderDelta);
+            } elseif ($localHeaderOrderDelta > 0) {
+                $localHeaderOrderRelation = 'local-after-central-order';
+                $localHeaderOrderDisplacement = $localHeaderOrderDelta;
+            } else {
+                $localHeaderOrderRelation = 'same-order';
+                $localHeaderOrderDisplacement = 0;
+            }
+            ++$localHeaderOrderRelationCounts[$localHeaderOrderRelation];
+            if ($localHeaderOrderDisplacement !== null) {
+                $maxLocalHeaderOrderDisplacement = max(
+                    $maxLocalHeaderOrderDisplacement,
+                    $localHeaderOrderDisplacement
+                );
+            }
+            $localHeaderOrderMatchesCentralDirectoryOrder = $localHeaderOrderDelta === 0;
+            $localHeaderNameAtCentralDirectoryIndex = $localHeaderOrderNames[$centralDirectoryIndex] ?? null;
+            $centralDirectoryNameAtLocalHeaderOrder = $localHeaderOrder === null
+                ? null
+                : ($centralDirectoryOrderNames[$localHeaderOrder] ?? null);
             $localHeaderLength = (int) $localHeader['localHeaderLength'];
             $entryLocalHeaderFixedHeaderBytes = 30;
             $entryLocalHeaderRawNameBytes = (int) $localHeader['nameLength'];
@@ -15234,6 +15275,12 @@ final class ZipPackage
                 'extensionlessPackagePart' => $extensionlessPackagePart,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => $localHeaderOrder,
+                'localHeaderOrderDelta' => $localHeaderOrderDelta,
+                'localHeaderOrderDisplacement' => $localHeaderOrderDisplacement,
+                'localHeaderOrderRelation' => $localHeaderOrderRelation,
+                'localHeaderOrderMatchesCentralDirectoryOrder' => $localHeaderOrderMatchesCentralDirectoryOrder,
+                'localHeaderNameAtCentralDirectoryIndex' => $localHeaderNameAtCentralDirectoryIndex,
+                'centralDirectoryNameAtLocalHeaderOrder' => $centralDirectoryNameAtLocalHeaderOrder,
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32,
@@ -15288,6 +15335,18 @@ final class ZipPackage
                 'sourceRecordBytes' => $entrySourceRecordBytes,
             ];
             $entries[] = $summary;
+            if (!$localHeaderOrderMatchesCentralDirectoryOrder) {
+                $localHeaderOrderDisplacementEntries[] = [
+                    'name' => $summary['name'],
+                    'centralDirectoryIndex' => $summary['centralDirectoryIndex'],
+                    'localHeaderOrder' => $summary['localHeaderOrder'],
+                    'localHeaderOrderDelta' => $summary['localHeaderOrderDelta'],
+                    'localHeaderOrderDisplacement' => $summary['localHeaderOrderDisplacement'],
+                    'localHeaderOrderRelation' => $summary['localHeaderOrderRelation'],
+                    'localHeaderNameAtCentralDirectoryIndex' => $summary['localHeaderNameAtCentralDirectoryIndex'],
+                    'centralDirectoryNameAtLocalHeaderOrder' => $summary['centralDirectoryNameAtLocalHeaderOrder'],
+                ];
+            }
             if ($hasCaseInsensitiveNameCollision) {
                 $caseInsensitiveNameCollisionEntries[] = [
                     'name' => $summary['name'],
@@ -15368,6 +15427,12 @@ final class ZipPackage
                 'extensionlessPackagePart' => $summary['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $summary['centralDirectoryIndex'],
                 'localHeaderOrder' => $summary['localHeaderOrder'],
+                'localHeaderOrderDelta' => $summary['localHeaderOrderDelta'],
+                'localHeaderOrderDisplacement' => $summary['localHeaderOrderDisplacement'],
+                'localHeaderOrderRelation' => $summary['localHeaderOrderRelation'],
+                'localHeaderOrderMatchesCentralDirectoryOrder' => $summary['localHeaderOrderMatchesCentralDirectoryOrder'],
+                'localHeaderNameAtCentralDirectoryIndex' => $summary['localHeaderNameAtCentralDirectoryIndex'],
+                'centralDirectoryNameAtLocalHeaderOrder' => $summary['centralDirectoryNameAtLocalHeaderOrder'],
                 'compressionMethod' => $summary['compressionMethod'],
                 'crc32Hex' => $summary['crc32Hex'],
                 'compressedSize' => $summary['compressedSize'],
@@ -15404,8 +15469,6 @@ final class ZipPackage
             ];
         }
 
-        $centralDirectoryOrderNames = $this->names();
-        $localHeaderOrderNames = $this->localNames();
         ksort($compressionMethodSummaries, SORT_NUMERIC);
         $compressionMethodSummaries = array_values($compressionMethodSummaries);
         ksort($generalPurposeFlagSummaries, SORT_NUMERIC);
@@ -15574,6 +15637,11 @@ final class ZipPackage
             'centralDirectorySignatureCanExposeBytes' => false,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
+            'localHeaderOrderRelationCounts' => $localHeaderOrderRelationCounts,
+            'localHeaderOrderMatchCount' => $localHeaderOrderRelationCounts['same-order'],
+            'localHeaderOrderDisplacementEntryCount' => count($localHeaderOrderDisplacementEntries),
+            'maxLocalHeaderOrderDisplacement' => $maxLocalHeaderOrderDisplacement,
+            'localHeaderOrderDisplacementEntries' => $localHeaderOrderDisplacementEntries,
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
             'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
@@ -15860,6 +15928,12 @@ final class ZipPackage
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
+            'localHeaderOrderRelationCounts' => $localHeaderOrderRelationCounts,
+            'localHeaderOrderMatchCount' => $localHeaderOrderRelationCounts['same-order'],
+            'localHeaderOrderDisplacementEntryCount' => count($localHeaderOrderDisplacementEntries),
+            'hasLocalHeaderOrderDisplacements' => $localHeaderOrderDisplacementEntries !== [],
+            'maxLocalHeaderOrderDisplacement' => $maxLocalHeaderOrderDisplacement,
+            'localHeaderOrderDisplacementEntries' => $localHeaderOrderDisplacementEntries,
             'entries' => $entries,
         ];
     }

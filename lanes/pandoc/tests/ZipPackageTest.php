@@ -840,7 +840,7 @@ return [
                 'compressedDataSha256' => hash('sha256', $mimetype),
             ],
         ];
-        $expectedEntries = array_map(static function (array $entry) use ($manifest, $zip): array {
+        $expectedEntries = array_map(static function (array $entry) use ($manifest, $zip, $expectedCentralOrder, $expectedLocalOrder): array {
             foreach ($manifest['entries'] as $manifestEntry) {
                 if ($manifestEntry['name'] !== $entry['name']) {
                     continue;
@@ -848,6 +848,10 @@ return [
 
                 $centralDirectoryRecordBytes = $manifestEntry['centralDirectoryRecordEnd']
                     - $manifestEntry['centralDirectoryRecordOffset'];
+                $localHeaderOrderDelta = $entry['localHeaderOrder'] - $entry['centralDirectoryIndex'];
+                $localHeaderOrderRelation = $localHeaderOrderDelta < 0
+                    ? 'local-before-central-order'
+                    : ($localHeaderOrderDelta === 0 ? 'same-order' : 'local-after-central-order');
 
                 return [
                     'name' => $entry['name'],
@@ -888,6 +892,12 @@ return [
                     'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                     'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                     'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'localHeaderOrderDelta' => $localHeaderOrderDelta,
+                    'localHeaderOrderDisplacement' => abs($localHeaderOrderDelta),
+                    'localHeaderOrderRelation' => $localHeaderOrderRelation,
+                    'localHeaderOrderMatchesCentralDirectoryOrder' => $localHeaderOrderDelta === 0,
+                    'localHeaderNameAtCentralDirectoryIndex' => $expectedLocalOrder[$entry['centralDirectoryIndex']] ?? null,
+                    'centralDirectoryNameAtLocalHeaderOrder' => $expectedCentralOrder[$entry['localHeaderOrder']] ?? null,
                     'compressionMethod' => $entry['compressionMethod'],
                     'crc32Hex' => $entry['crc32Hex'],
                     'compressedSize' => $entry['compressedSize'],
@@ -1180,6 +1190,44 @@ return [
             static fn (array $summary): string => $summary['directoryRoot'],
             $expectedDirectoryRootSummaries
         );
+        $expectedLocalHeaderOrderRelationCounts = [
+            'same-order' => 0,
+            'local-before-central-order' => 1,
+            'local-after-central-order' => 2,
+            'missing-local-header-order' => 0,
+        ];
+        $expectedLocalHeaderOrderDisplacementEntries = [
+            [
+                'name' => 'OEBPS/content.xhtml',
+                'centralDirectoryIndex' => 0,
+                'localHeaderOrder' => 1,
+                'localHeaderOrderDelta' => 1,
+                'localHeaderOrderDisplacement' => 1,
+                'localHeaderOrderRelation' => 'local-after-central-order',
+                'localHeaderNameAtCentralDirectoryIndex' => 'mimetype',
+                'centralDirectoryNameAtLocalHeaderOrder' => 'OEBPS/images/',
+            ],
+            [
+                'name' => 'OEBPS/images/',
+                'centralDirectoryIndex' => 1,
+                'localHeaderOrder' => 2,
+                'localHeaderOrderDelta' => 1,
+                'localHeaderOrderDisplacement' => 1,
+                'localHeaderOrderRelation' => 'local-after-central-order',
+                'localHeaderNameAtCentralDirectoryIndex' => 'OEBPS/content.xhtml',
+                'centralDirectoryNameAtLocalHeaderOrder' => 'mimetype',
+            ],
+            [
+                'name' => 'mimetype',
+                'centralDirectoryIndex' => 2,
+                'localHeaderOrder' => 0,
+                'localHeaderOrderDelta' => -2,
+                'localHeaderOrderDisplacement' => 2,
+                'localHeaderOrderRelation' => 'local-before-central-order',
+                'localHeaderNameAtCentralDirectoryIndex' => 'OEBPS/images/',
+                'centralDirectoryNameAtLocalHeaderOrder' => 'OEBPS/content.xhtml',
+            ],
+        ];
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $manifest['packageSource'],
@@ -1206,6 +1254,11 @@ return [
             'centralDirectorySignatureCanExposeBytes' => $manifest['centralDirectorySignatureCanExposeBytes'],
             'centralDirectoryOrderNames' => $expectedCentralOrder,
             'localHeaderOrderNames' => $expectedLocalOrder,
+            'localHeaderOrderRelationCounts' => $expectedLocalHeaderOrderRelationCounts,
+            'localHeaderOrderMatchCount' => 0,
+            'localHeaderOrderDisplacementEntryCount' => count($expectedLocalHeaderOrderDisplacementEntries),
+            'maxLocalHeaderOrderDisplacement' => 2,
+            'localHeaderOrderDisplacementEntries' => $expectedLocalHeaderOrderDisplacementEntries,
             'localHeaderBytes' => (30 * count($expectedEntries))
                 + strlen('OEBPS/content.xhtml')
                 + strlen('OEBPS/images/')
@@ -1437,6 +1490,12 @@ return [
         $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
         $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);
         $t->same(false, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same($expectedLocalHeaderOrderRelationCounts, $manifest['localHeaderOrderRelationCounts']);
+        $t->same(0, $manifest['localHeaderOrderMatchCount']);
+        $t->same(count($expectedLocalHeaderOrderDisplacementEntries), $manifest['localHeaderOrderDisplacementEntryCount']);
+        $t->same(true, $manifest['hasLocalHeaderOrderDisplacements']);
+        $t->same(2, $manifest['maxLocalHeaderOrderDisplacement']);
+        $t->same($expectedLocalHeaderOrderDisplacementEntries, $manifest['localHeaderOrderDisplacementEntries']);
         $t->same($expectedEntries, array_map(
             static fn (array $entry): array => [
                 'name' => $entry['name'],
@@ -1477,6 +1536,12 @@ return [
                 'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],
+                'localHeaderOrderDelta' => $entry['localHeaderOrderDelta'],
+                'localHeaderOrderDisplacement' => $entry['localHeaderOrderDisplacement'],
+                'localHeaderOrderRelation' => $entry['localHeaderOrderRelation'],
+                'localHeaderOrderMatchesCentralDirectoryOrder' => $entry['localHeaderOrderMatchesCentralDirectoryOrder'],
+                'localHeaderNameAtCentralDirectoryIndex' => $entry['localHeaderNameAtCentralDirectoryIndex'],
+                'centralDirectoryNameAtLocalHeaderOrder' => $entry['centralDirectoryNameAtLocalHeaderOrder'],
                 'compressionMethod' => $entry['compressionMethod'],
                 'crc32Hex' => $entry['crc32Hex'],
                 'compressedSize' => $entry['compressedSize'],
@@ -2565,6 +2630,12 @@ return [
                 'extensionlessPackagePart' => false,
                 'centralDirectoryIndex' => 0,
                 'localHeaderOrder' => 0,
+                'localHeaderOrderDelta' => 0,
+                'localHeaderOrderDisplacement' => 0,
+                'localHeaderOrderRelation' => 'same-order',
+                'localHeaderOrderMatchesCentralDirectoryOrder' => true,
+                'localHeaderNameAtCentralDirectoryIndex' => 'word/document.xml',
+                'centralDirectoryNameAtLocalHeaderOrder' => 'word/document.xml',
                 'compressionMethod' => 0,
                 'crc32Hex' => sprintf('%08x', $crc32($documentXml)),
                 'compressedSize' => strlen($documentXml),
@@ -2638,6 +2709,12 @@ return [
                 'extensionlessPackagePart' => false,
                 'centralDirectoryIndex' => 1,
                 'localHeaderOrder' => 1,
+                'localHeaderOrderDelta' => 0,
+                'localHeaderOrderDisplacement' => 0,
+                'localHeaderOrderRelation' => 'same-order',
+                'localHeaderOrderMatchesCentralDirectoryOrder' => true,
+                'localHeaderNameAtCentralDirectoryIndex' => 'word/comments.xml',
+                'centralDirectoryNameAtLocalHeaderOrder' => 'word/comments.xml',
                 'compressionMethod' => 8,
                 'crc32Hex' => sprintf('%08x', $crc32($commentsXml)),
                 'compressedSize' => strlen($commentsCompressed),
@@ -2810,6 +2887,12 @@ return [
             ],
         ];
         $expectedPackagePartExtensions = ['xml'];
+        $expectedLocalHeaderOrderRelationCounts = [
+            'same-order' => 2,
+            'local-before-central-order' => 0,
+            'local-after-central-order' => 0,
+            'missing-local-header-order' => 0,
+        ];
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $manifest['packageSource'],
@@ -2836,6 +2919,11 @@ return [
             'centralDirectorySignatureCanExposeBytes' => $manifest['centralDirectorySignatureCanExposeBytes'],
             'centralDirectoryOrderNames' => ['word/document.xml', 'word/comments.xml'],
             'localHeaderOrderNames' => ['word/document.xml', 'word/comments.xml'],
+            'localHeaderOrderRelationCounts' => $expectedLocalHeaderOrderRelationCounts,
+            'localHeaderOrderMatchCount' => 2,
+            'localHeaderOrderDisplacementEntryCount' => 0,
+            'maxLocalHeaderOrderDisplacement' => 0,
+            'localHeaderOrderDisplacementEntries' => [],
             'localHeaderBytes' => $manifest['localHeaderBytes'],
             'localHeaderFixedHeaderBytes' => $manifest['localHeaderFixedHeaderBytes'],
             'localHeaderVariableFieldBytes' => $manifest['localHeaderVariableFieldBytes'],
@@ -2990,6 +3078,15 @@ return [
         $t->same($expectedCreatorHostSystemSummaries, $manifest['creatorHostSystemSummaries']);
         $t->same([], $manifest['unknownCreatorHostSystemEntries']);
         $t->same([], $manifest['creatorVersionBelowNeededEntries']);
+        $t->same(['word/document.xml', 'word/comments.xml'], $manifest['centralDirectoryOrderNames']);
+        $t->same(['word/document.xml', 'word/comments.xml'], $manifest['localHeaderOrderNames']);
+        $t->same(true, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same($expectedLocalHeaderOrderRelationCounts, $manifest['localHeaderOrderRelationCounts']);
+        $t->same(2, $manifest['localHeaderOrderMatchCount']);
+        $t->same(0, $manifest['localHeaderOrderDisplacementEntryCount']);
+        $t->same(false, $manifest['hasLocalHeaderOrderDisplacements']);
+        $t->same(0, $manifest['maxLocalHeaderOrderDisplacement']);
+        $t->same([], $manifest['localHeaderOrderDisplacementEntries']);
         $t->same($expectedHash, $manifest['manifestSha256']);
         $t->same($expectedManifestEntries, array_map(
             static fn (array $entry): array => [
@@ -3031,6 +3128,12 @@ return [
                 'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],
+                'localHeaderOrderDelta' => $entry['localHeaderOrderDelta'],
+                'localHeaderOrderDisplacement' => $entry['localHeaderOrderDisplacement'],
+                'localHeaderOrderRelation' => $entry['localHeaderOrderRelation'],
+                'localHeaderOrderMatchesCentralDirectoryOrder' => $entry['localHeaderOrderMatchesCentralDirectoryOrder'],
+                'localHeaderNameAtCentralDirectoryIndex' => $entry['localHeaderNameAtCentralDirectoryIndex'],
+                'centralDirectoryNameAtLocalHeaderOrder' => $entry['centralDirectoryNameAtLocalHeaderOrder'],
                 'compressionMethod' => $entry['compressionMethod'],
                 'crc32Hex' => $entry['crc32Hex'],
                 'compressedSize' => $entry['compressedSize'],
