@@ -619,6 +619,13 @@ return [
         $t->same($manifest['centralExtraFieldEntryCount'], $summary['zipPackageManifestCentralExtraFieldEntryCount']);
         $t->same($manifest['entryCommentCount'], $summary['zipPackageManifestEntryCommentCount']);
         $t->same(true, $summary['zipPackageManifestHasCentralDirectoryReviewFields']);
+        $t->same($manifest['maxPathSegmentCount'], $summary['zipPackageManifestMaxPathSegmentCount']);
+        $t->same($manifest['maxDirectoryDepth'], $summary['zipPackageManifestMaxDirectoryDepth']);
+        $t->same($manifest['deepestEntryNames'], $summary['zipPackageManifestDeepestEntryNames']);
+        $t->same(count($manifest['deepestEntryNames']), $summary['zipPackageManifestDeepestEntryNameCount']);
+        $t->same(3, $summary['zipPackageManifestMaxPathSegmentCount']);
+        $t->same(2, $summary['zipPackageManifestMaxDirectoryDepth']);
+        $t->same(['word/_rels/document.xml.rels', 'word/media/review.png'], $summary['zipPackageManifestDeepestEntryNames']);
         $t->same($manifest['compressionMethodSummaryCount'], $summary['zipPackageManifestCompressionMethodSummaryCount']);
         $t->same($manifest['compressionMethodSummaries'], $summary['zipPackageManifestCompressionMethodSummaries']);
         $t->same($manifest['directoryRootCount'], $summary['zipPackageManifestDirectoryRootCount']);

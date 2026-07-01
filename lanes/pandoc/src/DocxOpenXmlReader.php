@@ -11222,6 +11222,12 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestCentralExtraFieldEntryCount'] = (int) ($zipPackageManifest['centralExtraFieldEntryCount'] ?? 0);
         $summary['zipPackageManifestEntryCommentCount'] = (int) ($zipPackageManifest['entryCommentCount'] ?? 0);
         $summary['zipPackageManifestHasCentralDirectoryReviewFields'] = ($zipPackageManifest['hasCentralDirectoryReviewFields'] ?? false) === true;
+        $summary['zipPackageManifestMaxPathSegmentCount'] = (int) ($zipPackageManifest['maxPathSegmentCount'] ?? 0);
+        $summary['zipPackageManifestMaxDirectoryDepth'] = (int) ($zipPackageManifest['maxDirectoryDepth'] ?? 0);
+        $summary['zipPackageManifestDeepestEntryNames'] = is_array($zipPackageManifest['deepestEntryNames'] ?? null)
+            ? $zipPackageManifest['deepestEntryNames']
+            : [];
+        $summary['zipPackageManifestDeepestEntryNameCount'] = count($summary['zipPackageManifestDeepestEntryNames']);
         $summary['zipPackageManifestCompressionMethodSummaryCount'] = (int) ($zipPackageManifest['compressionMethodSummaryCount'] ?? 0);
         $summary['zipPackageManifestCompressionMethodSummaries'] = is_array($zipPackageManifest['compressionMethodSummaries'] ?? null)
             ? $zipPackageManifest['compressionMethodSummaries']
@@ -11766,6 +11772,9 @@ final class DocxOpenXmlReader
             'storedEntryCount' => 0,
             'deflatedEntryCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
+            'maxPathSegmentCount' => 0,
+            'maxDirectoryDepth' => 0,
+            'deepestEntryNames' => [],
             'directoryRootCount' => 0,
             'directoryRoots' => [],
             'directoryRootSummaries' => [],
