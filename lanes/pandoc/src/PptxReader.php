@@ -1577,10 +1577,12 @@ final class PptxReader
                     'text' => $this->drawingText($paragraphElement),
                 ];
                 if ($relationships instanceof OpcRelationships) {
-                    $inlines = $this->drawingParagraphHyperlinkInlines($paragraphElement, $relationships);
-                    if ($inlines !== []) {
-                        $paragraph['inlines'] = $inlines;
-                    }
+                    $inlines = $this->drawingParagraphStructuredInlines($paragraphElement, $relationships);
+                } else {
+                    $inlines = $this->drawingParagraphStructuredInlines($paragraphElement, null);
+                }
+                if ($inlines !== []) {
+                    $paragraph['inlines'] = $inlines;
                 }
 
                 return $paragraph;
@@ -1592,31 +1594,83 @@ final class PptxReader
     /**
      * @return list<AstNode>
      */
-    private function drawingParagraphHyperlinkInlines(\DOMElement $paragraphElement, OpcRelationships $relationships): array
+    private function drawingParagraphStructuredInlines(\DOMElement $paragraphElement, ?OpcRelationships $relationships): array
     {
         $inlines = [];
-        $hasHyperlink = false;
+        $hasStructuredInline = false;
         foreach ($this->childElements($paragraphElement, null) as $child) {
+            if ($child->localName === 'br') {
+                $hasStructuredInline = true;
+                $inlines[] = new AstNode('linebreak');
+                continue;
+            }
+
+            if ($child->localName === 'tab') {
+                $hasStructuredInline = true;
+                $inlines[] = new AstNode('space');
+                continue;
+            }
+
             if (!in_array($child->localName, ['r', 'fld'], true)) {
                 continue;
             }
 
-            $text = $this->drawingText($child);
-            if ($text === '') {
+            $linkAttrs = $relationships instanceof OpcRelationships ? $this->drawingRunHyperlinkAttrs($child, $relationships) : null;
+            $runInlines = $this->drawingRunStructuredInlines($child, $linkAttrs !== null);
+            if ($runInlines === []) {
                 continue;
             }
 
-            $linkAttrs = $this->drawingRunHyperlinkAttrs($child, $relationships);
             if ($linkAttrs !== null) {
-                $hasHyperlink = true;
-                $inlines[] = new AstNode('link', $linkAttrs, $this->textInlines($text));
+                $hasStructuredInline = true;
+                $inlines[] = new AstNode('link', $linkAttrs, $runInlines);
                 continue;
             }
 
-            $inlines[] = new AstNode('text', ['text' => $text]);
+            foreach ($runInlines as $inline) {
+                if ($inline->type !== 'text') {
+                    $hasStructuredInline = true;
+                }
+                $inlines[] = $inline;
+            }
         }
 
-        return $hasHyperlink ? $inlines : [];
+        return $hasStructuredInline ? $inlines : [];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingRunStructuredInlines(\DOMElement $runElement, bool $insideLink): array
+    {
+        $inlines = [];
+        foreach ($this->childElements($runElement, null) as $child) {
+            if ($child->localName === 't') {
+                if ($child->textContent !== '') {
+                    $inlines[] = new AstNode('text', ['text' => $child->textContent]);
+                }
+                continue;
+            }
+
+            if ($child->localName === 'br') {
+                $inlines[] = new AstNode('linebreak');
+                continue;
+            }
+
+            if ($child->localName === 'tab') {
+                $inlines[] = new AstNode('space');
+                continue;
+            }
+        }
+
+        if ($inlines === [] && $insideLink) {
+            $text = $this->drawingText($runElement);
+            if ($text !== '') {
+                return $this->textInlines($text);
+            }
+        }
+
+        return $inlines;
     }
 
     /**

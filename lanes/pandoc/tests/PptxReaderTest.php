@@ -749,6 +749,80 @@ XML);
     }
 };
 
+$buildBreakTabTextPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-break-tab-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Breaks slide</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Break tab body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p>
+          <a:r><a:t>Line one</a:t></a:r>
+          <a:br/>
+          <a:r><a:t>Line two</a:t></a:r>
+          <a:tab/>
+          <a:r><a:t>Tabbed</a:t></a:r>
+        </a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $nodesOfType = static function (AstNode $node, string $type) use (&$nodesOfType): array {
     $nodes = $node->type === $type ? [$node] : [];
     foreach ($node->children as $child) {
@@ -1164,6 +1238,24 @@ return [
         $t->same('rIdLink', $review['slides'][0]['links'][0]['relationshipId'] ?? null);
         $t->same('External', $review['slides'][0]['links'][0]['targetMode'] ?? null);
         $t->contains('Link ( "" , [  ] , [  ] ) [ Str "the" , Space , Str "spec" ] ( "https://example.test/spec?x=1" , "Spec link" )', $native);
+    },
+
+    'preserves pptx drawing text breaks and tabs as inlines' => static function (TestRunner $t) use ($buildBreakTabTextPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildBreakTabTextPptxPackage());
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $native = PandocConverter::write($document, 'native');
+        $bodyParagraphs = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => str_contains((string) $paragraph->attr('text'), 'Line one')
+        ));
+
+        $t->same(1, count($bodyParagraphs));
+        $t->same(['text', 'linebreak', 'text', 'space', 'text'], array_map(static fn (AstNode $inline): string => $inline->type, $bodyParagraphs[0]->children));
+        $t->same('Line one', $bodyParagraphs[0]->children[0]->attr('text'));
+        $t->same('Line two', $bodyParagraphs[0]->children[2]->attr('text'));
+        $t->same('Tabbed', $bodyParagraphs[0]->children[4]->attr('text'));
+        $t->same(1, count($nodesOfType($document, 'linebreak')));
+        $t->contains('Para [ Str "Line" , Space , Str "one" , LineBreak , Str "Line" , Space , Str "two" , Space , Str "Tabbed" ]', $native);
     },
 
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {
