@@ -658,6 +658,12 @@ final class PdfEngineHandoff
             if ($typstBoundarySummary['fontAccessControlCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-font-access-controls:' . $typstBoundarySummary['fontAccessControlCount'];
             }
+            if (($typstBoundarySummary['environmentVariableCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-environment:' . $typstBoundarySummary['environmentVariableCount'];
+            }
+            if (($typstBoundarySummary['shadowedEnvironmentVariableCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-shadowed-environment:' . $typstBoundarySummary['shadowedEnvironmentVariableCount'];
+            }
             if (($typstBoundarySummary['outputFormatEntryCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-output-formats:' . $typstBoundarySummary['outputFormatEntryCount'];
             }
@@ -9029,6 +9035,37 @@ final class PdfEngineHandoff
             }
         }
 
+        $environmentVariables = array_values(array_filter(
+            is_array($provenance['environmentVariables'] ?? null) ? $provenance['environmentVariables'] : [],
+            static fn (mixed $value): bool => is_string($value) && $value !== ''
+        ));
+        sort($environmentVariables);
+        $shadowedEnvironmentVariables = [];
+        foreach ([
+            'rootEnvironment',
+            'certificateEnvironment',
+            'packagePathEnvironment',
+            'packageCacheEnvironment',
+            'featureGateEnvironment',
+            'creationTimestampEnvironment',
+            'systemFonts',
+            'embeddedFonts',
+        ] as $key) {
+            $entry = $provenance[$key] ?? null;
+            if (
+                !is_array($entry)
+                || !is_string($entry['shadowedBy'] ?? null)
+                || !is_string($entry['environmentVariable'] ?? null)
+                || $entry['environmentVariable'] === ''
+            ) {
+                continue;
+            }
+
+            $shadowedEnvironmentVariables[] = $entry['environmentVariable'];
+        }
+        $shadowedEnvironmentVariables = array_values(array_unique($shadowedEnvironmentVariables));
+        sort($shadowedEnvironmentVariables);
+
         $issues = array_values(array_filter(
             is_array($provenance['issues'] ?? null) ? $provenance['issues'] : [],
             static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
@@ -9061,6 +9098,9 @@ final class PdfEngineHandoff
             'systemFontAccessFlagCount' => $systemFontAccessFlagCount,
             'embeddedFontAccessDisabled' => $embeddedFontAccessDisabled,
             'embeddedFontAccessFlagCount' => $embeddedFontAccessFlagCount,
+            'environmentVariableCount' => count($environmentVariables),
+            'shadowedEnvironmentVariableCount' => count($shadowedEnvironmentVariables),
+            'shadowedEnvironmentVariables' => $shadowedEnvironmentVariables,
             'outputFormatControlCount' => (int) ($outputFormat !== []),
             'outputFormatEntryCount' => $outputFormatEntryCount,
             'outputFormatOptionCount' => count($outputFormatOptions),

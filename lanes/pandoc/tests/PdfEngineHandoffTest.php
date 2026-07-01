@@ -368,6 +368,9 @@ return [
             'systemFontAccessFlagCount' => 1,
             'embeddedFontAccessDisabled' => true,
             'embeddedFontAccessFlagCount' => 1,
+            'environmentVariableCount' => 0,
+            'shadowedEnvironmentVariableCount' => 0,
+            'shadowedEnvironmentVariables' => [],
             'outputFormatControlCount' => 0,
             'outputFormatEntryCount' => 0,
             'outputFormatOptionCount' => 0,
@@ -1516,8 +1519,12 @@ return [
         $t->same(1, $plan['typstBoundarySummary']['unsafePathEntryCount']);
         $t->same(2, $plan['typstBoundarySummary']['featureGateCount']);
         $t->same(2, $plan['typstBoundarySummary']['fontAccessControlCount']);
+        $t->same(8, $plan['typstBoundarySummary']['environmentVariableCount']);
+        $t->same(0, $plan['typstBoundarySummary']['shadowedEnvironmentVariableCount']);
+        $t->same([], $plan['typstBoundarySummary']['shadowedEnvironmentVariables']);
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-environment:8', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-environment:8', implode(',', $plan['diagnostics']));
         $t->contains('typst-root-boundary:workspace', implode(',', $plan['diagnostics']));
         $t->contains('typst-font-path-policy:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-font-path-unsafe:1', implode(',', $plan['diagnostics']));
@@ -1653,6 +1660,9 @@ return [
         }
 
         $t->same(['SOURCE_DATE_EPOCH', 'TYPST_FEATURES'], $plan['typstBoundaryProvenance']['environmentVariables']);
+        $t->same(2, $plan['typstBoundarySummary']['environmentVariableCount']);
+        $t->same(2, $plan['typstBoundarySummary']['shadowedEnvironmentVariableCount']);
+        $t->same(['SOURCE_DATE_EPOCH', 'TYPST_FEATURES'], $plan['typstBoundarySummary']['shadowedEnvironmentVariables']);
         $t->same(['environment-shadows', 'feature-gates', 'output-format', 'creation-timestamp'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
         $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
         $t->same(4, $plan['typstBoundaryMatrix']['caseCount']);
@@ -1677,6 +1687,8 @@ return [
         $t->contains('typst-boundary-matrix-cases:4', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-matrix-review-cases:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-matrix-issues:8', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-environment:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-shadowed-environment:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($plan['typstBoundaryMatrix'], $result['typstBoundaryMatrix']);
         $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
@@ -2261,6 +2273,12 @@ return [
         }
 
         $t->same($expectedProvenance, $plan['typstBoundaryProvenance']);
+        $t->same(2, $plan['typstBoundarySummary']['environmentVariableCount']);
+        $t->same(2, $plan['typstBoundarySummary']['shadowedEnvironmentVariableCount']);
+        $t->same([
+            'TYPST_IGNORE_EMBEDDED_FONTS',
+            'TYPST_IGNORE_SYSTEM_FONTS',
+        ], $plan['typstBoundarySummary']['shadowedEnvironmentVariables']);
         $t->same(['environment-shadows', 'font-access-controls', 'output-format'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
         $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
         $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
@@ -2282,6 +2300,8 @@ return [
         $t->contains('typst-ignore-system-fonts-environment-shadowed', implode(',', $plan['diagnostics']));
         $t->contains('typst-ignore-embedded-fonts-environment-shadowed', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-matrix-issues:6', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-environment:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-shadowed-environment:2', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expectedProvenance, $result['typstBoundaryProvenance']);
         $t->same($expectedProvenance, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
