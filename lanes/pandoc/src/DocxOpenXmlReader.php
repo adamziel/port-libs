@@ -201,6 +201,7 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $sourcePackage,
         );
+        $packageIdentity = $packageProvenance['packageIdentity'];
         $documentPackageIdentity = $this->documentPackageIdentity(
             $documentPart,
             $contentTypes,
@@ -1457,6 +1458,7 @@ final class DocxOpenXmlReader
         $attrs = [
             'docx' => [
                 'documentPart' => $documentPart,
+                'packageIdentity' => $packageIdentity,
                 'documentPackageIdentity' => $documentPackageIdentity,
                 'corePropertiesPart' => $corePropertiesPart['partName'],
                 'contentTypes' => $contentTypes,
@@ -12915,6 +12917,14 @@ final class DocxOpenXmlReader
         $summary['zipCommentControlByteEntryCount'] = (int) ($zipComments['commentControlByteEntryCount'] ?? 0);
         $summary['zipCommentUnicodeFormatControlEntryCount'] = (int) ($zipComments['commentUnicodeFormatControlEntryCount'] ?? 0);
         $summary['zipCommentBidiControlEntryCount'] = (int) ($zipComments['commentBidiControlEntryCount'] ?? 0);
+        $packageIdentity = $this->packageIdentityProvenance($partInventory, $summary);
+        $summary['packageIdentityReviewPolicy'] = $packageIdentity['reviewPolicy'];
+        $summary['packageIdentityVersion'] = $packageIdentity['identityVersion'];
+        $summary['packageIdentitySha256'] = $packageIdentity['identitySha256'];
+        $summary['packageIdentityPayloadByteLength'] = $packageIdentity['identityPayloadByteLength'];
+        $summary['packageIdentityByteExposurePolicy'] = $packageIdentity['byteExposurePolicy'];
+        $summary['packageIdentityCanExposeBytes'] = $packageIdentity['canExposeBytes'];
+        $summary['packageIdentityEntryCount'] = $packageIdentity['packageEntryCount'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -12924,6 +12934,7 @@ final class DocxOpenXmlReader
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $partInventory,
             'zipPackage' => $zipPackage,
+            'packageIdentity' => $packageIdentity,
             'summary' => $summary,
         ];
     }
@@ -33714,6 +33725,213 @@ final class DocxOpenXmlReader
         }
 
         return $this->missingContentTypeResolution($extension === '' ? null : $extension);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @param array<string, mixed> $summary
+     * @return array<string, mixed>
+     */
+    private function packageIdentityProvenance(array $partInventory, array $summary): array
+    {
+        $packageEntries = $this->packageIdentityPartEntries($partInventory);
+        $identity = [
+            'identityVersion' => 1,
+            'reviewPolicy' => 'docx-package-identity',
+            'packageType' => 'docx-openxml-package',
+            'packageEntryCount' => count($packageEntries),
+            'partCount' => count($packageEntries),
+            'packageByteLength' => (int) ($summary['packageByteLength'] ?? 0),
+            'relationshipPartCount' => (int) ($summary['relationshipPartCount'] ?? 0),
+            'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
+            'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
+            'zipEntryCount' => (int) ($summary['zipEntryCount'] ?? 0),
+            'packageBasenameCount' => (int) ($summary['partBaseNameCount'] ?? 0),
+            'packageBasenameCounts' => $this->packageIdentityCountMap($summary['partBaseNameCounts'] ?? []),
+            'entryNamesByPackageBasename' => $this->packageIdentityStringListMap(
+                $summary['partNamesByPartBaseName'] ?? []
+            ),
+            'packageCaseFoldedBasenameCount' => (int) ($summary['partCaseFoldBaseNameCount'] ?? 0),
+            'packageCaseFoldedBasenameCounts' => $this->packageIdentityCountMap(
+                $summary['partCaseFoldBaseNameCounts'] ?? []
+            ),
+            'entryNamesByPackageCaseFoldedBasename' => $this->packageIdentityStringListMap(
+                $summary['partNamesByCaseFoldBaseName'] ?? []
+            ),
+            'packageDirectoryBaseNameCount' => (int) ($summary['partDirectoryBaseNameCount'] ?? 0),
+            'packageDirectoryBaseNameCounts' => $this->packageIdentityCountMap(
+                $summary['partDirectoryBaseNameCounts'] ?? []
+            ),
+            'entryNamesByPackageDirectoryBaseName' => $this->packageIdentityLookupMapFromSummaries(
+                $summary['partDirectoryBaseNames'] ?? [],
+                'directoryBaseName'
+            ),
+            'packageCaseFoldDirectoryBaseNameCount' => (int) ($summary['partCaseFoldDirectoryBaseNameCount'] ?? 0),
+            'packageCaseFoldDirectoryBaseNameCounts' => $this->packageIdentityCountMap(
+                $summary['partCaseFoldDirectoryBaseNameCounts'] ?? []
+            ),
+            'entryNamesByPackageCaseFoldDirectoryBaseName' => $this->packageIdentityLookupMapFromSummaries(
+                $summary['partCaseFoldDirectoryBaseNames'] ?? [],
+                'caseFoldDirectoryBaseName'
+            ),
+            'packageEntries' => $packageEntries,
+        ];
+        $identityJson = json_encode(
+            self::canonicalIdentityValue($identity),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+        $identity['identitySha256'] = hash('sha256', $identityJson);
+        $identity['identityPayloadByteLength'] = strlen($identityJson);
+        $identity['byteExposurePolicy'] = 'docx-package-identity-metadata-only';
+        $identity['canExposeBytes'] = false;
+
+        return $identity;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packageIdentityPartEntries(array $partInventory): array
+    {
+        $entries = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = is_string($part['partName'] ?? null) ? $part['partName'] : (string) $partName;
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $directoryBaseName = is_string($part['directoryBaseName'] ?? null)
+                ? $part['directoryBaseName']
+                : $this->packagePartDirectoryBaseName($directory);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $roles = $this->packageIdentitySortedStringList($part['roles'] ?? []);
+            $entries[] = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'directoryBaseName' => $directoryBaseName,
+                'caseFoldDirectoryBaseName' => is_string($part['caseFoldDirectoryBaseName'] ?? null)
+                    ? $part['caseFoldDirectoryBaseName']
+                    : $this->packagePartCaseFoldKey($directoryBaseName),
+                'baseName' => $baseName,
+                'caseFoldBaseName' => is_string($part['caseFoldBaseName'] ?? null)
+                    ? $part['caseFoldBaseName']
+                    : $this->packagePartCaseFoldKey($baseName),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                'contentTypeHasParameters' => ($part['contentTypeHasParameters'] ?? false) === true,
+                'contentTypeParameterCount' => (int) ($part['contentTypeParameterCount'] ?? 0),
+                'isRelationshipPart' => ($part['isRelationshipPart'] ?? false) === true,
+                'roles' => $roles,
+            ];
+        }
+
+        usort(
+            $entries,
+            static fn (array $left, array $right): int => strcmp(
+                (string) ($left['partName'] ?? ''),
+                (string) ($right['partName'] ?? '')
+            )
+        );
+
+        return $entries;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function packageIdentityCountMap(mixed $counts): array
+    {
+        if (!is_array($counts)) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($counts as $key => $count) {
+            if (!is_string($key) && !is_int($key)) {
+                continue;
+            }
+
+            $map[(string) $key] = (int) $count;
+        }
+        ksort($map, SORT_STRING);
+
+        return $map;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function packageIdentityStringListMap(mixed $lookup): array
+    {
+        if (!is_array($lookup)) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($lookup as $key => $values) {
+            if (!is_string($key) && !is_int($key)) {
+                continue;
+            }
+
+            $map[(string) $key] = $this->packageIdentitySortedStringList($values);
+        }
+        ksort($map, SORT_STRING);
+
+        return $map;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function packageIdentityLookupMapFromSummaries(mixed $summaries, string $lookupKey): array
+    {
+        if (!is_array($summaries)) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($summaries as $summary) {
+            if (
+                !is_array($summary)
+                || (!is_string($summary[$lookupKey] ?? null) && !is_int($summary[$lookupKey] ?? null))
+            ) {
+                continue;
+            }
+
+            $map[(string) $summary[$lookupKey]] = $this->packageIdentitySortedStringList($summary['partNames'] ?? []);
+        }
+        ksort($map, SORT_STRING);
+
+        return $map;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function packageIdentitySortedStringList(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($values as $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $strings[] = (string) $value;
+        }
+        $strings = array_values(array_unique($strings));
+        sort($strings, SORT_STRING);
+
+        return $strings;
     }
 
     /**
