@@ -983,10 +983,91 @@ final class MarkdownReader
             if ($this->parseLinkTitle($candidate) !== null) {
                 $target .= ' ' . $candidate;
                 $cursor++;
+            } elseif ($candidate !== '') {
+                $multilineTitle = $this->collectReferenceDefinitionMultilineTitle($lines, $cursor + 1, $target . ' ' . $candidate);
+                if ($multilineTitle !== null) {
+                    return $multilineTitle;
+                }
             }
         }
 
+        $multilineTitle = $this->collectReferenceDefinitionMultilineTitle($lines, $cursor, $target);
+        if ($multilineTitle !== null) {
+            return $multilineTitle;
+        }
+
         return [$target, $cursor];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{0:string, 1:int}|null
+     */
+    private function collectReferenceDefinitionMultilineTitle(array $lines, int $cursor, string $target): ?array
+    {
+        if (!$this->hasUnclosedReferenceDefinitionTitle($target)) {
+            return null;
+        }
+
+        $candidate = $target;
+        $count = count($lines);
+        while ($cursor < $count) {
+            $line = trim($this->expandTabsToSpaces($lines[$cursor]));
+            if (
+                $line === ''
+                || $this->tryParseReferenceDefinitionStart($line) !== null
+                || $this->tryParseFootnoteDefinitionStart($line) !== null
+            ) {
+                return null;
+            }
+
+            $candidate .= "\n" . $line;
+            $cursor++;
+
+            $parsed = $this->parseLinkDestinationAndTitle($candidate);
+            if ($parsed !== null && $parsed['title'] !== '') {
+                return [$candidate, $cursor];
+            }
+
+            if (!$this->hasUnclosedReferenceDefinitionTitle($candidate)) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
+    private function hasUnclosedReferenceDefinitionTitle(string $content): bool
+    {
+        $content = trim($content);
+        $length = strlen($content);
+        for ($cursor = 0; $cursor < $length; $cursor++) {
+            if (!ctype_space($content[$cursor])) {
+                continue;
+            }
+
+            $title = ltrim(substr($content, $cursor + 1));
+            if ($title === '') {
+                continue;
+            }
+
+            $close = match ($title[0]) {
+                '"' => '"',
+                "'" => "'",
+                '(' => ')',
+                default => null,
+            };
+
+            if ($close === null || $this->parseLinkTitle($title) !== null) {
+                continue;
+            }
+
+            if ($this->findUnescapedCharacter($title, $close, 1) === null) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

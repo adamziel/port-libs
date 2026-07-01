@@ -1314,6 +1314,8 @@
         "mappedMarkdownReaderBareUriLongAndPathShapeCases": 23,
         "markdownReaderNoLinksInsideLinkLabelCases": 3,
         "mappedMarkdownReaderNoLinksInsideLinkLabelCases": 3,
+        "markdownReaderReferenceMultilineTitleCases": 4,
+        "mappedMarkdownReaderReferenceMultilineTitleCases": 4,
         "markdownReaderRawHtmlRegressionCases": 4,
         "mappedMarkdownReaderRawHtmlRegressionCases": 4,
         "markdownReaderRawEmailAddressCases": 1,
@@ -1679,7 +1681,7 @@
     "wordpressScenario": "Data Liberation citation handoff now preserves BibLaTeX auxiliary editorial roles and available/submitted date metadata before WordPress bibliography output. JSON/native textual raw Markdown/TeX format alias combination handoff before JSON/native writer output. JSON/native raw Markdown constructor handoff before JSON/native writer output. Data Liberation citation handoff now preserves legacy BibLaTeX literal publisher/location/language/event-place lists as CSL variables before WordPress bibliography output. Data Liberation Markdown import path that preserves Pandoc title-block metadata, inline semantics, tables, citations, HTML-reader imports, and WordPress block output. The latest Citation/CSL slice carries legacy BibLaTeX registry and authority identifier plus file/pdf attachment review metadata through WordPress output: identifiers stay metadata-only, safe relative paths stay visible, and unsafe paths remain diagnostics without reading or fetching identifier or attachment targets. The latest Markdown-reader slice adds standalone void area/source/track/embed paragraph handoff so imported captions, media sources, legacy embeds, and image-map hotspots remain WordPress paragraph raw inlines instead of wp:html blocks. Existing HTML reader exports include standalone SVG, button, ins, noscript, applet, object/embed, video/source/track, audio/source/track, map/area, progress, del, linebreak, inline flow, cite/wbr, and pre/code handoffs. LaTeX, HTML writer, Markdown, PlainText/template, Native reader/writer, DOCX, ODT, EPUB, JATS, citation, TOC, wiki-link, and table examples continue to cover downstream WordPress profiles without shelling out to upstream Pandoc.",
     "nextTask": "Open shared-zip-package-core with bounded PHP tests for package entries, central directory, stored/deflated payloads, and OPC-safe path handling; in parallel, expand JSON native AST coverage against upstream JSON/native fixture pairs until every shared AST constructor is covered. Activate XML/HTML DOM after ZIP/JSON gates, then direct DOCX/OpenXML, EPUB3, ODF/OpenDocument, and PPTX/XLSX slices.",
     "currentSlice": {
-        "latestSlice": "DocxOpenXmlReader carries aggregate DOCX/OpenXML content type override declaration provenance through contentTypesPart and packageProvenance.summary, including parameterized override declaration counts plus override content-type base and parameter-name buckets without exposing package bytes or invoking external tools."
+        "latestSlice": "MarkdownReader completes a bounded upstream Markdown reference-definition multiline-title slice, resolving destination-line and continuation-line quoted, single-quoted, and parenthesized titles for full, shortcut, collapsed, and image references without invoking upstream Pandoc or external Markdown validators."
     },
     "mappedDocxContentTypeOverrideDeclarationParameterRollupCases": 1,
     "docxContentTypeOverrideDeclarationParameterRollupAssertions": 6
