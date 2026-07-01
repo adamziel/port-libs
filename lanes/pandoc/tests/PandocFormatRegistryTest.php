@@ -272,4 +272,243 @@ return [
         $t->same(false, $summary['directReaderParityClaimed']);
         $t->same(false, $summary['directWriterParityClaimed']);
     },
+    'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
+        $t->same(['man', 'mdoc'], PandocFormatRegistry::roffManualInputFormats());
+        $t->same(['man', 'ms'], PandocFormatRegistry::roffManualOutputFormats());
+        $t->same(PandocFormatRegistry::roffManualInputFormats(), PandocFormatRegistry::roffInputFormats());
+        $t->same(PandocFormatRegistry::roffManualOutputFormats(), PandocFormatRegistry::roffOutputFormats());
+        $t->same([
+            '.ms' => 'ms',
+            '.roff' => 'ms',
+            '.[1-9]' => 'man',
+            '.[1-9][a-z]+' => 'man',
+        ], PandocFormatRegistry::roffManualExtensionInference());
+        $t->same(PandocFormatRegistry::roffManualExtensionInference(), PandocFormatRegistry::roffExtensionInference());
+
+        $inputSupport = PandocFormatRegistry::roffManualInputSupport();
+        $outputSupport = PandocFormatRegistry::roffManualOutputSupport();
+
+        $t->same(['man', 'mdoc'], array_keys($inputSupport));
+        $t->same(['man', 'ms'], array_keys($outputSupport));
+        $t->same('unsupported', $inputSupport['man']['status']);
+        $t->same('', $inputSupport['man']['implementation']);
+        $t->contains('upstream man reader source semantics', $inputSupport['man']['notes']);
+        $t->same('unsupported', $inputSupport['mdoc']['status']);
+        $t->same('', $inputSupport['mdoc']['implementation']);
+        $t->contains('manual-family input', $inputSupport['mdoc']['notes']);
+        $t->same('unsupported', $outputSupport['man']['status']);
+        $t->same('', $outputSupport['man']['implementation']);
+        $t->contains('upstream man writer source semantics', $outputSupport['man']['notes']);
+        $t->same('unsupported', $outputSupport['ms']['status']);
+        $t->same('', $outputSupport['ms']['implementation']);
+        $t->contains('.ms/.roff extension inference', $outputSupport['ms']['notes']);
+        $t->same(18, count(PandocFormatRegistry::unsupportedInputFormats()));
+        $t->same(58, count(PandocFormatRegistry::unsupportedOutputFormats()));
+    },
+    'tracks roff manual direction buckets without direct parity claims' => static function (TestRunner $t): void {
+        $registry = PandocFormatRegistry::roffManualFormatRegistry();
+        $directions = PandocFormatRegistry::roffManualFormatDirections();
+        $summary = PandocFormatRegistry::roffManualFormatRegistrySummary();
+
+        $t->same(PandocFormatRegistry::roffManualFormatRegistry(), PandocFormatRegistry::roffFormatRegistry());
+        $t->same(PandocFormatRegistry::roffManualFormatRegistrySummary(), PandocFormatRegistry::roffFormatRegistrySummary());
+        $t->same(['man', 'mdoc', 'ms'], array_keys($registry));
+        $t->same(['man', 'mdoc', 'ms'], array_keys($directions));
+        $t->same('input-output', $registry['man']['direction']);
+        $t->same('input-only', $registry['mdoc']['direction']);
+        $t->same('output-only', $registry['ms']['direction']);
+        $t->same('input-output', $directions['man']['direction']);
+        $t->same('input-only', $directions['mdoc']['direction']);
+        $t->same('output-only', $directions['ms']['direction']);
+        $t->same(['man'], $summary['directionBuckets']['input-output']);
+        $t->same(['mdoc'], $summary['directionBuckets']['input-only']);
+        $t->same(['ms'], $summary['directionBuckets']['output-only']);
+        $t->same(['man', 'mdoc'], $summary['inputStatusBuckets']['unsupported']);
+        $t->same(['man', 'ms'], $summary['outputStatusBuckets']['unsupported']);
+        $t->same(['.[1-9]', '.[1-9][a-z]+'], $registry['man']['extensionInferences']);
+        $t->same([], $registry['mdoc']['extensionInferences']);
+        $t->same(['.ms', '.roff'], $registry['ms']['extensionInferences']);
+
+        foreach (['man', 'mdoc'] as $format) {
+            $t->same('unsupported', $registry[$format]['input']['status']);
+            $t->same('', $registry[$format]['input']['implementation']);
+            $t->same(false, $registry[$format]['directReaderParityClaimed']);
+        }
+        foreach (['man', 'ms'] as $format) {
+            $t->same('unsupported', $registry[$format]['output']['status']);
+            $t->same('', $registry[$format]['output']['implementation']);
+            $t->same(false, $registry[$format]['directWriterParityClaimed']);
+        }
+
+        $t->same('not-applicable', $registry['mdoc']['output']['status']);
+        $t->same(false, $registry['mdoc']['directWriterParityClaimed']);
+        $t->same('not-applicable', $registry['ms']['input']['status']);
+        $t->same(false, $registry['ms']['directReaderParityClaimed']);
+        $t->same(false, $summary['directReaderParityClaimed']);
+        $t->same(false, $summary['directWriterParityClaimed']);
+    },
+    'classifies roff manual extension evidence without converter parity' => static function (TestRunner $t): void {
+        $metadata = PandocFormatRegistry::roffManualExtensionPatternMetadata();
+
+        $t->same([
+            '.ms' => [
+                'format' => 'ms',
+                'kind' => 'ms-macro-package',
+                'manualSection' => false,
+            ],
+            '.roff' => [
+                'format' => 'ms',
+                'kind' => 'generic-roff-source',
+                'manualSection' => false,
+            ],
+            '.[1-9]' => [
+                'format' => 'man',
+                'kind' => 'manual-section',
+                'manualSection' => true,
+            ],
+            '.[1-9][a-z]+' => [
+                'format' => 'man',
+                'kind' => 'manual-section-suffix',
+                'manualSection' => true,
+            ],
+        ], $metadata);
+
+        foreach ($metadata as $pattern => $entry) {
+            $t->same(PandocFormatRegistry::roffManualExtensionInference()[$pattern], $entry['format']);
+        }
+
+        $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('.ms'));
+        $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('MS'));
+        $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('.roff'));
+        $t->same('ms', PandocFormatRegistry::inferRoffManualFormatFromExtension('ROFF'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('.1'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('9'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('.3p'));
+        $t->same('man', PandocFormatRegistry::inferRoffManualFormatFromExtension('5SSL'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension(''));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.0'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.10'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.10ssl'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.3-p'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.3.1'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.3_foo'));
+        $t->same(null, PandocFormatRegistry::inferRoffManualFormatFromExtension('.mdoc'));
+        $t->same(PandocFormatRegistry::inferRoffManualFormatFromExtension('.3p'), PandocFormatRegistry::inferRoffFormatFromExtension('.3p'));
+
+        $t->same([
+            'format' => 'ms',
+            'normalizedExtension' => '.ms',
+            'pattern' => '.ms',
+            'kind' => 'ms-macro-package',
+            'manualSection' => null,
+            'manualSectionNumber' => null,
+            'manualSectionSuffix' => null,
+        ], PandocFormatRegistry::classifyRoffManualExtension('MS'));
+        $t->same([
+            'format' => 'man',
+            'normalizedExtension' => '.3p',
+            'pattern' => '.[1-9][a-z]+',
+            'kind' => 'manual-section-suffix',
+            'manualSection' => '3p',
+            'manualSectionNumber' => '3',
+            'manualSectionSuffix' => 'p',
+        ], PandocFormatRegistry::classifyRoffManualExtension('.3P'));
+        $t->same([
+            'format' => null,
+            'normalizedExtension' => '.10ssl',
+            'pattern' => null,
+            'kind' => 'unknown',
+            'manualSection' => null,
+            'manualSectionNumber' => null,
+            'manualSectionSuffix' => null,
+        ], PandocFormatRegistry::classifyRoffManualExtension('.10ssl'));
+
+        $t->same(['ms', 'man'], PandocFormatRegistry::roffManualFormatsWithExtensionInference());
+        $t->same(['mdoc'], PandocFormatRegistry::roffManualFormatsWithoutExtensionInference());
+    },
+    'builds roff manual review packets with unsupported extension surfaces' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
+        $surface = PandocFormatRegistry::roffManualUnsupportedFormatForExtension('3P');
+        $surfaces = PandocFormatRegistry::roffManualUnsupportedExtensionSurfaces();
+        $summary = PandocFormatRegistry::roffManualUnsupportedFormatSummary();
+        $parity = PandocFormatRegistry::roffManualFormatParitySummary();
+
+        $t->same($packet, PandocFormatRegistry::roffFormatReviewPacket());
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(PandocFormatRegistry::UPSTREAM_SOURCE_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same([
+            'inputOutput' => ['man'],
+            'inputOnly' => ['mdoc'],
+            'outputOnly' => ['ms'],
+        ], $packet['directionBuckets']);
+        $t->same(['ms', 'man'], $packet['extensionInferredFormats']);
+        $t->same(['mdoc'], $packet['nonExtensionInferredFormats']);
+        $t->same(['man', 'mdoc'], $packet['unsupportedInputFormats']);
+        $t->same(['man', 'ms'], $packet['unsupportedOutputFormats']);
+        $t->same($summary, $packet['unsupportedFormatSummary']);
+        $t->same($parity, $packet['paritySummary']);
+        $t->same(['man', 'mdoc', 'ms'], array_keys($packet['formats']));
+        $t->same([
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'extensionInferred' => true,
+            'extensions' => ['.[1-9]', '.[1-9][a-z]+'],
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $packet['formats']['man']);
+        $t->same(false, $packet['formats']['mdoc']['extensionInferred']);
+        $t->same(['.ms', '.roff'], $packet['formats']['ms']['extensions']);
+
+        $t->same([
+            'extension' => '.3p',
+            'format' => 'man',
+            'pattern' => '.[1-9][a-z]+',
+            'kind' => 'manual-section-suffix',
+            'manualSection' => '3p',
+            'manualSectionNumber' => '3',
+            'manualSectionSuffix' => 'p',
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'unsupportedInput' => true,
+            'unsupportedOutput' => true,
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $surface);
+        $t->same(['.ms', '.roff', '.[1-9]', '.[1-9][a-z]+'], array_keys($surfaces));
+        $t->same('generic-roff-source', $surfaces['.roff']['kind']);
+        $t->same('output-only', $surfaces['.roff']['direction']);
+        $t->same(true, $surfaces['.roff']['unsupportedOutput']);
+        $t->same(null, PandocFormatRegistry::roffManualUnsupportedFormatForExtension('.mdoc'));
+        $t->same(null, PandocFormatRegistry::roffManualUnsupportedFormatForExtension('.10ssl'));
+        $t->same([
+            'anyUnsupported' => ['man', 'mdoc', 'ms'],
+            'unsupportedBoth' => ['man'],
+            'unsupportedInputOnly' => ['mdoc'],
+            'unsupportedOutputOnly' => ['ms'],
+            'noNativeReader' => ['man', 'mdoc'],
+            'noNativeWriter' => ['man', 'ms'],
+        ], $summary);
+        $t->same(3, $parity['uniqueFormatCount']);
+        $t->same(['unsupported' => 2], $parity['inputSupportStatusCounts']);
+        $t->same(['unsupported' => 2], $parity['outputSupportStatusCounts']);
+        $t->same(4, $parity['extensionInferenceMappings']);
+        $t->same(2, $parity['manualSectionExtensionMappings']);
+        $t->same(2, $parity['literalExtensionMappings']);
+        $t->same(4, $parity['unsupportedExtensionSurfaceMappings']);
+        $t->same(0, $parity['registeredInputImplementations']);
+        $t->same(0, $parity['registeredOutputImplementations']);
+        $t->same(false, $parity['directReaderParitySupported']);
+        $t->same(false, $parity['directWriterParitySupported']);
+        $t->same(false, $parity['directParityClaimed']);
+        $t->same('unsupported', $parity['directParityStatus']);
+        $t->contains('no native PHP roff/manual reader or writer is registered', $parity['reviewNote']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
 ];
