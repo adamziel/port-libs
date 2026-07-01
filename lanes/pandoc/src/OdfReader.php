@@ -2394,7 +2394,7 @@ final class OdfReader
             $generalPurposeFlagProvenance = self::zipGeneralPurposeFlagProvenance($generalPurposeFlagEntriesByName[$entry->name] ?? null);
             $dataDescriptorProvenance = self::zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null);
             $localHeaderProvenance = self::zipLocalHeaderProvenance($localHeadersByName[$entry->name] ?? null);
-            $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldEntry);
+            $extraFieldProvenance = self::zipExtraFieldProvenance($package, $entry, $extraFieldEntry);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -3602,6 +3602,12 @@ final class OdfReader
                 'localHeaderLength' => $item['localHeaderLength'] ?? null,
                 'localVariableFieldsLength' => $item['localVariableFieldsLength'] ?? null,
                 'localNameLength' => $item['localNameLength'] ?? null,
+                'zipExtraFieldIds' => $item['zipExtraFieldIds'] ?? [],
+                'extraFieldIdCount' => $item['extraFieldIdCount'] ?? 0,
+                'centralExtraFieldLength' => $item['centralExtraFieldLength'] ?? 0,
+                'centralExtraFieldIds' => $item['centralExtraFieldIds'] ?? [],
+                'centralExtraFieldRecordCount' => $item['centralExtraFieldRecordCount'] ?? 0,
+                'centralExtraFieldRecords' => $item['centralExtraFieldRecords'] ?? [],
                 'localExtraFieldLength' => $item['localExtraFieldLength'] ?? null,
                 'localExtraFieldRecordCount' => $item['localExtraFieldRecordCount'] ?? null,
                 'localExtraFieldIds' => $item['localExtraFieldIds'] ?? [],
@@ -3716,13 +3722,13 @@ final class OdfReader
                 'zipLocalModifiedAt' => $item['zipLocalModifiedAt'] ?? null,
                 'zipLocalTimestampSource' => $item['zipLocalTimestampSource'] ?? null,
                 'zipTimestampIssues' => $item['zipTimestampIssues'] ?? [],
-                'centralExtraFieldIds' => $item['centralExtraFieldIds'] ?? [],
-                'localExtraFieldIds' => $item['localExtraFieldIds'] ?? [],
                 'duplicateCentralExtraFieldIds' => $item['duplicateCentralExtraFieldIds'] ?? [],
                 'duplicateLocalExtraFieldIds' => $item['duplicateLocalExtraFieldIds'] ?? [],
                 'centralOnlyExtraFieldIds' => $item['centralOnlyExtraFieldIds'] ?? [],
                 'localOnlyExtraFieldIds' => $item['localOnlyExtraFieldIds'] ?? [],
                 'mismatchedExtraFieldValueIds' => $item['mismatchedExtraFieldValueIds'] ?? [],
+                'centralLocalExtraFieldIdsMatch' => ($item['centralLocalExtraFieldIdsMatch'] ?? false) === true,
+                'centralLocalExtraFieldValuesMatch' => ($item['centralLocalExtraFieldValuesMatch'] ?? false) === true,
                 'hasCentralExtraFields' => ($item['hasCentralExtraFields'] ?? false) === true,
                 'hasLocalExtraFields' => ($item['hasLocalExtraFields'] ?? false) === true,
                 'hasZipExtraFieldProvenance' => ($item['hasZipExtraFieldProvenance'] ?? false) === true,
@@ -4735,53 +4741,103 @@ final class OdfReader
     }
 
     /**
-     * @param array<string, mixed>|null $extraFieldEntry
+     * @param array<string, mixed>|null $entry
+     * @return list<int>
+     */
+    private static function zipPreflightIntegerList(?array $entry, string $key): array
+    {
+        if (!is_array($entry[$key] ?? null)) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($entry[$key] as $value) {
+            if (is_int($value)) {
+                $values[] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param array<string, mixed>|null $summary
      * @return array<string, mixed>
      */
-    private static function zipExtraFieldProvenance(?array $extraFieldEntry): array
+    private static function zipExtraFieldProvenance(ZipPackage $package, ZipPackageEntry $entry, ?array $summary): array
     {
-        $centralExtraFieldIds = is_array($extraFieldEntry)
-            && is_array($extraFieldEntry['centralExtraFieldIds'] ?? null)
-            ? $extraFieldEntry['centralExtraFieldIds']
-            : [];
-        $localExtraFieldIds = is_array($extraFieldEntry)
-            && is_array($extraFieldEntry['localExtraFieldIds'] ?? null)
-            ? $extraFieldEntry['localExtraFieldIds']
-            : [];
+        $centralExtraFieldRecords = self::zipExtraFieldReviewRecords($entry->centralExtraFields());
+        $localExtraFieldRecords = self::zipExtraFieldReviewRecords($package->localExtraFields($entry->name));
+        $centralExtraFieldIds = self::zipPreflightIntegerList($summary, 'centralExtraFieldIds');
+        if ($centralExtraFieldIds === []) {
+            $centralExtraFieldIds = array_map(static fn (array $field): int => (int) $field['id'], $centralExtraFieldRecords);
+        }
+        $localExtraFieldIds = self::zipPreflightIntegerList($summary, 'localExtraFieldIds');
+        if ($localExtraFieldIds === []) {
+            $localExtraFieldIds = array_map(static fn (array $field): int => (int) $field['id'], $localExtraFieldRecords);
+        }
+        $zipExtraFieldIds = array_values(array_unique(array_merge($centralExtraFieldIds, $localExtraFieldIds)));
+        sort($zipExtraFieldIds, SORT_NUMERIC);
+        $duplicateCentralExtraFieldIds = self::zipPreflightIntegerList($summary, 'duplicateCentralExtraFieldIds');
+        $duplicateLocalExtraFieldIds = self::zipPreflightIntegerList($summary, 'duplicateLocalExtraFieldIds');
+        $centralOnlyExtraFieldIds = self::zipPreflightIntegerList($summary, 'centralOnlyExtraFieldIds');
+        $localOnlyExtraFieldIds = self::zipPreflightIntegerList($summary, 'localOnlyExtraFieldIds');
+        $mismatchedExtraFieldValueIds = self::zipPreflightIntegerList($summary, 'mismatchedExtraFieldValueIds');
 
         return [
+            'zipExtraFieldIds' => $zipExtraFieldIds,
+            'extraFieldIdCount' => count($zipExtraFieldIds),
+            'centralExtraFieldLength' => strlen($entry->centralExtraFieldData),
             'centralExtraFieldIds' => $centralExtraFieldIds,
+            'centralExtraFieldRecords' => $centralExtraFieldRecords,
+            'localExtraFieldLength' => self::zipExtraFieldRecordByteLength($localExtraFieldRecords),
             'localExtraFieldIds' => $localExtraFieldIds,
-            'duplicateCentralExtraFieldIds' => is_array($extraFieldEntry)
-                && is_array($extraFieldEntry['duplicateCentralExtraFieldIds'] ?? null)
-                ? $extraFieldEntry['duplicateCentralExtraFieldIds']
-                : [],
-            'duplicateLocalExtraFieldIds' => is_array($extraFieldEntry)
-                && is_array($extraFieldEntry['duplicateLocalExtraFieldIds'] ?? null)
-                ? $extraFieldEntry['duplicateLocalExtraFieldIds']
-                : [],
-            'centralOnlyExtraFieldIds' => is_array($extraFieldEntry)
-                && is_array($extraFieldEntry['centralOnlyExtraFieldIds'] ?? null)
-                ? $extraFieldEntry['centralOnlyExtraFieldIds']
-                : [],
-            'localOnlyExtraFieldIds' => is_array($extraFieldEntry)
-                && is_array($extraFieldEntry['localOnlyExtraFieldIds'] ?? null)
-                ? $extraFieldEntry['localOnlyExtraFieldIds']
-                : [],
-            'mismatchedExtraFieldValueIds' => is_array($extraFieldEntry)
-                && is_array($extraFieldEntry['mismatchedExtraFieldValueIds'] ?? null)
-                ? $extraFieldEntry['mismatchedExtraFieldValueIds']
-                : [],
+            'localExtraFieldRecords' => $localExtraFieldRecords,
+            'centralExtraFieldRecordCount' => count($centralExtraFieldRecords),
+            'localExtraFieldRecordCount' => count($localExtraFieldRecords),
+            'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+            'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+            'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+            'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+            'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+            'centralLocalExtraFieldIdsMatch' => $centralOnlyExtraFieldIds === [] && $localOnlyExtraFieldIds === [],
+            'centralLocalExtraFieldValuesMatch' => $mismatchedExtraFieldValueIds === [],
             'hasCentralExtraFields' => $centralExtraFieldIds !== [],
             'hasLocalExtraFields' => $localExtraFieldIds !== [],
-            'hasZipExtraFieldProvenance' => $centralExtraFieldIds !== [] || $localExtraFieldIds !== [],
-            'hasDuplicateExtraFieldIds' => is_array($extraFieldEntry)
-                && ($extraFieldEntry['hasDuplicateExtraFieldIds'] ?? false) === true,
-            'hasMismatchedExtraFieldIds' => is_array($extraFieldEntry)
-                && ($extraFieldEntry['hasMismatchedExtraFieldIds'] ?? false) === true,
-            'hasMismatchedExtraFieldValues' => is_array($extraFieldEntry)
-                && ($extraFieldEntry['hasMismatchedExtraFieldValues'] ?? false) === true,
+            'hasZipExtraFieldProvenance' => $zipExtraFieldIds !== [],
+            'hasDuplicateExtraFieldIds' => ($summary['hasDuplicateExtraFieldIds'] ?? false) === true,
+            'hasMismatchedExtraFieldIds' => ($summary['hasMismatchedExtraFieldIds'] ?? false) === true,
+            'hasMismatchedExtraFieldValues' => ($summary['hasMismatchedExtraFieldValues'] ?? false) === true,
         ];
+    }
+
+    /**
+     * @param list<array{id:int, data:string}> $fields
+     * @return list<array{id:int, idHex:string, dataLength:int}>
+     */
+    private static function zipExtraFieldReviewRecords(array $fields): array
+    {
+        return array_map(
+            static fn (array $field): array => [
+                'id' => (int) $field['id'],
+                'idHex' => sprintf('%04x', (int) $field['id']),
+                'dataLength' => strlen($field['data']),
+            ],
+            $fields
+        );
+    }
+
+    /**
+     * @param list<array{id:int, idHex:string, dataLength:int}> $records
+     */
+    private static function zipExtraFieldRecordByteLength(array $records): int
+    {
+        $length = 0;
+        foreach ($records as $record) {
+            $length += 4 + (int) $record['dataLength'];
+        }
+
+        return $length;
     }
 
     /**
