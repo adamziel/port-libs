@@ -81,6 +81,7 @@ return [
     'summarizes ODT package part extensions across compact and rich package provenance' => static function (TestRunner $t) use ($buildPackage, $indexBy): void {
         $compactSummary = OpenDocumentPackage::fromPackage($buildPackage())->summarize();
         $compactInventory = $compactSummary['packageInventory'];
+        $compactIdentity = $compactSummary['packageIdentity'];
         $richResult = (new OdfReader())->readPackage($buildPackage());
         $richProvenance = $richResult['importReport']['manifest']['packageProvenance'];
 
@@ -89,6 +90,7 @@ return [
         $compactParts = $compactInventory['parts'];
         $richParts = $richProvenance['parts'];
         $identity = $richProvenance['packageIdentity'];
+        $documentIdentity = $richResult['document']->attr('manifest')['packageProvenance']['packageIdentity'];
         $identityParts = [];
         foreach ($identity['packageEntries'] as $entry) {
             $identityParts[$entry['part']] = $entry;
@@ -131,6 +133,26 @@ return [
         $t->same($expectedPathExtensionCounts, $compactInventory['packagePathExtensionCounts']);
         $t->same($expectedPathExtensionCounts, $richProvenance['packagePathExtensionCounts']);
         $t->same($expectedPathExtensionCounts, $identity['packagePathExtensionCounts']);
+        foreach ([
+            'packageAreaSummaries',
+            'packagePathsByPackageArea',
+            'packagePathsByPathDepth',
+        ] as $key) {
+            $t->same($compactInventory[$key], $compactIdentity[$key], "compact identity {$key}");
+            $t->same($richProvenance[$key], $identity[$key], "rich identity {$key}");
+            $t->same($identity[$key], $documentIdentity[$key], "document identity {$key}");
+        }
+        $t->same($compactInventory['packagePathDepthCounts'], $compactIdentity['packagePathDepthCounts']);
+        $t->same($richProvenance['packagePathDepthCounts'], $identity['packagePathDepthCounts']);
+        $t->same($identity['packagePathDepthCounts'], $documentIdentity['packagePathDepthCounts']);
+        $t->same($compactInventory['maxPackagePathDepth'], $compactIdentity['maxPackagePathDepth']);
+        $t->same($richProvenance['maxPackagePathDepth'], $identity['maxPackagePathDepth']);
+        $t->same('Pictures/', $identityParts['Pictures/HERO.PNG']['packageArea']);
+        $t->same('Basic/', $identityParts['Basic/Standard/Review.xml']['packageArea']);
+        $t->same(3, $identityParts['Basic/Standard/Review.xml']['packagePathDepth']);
+        $t->true(in_array('Pictures/HERO.PNG', $identity['packagePathsByPackageArea']['Pictures/'] ?? [], true));
+        $t->true(in_array('Basic/Standard/Review.xml', $identity['packagePathsByPackageArea']['Basic/'] ?? [], true));
+        $t->true(in_array('Basic/Standard/Review.xml', $identity['packagePathsByPathDepth'][3] ?? [], true));
         $t->same(4, $compactInventory['extensionlessPackagePartCount']);
         $t->same(4, $richProvenance['extensionlessPackagePartCount']);
         $t->same(4, $identity['extensionlessPackagePartCount']);
