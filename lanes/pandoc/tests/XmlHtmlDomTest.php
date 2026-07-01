@@ -3694,6 +3694,45 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(2, $crosslinks['duplicates'][1]['targetCount'] ?? null);
         $t->same(['mediaobject', 'mediaobject'], $crosslinks['duplicates'][1]['targetElements'] ?? null);
         $t->same(['media/dup-a.png', 'media/dup-b.png'], $crosslinks['duplicates'][1]['mediaTargetManifestRefs'] ?? null);
+
+        $referenceSummaries = $packet['bibliographyMediaReferenceSummaries'];
+        $t->same(2, $packet['bibliographyMediaReferenceSummaryCount']);
+        $t->same('ref-media', $referenceSummaries[0]['entryId'] ?? null);
+        $t->same('Media Study', $referenceSummaries[0]['entryTitle'] ?? null);
+        $t->same(['Mira Lens'], $referenceSummaries[0]['entryContributorNames'] ?? null);
+        $t->same('2025', $referenceSummaries[0]['entryYear'] ?? null);
+        $t->same(['linked-media-target'], $referenceSummaries[0]['referenceKinds'] ?? null);
+        $t->same(['fig-photo', 'missing-media', 'dup-media'], $referenceSummaries[0]['linkedMediaTargetIds'] ?? null);
+        $t->same(['fig-photo'], $referenceSummaries[0]['resolvedMediaTargetIds'] ?? null);
+        $t->same(['missing-media'], $referenceSummaries[0]['missingMediaTargetIds'] ?? null);
+        $t->same(['fig-photo', 'dup-media'], $referenceSummaries[0]['duplicateMediaTargetIds'] ?? null);
+        $t->same(['media/plate-a.png', 'media/dup-a.png', 'media/dup-b.png'], $referenceSummaries[0]['mediaTargetManifestRefs'] ?? null);
+        $t->same(3, $referenceSummaries[0]['linkedMediaTargetCount'] ?? null);
+        $t->same(1, $referenceSummaries[0]['resolvedMediaTargetCount'] ?? null);
+        $t->same(1, $referenceSummaries[0]['missingMediaTargetCount'] ?? null);
+        $t->same(2, $referenceSummaries[0]['duplicateMediaTargetCount'] ?? null);
+        $t->same(3, $referenceSummaries[0]['mediaTargetManifestRefCount'] ?? null);
+        $t->same([
+            'missing-bibliography-media-target',
+            'duplicate-bibliography-media-crosslink',
+            'duplicate-bibliography-media-target-id',
+        ], $referenceSummaries[0]['diagnosticCodes'] ?? null);
+        $t->same(3, $referenceSummaries[0]['diagnosticCount'] ?? null);
+        $t->same(false, $referenceSummaries[0]['payloadBytesExposed'] ?? null);
+
+        $t->same('ref-inline', $referenceSummaries[1]['entryId'] ?? null);
+        $t->same('Inline Media Appendix', $referenceSummaries[1]['entryTitle'] ?? null);
+        $t->same(['Ira Inline'], $referenceSummaries[1]['entryContributorNames'] ?? null);
+        $t->same('2024', $referenceSummaries[1]['entryYear'] ?? null);
+        $t->same('bibliomixed', $referenceSummaries[1]['bibliographyBlockElement'] ?? null);
+        $t->same('ref-inline', $referenceSummaries[1]['bibliographyBlockId'] ?? null);
+        $t->same(['embedded-mediaobject'], $referenceSummaries[1]['referenceKinds'] ?? null);
+        $t->same(['bib-media'], $referenceSummaries[1]['embeddedMediaObjectIds'] ?? null);
+        $t->same(['media/bib-inline.png'], $referenceSummaries[1]['embeddedMediaImageDataRefs'] ?? null);
+        $t->same(0, $referenceSummaries[1]['linkedMediaTargetCount'] ?? null);
+        $t->same(1, $referenceSummaries[1]['embeddedMediaObjectCount'] ?? null);
+        $t->same(1, $referenceSummaries[1]['embeddedMediaImageDataRefCount'] ?? null);
+        $t->same(false, $referenceSummaries[1]['payloadBytesExposed'] ?? null);
         $t->true(in_array('bib-media', array_column($packet['mediaTargetManifest'], 'id'), true));
         $t->true(in_array('media/bib-inline.png', $packet['imageDataRefs'], true));
         json_encode($packet, JSON_THROW_ON_ERROR);

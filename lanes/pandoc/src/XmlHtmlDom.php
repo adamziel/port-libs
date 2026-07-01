@@ -4199,6 +4199,11 @@ final class XmlHtmlDom
             $xrefs,
             $mediaTargetManifest
         );
+        $bibliographyMediaReferenceSummaries = self::docBookBibliographyMediaReferenceSummaries(
+            $bibliographyEntries,
+            $bibliographyMediaCrosslinks,
+            $bibliographyMediaObjects
+        );
 
         return [
             'formatFamily' => 'xml-html5-docbook-dom',
@@ -4292,6 +4297,8 @@ final class XmlHtmlDom
             'bibliographyMediaCrosslinks' => $bibliographyMediaCrosslinks,
             'bibliographyMediaCrosslinkDiagnosticCodes' => $bibliographyMediaCrosslinks['diagnosticCodes'],
             'bibliographyMediaCrosslinkDiagnosticCount' => count($bibliographyMediaCrosslinks['diagnosticCodes']),
+            'bibliographyMediaReferenceSummaries' => $bibliographyMediaReferenceSummaries,
+            'bibliographyMediaReferenceSummaryCount' => count($bibliographyMediaReferenceSummaries),
             'mediaObjectCount' => count(self::descendantElements($root, 'mediaobject'))
                 + count(self::descendantElements($root, 'inlinemediaobject')),
             'imageObjectCount' => count(self::descendantElements($root, 'imageobject')),
@@ -6863,6 +6870,150 @@ final class XmlHtmlDom
             'entryYear' => $yearLikeValues[0] ?? null,
             'entryYearLikeValues' => $yearLikeValues,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param array<string, mixed> $crosslinks
+     * @param list<array<string, mixed>> $mediaObjects
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookBibliographyMediaReferenceSummaries(
+        array $entries,
+        array $crosslinks,
+        array $mediaObjects
+    ): array {
+        $entriesById = self::docBookBibliographyEntriesById($entries);
+        $summaries = [];
+
+        $ensureSummary = static function (
+            ?string $entryId,
+            ?string $blockElement = null,
+            ?string $blockId = null
+        ) use (&$summaries, $entriesById): string {
+            $key = is_string($entryId) && $entryId !== ''
+                ? 'entry:' . $entryId
+                : 'block:' . ($blockElement ?? '') . ':' . ($blockId ?? count($summaries));
+            if (isset($summaries[$key])) {
+                return $key;
+            }
+
+            $entryContext = self::docBookBibliographyMediaEntryContext(
+                is_string($entryId) && isset($entriesById[$entryId]) ? $entriesById[$entryId] : [],
+                $entryId
+            );
+            $summaries[$key] = $entryContext + [
+                'bibliographyBlockElement' => $blockElement,
+                'bibliographyBlockId' => $blockId,
+                'referenceKinds' => [],
+                'linkedMediaTargetIds' => [],
+                'resolvedMediaTargetIds' => [],
+                'missingMediaTargetIds' => [],
+                'duplicateMediaTargetIds' => [],
+                'embeddedMediaObjectIds' => [],
+                'embeddedMediaImageDataRefs' => [],
+                'mediaTargetManifestRefs' => [],
+                'diagnosticCodes' => [],
+                'payloadBytesExposed' => false,
+            ];
+
+            return $key;
+        };
+
+        foreach (is_array($crosslinks['resolved'] ?? null) ? $crosslinks['resolved'] : [] as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $entryId = is_string($record['entryId'] ?? null) ? $record['entryId'] : null;
+            $targetId = is_string($record['targetId'] ?? null) ? $record['targetId'] : null;
+            if ($entryId === null || $targetId === null) {
+                continue;
+            }
+
+            $key = $ensureSummary($entryId);
+            self::docBookAppendUniqueString($summaries[$key]['referenceKinds'], 'linked-media-target');
+            self::docBookAppendUniqueString($summaries[$key]['linkedMediaTargetIds'], $targetId);
+            self::docBookAppendUniqueString($summaries[$key]['resolvedMediaTargetIds'], $targetId);
+            foreach (is_array($record['mediaTargetManifestRefs'] ?? null) ? $record['mediaTargetManifestRefs'] : [] as $ref) {
+                self::docBookAppendUniqueString($summaries[$key]['mediaTargetManifestRefs'], $ref);
+            }
+        }
+
+        foreach (is_array($crosslinks['missing'] ?? null) ? $crosslinks['missing'] : [] as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $entryId = is_string($record['entryId'] ?? null) ? $record['entryId'] : null;
+            $targetId = is_string($record['targetId'] ?? null) ? $record['targetId'] : null;
+            if ($entryId === null || $targetId === null) {
+                continue;
+            }
+
+            $key = $ensureSummary($entryId);
+            self::docBookAppendUniqueString($summaries[$key]['referenceKinds'], 'linked-media-target');
+            self::docBookAppendUniqueString($summaries[$key]['linkedMediaTargetIds'], $targetId);
+            self::docBookAppendUniqueString($summaries[$key]['missingMediaTargetIds'], $targetId);
+            self::docBookAppendUniqueString($summaries[$key]['diagnosticCodes'], 'missing-bibliography-media-target');
+        }
+
+        foreach (is_array($crosslinks['duplicates'] ?? null) ? $crosslinks['duplicates'] : [] as $record) {
+            if (!is_array($record)) {
+                continue;
+            }
+
+            $entryId = is_string($record['entryId'] ?? null) ? $record['entryId'] : null;
+            $targetId = is_string($record['targetId'] ?? null) ? $record['targetId'] : null;
+            if ($entryId === null || $targetId === null) {
+                continue;
+            }
+
+            $key = $ensureSummary($entryId);
+            self::docBookAppendUniqueString($summaries[$key]['referenceKinds'], 'linked-media-target');
+            self::docBookAppendUniqueString($summaries[$key]['linkedMediaTargetIds'], $targetId);
+            self::docBookAppendUniqueString($summaries[$key]['duplicateMediaTargetIds'], $targetId);
+            if (is_string($record['code'] ?? null) && $record['code'] !== '') {
+                self::docBookAppendUniqueString($summaries[$key]['diagnosticCodes'], $record['code']);
+            }
+            foreach (is_array($record['mediaTargetManifestRefs'] ?? null) ? $record['mediaTargetManifestRefs'] : [] as $ref) {
+                self::docBookAppendUniqueString($summaries[$key]['mediaTargetManifestRefs'], $ref);
+            }
+        }
+
+        foreach ($mediaObjects as $mediaObject) {
+            $entryId = is_string($mediaObject['entryId'] ?? null) && $mediaObject['entryId'] !== ''
+                ? $mediaObject['entryId']
+                : null;
+            $blockElement = is_string($mediaObject['bibliographyBlockElement'] ?? null)
+                ? $mediaObject['bibliographyBlockElement']
+                : null;
+            $blockId = is_string($mediaObject['bibliographyBlockId'] ?? null)
+                ? $mediaObject['bibliographyBlockId']
+                : null;
+            $key = $ensureSummary($entryId, $blockElement, $blockId);
+            self::docBookAppendUniqueString($summaries[$key]['referenceKinds'], 'embedded-mediaobject');
+            if (is_string($mediaObject['id'] ?? null) && $mediaObject['id'] !== '') {
+                self::docBookAppendUniqueString($summaries[$key]['embeddedMediaObjectIds'], $mediaObject['id']);
+            }
+            foreach (is_array($mediaObject['imageDataRefs'] ?? null) ? $mediaObject['imageDataRefs'] : [] as $ref) {
+                self::docBookAppendUniqueString($summaries[$key]['embeddedMediaImageDataRefs'], $ref);
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            $summary['linkedMediaTargetCount'] = count($summary['linkedMediaTargetIds']);
+            $summary['resolvedMediaTargetCount'] = count($summary['resolvedMediaTargetIds']);
+            $summary['missingMediaTargetCount'] = count($summary['missingMediaTargetIds']);
+            $summary['duplicateMediaTargetCount'] = count($summary['duplicateMediaTargetIds']);
+            $summary['embeddedMediaObjectCount'] = count($summary['embeddedMediaObjectIds']);
+            $summary['embeddedMediaImageDataRefCount'] = count($summary['embeddedMediaImageDataRefs']);
+            $summary['mediaTargetManifestRefCount'] = count($summary['mediaTargetManifestRefs']);
+            $summary['diagnosticCount'] = count($summary['diagnosticCodes']);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**
