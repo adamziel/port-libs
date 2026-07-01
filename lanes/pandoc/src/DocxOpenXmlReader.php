@@ -1053,6 +1053,39 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['settingsViewStateIssueCount'] = (int) ($viewStateDetails['issueCount'] ?? 0);
             $packageProvenance['summary']['settingsViewStateIssueCodes'] = $viewStateDetails['issueCodes'] ?? [];
         }
+        $protectionDetails = $settings['protectionDetails'] ?? null;
+        if (is_array($protectionDetails)) {
+            $packageProvenance['summary']['settingsProtectionCount'] = (int) ($protectionDetails['count'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionKinds'] = $protectionDetails['kinds'] ?? [];
+            $packageProvenance['summary']['settingsProtectionHashValueCount'] = (int) ($protectionDetails['hashValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionSaltValueCount'] = (int) ($protectionDetails['saltValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionAlgorithmNameCount'] = (int) ($protectionDetails['algorithmNameCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionSpinCountAttributeCount'] = (int) ($protectionDetails['spinCountAttributeCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionCryptographicMetadataCount'] = (int) ($protectionDetails['cryptographicMetadataCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionReviewPolicy'] = $protectionDetails['reviewPolicy'] ?? 'settings-protection-metadata-only';
+
+            $byKind = is_array($protectionDetails['byKind'] ?? null) ? $protectionDetails['byKind'] : [];
+            $documentProtection = is_array($byKind['documentProtection'] ?? null) ? $byKind['documentProtection'] : null;
+            if ($documentProtection !== null) {
+                $packageProvenance['summary']['settingsDocumentProtectionPresent'] = true;
+                $packageProvenance['summary']['settingsDocumentProtectionEnforced'] = $documentProtection['enforcement'] ?? null;
+                $packageProvenance['summary']['settingsDocumentProtectionEdit'] = $documentProtection['edit'] ?? null;
+                $packageProvenance['summary']['settingsDocumentProtectionAlgorithmName'] = $documentProtection['algorithmName'] ?? null;
+                $packageProvenance['summary']['settingsDocumentProtectionHashValuePresent'] = $documentProtection['hashValuePresent'] ?? false;
+                $packageProvenance['summary']['settingsDocumentProtectionSaltValuePresent'] = $documentProtection['saltValuePresent'] ?? false;
+                $packageProvenance['summary']['settingsDocumentProtectionSpinCount'] = $documentProtection['spinCount'] ?? $documentProtection['cryptSpinCount'] ?? null;
+            }
+
+            $writeProtection = is_array($byKind['writeProtection'] ?? null) ? $byKind['writeProtection'] : null;
+            if ($writeProtection !== null) {
+                $packageProvenance['summary']['settingsWriteProtectionPresent'] = true;
+                $packageProvenance['summary']['settingsWriteProtectionRecommended'] = $writeProtection['recommended'] ?? null;
+                $packageProvenance['summary']['settingsWriteProtectionAlgorithmName'] = $writeProtection['algorithmName'] ?? null;
+                $packageProvenance['summary']['settingsWriteProtectionHashValuePresent'] = $writeProtection['hashValuePresent'] ?? false;
+                $packageProvenance['summary']['settingsWriteProtectionSaltValuePresent'] = $writeProtection['saltValuePresent'] ?? false;
+                $packageProvenance['summary']['settingsWriteProtectionSpinCount'] = $writeProtection['spinCount'] ?? $writeProtection['cryptSpinCount'] ?? null;
+            }
+        }
         $compatibilityDetails = $settings['compatibilityDetails'] ?? null;
         if (is_array($compatibilityDetails)) {
             $packageProvenance['summary']['settingsCompatibilityCount'] = (int) ($compatibilityDetails['count'] ?? 0);
@@ -25077,6 +25110,11 @@ final class DocxOpenXmlReader
             }
         }
 
+        $protectionDetails = $this->settingsProtectionDetails($settings);
+        if ($protectionDetails !== []) {
+            $settings['protectionDetails'] = $protectionDetails;
+        }
+
         $revisionView = $this->firstElement($xpath, '/w:settings/w:revisionView', $dom);
         if ($revisionView instanceof \DOMElement) {
             $revisionViewSettings = [];
@@ -25191,6 +25229,88 @@ final class DocxOpenXmlReader
         }
 
         return $settings;
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    private function settingsProtectionDetails(array $settings): array
+    {
+        $items = [];
+        $byKind = [];
+        foreach (['documentProtection', 'writeProtection'] as $kind) {
+            $protection = $settings[$kind] ?? null;
+            if (!is_array($protection) || $protection === []) {
+                continue;
+            }
+
+            $item = [
+                'kind' => $kind,
+                'attributeCount' => count($protection),
+                'edit' => is_string($protection['edit'] ?? null) ? $protection['edit'] : null,
+                'enforcement' => is_bool($protection['enforcement'] ?? null) ? $protection['enforcement'] : null,
+                'recommended' => is_bool($protection['recommended'] ?? null) ? $protection['recommended'] : null,
+                'algorithmName' => is_string($protection['algorithmName'] ?? null) ? $protection['algorithmName'] : null,
+                'cryptProviderType' => is_string($protection['cryptProviderType'] ?? null) ? $protection['cryptProviderType'] : null,
+                'cryptAlgorithmClass' => is_string($protection['cryptAlgorithmClass'] ?? null) ? $protection['cryptAlgorithmClass'] : null,
+                'cryptAlgorithmType' => is_string($protection['cryptAlgorithmType'] ?? null) ? $protection['cryptAlgorithmType'] : null,
+                'cryptAlgorithmSid' => is_int($protection['cryptAlgorithmSid'] ?? null) ? $protection['cryptAlgorithmSid'] : null,
+                'spinCount' => is_int($protection['spinCount'] ?? null) ? $protection['spinCount'] : null,
+                'cryptSpinCount' => is_int($protection['cryptSpinCount'] ?? null) ? $protection['cryptSpinCount'] : null,
+                'reviewPolicy' => 'settings-protection-metadata-only',
+                'rawValueExposurePolicy' => 'settings-protection-hash-and-salt-values-hashed',
+                'cryptographicValidation' => false,
+            ];
+
+            foreach (['hashValue', 'saltValue'] as $valueKey) {
+                $value = $protection[$valueKey] ?? null;
+                $present = is_string($value) && $value !== '';
+                $item[$valueKey . 'Present'] = $present;
+                $item[$valueKey . 'Length'] = $present ? strlen($value) : 0;
+                $item[$valueKey . 'Sha256'] = $present ? hash('sha256', $value) : null;
+            }
+
+            $item['cryptographicMetadataPresent'] = $item['algorithmName'] !== null
+                || $item['hashValuePresent'] === true
+                || $item['saltValuePresent'] === true
+                || $item['spinCount'] !== null
+                || $item['cryptProviderType'] !== null
+                || $item['cryptAlgorithmClass'] !== null
+                || $item['cryptAlgorithmType'] !== null
+                || $item['cryptAlgorithmSid'] !== null
+                || $item['cryptSpinCount'] !== null;
+
+            $items[] = $item;
+            $byKind[$kind] = $item;
+        }
+
+        if ($items === []) {
+            return [];
+        }
+
+        $kinds = array_column($items, 'kind');
+        sort($kinds, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'kinds' => $kinds,
+            'documentProtectionPresent' => isset($byKind['documentProtection']),
+            'writeProtectionPresent' => isset($byKind['writeProtection']),
+            'hashValueCount' => count(array_filter($items, static fn (array $item): bool => $item['hashValuePresent'] === true)),
+            'saltValueCount' => count(array_filter($items, static fn (array $item): bool => $item['saltValuePresent'] === true)),
+            'algorithmNameCount' => count(array_filter($items, static fn (array $item): bool => $item['algorithmName'] !== null)),
+            'spinCountAttributeCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['spinCount'] !== null || $item['cryptSpinCount'] !== null,
+            )),
+            'cryptographicMetadataCount' => count(array_filter($items, static fn (array $item): bool => $item['cryptographicMetadataPresent'] === true)),
+            'reviewPolicy' => 'settings-protection-metadata-only',
+            'rawValueExposurePolicy' => 'settings-protection-hash-and-salt-values-hashed',
+            'cryptographicValidation' => false,
+            'items' => $items,
+            'byKind' => $byKind,
+        ];
     }
 
     /**
