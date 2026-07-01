@@ -391,6 +391,16 @@ return [
             'pdfExportControlCount' => 3,
             'featureGateCount' => 2,
             'executionPolicyPresent' => true,
+            'selectedExecutionJobs' => 'auto',
+            'selectedExecutionJobMode' => 'auto',
+            'selectedExecutionJobCount' => null,
+            'executionJobObservationCount' => 1,
+            'executionJobHistoryCount' => 0,
+            'executionJobOverrideCount' => 0,
+            'executionPolicyIssueCount' => 0,
+            'fixedExecutionJobCount' => 0,
+            'autoExecutionJobCount' => 1,
+            'invalidExecutionJobCount' => 0,
             'openOutputSideEffectCount' => 1,
             'openOutputViewerCount' => 1,
             'openOutputDefaultViewerCount' => 0,
@@ -430,6 +440,7 @@ return [
         $t->contains('typst-boundary-summary-unsafe-paths:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-sidecars:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-font-access-controls:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-execution-jobs:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-issues:4', implode(',', $plan['diagnostics']));
         $t->contains('pdf-engine-artifacts:2', implode(',', $plan['diagnostics']));
         $t->same(['build/boundary-summary.d', 'build/boundary-summary-timings.json'], $plan['expectedEngineArtifacts']);
@@ -3919,12 +3930,30 @@ return [
         $t->contains('typst-execution-policy-issues:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-execution-jobs:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-execution-job-overrides:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-execution-policy-issues:3', implode(',', $plan['diagnostics']));
+        $summary = $plan['typstBoundarySummary'];
+        $t->same(true, $summary['executionPolicyPresent']);
+        $t->same('many', $summary['selectedExecutionJobs']);
+        $t->same('invalid', $summary['selectedExecutionJobMode']);
+        $t->same(null, $summary['selectedExecutionJobCount']);
+        $t->same(3, $summary['executionJobObservationCount']);
+        $t->same(3, $summary['executionJobHistoryCount']);
+        $t->same(1, $summary['executionJobOverrideCount']);
+        $t->same(3, $summary['executionPolicyIssueCount']);
+        $t->same(1, $summary['fixedExecutionJobCount']);
+        $t->same(0, $summary['autoExecutionJobCount']);
+        $t->same(2, $summary['invalidExecutionJobCount']);
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($summary, $result['typstBoundarySummary']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same($summary, $result['artifactProvenanceReview']['typstBoundarySummary']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+        $t->same($summary, $sequence['finalTypstBoundarySummary']);
     },
 
     'maps typst execution jobs history into boundary matrix without executing engines' => static function (TestRunner $t) use ($document): void {

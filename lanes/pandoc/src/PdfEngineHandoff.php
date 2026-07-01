@@ -712,6 +712,15 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['invalidDiagnosticOutputCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-invalid-diagnostics:' . $typstBoundarySummary['invalidDiagnosticOutputCount'];
             }
+            if (($typstBoundarySummary['executionJobObservationCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-execution-jobs:' . $typstBoundarySummary['executionJobObservationCount'];
+            }
+            if (($typstBoundarySummary['executionJobOverrideCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-execution-job-overrides:' . $typstBoundarySummary['executionJobOverrideCount'];
+            }
+            if (($typstBoundarySummary['executionPolicyIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-execution-policy-issues:' . $typstBoundarySummary['executionPolicyIssueCount'];
+            }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
@@ -9533,6 +9542,47 @@ final class PdfEngineHandoff
         $outputFormatEntryCount = is_int($outputFormatPolicy['formatEntryCount'] ?? null)
             ? $outputFormatPolicy['formatEntryCount']
             : (int) ($outputFormat !== []);
+        $executionPolicy = is_array($provenance['executionPolicy'] ?? null) ? $provenance['executionPolicy'] : [];
+        $executionJobs = is_array($executionPolicy['jobs'] ?? null) ? $executionPolicy['jobs'] : [];
+        $executionJobHistory = is_array($provenance['jobsHistory'] ?? null) ? $provenance['jobsHistory'] : [];
+        $executionJobOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'jobs'
+        ));
+        $executionPolicyIssues = array_values(array_filter(
+            is_array($executionPolicy['issues'] ?? null) ? $executionPolicy['issues'] : [],
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        ));
+        $executionPolicyIssues = array_values(array_unique($executionPolicyIssues));
+        $fixedExecutionJobCount = 0;
+        $autoExecutionJobCount = 0;
+        $invalidExecutionJobCount = 0;
+        foreach ($executionJobHistory as $jobHistoryEntry) {
+            if (!is_array($jobHistoryEntry)) {
+                ++$invalidExecutionJobCount;
+                continue;
+            }
+            if (($jobHistoryEntry['mode'] ?? null) === 'fixed') {
+                ++$fixedExecutionJobCount;
+            } elseif (($jobHistoryEntry['mode'] ?? null) === 'auto') {
+                ++$autoExecutionJobCount;
+            } else {
+                ++$invalidExecutionJobCount;
+            }
+        }
+        if ($executionJobHistory === [] && $executionJobs !== []) {
+            if (($executionJobs['mode'] ?? null) === 'fixed') {
+                $fixedExecutionJobCount = 1;
+            } elseif (($executionJobs['mode'] ?? null) === 'auto') {
+                $autoExecutionJobCount = 1;
+            } else {
+                $invalidExecutionJobCount = 1;
+            }
+        }
+        $selectedExecutionJobs = is_string($executionJobs['value'] ?? null) ? $executionJobs['value'] : null;
+        $selectedExecutionJobMode = is_string($executionJobs['mode'] ?? null) ? $executionJobs['mode'] : null;
+        $selectedExecutionJobCount = is_int($executionJobs['jobCount'] ?? null) ? $executionJobs['jobCount'] : null;
+        $executionJobObservationCount = $executionJobHistory === [] ? (int) ($executionJobs !== []) : count($executionJobHistory);
         $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
         $pdfExportControlCount = 0;
         foreach ([
@@ -9676,7 +9726,17 @@ final class PdfEngineHandoff
             'outputFormatIssueCount' => count($outputFormatIssues),
             'pdfExportControlCount' => $pdfExportControlCount,
             'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
-            'executionPolicyPresent' => is_array($provenance['executionPolicy'] ?? null),
+            'executionPolicyPresent' => $executionPolicy !== [],
+            'selectedExecutionJobs' => $selectedExecutionJobs,
+            'selectedExecutionJobMode' => $selectedExecutionJobMode,
+            'selectedExecutionJobCount' => $selectedExecutionJobCount,
+            'executionJobObservationCount' => $executionJobObservationCount,
+            'executionJobHistoryCount' => count($executionJobHistory),
+            'executionJobOverrideCount' => count($executionJobOverrides),
+            'executionPolicyIssueCount' => count($executionPolicyIssues),
+            'fixedExecutionJobCount' => $fixedExecutionJobCount,
+            'autoExecutionJobCount' => $autoExecutionJobCount,
+            'invalidExecutionJobCount' => $invalidExecutionJobCount,
             'openOutputSideEffectCount' => is_int($openOutput['flagCount'] ?? null) ? $openOutput['flagCount'] : 0,
             'openOutputViewerCount' => count($openOutputViewers),
             'openOutputDefaultViewerCount' => $openOutputDefaultViewerCount,
