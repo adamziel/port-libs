@@ -231,6 +231,13 @@ $aggregateFields = [
     'hasDuplicatePackagePartCaseFoldBaseNames' => 'zipPackageManifestHasDuplicatePackagePartCaseFoldBaseNames',
     'duplicatePackagePartCaseFoldBaseNames' => 'zipPackageManifestDuplicatePackagePartCaseFoldBaseNames',
     'duplicatePackagePartCaseFoldBaseNameSummaries' => 'zipPackageManifestDuplicatePackagePartCaseFoldBaseNameSummaries',
+    'packagePartBaseNameStemSummaryCount' => 'zipPackageManifestPackagePartBaseNameStemSummaryCount',
+    'packagePartBaseNameStems' => 'zipPackageManifestPackagePartBaseNameStems',
+    'packagePartBaseNameStemSummaries' => 'zipPackageManifestPackagePartBaseNameStemSummaries',
+    'duplicatePackagePartBaseNameStemCount' => 'zipPackageManifestDuplicatePackagePartBaseNameStemCount',
+    'hasDuplicatePackagePartBaseNameStems' => 'zipPackageManifestHasDuplicatePackagePartBaseNameStems',
+    'duplicatePackagePartBaseNameStems' => 'zipPackageManifestDuplicatePackagePartBaseNameStems',
+    'duplicatePackagePartBaseNameStemSummaries' => 'zipPackageManifestDuplicatePackagePartBaseNameStemSummaries',
     'packagePartCaseFoldBaseNameStemSummaryCount' => 'zipPackageManifestPackagePartCaseFoldBaseNameStemSummaryCount',
     'packagePartCaseFoldBaseNameStems' => 'zipPackageManifestPackagePartCaseFoldBaseNameStems',
     'packagePartCaseFoldBaseNameStemSummaries' => 'zipPackageManifestPackagePartCaseFoldBaseNameStemSummaries',
@@ -430,6 +437,13 @@ return [
             'hasDuplicatePackagePartCaseFoldBaseNames',
             'duplicatePackagePartCaseFoldBaseNames',
             'duplicatePackagePartCaseFoldBaseNameSummaries',
+            'packagePartBaseNameStemSummaryCount',
+            'packagePartBaseNameStems',
+            'packagePartBaseNameStemSummaries',
+            'duplicatePackagePartBaseNameStemCount',
+            'hasDuplicatePackagePartBaseNameStems',
+            'duplicatePackagePartBaseNameStems',
+            'duplicatePackagePartBaseNameStemSummaries',
             'packagePartCaseFoldBaseNameStemSummaryCount',
             'packagePartCaseFoldBaseNameStems',
             'packagePartCaseFoldBaseNameStemSummaries',
@@ -457,6 +471,9 @@ return [
             $t->same(2, $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNameCount'], "{$label} duplicate case-fold basename count");
             $t->same(true, $surface['zipPackageManifestHasDuplicatePackagePartCaseFoldBaseNames'], "{$label} duplicate case-fold basename flag");
             $t->same(['content.xml', 'review.png'], $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNames'], "{$label} duplicate case-fold basenames");
+            $t->same(1, $surface['zipPackageManifestDuplicatePackagePartBaseNameStemCount'], "{$label} duplicate exact basename stem count");
+            $t->same(true, $surface['zipPackageManifestHasDuplicatePackagePartBaseNameStems'], "{$label} duplicate exact basename stem flag");
+            $t->same(['content'], $surface['zipPackageManifestDuplicatePackagePartBaseNameStems'], "{$label} duplicate exact basename stems");
             $t->same(2, $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStemCount'], "{$label} duplicate case-fold basename stem count");
             $t->same(true, $surface['zipPackageManifestHasDuplicatePackagePartCaseFoldBaseNameStems'], "{$label} duplicate case-fold basename stem flag");
             $t->same(['content', 'review'], $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStems'], "{$label} duplicate case-fold basename stems");
