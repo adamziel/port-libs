@@ -1259,6 +1259,7 @@ final class OpenDocumentPackage
 
             $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared, $embeddedObjectPackage);
             $pathSegments = self::packagePathSegments($entry->name);
+            $pathByteLength = strlen($entry->name);
             $pathSegmentCharacterFlags = self::packagePathSegmentCharacterFlags($pathSegments);
             $directory = self::packagePartDirectory($entry->name);
             $packagePartExtension = self::packagePartExtension($entry->name);
@@ -1276,6 +1277,8 @@ final class OpenDocumentPackage
             }
             $item = [
                 'path' => $entry->name,
+                'pathByteLength' => $pathByteLength,
+                'pathByteLengthBucket' => self::packagePathByteLengthBucket($pathByteLength),
                 'pathSegments' => $pathSegments,
                 'pathSegmentCount' => count($pathSegments),
                 'topLevelSegment' => $pathSegments[0] ?? '',
@@ -1557,6 +1560,7 @@ final class OpenDocumentPackage
             }
         }
         $pathSegmentCharacters = self::packagePathSegmentCharacterSummary($parts);
+        $pathByteLengths = self::packagePathByteLengthSummary($parts, 'path');
         ksort($roleCounts, SORT_STRING);
         ksort($roleByteLengths, SORT_STRING);
         ksort($roleCompressedByteLengths, SORT_STRING);
@@ -1577,6 +1581,12 @@ final class OpenDocumentPackage
 
         return [
             'entryCount' => count($parts),
+            'packagePathByteLengthBucketCount' => $pathByteLengths['packagePathByteLengthBucketCount'],
+            'packagePathByteLengthBucketCounts' => $pathByteLengths['packagePathByteLengthBucketCounts'],
+            'packagePathByteLengthBuckets' => $pathByteLengths['packagePathByteLengthBuckets'],
+            'maxPackagePathByteLength' => $pathByteLengths['maxPackagePathByteLength'],
+            'longestPackagePathNames' => $pathByteLengths['longestPackagePathNames'],
+            'longestPackagePaths' => $pathByteLengths['longestPackagePaths'],
             'partPathDepthCount' => $pathDepthReview['partPathDepthCount'],
             'partPathDepths' => $pathDepthReview['partPathDepths'],
             'maxPartPathSegmentCount' => $pathDepthReview['maxPartPathSegmentCount'],
@@ -2129,6 +2139,8 @@ final class OpenDocumentPackage
 
             $packageEntries[] = self::withoutEmptyValues([
                 'path' => $part['path'] ?? null,
+                'pathByteLength' => $part['pathByteLength'] ?? null,
+                'pathByteLengthBucket' => $part['pathByteLengthBucket'] ?? null,
                 'pathSegments' => $part['pathSegments'] ?? [],
                 'pathSegmentCount' => $part['pathSegmentCount'] ?? null,
                 'topLevelSegment' => $part['topLevelSegment'] ?? null,
@@ -2368,6 +2380,12 @@ final class OpenDocumentPackage
             'manifestRootNamespaceDeclarationMap' => $manifestRootAttributes['namespaceDeclarationMap'] ?? [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
+            'packagePathByteLengthBucketCount' => $packageInventory['packagePathByteLengthBucketCount'] ?? 0,
+            'packagePathByteLengthBucketCounts' => $packageInventory['packagePathByteLengthBucketCounts'] ?? [],
+            'packagePathByteLengthBuckets' => $packageInventory['packagePathByteLengthBuckets'] ?? [],
+            'maxPackagePathByteLength' => $packageInventory['maxPackagePathByteLength'] ?? 0,
+            'longestPackagePathNames' => $packageInventory['longestPackagePathNames'] ?? [],
+            'longestPackagePaths' => $packageInventory['longestPackagePaths'] ?? [],
             'partPathDepthCount' => $packageInventory['partPathDepthCount'] ?? 0,
             'partPathDepths' => $packageInventory['partPathDepths'] ?? [],
             'maxPartPathSegmentCount' => $packageInventory['maxPartPathSegmentCount'] ?? 0,
@@ -2533,6 +2551,226 @@ final class OpenDocumentPackage
             'baseName' => $baseName,
             'extension' => $extension,
         ];
+    }
+
+    private static function packagePathByteLengthBucket(int $byteLength): string
+    {
+        if ($byteLength <= 0) {
+            return '0';
+        }
+        if ($byteLength <= 15) {
+            return '1-15';
+        }
+        if ($byteLength <= 31) {
+            return '16-31';
+        }
+        if ($byteLength <= 63) {
+            return '32-63';
+        }
+        if ($byteLength <= 127) {
+            return '64-127';
+        }
+
+        return '128-plus';
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     packagePathByteLengthBucketCount:int,
+     *     packagePathByteLengthBucketCounts:array<string, int>,
+     *     packagePathByteLengthBuckets:list<array<string, mixed>>,
+     *     maxPackagePathByteLength:int,
+     *     longestPackagePathNames:list<string>,
+     *     longestPackagePaths:list<array<string, mixed>>
+     * }
+     */
+    private static function packagePathByteLengthSummary(array $parts, string $nameField): array
+    {
+        $bucketCounts = [];
+        $buckets = [];
+        $longestParts = [];
+        $maxPathByteLength = 0;
+
+        foreach ($parts as $fallbackName => $part) {
+            $partSummary = self::packagePathByteLengthItem($part, $nameField, (string) $fallbackName);
+            $partName = (string) ($partSummary['partName'] ?? $fallbackName);
+            $pathByteLength = (int) ($partSummary['pathByteLength'] ?? 0);
+            $bucket = (string) ($partSummary['pathByteLengthBucket'] ?? self::packagePathByteLengthBucket($pathByteLength));
+            $byteLength = (int) ($partSummary['byteLength'] ?? 0);
+            $compressedByteLength = (int) ($partSummary['compressedByteLength'] ?? 0);
+            $isDirectory = ($partSummary['isDirectory'] ?? false) === true;
+            $declaredInManifest = ($partSummary['declaredInManifest'] ?? false) === true;
+            $undeclared = ($partSummary['undeclared'] ?? false) === true;
+            $canExposeBytes = ($partSummary['canExposeBytes'] ?? false) === true;
+            $byteExposurePolicy = is_string($partSummary['byteExposurePolicy'] ?? null)
+                ? $partSummary['byteExposurePolicy']
+                : '';
+            $roles = array_values(array_map('strval', is_array($partSummary['roles'] ?? null) ? $partSummary['roles'] : []));
+
+            if (!isset($buckets[$bucket])) {
+                $buckets[$bucket] = [
+                    'bucket' => $bucket,
+                    'partCount' => 0,
+                    'fileCount' => 0,
+                    'directoryCount' => 0,
+                    'byteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'minPathByteLength' => $pathByteLength,
+                    'maxPathByteLength' => $pathByteLength,
+                    'declaredInManifestCount' => 0,
+                    'undeclaredEntryCount' => 0,
+                    'exposableEntryCount' => 0,
+                    'blockedEntryCount' => 0,
+                    'roleCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'partNames' => [],
+                    'longestPart' => null,
+                ];
+            }
+
+            $bucketCounts[$bucket] = ($bucketCounts[$bucket] ?? 0) + 1;
+            ++$buckets[$bucket]['partCount'];
+            $buckets[$bucket]['byteLength'] += $byteLength;
+            $buckets[$bucket]['compressedByteLength'] += $compressedByteLength;
+            $buckets[$bucket]['minPathByteLength'] = min($buckets[$bucket]['minPathByteLength'], $pathByteLength);
+            $buckets[$bucket]['maxPathByteLength'] = max($buckets[$bucket]['maxPathByteLength'], $pathByteLength);
+            $buckets[$bucket]['partNames'][] = $partName;
+            if ($isDirectory) {
+                ++$buckets[$bucket]['directoryCount'];
+            } else {
+                ++$buckets[$bucket]['fileCount'];
+            }
+            if ($declaredInManifest) {
+                ++$buckets[$bucket]['declaredInManifestCount'];
+            }
+            if ($undeclared) {
+                ++$buckets[$bucket]['undeclaredEntryCount'];
+            }
+            if ($canExposeBytes) {
+                ++$buckets[$bucket]['exposableEntryCount'];
+            } else {
+                ++$buckets[$bucket]['blockedEntryCount'];
+            }
+            if ($byteExposurePolicy !== '') {
+                $buckets[$bucket]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                    ($buckets[$bucket]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            }
+            foreach ($roles as $role) {
+                if ($role === '') {
+                    continue;
+                }
+                $buckets[$bucket]['roleCounts'][$role] = ($buckets[$bucket]['roleCounts'][$role] ?? 0) + 1;
+            }
+            if (self::isPreferredLongestPackagePath($buckets[$bucket]['longestPart'], $partSummary)) {
+                $buckets[$bucket]['longestPart'] = $partSummary;
+            }
+
+            if ($pathByteLength > $maxPathByteLength) {
+                $maxPathByteLength = $pathByteLength;
+                $longestParts = [];
+            }
+            if ($pathByteLength === $maxPathByteLength) {
+                $longestParts[$partName] = $partSummary;
+            }
+        }
+
+        $bucketCounts = self::sortPackagePathByteLengthBuckets($bucketCounts);
+        $buckets = self::sortPackagePathByteLengthBuckets($buckets);
+        foreach ($buckets as &$bucketSummary) {
+            sort($bucketSummary['partNames'], SORT_STRING);
+            ksort($bucketSummary['roleCounts'], SORT_STRING);
+            ksort($bucketSummary['byteExposurePolicyCounts'], SORT_STRING);
+        }
+        unset($bucketSummary);
+        ksort($longestParts, SORT_STRING);
+
+        return [
+            'packagePathByteLengthBucketCount' => count($buckets),
+            'packagePathByteLengthBucketCounts' => $bucketCounts,
+            'packagePathByteLengthBuckets' => array_values($buckets),
+            'maxPackagePathByteLength' => $maxPathByteLength,
+            'longestPackagePathNames' => array_keys($longestParts),
+            'longestPackagePaths' => array_values($longestParts),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $part
+     * @return array<string, mixed>
+     */
+    private static function packagePathByteLengthItem(array $part, string $nameField, string $fallbackName): array
+    {
+        $partName = is_string($part[$nameField] ?? null) && $part[$nameField] !== ''
+            ? $part[$nameField]
+            : $fallbackName;
+        $pathByteLength = is_int($part['pathByteLength'] ?? null)
+            ? $part['pathByteLength']
+            : strlen($partName);
+
+        return self::withoutEmptyValues([
+            'partName' => $partName,
+            'path' => $partName,
+            'pathByteLength' => $pathByteLength,
+            'pathByteLengthBucket' => is_string($part['pathByteLengthBucket'] ?? null) && $part['pathByteLengthBucket'] !== ''
+                ? $part['pathByteLengthBucket']
+                : self::packagePathByteLengthBucket($pathByteLength),
+            'byteLength' => is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0,
+            'compressedByteLength' => is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0,
+            'roles' => array_values(array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : [])),
+            'byteExposurePolicy' => is_string($part['byteExposurePolicy'] ?? null) ? $part['byteExposurePolicy'] : null,
+            'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+            'undeclared' => ($part['undeclared'] ?? false) === true,
+            'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+            'isDirectory' => ($part['isDirectory'] ?? false) === true,
+        ]);
+    }
+
+    /**
+     * @template T of mixed
+     * @param array<string, T> $items
+     * @return array<string, T>
+     */
+    private static function sortPackagePathByteLengthBuckets(array $items): array
+    {
+        $order = [
+            '0' => 0,
+            '1-15' => 1,
+            '16-31' => 2,
+            '32-63' => 3,
+            '64-127' => 4,
+            '128-plus' => 5,
+        ];
+
+        uksort($items, static function (string $left, string $right) use ($order): int {
+            $leftOrder = $order[$left] ?? PHP_INT_MAX;
+            $rightOrder = $order[$right] ?? PHP_INT_MAX;
+            if ($leftOrder !== $rightOrder) {
+                return $leftOrder <=> $rightOrder;
+            }
+
+            return strcmp($left, $right);
+        });
+
+        return $items;
+    }
+
+    private static function isPreferredLongestPackagePath(?array $current, array $candidate): bool
+    {
+        if (!is_array($current)) {
+            return true;
+        }
+
+        $candidateBytes = (int) ($candidate['pathByteLength'] ?? 0);
+        $currentBytes = (int) ($current['pathByteLength'] ?? 0);
+        if ($candidateBytes !== $currentBytes) {
+            return $candidateBytes > $currentBytes;
+        }
+
+        return strcmp(
+            (string) ($candidate['partName'] ?? $candidate['path'] ?? ''),
+            (string) ($current['partName'] ?? $current['path'] ?? '')
+        ) < 0;
     }
 
     private static function packagePartExtension(string $path): ?string
