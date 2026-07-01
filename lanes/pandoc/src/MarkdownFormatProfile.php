@@ -54,9 +54,14 @@ final class MarkdownFormatProfile
         'emoji_shortcode' => 'emoji_shortcodes',
         'header_attrs' => 'header_attributes',
         'header_attribute' => 'header_attributes',
+        'hard-line-breaks' => 'hard_line_breaks',
+        'ignore-line-breaks' => 'ignore_line_breaks',
+        'east-asian-line-breaks' => 'east_asian_line_breaks',
+        'inline-notes' => 'inline_notes',
         'inline_attribute' => 'inline_attributes',
         'markdown_attribute' => 'inline_attributes',
         'line_block' => 'line_blocks',
+        'line-blocks' => 'line_blocks',
         'raw_latex' => 'raw_tex',
         'latex_macros' => 'raw_tex',
         'subscripts' => 'subscript',
@@ -176,6 +181,13 @@ final class MarkdownFormatProfile
         if ($suffix === '') {
             return [];
         }
+        $suffix = strtr($suffix, [
+            'hard-line-breaks' => 'hard_line_breaks',
+            'ignore-line-breaks' => 'ignore_line_breaks',
+            'east-asian-line-breaks' => 'east_asian_line_breaks',
+            'inline-notes' => 'inline_notes',
+            'line-blocks' => 'line_blocks',
+        ]);
 
         if (preg_match_all('/([+-])([A-Za-z0-9_]+)/', $suffix, $matches, PREG_SET_ORDER) === false) {
             return [];
@@ -228,7 +240,9 @@ final class MarkdownFormatProfile
 
     private static function canonicalExtension(string $extension): string
     {
-        return self::EXTENSION_ALIASES[$extension] ?? $extension;
+        $normalized = str_replace('-', '_', $extension);
+
+        return self::EXTENSION_ALIASES[$extension] ?? self::EXTENSION_ALIASES[$normalized] ?? $normalized;
     }
 
     /**

@@ -434,7 +434,7 @@ final class MarkdownReader
                 continue;
             }
             $this->flushListStack($listStack, $blocks);
-            $paragraph[] = trim($line);
+            $paragraph[] = ltrim($line, " \t");
         }
         $this->flushParagraph($paragraph, $blocks);
         $this->flushListStack($listStack, $blocks);
@@ -10004,7 +10004,7 @@ final class MarkdownReader
      */
     private function joinParagraphLines(array $paragraph): string
     {
-        return implode("\n", $paragraph);
+        return rtrim(implode("\n", $paragraph), " \t");
     }
 
     /**
@@ -10096,8 +10096,13 @@ final class MarkdownReader
 
         while ($offset < $length) {
             if ($text[$offset] === "\n") {
+                $breakKind = $this->inlineLineBreakKind($buffer, $text, $offset);
+                if ($breakKind === 'ignore') {
+                    $offset++;
+                    continue;
+                }
                 $this->flushText($buffer, $nodes);
-                $nodes[] = new AstNode('softbreak');
+                $nodes[] = new AstNode($breakKind);
                 $offset++;
                 continue;
             }
@@ -10154,7 +10159,9 @@ final class MarkdownReader
                 }
             }
 
-            $inlineNote = $this->resolveFootnoteReferences ? $this->tryParseInlineNote($text, $offset) : null;
+            $inlineNote = $this->resolveFootnoteReferences && $this->inlineNoteExtensionEnabled()
+                ? $this->tryParseInlineNote($text, $offset)
+                : null;
             if ($inlineNote !== null) {
                 $this->flushText($buffer, $nodes);
                 $nodes[] = $inlineNote['node'];
@@ -10348,6 +10355,85 @@ final class MarkdownReader
         $this->flushText($buffer, $nodes);
 
         return $nodes;
+    }
+
+    private function inlineLineBreakKind(string &$buffer, string $text, int $offset): string
+    {
+        $paddingLength = $this->stripTrailingInlineLineBreakPadding($buffer);
+        $mode = $this->lineBreakExtensionMode();
+        if ($paddingLength >= 2) {
+            return 'linebreak';
+        }
+        if ($mode === 'hard') {
+            return 'linebreak';
+        }
+        if ($mode === 'ignore') {
+            return 'ignore';
+        }
+        if ($mode === 'east_asian' && $this->isEastAsianLineBreakBoundary($buffer, $text, $offset)) {
+            return 'ignore';
+        }
+
+        return 'softbreak';
+    }
+
+    private function stripTrailingInlineLineBreakPadding(string &$buffer): int
+    {
+        $trimmed = rtrim($buffer, " \t");
+        $paddingLength = strlen($buffer) - strlen($trimmed);
+        $buffer = $trimmed;
+
+        return $paddingLength;
+    }
+
+    private function lineBreakExtensionMode(): string
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (($overrides['hard_line_breaks'] ?? false) === true) {
+            return 'hard';
+        }
+        if (($overrides['ignore_line_breaks'] ?? false) === true) {
+            return 'ignore';
+        }
+        if (($overrides['east_asian_line_breaks'] ?? false) === true) {
+            return 'east_asian';
+        }
+
+        return 'soft';
+    }
+
+    private function isEastAsianLineBreakBoundary(string $buffer, string $text, int $offset): bool
+    {
+        $previous = $this->lastUnicodeCharacter(rtrim($buffer, " \t"));
+        $next = $this->firstUnicodeCharacter(ltrim(substr($text, $offset + 1), " \t"));
+        if ($previous === null || $next === null) {
+            return false;
+        }
+
+        return $this->isEastAsianLineBreakCharacter($previous) && $this->isEastAsianLineBreakCharacter($next);
+    }
+
+    private function lastUnicodeCharacter(string $text): ?string
+    {
+        if ($text === '') {
+            return null;
+        }
+
+        return preg_match('/.$/us', $text, $match) === 1 ? $match[0] : null;
+    }
+
+    private function firstUnicodeCharacter(string $text): ?string
+    {
+        if ($text === '') {
+            return null;
+        }
+
+        return preg_match('/^./us', $text, $match) === 1 ? $match[0] : null;
+    }
+
+    private function isEastAsianLineBreakCharacter(string $character): bool
+    {
+        return preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $character) === 1;
     }
 
     /**
@@ -11204,6 +11290,19 @@ final class MarkdownReader
         $overrides = $this->markdownExtensionOverrides();
         if (array_key_exists('bracketed_spans', $overrides)) {
             return $overrides['bracketed_spans'];
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['markdown', 'commonmark_x', 'markdown_phpextra', 'markdown_mmd'], true);
+    }
+
+    private function inlineNoteExtensionEnabled(): bool
+    {
+        $overrides = $this->markdownExtensionOverrides();
+        if (array_key_exists('inline_notes', $overrides)) {
+            return $overrides['inline_notes'];
         }
 
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';

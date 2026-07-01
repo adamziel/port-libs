@@ -141,6 +141,28 @@ $lineBreakFormats = [
 
 $lineBreakCaseCount = count($lineBreakFormats) * 6;
 $aliasCaseCount = count($aliasExpectations) * count($featureProbes);
+$inlineNoteOverrideCases = [
+    'gfm plus inline_notes format suffix' => [
+        'reader' => ['format' => 'gfm+inline_notes'],
+        'enabled' => true,
+    ],
+    'commonmark plus hyphen inline-notes format suffix' => [
+        'reader' => ['format' => 'commonmark+inline-notes'],
+        'enabled' => true,
+    ],
+    'markdown github plus hyphen inline-notes option' => [
+        'reader' => ['format' => 'markdown-github', 'extensions' => ['+inline-notes']],
+        'enabled' => true,
+    ],
+    'markdown minus inline_notes format suffix' => [
+        'reader' => ['format' => 'markdown-inline_notes'],
+        'enabled' => false,
+    ],
+    'markdown false inline_notes option' => [
+        'reader' => ['format' => 'markdown', 'extensions' => ['inline_notes' => false]],
+        'enabled' => false,
+    ],
+];
 
 return [
     'maps upstream markdown hyphenated reader format aliases to canonical extension profiles' =>
@@ -166,6 +188,26 @@ return [
             }
 
             $t->same(50, $mapped);
+        },
+    'maps upstream markdown reader inline note extension overrides' =>
+        static function (TestRunner $t) use ($findInline, $inlineNoteOverrideCases, $inlineText): void {
+            $mapped = 0;
+            foreach ($inlineNoteOverrideCases as $name => $case) {
+                $document = (new MarkdownReader($case['reader']))->read('Before ^[inline note] after.');
+                $paragraph = $document->children[0] ?? new AstNode('missing');
+                $note = $findInline($paragraph, static fn (AstNode $node): bool => $node->type === 'note');
+
+                if ($case['enabled']) {
+                    $t->same('note', $note->type, $name);
+                    $t->same('Before inline note after.', $inlineText($paragraph), $name);
+                } else {
+                    $t->same('missing', $note->type, $name);
+                    $t->same('Before ^[inline note] after.', $inlineText($paragraph), $name);
+                }
+                $mapped++;
+            }
+
+            $t->same(5, $mapped);
         },
     'maps upstream markdown reader hard line break format extension overrides' =>
         static function (TestRunner $t) use ($lineBreakFormats, $read): void {
@@ -265,7 +307,7 @@ return [
             $t->same(11, $mapped);
         },
     'records upstream markdown reader line break profile mapped-case count' =>
-        static function (TestRunner $t) use ($aliasCaseCount, $lineBreakCaseCount): void {
-            $t->same(116, $aliasCaseCount + $lineBreakCaseCount);
+        static function (TestRunner $t) use ($aliasCaseCount, $inlineNoteOverrideCases, $lineBreakCaseCount): void {
+            $t->same(121, $aliasCaseCount + $lineBreakCaseCount + count($inlineNoteOverrideCases));
         },
 ];
