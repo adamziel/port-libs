@@ -62,6 +62,15 @@ final class NativeWriter
         'targetNative',
     ];
 
+    private const NATIVE_METADATA_CONSTRUCTORS = [
+        'MetaString',
+        'MetaBool',
+        'MetaInlines',
+        'MetaBlocks',
+        'MetaList',
+        'MetaMap',
+    ];
+
     /**
      * @param array{standalone?: bool, blocksOnly?: bool} $options
      */
@@ -136,6 +145,14 @@ final class NativeWriter
 
         if (!is_array($value)) {
             return false;
+        }
+
+        if (
+            !array_is_list($value)
+            && is_string($value['t'] ?? null)
+            && in_array($value['t'], self::NATIVE_METADATA_CONSTRUCTORS, true)
+        ) {
+            return true;
         }
 
         foreach ($value as $item) {

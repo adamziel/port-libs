@@ -1161,6 +1161,42 @@ return [
             $t->same($bodyNative, $packet['meta']['body'], "{$writer} writer keeps unchanged direct block metadata payload");
         }
     },
+    'emits native json for direct pre-tagged metadata constructors without document sidecars' => static function (TestRunner $t): void {
+        $statusNative = ['t' => 'MetaString', 'c' => 'queued', 'reviewQueue' => 'status-source'];
+        $aliasesNative = ['t' => 'MetaList', 'c' => [
+            ['t' => 'MetaString', 'c' => 'json-native'],
+            ['t' => 'MetaBool', 'c' => true],
+        ], 'reviewQueue' => 'aliases-source'];
+        $reviewNative = ['t' => 'MetaMap', 'c' => [
+            'status' => $statusNative,
+            'aliases' => $aliasesNative,
+        ], 'reviewQueue' => 'review-source'];
+        $document = new AstNode('document', [
+            'meta' => [
+                'review' => $reviewNative,
+            ],
+        ], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Constructor']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'metadata']),
+            ]),
+        ]);
+
+        $nativeJson = (new NativeWriter())->write($document);
+        $packet = json_decode($nativeJson, true, 512, JSON_THROW_ON_ERROR);
+        $jsonDocument = (new PandocJsonReader())->readPacket($packet);
+        $nativeDocument = (new NativeReader())->read($nativeJson);
+
+        $t->same([1, 23, 1], $packet['pandoc-api-version']);
+        $t->same($reviewNative, $packet['meta']['review']);
+        $t->same('Para', $packet['blocks'][0]['t']);
+        $t->same('Constructor', $packet['blocks'][0]['c'][0]['c']);
+        $t->same('queued', $jsonDocument->attr('meta')['review']['items']['status'] ?? null);
+        $t->same(['json-native', true], $jsonDocument->attr('meta')['review']['items']['aliases']['items'] ?? null);
+        $t->same($reviewNative, $nativeDocument->attr('meta')['review'] ?? null);
+        $t->same('Constructor metadata', $nativeDocument->children[0]->attr('text'));
+    },
     'reads constructorless json-compatible metadata through json and native ast readers' => static function (TestRunner $t): void {
         $packet = [
             'pandoc-api-version' => [1, 23, 1],
