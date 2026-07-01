@@ -6452,6 +6452,62 @@ return [
         $t->same(['unsafe-attribute', 'base-target-review', 'blocked-tag', 'blocked-tag'], $malformedDiagnostics);
         $t->true(!str_contains($malformed->serialize(), '<frame'), 'Expected malformed target markup text to stay out of review HTML');
     },
+    'adds source line metadata to base helper diagnostics before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<p>before</p>\n"
+            . '<base href="java&#10;script:alert(1)" target="bad{frame">' . "\n"
+            . '<a href="doc.html">doc</a>',
+            'https://fallback.example.test/import/source.html'
+        );
+        $baseDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['tag'] ?? '') === 'base'
+        ));
+
+        $t->same(
+            "<p>before</p>\n\n<a href=\"https://fallback.example.test/import/doc.html\">doc</a>",
+            $fragment->serialize()
+        );
+        $t->same('https://fallback.example.test/import/source.html', $fragment->baseUrl());
+        $t->same(['normalized-url', 'unsafe-url', 'unsafe-attribute', 'blocked-tag'], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+            $baseDiagnostics
+        ));
+        $t->same(['href', 'href', 'target', ''], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''),
+            $baseDiagnostics
+        ));
+        $t->same([2, 2, 2, 2], array_map(
+            static fn (array $diagnostic): int => (int) ($diagnostic['line'] ?? 0),
+            $baseDiagnostics
+        ));
+        foreach (['<base', 'javascript:', 'bad{frame'] as $blocked) {
+            $t->true(!str_contains($fragment->serialize(), $blocked), 'Expected unsafe base helper metadata to stay diagnostic-only: ' . $blocked);
+        }
+
+        $unresolved = Html5DomFragment::fromHtml(
+            "\n<base href=\"../assets/\">\n<img src=\"cover.png\" alt=\"Cover\">"
+        );
+        $unresolvedBaseDiagnostics = array_values(array_filter(
+            $unresolved->diagnostics(),
+            static fn (array $diagnostic): bool => ($diagnostic['tag'] ?? '') === 'base'
+        ));
+
+        $t->same("\n\n<img src=\"cover.png\" alt=\"Cover\">", $unresolved->serialize());
+        $t->same(null, $unresolved->baseUrl());
+        $t->same(['unresolved-base-url', 'blocked-tag'], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+            $unresolvedBaseDiagnostics
+        ));
+        $t->same(['href', ''], array_map(
+            static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''),
+            $unresolvedBaseDiagnostics
+        ));
+        $t->same([2, 2], array_map(
+            static fn (array $diagnostic): int => (int) ($diagnostic['line'] ?? 0),
+            $unresolvedBaseDiagnostics
+        ));
+    },
     'converts image map areas into inert reviewer links before WordPress handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<base href="https://source.example.test/import/posts/post.html">'

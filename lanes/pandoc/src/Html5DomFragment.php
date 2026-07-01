@@ -6583,7 +6583,7 @@ final class Html5DomFragment
                 continue;
             }
 
-            $target = self::normalizeHtmlBaseTargetValue($baseElement->getAttribute('target'), $diagnostics);
+            $target = self::normalizeHtmlBaseTargetValue($baseElement->getAttribute('target'), $baseElement, $diagnostics);
             if ($target === null) {
                 continue;
             }
@@ -6618,16 +6618,16 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlBaseTargetValue(string $value, array &$diagnostics): ?string
+    private static function normalizeHtmlBaseTargetValue(string $value, \DOMElement $baseElement, array &$diagnostics): ?string
     {
         $value = str_replace("\0", '', $value);
         if (preg_match('/[\t\r\n\f<]/', $value) === 1) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => 'base',
                 'attribute' => 'target',
                 'reason' => 'target-normalized-to-blank',
-            ];
+            ], $baseElement);
 
             return '_blank';
         }
@@ -6637,20 +6637,20 @@ final class Html5DomFragment
             return null;
         }
         if (strlen($target) > 128 || preg_match('/[>"\'`{}]/', $target) === 1) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => 'base',
                 'attribute' => 'target',
-            ];
+            ], $baseElement);
 
             return null;
         }
         if (preg_match('/^[A-Za-z0-9_.:-]+$/', $target) !== 1) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-attribute',
                 'tag' => 'base',
                 'attribute' => 'target',
-            ];
+            ], $baseElement);
 
             return null;
         }
@@ -11129,14 +11129,14 @@ final class Html5DomFragment
             }
             $hasActiveHref = true;
             if ($normalizedHref !== $href) {
-                $diagnostics[] = [
+                $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'normalized-url',
                     'tag' => 'base',
                     'attribute' => 'href',
-                ];
+                ], $baseElement);
             }
 
-            $resolved = self::resolveBaseHref($normalizedHref, $documentBaseUrl, $diagnostics);
+            $resolved = self::resolveBaseHref($normalizedHref, $documentBaseUrl, $baseElement, $diagnostics);
             if ($resolved !== null) {
                 $resolvedBaseUrl = $resolved;
             }
@@ -11194,18 +11194,23 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function resolveBaseHref(string $href, ?string $documentBaseUrl, array &$diagnostics): ?string
+    private static function resolveBaseHref(
+        string $href,
+        ?string $documentBaseUrl,
+        \DOMElement $baseElement,
+        array &$diagnostics
+    ): ?string
     {
         if (self::isTrustedAbsoluteBaseUrl($href)) {
             return $href;
         }
 
         if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $href) === 1) {
-            $diagnostics[] = [
+            $diagnostics[] = self::diagnosticWithSourceLine([
                 'code' => 'unsafe-url',
                 'tag' => 'base',
                 'attribute' => 'href',
-            ];
+            ], $baseElement);
 
             return null;
         }
@@ -11214,11 +11219,11 @@ final class Html5DomFragment
             return self::resolveRelativeUrl($documentBaseUrl, $href);
         }
 
-        $diagnostics[] = [
+        $diagnostics[] = self::diagnosticWithSourceLine([
             'code' => 'unresolved-base-url',
             'tag' => 'base',
             'attribute' => 'href',
-        ];
+        ], $baseElement);
 
         return null;
     }
