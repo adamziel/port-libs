@@ -1075,19 +1075,19 @@ final class BibtexCslProcessor
             $item['event-date'] = $eventDate;
         }
 
-        $availableDate = $this->datePartsFromFields($fields, ['availabledate', 'available-date', 'available'], ['availableyear', 'availablemonth', 'availableday']);
+        $availableDate = $this->dateVariableFromFields($fields, ['availabledate', 'available-date', 'available'], ['availableyear', 'availablemonth', 'availableday']);
         if ($availableDate !== null) {
-            $item['available-date'] = ['date-parts' => [$availableDate]];
+            $item['available-date'] = $availableDate;
         }
 
-        $submittedDate = $this->datePartsFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday']);
+        $submittedDate = $this->dateVariableFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday']);
         if ($submittedDate !== null) {
-            $item['submitted'] = ['date-parts' => [$submittedDate]];
+            $item['submitted'] = $submittedDate;
         }
 
-        $labelDate = $this->datePartsFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday']);
+        $labelDate = $this->dateVariableFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday']);
         if ($labelDate !== null) {
-            $item['label-date'] = ['date-parts' => [$labelDate]];
+            $item['label-date'] = $labelDate;
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
@@ -2231,31 +2231,6 @@ final class BibtexCslProcessor
     }
 
     /**
-     * @param array<string, string> $fields
-     * @param list<string> $dateFields
-     * @param list<string> $ymdFields
-     * @return list<int>|null
-     */
-    private function datePartsFromFields(array $fields, array $dateFields, array $ymdFields): ?array
-    {
-        $date = $this->dateVariableFromFields($fields, $dateFields, $ymdFields);
-        $dateParts = $date['date-parts'] ?? null;
-        if (!is_array($dateParts) || count($dateParts) !== 1 || !is_array($dateParts[0] ?? null)) {
-            return null;
-        }
-
-        $parts = [];
-        foreach ($dateParts[0] as $part) {
-            if (!is_int($part)) {
-                return null;
-            }
-            $parts[] = $part;
-        }
-
-        return $parts;
-    }
-
-    /**
      * @return array{date-parts:list<list<int>>, raw?:string, open-ended?:string}|null
      */
     private function dateVariableFromRawValue(string $value): ?array
@@ -3042,8 +3017,45 @@ final class BibtexCslProcessor
      */
     private function dateDisplay(array $item, string $field): string
     {
-        $parts = $item[$field]['date-parts'][0] ?? [];
-        if (!is_array($parts) || $parts === []) {
+        $dateParts = $item[$field]['date-parts'] ?? [];
+        if (!is_array($dateParts) || $dateParts === []) {
+            return '';
+        }
+
+        $displays = [];
+        foreach ($dateParts as $parts) {
+            if (!is_array($parts)) {
+                return '';
+            }
+
+            $display = $this->datePartDisplay($parts);
+            if ($display === '') {
+                return '';
+            }
+            $displays[] = $display;
+        }
+
+        if ($displays === []) {
+            return '';
+        }
+
+        $openEnded = trim((string) ($item[$field]['open-ended'] ?? ''));
+        if ($openEnded === 'start') {
+            return '/' . $displays[0];
+        }
+        if ($openEnded === 'end') {
+            return $displays[0] . '/';
+        }
+
+        return implode('/', $displays);
+    }
+
+    /**
+     * @param list<int|string> $parts
+     */
+    private function datePartDisplay(array $parts): string
+    {
+        if ($parts === []) {
             return '';
         }
 

@@ -3375,4 +3375,78 @@ XML);
         $t->contains('Submitted date: 2026-05-28', $blocks);
         $t->contains('Label date: 2025-12', $blocks);
     },
+    'preserves legacy biblatex availability submitted and label date ranges in csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@report{legacy-date-range-handoff,
+  author         = {Smith, Ada},
+  title          = {Legacy Date Range Handoff Packet},
+  date           = {2026},
+  availabledate  = {2026-06-15/2026-07-01},
+  submitted-date = {2026-05/},
+  labeldate      = {/2025-12}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-date-range-handoff'];
+
+        $t->same([[2026, 6, 15], [2026, 7, 1]], $item['available-date']['date-parts']);
+        $t->same('2026-06-15/2026-07-01', $item['available-date']['raw']);
+        $t->same([[2026, 5]], $item['submitted']['date-parts']);
+        $t->same('end', $item['submitted']['open-ended']);
+        $t->same('2026-05/', $item['submitted']['raw']);
+        $t->same([[2025, 12]], $item['label-date']['date-parts']);
+        $t->same('start', $item['label-date']['open-ended']);
+        $t->same('/2025-12', $item['label-date']['raw']);
+        $t->same(
+            'Ada Smith. Legacy Date Range Handoff Packet. 2026. Available date: 2026-06-15/2026-07-01. Submitted date: 2026-05/. Label date: /2025-12.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+        <date variable="label-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+      <date variable="label-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same(
+            '[Legacy Date Range Handoff Packet | 2026-06-15/2026-07-01 | 2026-05/ | /2025-12]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'legacy-date-range-handoff', 'text' => '[@legacy-date-range-handoff]']),
+            ])
+        );
+        $t->same(
+            'Legacy Date Range Handoff Packet :: 2026-06-15/2026-07-01 :: 2026-05/ :: /2025-12',
+            $styled->renderBibliographyEntry('legacy-date-range-handoff')
+        );
+
+        $document = (new MarkdownReader())->read('Legacy date ranges cite @legacy-date-range-handoff.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['legacy-date-range-handoff'], $handoff['citedKeys']);
+        $t->same([[2026, 6, 15], [2026, 7, 1]], $handoff['items'][0]['available-date']['date-parts']);
+        $t->contains('Available date: 2026-06-15/2026-07-01', $blocks);
+        $t->contains('Submitted date: 2026-05/', $blocks);
+        $t->contains('Label date: /2025-12', $blocks);
+    },
 ];
