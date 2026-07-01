@@ -13786,8 +13786,12 @@ final class DocxOpenXmlReader
         $missingRelationshipTargets = [];
         $externalRelationshipTargets = [];
         $unsafeExternalRelationshipTargets = [];
+        $externalRelationshipsWithoutExternalTargetMode = [];
+        $externalRelativeRelationshipTargets = [];
         $externalRelationshipTargetAllowedCount = 0;
         $externalRelationshipTargetUnsafeCount = 0;
+        $externalRelationshipWithoutExternalTargetModeCount = 0;
+        $externalRelationshipRelativeReferenceCount = 0;
         $externalRelationshipTargetKindCounts = [];
         $externalRelationshipTargetSchemeCounts = [];
         $externalRelationshipTargetIssueCounts = [];
@@ -13814,6 +13818,8 @@ final class DocxOpenXmlReader
         $relationshipPartsWithPackageRootTargets = [];
         $relationshipPartsWithParentTraversalTargets = [];
         $relationshipPartsWithSameSourceTargets = [];
+        $relationshipPartsWithExternalTargetsWithoutExternalMode = [];
+        $relationshipPartsWithExternalRelativeTargets = [];
         $relationshipTargetsWithReferenceSuffix = [];
         $relationshipTargetsWithQueryParameters = [];
         $relationshipTargetsStartingAtPackageRoot = [];
@@ -14257,6 +14263,12 @@ final class DocxOpenXmlReader
                     ++$externalRelationshipCount;
                     $externalSummary = $this->relationshipProvenanceSummaryItem($relationship);
                     $externalRelationshipTargets[] = $externalSummary;
+                    $targetMode = is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : '';
+                    if ($targetMode !== 'External') {
+                        ++$externalRelationshipWithoutExternalTargetModeCount;
+                        $relationshipPartsWithExternalTargetsWithoutExternalMode[(string) $relationshipsPart] = true;
+                        $externalRelationshipsWithoutExternalTargetMode[] = $externalSummary;
+                    }
 
                     $externalKind = is_string($externalSummary['externalTargetKind'] ?? null)
                         ? $externalSummary['externalTargetKind']
@@ -14264,6 +14276,11 @@ final class DocxOpenXmlReader
                     if ($externalKind !== '') {
                         $externalRelationshipTargetKindCounts[$externalKind] =
                             ($externalRelationshipTargetKindCounts[$externalKind] ?? 0) + 1;
+                    }
+                    if ($externalKind === 'relative-reference') {
+                        ++$externalRelationshipRelativeReferenceCount;
+                        $relationshipPartsWithExternalRelativeTargets[(string) $relationshipsPart] = true;
+                        $externalRelativeRelationshipTargets[] = $externalSummary;
                     }
 
                     $externalScheme = is_string($externalSummary['externalTargetScheme'] ?? null)
@@ -16272,6 +16289,8 @@ final class DocxOpenXmlReader
             'externalRelationshipCount' => $externalRelationshipCount,
             'externalRelationshipTargetAllowedCount' => $externalRelationshipTargetAllowedCount,
             'externalRelationshipTargetUnsafeCount' => $externalRelationshipTargetUnsafeCount,
+            'externalRelationshipWithoutExternalTargetModeCount' => $externalRelationshipWithoutExternalTargetModeCount,
+            'externalRelationshipRelativeReferenceCount' => $externalRelationshipRelativeReferenceCount,
             'externalRelationshipTargetKindCounts' => $externalRelationshipTargetKindCounts,
             'externalRelationshipTargetSchemeCounts' => $externalRelationshipTargetSchemeCounts,
             'externalRelationshipTargetIssueCounts' => $externalRelationshipTargetIssueCounts,
@@ -16566,6 +16585,8 @@ final class DocxOpenXmlReader
             'relationshipPartsWithExplicitInternalTargetMode' => array_keys($relationshipPartsWithExplicitInternalTargetMode),
             'relationshipPartsWithUnexpectedTargetMode' => array_keys($relationshipPartsWithUnexpectedTargetMode),
             'relationshipPartsWithUnsafeExternalTargets' => array_keys($relationshipPartsWithUnsafeExternalTargets),
+            'relationshipPartsWithExternalTargetsWithoutExternalMode' => array_keys($relationshipPartsWithExternalTargetsWithoutExternalMode),
+            'relationshipPartsWithExternalRelativeTargets' => array_keys($relationshipPartsWithExternalRelativeTargets),
             'missingContentTypePartByteLength' => $missingContentTypePartByteLength,
             'partsWithoutContentType' => $partsWithoutContentType,
             'missingRelationshipTargets' => $missingRelationshipTargets,
@@ -16578,6 +16599,8 @@ final class DocxOpenXmlReader
             'relationshipsWithSameSourceTargets' => $relationshipsWithSameSourceTargets,
             'externalRelationshipTargets' => $externalRelationshipTargets,
             'unsafeExternalRelationshipTargets' => $unsafeExternalRelationshipTargets,
+            'externalRelationshipsWithoutExternalTargetMode' => $externalRelationshipsWithoutExternalTargetMode,
+            'externalRelativeRelationshipTargets' => $externalRelativeRelationshipTargets,
             'duplicateRelationshipIdItems' => $duplicateRelationshipIdItems,
             'invalidRelationshipRecords' => $invalidRelationshipRecords,
             'invalidRelationshipParts' => $invalidRelationshipParts,
@@ -25002,6 +25025,8 @@ final class DocxOpenXmlReader
                         'sameSourceTargetCount' => 0,
                         'allowedExternalTargetCount' => 0,
                         'unsafeExternalTargetCount' => 0,
+                        'externalWithoutExternalTargetModeCount' => 0,
+                        'externalRelativeReferenceTargetCount' => 0,
                         'externalTargetKindCounts' => [],
                         'externalTargetSchemeCounts' => [],
                         'externalTargetIssueCounts' => [],
@@ -25022,6 +25047,8 @@ final class DocxOpenXmlReader
                         'targetPartExtensionCounts' => [],
                         'targetPartWithoutExtensionCount' => 0,
                         'externalTargets' => [],
+                        'externalTargetsWithoutExternalTargetMode' => [],
+                        'externalRelativeReferenceTargets' => [],
                         'unsafeExternalTargets' => [],
                         'contentTypes' => [],
                         'targetContentTypeSourceCounts' => [],
@@ -25084,12 +25111,22 @@ final class DocxOpenXmlReader
                 if ($external) {
                     $types[$typeKey]['externalCount']++;
                     $this->appendUniqueString($types[$typeKey]['externalTargets'], $target);
+                    $targetMode = is_string($relationship['targetMode'] ?? null) ? $relationship['targetMode'] : '';
+                    if ($targetMode !== 'External') {
+                        $types[$typeKey]['externalWithoutExternalTargetModeCount']++;
+                        $types[$typeKey]['externalTargetsWithoutExternalTargetMode'][] = $this->relationshipProvenanceSummaryItem($relationship);
+                    }
+
                     $externalKind = is_string($relationship['externalTargetKind'] ?? null)
                         ? $relationship['externalTargetKind']
                         : '';
                     if ($externalKind !== '') {
                         $types[$typeKey]['externalTargetKindCounts'][$externalKind] =
                             ($types[$typeKey]['externalTargetKindCounts'][$externalKind] ?? 0) + 1;
+                    }
+                    if ($externalKind === 'relative-reference') {
+                        $types[$typeKey]['externalRelativeReferenceTargetCount']++;
+                        $types[$typeKey]['externalRelativeReferenceTargets'][] = $this->relationshipProvenanceSummaryItem($relationship);
                     }
 
                     $externalScheme = is_string($relationship['externalTargetScheme'] ?? null)

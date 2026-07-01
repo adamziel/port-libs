@@ -12328,6 +12328,55 @@ XML;
         $t->same('word/media/unexpected-mode.png', $unexpectedRecord['targetPart']);
         $t->same(true, $unexpectedRecord['exists']);
     },
+    'summarizes docx external relationship target mode provenance for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rImplicitExternal" Type="' . $hyperlinkType . '" Target="https://example.test/implicit-external?mode=implicit#link"/>' . "\n" .
+            '  <Relationship Id="rRelativeExternal" Type="' . $imageType . '" Target="media/external-relative.png?mode=relative#img" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $relationships = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships'];
+        $hyperlinks = $package['relationshipTypes'][$hyperlinkType];
+        $images = $package['relationshipTypes'][$imageType];
+
+        $t->same(3, $summary['externalRelationshipCount']);
+        $t->same(1, $summary['externalRelationshipWithoutExternalTargetModeCount']);
+        $t->same(1, $summary['externalRelationshipRelativeReferenceCount']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithExternalTargetsWithoutExternalMode']);
+        $t->same(['word/_rels/document.xml.rels'], $summary['relationshipPartsWithExternalRelativeTargets']);
+        $t->same(['absolute-uri' => 2, 'relative-reference' => 1], $summary['externalRelationshipTargetKindCounts']);
+        $t->same(['rImplicitExternal'], array_column($summary['externalRelationshipsWithoutExternalTargetMode'], 'id'));
+        $t->same(['rRelativeExternal'], array_column($summary['externalRelativeRelationshipTargets'], 'id'));
+
+        $t->same('', $relationships['rImplicitExternal']['targetMode']);
+        $t->same(true, $relationships['rImplicitExternal']['external']);
+        $t->same('absolute-uri', $relationships['rImplicitExternal']['externalTargetKind']);
+        $t->same('https', $relationships['rImplicitExternal']['externalTargetScheme']);
+        $t->same('mode=implicit', $relationships['rImplicitExternal']['targetQuery']);
+        $t->same('link', $relationships['rImplicitExternal']['targetFragment']);
+        $t->same('External', $relationships['rRelativeExternal']['targetMode']);
+        $t->same(true, $relationships['rRelativeExternal']['external']);
+        $t->same('relative-reference', $relationships['rRelativeExternal']['externalTargetKind']);
+        $t->same(null, $relationships['rRelativeExternal']['externalTargetScheme']);
+        $t->same(null, $relationships['rRelativeExternal']['targetPart']);
+        $t->same('media/external-relative.png?mode=relative#img', $relationships['rRelativeExternal']['resolvedTarget']);
+
+        $t->same(2, $hyperlinks['externalCount']);
+        $t->same(1, $hyperlinks['externalWithoutExternalTargetModeCount']);
+        $t->same(0, $hyperlinks['externalRelativeReferenceTargetCount']);
+        $t->same(['rImplicitExternal'], array_column($hyperlinks['externalTargetsWithoutExternalTargetMode'], 'id'));
+        $t->same(1, $images['externalCount']);
+        $t->same(0, $images['externalWithoutExternalTargetModeCount']);
+        $t->same(1, $images['externalRelativeReferenceTargetCount']);
+        $t->same(['rRelativeExternal'], array_column($images['externalRelativeReferenceTargets'], 'id'));
+    },
     'summarizes docx package parts without content type coverage' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
