@@ -233,7 +233,11 @@ return [
             $t->same(['test/docx/golden/*.docx'], $plan['fixtureClosure']['writerGoldenFixtureGlobs']);
             $t->same(233, $plan['fixtureClosure']['pinnedInventoryCounts']['docxDirectoryArtifacts']);
             $t->contains('cabal v2-build --offline --project-dir=.', $plan['nonMutatingDryRunPlanCommand']['commandLine']);
+            $t->contains('--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $plan['nonMutatingDryRunPlanCommand']['commandLine']);
             $t->contains('--dry-run', $plan['nonMutatingDryRunPlanCommand']['commandLine']);
+            $t->same('.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $plan['nonMutatingDryRunPlanCommand']['buildDirectory']);
+            $t->same('.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $plan['nonMutatingDryRunPlanCommand']['workspaceBuildDirectory']);
+            $t->same('.port-libs/pandoc-runner/logs/runner-test-dependencies.txt', $plan['nonMutatingDryRunPlanCommand']['transcriptFile']);
             $t->same('descriptor-only; do not execute from this isolated PHP lane', $plan['nonMutatingDryRunPlanCommand']['executionPolicy']);
             $t->same('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $plan['futureTargetedRunCommand']['arguments'][7]);
             $t->contains('not executed by this audit', $plan['futureTargetedRunCommand']['executionPolicy']);

@@ -191,6 +191,9 @@ return [
             $t->contains('Local execution blocker: missing DOCX upstream source paths', $text);
             $t->contains('Pinned source: not-checked-upstream-root-missing', $text);
             $t->contains('--dry-run --only-dependencies', $report['commands']['dependencyDryRun']['commandLine']);
+            $t->contains('--offline', $report['commands']['dependencyDryRun']['commandLine']);
+            $t->contains('--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $report['commands']['dependencyDryRun']['commandLine']);
+            $t->same('.port-libs/pandoc-runner/logs/runner-test-dependencies.txt', $report['commands']['dependencyDryRun']['transcriptFile']);
             $t->contains('--list-tests --pattern', $report['commands']['listDocxTests']['commandLine']);
             $t->contains('($2 == "Readers" || $2 == "Writers") && $3 == "Docx"', $report['commands']['targetedDocxRun']['commandLine']);
             $t->contains('not an upstream DOCX runner result', $report['claim']);
@@ -262,6 +265,7 @@ return [
             $t->same(false, $readiness['resultRecordedByThisTool']);
             $t->true(is_array($readiness['blockers']), 'Readiness blockers must be a list even when local tooling availability varies');
             $t->same('cache/pandoc-current', $report['commands']['targetedDocxRun']['workingDirectory']);
+            $t->same('.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $report['workspace']['directories']['dependencyBuild']);
             $t->same('.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $report['workspace']['directories']['targetedRunBuild']);
             $t->same('.port-libs/pandoc-runner/tmp', $report['workspace']['environmentVariables']['TMPDIR']);
             $t->same('test:test-pandoc', $report['runnerTarget']);

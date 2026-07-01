@@ -1952,13 +1952,13 @@
                 }
             },
             "nonMutatingDryRunPlanCommand": {
-                "descriptor": "UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()[\"runner-test-dependencies\"]",
+                "descriptor": "UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()[\"runner-test-dependencies\"] with DOCX targeted builddir override",
                 "program": "cabal",
                 "arguments": [
                     "v2-build",
                     "--offline",
                     "--project-dir=.",
-                    "--builddir=.port-libs/pandoc-runner/cabal-build/runner-test-dependencies",
+                    "--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run",
                     "--dry-run",
                     "--only-dependencies",
                     "--enable-tests",
@@ -1966,13 +1966,13 @@
                     "test:test-pandoc",
                     "test:test-pandoc-lua-engine"
                 ],
-                "commandLine": "cabal v2-build --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/runner-test-dependencies --dry-run --only-dependencies --enable-tests --disable-benchmarks test:test-pandoc test:test-pandoc-lua-engine",
+                "commandLine": "cabal v2-build --offline --project-dir=. --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run --dry-run --only-dependencies --enable-tests --disable-benchmarks test:test-pandoc test:test-pandoc-lua-engine",
                 "targets": [
                     "test:test-pandoc",
                     "test:test-pandoc-lua-engine"
                 ],
                 "workingDirectory": "hydrated Pandoc upstream checkout root",
-                "buildDirectory": ".port-libs/pandoc-runner/cabal-build/runner-test-dependencies",
+                "buildDirectory": ".port-libs/pandoc-runner/cabal-build/docx-targeted-run",
                 "executionPolicy": "descriptor-only; do not execute from this isolated PHP lane",
                 "workspaceEnvironmentVariables": [
                     "CABAL_DIR",
@@ -1981,7 +1981,7 @@
                     "XDG_STATE_HOME",
                     "TMPDIR"
                 ],
-                "workspaceBuildDirectory": ".port-libs/pandoc-runner/cabal-build/runner-test-dependencies",
+                "workspaceBuildDirectory": ".port-libs/pandoc-runner/cabal-build/docx-targeted-run",
                 "transcriptFile": ".port-libs/pandoc-runner/logs/runner-test-dependencies.txt",
                 "claim": "Descriptor-only Cabal dependency dry-run command; this audit did not execute it."
             },

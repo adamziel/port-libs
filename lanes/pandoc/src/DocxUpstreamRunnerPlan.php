@@ -1312,7 +1312,7 @@ final class DocxUpstreamRunnerPlan
         return [
             'root' => '.port-libs/pandoc-runner',
             'directories' => [
-                'dependencyBuild' => '.port-libs/pandoc-runner/cabal-build/runner-test-dependencies',
+                'dependencyBuild' => '.port-libs/pandoc-runner/cabal-build/docx-targeted-run',
                 'targetedRunBuild' => '.port-libs/pandoc-runner/cabal-build/docx-targeted-run',
                 'logs' => '.port-libs/pandoc-runner/logs',
                 'artifacts' => '.port-libs/pandoc-runner/artifacts/docx-targeted-run',
@@ -1338,7 +1338,7 @@ final class DocxUpstreamRunnerPlan
                     'v2-build',
                     '--offline',
                     '--project-dir=.',
-                    '--builddir=.port-libs/pandoc-runner/cabal-build/runner-test-dependencies',
+                    '--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run',
                     '--dry-run',
                     '--only-dependencies',
                     '--enable-tests',

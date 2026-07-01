@@ -361,7 +361,15 @@ final class DocxParityCorpusAudit
      */
     public static function upstreamDocxRunnerEvidencePlan(): array
     {
+        $docxRunnerBuildDirectory = '.port-libs/pandoc-runner/cabal-build/docx-targeted-run';
         $dryRunDescriptor = UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()['runner-test-dependencies'];
+        $dryRunDescriptor['arguments'] = array_map(
+            static fn (string $argument): string => str_starts_with($argument, '--builddir=')
+                ? '--builddir=' . $docxRunnerBuildDirectory
+                : $argument,
+            $dryRunDescriptor['arguments']
+        );
+        $dryRunDescriptor['buildDirectory'] = $docxRunnerBuildDirectory;
         $workspace = UpstreamRunnerDependencyAudit::expectedCabalPlanWorkspace();
         $futureListTestsDescriptor = [
             'program' => 'cabal',
@@ -504,7 +512,7 @@ final class DocxParityCorpusAudit
                 ],
             ],
             'nonMutatingDryRunPlanCommand' => [
-                'descriptor' => 'UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()["runner-test-dependencies"]',
+                'descriptor' => 'UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()["runner-test-dependencies"] with DOCX targeted builddir override',
                 'program' => $dryRunDescriptor['program'],
                 'arguments' => $dryRunDescriptor['arguments'],
                 'commandLine' => self::shellCommandLine($dryRunDescriptor['program'], $dryRunDescriptor['arguments']),
@@ -513,7 +521,7 @@ final class DocxParityCorpusAudit
                 'buildDirectory' => $dryRunDescriptor['buildDirectory'],
                 'executionPolicy' => $dryRunDescriptor['executionPolicy'],
                 'workspaceEnvironmentVariables' => array_keys($workspace['environmentVariables']),
-                'workspaceBuildDirectory' => $workspace['buildDirectories']['runner-test-dependencies'],
+                'workspaceBuildDirectory' => $docxRunnerBuildDirectory,
                 'transcriptFile' => $workspace['transcriptFiles']['runner-test-dependencies'],
                 'claim' => 'Descriptor-only Cabal dependency dry-run command; this audit did not execute it.',
             ],

@@ -433,7 +433,11 @@ return [
         $t->same(121, $runnerPlan['fixtureClosure']['pinnedInventoryCounts']['docxPackageArtifacts'] ?? null);
         $t->same(38, $runnerPlan['fixtureClosure']['pinnedInventoryCounts']['goldenDocxArtifacts'] ?? null);
         $t->contains('cabal v2-build --offline --project-dir=.', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
+        $t->contains('--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
         $t->contains('--dry-run', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
+        $t->same('.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $runnerPlan['nonMutatingDryRunPlanCommand']['buildDirectory'] ?? null);
+        $t->same('.port-libs/pandoc-runner/cabal-build/docx-targeted-run', $runnerPlan['nonMutatingDryRunPlanCommand']['workspaceBuildDirectory'] ?? null);
+        $t->same('.port-libs/pandoc-runner/logs/runner-test-dependencies.txt', $runnerPlan['nonMutatingDryRunPlanCommand']['transcriptFile'] ?? null);
         $t->contains('test:test-pandoc test:test-pandoc-lua-engine', (string) ($runnerPlan['nonMutatingDryRunPlanCommand']['commandLine'] ?? ''));
         $t->same('descriptor-only; do not execute from this isolated PHP lane', $runnerPlan['nonMutatingDryRunPlanCommand']['executionPolicy'] ?? null);
         $t->contains('--list-tests --pattern', (string) ($runnerPlan['futureListTestsCommand']['commandLine'] ?? ''));
