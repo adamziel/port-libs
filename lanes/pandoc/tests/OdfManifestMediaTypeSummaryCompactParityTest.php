@@ -112,6 +112,10 @@ return [
             'invalidDeclaredSizeItems',
             'parameterizedItemCount',
             'mediaTypeParameterNames',
+            'mediaTypeParameterValueCount',
+            'mediaTypeParameterValuesByName',
+            'mediaTypeParameterValueCounts',
+            'mediaTypeParameterValueSummaries',
             'storedByteLength',
             'compressedByteLength',
             'exposableByteLength',
@@ -127,6 +131,10 @@ return [
                 'rawMediaTypeCount',
                 'parameterizedItemCount',
                 'mediaTypeParameterNames',
+                'mediaTypeParameterValueCount',
+                'mediaTypeParameterValuesByName',
+                'mediaTypeParameterValueCounts',
+                'mediaTypeParameterValueSummaries',
                 'existsCount',
                 'missingCount',
                 'directoryCount',
@@ -155,6 +163,22 @@ return [
         $t->same(2, $richIdentity['manifestMediaTypeParameterizedItemCount']);
         $t->same(['charset', 'profile', 'role'], $compactIdentity['manifestMediaTypeParameterNames']);
         $t->same(['charset', 'profile', 'role'], $richIdentity['manifestMediaTypeParameterNames']);
+        $t->same(3, $compactIdentity['manifestMediaTypeParameterValueCount']);
+        $t->same(3, $richIdentity['manifestMediaTypeParameterValueCount']);
+        $t->same([
+            'charset' => ['UTF-8'],
+            'profile' => ['review cover'],
+            'role' => ['preview'],
+        ], $compactIdentity['manifestMediaTypeParameterValuesByName']);
+        $t->same($compactIdentity['manifestMediaTypeParameterValuesByName'], $richIdentity['manifestMediaTypeParameterValuesByName']);
+        $t->same([
+            'charset' => ['UTF-8' => 1],
+            'profile' => ['review cover' => 1],
+            'role' => ['preview' => 1],
+        ], $compactIdentity['manifestMediaTypeParameterValueCounts']);
+        $t->same($compactIdentity['manifestMediaTypeParameterValueCounts'], $richIdentity['manifestMediaTypeParameterValueCounts']);
+        $t->same($compactMediaTypes['mediaTypeParameterValueSummaries'], $compactIdentity['manifestMediaTypeParameterValueSummaries']);
+        $t->same($richMediaTypes['mediaTypeParameterValueSummaries'], $richIdentity['manifestMediaTypeParameterValueSummaries']);
         $t->same(1, $compactIdentity['manifestEmptyMediaTypeCount']);
         $t->same(1, $richIdentity['manifestEmptyMediaTypeCount']);
         $t->same(1, $compactIdentity['manifestEmptyMediaTypeDirectoryCount']);
@@ -181,13 +205,21 @@ return [
         }
         $t->same(['Configurations2/'], $compactMediaTypes['emptyMediaTypeDirectoryParts']);
         $t->same(['charset', 'profile'], $compactByType['image/jpeg']['mediaTypeParameterNames']);
+        $t->same(2, $compactByType['image/jpeg']['mediaTypeParameterValueCount']);
+        $t->same([
+            'charset' => ['UTF-8'],
+            'profile' => ['review cover'],
+        ], $compactByType['image/jpeg']['mediaTypeParameterValuesByName']);
         $t->same(['Pictures/hero.jpg'], $compactByType['image/jpeg']['parts']);
         $t->same(['role'], $compactByType['image/png']['mediaTypeParameterNames']);
+        $t->same(1, $compactByType['image/png']['mediaTypeParameterValueCount']);
+        $t->same(['role' => ['preview']], $compactByType['image/png']['mediaTypeParameterValuesByName']);
         $t->same(['Thumbnails/thumb.png'], $compactByType['image/png']['parts']);
 
         $changedManifest = str_replace('profile=&quot;review cover&quot;', 'profile=&quot;final cover&quot;', $manifestXml);
         $changedIdentity = OpenDocumentPackage::fromPackage($buildPackage($changedManifest))->summarize()['packageIdentity'];
         $t->same(false, $compactIdentity['identitySha256'] === $changedIdentity['identitySha256']);
         $t->same(['charset', 'profile', 'role'], $changedIdentity['manifestMediaTypeParameterNames']);
+        $t->same(['final cover'], $changedIdentity['manifestMediaTypeParameterValuesByName']['profile']);
     },
 ];

@@ -2684,6 +2684,10 @@ final class OpenDocumentPackage
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
             'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
             'manifestMediaTypeParameterNames' => $manifestMediaTypeSummary['mediaTypeParameterNames'] ?? [],
+            'manifestMediaTypeParameterValueCount' => $manifestMediaTypeSummary['mediaTypeParameterValueCount'] ?? 0,
+            'manifestMediaTypeParameterValuesByName' => $manifestMediaTypeSummary['mediaTypeParameterValuesByName'] ?? [],
+            'manifestMediaTypeParameterValueCounts' => $manifestMediaTypeSummary['mediaTypeParameterValueCounts'] ?? [],
+            'manifestMediaTypeParameterValueSummaries' => $manifestMediaTypeSummary['mediaTypeParameterValueSummaries'] ?? [],
             'manifestEmptyMediaTypeCount' => $manifestMediaTypeSummary['emptyMediaTypeCount'] ?? 0,
             'manifestEmptyMediaTypeDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeDirectoryCount'] ?? 0,
             'manifestEmptyMediaTypeNonDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeNonDirectoryCount'] ?? 0,
@@ -3015,6 +3019,8 @@ final class OpenDocumentPackage
         $emptyMediaTypeDirectoryParts = [];
         $emptyMediaTypeNonDirectoryItems = [];
         $invalidDeclaredSizeItems = [];
+        $parameterValueRecords = [];
+        $groupParameterValueRecords = [];
         $diagnostics = [];
         $summary = [
             'manifestItemCount' => count($manifestEntries),
@@ -3043,6 +3049,10 @@ final class OpenDocumentPackage
             'invalidDeclaredSizeItems' => [],
             'parameterizedItemCount' => 0,
             'mediaTypeParameterNames' => [],
+            'mediaTypeParameterValueCount' => 0,
+            'mediaTypeParameterValuesByName' => [],
+            'mediaTypeParameterValueCounts' => [],
+            'mediaTypeParameterValueSummaries' => [],
             'storedByteLength' => 0,
             'compressedByteLength' => 0,
             'exposableByteLength' => 0,
@@ -3198,6 +3208,10 @@ final class OpenDocumentPackage
                     'rawMediaTypeCount' => 0,
                     'parameterizedItemCount' => 0,
                     'mediaTypeParameterNames' => [],
+                    'mediaTypeParameterValueCount' => 0,
+                    'mediaTypeParameterValuesByName' => [],
+                    'mediaTypeParameterValueCounts' => [],
+                    'mediaTypeParameterValueSummaries' => [],
                     'existsCount' => 0,
                     'missingCount' => 0,
                     'directoryCount' => 0,
@@ -3216,6 +3230,7 @@ final class OpenDocumentPackage
                     'deflatedCompressionMethodCount' => 0,
                     'unsupportedCompressionMethodCount' => 0,
                 ];
+                $groupParameterValueRecords[$groupMediaType] = [];
                 $groupOrder[] = $groupMediaType;
             }
 
@@ -3243,6 +3258,9 @@ final class OpenDocumentPackage
                 if (!in_array($name, $groups[$groupMediaType]['mediaTypeParameterNames'], true)) {
                     $groups[$groupMediaType]['mediaTypeParameterNames'][] = $name;
                 }
+                $value = (string) ($parameter['value'] ?? '');
+                self::recordMediaTypeParameterValue($parameterValueRecords, $name, $value, $part, $mediaType);
+                self::recordMediaTypeParameterValue($groupParameterValueRecords[$groupMediaType], $name, $value, $part, $mediaType);
             }
             if ($exists) {
                 ++$groups[$groupMediaType]['existsCount'];
@@ -3296,8 +3314,20 @@ final class OpenDocumentPackage
 
         $items = [];
         sort($summary['mediaTypeParameterNames'], SORT_STRING);
+        $parameterValueRollup = self::mediaTypeParameterValueRollup($parameterValueRecords);
+        $summary['mediaTypeParameterValueCount'] = $parameterValueRollup['valueCount'];
+        $summary['mediaTypeParameterValuesByName'] = $parameterValueRollup['valuesByName'];
+        $summary['mediaTypeParameterValueCounts'] = $parameterValueRollup['valueCounts'];
+        $summary['mediaTypeParameterValueSummaries'] = $parameterValueRollup['summaries'];
         foreach ($groupOrder as $mediaType) {
             sort($groups[$mediaType]['mediaTypeParameterNames'], SORT_STRING);
+            $groupParameterValueRollup = self::mediaTypeParameterValueRollup(
+                $groupParameterValueRecords[$mediaType] ?? []
+            );
+            $groups[$mediaType]['mediaTypeParameterValueCount'] = $groupParameterValueRollup['valueCount'];
+            $groups[$mediaType]['mediaTypeParameterValuesByName'] = $groupParameterValueRollup['valuesByName'];
+            $groups[$mediaType]['mediaTypeParameterValueCounts'] = $groupParameterValueRollup['valueCounts'];
+            $groups[$mediaType]['mediaTypeParameterValueSummaries'] = $groupParameterValueRollup['summaries'];
             $groups[$mediaType]['rawMediaTypeCount'] = count($groups[$mediaType]['rawMediaTypes']);
             $items[] = $groups[$mediaType];
         }
@@ -3316,6 +3346,82 @@ final class OpenDocumentPackage
         $summary['items'] = $items;
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, array<string, array<string, mixed>>> $records
+     */
+    private static function recordMediaTypeParameterValue(
+        array &$records,
+        string $name,
+        string $value,
+        string $part,
+        string $mediaType
+    ): void {
+        if ($name === '') {
+            return;
+        }
+
+        $records[$name] ??= [];
+        $records[$name][$value] ??= [
+            'name' => $name,
+            'value' => $value,
+            'occurrenceCount' => 0,
+            'parts' => [],
+            'mediaTypes' => [],
+        ];
+        ++$records[$name][$value]['occurrenceCount'];
+        if (!in_array($part, $records[$name][$value]['parts'], true)) {
+            $records[$name][$value]['parts'][] = $part;
+        }
+        if (!in_array($mediaType, $records[$name][$value]['mediaTypes'], true)) {
+            $records[$name][$value]['mediaTypes'][] = $mediaType;
+        }
+    }
+
+    /**
+     * @param array<string, array<string, array<string, mixed>>> $records
+     * @return array{valueCount:int, valuesByName:array<string, list<string>>, valueCounts:array<string, array<string, int>>, summaries:list<array{name:string, value:string, occurrenceCount:int, partCount:int, parts:list<string>, mediaTypeCount:int, mediaTypes:list<string>}>}
+     */
+    private static function mediaTypeParameterValueRollup(array $records): array
+    {
+        $valuesByName = [];
+        $valueCounts = [];
+        $summaries = [];
+
+        ksort($records, SORT_STRING);
+        foreach ($records as $name => $values) {
+            ksort($values, SORT_STRING);
+            foreach ($values as $value => $record) {
+                $parts = is_array($record['parts'] ?? null) ? $record['parts'] : [];
+                $mediaTypes = is_array($record['mediaTypes'] ?? null) ? $record['mediaTypes'] : [];
+                sort($parts, SORT_STRING);
+                sort($mediaTypes, SORT_STRING);
+
+                $valuesByName[$name] ??= [];
+                if (!in_array((string) $value, $valuesByName[$name], true)) {
+                    $valuesByName[$name][] = (string) $value;
+                }
+                $valueCounts[$name] ??= [];
+                $valueCounts[$name][(string) $value] = (int) ($record['occurrenceCount'] ?? 0);
+                $summaries[] = [
+                    'name' => $name,
+                    'value' => (string) $value,
+                    'occurrenceCount' => (int) ($record['occurrenceCount'] ?? 0),
+                    'partCount' => count($parts),
+                    'parts' => array_values($parts),
+                    'mediaTypeCount' => count($mediaTypes),
+                    'mediaTypes' => array_values($mediaTypes),
+                ];
+            }
+        }
+
+        return [
+            'valueCount' => count($summaries),
+            'valuesByName' => $valuesByName,
+            'valueCounts' => $valueCounts,
+            'summaries' => $summaries,
+        ];
     }
 
     /**
