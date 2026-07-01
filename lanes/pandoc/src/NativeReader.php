@@ -926,8 +926,8 @@ final class NativeReader
         return match ($type) {
             'Str' => $this->parseStrInline(),
             'Space' => $this->parseSpaceInline(),
-            'SoftBreak' => new AstNode('softbreak'),
-            'LineBreak' => new AstNode('linebreak'),
+            'SoftBreak' => $this->parseNullaryInline('softbreak', 'SoftBreak'),
+            'LineBreak' => $this->parseNullaryInline('linebreak', 'LineBreak'),
             'Emph' => new AstNode('emph', [], $this->parseInlineList()),
             'Strong' => new AstNode('strong', [], $this->parseInlineList()),
             'Strikeout' => new AstNode('strikeout', [], $this->parseInlineList()),
@@ -970,6 +970,14 @@ final class NativeReader
             'text' => ' ',
             'nativeInlineConstructors' => ['Space'],
             'nativeInlineParts' => [$native],
+        ]);
+    }
+
+    private function parseNullaryInline(string $type, string $constructor): AstNode
+    {
+        return new AstNode($type, [
+            'constructor' => $constructor,
+            'native' => ['t' => $constructor],
         ]);
     }
 
