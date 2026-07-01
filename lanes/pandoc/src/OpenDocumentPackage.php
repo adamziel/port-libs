@@ -2628,6 +2628,8 @@ final class OpenDocumentPackage
             'packageCaseFoldTopLevelSegments' => $packageInventory['packageCaseFoldTopLevelSegments'] ?? [],
             'packagePathExtensionCounts' => $packageInventory['packagePathExtensionCounts'] ?? [],
             'packageAreaCounts' => $packageInventory['packageAreaCounts'] ?? [],
+            'packageAreaByteLengths' => $packageInventory['packageAreaByteLengths'] ?? [],
+            'packageAreaCompressedByteLengths' => $packageInventory['packageAreaCompressedByteLengths'] ?? [],
             'packageAreaSummaries' => $packageInventory['packageAreaSummaries'] ?? [],
             'packagePathsByPackageArea' => $packageInventory['packagePathsByPackageArea'] ?? [],
             'packagePathDepthCounts' => $packageInventory['packagePathDepthCounts'] ?? [],
