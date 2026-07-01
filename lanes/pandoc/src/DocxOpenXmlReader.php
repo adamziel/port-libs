@@ -13299,6 +13299,63 @@ final class DocxOpenXmlReader
         $summary['zipUnsupportedCompressionPartNames'] = $unsupportedCompressionPartNames;
         $summary['zipUnsupportedCompressionEntries'] = $unsupportedCompressionEntries;
         $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder'] = $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'];
+        $zipArchive = is_array($zipPackage['archive'] ?? null)
+            ? $zipPackage['archive']
+            : $this->emptyZipArchiveProvenance();
+        $summary['zipArchivePresent'] = (bool) ($zipArchive['present'] ?? false);
+        $summary['zipArchiveLength'] = (int) ($zipArchive['archiveLength'] ?? 0);
+        $summary['zipArchiveEntryCount'] = (int) ($zipArchive['entryCount'] ?? 0);
+        $summary['zipArchiveTotalEntryCount'] = (int) ($zipArchive['totalEntryCount'] ?? 0);
+        $summary['zipArchiveIsSingleDisk'] = $zipArchive['isSingleDisk'] ?? null;
+        $summary['zipArchiveRequiresZip64'] = (bool) ($zipArchive['requiresZip64'] ?? false);
+        $summary['zipArchiveHasZip64EndOfCentralDirectory'] =
+            (bool) ($zipArchive['hasZip64EndOfCentralDirectory'] ?? false);
+        $summary['zipEocdOffset'] = $zipArchive['eocdOffset'] ?? null;
+        $summary['zipCentralDirectoryOffset'] = $zipArchive['centralDirectoryOffset'] ?? null;
+        $summary['zipCentralDirectoryBytes'] = (int) ($zipArchive['centralDirectoryBytes'] ?? 0);
+        $summary['zipCentralDirectoryEnd'] = $zipArchive['centralDirectoryEnd'] ?? null;
+        $summary['zipCentralDirectoryToEocdGapBytes'] =
+            (int) ($zipArchive['centralDirectoryToEocdGapBytes'] ?? 0);
+        $summary['zipCentralDirectoryToEocdGapSignature'] =
+            $zipArchive['centralDirectoryToEocdGapSignature'] ?? null;
+        $summary['zipCentralDirectoryToEocdGapExplainedBySignature'] =
+            (bool) ($zipArchive['isCentralDirectoryToEocdGapExplainedBySignature'] ?? false);
+        $summary['zipArchivePackageCommentOffset'] = $zipArchive['packageCommentOffset'] ?? null;
+        $summary['zipArchivePackageCommentBytes'] = (int) ($zipArchive['packageCommentBytes'] ?? 0);
+        $summary['zipArchivePackageCommentEnd'] = $zipArchive['packageCommentEnd'] ?? null;
+        $summary['zipArchivePackageCommentSha256'] = $zipArchive['packageCommentSha256'] ?? null;
+        $summary['zipArchiveDeclaredEndOffset'] = $zipArchive['declaredArchiveEndOffset'] ?? null;
+        $summary['zipArchiveTrailingByteCount'] = (int) ($zipArchive['trailingByteCount'] ?? 0);
+        $summary['zipArchiveIssueCount'] = (int) ($zipArchive['issueCount'] ?? 0);
+        $summary['zipArchiveIssueCodes'] = is_array($zipArchive['issueCodes'] ?? null)
+            ? $zipArchive['issueCodes']
+            : [];
+        $summary['zipArchiveByteExposurePolicy'] =
+            $zipArchive['byteExposurePolicy'] ?? 'docx-zip-archive-metadata-only';
+        $zipCentralDirectorySignature = is_array($zipPackage['centralDirectorySignature'] ?? null)
+            ? $zipPackage['centralDirectorySignature']
+            : $this->emptyZipCentralDirectorySignatureProvenance();
+        $summary['zipCentralDirectorySignaturePresent'] =
+            (bool) ($zipCentralDirectorySignature['present'] ?? false);
+        $summary['zipCentralDirectorySignatureOffset'] = $zipCentralDirectorySignature['offset'] ?? null;
+        $summary['zipCentralDirectorySignatureDataOffset'] = $zipCentralDirectorySignature['dataOffset'] ?? null;
+        $summary['zipCentralDirectorySignatureEndOffset'] = $zipCentralDirectorySignature['endOffset'] ?? null;
+        $summary['zipCentralDirectorySignatureLocation'] = $zipCentralDirectorySignature['location'] ?? null;
+        $summary['zipCentralDirectorySignatureLength'] =
+            (int) ($zipCentralDirectorySignature['signatureLength'] ?? 0);
+        $summary['zipCentralDirectorySignatureSha256'] =
+            $zipCentralDirectorySignature['signatureSha256'] ?? null;
+        $summary['zipCentralDirectorySignatureCryptographicVerification'] =
+            $zipCentralDirectorySignature['cryptographicVerification'] ?? 'not-present';
+        $summary['zipCentralDirectorySignatureIssueCount'] =
+            (int) ($zipCentralDirectorySignature['issueCount'] ?? 0);
+        $summary['zipCentralDirectorySignatureIssueCodes'] =
+            is_array($zipCentralDirectorySignature['issueCodes'] ?? null)
+                ? $zipCentralDirectorySignature['issueCodes']
+                : [];
+        $summary['zipCentralDirectorySignatureByteExposurePolicy'] =
+            $zipCentralDirectorySignature['byteExposurePolicy']
+                ?? 'docx-zip-central-directory-signature-metadata-only';
         $summary['zipCompressionMethods'] = $compressionMethods['methodBuckets'] ?? [];
         $summary['zipCompressionEntryCount'] = (int) ($compressionMethods['entryCount'] ?? 0);
         $summary['zipStoredEntryCount'] = (int) ($compressionMethods['storedEntryCount'] ?? 0);
@@ -14011,6 +14068,25 @@ final class DocxOpenXmlReader
             'zipUnsupportedCompressionMethodCount' => (int) ($zipPackage['unsupportedCompressionMethodCount'] ?? 0),
             'zipCentralDirectoryOrderMatchesLocalHeaderOrder' =>
                 $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null,
+            'zipArchive' => is_array($zipPackage['archive'] ?? null)
+                ? $zipPackage['archive']
+                : $this->emptyZipArchiveProvenance(),
+            'zipCentralDirectorySignature' => is_array($zipPackage['centralDirectorySignature'] ?? null)
+                ? $zipPackage['centralDirectorySignature']
+                : $this->emptyZipCentralDirectorySignatureProvenance(),
+            'zipArchiveLength' => (int) ($summary['zipArchiveLength'] ?? 0),
+            'zipEocdOffset' => $summary['zipEocdOffset'] ?? null,
+            'zipCentralDirectoryOffset' => $summary['zipCentralDirectoryOffset'] ?? null,
+            'zipCentralDirectoryBytes' => (int) ($summary['zipCentralDirectoryBytes'] ?? 0),
+            'zipCentralDirectoryEnd' => $summary['zipCentralDirectoryEnd'] ?? null,
+            'zipCentralDirectorySignaturePresent' =>
+                (bool) ($summary['zipCentralDirectorySignaturePresent'] ?? false),
+            'zipCentralDirectorySignatureLength' =>
+                (int) ($summary['zipCentralDirectorySignatureLength'] ?? 0),
+            'zipCentralDirectorySignatureSha256' =>
+                is_string($summary['zipCentralDirectorySignatureSha256'] ?? null)
+                    ? $summary['zipCentralDirectorySignatureSha256']
+                    : null,
             'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
                 ? $summary['zipUnixOwners']
                 : $this->emptyZipUnixOwnerProvenance(),
@@ -14103,6 +14179,8 @@ final class DocxOpenXmlReader
                 'localHeaderOrderNames' => [],
                 'directoryPackagePaths' => [],
                 'loadedPartNames' => [],
+                'archive' => $this->emptyZipArchiveProvenance(),
+                'centralDirectorySignature' => $this->emptyZipCentralDirectorySignatureProvenance(),
                 'compressionMethods' => [
                     'entryCount' => 0,
                     'supportedEntryCount' => 0,
@@ -14188,6 +14266,8 @@ final class DocxOpenXmlReader
             ];
         }
 
+        $zipArchive = $this->zipArchiveProvenance($sourcePackage);
+        $zipCentralDirectorySignature = $this->zipCentralDirectorySignatureProvenance($sourcePackage);
         $localHeaderOrder = $sourcePackage->localHeaderOrderPreflight();
         $localHeaders = [
             'present' => true,
@@ -14469,6 +14549,8 @@ final class DocxOpenXmlReader
             'localHeaderOrderNames' => $localHeaderOrder['localHeaderOrderNames'],
             'directoryPackagePaths' => $directoryPackagePaths,
             'loadedPartNames' => $loadedPartNames,
+            'archive' => $zipArchive,
+            'centralDirectorySignature' => $zipCentralDirectorySignature,
             'compressionMethods' => $compressionMethods,
             'packageManifest' => $packageManifest,
             'localHeaders' => $localHeaders,
@@ -14492,6 +14574,175 @@ final class DocxOpenXmlReader
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipArchiveProvenance(): array
+    {
+        return [
+            'present' => false,
+            'archiveLength' => 0,
+            'entryCount' => 0,
+            'totalEntryCount' => 0,
+            'diskEntryCount' => 0,
+            'isSingleDisk' => null,
+            'requiresZip64' => false,
+            'hasZip64EndOfCentralDirectoryLocator' => false,
+            'hasZip64EndOfCentralDirectory' => false,
+            'centralDirectoryOffset' => null,
+            'centralDirectoryBytes' => 0,
+            'centralDirectoryEnd' => null,
+            'eocdOffset' => null,
+            'centralDirectoryToEocdGapOffset' => null,
+            'centralDirectoryToEocdGapBytes' => 0,
+            'centralDirectoryToEocdGapSignature' => null,
+            'isCentralDirectoryToEocdGapExplainedBySignature' => false,
+            'packageCommentOffset' => null,
+            'packageCommentBytes' => 0,
+            'packageCommentEnd' => null,
+            'packageCommentSha256' => null,
+            'hasPackageComment' => false,
+            'endOfCentralDirectoryBytes' => 0,
+            'declaredArchiveEndOffset' => null,
+            'trailingByteCount' => 0,
+            'prefixByteCount' => 0,
+            'localRegionBytes' => 0,
+            'localHeaderBytes' => 0,
+            'localPayloadBytes' => 0,
+            'dataDescriptorBytes' => 0,
+            'centralDirectorySignatureOffset' => null,
+            'centralDirectorySignatureLength' => 0,
+            'hasCentralDirectorySignature' => false,
+            'isArchiveLayoutContiguous' => true,
+            'isSupportedByBoundedReader' => true,
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'docx-zip-archive-metadata-only',
+        ];
+    }
+
+    private function zipArchiveProvenance(ZipPackage $sourcePackage): array
+    {
+        $bytes = $sourcePackage->bytes();
+        $archive = $sourcePackage->archivePreflight();
+        $layout = ZipPackage::packageByteLayoutPreflight($bytes);
+        $packageComment = is_string($archive['packageComment'] ?? null) ? $archive['packageComment'] : '';
+        $issues = [];
+        foreach (array_merge($layout['issues'] ?? [], $archive['zip64Issues'] ?? []) as $issue) {
+            if (is_string($issue) && $issue !== '' && !in_array($issue, $issues, true)) {
+                $issues[] = $issue;
+            }
+        }
+        sort($issues, SORT_STRING);
+
+        return [
+            'present' => true,
+            'archiveLength' => (int) ($layout['archiveLength'] ?? strlen($bytes)),
+            'entryCount' => (int) ($layout['entryCount'] ?? count($sourcePackage->entries())),
+            'totalEntryCount' => (int) ($archive['totalEntryCount'] ?? ($layout['totalEntryCount'] ?? 0)),
+            'diskEntryCount' => (int) ($archive['diskEntryCount'] ?? 0),
+            'isSingleDisk' => (bool) ($archive['isSingleDisk'] ?? true),
+            'requiresZip64' => (bool) ($archive['requiresZip64'] ?? false),
+            'hasZip64EndOfCentralDirectoryLocator' =>
+                (bool) ($archive['hasZip64EndOfCentralDirectoryLocator'] ?? false),
+            'hasZip64EndOfCentralDirectory' => (bool) ($archive['hasZip64EndOfCentralDirectory'] ?? false),
+            'centralDirectoryOffset' => (int) ($layout['centralDirectoryOffset'] ?? 0),
+            'centralDirectoryBytes' => (int) ($layout['centralDirectoryBytes'] ?? ($archive['centralDirectorySize'] ?? 0)),
+            'centralDirectoryEnd' => (int) ($layout['centralDirectoryEnd'] ?? ($archive['centralDirectoryEnd'] ?? 0)),
+            'eocdOffset' => (int) ($layout['eocdOffset'] ?? ($archive['eocdOffset'] ?? 0)),
+            'centralDirectoryToEocdGapOffset' => $layout['centralDirectoryToEocdGapOffset'] ?? null,
+            'centralDirectoryToEocdGapBytes' => (int) ($layout['centralDirectoryToEocdGapBytes'] ?? 0),
+            'centralDirectoryToEocdGapSignature' => $layout['centralDirectoryToEocdGapSignature'] ?? null,
+            'isCentralDirectoryToEocdGapExplainedBySignature' =>
+                (bool) ($layout['isCentralDirectoryToEocdGapExplainedBySignature'] ?? false),
+            'packageCommentOffset' => $layout['packageCommentOffset'] ?? null,
+            'packageCommentBytes' => (int) ($layout['packageCommentBytes'] ?? ($archive['packageCommentLength'] ?? 0)),
+            'packageCommentEnd' => $layout['packageCommentEnd'] ?? null,
+            'packageCommentSha256' => $packageComment === '' ? null : hash('sha256', $packageComment),
+            'hasPackageComment' => $packageComment !== '',
+            'endOfCentralDirectoryBytes' => (int) ($layout['endOfCentralDirectoryBytes'] ?? 0),
+            'declaredArchiveEndOffset' => $layout['declaredArchiveEndOffset'] ?? null,
+            'trailingByteCount' => (int) ($layout['trailingByteCount'] ?? 0),
+            'prefixByteCount' => (int) ($layout['prefixByteCount'] ?? 0),
+            'localRegionBytes' => (int) ($layout['localRegionBytes'] ?? 0),
+            'localHeaderBytes' => (int) ($layout['localHeaderBytes'] ?? 0),
+            'localPayloadBytes' => (int) ($layout['localPayloadBytes'] ?? 0),
+            'dataDescriptorBytes' => (int) ($layout['dataDescriptorBytes'] ?? 0),
+            'centralDirectorySignatureOffset' => $archive['centralDirectorySignatureOffset'] ?? null,
+            'centralDirectorySignatureLength' => (int) ($archive['centralDirectorySignatureLength'] ?? 0),
+            'hasCentralDirectorySignature' => (bool) ($archive['hasCentralDirectorySignature'] ?? false),
+            'isArchiveLayoutContiguous' => (bool) ($layout['isArchiveLayoutContiguous'] ?? ($issues === [])),
+            'isSupportedByBoundedReader' => (bool) ($layout['isSupportedByBoundedReader'] ?? ($issues === [])),
+            'issueCount' => count($issues),
+            'issueCodes' => $issues,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'docx-zip-archive-metadata-only',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipCentralDirectorySignatureProvenance(): array
+    {
+        return [
+            'present' => false,
+            'entryCount' => 0,
+            'centralDirectoryOffset' => null,
+            'centralDirectoryEnd' => null,
+            'eocdOffset' => null,
+            'offset' => null,
+            'dataOffset' => null,
+            'endOffset' => null,
+            'location' => null,
+            'signatureLength' => 0,
+            'signatureSha256' => null,
+            'cryptographicVerification' => 'not-present',
+            'isSupportedByBoundedReader' => true,
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'docx-zip-central-directory-signature-metadata-only',
+        ];
+    }
+
+    private function zipCentralDirectorySignatureProvenance(ZipPackage $sourcePackage): array
+    {
+        $signature = ZipPackage::centralDirectorySignaturePolicyPreflight($sourcePackage->bytes());
+        $issues = [];
+        foreach (($signature['issues'] ?? []) as $issue) {
+            if (is_string($issue) && $issue !== '' && !in_array($issue, $issues, true)) {
+                $issues[] = $issue;
+            }
+        }
+        sort($issues, SORT_STRING);
+
+        return [
+            'present' => (bool) ($signature['present'] ?? false),
+            'entryCount' => (int) ($signature['entryCount'] ?? 0),
+            'centralDirectoryOffset' => (int) ($signature['centralDirectoryOffset'] ?? 0),
+            'centralDirectoryEnd' => (int) ($signature['centralDirectoryEnd'] ?? 0),
+            'eocdOffset' => (int) ($signature['eocdOffset'] ?? 0),
+            'offset' => $signature['offset'] ?? null,
+            'dataOffset' => $signature['dataOffset'] ?? null,
+            'endOffset' => $signature['endOffset'] ?? null,
+            'location' => $signature['location'] ?? null,
+            'signatureLength' => (int) ($signature['signatureLength'] ?? 0),
+            'signatureSha256' => is_string($signature['signatureSha256'] ?? null)
+                ? $signature['signatureSha256']
+                : null,
+            'cryptographicVerification' => is_string($signature['cryptographicVerification'] ?? null)
+                ? $signature['cryptographicVerification']
+                : 'not-present',
+            'isSupportedByBoundedReader' => (bool) ($signature['isSupportedByBoundedReader'] ?? true),
+            'issueCount' => count($issues),
+            'issueCodes' => $issues,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'docx-zip-central-directory-signature-metadata-only',
         ];
     }
 
