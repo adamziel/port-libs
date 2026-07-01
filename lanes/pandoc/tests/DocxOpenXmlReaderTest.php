@@ -6426,6 +6426,141 @@ XML;
         $t->same(['(none)' => 1], $invalid['sourcePartExtensionCounts']);
         $t->same(['word/_rels/media/document.xml.rels'], $invalid['relationshipParts']);
     },
+    'summarizes docx relationship source directory base names for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $wordHeaderSource = '<sourceA>' . str_repeat('A', 40) . '</sourceA>';
+        $customHeaderSource = '<sourceB>' . str_repeat('B', 30) . '</sourceB>';
+        $mediaSource = '<sourceC>media</sourceC>';
+        $parts['word/header/source-a.xml'] = $wordHeaderSource;
+        $parts['customXml/header/source-b.xml'] = $customHeaderSource;
+        $parts['word/media/source-c.xml'] = $mediaSource;
+        $parts['word/media/source-a-dir-base.png'] = 'source a directory base target';
+        $parts['word/media/source-b-dir-base.png'] = 'source b directory base target';
+        $parts['word/media/source-c-dir-base.png'] = 'source c directory base target';
+        $parts['word/media/missing-source-dir-base.png'] = 'missing source directory base target';
+        $parts['word/media/rels-source-dir-base.png'] = 'relationship source directory base target';
+        $parts['word/media/invalid-source-dir-base.png'] = 'invalid source directory base target';
+        $parts['word/header/_rels/source-a.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rWordHeaderSourceBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/source-a-dir-base.png"/>
+</Relationships>
+XML;
+        $parts['customXml/header/_rels/source-b.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rCustomHeaderSourceBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../word/media/source-b-dir-base.png"/>
+</Relationships>
+XML;
+        $parts['word/media/_rels/source-c.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMediaSourceBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="source-c-dir-base.png"/>
+</Relationships>
+XML;
+        $parts['word/header/_rels/missing-source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rMissingHeaderSourceBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/missing-source-dir-base.png"/>
+</Relationships>
+XML;
+        $parts['word/header/_rels/_rels/source-a.xml.rels.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRelationshipSourceBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../../media/rels-source-dir-base.png"/>
+</Relationships>
+XML;
+        $parts['word/header/_rels/media/source.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rInvalidSourceBase" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="word/media/invalid-source-dir-base.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $byBaseName = [];
+        foreach ($summary['relationshipSourceDirectoryBaseNames'] as $directoryBaseNameSummary) {
+            $byBaseName[$directoryBaseNameSummary['sourceDirectoryBaseNameKey']] = $directoryBaseNameSummary;
+        }
+
+        $t->same(6, $summary['relationshipSourceDirectoryBaseNameCount']);
+        $t->same([
+            '(invalid-source)' => 1,
+            '/' => 1,
+            '_rels' => 1,
+            'header' => 3,
+            'media' => 1,
+            'word' => 1,
+        ], $summary['relationshipSourceDirectoryBaseNameCounts']);
+        $t->same([
+            '/' => 1,
+            '_rels' => 1,
+            'header' => 2,
+            'media' => 1,
+            'word' => 1,
+        ], $summary['relationshipSourceExistingDirectoryBaseNameCounts']);
+        $t->same([
+            '(invalid-source)' => 1,
+            'header' => 1,
+        ], $summary['relationshipSourceNonExistingDirectoryBaseNameCounts']);
+        $t->same(1, $summary['duplicateRelationshipSourceDirectoryBaseNameCount']);
+        $t->same(['header'], $summary['duplicateRelationshipSourceDirectoryBaseNames']);
+        $t->same(['(invalid-source)', '/', '_rels', 'header', 'media', 'word'], array_column($summary['relationshipSourceDirectoryBaseNames'], 'sourceDirectoryBaseNameKey'));
+
+        $header = $byBaseName['header'];
+        $t->same('header', $header['sourceDirectoryBaseName']);
+        $t->same(2, $header['directoryCount']);
+        $t->same(3, $header['sourceCount']);
+        $t->same(2, $header['existingSourceCount']);
+        $t->same(1, $header['nonExistingSourceCount']);
+        $t->same(3, $header['relationshipCount']);
+        $t->same(strlen($wordHeaderSource) + strlen($customHeaderSource), $header['existingSourceByteLength']);
+        $t->same(['missing-source' => 1, 'package-part' => 2], $header['relationshipSourceKindCounts']);
+        $t->same(['customXml/header' => 1, 'word/header' => 2], $header['sourceDirectoryCounts']);
+        $t->same(['2' => 3], $header['sourceDirectoryDepthCounts']);
+        $t->same([
+            'missing-source.xml' => 1,
+            'source-a.xml' => 1,
+            'source-b.xml' => 1,
+        ], $header['sourceBaseNameCounts']);
+        $t->same(['xml' => 3], $header['sourcePartExtensionCounts']);
+        $t->same(['(missing)' => 1, 'application/xml' => 2], $header['sourceContentTypeBaseCounts']);
+        $t->same(['(missing)' => 1, 'default' => 2], $header['sourceContentTypeSourceCounts']);
+        $t->same(['package-part' => 2], $header['sourceRoleCounts']);
+        $t->same(['customXml/header', 'word/header'], $header['sourceDirectories']);
+        $t->same(['customXml/header/source-b.xml', 'word/header/missing-source.xml', 'word/header/source-a.xml'], $header['sourceParts']);
+        $t->same([
+            'customXml/header/_rels/source-b.xml.rels',
+            'word/header/_rels/missing-source.xml.rels',
+            'word/header/_rels/source-a.xml.rels',
+        ], $header['relationshipParts']);
+        $t->same('word/header/source-a.xml', $header['largestExistingSourcePart']['sourcePart']);
+        $t->same('header', $header['largestExistingSourcePart']['sourceDirectoryBaseName']);
+        $t->same(hash('sha256', $wordHeaderSource), $header['largestExistingSourcePart']['sourceSha256']);
+
+        $rels = $byBaseName['_rels'];
+        $t->same(1, $rels['sourceCount']);
+        $t->same(['relationship-part' => 1], $rels['relationshipSourceKindCounts']);
+        $t->same(['word/header/_rels' => 1], $rels['sourceDirectoryCounts']);
+        $t->same(['rels' => 1], $rels['sourcePartExtensionCounts']);
+        $t->same(['application/vnd.openxmlformats-package.relationships+xml' => 1], $rels['sourceContentTypeBaseCounts']);
+        $t->same(['word/header/_rels/source-a.xml.rels'], $rels['sourceParts']);
+
+        $media = $byBaseName['media'];
+        $t->same(1, $media['sourceCount']);
+        $t->same(strlen($mediaSource), $media['existingSourceByteLength']);
+        $t->same(['word/media' => 1], $media['sourceDirectoryCounts']);
+        $t->same(['word/media/source-c.xml'], $media['sourceParts']);
+
+        $invalid = $byBaseName['(invalid-source)'];
+        $t->same(null, $invalid['sourceDirectoryBaseName']);
+        $t->same(1, $invalid['sourceCount']);
+        $t->same(0, $invalid['existingSourceCount']);
+        $t->same(1, $invalid['nonExistingSourceCount']);
+        $t->same(['invalid-source' => 1], $invalid['relationshipSourceKindCounts']);
+        $t->same(['(invalid-source)' => 1], $invalid['sourceDirectoryCounts']);
+        $t->same(['word/header/_rels/media/source.xml.rels'], $invalid['relationshipParts']);
+    },
     'summarizes docx relationship source content type buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
