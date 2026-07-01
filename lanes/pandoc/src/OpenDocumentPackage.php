@@ -833,6 +833,8 @@ final class OpenDocumentPackage
                 'path' => $entry->name,
                 'pathShape' => $pathShape,
                 'packageDirectoryBaseName' => $pathShape['directoryBaseName'] ?? null,
+                'packageDirectoryBaseNameStem' => $pathShape['directoryBaseNameStem'] ?? null,
+                'packageCaseFoldDirectoryBaseNameStem' => $pathShape['caseFoldDirectoryBaseNameStem'] ?? null,
                 'packageArea' => $packageArea,
                 'packagePathDepth' => $packagePathDepth,
                 'packagePartExtension' => $packagePartExtension,
@@ -1135,6 +1137,18 @@ final class OpenDocumentPackage
             'duplicatePackageCaseFoldDirectoryBaseNameCount' => $packageDirectoryBaseNames['duplicatePackageCaseFoldDirectoryBaseNameCount'],
             'duplicatePackageCaseFoldDirectoryBaseNames' => $packageDirectoryBaseNames['duplicatePackageCaseFoldDirectoryBaseNames'],
             'packageCaseFoldDirectoryBaseNames' => $packageDirectoryBaseNames['packageCaseFoldDirectoryBaseNames'],
+            'packageDirectoryBaseNameStemCount' => $packageDirectoryBaseNames['packageDirectoryBaseNameStemCount'],
+            'packageDirectoryBaseNameStemCounts' => $packageDirectoryBaseNames['packageDirectoryBaseNameStemCounts'],
+            'entryNamesByPackageDirectoryBaseNameStem' => $packageDirectoryBaseNames['entryNamesByPackageDirectoryBaseNameStem'],
+            'duplicatePackageDirectoryBaseNameStemCount' => $packageDirectoryBaseNames['duplicatePackageDirectoryBaseNameStemCount'],
+            'duplicatePackageDirectoryBaseNameStems' => $packageDirectoryBaseNames['duplicatePackageDirectoryBaseNameStems'],
+            'packageDirectoryBaseNameStems' => $packageDirectoryBaseNames['packageDirectoryBaseNameStems'],
+            'packageCaseFoldDirectoryBaseNameStemCount' => $packageDirectoryBaseNames['packageCaseFoldDirectoryBaseNameStemCount'],
+            'packageCaseFoldDirectoryBaseNameStemCounts' => $packageDirectoryBaseNames['packageCaseFoldDirectoryBaseNameStemCounts'],
+            'entryNamesByPackageCaseFoldDirectoryBaseNameStem' => $packageDirectoryBaseNames['entryNamesByPackageCaseFoldDirectoryBaseNameStem'],
+            'duplicatePackageCaseFoldDirectoryBaseNameStemCount' => $packageDirectoryBaseNames['duplicatePackageCaseFoldDirectoryBaseNameStemCount'],
+            'duplicatePackageCaseFoldDirectoryBaseNameStems' => $packageDirectoryBaseNames['duplicatePackageCaseFoldDirectoryBaseNameStems'],
+            'packageCaseFoldDirectoryBaseNameStems' => $packageDirectoryBaseNames['packageCaseFoldDirectoryBaseNameStems'],
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
             'corePackagePartCount' => $corePackagePartCount,
@@ -1447,6 +1461,8 @@ final class OpenDocumentPackage
                 'path' => $part['path'] ?? null,
                 'pathShape' => $part['pathShape'] ?? [],
                 'packageDirectoryBaseName' => $part['packageDirectoryBaseName'] ?? null,
+                'packageDirectoryBaseNameStem' => $part['packageDirectoryBaseNameStem'] ?? null,
+                'packageCaseFoldDirectoryBaseNameStem' => $part['packageCaseFoldDirectoryBaseNameStem'] ?? null,
                 'packageArea' => $part['packageArea'] ?? null,
                 'packagePathDepth' => $part['packagePathDepth'] ?? null,
                 'packagePartExtension' => $part['packagePartExtension'] ?? null,
@@ -1728,6 +1744,16 @@ final class OpenDocumentPackage
             'duplicatePackageCaseFoldDirectoryBaseNameCount' => $packageInventory['duplicatePackageCaseFoldDirectoryBaseNameCount'] ?? 0,
             'duplicatePackageCaseFoldDirectoryBaseNames' => $packageInventory['duplicatePackageCaseFoldDirectoryBaseNames'] ?? [],
             'packageCaseFoldDirectoryBaseNames' => $packageInventory['packageCaseFoldDirectoryBaseNames'] ?? [],
+            'packageDirectoryBaseNameStemCount' => $packageInventory['packageDirectoryBaseNameStemCount'] ?? 0,
+            'packageDirectoryBaseNameStemCounts' => $packageInventory['packageDirectoryBaseNameStemCounts'] ?? [],
+            'packageCaseFoldDirectoryBaseNameStemCount' => $packageInventory['packageCaseFoldDirectoryBaseNameStemCount'] ?? 0,
+            'packageCaseFoldDirectoryBaseNameStemCounts' => $packageInventory['packageCaseFoldDirectoryBaseNameStemCounts'] ?? [],
+            'duplicatePackageDirectoryBaseNameStemCount' => $packageInventory['duplicatePackageDirectoryBaseNameStemCount'] ?? 0,
+            'duplicatePackageDirectoryBaseNameStems' => $packageInventory['duplicatePackageDirectoryBaseNameStems'] ?? [],
+            'packageDirectoryBaseNameStems' => $packageInventory['packageDirectoryBaseNameStems'] ?? [],
+            'duplicatePackageCaseFoldDirectoryBaseNameStemCount' => $packageInventory['duplicatePackageCaseFoldDirectoryBaseNameStemCount'] ?? 0,
+            'duplicatePackageCaseFoldDirectoryBaseNameStems' => $packageInventory['duplicatePackageCaseFoldDirectoryBaseNameStems'] ?? [],
+            'packageCaseFoldDirectoryBaseNameStems' => $packageInventory['packageCaseFoldDirectoryBaseNameStems'] ?? [],
             'packagePathKindCounts' => $packageInventory['packagePathKindCounts'] ?? [],
             'packageTopLevelSegmentCounts' => $packageInventory['packageTopLevelSegmentCounts'] ?? [],
             'packagePathExtensionCounts' => $packageInventory['packagePathExtensionCounts'] ?? [],
@@ -2522,7 +2548,19 @@ final class OpenDocumentPackage
      *     entryNamesByPackageCaseFoldDirectoryBaseName:array<string, list<string>>,
      *     duplicatePackageCaseFoldDirectoryBaseNameCount:int,
      *     duplicatePackageCaseFoldDirectoryBaseNames:list<string>,
-     *     packageCaseFoldDirectoryBaseNames:list<array<string, mixed>>
+     *     packageCaseFoldDirectoryBaseNames:list<array<string, mixed>>,
+     *     packageDirectoryBaseNameStemCount:int,
+     *     packageDirectoryBaseNameStemCounts:array<string, int>,
+     *     entryNamesByPackageDirectoryBaseNameStem:array<string, list<string>>,
+     *     duplicatePackageDirectoryBaseNameStemCount:int,
+     *     duplicatePackageDirectoryBaseNameStems:list<string>,
+     *     packageDirectoryBaseNameStems:list<array<string, mixed>>,
+     *     packageCaseFoldDirectoryBaseNameStemCount:int,
+     *     packageCaseFoldDirectoryBaseNameStemCounts:array<string, int>,
+     *     entryNamesByPackageCaseFoldDirectoryBaseNameStem:array<string, list<string>>,
+     *     duplicatePackageCaseFoldDirectoryBaseNameStemCount:int,
+     *     duplicatePackageCaseFoldDirectoryBaseNameStems:list<string>,
+     *     packageCaseFoldDirectoryBaseNameStems:list<array<string, mixed>>
      * }
      */
     private static function packageDirectoryBaseNameInventory(array $parts): array
@@ -2532,6 +2570,12 @@ final class OpenDocumentPackage
         $caseFoldDirectoryBaseNameCounts = [];
         $entryNamesByCaseFoldDirectoryBaseName = [];
         $caseFoldDirectoryBaseNames = [];
+        $directoryBaseNameStemCounts = [];
+        $entryNamesByDirectoryBaseNameStem = [];
+        $directoryBaseNameStems = [];
+        $caseFoldDirectoryBaseNameStemCounts = [];
+        $entryNamesByCaseFoldDirectoryBaseNameStem = [];
+        $caseFoldDirectoryBaseNameStems = [];
 
         foreach ($parts as $name => $part) {
             $entryName = is_string($part['path'] ?? null) ? $part['path'] : (string) $name;
@@ -2547,6 +2591,23 @@ final class OpenDocumentPackage
             }
             if ($directoryBaseName === null || $directoryBaseName === '') {
                 continue;
+            }
+
+            $directoryBaseNameStem = is_string($part['packageDirectoryBaseNameStem'] ?? null) ? $part['packageDirectoryBaseNameStem'] : null;
+            if ($directoryBaseNameStem === null && is_string($pathShape['directoryBaseNameStem'] ?? null)) {
+                $directoryBaseNameStem = $pathShape['directoryBaseNameStem'];
+            }
+            if ($directoryBaseNameStem === null || $directoryBaseNameStem === '') {
+                $directoryBaseNameStem = self::packagePartBasenameStem($directoryBaseName);
+            }
+            $caseFoldDirectoryBaseNameStem = is_string($part['packageCaseFoldDirectoryBaseNameStem'] ?? null)
+                ? $part['packageCaseFoldDirectoryBaseNameStem']
+                : null;
+            if ($caseFoldDirectoryBaseNameStem === null && is_string($pathShape['caseFoldDirectoryBaseNameStem'] ?? null)) {
+                $caseFoldDirectoryBaseNameStem = $pathShape['caseFoldDirectoryBaseNameStem'];
+            }
+            if ($caseFoldDirectoryBaseNameStem === null || $caseFoldDirectoryBaseNameStem === '') {
+                $caseFoldDirectoryBaseNameStem = strtolower($directoryBaseNameStem);
             }
 
             $caseFoldDirectoryBaseName = strtolower($directoryBaseName);
@@ -2568,6 +2629,12 @@ final class OpenDocumentPackage
             $caseFoldDirectoryBaseNameCounts[$caseFoldDirectoryBaseName] =
                 ($caseFoldDirectoryBaseNameCounts[$caseFoldDirectoryBaseName] ?? 0) + 1;
             $entryNamesByCaseFoldDirectoryBaseName[$caseFoldDirectoryBaseName][] = $entryName;
+            $directoryBaseNameStemCounts[$directoryBaseNameStem] =
+                ($directoryBaseNameStemCounts[$directoryBaseNameStem] ?? 0) + 1;
+            $entryNamesByDirectoryBaseNameStem[$directoryBaseNameStem][] = $entryName;
+            $caseFoldDirectoryBaseNameStemCounts[$caseFoldDirectoryBaseNameStem] =
+                ($caseFoldDirectoryBaseNameStemCounts[$caseFoldDirectoryBaseNameStem] ?? 0) + 1;
+            $entryNamesByCaseFoldDirectoryBaseNameStem[$caseFoldDirectoryBaseNameStem][] = $entryName;
 
             if (!isset($caseFoldDirectoryBaseNames[$caseFoldDirectoryBaseName])) {
                 $caseFoldDirectoryBaseNames[$caseFoldDirectoryBaseName] = [
@@ -2645,7 +2712,9 @@ final class OpenDocumentPackage
                 'entryName' => $entryName,
                 'packageDirectory' => $packageDirectory,
                 'directoryBaseName' => $directoryBaseName,
+                'directoryBaseNameStem' => $directoryBaseNameStem,
                 'caseFoldDirectoryBaseName' => $caseFoldDirectoryBaseName,
+                'caseFoldDirectoryBaseNameStem' => $caseFoldDirectoryBaseNameStem,
                 'packageBasename' => is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : null,
                 'packagePathDepth' => is_int($part['packagePathDepth'] ?? null) ? $part['packagePathDepth'] : null,
                 'packagePartExtension' => is_string($part['packagePartExtension'] ?? null) ? $part['packagePartExtension'] : null,
@@ -2670,6 +2739,115 @@ final class OpenDocumentPackage
             ) {
                 $caseFoldDirectoryBaseNames[$caseFoldDirectoryBaseName]['largestEntry'] = $entrySummary;
             }
+
+            foreach ([
+                [
+                    'summaries' => &$directoryBaseNameStems,
+                    'key' => $directoryBaseNameStem,
+                    'keyField' => 'directoryBaseNameStem',
+                    'caseFolded' => false,
+                ],
+                [
+                    'summaries' => &$caseFoldDirectoryBaseNameStems,
+                    'key' => $caseFoldDirectoryBaseNameStem,
+                    'keyField' => 'caseFoldDirectoryBaseNameStem',
+                    'caseFolded' => true,
+                ],
+            ] as &$stemTarget) {
+                $stemKey = $stemTarget['key'];
+                $stemKeyField = $stemTarget['keyField'];
+                $stemSummaries = &$stemTarget['summaries'];
+                if (!isset($stemSummaries[$stemKey])) {
+                    $stemSummaries[$stemKey] = [
+                        $stemKeyField => $stemKey,
+                        'directoryBaseNameVariantCount' => 0,
+                        'directoryCount' => 0,
+                        'entryCount' => 0,
+                        'fileEntryCount' => 0,
+                        'directoryEntryCount' => 0,
+                        'declaredPartCount' => 0,
+                        'undeclaredPartCount' => 0,
+                        'encryptedPartCount' => 0,
+                        'exposablePartCount' => 0,
+                        'blockedPartCount' => 0,
+                        'byteLength' => 0,
+                        'compressedByteLength' => 0,
+                        'directoryBaseNameCounts' => [],
+                        'packageDirectoryCounts' => [],
+                        'manifestMediaFamilyCounts' => [],
+                        'manifestMediaTypeBaseCounts' => [],
+                        'roleCounts' => [],
+                        'byteExposurePolicyCounts' => [],
+                        'packageDirectories' => [],
+                        'entryNames' => [],
+                        'largestEntry' => null,
+                    ];
+                    if ($stemTarget['caseFolded'] === true) {
+                        $stemSummaries[$stemKey]['directoryBaseNameStemVariantCount'] = 0;
+                        $stemSummaries[$stemKey]['directoryBaseNameStemCounts'] = [];
+                    }
+                }
+
+                ++$stemSummaries[$stemKey]['entryCount'];
+                $stemSummaries[$stemKey]['byteLength'] += $byteLength;
+                $stemSummaries[$stemKey]['compressedByteLength'] += $compressedByteLength;
+                $stemSummaries[$stemKey]['entryNames'][] = $entryName;
+                $stemSummaries[$stemKey]['directoryBaseNameCounts'][$directoryBaseName] =
+                    ($stemSummaries[$stemKey]['directoryBaseNameCounts'][$directoryBaseName] ?? 0) + 1;
+                if ($stemTarget['caseFolded'] === true) {
+                    $stemSummaries[$stemKey]['directoryBaseNameStemCounts'][$directoryBaseNameStem] =
+                        ($stemSummaries[$stemKey]['directoryBaseNameStemCounts'][$directoryBaseNameStem] ?? 0) + 1;
+                }
+                $stemSummaries[$stemKey]['packageDirectoryCounts'][$packageDirectoryKey] =
+                    ($stemSummaries[$stemKey]['packageDirectoryCounts'][$packageDirectoryKey] ?? 0) + 1;
+
+                if ($isDirectory) {
+                    ++$stemSummaries[$stemKey]['directoryEntryCount'];
+                } else {
+                    ++$stemSummaries[$stemKey]['fileEntryCount'];
+                }
+                if ($declaredInManifest) {
+                    ++$stemSummaries[$stemKey]['declaredPartCount'];
+                }
+                if ($undeclared) {
+                    ++$stemSummaries[$stemKey]['undeclaredPartCount'];
+                }
+                if ($encrypted) {
+                    ++$stemSummaries[$stemKey]['encryptedPartCount'];
+                }
+                if ($canExposeBytes) {
+                    ++$stemSummaries[$stemKey]['exposablePartCount'];
+                } else {
+                    ++$stemSummaries[$stemKey]['blockedPartCount'];
+                }
+                foreach ($roles as $role) {
+                    $stemSummaries[$stemKey]['roleCounts'][$role] =
+                        ($stemSummaries[$stemKey]['roleCounts'][$role] ?? 0) + 1;
+                }
+                if ($byteExposurePolicy !== '') {
+                    $stemSummaries[$stemKey]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                        ($stemSummaries[$stemKey]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+                }
+                if ($manifestMediaFamily !== '') {
+                    $stemSummaries[$stemKey]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                        ($stemSummaries[$stemKey]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+                }
+                if ($manifestMediaTypeBase !== '') {
+                    $stemSummaries[$stemKey]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] =
+                        ($stemSummaries[$stemKey]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] ?? 0) + 1;
+                }
+
+                $largestStemEntry = $stemSummaries[$stemKey]['largestEntry'];
+                if (
+                    !is_array($largestStemEntry)
+                    || $byteLength > (int) ($largestStemEntry['byteLength'] ?? 0)
+                    || ($byteLength === (int) ($largestStemEntry['byteLength'] ?? 0) && strcmp($entryName, (string) ($largestStemEntry['entryName'] ?? '')) < 0)
+                ) {
+                    $stemSummaries[$stemKey]['largestEntry'] = $entrySummary;
+                }
+                unset($stemSummaries);
+            }
+            unset($stemTarget);
         }
 
         ksort($directoryBaseNameCounts, SORT_STRING);
@@ -2683,6 +2861,18 @@ final class OpenDocumentPackage
         foreach ($entryNamesByCaseFoldDirectoryBaseName as $caseFoldDirectoryBaseName => $entryNames) {
             sort($entryNames, SORT_STRING);
             $entryNamesByCaseFoldDirectoryBaseName[$caseFoldDirectoryBaseName] = $entryNames;
+        }
+        ksort($directoryBaseNameStemCounts, SORT_STRING);
+        ksort($entryNamesByDirectoryBaseNameStem, SORT_STRING);
+        foreach ($entryNamesByDirectoryBaseNameStem as $directoryBaseNameStem => $entryNames) {
+            sort($entryNames, SORT_STRING);
+            $entryNamesByDirectoryBaseNameStem[$directoryBaseNameStem] = $entryNames;
+        }
+        ksort($caseFoldDirectoryBaseNameStemCounts, SORT_STRING);
+        ksort($entryNamesByCaseFoldDirectoryBaseNameStem, SORT_STRING);
+        foreach ($entryNamesByCaseFoldDirectoryBaseNameStem as $caseFoldDirectoryBaseNameStem => $entryNames) {
+            sort($entryNames, SORT_STRING);
+            $entryNamesByCaseFoldDirectoryBaseNameStem[$caseFoldDirectoryBaseNameStem] = $entryNames;
         }
 
         $duplicateCaseFoldDirectoryBaseNames = [];
@@ -2705,6 +2895,48 @@ final class OpenDocumentPackage
             $caseFoldDirectoryBaseNames[$caseFoldDirectoryBaseName] = $summary;
         }
 
+        $duplicateDirectoryBaseNameStems = [];
+        ksort($directoryBaseNameStems, SORT_STRING);
+        foreach ($directoryBaseNameStems as $directoryBaseNameStem => $summary) {
+            ksort($summary['directoryBaseNameCounts'], SORT_STRING);
+            ksort($summary['packageDirectoryCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            $summary['packageDirectories'] = array_keys($summary['packageDirectoryCounts']);
+            sort($summary['packageDirectories'], SORT_STRING);
+            $summary['directoryBaseNameVariantCount'] = count($summary['directoryBaseNameCounts']);
+            $summary['directoryCount'] = count($summary['packageDirectories']);
+            if ($summary['directoryCount'] > 1) {
+                $duplicateDirectoryBaseNameStems[] = $directoryBaseNameStem;
+            }
+            $directoryBaseNameStems[$directoryBaseNameStem] = $summary;
+        }
+
+        $duplicateCaseFoldDirectoryBaseNameStems = [];
+        ksort($caseFoldDirectoryBaseNameStems, SORT_STRING);
+        foreach ($caseFoldDirectoryBaseNameStems as $caseFoldDirectoryBaseNameStem => $summary) {
+            ksort($summary['directoryBaseNameStemCounts'], SORT_STRING);
+            ksort($summary['directoryBaseNameCounts'], SORT_STRING);
+            ksort($summary['packageDirectoryCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            $summary['packageDirectories'] = array_keys($summary['packageDirectoryCounts']);
+            sort($summary['packageDirectories'], SORT_STRING);
+            $summary['directoryBaseNameStemVariantCount'] = count($summary['directoryBaseNameStemCounts']);
+            $summary['directoryBaseNameVariantCount'] = count($summary['directoryBaseNameCounts']);
+            $summary['directoryCount'] = count($summary['packageDirectories']);
+            if ($summary['directoryCount'] > 1) {
+                $duplicateCaseFoldDirectoryBaseNameStems[] = $caseFoldDirectoryBaseNameStem;
+            }
+            $caseFoldDirectoryBaseNameStems[$caseFoldDirectoryBaseNameStem] = $summary;
+        }
+
         return [
             'packageDirectoryBaseNameCount' => count($directoryBaseNameCounts),
             'packageDirectoryBaseNameCounts' => $directoryBaseNameCounts,
@@ -2715,6 +2947,18 @@ final class OpenDocumentPackage
             'duplicatePackageCaseFoldDirectoryBaseNameCount' => count($duplicateCaseFoldDirectoryBaseNames),
             'duplicatePackageCaseFoldDirectoryBaseNames' => $duplicateCaseFoldDirectoryBaseNames,
             'packageCaseFoldDirectoryBaseNames' => array_values($caseFoldDirectoryBaseNames),
+            'packageDirectoryBaseNameStemCount' => count($directoryBaseNameStemCounts),
+            'packageDirectoryBaseNameStemCounts' => $directoryBaseNameStemCounts,
+            'entryNamesByPackageDirectoryBaseNameStem' => $entryNamesByDirectoryBaseNameStem,
+            'duplicatePackageDirectoryBaseNameStemCount' => count($duplicateDirectoryBaseNameStems),
+            'duplicatePackageDirectoryBaseNameStems' => $duplicateDirectoryBaseNameStems,
+            'packageDirectoryBaseNameStems' => array_values($directoryBaseNameStems),
+            'packageCaseFoldDirectoryBaseNameStemCount' => count($caseFoldDirectoryBaseNameStemCounts),
+            'packageCaseFoldDirectoryBaseNameStemCounts' => $caseFoldDirectoryBaseNameStemCounts,
+            'entryNamesByPackageCaseFoldDirectoryBaseNameStem' => $entryNamesByCaseFoldDirectoryBaseNameStem,
+            'duplicatePackageCaseFoldDirectoryBaseNameStemCount' => count($duplicateCaseFoldDirectoryBaseNameStems),
+            'duplicatePackageCaseFoldDirectoryBaseNameStems' => $duplicateCaseFoldDirectoryBaseNameStems,
+            'packageCaseFoldDirectoryBaseNameStems' => array_values($caseFoldDirectoryBaseNameStems),
         ];
     }
 
@@ -9021,6 +9265,9 @@ final class OpenDocumentPackage
         $directorySegments = $isDirectory ? $segments : array_slice($segments, 0, -1);
         $directory = $directorySegments === [] ? null : implode('/', $directorySegments) . '/';
         $directoryBaseName = $directorySegments === [] ? null : $directorySegments[count($directorySegments) - 1];
+        $directoryBaseNameStem = is_string($directoryBaseName) && $directoryBaseName !== ''
+            ? self::packagePartBasenameStem($directoryBaseName)
+            : null;
         $extension = null;
 
         if (!$isDirectory && is_string($basename) && $basename !== '') {
@@ -9035,6 +9282,8 @@ final class OpenDocumentPackage
             'topLevelSegment' => $segments[0] ?? null,
             'directory' => $directory,
             'directoryBaseName' => $directoryBaseName,
+            'directoryBaseNameStem' => $directoryBaseNameStem,
+            'caseFoldDirectoryBaseNameStem' => is_string($directoryBaseNameStem) ? strtolower($directoryBaseNameStem) : null,
             'basename' => $basename,
             'extension' => $extension,
             'segments' => $segments,
