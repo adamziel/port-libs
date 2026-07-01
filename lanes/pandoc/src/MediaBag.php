@@ -68,16 +68,33 @@ final class MediaBag
             ? $hashPath
             : (self::isSafeRelativeMediaPath($decodedSource) ? $decodedSource : $hashPath);
 
+        $pathRepairSummary = self::pathRepairSummary($source, $canonicalSource, $decodedSource, $path);
+        $mimeRepairSummary = self::mimeRepairSummary(
+            $source,
+            $sourcePath,
+            $path,
+            $mimeTypeSource,
+            $normalizedMimeType,
+            $inferredMimeType
+        );
+
         $this->itemsByCanonicalSource[$canonicalSource] = [
             'source' => $source,
             'canonicalSource' => $canonicalSource,
             'sourcePath' => $sourcePath,
             'path' => $path,
-            'pathRepairSummary' => self::pathRepairSummary($source, $canonicalSource, $decodedSource, $path),
+            'pathRepairSummary' => $pathRepairSummary,
+            'pathRepairReasons' => self::repairReasonsFromSummary($pathRepairSummary),
             'mimeType' => $normalizedMimeType,
             'mimeTypeSource' => $mimeTypeSource,
             'inferredMimeType' => $inferredMimeType,
-            'mimeRepairSummary' => self::mimeRepairSummary($source, $sourcePath, $path, $mimeTypeSource, $normalizedMimeType, $inferredMimeType),
+            'mimeRepairSummary' => $mimeRepairSummary,
+            'mimeRepair' => self::mimeRepairRecord(
+                $mimeRepairSummary,
+                $mimeTypeSource,
+                $normalizedMimeType,
+                $inferredMimeType
+            ),
             'contents' => $contents,
             'sha1' => sha1($contents),
             'byteLength' => strlen($contents),
@@ -118,9 +135,11 @@ final class MediaBag
                 'canonicalSource' => $item['canonicalSource'],
                 'sourcePath' => $item['sourcePath'],
                 'pathRepairSummary' => $item['pathRepairSummary'],
+                'pathRepairReasons' => $item['pathRepairReasons'],
                 'mimeTypeSource' => $item['mimeTypeSource'],
                 'inferredMimeType' => $item['inferredMimeType'],
                 'mimeRepairSummary' => $item['mimeRepairSummary'],
+                'mimeRepair' => $item['mimeRepair'],
             ];
         }
 
@@ -145,9 +164,11 @@ final class MediaBag
                 'canonicalSource' => $item['canonicalSource'],
                 'sourcePath' => $item['sourcePath'],
                 'pathRepairSummary' => $item['pathRepairSummary'],
+                'pathRepairReasons' => $item['pathRepairReasons'],
                 'mimeTypeSource' => $item['mimeTypeSource'],
                 'inferredMimeType' => $item['inferredMimeType'],
                 'mimeRepairSummary' => $item['mimeRepairSummary'],
+                'mimeRepair' => $item['mimeRepair'],
                 'contents' => $item['contents'],
             ];
         }
@@ -283,9 +304,12 @@ final class MediaBag
                 'sourcePath' => $item['sourcePath'],
                 'pathRepairSummary' => $item['pathRepairSummary'],
                 'extractionPathRepairSummary' => self::extractionPathRepairSummary($item, $plan),
+                'pathRepairReasons' => $item['pathRepairReasons'],
+                'extractionPathRepairReasons' => self::extractionPathRepairReasons($item, $plan),
                 'mimeTypeSource' => $item['mimeTypeSource'],
                 'inferredMimeType' => $item['inferredMimeType'],
                 'mimeRepairSummary' => $item['mimeRepairSummary'],
+                'mimeRepair' => $item['mimeRepair'],
                 'contents' => $item['contents'],
             ];
             foreach ($extractionPlan['diagnostics'][$item['canonicalSource']] ?? [] as $diagnostic) {
@@ -404,10 +428,16 @@ final class MediaBag
             'data-pandoc-media-source-sha1' => sha1($item['source']),
             'data-pandoc-media-path-repaired' => $mediaPath === $item['path'] ? 'false' : 'true',
             'data-pandoc-media-path-repair' => self::extractionPathRepairSummary($item, $plan),
+            'data-pandoc-media-path-repair-reasons' => implode(',', self::extractionPathRepairReasons($item, $plan)),
             'data-pandoc-media-mime-source' => $item['mimeTypeSource'],
             'data-pandoc-media-inferred-type' => $item['inferredMimeType'],
             'data-pandoc-media-mime-repair' => $item['mimeRepairSummary'],
+            'data-pandoc-media-mime-repair-kind' => (string) ($item['mimeRepair']['kind'] ?? $item['mimeRepairSummary']),
         ]);
+
+        if (isset($item['mimeRepair']['repairAction'])) {
+            $attributes['data-pandoc-media-mime-repair-action'] = (string) $item['mimeRepair']['repairAction'];
+        }
 
         if ($linkedMimeGroup !== null) {
             $attributes['data-pandoc-media-linked-mime-group'] = $linkedMimeGroup['group'];
@@ -782,6 +812,55 @@ final class MediaBag
         }
 
         return 'declared-mime-matches-path';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function repairReasonsFromSummary(string $summary): array
+    {
+        if ($summary === '') {
+            return [];
+        }
+
+        return array_values(array_filter(
+            explode(',', $summary),
+            static fn (string $reason): bool => $reason !== ''
+        ));
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function mimeRepairRecord(
+        string $summary,
+        string $mimeTypeSource,
+        string $normalizedMimeType,
+        string $inferredMimeType
+    ): array {
+        if (str_starts_with($summary, 'extension-content-type-disagreement:')) {
+            $parts = explode(':', $summary, 4);
+            $transition = $parts[2] ?? '';
+            $transitionParts = explode('=>', $transition, 2);
+
+            return [
+                'kind' => 'extension-content-type-disagreement',
+                'summary' => $summary,
+                'mimeTypeSource' => $mimeTypeSource,
+                'sourceExtension' => $parts[1] ?? 'unknown',
+                'inferredMimeType' => $transitionParts[0] ?? $inferredMimeType,
+                'normalizedMimeType' => $transitionParts[1] ?? $normalizedMimeType,
+                'repairAction' => $parts[3] ?? 'metadata-only',
+            ];
+        }
+
+        return [
+            'kind' => $summary,
+            'summary' => $summary,
+            'mimeTypeSource' => $mimeTypeSource,
+            'inferredMimeType' => $inferredMimeType,
+            'normalizedMimeType' => $normalizedMimeType,
+        ];
     }
 
     /**
@@ -1173,15 +1252,24 @@ final class MediaBag
      */
     private static function extractionPathRepairSummary(array $item, array $plan): string
     {
-        $summary = $item['pathRepairSummary'];
-        $reasons = $summary === '' ? [] : explode(',', $summary);
+        return implode(',', self::extractionPathRepairReasons($item, $plan));
+    }
+
+    /**
+     * @param array{pathRepairSummary:string, pathRepairReasons?:list<string>} $item
+     * @param array{collision:string} $plan
+     * @return list<string>
+     */
+    private static function extractionPathRepairReasons(array $item, array $plan): array
+    {
+        $reasons = $item['pathRepairReasons'] ?? self::repairReasonsFromSummary($item['pathRepairSummary']);
         if ($plan['collision'] === 'path') {
             $reasons[] = 'path-collision-disambiguated';
         } elseif ($plan['collision'] === 'casefold') {
             $reasons[] = 'casefold-path-collision-disambiguated';
         }
 
-        return implode(',', array_values(array_unique($reasons)));
+        return array_values(array_unique($reasons));
     }
 
     private static function decodedRelativeSourceKey(string $source): ?string

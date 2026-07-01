@@ -898,12 +898,24 @@ return [
         $t->same('docs/Review.pdf', $directoryBySource[$normalizedSource]['canonicalSource']);
         $t->same('docs/Review.pdf', $directoryBySource[$normalizedSource]['path']);
         $t->same('normalized-path', $directoryBySource[$normalizedSource]['pathRepairSummary']);
+        $t->same(['normalized-path'], $directoryBySource[$normalizedSource]['pathRepairReasons']);
         $t->same('docs/review packet.pdf', $directoryBySource[$encodedSource]['path']);
         $t->same('percent-decoded-path', $directoryBySource[$encodedSource]['pathRepairSummary']);
+        $t->same(['percent-decoded-path'], $directoryBySource[$encodedSource]['pathRepairReasons']);
         $t->same($mismatchedPath, $directoryBySource[$mismatchedSource]['path']);
         $t->same('url-suffix-hash-path', $directoryBySource[$mismatchedSource]['pathRepairSummary']);
+        $t->same(['url-suffix-hash-path'], $directoryBySource[$mismatchedSource]['pathRepairReasons']);
         $t->same('application/pdf', $directoryBySource[$mismatchedSource]['inferredMimeType']);
         $t->same('extension-content-type-disagreement:.pdf:application/pdf=>text/css:path-extension-from-content-type', $directoryBySource[$mismatchedSource]['mimeRepairSummary']);
+        $t->same([
+            'kind' => 'extension-content-type-disagreement',
+            'summary' => 'extension-content-type-disagreement:.pdf:application/pdf=>text/css:path-extension-from-content-type',
+            'mimeTypeSource' => 'declared',
+            'sourceExtension' => '.pdf',
+            'inferredMimeType' => 'application/pdf',
+            'normalizedMimeType' => 'text/css',
+            'repairAction' => 'path-extension-from-content-type',
+        ], $directoryBySource[$mismatchedSource]['mimeRepair']);
 
         $extracted = $bag->extractMedia($filled['document'], 'media');
         $mappedParagraph = $extracted['document']->children[0];
@@ -927,6 +939,10 @@ return [
         $t->same('media/' . $caseLowerPath, $mappedLower->attr('url'));
         $t->same($caseLowerPath, $entriesBySource[$caseLowerSource]['mediaPath']);
         $t->same('safe-relative-path,casefold-path-collision-disambiguated', $entriesBySource[$caseLowerSource]['extractionPathRepairSummary']);
+        $t->same([
+            'safe-relative-path',
+            'casefold-path-collision-disambiguated',
+        ], $entriesBySource[$caseLowerSource]['extractionPathRepairReasons']);
         $t->same('application-pdf', $entriesBySource[$normalizedSource]['linkedMimeGroup']);
         $t->same(4, $entriesBySource[$normalizedSource]['linkedMimeGroupSize']);
         $t->true(!array_key_exists('linkedMimeGroup', $entriesBySource[$mismatchedSource]), 'Single CSS linked resource should not receive a duplicate MIME group');
@@ -944,16 +960,21 @@ return [
         $t->same('application/pdf', $mismatchAttrs['data-pandoc-media-inferred-type']);
         $t->same('declared', $mismatchAttrs['data-pandoc-media-mime-source']);
         $t->same('extension-content-type-disagreement:.pdf:application/pdf=>text/css:path-extension-from-content-type', $mismatchAttrs['data-pandoc-media-mime-repair']);
+        $t->same('extension-content-type-disagreement', $mismatchAttrs['data-pandoc-media-mime-repair-kind']);
+        $t->same('path-extension-from-content-type', $mismatchAttrs['data-pandoc-media-mime-repair-action']);
         $t->same('application-pdf', $lowerAttrs['data-pandoc-media-linked-mime-group']);
         $t->same('4', $lowerAttrs['data-pandoc-media-linked-mime-group-size']);
         $t->same('safe-relative-path,casefold-path-collision-disambiguated', $lowerAttrs['data-pandoc-media-path-repair']);
+        $t->same('safe-relative-path,casefold-path-collision-disambiguated', $lowerAttrs['data-pandoc-media-path-repair-reasons']);
 
         $markdown = (new MarkdownWriter())->write($extracted['document']);
         $blocks = (new WordPressBlockWriter())->write($extracted['document']);
         $roundTrip = (new PandocJsonReader())->read((new PandocJsonWriter())->write($extracted['document']));
         $t->contains('data-pandoc-media-path-repair="percent-decoded-path"', $markdown);
+        $t->contains('data-pandoc-media-mime-repair-kind="extension-content-type-disagreement"', $markdown);
         $t->contains('data-pandoc-media-linked-mime-group="application-pdf"', $blocks);
         $t->same('casefold-path-collision-disambiguated', explode(',', $roundTrip->children[0]->children[8]->attr('attributes')['data-pandoc-media-path-repair'])[1]);
+        $t->same('casefold-path-collision-disambiguated', explode(',', $roundTrip->children[0]->children[8]->attr('attributes')['data-pandoc-media-path-repair-reasons'])[1]);
     },
 
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
