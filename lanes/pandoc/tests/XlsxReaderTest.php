@@ -531,9 +531,13 @@ XML,
 <?xml version="1.0" encoding="UTF-8"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <cols>
+    <col min="2" max="2" width="18.5" style="4" hidden="1" customWidth="1" bestFit="1" outlineLevel="1" collapsed="1"/>
+    <col min="3" max="3" width="10"/>
+  </cols>
   <sheetData>
     <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row>
-    <row r="2"><c r="A2"><f>1+1</f><v>999</v></c><c r="B2" t="e"><f>A2/0</f><v>#DIV/0!</v></c><c r="C2" t="str"><f>&quot;cached&quot;</f><v>Cached string</v></c></row>
+    <row r="2" ht="24.5" s="3" hidden="1" customHeight="1" outlineLevel="2" collapsed="1"><c r="A2"><f>1+1</f><v>999</v></c><c r="B2" t="e"><f>A2/0</f><v>#DIV/0!</v></c><c r="C2" t="str"><f>&quot;cached&quot;</f><v>Cached string</v></c></row>
   </sheetData>
   <autoFilter ref="A1:C3">
     <filterColumn colId="1" hiddenButton="1" showButton="0">
@@ -1095,6 +1099,31 @@ return [
         $t->same(true, $sheets[2]['veryHidden'] ?? null);
         $t->same('Hidden Audit', $document->children[2]->attr('text'));
         $t->same('Very Hidden', $document->children[4]->attr('text'));
+        $t->same(1, $review['hiddenRowCount'] ?? null);
+        $t->same(1, $review['hiddenColumnCount'] ?? null);
+        $t->same(1, $review['customRowHeightCount'] ?? null);
+        $t->same(1, $review['customColumnWidthCount'] ?? null);
+        $t->same(1, $visibleSheet['hiddenRowCount'] ?? null);
+        $t->same(1, $visibleSheet['hiddenColumnCount'] ?? null);
+        $t->same(1, $visibleSheet['customRowHeightCount'] ?? null);
+        $t->same(1, $visibleSheet['customColumnWidthCount'] ?? null);
+        $t->same(2, count($visibleSheet['columnMetadata'] ?? []));
+        $t->same('B', $visibleSheet['columnMetadata'][0]['range'] ?? null);
+        $t->same(18.5, $visibleSheet['columnMetadata'][0]['width'] ?? null);
+        $t->same(4, $visibleSheet['columnMetadata'][0]['styleIndex'] ?? null);
+        $t->same(true, $visibleSheet['columnMetadata'][0]['hidden'] ?? null);
+        $t->same(true, $visibleSheet['columnMetadata'][0]['customWidth'] ?? null);
+        $t->same(true, $visibleSheet['columnMetadata'][0]['bestFit'] ?? null);
+        $t->same(1, $visibleSheet['columnMetadata'][0]['outlineLevel'] ?? null);
+        $t->same(true, $visibleSheet['columnMetadata'][0]['collapsed'] ?? null);
+        $t->same(1, count($visibleSheet['rowMetadata'] ?? []));
+        $t->same(2, $visibleSheet['rowMetadata'][0]['row'] ?? null);
+        $t->same(24.5, $visibleSheet['rowMetadata'][0]['height'] ?? null);
+        $t->same(3, $visibleSheet['rowMetadata'][0]['styleIndex'] ?? null);
+        $t->same(true, $visibleSheet['rowMetadata'][0]['hidden'] ?? null);
+        $t->same(true, $visibleSheet['rowMetadata'][0]['customHeight'] ?? null);
+        $t->same(2, $visibleSheet['rowMetadata'][0]['outlineLevel'] ?? null);
+        $t->same(true, $visibleSheet['rowMetadata'][0]['collapsed'] ?? null);
 
         $t->same(true, $review['workbookProperties']['date1904'] ?? null);
         $t->same(true, $review['workbookProperties']['filterPrivacy'] ?? null);
@@ -1127,9 +1156,25 @@ return [
         $t->same(true, $visibleSheet['errorDiagnostics'][0]['fromFormula'] ?? null);
         $t->same('999.0', $visibleBodyCells[0]->attr('text'));
         $t->same('number', $visibleBodyCells[0]->attr('xlsxValueType'));
+        $t->same(true, $visibleBodyCells[0]->attr('xlsxRowHidden'));
+        $t->same(24.5, $visibleBodyCells[0]->attr('xlsxRowHeight'));
+        $t->same(3, $visibleBodyCells[0]->attr('xlsxRowStyleIndex'));
+        $t->same(2, $visibleBodyCells[0]->attr('xlsxRowOutlineLevel'));
+        $t->same(true, $visibleBodyCells[0]->attr('xlsxRowCustomHeight'));
+        $t->same(true, $visibleBodyCells[0]->attr('xlsxRowCollapsed'));
         $t->same('#DIV/0!', $visibleBodyCells[1]->attr('text'));
         $t->same('error', $visibleBodyCells[1]->attr('xlsxValueType'));
+        $t->same('B', $visibleBodyCells[1]->attr('xlsxColumnRange'));
+        $t->same(true, $visibleBodyCells[1]->attr('xlsxColumnHidden'));
+        $t->same(18.5, $visibleBodyCells[1]->attr('xlsxColumnWidth'));
+        $t->same(4, $visibleBodyCells[1]->attr('xlsxColumnStyleIndex'));
+        $t->same(true, $visibleBodyCells[1]->attr('xlsxColumnCustomWidth'));
+        $t->same(true, $visibleBodyCells[1]->attr('xlsxColumnBestFit'));
+        $t->same(1, $visibleBodyCells[1]->attr('xlsxColumnOutlineLevel'));
+        $t->same(true, $visibleBodyCells[1]->attr('xlsxColumnCollapsed'));
         $t->same('Cached string', $visibleBodyCells[2]->attr('text'));
+        $t->same('C', $visibleBodyCells[2]->attr('xlsxColumnRange'));
+        $t->same(10, $visibleBodyCells[2]->attr('xlsxColumnWidth'));
 
         $t->same(1, $review['tablePartCount'] ?? null);
         $t->same(1, $review['autoFilterCount'] ?? null);
