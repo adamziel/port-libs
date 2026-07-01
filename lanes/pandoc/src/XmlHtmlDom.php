@@ -1033,6 +1033,56 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    public static function summarizeHtmlFragmentComments(\DOMDocument $dom): array
+    {
+        $root = self::requireFragmentRoot($dom);
+        $comments = self::htmlFragmentCommentRecords($root);
+        $issueCodes = [];
+        $declarationLikeCount = 0;
+        $unsafeBoundaryCount = 0;
+        $emptyCount = 0;
+        $multilineCount = 0;
+
+        foreach ($comments as $comment) {
+            if (($comment['containsDeclarationLikeText'] ?? false) === true) {
+                ++$declarationLikeCount;
+            }
+            if (($comment['unsafeBoundary'] ?? false) === true) {
+                ++$unsafeBoundaryCount;
+            }
+            if (($comment['empty'] ?? false) === true) {
+                ++$emptyCount;
+            }
+            if (($comment['multiline'] ?? false) === true) {
+                ++$multilineCount;
+            }
+
+            foreach (($comment['issueCodes'] ?? []) as $code) {
+                if (is_string($code) && $code !== '' && !in_array($code, $issueCodes, true)) {
+                    $issueCodes[] = $code;
+                }
+            }
+        }
+
+        return [
+            'formatFamily' => 'xml-html5-dom',
+            'format' => 'html',
+            'commentReviewPolicy' => 'html-fragment-comment-provenance',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => ['html-fragment-comment-review-only'],
+            'commentCount' => count($comments),
+            'declarationLikeCommentCount' => $declarationLikeCount,
+            'unsafeBoundaryCommentCount' => $unsafeBoundaryCount,
+            'emptyCommentCount' => $emptyCount,
+            'multilineCommentCount' => $multilineCount,
+            'commentIssueCodes' => $issueCodes,
+            'comments' => $comments,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function summarizeHtmlFragmentResourceUrls(\DOMDocument $dom, ?string $baseUrl = null): array
     {
         $root = self::requireFragmentRoot($dom);
@@ -14753,6 +14803,156 @@ final class XmlHtmlDom
         return self::shouldRepairOrphanHtmlTableChildren($parent)
             ? self::wrapOrphanHtmlTableSummary($summary)
             : $summary;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlFragmentCommentRecords(\DOMElement $root): array
+    {
+        $records = [];
+        $index = 0;
+        self::collectHtmlFragmentCommentRecords($root, $records, $index);
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     */
+    private static function collectHtmlFragmentCommentRecords(\DOMNode $parent, array &$records, int &$index): void
+    {
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMComment) {
+                $records[] = self::htmlFragmentCommentRecord($child, $index++);
+                continue;
+            }
+
+            if ($child->hasChildNodes()) {
+                self::collectHtmlFragmentCommentRecords($child, $records, $index);
+            }
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlFragmentCommentRecord(\DOMComment $comment, int $index): array
+    {
+        $text = $comment->nodeValue ?? '';
+        $safeText = self::safeHtmlCommentText($text);
+        $containsDoctype = preg_match('/<!\s*DOCTYPE\b/i', $text) === 1;
+        $containsDtdDeclaration = preg_match('/<!\s*(?:ENTITY|ELEMENT|ATTLIST|NOTATION)\b/i', $text) === 1;
+        $containsProcessingInstruction = preg_match('/<\?[A-Za-z_][A-Za-z0-9_.:-]*/', $text) === 1;
+        $containsDeclarationLikeText = $containsDoctype || $containsDtdDeclaration || $containsProcessingInstruction;
+        $unsafeBoundary = $safeText !== $text;
+        $empty = $text === '';
+        $multiline = str_contains($text, "\n") || str_contains($text, "\r");
+
+        return [
+            'index' => $index,
+            'nodePath' => self::htmlNodeReviewPath($comment),
+            'parentElement' => self::htmlCommentParentElementName($comment),
+            'parentElementPath' => self::htmlCommentParentElementPath($comment),
+            'text' => $text,
+            'textByteLength' => strlen($text),
+            'textLineCount' => $empty ? 0 : substr_count(str_replace(["\r\n", "\r"], "\n", $text), "\n") + 1,
+            'textSha256' => hash('sha256', $text),
+            'empty' => $empty,
+            'multiline' => $multiline,
+            'containsDoctypeText' => $containsDoctype,
+            'containsDtdDeclarationText' => $containsDtdDeclaration,
+            'containsProcessingInstructionText' => $containsProcessingInstruction,
+            'containsDeclarationLikeText' => $containsDeclarationLikeText,
+            'unsafeBoundary' => $unsafeBoundary,
+            'serializationTextChanged' => $unsafeBoundary,
+            'safeSerializationText' => $safeText,
+            'issueCodes' => self::htmlCommentIssueCodes($containsDeclarationLikeText, $unsafeBoundary, $empty),
+        ];
+    }
+
+    private static function htmlCommentParentElementName(\DOMComment $comment): ?string
+    {
+        $parent = $comment->parentNode;
+        if (!$parent instanceof \DOMElement || $parent->getAttribute(self::FRAGMENT_ROOT_ATTRIBUTE) === '1') {
+            return null;
+        }
+
+        return self::htmlElementName($parent);
+    }
+
+    private static function htmlCommentParentElementPath(\DOMComment $comment): ?string
+    {
+        $parent = $comment->parentNode;
+        if (!$parent instanceof \DOMElement || $parent->getAttribute(self::FRAGMENT_ROOT_ATTRIBUTE) === '1') {
+            return null;
+        }
+
+        return self::htmlNodeReviewPath($parent);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function htmlCommentIssueCodes(bool $containsDeclarationLikeText, bool $unsafeBoundary, bool $empty): array
+    {
+        $codes = [];
+        if ($containsDeclarationLikeText) {
+            $codes[] = 'declaration-like-comment-text';
+        }
+        if ($unsafeBoundary) {
+            $codes[] = 'unsafe-comment-boundary';
+        }
+        if ($empty) {
+            $codes[] = 'empty-comment';
+        }
+
+        return $codes;
+    }
+
+    private static function htmlNodeReviewPath(\DOMNode $node): string
+    {
+        $segments = [];
+        for ($current = $node; $current instanceof \DOMNode; $current = $current->parentNode) {
+            if ($current instanceof \DOMElement && $current->getAttribute(self::FRAGMENT_ROOT_ATTRIBUTE) === '1') {
+                break;
+            }
+
+            $segment = self::htmlNodeReviewPathSegment($current);
+            if ($segment !== null) {
+                array_unshift($segments, $segment);
+            }
+        }
+
+        return implode('/', $segments);
+    }
+
+    private static function htmlNodeReviewPathSegment(\DOMNode $node): ?string
+    {
+        if ($node instanceof \DOMElement) {
+            $name = strtolower(self::htmlElementName($node));
+            $ordinal = 1;
+            for ($sibling = $node->previousSibling; $sibling instanceof \DOMNode; $sibling = $sibling->previousSibling) {
+                if ($sibling instanceof \DOMElement && strtolower(self::htmlElementName($sibling)) === $name) {
+                    ++$ordinal;
+                }
+            }
+
+            return $name . '[' . $ordinal . ']';
+        }
+
+        if ($node instanceof \DOMComment) {
+            $ordinal = 1;
+            for ($sibling = $node->previousSibling; $sibling instanceof \DOMNode; $sibling = $sibling->previousSibling) {
+                if ($sibling instanceof \DOMComment) {
+                    ++$ordinal;
+                }
+            }
+
+            return 'comment()[' . $ordinal . ']';
+        }
+
+        return null;
     }
 
     /**

@@ -7243,6 +7243,57 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->true(!str_contains($html, 'source -- boundary'), 'Expected interior comment delimiters to be split before serialization');
         $t->true(!str_contains($html, 'triple---tail'), 'Expected overlapping comment delimiters to be split before serialization');
     },
+    'summarizes html fragment comment provenance for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<!-- <!DOCTYPE html><?review href="file"?> -->'
+                . '<section id="s"><p>Body</p><!--source -- boundary--><!--line' . "\n" . 'two--></section>'
+                . '<!--review--->',
+            'comment provenance HTML fragment'
+        );
+        $packet = XmlHtmlDom::summarizeHtmlFragmentComments($dom);
+        $comments = $packet['comments'];
+
+        $t->same('html-fragment-comment-provenance', $packet['commentReviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(['html-fragment-comment-review-only'], $packet['directReaderDiagnosticCodes']);
+        $t->same(4, $packet['commentCount']);
+        $t->same(1, $packet['declarationLikeCommentCount']);
+        $t->same(2, $packet['unsafeBoundaryCommentCount']);
+        $t->same(0, $packet['emptyCommentCount']);
+        $t->same(1, $packet['multilineCommentCount']);
+        $t->same(['declaration-like-comment-text', 'unsafe-comment-boundary'], $packet['commentIssueCodes']);
+
+        $t->same('comment()[1]', $comments[0]['nodePath']);
+        $t->same(null, $comments[0]['parentElement']);
+        $t->same(' <!DOCTYPE html><?review href="file"?> ', $comments[0]['text']);
+        $t->same(hash('sha256', ' <!DOCTYPE html><?review href="file"?> '), $comments[0]['textSha256']);
+        $t->same(true, $comments[0]['containsDoctypeText']);
+        $t->same(true, $comments[0]['containsProcessingInstructionText']);
+        $t->same(true, $comments[0]['containsDeclarationLikeText']);
+        $t->same(false, $comments[0]['unsafeBoundary']);
+        $t->same(['declaration-like-comment-text'], $comments[0]['issueCodes']);
+
+        $t->same('section[1]/comment()[1]', $comments[1]['nodePath']);
+        $t->same('section', $comments[1]['parentElement']);
+        $t->same('section[1]', $comments[1]['parentElementPath']);
+        $t->same('source -- boundary', $comments[1]['text']);
+        $t->same(true, $comments[1]['unsafeBoundary']);
+        $t->same(true, $comments[1]['serializationTextChanged']);
+        $t->same('source - - boundary', $comments[1]['safeSerializationText']);
+        $t->same(['unsafe-comment-boundary'], $comments[1]['issueCodes']);
+
+        $t->same('section[1]/comment()[2]', $comments[2]['nodePath']);
+        $t->same("line\ntwo", $comments[2]['text']);
+        $t->same(2, $comments[2]['textLineCount']);
+        $t->same(true, $comments[2]['multiline']);
+        $t->same([], $comments[2]['issueCodes']);
+
+        $t->same('comment()[2]', $comments[3]['nodePath']);
+        $t->same('review-', $comments[3]['text']);
+        $t->same(true, $comments[3]['unsafeBoundary']);
+        $t->same('review- ', $comments[3]['safeSerializationText']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'serializes raw text elements and expanded html5 boolean attributes' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<script defer src="review.js">if (a < b && c > d) { window.review = "&"; }</script>'
