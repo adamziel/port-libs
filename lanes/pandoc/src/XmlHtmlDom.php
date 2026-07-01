@@ -27178,7 +27178,11 @@ final class XmlHtmlDom
         }
 
         if ($iframe->hasAttribute('credentialless')) {
-            $summary += self::iframeCredentiallessPolicySummary($iframe->getAttribute('credentialless'));
+            $credentialless = self::iframeCredentiallessPolicySummary($iframe->getAttribute('credentialless'));
+            $summary += $credentialless;
+            foreach ($credentialless['iframeCredentiallessIssueCodes'] as $code) {
+                $summary['iframePolicyIssueCodes'][] = $code;
+            }
         }
 
         if ($iframe->hasAttribute('csp')) {
@@ -27199,11 +27203,17 @@ final class XmlHtmlDom
      */
     private static function iframeCredentiallessPolicySummary(string $value): array
     {
+        $valid = $value === '' || strcasecmp($value, 'credentialless') === 0;
+
         return [
             'iframeCredentiallessReviewPolicy' => 'iframe-credentialless-attribute-review',
+            'iframeCredentiallessBooleanReviewPolicy' => 'iframe-credentialless-boolean-attribute-review',
             'iframeCredentiallessRaw' => $value,
             'iframeCredentialless' => true,
+            'iframeCredentiallessEnabled' => true,
             'iframeCredentialMode' => 'credentialless',
+            'iframeCredentiallessBooleanAttributeValid' => $valid,
+            'iframeCredentiallessIssueCodes' => $valid ? [] : ['noncanonical-iframe-credentialless-value'],
         ];
     }
 
@@ -27213,18 +27223,44 @@ final class XmlHtmlDom
     private static function iframeContentSecurityPolicySummary(string $value): array
     {
         $csp = self::metaContentSecurityPolicySummary($value, 'iframe-csp');
-        $issueCodes = array_values(array_map(
-            static fn (string $code): string => $code === 'missing-meta-csp-content'
-                ? 'empty-iframe-csp'
-                : $code,
-            $csp['cspIssueCodes']
-        ));
+        $issues = array_map(
+            static function (array $issue): array {
+                if (($issue['code'] ?? null) === 'missing-meta-csp-content') {
+                    $issue['code'] = 'empty-iframe-csp';
+                }
+
+                return $issue;
+            },
+            $csp['cspIssues']
+        );
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         return $csp + [
             'iframeCspReviewPolicy' => 'iframe-csp-attribute-review',
+            'iframeEmbeddedCspReviewPolicy' => 'iframe-embedded-csp-policy-review',
             'iframeCspRaw' => $value,
             'iframeCspByteLength' => strlen($value),
             'iframeCspSha256' => hash('sha256', $value),
+            'iframeCspDirectiveCount' => $csp['cspDirectiveCount'],
+            'iframeCspDirectives' => $csp['cspDirectives'],
+            'iframeCspDirectiveNames' => $csp['cspDirectiveNames'],
+            'iframeCspDirectiveNameCounts' => $csp['cspDirectiveNameCounts'],
+            'iframeCspDirectiveKinds' => $csp['cspDirectiveKinds'],
+            'iframeCspFetchDirectiveNames' => $csp['cspFetchDirectiveNames'],
+            'duplicateIframeCspDirectiveNames' => $csp['duplicateCspDirectiveNames'],
+            'invalidIframeCspDirectiveNames' => $csp['invalidCspDirectiveNames'],
+            'invalidIframeCspSourceTokens' => $csp['invalidCspSourceTokens'],
+            'iframeCspSchemeSources' => $csp['cspSchemeSources'],
+            'iframeCspNetworkSources' => $csp['cspNetworkSources'],
+            'iframeCspReportEndpoints' => $csp['cspReportEndpoints'],
+            'iframeCspUnsafeKeywords' => $csp['cspUnsafeKeywords'],
+            'iframeCspNonceSourceCount' => $csp['cspNonceSourceCount'],
+            'iframeCspNonceSourceDigests' => $csp['cspNonceSourceDigests'],
+            'iframeCspHashSourceAlgorithms' => $csp['cspHashSourceAlgorithms'],
+            'iframeCspIssues' => $issues,
             'iframeCspIssueCodes' => $issueCodes,
             'iframeCspValid' => $issueCodes === [],
         ];
