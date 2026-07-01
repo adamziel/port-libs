@@ -2236,7 +2236,8 @@ return [
         $t->same([1828800, 1828800, 1828800], $tables[0]->attr('columnWidths'));
         $t->same(['Col1', 'Col2', 'Col3'], array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $tables[0]->children[0]->children[0]->children));
         $t->same('Name', $tables[0]->children[1]->children[0]->children[0]->attr('text'));
-        $t->same(2, $tables[0]->children[1]->children[0]->children[0]->attr('colspan'));
+        $t->same(1, $tables[0]->children[1]->children[0]->children[0]->attr('colspan', 1));
+        $t->same(2, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCell')['gridSpan'] ?? null);
         $t->same('D9EAF7', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['fillColor'] ?? null);
         $t->same('ctr', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['verticalAlign'] ?? null);
         $t->same('theme:accent1', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borders']['bottom'] ?? null);
@@ -2244,7 +2245,8 @@ return [
         $t->same(12700, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['width'] ?? null);
         $t->same('solid', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['dash'] ?? null);
         $t->same('4472C4', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['resolvedColor'] ?? null);
-        $t->same(2, $tables[0]->children[1]->children[1]->children[0]->attr('rowspan'));
+        $t->same(1, $tables[0]->children[1]->children[1]->children[0]->attr('rowspan', 1));
+        $t->same(2, $tables[0]->children[1]->children[1]->children[0]->attr('pptxCell')['rowSpan'] ?? null);
         $t->same('23', $tables[0]->children[1]->children[1]->children[1]->attr('text'));
         $t->same(1, count($images));
         $t->same('ppt/media/image1.png', $images[0]->attr('url'));
@@ -2284,13 +2286,11 @@ return [
         $t->same('another', $smartArtDivs[0]->children[1]->children[0]->children[0]->children[0]->attr('text'));
         $t->same('Second', $smartArtDivs[0]->children[2]->children[0]->children[0]->attr('text'));
 
-        $t->same(1, count($mediaDivs));
-        $t->same(['pptx-rich-media', 'pptx-video'], $mediaDivs[0]->attr('classes'));
-        $t->same('ppt/media/video1.mp4', $mediaDivs[0]->attr('attributes')['src'] ?? null);
-        $t->same('video', $mediaDivs[0]->attr('pptxMedia')['kind'] ?? null);
-        $t->same('pic', $mediaDivs[0]->attr('pptxShape')['element'] ?? null);
-        $t->same(3, $mediaDivs[0]->attr('pptxShape')['zOrder'] ?? null);
-        $t->same(['x' => 555, 'y' => 666, 'cx' => 777, 'cy' => 888], $mediaDivs[0]->attr('pptxShape')['layout'] ?? null);
+        $t->same(0, count($mediaDivs));
+        $t->same('video', $review['slides'][4]['richMedia'][0]['kind'] ?? null);
+        $t->same('pic', $review['slides'][4]['richMedia'][0]['shape']['element'] ?? null);
+        $t->same(3, $review['slides'][4]['richMedia'][0]['shape']['zOrder'] ?? null);
+        $t->same(['x' => 555, 'y' => 666, 'cx' => 777, 'cy' => 888], $review['slides'][4]['richMedia'][0]['shape']['layout'] ?? null);
 
         $t->same(0, count($commentDivs));
         $t->true(!str_contains($native, 'Review this clip'), 'PPTX comments should remain out of upstream-compatible visible output');
@@ -2303,18 +2303,22 @@ return [
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "LLMs" ]', $native);
         $t->contains('BulletList', $native);
         $t->contains('Table ( "" , [  ] , [  ] )', $native);
+        $t->true(!str_contains($native, '(ColSpan 2)'), 'PPTX gridSpan should remain review-only in upstream-compatible native output');
+        $t->true(!str_contains($native, '(RowSpan 2)'), 'PPTX rowSpan should remain review-only in upstream-compatible native output');
         $t->contains('Image ( "" , [  ] , [  ] ) [  ] ( "ppt/media/image1.png" , "Picture 6" )', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "http://schemas.openxmlformats.org/drawingml/2006/chart]" ]', $native);
         $t->contains('Div ( "" , [ "smartart" , "chevron2" ] , [ ( "layout" , "chevron2" ) ] )', $native);
-        $t->contains('Div ( "" , [ "pptx-rich-media" , "pptx-video" ]', $native);
-        $t->contains('( "src" , "ppt/media/video1.mp4" )', $native);
+        $t->true(!str_contains($native, 'pptx-rich-media'), 'PPTX rich media should remain out of upstream-compatible native output');
+        $t->true(!str_contains($native, 'video1.mp4'), 'PPTX rich media targets should remain review-only');
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('<th>Col1</th>', $blocks);
         $t->contains('[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]', $blocks);
         $t->contains('ppt/media/image1.png', $blocks);
+        $t->true(!str_contains($blocks, 'colspan="2"'), 'PPTX gridSpan should remain review-only in WordPress output');
+        $t->true(!str_contains($blocks, 'rowspan="2"'), 'PPTX rowSpan should remain review-only in WordPress output');
         $t->true(!str_contains($blocks, 'data-pandoc-comment-author="Ada Reviewer"'), 'PPTX comments should not render into visible WordPress comment markup');
-        $t->contains('Inherited Layout Body', $blocks);
-        $t->contains('Inherited Master Footer', $blocks);
+        $t->true(!str_contains($blocks, 'Inherited Layout Body'), 'Inherited layout placeholders should remain out of upstream-compatible visible output');
+        $t->true(!str_contains($blocks, 'Inherited Master Footer'), 'Inherited master placeholders should remain out of upstream-compatible visible output');
     },
 
     'matches checked-in current upstream pptx reader basic golden content' => static function (TestRunner $t) use ($pandocReaderContentSignature): void {
