@@ -15777,6 +15777,8 @@ final class DocxOpenXmlReader
         }
         ksort($partPathSegmentPositionCounts, SORT_STRING);
         ksort($partPathSegmentPositionPartCounts, SORT_STRING);
+        $partPathSegmentPositionRoleBuckets =
+            $this->packagePartPathSegmentPositionRoleBucketSummary($partInventory);
         $partCaseFoldPathSegmentPositions = $this->packagePartCaseFoldPathSegmentPositionSummary($partInventory);
         $partCaseFoldPathSegmentPositionOccurrenceCount = 0;
         $partCaseFoldPathSegmentPositionCounts = [];
@@ -19602,6 +19604,15 @@ final class DocxOpenXmlReader
             'partPathSegmentPositionParameterizedBucketCount' => $parameterizedPartPathSegmentPositionBucketCount,
             'partPathSegmentPositionParameterizedPartCount' => $parameterizedPartPathSegmentPositionCount,
             'partPathSegmentPositionMissingContentTypeBucketCount' => $missingContentTypePartPathSegmentPositionCount,
+            'partPathSegmentPositionRoleBucketCount' => $partPathSegmentPositionRoleBuckets['roleBucketCount'],
+            'partPathSegmentPositionRoleCounts' => $partPathSegmentPositionRoleBuckets['roleCounts'],
+            'partNamesByPartPathSegmentPositionRole' => $partPathSegmentPositionRoleBuckets['partNamesByRole'],
+            'partPathSegmentPositionByteExposurePolicyBucketCount' =>
+                $partPathSegmentPositionRoleBuckets['byteExposurePolicyBucketCount'],
+            'partPathSegmentPositionByteExposurePolicyCounts' =>
+                $partPathSegmentPositionRoleBuckets['byteExposurePolicyCounts'],
+            'partNamesByPartPathSegmentPositionByteExposurePolicy' =>
+                $partPathSegmentPositionRoleBuckets['partNamesByByteExposurePolicy'],
             'partCaseFoldPathSegmentPositionBucketCount' => count($partCaseFoldPathSegmentPositions),
             'partCaseFoldPathSegmentPositionOccurrenceCount' => $partCaseFoldPathSegmentPositionOccurrenceCount,
             'partCaseFoldPathSegmentPositionCounts' => $partCaseFoldPathSegmentPositionCounts,
@@ -33504,6 +33515,83 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{
+     *     roleBucketCount:int,
+     *     roleCounts:array<string, array<string, int>>,
+     *     partNamesByRole:array<string, array<string, list<string>>>,
+     *     byteExposurePolicyBucketCount:int,
+     *     byteExposurePolicyCounts:array<string, array<string, int>>,
+     *     partNamesByByteExposurePolicy:array<string, array<string, list<string>>>
+     * }
+     */
+    private function packagePartPathSegmentPositionRoleBucketSummary(array $partInventory): array
+    {
+        $roleCounts = [];
+        $partNamesByRole = [];
+        $byteExposurePolicyCounts = [];
+        $partNamesByByteExposurePolicy = [];
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = is_string($part['partName'] ?? null) ? $part['partName'] : (string) $partName;
+            $pathSegments = is_array($part['pathSegments'] ?? null)
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '',
+                        $part['pathSegments'],
+                    ),
+                    static fn (string $segment): bool => $segment !== '',
+                ))
+                : $this->packagePartPathSegments($partName);
+            $reviews = is_array($part['pathSegmentPositionReviews'] ?? null)
+                ? array_values(array_filter(
+                    $part['pathSegmentPositionReviews'],
+                    static fn (mixed $review): bool => is_array($review),
+                ))
+                : $this->packagePartPathSegmentPositionReviews($pathSegments);
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            if ($roles === []) {
+                $roles = ['package-part'];
+            }
+            $byteExposurePolicy = $this->packagePartByteExposurePolicy($part);
+            $positionsSeenInPart = [];
+
+            foreach ($reviews as $review) {
+                $position = is_string($review['position'] ?? null) ? $review['position'] : '';
+                if ($position === '' || isset($positionsSeenInPart[$position])) {
+                    continue;
+                }
+
+                $positionsSeenInPart[$position] = true;
+                foreach ($roles as $role) {
+                    $roleCounts[$position][$role] = ($roleCounts[$position][$role] ?? 0) + 1;
+                    $partNamesByRole[$position][$role][] = $partName;
+                }
+                $byteExposurePolicyCounts[$position][$byteExposurePolicy] =
+                    ($byteExposurePolicyCounts[$position][$byteExposurePolicy] ?? 0) + 1;
+                $partNamesByByteExposurePolicy[$position][$byteExposurePolicy][] = $partName;
+            }
+        }
+
+        $roleBucketCount = $this->sortNestedCountMap($roleCounts, SORT_STRING);
+        $this->sortNestedStringListMap($partNamesByRole, SORT_STRING);
+        $byteExposurePolicyBucketCount = $this->sortNestedCountMap($byteExposurePolicyCounts, SORT_STRING);
+        $this->sortNestedStringListMap($partNamesByByteExposurePolicy, SORT_STRING);
+
+        return [
+            'roleBucketCount' => $roleBucketCount,
+            'roleCounts' => $roleCounts,
+            'partNamesByRole' => $partNamesByRole,
+            'byteExposurePolicyBucketCount' => $byteExposurePolicyBucketCount,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'partNamesByByteExposurePolicy' => $partNamesByByteExposurePolicy,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $part
      */
     private function packagePartByteExposurePolicy(array $part): string
@@ -45032,6 +45120,24 @@ final class DocxOpenXmlReader
             ),
             'entryNamesByPackagePathDepthByteExposurePolicy' => $this->packageIdentityNestedStringListMap(
                 $summary['partNamesByPartPathDepthByteExposurePolicy'] ?? []
+            ),
+            'packagePathSegmentPositionRoleBucketCount' => (int) (
+                $summary['partPathSegmentPositionRoleBucketCount'] ?? 0
+            ),
+            'packagePathSegmentPositionRoleCounts' => $this->packageIdentityNestedCountMap(
+                $summary['partPathSegmentPositionRoleCounts'] ?? []
+            ),
+            'entryNamesByPackagePathSegmentPositionRole' => $this->packageIdentityNestedStringListMap(
+                $summary['partNamesByPartPathSegmentPositionRole'] ?? []
+            ),
+            'packagePathSegmentPositionByteExposurePolicyBucketCount' => (int) (
+                $summary['partPathSegmentPositionByteExposurePolicyBucketCount'] ?? 0
+            ),
+            'packagePathSegmentPositionByteExposurePolicyCounts' => $this->packageIdentityNestedCountMap(
+                $summary['partPathSegmentPositionByteExposurePolicyCounts'] ?? []
+            ),
+            'entryNamesByPackagePathSegmentPositionByteExposurePolicy' => $this->packageIdentityNestedStringListMap(
+                $summary['partNamesByPartPathSegmentPositionByteExposurePolicy'] ?? []
             ),
             'entryNamesByPackageDirectoryBaseName' => $this->packageIdentityLookupMapFromSummaries(
                 $summary['partDirectoryBaseNames'] ?? [],
