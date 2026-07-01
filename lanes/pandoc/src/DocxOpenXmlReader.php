@@ -16953,6 +16953,7 @@ final class DocxOpenXmlReader
         $largestRelationshipSourceParts = array_slice($relationshipSourceExistingParts, 0, 5);
         $relationshipSourceDirectories = $this->relationshipSourceDirectorySummary($relationshipSources);
         $relationshipSourceCaseFoldParts = $this->relationshipSourceCaseFoldPartSummary($relationshipSources);
+        $relationshipSourceNameCharacters = $this->relationshipSourceNameCharacterSummary($relationshipSources);
         $relationshipSourcePathDepths = $this->relationshipSourcePathDepthSummary($relationshipSources);
         $relationshipSourcePathDepthCounts = [];
         foreach ($relationshipSourcePathDepths as $sourcePathDepthSummary) {
@@ -17296,6 +17297,18 @@ final class DocxOpenXmlReader
             'duplicateRelationshipSourceCaseFoldPartNameCount' => $relationshipSourceCaseFoldParts['duplicatePartNameCount'],
             'duplicateRelationshipSourceCaseFoldParts' => $relationshipSourceCaseFoldParts['duplicateCaseFoldParts'],
             'duplicateRelationshipSourceCaseFoldPartGroups' => $relationshipSourceCaseFoldParts['duplicateGroups'],
+            'relationshipSourceNameCharacterReviewSourceCount' => $relationshipSourceNameCharacters['sourceCount'],
+            'relationshipSourceNameCharacterReviewRelationshipCount' => $relationshipSourceNameCharacters['relationshipCount'],
+            'relationshipSourceNameCharacterReviewRelationshipRecordCount' => $relationshipSourceNameCharacters['relationshipRecordCount'],
+            'relationshipSourceNameCharacterReviewSourcePartCount' => count($relationshipSourceNameCharacters['sourceParts']),
+            'relationshipSourceNameUppercaseSourceCount' => (int) ($relationshipSourceNameCharacters['flagSourceCounts']['uppercase'] ?? 0),
+            'relationshipSourceNameWhitespaceSourceCount' => (int) ($relationshipSourceNameCharacters['flagSourceCounts']['whitespace'] ?? 0),
+            'relationshipSourceNamePercentEncodedOctetSourceCount' => (int) ($relationshipSourceNameCharacters['flagSourceCounts']['percent-encoded-octet'] ?? 0),
+            'relationshipSourceNameNonAsciiSourceCount' => (int) ($relationshipSourceNameCharacters['flagSourceCounts']['non-ascii'] ?? 0),
+            'relationshipSourceNameCharacterFlagSourceCounts' => $relationshipSourceNameCharacters['flagSourceCounts'],
+            'relationshipSourceNameCharacterFlagSourceParts' => $relationshipSourceNameCharacters['flagSourceParts'],
+            'relationshipSourceNameCharacterReviewSourceParts' => $relationshipSourceNameCharacters['sourceParts'],
+            'relationshipSourceNameCharacterReviewSources' => $relationshipSourceNameCharacters['sources'],
             'relationshipSourcePathDepthCount' => count($relationshipSourcePathDepths),
             'relationshipSourcePathDepthCounts' => $relationshipSourcePathDepthCounts,
             'maxRelationshipSourcePathSegmentCount' => $maxRelationshipSourcePathSegmentCount,
@@ -24167,6 +24180,121 @@ final class DocxOpenXmlReader
             'flagCounts' => $flagCounts,
             'flagPartNames' => $flagPartNames,
             'parts' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return array{sourceCount:int, relationshipCount:int, relationshipRecordCount:int, sourceParts:list<string>, flagSourceCounts:array<string, int>, flagSourceParts:array<string, list<string>>, sources:list<array<string, mixed>>}
+     */
+    private function relationshipSourceNameCharacterSummary(array $relationshipSources): array
+    {
+        $flagSourceCounts = [];
+        $flagSourceParts = [];
+        $sourceParts = [];
+        $items = [];
+        $totalRelationshipCount = 0;
+        $totalRelationshipRecordCount = 0;
+
+        foreach ($relationshipSources as $source) {
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            if ($sourcePart === '' || $sourcePart === '/') {
+                continue;
+            }
+
+            $flags = $this->packagePartNameCharacterFlags($sourcePart);
+            if ($flags === []) {
+                continue;
+            }
+
+            $relationshipCount = (int) ($source['relationshipCount'] ?? 0);
+            $relationshipRecordCount = (int) ($source['relationshipRecordCount'] ?? 0);
+            $totalRelationshipCount += $relationshipCount;
+            $totalRelationshipRecordCount += $relationshipRecordCount;
+            $sourceParts[$sourcePart] = true;
+
+            foreach ($flags as $flag) {
+                if ($flag === '') {
+                    continue;
+                }
+
+                $flagSourceCounts[$flag] = ($flagSourceCounts[$flag] ?? 0) + 1;
+                $flagSourceParts[$flag][$sourcePart] = true;
+            }
+
+            $sourcePathSegments = is_array($source['sourcePathSegments'] ?? null)
+                ? array_values(array_map('strval', $source['sourcePathSegments']))
+                : $this->packagePartPathSegments($sourcePart);
+            $sourceRoles = is_array($source['sourceRoles'] ?? null)
+                ? array_values(array_filter(
+                    array_map('strval', $source['sourceRoles']),
+                    static fn (string $role): bool => $role !== '',
+                ))
+                : [];
+
+            $items[] = [
+                'sourcePart' => $sourcePart,
+                'sourceDirectory' => is_string($source['sourceDirectory'] ?? null)
+                    ? $source['sourceDirectory']
+                    : $this->packagePartDirectory($sourcePart),
+                'sourceBaseName' => is_string($source['sourceBaseName'] ?? null)
+                    ? $source['sourceBaseName']
+                    : $this->packagePartBaseName($sourcePart),
+                'sourcePathDepth' => is_int($source['sourcePathDepth'] ?? null)
+                    ? (int) $source['sourcePathDepth']
+                    : count($sourcePathSegments),
+                'sourcePathSegments' => $sourcePathSegments,
+                'sourcePartExtension' => is_string($source['sourcePartExtension'] ?? null)
+                    ? $source['sourcePartExtension']
+                    : $this->packagePartExtension($sourcePart),
+                'sourceExists' => ($source['sourceExists'] ?? false) === true,
+                'relationshipSourceKind' => is_string($source['relationshipSourceKind'] ?? null)
+                    ? $source['relationshipSourceKind']
+                    : 'invalid-source',
+                'sourceContentTypeBase' => is_string($source['sourceContentTypeBase'] ?? null)
+                    ? $source['sourceContentTypeBase']
+                    : '',
+                'sourceContentTypeSource' => is_string($source['sourceContentTypeSource'] ?? null)
+                    ? $source['sourceContentTypeSource']
+                    : 'missing',
+                'sourceRoles' => $sourceRoles,
+                'relationshipsPart' => is_string($source['relationshipsPart'] ?? null)
+                    ? $source['relationshipsPart']
+                    : '',
+                'relationshipCount' => $relationshipCount,
+                'relationshipRecordCount' => $relationshipRecordCount,
+                'flags' => $flags,
+                'reviewPolicy' => 'relationship-source-name-character-metadata-only',
+            ];
+        }
+
+        ksort($flagSourceCounts, SORT_STRING);
+        ksort($flagSourceParts, SORT_STRING);
+        foreach ($flagSourceParts as &$flagParts) {
+            $flagParts = array_keys($flagParts);
+            sort($flagParts, SORT_STRING);
+        }
+        unset($flagParts);
+
+        $sourceParts = array_keys($sourceParts);
+        sort($sourceParts, SORT_STRING);
+
+        usort(
+            $items,
+            static function (array $left, array $right): int {
+                return strcmp((string) $left['sourcePart'], (string) $right['sourcePart'])
+                    ?: strcmp((string) $left['relationshipsPart'], (string) $right['relationshipsPart']);
+            },
+        );
+
+        return [
+            'sourceCount' => count($items),
+            'relationshipCount' => $totalRelationshipCount,
+            'relationshipRecordCount' => $totalRelationshipRecordCount,
+            'sourceParts' => $sourceParts,
+            'flagSourceCounts' => $flagSourceCounts,
+            'flagSourceParts' => $flagSourceParts,
+            'sources' => $items,
         ];
     }
 
