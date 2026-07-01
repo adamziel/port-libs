@@ -2720,6 +2720,98 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries biblatex available submitted and label dates in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-available-submitted,
+  author        = {Smith, Sam},
+  title         = {Legacy Date Variable Packet},
+  date          = {2026},
+  availabledate = {2026-06},
+  submitted     = {2026-05-28},
+  labelyear     = {2026},
+  labelmonth    = {4},
+  url           = {https://example.test/legacy-date-variable}
+}
+
+@report{legacy-split-date-variables,
+  author          = {Ng, Nia},
+  title           = {Legacy Split Date Packet},
+  institution     = {Review Desk},
+  year            = {2025},
+  availableyear   = {2025},
+  availablemonth  = {7},
+  availableday    = {9},
+  submittedyear   = {2025},
+  submittedmonth  = {6},
+  labeldate       = {2025-05-02}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $compact = $items['legacy-available-submitted'];
+        $split = $items['legacy-split-date-variables'];
+
+        $t->same([2026, 6], $compact['available-date']['date-parts'][0]);
+        $t->same([2026, 5, 28], $compact['submitted']['date-parts'][0]);
+        $t->same([2026, 4], $compact['label-date']['date-parts'][0]);
+        $t->same('2026-06', $compact['rawBibtex']['fields']['availabledate']);
+        $t->same('2026-05-28', $compact['rawBibtex']['fields']['submitted']);
+        $t->same('4', $compact['rawBibtex']['fields']['labelmonth']);
+        $t->same([2025, 7, 9], $split['available-date']['date-parts'][0]);
+        $t->same([2025, 6], $split['submitted']['date-parts'][0]);
+        $t->same([2025, 5, 2], $split['label-date']['date-parts'][0]);
+        $t->same('2025', $split['rawBibtex']['fields']['availableyear']);
+        $t->same('2025-05-02', $split['rawBibtex']['fields']['labeldate']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+        <date variable="label-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="label-date"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+      <date variable="label-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $styledCompact = $styled->item('legacy-available-submitted');
+        $styledSplit = $styled->item('legacy-split-date-variables');
+        $t->same([2026, 6], $styledCompact['availableDate']['parts'] ?? null);
+        $t->same('2026-06', $styledCompact['availableDate']['display'] ?? null);
+        $t->same([2026, 5, 28], $styledCompact['submittedDate']['parts'] ?? null);
+        $t->same('2026-05-28', $styledCompact['submittedDate']['display'] ?? null);
+        $t->same([2026, 4], $styledCompact['labelDate']['parts'] ?? null);
+        $t->same('2026-04', $styledCompact['labelDate']['display'] ?? null);
+        $t->same([2025, 7, 9], $styledSplit['availableDate']['parts'] ?? null);
+        $t->same([2025, 6], $styledSplit['submittedDate']['parts'] ?? null);
+        $t->same([2025, 5, 2], $styledSplit['labelDate']['parts'] ?? null);
+        $t->same('[Legacy Date Variable Packet | 2026-06 | 2026-05-28 | 2026-04; Legacy Split Date Packet | 2025-07-09 | 2025-06 | 2025-05-02]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-available-submitted', 'text' => '[@legacy-available-submitted]']),
+            new AstNode('citation', ['id' => 'legacy-split-date-variables', 'text' => '[@legacy-split-date-variables]']),
+        ]));
+        $t->same('Legacy Split Date Packet :: 2025-07-09 :: 2025-06 :: 2025-05-02', $styled->renderBibliographyEntry('legacy-split-date-variables'));
+
+        $document = (new MarkdownReader())->read('Legacy date variables [@legacy-available-submitted; @legacy-split-date-variables] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy date variables [Legacy Date Variable Packet | 2026-06 | 2026-05-28 | 2026-04; Legacy Split Date Packet | 2025-07-09 | 2025-06 | 2025-05-02] stay visible.</p>', $blocks);
+        $t->contains('<dt>Smith 2026</dt><dd>Legacy Date Variable Packet :: 2026-06 :: 2026-05-28 :: 2026-04</dd>', $blocks);
+    },
     'carries legacy biblatex source file attachment policy metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-file-source,
