@@ -676,6 +676,12 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['outputFormatEntryCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-output-formats:' . $typstBoundarySummary['outputFormatEntryCount'];
             }
+            if (($typstBoundarySummary['diagnosticOutputControlCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-diagnostics:' . $typstBoundarySummary['diagnosticOutputControlCount'];
+            }
+            if (($typstBoundarySummary['invalidDiagnosticOutputCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-invalid-diagnostics:' . $typstBoundarySummary['invalidDiagnosticOutputCount'];
+            }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
@@ -9171,6 +9177,32 @@ final class PdfEngineHandoff
 
         $dependencyOutputPresent = is_array($provenance['dependencyOutput']['file'] ?? null);
         $timingsOutputPresent = is_array($provenance['timingsOutput'] ?? null);
+        $diagnosticOutput = is_array($provenance['diagnosticOutput'] ?? null) ? $provenance['diagnosticOutput'] : [];
+        $diagnosticFormat = is_array($diagnosticOutput['format'] ?? null) ? $diagnosticOutput['format'] : [];
+        $diagnosticColor = is_array($diagnosticOutput['color'] ?? null) ? $diagnosticOutput['color'] : [];
+        $diagnosticFormatHistory = is_array($provenance['diagnosticFormatHistory'] ?? null) ? $provenance['diagnosticFormatHistory'] : [];
+        $diagnosticColorHistory = is_array($provenance['diagnosticColorHistory'] ?? null) ? $provenance['diagnosticColorHistory'] : [];
+        $countUnsafeDiagnosticEntries = static function (array $entries): int {
+            $count = 0;
+            foreach ($entries as $entry) {
+                if (!is_array($entry) || ($entry['safe'] ?? false) !== true) {
+                    ++$count;
+                }
+            }
+
+            return $count;
+        };
+        $invalidDiagnosticFormatCount = $diagnosticFormatHistory !== []
+            ? $countUnsafeDiagnosticEntries($diagnosticFormatHistory)
+            : (int) ($diagnosticFormat !== [] && ($diagnosticFormat['safe'] ?? false) !== true);
+        $invalidDiagnosticColorCount = $diagnosticColorHistory !== []
+            ? $countUnsafeDiagnosticEntries($diagnosticColorHistory)
+            : (int) ($diagnosticColor !== [] && ($diagnosticColor['safe'] ?? false) !== true);
+        $diagnosticOutputOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry)
+                && in_array($entry['option'] ?? null, ['diagnosticFormat', 'diagnosticColor'], true)
+        ));
         $systemFontAccess = is_array($provenance['systemFonts'] ?? null) ? $provenance['systemFonts'] : [];
         $embeddedFontAccess = is_array($provenance['embeddedFonts'] ?? null) ? $provenance['embeddedFonts'] : [];
         $systemFontAccessDisabled = ($systemFontAccess['systemFontAccess'] ?? null) === 'disabled';
@@ -9276,7 +9308,12 @@ final class PdfEngineHandoff
             'sidecarOutputCount' => (int) $dependencyOutputPresent + (int) $timingsOutputPresent,
             'dependencyOutputPresent' => $dependencyOutputPresent,
             'timingsOutputPresent' => $timingsOutputPresent,
-            'diagnosticOutputPresent' => is_array($provenance['diagnosticOutput'] ?? null),
+            'diagnosticOutputPresent' => $diagnosticOutput !== [],
+            'diagnosticOutputControlCount' => (int) ($diagnosticFormat !== []) + (int) ($diagnosticColor !== []),
+            'diagnosticFormatHistoryCount' => count($diagnosticFormatHistory),
+            'diagnosticColorHistoryCount' => count($diagnosticColorHistory),
+            'diagnosticOutputOverrideCount' => count($diagnosticOutputOverrides),
+            'invalidDiagnosticOutputCount' => $invalidDiagnosticFormatCount + $invalidDiagnosticColorCount,
             'fontAccessControlCount' => (int) $systemFontAccessDisabled + (int) $embeddedFontAccessDisabled,
             'systemFontAccessDisabled' => $systemFontAccessDisabled,
             'systemFontAccessFlagCount' => $systemFontAccessFlagCount,

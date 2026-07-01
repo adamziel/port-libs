@@ -363,6 +363,11 @@ return [
             'dependencyOutputPresent' => true,
             'timingsOutputPresent' => true,
             'diagnosticOutputPresent' => true,
+            'diagnosticOutputControlCount' => 2,
+            'diagnosticFormatHistoryCount' => 0,
+            'diagnosticColorHistoryCount' => 0,
+            'diagnosticOutputOverrideCount' => 0,
+            'invalidDiagnosticOutputCount' => 0,
             'fontAccessControlCount' => 2,
             'systemFontAccessDisabled' => true,
             'systemFontAccessFlagCount' => 1,
@@ -4757,14 +4762,23 @@ return [
         $t->contains('typst-boundary-provenance:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-diagnostics-format:json', implode(',', $plan['diagnostics']));
         $t->contains('typst-diagnostics-color:never', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-diagnostics:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-invalid-diagnostics:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
+        $t->same(2, $plan['typstBoundarySummary']['diagnosticOutputControlCount']);
+        $t->same(2, $plan['typstBoundarySummary']['diagnosticFormatHistoryCount']);
+        $t->same(2, $plan['typstBoundarySummary']['diagnosticColorHistoryCount']);
+        $t->same(2, $plan['typstBoundarySummary']['diagnosticOutputOverrideCount']);
+        $t->same(2, $plan['typstBoundarySummary']['invalidDiagnosticOutputCount']);
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same($plan['typstBoundarySummary'], $result['artifactProvenanceReview']['typstBoundarySummary']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+        $t->same($plan['typstBoundarySummary'], $sequence['finalTypstBoundarySummary']);
     },
 
     'maps typst diagnostic output history into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
