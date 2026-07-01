@@ -1673,7 +1673,10 @@ return [
         $divs = $nodesOfType($document, 'div');
         $paragraphs = $nodesOfType($document, 'paragraph');
         $smartArtDivs = $nodesWithClass($divs, 'smartart');
-        $chartDivs = $nodesWithClass($divs, 'pptx-chart');
+        $chartParagraphs = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $node): bool => is_array($node->attr('pptxChart'))
+        ));
         $mediaDivs = $nodesWithClass($divs, 'pptx-rich-media');
         $commentDivs = $nodesWithClass($divs, 'pptx-comments');
         $backLayerParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Back layer'));
@@ -1704,6 +1707,7 @@ return [
         $t->same('4472C4', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent1'] ?? null);
         $t->same('Aptos', $review['slides'][1]['context']['theme']['fontScheme']['minorLatin'] ?? null);
         $t->same(1, $review['slides'][2]['chartCount'] ?? null);
+        $t->same('http://schemas.openxmlformats.org/drawingml/2006/chart', $review['slides'][2]['charts'][0]['graphicUri'] ?? null);
         $t->same('ppt/charts/chart1.xml', $review['slides'][2]['charts'][0]['partName'] ?? null);
         $t->same('ppt/tableStyles.xml', $review['tableStyles']['partName'] ?? null);
         $t->same('rIdStyles', $review['tableStyles']['relationshipId'] ?? null);
@@ -1781,31 +1785,28 @@ return [
         $t->same('ppt/media/image1.png', $images[0]->attr('url'));
         $t->same('Picture 6', $images[0]->attr('title'));
 
-        $t->same(1, count($chartDivs));
-        $t->same(['pptx-chart', 'pptx-chart-bar'], $chartDivs[0]->attr('classes'));
-        $t->same('ppt/charts/chart1.xml', $chartDivs[0]->attr('attributes')['src'] ?? null);
-        $t->same('Quarterly Revenue', $chartDivs[0]->attr('attributes')['title'] ?? null);
-        $t->same('2', $chartDivs[0]->attr('attributes')['series-count'] ?? null);
-        $t->same('2', $chartDivs[0]->attr('attributes')['plot-count'] ?? null);
-        $t->same('bar', $chartDivs[0]->attr('pptxChart')['chartType'] ?? null);
-        $t->same(['bar', 'line'], $chartDivs[0]->attr('pptxChart')['chartTypes'] ?? null);
-        $t->same(2, $chartDivs[0]->attr('pptxChart')['chartTypeCount'] ?? null);
-        $t->same('col', $chartDivs[0]->attr('pptxChart')['plots'][0]['barDirection'] ?? null);
-        $t->same(['10', '20'], $chartDivs[0]->attr('pptxChart')['plots'][0]['axisIds'] ?? null);
-        $t->same('line', $chartDivs[0]->attr('pptxChart')['plots'][1]['type'] ?? null);
-        $t->same('standard', $chartDivs[0]->attr('pptxChart')['plots'][1]['grouping'] ?? null);
-        $t->same(['Q1', 'Q2'], $chartDivs[0]->attr('pptxChart')['series'][0]['categories'] ?? null);
-        $t->same(['12', '18'], $chartDivs[0]->attr('pptxChart')['series'][0]['values'] ?? null);
-        $t->same('line', $chartDivs[0]->attr('pptxChart')['series'][1]['plotType'] ?? null);
-        $t->same(['9', '13'], $chartDivs[0]->attr('pptxChart')['series'][1]['values'] ?? null);
-        $t->same('Quarter', $chartDivs[0]->attr('pptxChart')['axes'][0]['title'] ?? null);
-        $t->same('Revenue', $chartDivs[0]->attr('pptxChart')['axes'][1]['title'] ?? null);
-        $t->same('$#,##0', $chartDivs[0]->attr('pptxChart')['axes'][1]['numberFormat'] ?? null);
-        $t->same(false, $chartDivs[0]->attr('pptxChart')['axes'][1]['sourceLinked'] ?? null);
-        $t->same(['rIdWorkbook'], $chartDivs[0]->attr('pptxChart')['externalDataRelationshipIds'] ?? null);
-        $t->same('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $chartDivs[0]->attr('pptxChart')['externalDataRelationships'][0]['partName'] ?? null);
-        $t->same('North: Q1=12; Q2=18', $chartDivs[0]->children[1]->attr('text'));
-        $t->same('South: Q1=9; Q2=13', $chartDivs[0]->children[2]->attr('text'));
+        $t->same(1, count($chartParagraphs));
+        $t->same('[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]', $chartParagraphs[0]->attr('text'));
+        $t->same('http://schemas.openxmlformats.org/drawingml/2006/chart', $chartParagraphs[0]->attr('pptxChart')['graphicUri'] ?? null);
+        $t->same('ppt/charts/chart1.xml', $chartParagraphs[0]->attr('pptxChart')['partName'] ?? null);
+        $t->same('Quarterly Revenue', $chartParagraphs[0]->attr('pptxChart')['title'] ?? null);
+        $t->same('bar', $chartParagraphs[0]->attr('pptxChart')['chartType'] ?? null);
+        $t->same(['bar', 'line'], $chartParagraphs[0]->attr('pptxChart')['chartTypes'] ?? null);
+        $t->same(2, $chartParagraphs[0]->attr('pptxChart')['chartTypeCount'] ?? null);
+        $t->same('col', $chartParagraphs[0]->attr('pptxChart')['plots'][0]['barDirection'] ?? null);
+        $t->same(['10', '20'], $chartParagraphs[0]->attr('pptxChart')['plots'][0]['axisIds'] ?? null);
+        $t->same('line', $chartParagraphs[0]->attr('pptxChart')['plots'][1]['type'] ?? null);
+        $t->same('standard', $chartParagraphs[0]->attr('pptxChart')['plots'][1]['grouping'] ?? null);
+        $t->same(['Q1', 'Q2'], $chartParagraphs[0]->attr('pptxChart')['series'][0]['categories'] ?? null);
+        $t->same(['12', '18'], $chartParagraphs[0]->attr('pptxChart')['series'][0]['values'] ?? null);
+        $t->same('line', $chartParagraphs[0]->attr('pptxChart')['series'][1]['plotType'] ?? null);
+        $t->same(['9', '13'], $chartParagraphs[0]->attr('pptxChart')['series'][1]['values'] ?? null);
+        $t->same('Quarter', $chartParagraphs[0]->attr('pptxChart')['axes'][0]['title'] ?? null);
+        $t->same('Revenue', $chartParagraphs[0]->attr('pptxChart')['axes'][1]['title'] ?? null);
+        $t->same('$#,##0', $chartParagraphs[0]->attr('pptxChart')['axes'][1]['numberFormat'] ?? null);
+        $t->same(false, $chartParagraphs[0]->attr('pptxChart')['axes'][1]['sourceLinked'] ?? null);
+        $t->same(['rIdWorkbook'], $chartParagraphs[0]->attr('pptxChart')['externalDataRelationshipIds'] ?? null);
+        $t->same('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $chartParagraphs[0]->attr('pptxChart')['externalDataRelationships'][0]['partName'] ?? null);
 
         $t->same(1, count($smartArtDivs));
         $t->same(['smartart', 'chevron2'], $smartArtDivs[0]->attr('classes'));
@@ -1839,13 +1840,13 @@ return [
         $t->contains('BulletList', $native);
         $t->contains('Table ( "" , [  ] , [  ] )', $native);
         $t->contains('Image ( "" , [  ] , [  ] ) [  ] ( "ppt/media/image1.png" , "Picture 6" )', $native);
-        $t->contains('Div ( "" , [ "pptx-chart" , "pptx-chart-bar" ]', $native);
+        $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "http://schemas.openxmlformats.org/drawingml/2006/chart]" ]', $native);
         $t->contains('Div ( "" , [ "smartart" , "chevron2" ] , [ ( "layout" , "chevron2" ) ] )', $native);
         $t->contains('Div ( "" , [ "pptx-rich-media" , "pptx-video" ]', $native);
         $t->contains('( "src" , "ppt/media/video1.mp4" )', $native);
         $t->contains('<!-- wp:heading {"level":2} -->', $blocks);
         $t->contains('<th>Col1</th>', $blocks);
-        $t->contains('Quarterly Revenue', $blocks);
+        $t->contains('[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]', $blocks);
         $t->contains('ppt/media/image1.png', $blocks);
         $t->contains('data-pandoc-comment-author="Ada Reviewer"', $blocks);
         $t->contains('Inherited Layout Body', $blocks);

@@ -2239,13 +2239,11 @@ final class PptxReader
 
     private function chartNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships): ?AstNode
     {
+        $graphicUri = $graphicData->getAttribute('uri');
         $chartElement = $this->firstDescendantElement($graphicData, 'chart');
-        if (!$chartElement instanceof \DOMElement) {
-            return null;
-        }
-
-        $relationshipId = $this->relationshipId($chartElement, 'id');
+        $relationshipId = $chartElement instanceof \DOMElement ? $this->relationshipId($chartElement, 'id') : '';
         $chart = [
+            'graphicUri' => $graphicUri,
             'relationshipId' => $relationshipId,
             'relationshipType' => '',
             'target' => '',
@@ -2259,6 +2257,12 @@ final class PptxReader
             'byteExposurePolicy' => 'chart-part-bytes-blocked',
             'reviewPolicy' => 'chart-metadata-and-cache-values-only',
         ];
+        if (!$chartElement instanceof \DOMElement) {
+            $chart['issues'][] = 'missing-chart-element';
+
+            return $this->chartReviewNode($chart);
+        }
+
         if ($relationshipId === '') {
             $chart['issues'][] = 'missing-chart-relationship-id';
 
@@ -2307,36 +2311,12 @@ final class PptxReader
      */
     private function chartReviewNode(array $chart): AstNode
     {
-        $chartType = (string) ($chart['chartType'] ?? 'unknown');
-        $chartClass = strtolower((string) preg_replace('/[^a-z0-9_-]+/i', '-', $chartType));
-        $chartClass = trim($chartClass, '-') !== '' ? trim($chartClass, '-') : 'unknown';
-        $title = (string) ($chart['title'] ?? '');
-        $label = $title !== '' ? $title : ((string) ($chart['partName'] ?? '') !== '' ? (string) $chart['partName'] : (string) ($chart['relationshipId'] ?? 'unknown'));
-        $attributes = array_filter([
-            'type' => $chartType,
-            'relationship-id' => (string) ($chart['relationshipId'] ?? ''),
-            'src' => (string) ($chart['partName'] ?? ''),
-            'title' => $title,
-            'series-count' => (string) count(is_array($chart['series'] ?? null) ? $chart['series'] : []),
-            'plot-count' => (string) count(is_array($chart['plots'] ?? null) ? $chart['plots'] : []),
-        ], static fn (string $value): bool => $value !== '');
+        $label = '[Graphic: other: ' . (string) ($chart['graphicUri'] ?? '') . ']';
 
-        $children = [$this->paragraph('[PPTX chart: ' . $label . ']')];
-        foreach ((is_array($chart['series'] ?? null) ? $chart['series'] : []) as $series) {
-            if (!is_array($series)) {
-                continue;
-            }
-            $summary = $this->chartSeriesSummaryText($series);
-            if ($summary !== '') {
-                $children[] = $this->paragraph($summary);
-            }
-        }
-
-        return new AstNode('div', [
-            'classes' => ['pptx-chart', 'pptx-chart-' . $chartClass],
-            'attributes' => $attributes,
+        return new AstNode('paragraph', [
+            'text' => $label,
             'pptxChart' => $chart,
-        ], $children);
+        ], $this->textInlines($label));
     }
 
     /**
@@ -2681,32 +2661,6 @@ final class PptxReader
         }
 
         return trim(implode(' ', $texts));
-    }
-
-    /**
-     * @param array<string, mixed> $series
-     */
-    private function chartSeriesSummaryText(array $series): string
-    {
-        $name = (string) ($series['name'] ?? '');
-        $categories = is_array($series['categories'] ?? null) ? $series['categories'] : [];
-        $values = is_array($series['values'] ?? null) ? $series['values'] : [];
-        $pairs = [];
-        $count = max(count($categories), count($values));
-        for ($index = 0; $index < $count; $index++) {
-            $category = is_string($categories[$index] ?? null) ? $categories[$index] : '';
-            $value = is_string($values[$index] ?? null) ? $values[$index] : '';
-            if ($category === '' && $value === '') {
-                continue;
-            }
-            $pairs[] = $category !== '' ? $category . '=' . $value : $value;
-        }
-
-        if ($pairs === []) {
-            return $name;
-        }
-
-        return ($name !== '' ? $name : 'Series') . ': ' . implode('; ', $pairs);
     }
 
     /**
