@@ -98,32 +98,46 @@ XML;
             $t->same(3, $inventory['packagePartXmlCdataSectionPartCount'], "{$label} CDATA part count");
             $t->same(3, $inventory['packagePartXmlCdataSectionCount'], "{$label} CDATA section count");
             $t->same($expectedByteLength, $inventory['packagePartXmlCdataSectionByteLength'], "{$label} CDATA byte length");
+            $t->same(1, $inventory['packagePartXmlCdataSectionByteLengthBucketCount'], "{$label} CDATA byte bucket count");
+            $t->same(['medium' => 3], $inventory['packagePartXmlCdataSectionByteLengthBucketCounts'], "{$label} CDATA byte bucket counts");
+            $t->same(['medium'], $inventory['packagePartXmlCdataSectionByteLengthBuckets'], "{$label} CDATA byte buckets");
+            $t->same($expectedPartNames, $inventory['packagePartXmlCdataSectionByteLengthBucketPartNames']['medium'], "{$label} CDATA medium bucket parts");
             $t->same($expectedPartNames, $inventory['packagePartXmlCdataSectionPartNames'], "{$label} CDATA part names");
             $t->same(false, $inventory['packagePartXmlCdataSectionsTruncated'], "{$label} CDATA summary not truncated");
 
             $t->same(1, $reviewPart['xmlCdataSectionCount'], "{$label} review section count");
             $t->same(strlen($reviewCdata), $reviewPart['xmlCdataSectionByteLength'], "{$label} review byte length");
+            $t->same(['medium' => 1], $reviewPart['xmlCdataSectionByteLengthBucketCounts'], "{$label} review byte bucket counts");
+            $t->same(['medium'], $reviewPart['xmlCdataSectionByteLengthBuckets'], "{$label} review byte buckets");
             $t->same('/review:state/review:value', $reviewPart['xmlCdataSections'][0]['parentPath'], "{$label} review parent path");
             $t->same(2, $reviewPart['xmlCdataSections'][0]['parentDepth'], "{$label} review parent depth");
+            $t->same('medium', $reviewPart['xmlCdataSections'][0]['byteLengthBucket'], "{$label} review byte bucket");
             $t->same(sprintf('%08x', crc32($reviewCdata)), $reviewPart['xmlCdataSections'][0]['crc32'], "{$label} review crc32");
             $t->same(hash('sha256', $reviewCdata), $reviewPart['xmlCdataSections'][0]['sha256'], "{$label} review sha256");
 
             $t->same(1, $auditPart['xmlCdataSectionCount'], "{$label} audit section count");
+            $t->same(['medium' => 1], $auditPart['xmlCdataSectionByteLengthBucketCounts'], "{$label} audit byte bucket counts");
             $t->same('/audit:state/audit:item/audit:value', $auditPart['xmlCdataSections'][0]['parentPath'], "{$label} audit parent path");
             $t->same(3, $auditPart['xmlCdataSections'][0]['parentDepth'], "{$label} audit parent depth");
+            $t->same('medium', $auditPart['xmlCdataSections'][0]['byteLengthBucket'], "{$label} audit byte bucket");
             $t->same(hash('sha256', $auditCdata), $auditPart['xmlCdataSections'][0]['sha256'], "{$label} audit sha256");
 
             $t->same(1, $loosePart['xmlCdataSectionCount'], "{$label} loose section count");
+            $t->same(['medium' => 1], $loosePart['xmlCdataSectionByteLengthBucketCounts'], "{$label} loose byte bucket counts");
             $t->same('/loose:packet/loose:value', $loosePart['xmlCdataSections'][0]['parentPath'], "{$label} loose parent path");
             $t->same(2, $loosePart['xmlCdataSections'][0]['parentDepth'], "{$label} loose parent depth");
+            $t->same('medium', $loosePart['xmlCdataSections'][0]['byteLengthBucket'], "{$label} loose byte bucket");
             $t->same(hash('sha256', $looseCdata), $loosePart['xmlCdataSections'][0]['sha256'], "{$label} loose sha256");
 
             $t->same('META-INF/review-state.xml', $sections[0]['partName'], "{$label} summary first part");
             $t->same('/review:state/review:value', $sections[0]['parentPath'], "{$label} summary first path");
+            $t->same('medium', $sections[0]['byteLengthBucket'], "{$label} summary first byte bucket");
             $t->same('META-INF/audit-state.xml', $sections[1]['partName'], "{$label} summary second part");
             $t->same('/audit:state/audit:item/audit:value', $sections[1]['parentPath'], "{$label} summary second path");
+            $t->same('medium', $sections[1]['byteLengthBucket'], "{$label} summary second byte bucket");
             $t->same('META-INF/loose-review.xml', $sections[2]['partName'], "{$label} summary third part");
             $t->same('/loose:packet/loose:value', $sections[2]['parentPath'], "{$label} summary third path");
+            $t->same('medium', $sections[2]['byteLengthBucket'], "{$label} summary third byte bucket");
             $t->true(!isset($reviewPart['xmlCdataSections'][0]['data']), "{$label} raw CDATA text should not be exposed");
             $encodedSections = json_encode([$reviewPart['xmlCdataSections'], $auditPart['xmlCdataSections'], $loosePart['xmlCdataSections'], $sections]);
             $t->true(is_string($encodedSections), "{$label} CDATA metadata should encode for review");

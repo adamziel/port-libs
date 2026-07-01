@@ -1185,6 +1185,9 @@ final class OpenDocumentPackage
             'partCount' => 0,
             'sectionCount' => 0,
             'byteLength' => 0,
+            'byteLengthBucketCounts' => [],
+            'byteLengthBuckets' => [],
+            'byteLengthBucketPartNames' => [],
             'partNames' => [],
             'sections' => [],
             'truncated' => false,
@@ -1193,6 +1196,9 @@ final class OpenDocumentPackage
             'partCount' => 0,
             'commentCount' => 0,
             'byteLength' => 0,
+            'byteLengthBucketCounts' => [],
+            'byteLengthBuckets' => [],
+            'byteLengthBucketPartNames' => [],
             'parentDepthCounts' => [],
             'partNames' => [],
             'comments' => [],
@@ -1319,10 +1325,14 @@ final class OpenDocumentPackage
                 'xmlRootElementNamespaceDeclarationNames' => $xmlRootElement['namespaceDeclarationNames'] ?? [],
                 'xmlCdataSectionCount' => $xmlCdataSections['count'],
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
+                'xmlCdataSectionByteLengthBucketCounts' => $xmlCdataSections['byteLengthBucketCounts'],
+                'xmlCdataSectionByteLengthBuckets' => $xmlCdataSections['byteLengthBuckets'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
                 'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
                 'xmlCommentCount' => $xmlComments['count'],
                 'xmlCommentByteLength' => $xmlComments['byteLength'],
+                'xmlCommentByteLengthBucketCounts' => $xmlComments['byteLengthBucketCounts'],
+                'xmlCommentByteLengthBuckets' => $xmlComments['byteLengthBuckets'],
                 'xmlCommentParentDepthCounts' => $xmlComments['parentDepthCounts'],
                 'xmlComments' => $xmlComments['comments'],
                 'xmlCommentsTruncated' => $xmlComments['truncated'],
@@ -1833,12 +1843,20 @@ final class OpenDocumentPackage
             'packagePartXmlCdataSectionPartCount' => $packagePartXmlCdataSections['partCount'],
             'packagePartXmlCdataSectionCount' => $packagePartXmlCdataSections['sectionCount'],
             'packagePartXmlCdataSectionByteLength' => $packagePartXmlCdataSections['byteLength'],
+            'packagePartXmlCdataSectionByteLengthBucketCount' => count($packagePartXmlCdataSections['byteLengthBucketCounts']),
+            'packagePartXmlCdataSectionByteLengthBucketCounts' => $packagePartXmlCdataSections['byteLengthBucketCounts'],
+            'packagePartXmlCdataSectionByteLengthBuckets' => $packagePartXmlCdataSections['byteLengthBuckets'],
+            'packagePartXmlCdataSectionByteLengthBucketPartNames' => $packagePartXmlCdataSections['byteLengthBucketPartNames'],
             'packagePartXmlCdataSectionPartNames' => $packagePartXmlCdataSections['partNames'],
             'packagePartXmlCdataSections' => $packagePartXmlCdataSections['sections'],
             'packagePartXmlCdataSectionsTruncated' => $packagePartXmlCdataSections['truncated'],
             'packagePartXmlCommentPartCount' => $packagePartXmlComments['partCount'],
             'packagePartXmlCommentCount' => $packagePartXmlComments['commentCount'],
             'packagePartXmlCommentByteLength' => $packagePartXmlComments['byteLength'],
+            'packagePartXmlCommentByteLengthBucketCount' => count($packagePartXmlComments['byteLengthBucketCounts']),
+            'packagePartXmlCommentByteLengthBucketCounts' => $packagePartXmlComments['byteLengthBucketCounts'],
+            'packagePartXmlCommentByteLengthBuckets' => $packagePartXmlComments['byteLengthBuckets'],
+            'packagePartXmlCommentByteLengthBucketPartNames' => $packagePartXmlComments['byteLengthBucketPartNames'],
             'packagePartXmlCommentParentDepthCounts' => $packagePartXmlComments['parentDepthCounts'],
             'packagePartXmlCommentPartNames' => $packagePartXmlComments['partNames'],
             'packagePartXmlComments' => $packagePartXmlComments['comments'],
@@ -2247,8 +2265,8 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @param array{partCount:int, sectionCount:int, byteLength:int, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool} $summary
-     * @param array{count:int, byteLength:int, sections:list<array<string, mixed>>, truncated:bool} $metadata
+     * @param array{partCount:int, sectionCount:int, byteLength:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, byteLengthBucketPartNames:array<string, list<string>>, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{count:int, byteLength:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, sections:list<array<string, mixed>>, truncated:bool} $metadata
      */
     private static function recordPackagePartXmlCdataSectionSummary(array &$summary, string $partName, array $metadata): void
     {
@@ -2261,6 +2279,20 @@ final class OpenDocumentPackage
         $summary['sectionCount'] += $sectionCount;
         $summary['byteLength'] += (int) ($metadata['byteLength'] ?? 0);
         $summary['partNames'][] = $partName;
+        foreach (($metadata['byteLengthBucketCounts'] ?? []) as $bucket => $count) {
+            if (!is_string($bucket) || $bucket === '') {
+                continue;
+            }
+
+            $summary['byteLengthBucketCounts'][$bucket] = ($summary['byteLengthBucketCounts'][$bucket] ?? 0) + (int) $count;
+            if (!in_array($bucket, $summary['byteLengthBuckets'], true)) {
+                $summary['byteLengthBuckets'][] = $bucket;
+            }
+            $summary['byteLengthBucketPartNames'][$bucket] ??= [];
+            if (!in_array($partName, $summary['byteLengthBucketPartNames'][$bucket], true)) {
+                $summary['byteLengthBucketPartNames'][$bucket][] = $partName;
+            }
+        }
         if (($metadata['truncated'] ?? false) === true) {
             $summary['truncated'] = true;
         }
@@ -2279,10 +2311,17 @@ final class OpenDocumentPackage
         }
 
         sort($summary['partNames'], SORT_STRING);
+        sort($summary['byteLengthBuckets'], SORT_STRING);
+        ksort($summary['byteLengthBucketCounts'], SORT_STRING);
+        ksort($summary['byteLengthBucketPartNames'], SORT_STRING);
+        foreach ($summary['byteLengthBucketPartNames'] as &$bucketPartNames) {
+            sort($bucketPartNames, SORT_STRING);
+        }
+        unset($bucketPartNames);
     }
 
     /**
-     * @return array{count:int, byteLength:int, sections:list<array<string, mixed>>, truncated:bool}
+     * @return array{count:int, byteLength:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, sections:list<array<string, mixed>>, truncated:bool}
      */
     private static function packagePartXmlCdataSectionMetadata(
         ZipPackage $package,
@@ -2292,6 +2331,8 @@ final class OpenDocumentPackage
         $empty = [
             'count' => 0,
             'byteLength' => 0,
+            'byteLengthBucketCounts' => [],
+            'byteLengthBuckets' => [],
             'sections' => [],
             'truncated' => false,
         ];
@@ -2321,6 +2362,8 @@ final class OpenDocumentPackage
         $sections = [];
         $count = 0;
         $byteLength = 0;
+        $byteLengthBucketCounts = [];
+        $byteLengthBuckets = [];
         $truncated = false;
         $itemLimit = 32;
         foreach ($nodes as $node) {
@@ -2332,6 +2375,11 @@ final class OpenDocumentPackage
             $value = (string) $node->nodeValue;
             $valueByteLength = strlen($value);
             $byteLength += $valueByteLength;
+            $byteLengthBucket = self::xmlTextByteLengthBucket($valueByteLength);
+            $byteLengthBucketCounts[$byteLengthBucket] = ($byteLengthBucketCounts[$byteLengthBucket] ?? 0) + 1;
+            if (!in_array($byteLengthBucket, $byteLengthBuckets, true)) {
+                $byteLengthBuckets[] = $byteLengthBucket;
+            }
             if (count($sections) >= $itemLimit) {
                 $truncated = true;
                 continue;
@@ -2344,22 +2392,27 @@ final class OpenDocumentPackage
                 'parentPath' => $parentPath,
                 'parentDepth' => self::domElementPathDepth($parentPath),
                 'byteLength' => $valueByteLength,
+                'byteLengthBucket' => $byteLengthBucket,
                 'crc32' => sprintf('%08x', crc32($value)),
                 'sha256' => hash('sha256', $value),
             ];
         }
+        ksort($byteLengthBucketCounts, SORT_STRING);
+        sort($byteLengthBuckets, SORT_STRING);
 
         return [
             'count' => $count,
             'byteLength' => $byteLength,
+            'byteLengthBucketCounts' => $byteLengthBucketCounts,
+            'byteLengthBuckets' => $byteLengthBuckets,
             'sections' => $sections,
             'truncated' => $truncated,
         ];
     }
 
     /**
-     * @param array{partCount:int, commentCount:int, byteLength:int, parentDepthCounts:array<int, int>, partNames:list<string>, comments:list<array<string, mixed>>, truncated:bool} $summary
-     * @param array{count:int, byteLength:int, parentDepthCounts:array<int, int>, comments:list<array<string, mixed>>, truncated:bool} $metadata
+     * @param array{partCount:int, commentCount:int, byteLength:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, byteLengthBucketPartNames:array<string, list<string>>, parentDepthCounts:array<int, int>, partNames:list<string>, comments:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{count:int, byteLength:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, parentDepthCounts:array<int, int>, comments:list<array<string, mixed>>, truncated:bool} $metadata
      */
     private static function recordPackagePartXmlCommentSummary(array &$summary, string $partName, array $metadata): void
     {
@@ -2372,6 +2425,20 @@ final class OpenDocumentPackage
         $summary['commentCount'] += $commentCount;
         $summary['byteLength'] += (int) ($metadata['byteLength'] ?? 0);
         $summary['partNames'][] = $partName;
+        foreach (($metadata['byteLengthBucketCounts'] ?? []) as $bucket => $count) {
+            if (!is_string($bucket) || $bucket === '') {
+                continue;
+            }
+
+            $summary['byteLengthBucketCounts'][$bucket] = ($summary['byteLengthBucketCounts'][$bucket] ?? 0) + (int) $count;
+            if (!in_array($bucket, $summary['byteLengthBuckets'], true)) {
+                $summary['byteLengthBuckets'][] = $bucket;
+            }
+            $summary['byteLengthBucketPartNames'][$bucket] ??= [];
+            if (!in_array($partName, $summary['byteLengthBucketPartNames'][$bucket], true)) {
+                $summary['byteLengthBucketPartNames'][$bucket][] = $partName;
+            }
+        }
         foreach (($metadata['parentDepthCounts'] ?? []) as $depth => $count) {
             if (!is_int($depth) && !(is_string($depth) && ctype_digit($depth))) {
                 continue;
@@ -2398,11 +2465,18 @@ final class OpenDocumentPackage
         }
 
         sort($summary['partNames'], SORT_STRING);
+        sort($summary['byteLengthBuckets'], SORT_STRING);
+        ksort($summary['byteLengthBucketCounts'], SORT_STRING);
+        ksort($summary['byteLengthBucketPartNames'], SORT_STRING);
+        foreach ($summary['byteLengthBucketPartNames'] as &$bucketPartNames) {
+            sort($bucketPartNames, SORT_STRING);
+        }
+        unset($bucketPartNames);
         ksort($summary['parentDepthCounts'], SORT_NUMERIC);
     }
 
     /**
-     * @return array{count:int, byteLength:int, parentDepthCounts:array<int, int>, comments:list<array<string, mixed>>, truncated:bool}
+     * @return array{count:int, byteLength:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, parentDepthCounts:array<int, int>, comments:list<array<string, mixed>>, truncated:bool}
      */
     private static function packagePartXmlCommentMetadata(
         ZipPackage $package,
@@ -2412,6 +2486,8 @@ final class OpenDocumentPackage
         $empty = [
             'count' => 0,
             'byteLength' => 0,
+            'byteLengthBucketCounts' => [],
+            'byteLengthBuckets' => [],
             'parentDepthCounts' => [],
             'comments' => [],
             'truncated' => false,
@@ -2436,15 +2512,22 @@ final class OpenDocumentPackage
         $comments = [];
         $count = 0;
         $byteLength = 0;
+        $byteLengthBucketCounts = [];
+        $byteLengthBuckets = [];
         $parentDepthCounts = [];
         $truncated = false;
         $itemLimit = 32;
-        $walk = static function (\DOMNode $node) use (&$walk, &$comments, &$count, &$byteLength, &$parentDepthCounts, &$truncated, $itemLimit): void {
+        $walk = static function (\DOMNode $node) use (&$walk, &$comments, &$count, &$byteLength, &$byteLengthBucketCounts, &$byteLengthBuckets, &$parentDepthCounts, &$truncated, $itemLimit): void {
             if ($node instanceof \DOMComment) {
                 ++$count;
                 $value = (string) $node->nodeValue;
                 $valueByteLength = strlen($value);
                 $byteLength += $valueByteLength;
+                $byteLengthBucket = self::xmlTextByteLengthBucket($valueByteLength);
+                $byteLengthBucketCounts[$byteLengthBucket] = ($byteLengthBucketCounts[$byteLengthBucket] ?? 0) + 1;
+                if (!in_array($byteLengthBucket, $byteLengthBuckets, true)) {
+                    $byteLengthBuckets[] = $byteLengthBucket;
+                }
                 $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
                 $parentPath = self::domElementPath($parent);
                 $parentDepth = self::domElementPathDepth($parentPath);
@@ -2457,6 +2540,7 @@ final class OpenDocumentPackage
                         'parentPath' => $parentPath,
                         'parentDepth' => $parentDepth,
                         'byteLength' => $valueByteLength,
+                        'byteLengthBucket' => $byteLengthBucket,
                         'crc32' => sprintf('%08x', crc32($value)),
                         'sha256' => hash('sha256', $value),
                     ];
@@ -2470,11 +2554,15 @@ final class OpenDocumentPackage
             }
         };
         $walk($dom);
+        ksort($byteLengthBucketCounts, SORT_STRING);
+        sort($byteLengthBuckets, SORT_STRING);
         ksort($parentDepthCounts, SORT_NUMERIC);
 
         return [
             'count' => $count,
             'byteLength' => $byteLength,
+            'byteLengthBucketCounts' => $byteLengthBucketCounts,
+            'byteLengthBuckets' => $byteLengthBuckets,
             'parentDepthCounts' => $parentDepthCounts,
             'comments' => $comments,
             'truncated' => $truncated,
@@ -2653,6 +2741,24 @@ final class OpenDocumentPackage
     private static function domElementPathDepth(string $path): int
     {
         return $path === '/' ? 0 : substr_count($path, '/');
+    }
+
+    private static function xmlTextByteLengthBucket(int $byteLength): string
+    {
+        if ($byteLength <= 0) {
+            return 'empty';
+        }
+        if ($byteLength <= 16) {
+            return 'small';
+        }
+        if ($byteLength <= 128) {
+            return 'medium';
+        }
+        if ($byteLength <= 1024) {
+            return 'large';
+        }
+
+        return 'huge';
     }
 
     /**
