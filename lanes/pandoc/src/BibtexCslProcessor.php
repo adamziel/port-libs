@@ -1098,6 +1098,19 @@ final class BibtexCslProcessor
             }
         }
 
+        foreach ([
+            'archive' => ['archive-list', ['archiveprefix', 'eprinttype', 'archive']],
+            'archive-collection' => ['archive-collection-list', ['archivecollection', 'archive-collection', 'archive_collection']],
+            'archive-place' => ['archive-place-list', ['eprintclass', 'archiveplace', 'archive-place']],
+            'archive_location' => ['archive-location-list', ['eprint', 'archive-location', 'archive_location', 'archivelocation']],
+        ] as $target => [$listTarget, $names]) {
+            $values = $this->literalListFromFields($fields, $names);
+            if (count($values) > 1) {
+                $item[$target] = implode('; ', $values);
+                $item[$listTarget] = $values;
+            }
+        }
+
         $authorityFieldNames = [
             'authority-list',
             'authoritylist',
