@@ -347,6 +347,21 @@ final class BibtexCslProcessor
         if (($item['page'] ?? '') !== '') {
             $parts[] = (string) $item['page'];
         }
+        foreach ([
+            'pagination' => 'Pagination',
+            'book-pagination' => 'Book pagination',
+            'part' => 'Part',
+            'printing-number' => 'Printing number',
+            'references' => 'References',
+            'dimensions' => 'Dimensions',
+            'division' => 'Division',
+            'scale' => 'Scale',
+            'entry-subtype' => 'Entry subtype',
+        ] as $field => $label) {
+            if (($item[$field] ?? '') !== '') {
+                $parts[] = $label . ': ' . (string) $item[$field];
+            }
+        }
         $containerTitleShort = (string) ($item['container-title-short'] ?? $item['journal-abbreviation'] ?? '');
         if ($containerTitleShort !== '') {
             $parts[] = 'Journal abbreviation: ' . rtrim($containerTitleShort, '.');
@@ -763,11 +778,19 @@ final class BibtexCslProcessor
             'number-of-volumes' => ['volumes'],
             'issue' => ['issue'],
             'page' => ['pages', 'page'],
+            'pagination' => ['pagination'],
+            'book-pagination' => ['bookpagination', 'book-pagination'],
             'article-number' => ['eid', 'article-number', 'articlenumber'],
+            'references' => ['references'],
+            'dimensions' => ['dimensions', 'dimension'],
+            'scale' => ['scale'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
+            'division' => ['division', 'subdivision'],
             'source' => ['source', 'sourcetitle', 'source-title'],
             'section' => ['section'],
+            'part' => ['part', 'part-number', 'partnumber'],
+            'printing-number' => ['printingnumber', 'printing-number', 'printnumber', 'print-number'],
             'supplement' => ['supplement'],
             'DOI' => ['doi'],
             'URL' => ['url'],
@@ -815,6 +838,7 @@ final class BibtexCslProcessor
             'annotation' => ['annotation', 'annote'],
             'note' => ['note', 'addendum'],
             'genre' => ['type', 'entrysubtype'],
+            'entry-subtype' => ['entrysubtype', 'entry-subtype'],
             'related' => ['related'],
             'related-type' => ['relatedtype', 'related-type'],
             'related-string' => ['relatedstring', 'related-string'],
