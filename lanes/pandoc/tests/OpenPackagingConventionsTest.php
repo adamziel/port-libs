@@ -1622,8 +1622,17 @@ XML;
         $t->same(['document-properties' => 1], $roots['docProps/']['roleCounts']);
         $t->same(['xml' => 1], $roots['docProps/']['handoffKindCounts']);
         $t->same('/', $entries['[Content_Types].xml']['directoryRoot']);
+        $t->same(['[Content_Types].xml'], $entries['[Content_Types].xml']['pathSegments']);
+        $t->same(1, $entries['[Content_Types].xml']['pathSegmentCount']);
+        $t->same(0, $entries['[Content_Types].xml']['directoryDepth']);
         $t->same('word/', $entries['word/media/image.png']['directoryRoot']);
+        $t->same(['word', 'media', 'image.png'], $entries['word/media/image.png']['pathSegments']);
+        $t->same(3, $entries['word/media/image.png']['pathSegmentCount']);
+        $t->same(2, $entries['word/media/image.png']['directoryDepth']);
         $t->same('customXml/', $entries['customXml/item1.xml']['directoryRoot']);
+        $t->same(['customXml', 'item1.xml'], $entries['customXml/item1.xml']['pathSegments']);
+        $t->same(2, $entries['customXml/item1.xml']['pathSegmentCount']);
+        $t->same(1, $entries['customXml/item1.xml']['directoryDepth']);
     },
     'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

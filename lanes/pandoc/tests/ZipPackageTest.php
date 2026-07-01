@@ -733,6 +733,9 @@ return [
                 'name' => 'OEBPS/content.xhtml',
                 'isDirectory' => false,
                 'directoryRoot' => 'OEBPS/',
+                'pathSegments' => ['OEBPS', 'content.xhtml'],
+                'pathSegmentCount' => 2,
+                'directoryDepth' => 1,
                 'centralDirectoryIndex' => 0,
                 'localHeaderOrder' => 1,
                 'compressionMethod' => 8,
@@ -745,6 +748,9 @@ return [
                 'name' => 'OEBPS/images/',
                 'isDirectory' => true,
                 'directoryRoot' => 'OEBPS/',
+                'pathSegments' => ['OEBPS', 'images'],
+                'pathSegmentCount' => 2,
+                'directoryDepth' => 1,
                 'centralDirectoryIndex' => 1,
                 'localHeaderOrder' => 2,
                 'compressionMethod' => 0,
@@ -757,6 +763,9 @@ return [
                 'name' => 'mimetype',
                 'isDirectory' => false,
                 'directoryRoot' => '/',
+                'pathSegments' => ['mimetype'],
+                'pathSegmentCount' => 1,
+                'directoryDepth' => 0,
                 'centralDirectoryIndex' => 2,
                 'localHeaderOrder' => 0,
                 'compressionMethod' => 0,
@@ -779,6 +788,9 @@ return [
                     'name' => $entry['name'],
                     'isDirectory' => $entry['isDirectory'],
                     'directoryRoot' => $entry['directoryRoot'],
+                    'pathSegments' => $entry['pathSegments'],
+                    'pathSegmentCount' => $entry['pathSegmentCount'],
+                    'directoryDepth' => $entry['directoryDepth'],
                     'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                     'localHeaderOrder' => $entry['localHeaderOrder'],
                     'compressionMethod' => $entry['compressionMethod'],
@@ -932,6 +944,9 @@ return [
             'centralDirectoryReviewFieldBytes' => 0,
             'centralExtraFieldEntryCount' => 0,
             'entryCommentCount' => 0,
+            'maxPathSegmentCount' => 2,
+            'maxDirectoryDepth' => 1,
+            'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'entries' => $expectedEntries,
@@ -988,6 +1003,9 @@ return [
         $t->same(0, $manifest['centralExtraFieldEntryCount']);
         $t->same(0, $manifest['entryCommentCount']);
         $t->same(false, $manifest['hasCentralDirectoryReviewFields']);
+        $t->same(2, $manifest['maxPathSegmentCount']);
+        $t->same(1, $manifest['maxDirectoryDepth']);
+        $t->same(['OEBPS/content.xhtml', 'OEBPS/images/'], $manifest['deepestEntryNames']);
         $t->same(2, $manifest['compressionMethodSummaryCount']);
         $t->same($expectedCompressionMethodSummaries, $manifest['compressionMethodSummaries']);
         $t->same(2, $manifest['directoryRootCount']);
@@ -1001,6 +1019,9 @@ return [
                 'name' => $entry['name'],
                 'isDirectory' => $entry['isDirectory'],
                 'directoryRoot' => $entry['directoryRoot'],
+                'pathSegments' => $entry['pathSegments'],
+                'pathSegmentCount' => $entry['pathSegmentCount'],
+                'directoryDepth' => $entry['directoryDepth'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],
                 'compressionMethod' => $entry['compressionMethod'],
@@ -1282,6 +1303,9 @@ return [
                 'name' => 'word/document.xml',
                 'isDirectory' => false,
                 'directoryRoot' => 'word/',
+                'pathSegments' => ['word', 'document.xml'],
+                'pathSegmentCount' => 2,
+                'directoryDepth' => 1,
                 'centralDirectoryIndex' => 0,
                 'localHeaderOrder' => 0,
                 'compressionMethod' => 0,
@@ -1314,6 +1338,9 @@ return [
                 'name' => 'word/comments.xml',
                 'isDirectory' => false,
                 'directoryRoot' => 'word/',
+                'pathSegments' => ['word', 'comments.xml'],
+                'pathSegmentCount' => 2,
+                'directoryDepth' => 1,
                 'centralDirectoryIndex' => 1,
                 'localHeaderOrder' => 1,
                 'compressionMethod' => 8,
@@ -1415,6 +1442,9 @@ return [
             'centralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'],
             'centralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'],
             'entryCommentCount' => $manifest['entryCommentCount'],
+            'maxPathSegmentCount' => 2,
+            'maxDirectoryDepth' => 1,
+            'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'entries' => $expectedManifestEntries,
@@ -1423,12 +1453,18 @@ return [
         $t->same(1, $manifest['dataDescriptorEntryCount']);
         $t->same(16, $manifest['dataDescriptorBytes']);
         $t->same($documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'], $manifest['localRecordBytes']);
+        $t->same(2, $manifest['maxPathSegmentCount']);
+        $t->same(1, $manifest['maxDirectoryDepth']);
+        $t->same(['word/document.xml', 'word/comments.xml'], $manifest['deepestEntryNames']);
         $t->same($expectedHash, $manifest['manifestSha256']);
         $t->same($expectedManifestEntries, array_map(
             static fn (array $entry): array => [
                 'name' => $entry['name'],
                 'isDirectory' => $entry['isDirectory'],
                 'directoryRoot' => $entry['directoryRoot'],
+                'pathSegments' => $entry['pathSegments'],
+                'pathSegmentCount' => $entry['pathSegmentCount'],
+                'directoryDepth' => $entry['directoryDepth'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],
                 'compressionMethod' => $entry['compressionMethod'],

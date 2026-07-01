@@ -6889,6 +6889,16 @@ final class ZipPackage
     }
 
     /**
+     * @return list<string>
+     */
+    private static function zipEntryPathSegments(string $name): array
+    {
+        $path = rtrim($name, '/');
+
+        return $path === '' ? [] : explode('/', $path);
+    }
+
+    /**
      * @param array<string, mixed> $localHeader
      * @return array{
      *     localFixedHeaderOffset:int,
@@ -13470,11 +13480,26 @@ final class ZipPackage
         $centralDirectoryReviewFieldBytes = 0;
         $centralExtraFieldEntryCount = 0;
         $entryCommentCount = 0;
+        $maxPathSegmentCount = 0;
+        $maxDirectoryDepth = 0;
+        $deepestEntryNames = [];
         $compressionMethodSummaries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
+            $pathSegments = self::zipEntryPathSegments($entry->name);
+            $pathSegmentCount = count($pathSegments);
+            $directoryDepth = max(0, $pathSegmentCount - 1);
+            if ($pathSegmentCount > $maxPathSegmentCount) {
+                $maxPathSegmentCount = $pathSegmentCount;
+            }
+            if ($directoryDepth > $maxDirectoryDepth) {
+                $maxDirectoryDepth = $directoryDepth;
+                $deepestEntryNames = [$entry->name];
+            } elseif ($directoryDepth === $maxDirectoryDepth) {
+                $deepestEntryNames[] = $entry->name;
+            }
             if ($isDirectory) {
                 ++$directoryEntryCount;
             } else {
@@ -13619,6 +13644,9 @@ final class ZipPackage
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
                 'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
+                'pathSegments' => $pathSegments,
+                'pathSegmentCount' => $pathSegmentCount,
+                'directoryDepth' => $directoryDepth,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => $localHeaderOrder,
                 'compressionMethod' => $entry->compressionMethod,
@@ -13665,6 +13693,9 @@ final class ZipPackage
                 'name' => $summary['name'],
                 'isDirectory' => $summary['isDirectory'],
                 'directoryRoot' => $summary['directoryRoot'],
+                'pathSegments' => $summary['pathSegments'],
+                'pathSegmentCount' => $summary['pathSegmentCount'],
+                'directoryDepth' => $summary['directoryDepth'],
                 'centralDirectoryIndex' => $summary['centralDirectoryIndex'],
                 'localHeaderOrder' => $summary['localHeaderOrder'],
                 'compressionMethod' => $summary['compressionMethod'],
@@ -13736,6 +13767,9 @@ final class ZipPackage
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
+            'maxPathSegmentCount' => $maxPathSegmentCount,
+            'maxDirectoryDepth' => $maxDirectoryDepth,
+            'deepestEntryNames' => $deepestEntryNames,
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'directoryRootSummaries' => $directoryRootSummaries,
             'entries' => $manifestEntries,
@@ -13800,6 +13834,9 @@ final class ZipPackage
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
             'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,
+            'maxPathSegmentCount' => $maxPathSegmentCount,
+            'maxDirectoryDepth' => $maxDirectoryDepth,
+            'deepestEntryNames' => $deepestEntryNames,
             'compressionMethodSummaryCount' => count($compressionMethodSummaries),
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'directoryRootCount' => count($directoryRootSummaries),
