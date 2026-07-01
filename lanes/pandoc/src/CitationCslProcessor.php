@@ -1428,11 +1428,13 @@ final class CitationCslProcessor
             'extraDate' => self::firstStringField($item, ['extra-date', 'extraDate', 'extradate']),
             'extraTitle' => self::firstStringField($item, ['extra-title', 'extraTitle', 'extratitle']),
             'title' => self::stringField($item, 'title'),
+            'subtitle' => self::firstStringField($item, ['subtitle', 'sub-title', 'subTitle']),
             'shortTitle' => self::firstStringField($item, ['short-title', 'title-short', 'shortTitle', 'titleShort']),
             'titleAddon' => self::firstStringField($item, ['title-addon', 'titleAddon', 'titleaddon']),
             'translatedTitle' => self::composedStringField($item, $translatedTitleKeys, $translatedSubtitleKeys),
             'translatedSubtitle' => self::firstStringField($item, $translatedSubtitleKeys),
             'reviewedTitle' => $reviewedTitle,
+            'reviewedSubtitle' => self::firstStringField($item, ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'reviewsubtitle']),
             'reviewedGenre' => $reviewedGenre,
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
             'containerTitle' => self::composedStringField(
@@ -1471,6 +1473,20 @@ final class CitationCslProcessor
                     'publicationsubtitle',
                 ]
             ),
+            'containerSubtitle' => self::firstStringField($item, [
+                'container-subtitle',
+                'containerSubtitle',
+                'containersubtitle',
+                'book-subtitle',
+                'bookSubtitle',
+                'booksubtitle',
+                'journal-subtitle',
+                'journalSubtitle',
+                'journalsubtitle',
+                'publication-subtitle',
+                'publicationSubtitle',
+                'publicationsubtitle',
+            ]),
             'containerTitleShort' => $containerTitleShort,
             'journalAbbreviation' => $containerTitleShort,
             'containerTitleAddon' => self::firstStringField($item, [
@@ -1492,18 +1508,21 @@ final class CitationCslProcessor
                 ['main-title', 'mainTitle', 'maintitle', 'main-title-text', 'mainTitleText', 'maintitletext'],
                 ['main-subtitle', 'mainSubtitle', 'mainsubtitle']
             ),
+            'mainSubtitle' => self::firstStringField($item, ['main-subtitle', 'mainSubtitle', 'mainsubtitle']),
             'mainTitleAddon' => self::firstStringField($item, ['main-title-addon', 'mainTitleAddon', 'maintitleaddon']),
             'volumeTitle' => self::composedStringField(
                 $item,
                 ['volume-title', 'volumeTitle', 'volumetitle', 'volume-title-text', 'volumeTitleText', 'volumetitletext'],
                 ['volume-subtitle', 'volumeSubtitle', 'volumesubtitle']
             ),
+            'volumeSubtitle' => self::firstStringField($item, ['volume-subtitle', 'volumeSubtitle', 'volumesubtitle']),
             'volumeTitleShort' => self::firstStringField($item, ['volume-title-short', 'volumeTitleShort', 'volumetitleshort']),
             'partTitle' => self::composedStringField(
                 $item,
                 ['part-title', 'partTitle', 'parttitle', 'part-title-text', 'partTitleText', 'parttitletext'],
                 ['part-subtitle', 'partSubtitle', 'partsubtitle']
             ),
+            'partSubtitle' => self::firstStringField($item, ['part-subtitle', 'partSubtitle', 'partsubtitle']),
             'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle', 'eventtitle']),
             'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon', 'eventtitleaddon']),
             'eventPlace' => $eventPlace,
@@ -1526,6 +1545,7 @@ final class CitationCslProcessor
             'volume' => self::stringField($item, 'volume'),
             'issue' => self::firstStringField($item, ['issue', 'issue-number', 'issueNumber', 'issuenumber']),
             'issueTitle' => self::firstStringField($item, ['issue-title', 'issueTitle', 'issuetitle', 'issue-title-text', 'issueTitleText', 'issuetitletext']),
+            'issueSubtitle' => self::firstStringField($item, ['issue-subtitle', 'issueSubtitle', 'issuesubtitle']),
             'issueTitleAddon' => self::firstStringField($item, ['issue-title-addon', 'issueTitleAddon', 'issuetitleaddon']),
             'edition' => self::stringField($item, 'edition'),
             'collectionTitle' => self::firstStringField($item, ['collection-title', 'collectionTitle', 'collectiontitle', 'collection', 'collection-title-text', 'collectionTitleText', 'collectiontitletext', 'series', 'series-title', 'seriesTitle', 'seriestitle', 'series-title-text', 'seriesTitleText', 'seriestitletext']),
@@ -3105,6 +3125,9 @@ final class CitationCslProcessor
         }
 
         $separator = preg_match('/[.?!:]\z/u', $title) === 1 ? ' ' : ': ';
+        if ($title === $subtitle || str_ends_with($title, ': ' . $subtitle) || str_ends_with($title, ' ' . $subtitle)) {
+            return $title;
+        }
 
         return $title . $separator . $subtitle;
     }
@@ -6894,6 +6917,7 @@ final class CitationCslProcessor
             'submitted' => $this->dateSortValue($item, 'submitted'),
             'label-date', 'labeldate' => $this->dateSortValue($item, 'label-date'),
             'title' => $this->normalizeSortText($this->sortTitleValue($item) !== '' ? $this->sortTitleValue($item) : (string) $item['title']),
+            'subtitle', 'sub-title' => $this->normalizeSortText((string) ($item['subtitle'] ?? '')),
             'short-title' => $this->normalizeSortText($this->sortTitleValue($item) !== '' ? $this->sortTitleValue($item) : (string) $item['shortTitle']),
             'citation-label' => $this->normalizeSortText((string) $item['citationLabel']),
             'label-prefix', 'labelprefix' => $this->normalizeSortText((string) ($item['labelPrefix'] ?? '')),
@@ -6905,12 +6929,17 @@ final class CitationCslProcessor
             'original-title', 'originaltitle', 'origtitle' => $this->normalizeSortText((string) ($item['originalTitle'] ?? '')),
             'original-subtitle', 'originalsubtitle', 'origsubtitle' => $this->normalizeSortText((string) ($item['originalSubtitle'] ?? '')),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext' => $this->normalizeSortText((string) $item['containerTitle']),
+            'container-subtitle', 'containersubtitle', 'book-subtitle', 'booksubtitle', 'journal-subtitle', 'journalsubtitle', 'publication-subtitle', 'publicationsubtitle' => $this->normalizeSortText((string) ($item['containerSubtitle'] ?? '')),
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => $this->normalizeSortText((string) ($item['collectionTitle'] ?? '')),
             'collection-title-short', 'collectiontitleshort', 'series-short', 'seriesshort', 'series-title-short', 'seriestitleshort' => $this->normalizeSortText((string) ($item['collectionTitleShort'] ?? '')),
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => $this->normalizeSortText((string) ($item['mainTitle'] ?? '')),
+            'main-subtitle', 'mainsubtitle' => $this->normalizeSortText((string) ($item['mainSubtitle'] ?? '')),
             'volume-title', 'volumetitle', 'volume-title-text', 'volumetitletext' => $this->normalizeSortText((string) ($item['volumeTitle'] ?? '')),
+            'volume-subtitle', 'volumesubtitle' => $this->normalizeSortText((string) ($item['volumeSubtitle'] ?? '')),
             'part-title', 'parttitle', 'part-title-text', 'parttitletext' => $this->normalizeSortText((string) ($item['partTitle'] ?? '')),
+            'part-subtitle', 'partsubtitle' => $this->normalizeSortText((string) ($item['partSubtitle'] ?? '')),
             'issue-title', 'issuetitle', 'issue-title-text', 'issuetitletext' => $this->normalizeSortText((string) ($item['issueTitle'] ?? '')),
+            'issue-subtitle', 'issuesubtitle' => $this->normalizeSortText((string) ($item['issueSubtitle'] ?? '')),
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
@@ -11152,6 +11181,7 @@ final class CitationCslProcessor
             'extra-date', 'extradate' => (string) ($item['extraDate'] ?? ''),
             'extra-title', 'extratitle' => (string) ($item['extraTitle'] ?? ''),
             'title' => (string) $item['title'],
+            'subtitle', 'sub-title' => (string) ($item['subtitle'] ?? ''),
             'short-title', 'title-short' => (string) $item['shortTitle'],
             'title-addon' => (string) $item['titleAddon'],
             'translated-title', 'translatedtitle', 'title-translation', 'titletranslation' => (string) ($item['translatedTitle'] ?? ''),
@@ -11159,6 +11189,7 @@ final class CitationCslProcessor
             'translated-title-raw', 'translatedtitleraw', 'title-translation-raw', 'titletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
             'translated-subtitle-raw', 'translatedsubtitleraw', 'title-translation-subtitle-raw', 'titletranslationsubtitleraw', 'subtitle-translation-raw', 'subtitletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titleTranslationSubtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']),
             'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
+            'reviewed-subtitle', 'reviewedsubtitle', 'reviewsubtitle' => (string) ($item['reviewedSubtitle'] ?? ''),
             'reviewed-genre', 'reviewedgenre' => (string) ($item['reviewedGenre'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
             'original-title', 'originaltitle', 'origtitle' => (string) ($item['originalTitle'] ?? ''),
@@ -11166,11 +11197,14 @@ final class CitationCslProcessor
             'original-title-addon', 'originaltitleaddon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
             'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext', 'book-title', 'booktitle', 'journal-title', 'journaltitle', 'journal', 'publication-title', 'publicationtitle' => (string) $item['containerTitle'],
+            'container-subtitle', 'containersubtitle', 'book-subtitle', 'booksubtitle', 'journal-subtitle', 'journalsubtitle', 'publication-subtitle', 'publicationsubtitle' => (string) ($item['containerSubtitle'] ?? ''),
             'container-title-short', 'containertitleshort', 'book-title-short', 'booktitleshort', 'container-title-abbreviation', 'containertitleabbreviation' => (string) $item['containerTitleShort'],
             'journalabbreviation', 'journal-abbreviation', 'shortjournal', 'short-journal', 'shortjournaltitle', 'short-journal-title', 'journaltitleshort', 'journal-title-short' => (string) $item['journalAbbreviation'],
             'container-title-addon', 'containertitleaddon', 'book-title-addon', 'booktitleaddon', 'journal-title-addon', 'journaltitleaddon', 'publication-title-addon', 'publicationtitleaddon' => (string) $item['containerTitleAddon'],
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => (string) $item['mainTitle'],
+            'main-subtitle', 'mainsubtitle' => (string) ($item['mainSubtitle'] ?? ''),
             'main-title-addon' => (string) $item['mainTitleAddon'],
+            'volume-subtitle', 'volumesubtitle' => (string) ($item['volumeSubtitle'] ?? ''),
             'volume-title-short', 'volumetitleshort' => (string) ($item['volumeTitleShort'] ?? ''),
             'event', 'event-title', 'eventtitle' => (string) $item['eventTitle'],
             'event-title-addon', 'eventtitleaddon' => (string) $item['eventTitleAddon'],
@@ -11195,6 +11229,7 @@ final class CitationCslProcessor
             'volume-title', 'volumetitle', 'volume-title-text', 'volumetitletext' => (string) ($item['volumeTitle'] ?? ''),
             'issue', 'issue-number', 'issuenumber' => (string) $item['issue'],
             'issue-title', 'issuetitle', 'issue-title-text', 'issuetitletext' => (string) ($item['issueTitle'] ?? ''),
+            'issue-subtitle', 'issuesubtitle' => (string) ($item['issueSubtitle'] ?? ''),
             'issue-title-addon', 'issuetitleaddon' => (string) ($item['issueTitleAddon'] ?? ''),
             'edition' => (string) $item['edition'],
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => (string) $item['collectionTitle'],
@@ -11206,6 +11241,7 @@ final class CitationCslProcessor
             'division' => (string) ($item['division'] ?? ''),
             'section' => (string) $item['section'],
             'part-title', 'parttitle', 'part-title-text', 'parttitletext' => (string) ($item['partTitle'] ?? ''),
+            'part-subtitle', 'partsubtitle' => (string) ($item['partSubtitle'] ?? ''),
             'part', 'part-number' => (string) $item['part'],
             'printing', 'printing-number' => (string) ($item['printingNumber'] ?? ''),
             'supplement' => (string) ($item['supplement'] ?? ''),

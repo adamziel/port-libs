@@ -1957,6 +1957,114 @@ XML);
         $t->contains('<p>Legacy title family [Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue] keeps imported title metadata visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet</dd>', $blocks);
     },
+    'carries biblatex subtitle family variables in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@incollection{subtitle-family-source,
+  author           = {Ng, Nia},
+  title            = {Source Chapter},
+  subtitle         = {Source Review Appendix},
+  booktitle        = {Migration Handbook},
+  booksubtitle     = {Import Desk Edition},
+  reviewedtitle    = {Source Manual},
+  reviewedsubtitle = {Field Appendix},
+  maintitle        = {Migration Source Corpus},
+  mainsubtitle     = {Reviewer Annex},
+  volumetitle      = {Review Volume},
+  volumesubtitle   = {Packet Appendix},
+  parttitle        = {Part Ledger},
+  partsubtitle     = {Field Notes},
+  issuetitle       = {Special Issue},
+  issuesubtitle    = {Source Reports},
+  origtitle        = {Manual de Migracion},
+  origsubtitle     = {Archivo de Fuentes},
+  date             = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['subtitle-family-source'];
+
+        $t->same('Source Review Appendix', $item['subtitle']);
+        $t->same('Import Desk Edition', $item['container-subtitle']);
+        $t->same('Field Appendix', $item['reviewed-subtitle']);
+        $t->same('Reviewer Annex', $item['main-subtitle']);
+        $t->same('Packet Appendix', $item['volume-subtitle']);
+        $t->same('Field Notes', $item['part-subtitle']);
+        $t->same('Source Reports', $item['issue-subtitle']);
+        $t->same('Archivo de Fuentes', $item['original-subtitle']);
+        $t->same('Source Review Appendix', $item['rawBibtex']['fields']['subtitle']);
+        $t->same('Import Desk Edition', $item['rawBibtex']['fields']['booksubtitle']);
+
+        $document = (new MarkdownReader())->read('Subtitle family [@subtitle-family-source] keeps split title metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['subtitle-family-source'], $handoff['citedKeys']);
+        $t->same('Packet Appendix', $handoff['bibliography']->children[0]->attr('cslItem')['volume-subtitle'] ?? null);
+
+        $styled = CitationCslProcessor::fromBibtex($source)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Subtitle Family Variable Review</title>
+    <id>https://example.test/styles/bounded-biblatex-subtitle-family-variable-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="subtitle"/>
+        <text variable="container-subtitle"/>
+        <text variable="reviewed-subtitle"/>
+        <text variable="main-subtitle"/>
+        <text variable="volume-subtitle"/>
+        <text variable="part-subtitle"/>
+        <text variable="issue-subtitle"/>
+        <text variable="original-subtitle"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="subtitle"/>
+      <text variable="container-title"/>
+      <text variable="container-subtitle"/>
+      <text variable="reviewed-title"/>
+      <text variable="reviewed-subtitle"/>
+      <text variable="main-title"/>
+      <text variable="main-subtitle"/>
+      <text variable="volume-title"/>
+      <text variable="volume-subtitle"/>
+      <text variable="part-title"/>
+      <text variable="part-subtitle"/>
+      <text variable="issue-title"/>
+      <text variable="issue-subtitle"/>
+      <text variable="original-title"/>
+      <text variable="original-subtitle"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('subtitle-family-source');
+        $t->same('Source Review Appendix', $normalized['subtitle'] ?? null);
+        $t->same('Import Desk Edition', $normalized['containerSubtitle'] ?? null);
+        $t->same('Field Appendix', $normalized['reviewedSubtitle'] ?? null);
+        $t->same('Reviewer Annex', $normalized['mainSubtitle'] ?? null);
+        $t->same('Packet Appendix', $normalized['volumeSubtitle'] ?? null);
+        $t->same('Field Notes', $normalized['partSubtitle'] ?? null);
+        $t->same('Source Reports', $normalized['issueSubtitle'] ?? null);
+        $t->same('Archivo de Fuentes', $normalized['originalSubtitle'] ?? null);
+
+        $t->same('[Source Review Appendix | Import Desk Edition | Field Appendix | Reviewer Annex | Packet Appendix | Field Notes | Source Reports | Archivo de Fuentes]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'subtitle-family-source', 'text' => '[@subtitle-family-source]']),
+        ]));
+        $t->same('Source Chapter: Source Review Appendix :: Source Review Appendix :: Migration Handbook: Import Desk Edition :: Import Desk Edition :: Source Manual: Field Appendix :: Field Appendix :: Migration Source Corpus: Reviewer Annex :: Reviewer Annex :: Review Volume: Packet Appendix :: Packet Appendix :: Part Ledger: Field Notes :: Field Notes :: Special Issue: Source Reports :: Source Reports :: Manual de Migracion: Archivo de Fuentes :: Archivo de Fuentes', $styled->renderBibliographyEntry('subtitle-family-source'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Subtitle family [Source Review Appendix | Import Desk Edition | Field Appendix | Reviewer Annex | Packet Appendix | Field Notes | Source Reports | Archivo de Fuentes] keeps split title metadata.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Source Chapter: Source Review Appendix :: Source Review Appendix :: Migration Handbook: Import Desk Edition :: Import Desk Edition :: Source Manual: Field Appendix :: Field Appendix :: Migration Source Corpus: Reviewer Annex :: Reviewer Annex :: Review Volume: Packet Appendix :: Packet Appendix :: Part Ledger: Field Notes :: Field Notes :: Special Issue: Source Reports :: Source Reports :: Manual de Migracion: Archivo de Fuentes :: Archivo de Fuentes</dd>', $blocks);
+    },
     'carries biblatex status taxonomy aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-status-hyphen,

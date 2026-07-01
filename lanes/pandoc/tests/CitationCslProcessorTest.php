@@ -3291,7 +3291,7 @@ BIB;
         $t->same('Edición revisada', $item['originalTitleAddon'] ?? null);
         $t->same('(García 2026)', $processor->renderCitationCluster([$citation('original-subtitle-manual', '[@original-subtitle-manual]')]));
         $t->same(
-            'García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.',
+            'García, Gia. Migration Manual. Review Press, 2026. Original subtitle: Archivo de Fuentes. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.',
             $processor->renderBibliographyEntry('original-subtitle-manual')
         );
 
@@ -3333,7 +3333,7 @@ XML);
         $document = (new MarkdownReader())->read('Original subtitle source @original-subtitle-manual keeps original-title review metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Original subtitle source García (2026) keeps original-title review metadata.</p>', $blocks);
-        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
+        $t->contains('<dt>García 2026</dt><dd>García, Gia. Migration Manual. Review Press, 2026. Original subtitle: Archivo de Fuentes. Translated by Curator, Eli. Original title: Manual de Migración: Archivo de Fuentes. Original title addendum: Edición revisada. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish.</dd>', $blocks);
     },
     'maps bounded biblatex original language lists into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -28134,7 +28134,7 @@ XML);
 
         $default = CitationCslProcessor::fromBibtex($bibtex);
         $t->same(
-            'Diaz, Dee. Alias Review Manual. Review Press, 2026. Original title: Manual Fuente: Archivo Appendix. Original title addendum: source leaf. Original work published 1999-03. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. Original language: spanish; catalan.',
+            'Diaz, Dee. Alias Review Manual. Review Press, 2026. Original subtitle: Archivo Appendix. Original title: Manual Fuente: Archivo Appendix. Original title addendum: source leaf. Original work published 1999-03. Original publisher: Archivo Press; Migration Desk, Madrid; Barcelona. Original language: spanish; catalan.',
             $default->renderBibliographyEntry('hyphen-original')
         );
 
