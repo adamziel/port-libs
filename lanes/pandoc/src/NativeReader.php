@@ -895,9 +895,12 @@ final class NativeReader
     {
         [$format, $formatNative] = $this->parseFormatTuple();
         $text = $this->expectString();
+        $native = ['t' => 'RawBlock', 'c' => [$formatNative, $text]];
         $attrs = [
             'format' => $format,
             'text' => $text,
+            'constructor' => 'RawBlock',
+            'native' => $native,
             'formatConstructor' => 'Format',
             'formatNative' => $formatNative,
         ];
@@ -1148,9 +1151,12 @@ final class NativeReader
     {
         [$format, $formatNative] = $this->parseFormatTuple();
         $text = $this->expectString();
+        $native = ['t' => 'RawInline', 'c' => [$formatNative, $text]];
         $attrs = [
             'format' => $format,
             'text' => $text,
+            'constructor' => 'RawInline',
+            'native' => $native,
             'formatConstructor' => 'Format',
             'formatNative' => $formatNative,
         ];
