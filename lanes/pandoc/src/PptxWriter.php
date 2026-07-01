@@ -71,7 +71,14 @@ final class PptxWriter
     /** @var array<string, array{name:string, data:string, contentType:string, extension:string, source:string}> */
     private array $mediaPartsByKey = [];
 
+    /** @var list<array{id:int, blocks:list<AstNode>}> */
+    private array $endnotes = [];
+
+    /** @var array<int, int> */
+    private array $endnoteIdsByObjectId = [];
+
     private int $nextMediaId = 1;
+    private int $endnotesSlideNumber = 0;
 
     /**
      * @param array<string, mixed> $options
@@ -97,6 +104,7 @@ final class PptxWriter
         $this->resetState();
         $metadata = $this->metadata($document);
         $slides = $this->slides($document, $metadata);
+        $this->appendEndnotesSlide($slides, $document);
         $slideParts = [];
         $slideRelationshipParts = [];
         $notesSlideParts = [];
@@ -177,7 +185,10 @@ final class PptxWriter
     {
         $this->mediaParts = [];
         $this->mediaPartsByKey = [];
+        $this->endnotes = [];
+        $this->endnoteIdsByObjectId = [];
         $this->nextMediaId = 1;
+        $this->endnotesSlideNumber = 0;
     }
 
     /**
@@ -256,6 +267,90 @@ final class PptxWriter
             'blocks' => [],
             'notes' => [],
         ];
+    }
+
+    /**
+     * @param list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>}> $slides
+     */
+    private function appendEndnotesSlide(array &$slides, AstNode $document): void
+    {
+        $this->collectEndnotesFromSlides($slides);
+        if ($this->endnotes === []) {
+            return;
+        }
+
+        $this->endnotesSlideNumber = count($slides) + 1;
+        $slide = $this->newSlide($this->endnotesTitle($document));
+        $slide['blocks'] = $this->endnoteBlocks();
+        $slides[] = $slide;
+    }
+
+    /**
+     * @param list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>}> $slides
+     */
+    private function collectEndnotesFromSlides(array $slides): void
+    {
+        foreach ($slides as $slide) {
+            foreach ($slide['blocks'] as $block) {
+                $this->collectEndnotesFromNode($block);
+            }
+        }
+    }
+
+    private function collectEndnotesFromNode(AstNode $node): void
+    {
+        if ($node->type === 'note') {
+            $objectId = spl_object_id($node);
+            if (!isset($this->endnoteIdsByObjectId[$objectId])) {
+                $noteId = count($this->endnotes) + 1;
+                $this->endnoteIdsByObjectId[$objectId] = $noteId;
+                $this->endnotes[] = ['id' => $noteId, 'blocks' => $node->children];
+            }
+
+            return;
+        }
+
+        foreach ($node->children as $child) {
+            $this->collectEndnotesFromNode($child);
+        }
+    }
+
+    private function endnotesTitle(AstNode $document): string
+    {
+        $meta = $document->attr('meta', []);
+        $meta = is_array($meta) ? $meta : [];
+
+        return $this->optionString('notes-title')
+            ?? $this->optionString('notesTitle')
+            ?? $this->metaString($meta, ['notes-title', 'notesTitle'])
+            ?? 'Notes';
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function endnoteBlocks(): array
+    {
+        $blocks = [];
+        foreach ($this->endnotes as $endnote) {
+            $noteBlocks = $endnote['blocks'];
+            $prefix = new AstNode('text', ['text' => $endnote['id'] . '. ']);
+            if ($noteBlocks !== [] && ($noteBlocks[0]->type === 'plain' || $noteBlocks[0]->type === 'paragraph')) {
+                $blocks[] = new AstNode('paragraph', [], array_merge([$prefix], $noteBlocks[0]->children));
+                array_push($blocks, ...array_slice($noteBlocks, 1));
+                continue;
+            }
+
+            $blocks[] = new AstNode('paragraph', [], [$prefix]);
+            array_push($blocks, ...$noteBlocks);
+        }
+
+        return $blocks;
+    }
+
+    private function endnoteId(AstNode $note): ?int
+    {
+        return $this->endnoteIdsByObjectId[spl_object_id($note)] ?? null;
     }
 
     private function slideLevel(AstNode $document): int
@@ -496,7 +591,7 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, hyperlinkId?:string} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      * @return list<string>
      */
@@ -541,6 +636,22 @@ final class PptxWriter
                         $runs[] = $this->runXml($code, $style);
                     }
                     break;
+                case 'note':
+                    $noteId = $this->endnoteId($inline);
+                    if ($noteId !== null) {
+                        $noteStyle = $style + ['baseline' => 30000];
+                        if ($this->endnotesSlideNumber > 0) {
+                            $noteStyle['hyperlinkId'] = $this->addInternalRelationship(
+                                $relationships,
+                                self::REL_SLIDE,
+                                'slide' . $this->endnotesSlideNumber . '.xml',
+                                'Slide'
+                            );
+                            $noteStyle['hyperlinkAction'] = 'ppaction://hlinksldjump';
+                        }
+                        $runs[] = $this->runXml((string) $noteId, $noteStyle);
+                    }
+                    break;
                 case 'raw_inline':
                     if ($this->isOpenXmlRaw($inline)) {
                         $xml = $this->rawOpenXml($inline);
@@ -556,10 +667,14 @@ final class PptxWriter
                     break;
                 case 'span':
                 case 'smallcaps':
-                case 'superscript':
-                case 'subscript':
                 case 'quoted':
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style, $relationships));
+                    break;
+                case 'superscript':
+                    $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['baseline' => 30000], $relationships));
+                    break;
+                case 'subscript':
+                    $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['baseline' => -25000], $relationships));
                     break;
                 case 'image':
                     break;
@@ -576,7 +691,7 @@ final class PptxWriter
     }
 
     /**
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, hyperlinkId?:string} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
      */
     private function runXml(string $text, array $style): string
     {
@@ -593,9 +708,17 @@ final class PptxWriter
         if (($style['strike'] ?? false) === true) {
             $attrs[] = 'strike="sngStrike"';
         }
-        $hyperlink = isset($style['hyperlinkId'])
-            ? '<a:hlinkClick r:id="' . $this->xml((string) $style['hyperlinkId']) . '"/>'
-            : '';
+        if (isset($style['baseline'])) {
+            $attrs[] = 'baseline="' . (int) $style['baseline'] . '"';
+        }
+        $hyperlink = '';
+        if (isset($style['hyperlinkId'])) {
+            $hyperlinkAttrs = 'r:id="' . $this->xml((string) $style['hyperlinkId']) . '"';
+            if (isset($style['hyperlinkAction']) && (string) $style['hyperlinkAction'] !== '') {
+                $hyperlinkAttrs .= ' action="' . $this->xml((string) $style['hyperlinkAction']) . '"';
+            }
+            $hyperlink = '<a:hlinkClick ' . $hyperlinkAttrs . '/>';
+        }
         $runProperties = $hyperlink === ''
             ? '<a:rPr ' . implode(' ', $attrs) . '/>'
             : '<a:rPr ' . implode(' ', $attrs) . '>' . $hyperlink . '</a:rPr>';

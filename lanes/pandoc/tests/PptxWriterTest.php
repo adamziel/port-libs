@@ -98,6 +98,11 @@ $upstreamRawOpenXmlNative = <<<'NATIVE'
 ,RawBlock (Format "openxml") "<p:sp>\n        <p:nvSpPr>\n          <p:cNvPr id=\"3\" name=\"Content Placeholder 2\" />\n          <p:cNvSpPr>\n            <a:spLocks noGrp=\"1\" />\n          </p:cNvSpPr>\n          <p:nvPr>\n            <p:ph idx=\"1\" />\n          </p:nvPr>\n        </p:nvSpPr>\n        <p:spPr />\n        <p:txBody>\n          <a:bodyPr />\n          <a:lstStyle />\n          <a:p>\n            <a:pPr lvl=\"1\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Bulleted bulleted lists.</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"1\" />\n            <a:r>\n              <a:rPr />\n              <a:t>And go to arbitrary depth.</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"2\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Like this</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"3\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Or this</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"2\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Back to here.</a:t>\n            </a:r>\n          </a:p>\n        </p:txBody>\n      </p:sp>"]
 NATIVE;
 
+$upstreamEndnotesNative = <<<'NATIVE'
+Pandoc (Meta {unMeta = fromList []})
+[Para [Str "Here",Space,Str "is",Space,Str "one",Space,Str "note.",Note [Para [Str "Here",Space,Str "is",Space,Str "the",Space,Str "note."]],Space,Str "And",Space,Str "one",Space,Str "more",Space,Str "note.",Note [Para [Str "And",Space,Str "another",Space,Str "note."]]]]
+NATIVE;
+
 $collectText = static function (AstNode $node) use (&$collectText): string {
     $text = '';
     if (isset($node->attrs['text']) && is_scalar($node->attrs['text'])) {
@@ -317,6 +322,36 @@ return [
         $t->contains('<a:t>Or this</a:t>', $slide2);
         $t->contains('<a:t>Back to here.</a:t>', $slide2);
         $t->true(!str_contains($slide2, '&lt;p:sp'), 'Raw block OpenXML must not be XML-escaped');
+        $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream inline notes into a public endnotes slide' => static function (TestRunner $t) use ($upstreamEndnotesNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamEndnotesNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected content slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected generated endnotes slide');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'Endnotes fixture should produce exactly two slides');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $slide1Text = trim(preg_replace('/\s+/u', ' ', strip_tags($slide1)) ?? '');
+        $t->contains('Here is one note.', $slide1Text);
+        $t->contains('And one more note.', $slide1Text);
+        $t->contains('baseline="30000"', $slide1);
+        $t->contains('ppaction://hlinksldjump', $slide1);
+        $t->true(!str_contains($slide1Text, 'Here is the note.'), 'Inline note body should move to the public Notes slide');
+        $t->true(!str_contains($slide1Text, 'And another note.'), 'Second inline note body should move to the public Notes slide');
+
+        $slide1Rels = $package->read('ppt/slides/_rels/slide1.xml.rels');
+        $t->contains('relationships/slide', $slide1Rels);
+        $t->contains('Target="slide2.xml"', $slide1Rels);
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $slide2Text = trim(preg_replace('/\s+/u', ' ', strip_tags($slide2)) ?? '');
+        $t->contains('Notes', $slide2Text);
+        $t->contains('1. Here is the note.', $slide2Text);
+        $t->contains('2. And another note.', $slide2Text);
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
     },
 
