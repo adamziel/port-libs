@@ -1405,7 +1405,7 @@ final class BibtexCslProcessor
             ['submittedenddate', 'submitted-end-date', 'submissionenddate', 'submission-end-date']
         );
         if ($submittedDate !== null) {
-            $item['submitted'] = $this->dateWithEra($submittedDate, $fields, ['submitteddateera', 'submitted-date-era']);
+            $item['submitted'] = $this->dateWithEra($submittedDate, $fields, ['submitteddateera', 'submitted-date-era', 'submissiondateera', 'submission-date-era']);
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));

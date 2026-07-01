@@ -1258,7 +1258,7 @@ final class BibtexCslParser
             $item['available-date'] = $availableDate;
         }
 
-        $submittedDate = self::dateFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday'], [
+        $submittedDate = self::dateFromFields($fields, ['submitteddate', 'submitted-date', 'submitted', 'submissiondate', 'submission-date'], ['submittedyear', 'submittedmonth', 'submittedday'], [
             'hour' => 'submittedhour',
             'minute' => 'submittedminute',
             'second' => 'submittedsecond',
@@ -1267,9 +1267,9 @@ final class BibtexCslParser
             'endminute' => 'submittedendminute',
             'endsecond' => 'submittedendsecond',
             'endtimezone' => 'submittedendtimezone',
-        ], ['submittedendyear', 'submittedendmonth', 'submittedendday']);
+        ], ['submittedendyear', 'submittedendmonth', 'submittedendday'], ['submittedenddate', 'submitted-end-date', 'submissionenddate', 'submission-end-date']);
         if ($submittedDate !== null) {
-            $submittedDate = self::dateWithEra($submittedDate, $fields, ['submitteddateera', 'submitted-date-era']);
+            $submittedDate = self::dateWithEra($submittedDate, $fields, ['submitteddateera', 'submitted-date-era', 'submissiondateera', 'submission-date-era']);
             $item['submitted'] = $submittedDate;
         }
 
@@ -2727,14 +2727,30 @@ final class BibtexCslParser
      * @param list<string> $partFields
      * @param array<string, string> $timeFields
      * @param list<string> $endPartFields
+     * @param list<string> $endDateFields
      * @return array<string, mixed>|null
      */
-    private static function dateFromFields(array $fields, array $dateFields, array $partFields, array $timeFields = [], array $endPartFields = []): ?array
+    private static function dateFromFields(array $fields, array $dateFields, array $partFields, array $timeFields = [], array $endPartFields = [], array $endDateFields = []): ?array
     {
         foreach ($dateFields as $field) {
             if (isset($fields[$field]) && trim($fields[$field]) !== '') {
+                $date = self::dateFromText(self::cleanBibtexDateText($fields[$field]), $field);
+                $endDate = self::dateEndObjectFromFields($fields, $endDateFields, $endPartFields);
+                $dateParts = $date['date-parts'] ?? [];
+                $endParts = is_array($endDate) ? ($endDate['date-parts'][0] ?? []) : [];
+                if (
+                    is_array($dateParts)
+                    && count($dateParts) === 1
+                    && is_array($endParts)
+                    && $endParts !== []
+                    && ($date['season'] ?? null) === null
+                    && ($endDate['season'] ?? null) === null
+                ) {
+                    $date['date-parts'][] = $endParts;
+                }
+
                 return self::dateWithTimeParts(
-                    self::dateFromText(self::cleanBibtexDateText($fields[$field]), $field),
+                    $date,
                     $fields,
                     $timeFields,
                     $field
@@ -2742,9 +2758,10 @@ final class BibtexCslParser
             }
         }
 
-        $hasEndPartField = $endPartFields !== [] && self::hasAnyField($fields, $endPartFields);
+        $hasEndField = ($endPartFields !== [] && self::hasAnyField($fields, $endPartFields))
+            || ($endDateFields !== [] && self::hasAnyField($fields, $endDateFields));
         if ($partFields === [] || !isset($fields[$partFields[0]]) || trim($fields[$partFields[0]]) === '') {
-            if ($hasEndPartField) {
+            if ($hasEndField) {
                 throw new \InvalidArgumentException('BibTeX end date fields require ' . ($partFields[0] ?? 'year') . ' to be present');
             }
 
@@ -2753,7 +2770,7 @@ final class BibtexCslParser
 
         $year = self::cleanBibtexText($fields[$partFields[0]]);
         if (!preg_match('/^-?\d+$/', $year)) {
-            if ($hasEndPartField) {
+            if ($hasEndField) {
                 throw new \InvalidArgumentException('BibTeX split date range fields require a numeric ' . $partFields[0] . ' field');
             }
 
@@ -2767,16 +2784,17 @@ final class BibtexCslParser
 
         $dateParts = [$startDatePart['parts']];
         $season = $startDatePart['season'];
-        if ($hasEndPartField) {
-            $endDatePart = self::datePartInfoFromSplitFields($fields, $endPartFields, false);
-            if ($endDatePart === null) {
+        if ($hasEndField) {
+            $endDate = self::dateEndObjectFromFields($fields, $endDateFields, $endPartFields);
+            $endParts = is_array($endDate) ? ($endDate['date-parts'][0] ?? []) : [];
+            if (!is_array($endParts) || $endParts === []) {
                 throw new \InvalidArgumentException('BibTeX split date range fields require ' . ($endPartFields[0] ?? 'endyear') . ' to be present');
             }
-            if ($season !== null || $endDatePart['season'] !== null) {
+            if ($season !== null || ($endDate['season'] ?? null) !== null) {
                 throw new \InvalidArgumentException('BibTeX split date range fields do not support season month codes');
             }
 
-            $dateParts[] = $endDatePart['parts'];
+            $dateParts[] = $endParts;
         }
 
         $date = ['date-parts' => $dateParts];
@@ -2785,6 +2803,37 @@ final class BibtexCslParser
         }
 
         return self::dateWithTimeParts($date, $fields, $timeFields, $partFields[0]);
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $endDateFields
+     * @param list<string> $endPartFields
+     * @return array<string, mixed>|null
+     */
+    private static function dateEndObjectFromFields(array $fields, array $endDateFields, array $endPartFields): ?array
+    {
+        foreach ($endDateFields as $field) {
+            if (isset($fields[$field]) && trim($fields[$field]) !== '') {
+                return self::dateFromText(self::cleanBibtexDateText($fields[$field]), $field);
+            }
+        }
+
+        if ($endPartFields === [] || !self::hasAnyField($fields, $endPartFields)) {
+            return null;
+        }
+
+        $endDatePart = self::datePartInfoFromSplitFields($fields, $endPartFields, false);
+        if ($endDatePart === null) {
+            return null;
+        }
+
+        $date = ['date-parts' => [$endDatePart['parts']]];
+        if ($endDatePart['season'] !== null) {
+            $date['season'] = $endDatePart['season'];
+        }
+
+        return $date;
     }
 
     /**
