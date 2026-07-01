@@ -929,6 +929,7 @@ final class BibtexCslProcessor
             'number-of-volumes' => ['volumes'],
             'issue' => ['issue'],
             'page' => ['pages', 'page'],
+            'page-first' => ['page-first', 'pagefirst'],
             'pagination' => ['pagination', 'page-label'],
             'book-pagination' => ['bookpagination', 'book-pagination'],
             'article-number' => ['eid', 'article-number', 'articlenumber'],
@@ -946,11 +947,11 @@ final class BibtexCslProcessor
             'supplement' => ['supplement'],
             'DOI' => ['doi'],
             'URL' => ['url'],
-            'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label'],
+            'URL-label' => ['urldescription', 'urltitle', 'urllabel', 'url-label', 'url-description'],
             'rights' => ['rights', 'copyright', 'license', 'licence'],
             'publisher' => ['publisher', 'institution', 'school', 'organization'],
             'publisher-place' => ['address', 'location', 'publisher-place'],
-            'collection-title' => ['series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext', 'collection-title', 'collectiontitle'],
+            'collection-title' => ['series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext', 'collection-title', 'collectiontitle', 'collection-title-text', 'collectiontitletext'],
             'collection-title-short' => ['shortseries', 'short-series', 'series-short', 'series-title-short', 'seriestitleshort', 'shortcollection', 'collection-title-short', 'collectiontitleshort'],
             'collection-number' => ['seriesnumber', 'series-number', 'collectionnumber', 'collection-number'],
             'original-collection-title' => ['origseries', 'orig-series', 'originalseries', 'original-series', 'original-collection-title', 'originalcollectiontitle'],
@@ -958,8 +959,8 @@ final class BibtexCslProcessor
             'version' => ['version'],
             'status' => ['status', 'publication-status', 'publicationstatus', 'pubstate'],
             'medium' => ['howpublished', 'medium'],
-            'ISBN' => ['isbn'],
-            'ISSN' => ['issn'],
+            'ISBN' => ['isbn', 'isbn13', 'isbn-13', 'isbn10', 'isbn-10', 'eisbn', 'e-isbn', 'electronicisbn', 'electronic-isbn'],
+            'ISSN' => ['issn', 'printissn', 'print-issn', 'pissn', 'p-issn', 'eissn', 'e-issn', 'electronicissn', 'electronic-issn', 'onlineissn', 'online-issn', 'issnonline', 'issn-online'],
             'ISAN' => ['isan'],
             'ISMN' => ['ismn'],
             'ISRN' => ['isrn'],
@@ -1020,6 +1021,12 @@ final class BibtexCslProcessor
         }
         if (($item['index-title'] ?? '') !== '' && ($item['index-sort-title'] ?? '') === '') {
             $item['index-sort-title'] = (string) $item['index-title'];
+        }
+        if (($item['page-first'] ?? '') === '') {
+            $pageFirst = $this->firstPageFromRange((string) ($item['page'] ?? ''));
+            if ($pageFirst !== '') {
+                $item['page-first'] = $pageFirst;
+            }
         }
         $this->applyLiteralListField($item, $fields, 'publisher', ['publisher', 'institution', 'school', 'organization'], 'publisher-list');
         $this->applyLiteralListField($item, $fields, 'publisher-place', ['address', 'location', 'publisher-place'], 'publisher-place-list');
@@ -2278,6 +2285,18 @@ final class BibtexCslProcessor
         }
 
         return null;
+    }
+
+    private function firstPageFromRange(string $pages): string
+    {
+        $pages = trim($pages);
+        if ($pages === '') {
+            return '';
+        }
+
+        $parts = preg_split('/\s*(?:[-\x{2010}-\x{2015}]|,|&|\band\b)\s*/u', $pages, 2);
+
+        return trim((string) ($parts[0] ?? $pages));
     }
 
     /**
