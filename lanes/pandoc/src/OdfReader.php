@@ -15440,7 +15440,7 @@ final class OdfReader
                 'code' => $code,
                 $nameKey => $name,
             ];
-            foreach (['family', 'type', 'element'] as $field) {
+            foreach (['family', 'type', 'element', 'sourcePart', 'sourceContainer'] as $field) {
                 $previous = $target[$name][$field] ?? null;
                 $replacement = $item[$field] ?? null;
                 if (is_scalar($previous) && (string) $previous !== '') {

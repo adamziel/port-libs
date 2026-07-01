@@ -276,4 +276,54 @@ XML;
         $t->same('styles.xml', $styles['diagnostics'][0]['sourcePart']);
         $t->same('office:styles', $styles['diagnostics'][0]['sourceContainer']);
     },
+    'surfaces ODT duplicate style source-part provenance in package diagnostics' => static function (TestRunner $t) use ($manifestXml, $metaXml): void {
+        $duplicateStylesXml = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="CrossPartStyle" style:family="paragraph"/>
+  </office:styles>
+</office:document-styles>
+XML;
+
+        $duplicateContentXml = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:automatic-styles>
+    <style:style style:name="CrossPartStyle" style:family="text"/>
+  </office:automatic-styles>
+  <office:body>
+    <office:text>
+      <text:p>Duplicate style source provenance packet.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $result = (new OdfReader())->readPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $duplicateContentXml],
+            ['name' => 'styles.xml', 'data' => $duplicateStylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+        ], 'odt duplicate style source provenance'));
+
+        $provenance = $result['packageStyles'];
+        $diagnostic = $provenance['diagnostics'][0] ?? [];
+
+        $t->same(1, $provenance['diagnosticCount']);
+        $t->same(['odf-style-duplicate-name' => 1], $provenance['diagnosticCodeCounts']);
+        $t->same('CrossPartStyle', $diagnostic['styleName'] ?? null);
+        $t->same('paragraph', $diagnostic['previousFamily'] ?? null);
+        $t->same('text', $diagnostic['replacementFamily'] ?? null);
+        $t->same('styles.xml', $diagnostic['previousSourcePart'] ?? null);
+        $t->same('content.xml', $diagnostic['replacementSourcePart'] ?? null);
+        $t->same('office:styles', $diagnostic['previousSourceContainer'] ?? null);
+        $t->same('office:automatic-styles', $diagnostic['replacementSourceContainer'] ?? null);
+        $t->same('content.xml', $diagnostic['sourcePart'] ?? null);
+        $t->same('office:automatic-styles', $diagnostic['sourceContainer'] ?? null);
+    },
 ];
