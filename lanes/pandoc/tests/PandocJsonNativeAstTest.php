@@ -15729,6 +15729,74 @@ NATIVE;
         $t->same([['t' => 'Str', 'c' => 'Edited text']], $editedJson['blocks'][0]['c']);
         $t->same([['t' => 'Str', 'c' => 'Edited text']], $editedNative['blocks'][0]['c']);
     },
+    'preserves textual native fallback constructors through writers' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ VendorBlock "source" [VendorFlag True, VendorCount 3]
+, Para [ Str "Before", Space, VendorInline "anchor" [VendorMark False, VendorScore 2.5], Space, Str "after" ]
+, OpaqueLeaf
+]
+NATIVE;
+        $expectedBlocks = [
+            ['t' => 'VendorBlock', 'c' => [
+                'source',
+                [
+                    ['t' => 'VendorFlag', 'c' => true],
+                    ['t' => 'VendorCount', 'c' => 3],
+                ],
+            ]],
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Before'],
+                ['t' => 'Space'],
+                ['t' => 'VendorInline', 'c' => [
+                    'anchor',
+                    [
+                        ['t' => 'VendorMark', 'c' => false],
+                        ['t' => 'VendorScore', 'c' => 2.5],
+                    ],
+                ]],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'after'],
+            ]],
+            ['t' => 'OpaqueLeaf'],
+        ];
+
+        $nativeDocument = (new NativeReader())->read($nativeText);
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+        $nativeRoundTripText = (new NativeWriter())->write($nativeDocument);
+        $nativeRoundTripPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], (new NativeReader())->read($nativeRoundTripText)->children));
+
+        $nativeBlock = $nativeDocument->children[0];
+        $paragraph = $nativeDocument->children[1];
+        $nativeInline = $paragraph->children[2];
+        $nativeLeaf = $nativeDocument->children[2];
+
+        $t->same('pandoc-native-text', $nativeDocument->attr('nativeFormat'));
+        $t->same(['native_block', 'paragraph', 'native_block'], array_map(static fn (AstNode $node): string => $node->type, $nativeDocument->children));
+        $t->same('VendorBlock', $nativeBlock->attr('constructor'));
+        $t->same($expectedBlocks[0], $nativeBlock->attr('native'));
+        $t->same($expectedBlocks[0]['c'], $nativeBlock->attr('nativeTextArguments'));
+        $t->same('native_inline', $nativeInline->type);
+        $t->same('VendorInline', $nativeInline->attr('constructor'));
+        $t->same($expectedBlocks[1]['c'][2], $nativeInline->attr('native'));
+        $t->same($expectedBlocks[1]['c'][2]['c'], $nativeInline->attr('nativeTextArguments'));
+        $t->same('OpaqueLeaf', $nativeLeaf->attr('constructor'));
+        $t->same($expectedBlocks[2], $nativeLeaf->attr('native'));
+        $t->same([], $nativeLeaf->attr('nativeTextArguments'));
+        $t->same($expectedBlocks, $jsonPacket['blocks']);
+        $t->same($expectedBlocks, $nativePacket['blocks']);
+        $t->contains('VendorBlock "source"', $nativeRoundTripText);
+        $t->contains('VendorInline "anchor"', $nativeRoundTripText);
+        $t->contains('OpaqueLeaf', $nativeRoundTripText);
+        $t->same($expectedBlocks, $nativeRoundTripPacket['blocks']);
+    },
     'serializes native text raw tex inline nodes through pandoc json writers' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 Pandoc Meta {unMeta = fromList []} [ Para [ Str "Before", Space, RawInline (Format "tex") "\\alpha", Space, Str "after" ] ]

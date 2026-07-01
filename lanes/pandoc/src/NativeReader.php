@@ -778,7 +778,7 @@ final class NativeReader
             'Table' => $this->parseTable(),
             'RawBlock' => $this->parseRawBlock(),
             'Div' => $this->parseDivBlock(),
-            default => throw new \InvalidArgumentException("Unsupported Native block '{$type}'"),
+            default => $this->parseNativeFallback('native_block', $type),
         };
     }
 
@@ -1114,8 +1114,19 @@ final class NativeReader
             'Cite' => $this->parseCitationInline(),
             'RawInline' => $this->parseRawInline(),
             'Span' => $this->parseSpanInline(),
-            default => throw new \InvalidArgumentException("Unsupported Native inline '{$type}'"),
+            default => $this->parseNativeFallback('native_inline', $type),
         };
+    }
+
+    private function parseNativeFallback(string $type, string $constructor): AstNode
+    {
+        [$native, $arguments] = $this->parseNativeConstructorPayload($constructor);
+
+        return new AstNode($type, [
+            'constructor' => $constructor,
+            'native' => $native,
+            'nativeTextArguments' => $arguments,
+        ]);
     }
 
     private function parseInlineContainer(string $type, string $constructor): AstNode
@@ -2021,6 +2032,142 @@ final class NativeReader
         }
 
         throw new \InvalidArgumentException("Expected Native boolean, got '{$value}'");
+    }
+
+    /**
+     * @return array{0:array<string, mixed>, 1:list<mixed>}
+     */
+    private function parseNativeConstructorPayload(string $constructor): array
+    {
+        $arguments = [];
+        while ($this->nextTokenStartsNativeValue()) {
+            $arguments[] = $this->parseNativeValue();
+        }
+
+        $native = ['t' => $constructor];
+        if (count($arguments) === 1) {
+            $native['c'] = $arguments[0];
+        } elseif ($arguments !== []) {
+            $native['c'] = $arguments;
+        }
+
+        return [$native, $arguments];
+    }
+
+    private function parseNativeValue(): mixed
+    {
+        $token = $this->peek();
+        if ($token === null) {
+            throw new \InvalidArgumentException('Unexpected end of Native constructor payload');
+        }
+
+        if ($token['type'] === 'string') {
+            return $this->expectString();
+        }
+
+        if ($token['type'] === 'number') {
+            $number = $this->expectNumber();
+
+            return str_contains($number, '.') || str_contains($number, 'e') || str_contains($number, 'E')
+                ? (float) $number
+                : (int) $number;
+        }
+
+        if ($token['type'] === 'identifier') {
+            $identifier = $this->expectAnyIdentifier();
+            if ($identifier === 'True') {
+                return true;
+            }
+            if ($identifier === 'False') {
+                return false;
+            }
+
+            return $this->parseNativeConstructorPayload($identifier)[0];
+        }
+
+        if ($token['type'] !== 'symbol') {
+            throw new \InvalidArgumentException("Unexpected Native constructor payload token '{$token['value']}'");
+        }
+
+        return match ($token['value']) {
+            '[' => $this->parseNativeListValue(),
+            '(' => $this->parseNativeTupleValue(),
+            '{' => $this->parseNativeRecordValue(),
+            default => throw new \InvalidArgumentException("Unexpected Native constructor payload symbol '{$token['value']}'"),
+        };
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function parseNativeListValue(): array
+    {
+        $this->expectSymbol('[');
+        $items = [];
+        if ($this->acceptSymbol(']')) {
+            return $items;
+        }
+
+        do {
+            $items[] = $this->parseNativeValue();
+        } while ($this->acceptSymbol(','));
+
+        $this->expectSymbol(']');
+
+        return $items;
+    }
+
+    private function parseNativeTupleValue(): mixed
+    {
+        $this->expectSymbol('(');
+        $items = [];
+        if ($this->acceptSymbol(')')) {
+            return $items;
+        }
+
+        do {
+            $items[] = $this->parseNativeValue();
+        } while ($this->acceptSymbol(','));
+
+        $this->expectSymbol(')');
+
+        return count($items) === 1 ? $items[0] : $items;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseNativeRecordValue(): array
+    {
+        $this->expectSymbol('{');
+        $fields = [];
+        if ($this->acceptSymbol('}')) {
+            return $fields;
+        }
+
+        do {
+            $field = $this->expectAnyIdentifier();
+            $this->expectSymbol('=');
+            $fields[$field] = $this->parseNativeValue();
+        } while ($this->acceptSymbol(','));
+
+        $this->expectSymbol('}');
+
+        return $fields;
+    }
+
+    private function nextTokenStartsNativeValue(): bool
+    {
+        $token = $this->peek();
+        if ($token === null) {
+            return false;
+        }
+
+        if (in_array($token['type'], ['identifier', 'number', 'string'], true)) {
+            return true;
+        }
+
+        return $token['type'] === 'symbol' && in_array($token['value'], ['[', '(', '{'], true);
     }
 
     /**

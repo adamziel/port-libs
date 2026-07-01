@@ -947,6 +947,7 @@ final class NativeWriter
             'raw_tex' => 'RawBlock (Format ' . $this->quote($this->rawFormat($node, 'tex')) . ') ' . $this->quote($this->rawText($node, 'tex')),
             'raw_block', 'raw_markdown' => 'RawBlock (Format ' . $this->quote($this->rawFormat($node, 'markdown')) . ') ' . $this->quote($this->rawText($node, 'markdown')),
             'div' => 'Div ' . $this->renderAttrTuple($node) . ' ' . $this->renderBlockList($node->children, $indent),
+            'native_block' => $this->renderNativeFallback($node, 'block'),
             default => throw new \InvalidArgumentException("Native writer does not support block node '{$node->type}'"),
         };
     }
@@ -1225,8 +1226,76 @@ final class NativeWriter
             'raw_tex', 'raw_tex_inline' => ['RawInline (Format ' . $this->quote($this->rawFormat($node, 'tex')) . ') ' . $this->quote($this->rawText($node, 'tex'))],
             'raw_markdown', 'raw_inline' => ['RawInline (Format ' . $this->quote($this->rawFormat($node, 'markdown')) . ') ' . $this->quote($this->rawText($node, 'markdown'))],
             'span' => ['Span ' . $this->renderAttrTuple($node) . ' ' . $this->renderInlineList($node->children)],
+            'native_inline' => [$this->renderNativeFallback($node, 'inline')],
             default => throw new \InvalidArgumentException("Native writer does not support inline node '{$node->type}'"),
         };
+    }
+
+    private function renderNativeFallback(AstNode $node, string $context): string
+    {
+        $native = $node->attr('native');
+        if (!is_array($native) || array_is_list($native) || !is_string($native['t'] ?? null) || $native['t'] === '') {
+            throw new \InvalidArgumentException("Native writer {$context} fallback node must carry a tagged native constructor");
+        }
+
+        $arguments = $node->attr('nativeTextArguments', null);
+        if (is_array($arguments) && array_is_list($arguments)) {
+            return trim($native['t'] . ' ' . implode(' ', array_map(
+                fn (mixed $argument): string => $this->renderNativeValue($argument),
+                $arguments
+            )));
+        }
+
+        if (!array_key_exists('c', $native)) {
+            return $native['t'];
+        }
+
+        return $native['t'] . ' ' . $this->renderNativeValue($native['c']);
+    }
+
+    private function renderNativeValue(mixed $value): string
+    {
+        if (is_string($value)) {
+            return $this->quote($value);
+        }
+
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        if (is_float($value)) {
+            return $this->renderFloat($value);
+        }
+
+        if (is_bool($value)) {
+            return $value ? 'True' : 'False';
+        }
+
+        if (!is_array($value)) {
+            return $this->quote((string) $value);
+        }
+
+        if (!array_is_list($value) && is_string($value['t'] ?? null) && $value['t'] !== '') {
+            if (!array_key_exists('c', $value)) {
+                return $value['t'];
+            }
+
+            return $value['t'] . ' ' . $this->renderNativeValue($value['c']);
+        }
+
+        if (!array_is_list($value)) {
+            $fields = [];
+            foreach ($value as $field => $item) {
+                $fields[] = (string) $field . ' = ' . $this->renderNativeValue($item);
+            }
+
+            return '{ ' . implode(' , ', $fields) . ' }';
+        }
+
+        return '[ ' . implode(' , ', array_map(
+            fn (mixed $item): string => $this->renderNativeValue($item),
+            $value
+        )) . ' ]';
     }
 
     private function rawFormat(AstNode $node, string $default): string
