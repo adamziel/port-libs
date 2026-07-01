@@ -914,7 +914,7 @@ final class BibtexCslProcessor
             'scale' => ['scale'],
             'number-of-pages' => ['pagetotal', 'numpages', 'numberofpages', 'number-of-pages'],
             'chapter-number' => ['chapter'],
-            'division' => ['division', 'subdivision'],
+            'division' => ['division', 'subdivision', 'sub-division', 'sub_division'],
             'source' => ['source', 'sourcetitle', 'source-title'],
             'section' => ['section'],
             'part' => ['part', 'part-number', 'partnumber'],
