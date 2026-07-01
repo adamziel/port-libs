@@ -24989,9 +24989,11 @@ final class XmlHtmlDom
             $group,
             static fn (\DOMElement $groupDetails): bool => $groupDetails->hasAttribute('open')
         ));
+        $issues = self::detailsDisclosureIssues($summaryElements, $detailsNameRaw, $detailsName, $openGroup);
 
         return [
             'disclosure' => 'details',
+            'detailsDisclosureReviewPolicy' => 'html-details-disclosure-state-review',
             'open' => $details->hasAttribute('open'),
             'detailsState' => $details->hasAttribute('open') ? 'open' : 'closed',
             'detailsNameRaw' => $detailsNameRaw,
@@ -24999,12 +25001,76 @@ final class XmlHtmlDom
             'detailsGroupIndex' => self::detailsGroupIndex($details, $group),
             'detailsGroupSize' => count($group),
             'detailsGroupOpenCount' => count($openGroup),
+            'detailsGroupOpenIds' => self::detailsElementIds($openGroup),
             'detailsGroupOpenConflict' => count($openGroup) > 1,
             'summaryText' => $summaryElements === [] ? null : self::normalizedText($summaryElements[0]),
             'primarySummaryId' => $summaryElements === [] ? null : self::attributeOrNull($summaryElements[0], 'id'),
             'summaryElementCount' => count($summaryElements),
             'summaryElements' => self::detailsSummaryElementRecords($summaryElements),
+            'detailsDisclosureIssues' => $issues,
+            'detailsDisclosureIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'detailsDisclosureValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @param list<\DOMElement> $summaryElements
+     * @param list<\DOMElement> $openGroup
+     * @return list<array<string, mixed>>
+     */
+    private static function detailsDisclosureIssues(
+        array $summaryElements,
+        ?string $detailsNameRaw,
+        ?string $detailsName,
+        array $openGroup
+    ): array {
+        $issues = [];
+        $summaryCount = count($summaryElements);
+
+        if ($summaryCount === 0) {
+            $issues[] = ['code' => 'missing-details-summary-element'];
+        } elseif ($summaryCount > 1) {
+            $issues[] = [
+                'code' => 'multiple-details-summary-elements',
+                'summaryElementCount' => $summaryCount,
+            ];
+        }
+
+        if ($detailsNameRaw !== null && $detailsName === null) {
+            $issues[] = [
+                'code' => 'empty-details-name-group',
+                'detailsNameRaw' => $detailsNameRaw,
+            ];
+        }
+
+        if (count($openGroup) > 1) {
+            $issues[] = [
+                'code' => 'multiple-open-details-in-name-group',
+                'detailsName' => $detailsName,
+                'openCount' => count($openGroup),
+                'openIds' => self::detailsElementIds($openGroup),
+            ];
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param list<\DOMElement> $detailsElements
+     * @return list<string>
+     */
+    private static function detailsElementIds(array $detailsElements): array
+    {
+        return array_values(array_filter(
+            array_map(
+                static fn (\DOMElement $details): ?string => self::attributeOrNull($details, 'id'),
+                $detailsElements
+            ),
+            static fn (?string $id): bool => $id !== null && $id !== ''
+        ));
     }
 
     /**
@@ -25080,14 +25146,30 @@ final class XmlHtmlDom
                 }
             }
         }
+        $issues = [];
+        if (!$details instanceof \DOMElement) {
+            $issues[] = ['code' => 'summary-without-details-parent'];
+        } elseif ($summaryIndex !== 0) {
+            $issues[] = [
+                'code' => 'non-primary-details-summary-element',
+                'summaryIndex' => $summaryIndex,
+            ];
+        }
 
         return [
             'disclosure' => 'summary',
+            'summaryDisclosureReviewPolicy' => 'html-summary-disclosure-parent-review',
             'label' => self::normalizedText($summary),
             'summaryForDetailsId' => $details instanceof \DOMElement ? self::attributeOrNull($details, 'id') : null,
             'summaryForDetailsName' => $details instanceof \DOMElement ? self::normalizedNonEmptyAttribute(self::attributeOrNull($details, 'name')) : null,
             'summaryIndex' => $summaryIndex,
             'summaryPrimary' => $summaryIndex === null ? null : $summaryIndex === 0,
+            'summaryDisclosureIssues' => $issues,
+            'summaryDisclosureIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'summaryDisclosureValid' => $issues === [],
         ];
     }
 
