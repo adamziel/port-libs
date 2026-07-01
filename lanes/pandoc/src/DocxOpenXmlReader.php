@@ -11056,6 +11056,31 @@ final class DocxOpenXmlReader
         $summary['zipDataDescriptorIssueCount'] = $zipDataDescriptors['issueCount'];
         $summary['zipDataDescriptorIssueCodes'] = $zipDataDescriptors['issueCodes'];
         $summary['zipDataDescriptorByteLength'] = $zipDataDescriptors['descriptorByteLength'];
+        $zipSourceRecords = is_array($zipPackage['sourceRecords'] ?? null)
+            ? $zipPackage['sourceRecords']
+            : $this->emptyZipSourceRecordProvenance();
+        $summary['zipSourceRecordEntryCount'] = (int) ($zipSourceRecords['entryCount'] ?? 0);
+        $summary['zipSourceRecordIssueCount'] = (int) ($zipSourceRecords['issueCount'] ?? 0);
+        $summary['zipSourceRecordIssues'] = is_array($zipSourceRecords['issues'] ?? null)
+            ? $zipSourceRecords['issues']
+            : [];
+        $summary['zipSourceLocalRecordBytes'] = (int) ($zipSourceRecords['localRecordBytes'] ?? 0);
+        $summary['zipSourceLocalHeaderBytes'] = (int) ($zipSourceRecords['localHeaderBytes'] ?? 0);
+        $summary['zipSourceLocalFixedHeaderBytes'] = (int) ($zipSourceRecords['localFixedHeaderBytes'] ?? 0);
+        $summary['zipSourceLocalHeaderVariableFieldBytes'] = (int) ($zipSourceRecords['localHeaderVariableFieldBytes'] ?? 0);
+        $summary['zipSourceLocalRawNameBytes'] = (int) ($zipSourceRecords['localRawNameBytes'] ?? 0);
+        $summary['zipSourceLocalExtraFieldBytes'] = (int) ($zipSourceRecords['localExtraFieldBytes'] ?? 0);
+        $summary['zipSourceLocalReviewFieldBytes'] = (int) ($zipSourceRecords['localReviewFieldBytes'] ?? 0);
+        $summary['zipSourceCompressedDataBytes'] = (int) ($zipSourceRecords['compressedDataBytes'] ?? 0);
+        $summary['zipSourceDataDescriptorBytes'] = (int) ($zipSourceRecords['dataDescriptorBytes'] ?? 0);
+        $summary['zipSourceCentralDirectoryRecordBytes'] = (int) ($zipSourceRecords['centralDirectoryRecordBytes'] ?? 0);
+        $summary['zipSourceCentralDirectoryFixedHeaderBytes'] = (int) ($zipSourceRecords['centralDirectoryFixedHeaderBytes'] ?? 0);
+        $summary['zipSourceCentralDirectoryVariableFieldBytes'] = (int) ($zipSourceRecords['centralDirectoryVariableFieldBytes'] ?? 0);
+        $summary['zipSourceCentralDirectoryRawNameBytes'] = (int) ($zipSourceRecords['centralDirectoryRawNameBytes'] ?? 0);
+        $summary['zipSourceCentralDirectoryExtraFieldBytes'] = (int) ($zipSourceRecords['centralDirectoryExtraFieldBytes'] ?? 0);
+        $summary['zipSourceCentralDirectoryRawCommentBytes'] = (int) ($zipSourceRecords['centralDirectoryRawCommentBytes'] ?? 0);
+        $summary['zipSourceCentralDirectoryReviewFieldBytes'] = (int) ($zipSourceRecords['centralDirectoryReviewFieldBytes'] ?? 0);
+        $summary['zipSourceTotalRecordBytes'] = (int) ($zipSourceRecords['totalRecordBytes'] ?? 0);
         $zipExtraFields = is_array($zipPackage['extraFields'] ?? null)
             ? $zipPackage['extraFields']
             : $this->emptyZipExtraFieldProvenance();
@@ -11188,6 +11213,7 @@ final class DocxOpenXmlReader
                     'entries' => [],
                 ],
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
+                'sourceRecords' => $this->emptyZipSourceRecordProvenance(),
                 'extraFields' => $this->emptyZipExtraFieldProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'comments' => $this->emptyZipCommentProvenance(),
@@ -11209,6 +11235,7 @@ final class DocxOpenXmlReader
         );
         $sizePreflight = $sourcePackage->sizePreflight();
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
+        $sourceRecords = $this->zipSourceRecordProvenance($sourcePackage, $parts);
         $extraFields = $sourcePackage->extraFieldPreflight();
         $comments = $sourcePackage->commentPreflight();
         $packageManifest = $sourcePackage->packageManifestPreflight();
@@ -11240,6 +11267,12 @@ final class DocxOpenXmlReader
         foreach ($dataDescriptors['entries'] as $descriptorEntry) {
             if (is_array($descriptorEntry) && is_string($descriptorEntry['name'] ?? null)) {
                 $dataDescriptorByName[$descriptorEntry['name']] = $descriptorEntry;
+            }
+        }
+        $sourceRecordEntriesByName = [];
+        foreach (($sourceRecords['byPackagePath'] ?? []) as $sourceRecordName => $sourceRecordEntry) {
+            if (is_string($sourceRecordName) && is_array($sourceRecordEntry)) {
+                $sourceRecordEntriesByName[$sourceRecordName] = $sourceRecordEntry;
             }
         }
         $localOrderByName = [];
@@ -11326,7 +11359,9 @@ final class DocxOpenXmlReader
                 'loadedPart' => $loadedPart,
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
-            ] + $this->zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null);
+            ]
+                + $this->zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null)
+                + $this->zipSourceRecordEntryProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             $entries[] = $summary;
             $byPackagePath[$entry->name] = $summary;
         }
@@ -11359,11 +11394,127 @@ final class DocxOpenXmlReader
             'loadedPartNames' => $loadedPartNames,
             'compressionMethods' => $compressionMethods,
             'dataDescriptors' => $dataDescriptors,
+            'sourceRecords' => $sourceRecords,
             'extraFields' => $extraFields,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'comments' => $comments,
             'packageManifest' => $packageManifest,
             'localHeaderOrder' => $localHeaderOrder,
+            'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+            'canExposeBytes' => false,
+            'entries' => $entries,
+            'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipSourceRecordProvenance(): array
+    {
+        return [
+            'present' => false,
+            'requestedEntryCount' => 0,
+            'entryCount' => 0,
+            'issueCount' => 0,
+            'issues' => [],
+            'localRecordBytes' => 0,
+            'localHeaderBytes' => 0,
+            'localFixedHeaderBytes' => 0,
+            'localHeaderVariableFieldBytes' => 0,
+            'localRawNameBytes' => 0,
+            'localExtraFieldBytes' => 0,
+            'localReviewFieldBytes' => 0,
+            'compressedDataBytes' => 0,
+            'dataDescriptorBytes' => 0,
+            'centralDirectoryRecordBytes' => 0,
+            'centralDirectoryFixedHeaderBytes' => 0,
+            'centralDirectoryVariableFieldBytes' => 0,
+            'centralDirectoryRawNameBytes' => 0,
+            'centralDirectoryExtraFieldBytes' => 0,
+            'centralDirectoryRawCommentBytes' => 0,
+            'centralDirectoryReviewFieldBytes' => 0,
+            'totalRecordBytes' => 0,
+            'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+            'canExposeBytes' => false,
+            'entries' => [],
+            'byPackagePath' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @return array<string, mixed>
+     */
+    private function zipSourceRecordProvenance(ZipPackage $sourcePackage, array $parts): array
+    {
+        $requests = [];
+        foreach (array_keys($parts) as $partName) {
+            if (!is_string($partName) || $partName === '') {
+                continue;
+            }
+
+            $requests[] = [
+                'name' => $partName,
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'loaded-package-part',
+            ];
+        }
+
+        $preflight = $requests === []
+            ? []
+            : $sourcePackage->entryHandoffPreflight($requests);
+        $sourceEntries = is_array($preflight['selectedSourceByteSpanEntries'] ?? null)
+            ? $preflight['selectedSourceByteSpanEntries']
+            : [];
+        $entries = [];
+        $byPackagePath = [];
+        foreach ($sourceEntries as $entry) {
+            if (!is_array($entry) || !is_string($entry['name'] ?? null)) {
+                continue;
+            }
+
+            $sourceEntry = [
+                'packagePath' => $entry['name'],
+                'partName' => $entry['name'],
+                'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+                'canExposeBytes' => false,
+            ] + $entry;
+            $entries[] = $sourceEntry;
+            $byPackagePath[$entry['name']] = $sourceEntry;
+        }
+
+        $issues = array_values(array_filter(
+            is_array($preflight['selectedSourceByteSpanIssues'] ?? null)
+                ? $preflight['selectedSourceByteSpanIssues']
+                : [],
+            static fn (mixed $issue): bool => is_string($issue)
+        ));
+
+        return [
+            'present' => true,
+            'requestedEntryCount' => count($requests),
+            'entryCount' => count($entries),
+            'issueCount' => count($issues),
+            'issues' => $issues,
+            'localRecordBytes' => (int) ($preflight['selectedSourceLocalRecordBytes'] ?? 0),
+            'localHeaderBytes' => (int) ($preflight['selectedSourceLocalHeaderBytes'] ?? 0),
+            'localFixedHeaderBytes' => (int) ($preflight['selectedSourceLocalFixedHeaderBytes'] ?? 0),
+            'localHeaderVariableFieldBytes' => (int) ($preflight['selectedSourceLocalHeaderVariableFieldBytes'] ?? 0),
+            'localRawNameBytes' => (int) ($preflight['selectedSourceLocalRawNameBytes'] ?? 0),
+            'localExtraFieldBytes' => (int) ($preflight['selectedSourceLocalExtraFieldBytes'] ?? 0),
+            'localReviewFieldBytes' => (int) ($preflight['selectedSourceLocalReviewFieldBytes'] ?? 0),
+            'compressedDataBytes' => (int) ($preflight['selectedSourceCompressedDataBytes'] ?? 0),
+            'dataDescriptorBytes' => (int) ($preflight['selectedSourceDataDescriptorBytes'] ?? 0),
+            'centralDirectoryRecordBytes' => (int) ($preflight['selectedSourceCentralDirectoryRecordBytes'] ?? 0),
+            'centralDirectoryFixedHeaderBytes' => (int) ($preflight['selectedSourceCentralDirectoryFixedHeaderBytes'] ?? 0),
+            'centralDirectoryVariableFieldBytes' => (int) ($preflight['selectedSourceCentralDirectoryVariableFieldBytes'] ?? 0),
+            'centralDirectoryRawNameBytes' => (int) ($preflight['selectedSourceCentralDirectoryRawNameBytes'] ?? 0),
+            'centralDirectoryExtraFieldBytes' => (int) ($preflight['selectedSourceCentralDirectoryExtraFieldBytes'] ?? 0),
+            'centralDirectoryRawCommentBytes' => (int) ($preflight['selectedSourceCentralDirectoryRawCommentBytes'] ?? 0),
+            'centralDirectoryReviewFieldBytes' => (int) ($preflight['selectedSourceCentralDirectoryReviewFieldBytes'] ?? 0),
+            'totalRecordBytes' => (int) ($preflight['selectedSourceTotalRecordBytes'] ?? 0),
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
             'entries' => $entries,
@@ -11619,6 +11770,68 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private function zipSourceRecordEntryProvenance(?array $entry): array
+    {
+        $issues = is_array($entry['sourceByteSpanIssues'] ?? null) ? array_values(array_filter(
+            $entry['sourceByteSpanIssues'],
+            static fn (mixed $issue): bool => is_string($issue)
+        )) : [];
+
+        return [
+            'hasSourceByteSpanProvenance' => is_array($entry) && ($entry['hasSourceByteSpanProvenance'] ?? false) === true,
+            'localRecordOffset' => $entry['localRecordOffset'] ?? null,
+            'localRecordBytes' => $entry['localRecordBytes'] ?? null,
+            'localRecordEnd' => $entry['localRecordEnd'] ?? null,
+            'localRecordSha256' => $entry['localRecordSha256'] ?? null,
+            'localHeaderBytes' => $entry['localHeaderBytes'] ?? null,
+            'localHeaderEnd' => $entry['localHeaderEnd'] ?? null,
+            'localHeaderSha256' => $entry['localHeaderSha256'] ?? null,
+            'localFixedHeaderBytes' => $entry['localFixedHeaderBytes'] ?? null,
+            'localHeaderVariableFieldOffset' => $entry['localHeaderVariableFieldOffset'] ?? null,
+            'localHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'] ?? null,
+            'localHeaderVariableFieldSha256' => $entry['localHeaderVariableFieldSha256'] ?? null,
+            'localRawNameOffset' => $entry['localRawNameOffset'] ?? null,
+            'localRawNameBytes' => $entry['localRawNameBytes'] ?? null,
+            'localRawNameSha256' => $entry['localRawNameSha256'] ?? null,
+            'localExtraFieldOffset' => $entry['localExtraFieldOffset'] ?? null,
+            'localExtraFieldBytes' => $entry['localExtraFieldBytes'] ?? null,
+            'localExtraFieldSha256' => $entry['localExtraFieldSha256'] ?? null,
+            'localHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'] ?? null,
+            'compressedDataOffset' => $entry['compressedDataOffset'] ?? null,
+            'compressedDataBytes' => $entry['compressedDataBytes'] ?? null,
+            'compressedDataEnd' => $entry['compressedDataEnd'] ?? null,
+            'compressedDataSha256' => $entry['compressedDataSha256'] ?? null,
+            'sourceByteSpanIncludesDataDescriptor' => ($entry['sourceByteSpanIncludesDataDescriptor'] ?? false) === true,
+            'dataDescriptorBytes' => $entry['dataDescriptorBytes'] ?? 0,
+            'dataDescriptorSha256' => $entry['dataDescriptorSha256'] ?? null,
+            'centralDirectoryRecordOffset' => $entry['centralDirectoryRecordOffset'] ?? null,
+            'centralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'] ?? null,
+            'centralDirectoryRecordEnd' => $entry['centralDirectoryRecordEnd'] ?? null,
+            'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
+            'centralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'] ?? null,
+            'centralDirectoryVariableFieldOffset' => $entry['centralDirectoryVariableFieldOffset'] ?? null,
+            'centralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'] ?? null,
+            'centralDirectoryVariableFieldSha256' => $entry['centralDirectoryVariableFieldSha256'] ?? null,
+            'centralDirectoryRawNameOffset' => $entry['centralDirectoryRawNameOffset'] ?? null,
+            'centralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'] ?? null,
+            'centralDirectoryRawNameSha256' => $entry['centralDirectoryRawNameSha256'] ?? null,
+            'centralDirectoryExtraFieldOffset' => $entry['centralDirectoryExtraFieldOffset'] ?? null,
+            'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'] ?? null,
+            'centralDirectoryExtraFieldSha256' => $entry['centralDirectoryExtraFieldSha256'] ?? null,
+            'centralDirectoryRawCommentOffset' => $entry['centralDirectoryRawCommentOffset'] ?? null,
+            'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'] ?? null,
+            'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'] ?? null,
+            'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'] ?? null,
+            'sourceRecordBytes' => $entry['sourceRecordBytes'] ?? null,
+            'sourceByteSpanIssueCount' => count($issues),
+            'sourceByteSpanIssues' => $issues,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function emptyZipNamePolicyProvenance(): array
@@ -11803,6 +12016,57 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['hasZeroLocalHeaderPlaceholders'] = $entry['hasZeroLocalHeaderPlaceholders'] ?? null;
             $partInventory[$partName]['dataDescriptorIssueCount'] = $entry['dataDescriptorIssueCount'] ?? 0;
             $partInventory[$partName]['dataDescriptorIssues'] = $entry['dataDescriptorIssues'] ?? [];
+            foreach ([
+                'hasSourceByteSpanProvenance',
+                'localRecordOffset',
+                'localRecordBytes',
+                'localRecordEnd',
+                'localRecordSha256',
+                'localHeaderBytes',
+                'localHeaderEnd',
+                'localHeaderSha256',
+                'localFixedHeaderBytes',
+                'localHeaderVariableFieldOffset',
+                'localHeaderVariableFieldBytes',
+                'localHeaderVariableFieldSha256',
+                'localRawNameOffset',
+                'localRawNameBytes',
+                'localRawNameSha256',
+                'localExtraFieldOffset',
+                'localExtraFieldBytes',
+                'localExtraFieldSha256',
+                'localHeaderReviewFieldBytes',
+                'compressedDataOffset',
+                'compressedDataBytes',
+                'compressedDataEnd',
+                'compressedDataSha256',
+                'sourceByteSpanIncludesDataDescriptor',
+                'dataDescriptorBytes',
+                'dataDescriptorSha256',
+                'centralDirectoryRecordOffset',
+                'centralDirectoryRecordBytes',
+                'centralDirectoryRecordEnd',
+                'centralDirectoryRecordSha256',
+                'centralDirectoryFixedHeaderBytes',
+                'centralDirectoryVariableFieldOffset',
+                'centralDirectoryVariableFieldBytes',
+                'centralDirectoryVariableFieldSha256',
+                'centralDirectoryRawNameOffset',
+                'centralDirectoryRawNameBytes',
+                'centralDirectoryRawNameSha256',
+                'centralDirectoryExtraFieldOffset',
+                'centralDirectoryExtraFieldBytes',
+                'centralDirectoryExtraFieldSha256',
+                'centralDirectoryRawCommentOffset',
+                'centralDirectoryRawCommentBytes',
+                'centralDirectoryRawCommentSha256',
+                'centralDirectoryReviewFieldBytes',
+                'sourceRecordBytes',
+                'sourceByteSpanIssueCount',
+                'sourceByteSpanIssues',
+            ] as $sourceRecordField) {
+                $partInventory[$partName][$sourceRecordField] = $entry[$sourceRecordField] ?? null;
+            }
         }
 
         return $partInventory;
