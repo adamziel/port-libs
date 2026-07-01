@@ -457,8 +457,11 @@ XML,
     <xdr:to><xdr:col>3</xdr:col><xdr:colOff>3000</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>4000</xdr:rowOff></xdr:to>
     <xdr:pic>
       <xdr:nvPicPr><xdr:cNvPr id="2" name="Logo" descr="Quarter logo" title="Quarterly report logo" hidden="0"/></xdr:nvPicPr>
-      <xdr:blipFill><a:blip r:embed="rImage"/></xdr:blipFill>
-      <xdr:spPr/>
+      <xdr:blipFill><a:blip r:embed="rImage" cstate="print"><a:srcRect l="1000" t="2000" r="3000" b="4000"/></a:blip></xdr:blipFill>
+      <xdr:spPr>
+        <a:xfrm rot="5400000" flipH="1"><a:off x="9525" y="19050"/><a:ext cx="190500" cy="285750"/></a:xfrm>
+        <a:prstGeom prst="rect"/>
+      </xdr:spPr>
     </xdr:pic>
     <xdr:clientData fLocksWithSheet="1" fPrintsWithSheet="0"/>
   </xdr:twoCellAnchor>
@@ -467,8 +470,11 @@ XML,
     <xdr:ext cx="95250" cy="190500"/>
     <xdr:pic>
       <xdr:nvPicPr><xdr:cNvPr id="3" name="Inline logo" descr="Inline placement" hidden="1"/></xdr:nvPicPr>
-      <xdr:blipFill><a:blip r:embed="rImage"/></xdr:blipFill>
-      <xdr:spPr/>
+      <xdr:blipFill><a:blip r:embed="rImage" cstate="email"/></xdr:blipFill>
+      <xdr:spPr>
+        <a:xfrm flipV="1"><a:ext cx="95250" cy="190500"/></a:xfrm>
+        <a:prstGeom prst="roundRect"/>
+      </xdr:spPr>
     </xdr:pic>
     <xdr:clientData fLocksWithSheet="0" fPrintsWithSheet="1"/>
   </xdr:oneCellAnchor>
@@ -1152,6 +1158,19 @@ return [
         $t->same('Quarter logo', $image['drawingAnchors'][0]['description'] ?? null);
         $t->same('Quarterly report logo', $image['drawingAnchors'][0]['title'] ?? null);
         $t->same(false, $image['drawingAnchors'][0]['hidden'] ?? null);
+        $t->same('embed', $image['drawingAnchors'][0]['blipReferenceKind'] ?? null);
+        $t->same('print', $image['drawingAnchors'][0]['blipCompressionState'] ?? null);
+        $t->same(['left' => 1000, 'top' => 2000, 'right' => 3000, 'bottom' => 4000], $image['drawingAnchors'][0]['crop'] ?? null);
+        $t->same([
+            'rotation' => 5400000,
+            'flipHorizontal' => true,
+            'flipVertical' => null,
+            'offsetEmu' => ['x' => 9525, 'y' => 19050],
+            'offsetPixels' => ['x' => 1.0, 'y' => 2.0],
+            'extentEmu' => ['cx' => 190500, 'cy' => 285750],
+            'extentPixels' => ['width' => 20.0, 'height' => 30.0],
+        ], $image['drawingAnchors'][0]['transform'] ?? null);
+        $t->same('rect', $image['drawingAnchors'][0]['presetGeometry'] ?? null);
         $t->same(['locksWithSheet' => true, 'printsWithSheet' => false], $image['drawingAnchors'][0]['clientData'] ?? null);
         $t->same('oneCellAnchor', $image['drawingAnchors'][1]['anchorType'] ?? null);
         $t->same(null, $image['drawingAnchors'][1]['editAs'] ?? null);
@@ -1164,6 +1183,12 @@ return [
         $t->same(3, $image['drawingAnchors'][1]['nonVisualPropertyId'] ?? null);
         $t->same('Inline logo', $image['drawingAnchors'][1]['name'] ?? null);
         $t->same(true, $image['drawingAnchors'][1]['hidden'] ?? null);
+        $t->same('email', $image['drawingAnchors'][1]['blipCompressionState'] ?? null);
+        $t->same(null, $image['drawingAnchors'][1]['crop'] ?? null);
+        $t->same(true, $image['drawingAnchors'][1]['transform']['flipVertical'] ?? null);
+        $t->same(null, $image['drawingAnchors'][1]['transform']['offsetEmu'] ?? null);
+        $t->same(['width' => 10.0, 'height' => 20.0], $image['drawingAnchors'][1]['transform']['extentPixels'] ?? null);
+        $t->same('roundRect', $image['drawingAnchors'][1]['presetGeometry'] ?? null);
         $t->same(['locksWithSheet' => false, 'printsWithSheet' => true], $image['drawingAnchors'][1]['clientData'] ?? null);
         $t->same('absoluteAnchor', $image['drawingAnchors'][2]['anchorType'] ?? null);
         $t->same(null, $image['drawingAnchors'][2]['fromCell'] ?? null);

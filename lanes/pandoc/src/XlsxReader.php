@@ -936,7 +936,7 @@ final class XlsxReader
                     continue;
                 }
 
-                $anchors[] = $this->drawingAnchorMetadata($anchor, $sourcePart, $relationshipId, $relationshipRef);
+                $anchors[] = $this->drawingAnchorMetadata($anchor, $blip, $sourcePart, $relationshipId, $relationshipRef);
             }
         }
 
@@ -977,14 +977,34 @@ final class XlsxReader
         return null;
     }
 
+    private function ancestorDrawingPicture(\DOMElement $element): ?\DOMElement
+    {
+        $node = $element->parentNode;
+        while ($node instanceof \DOMNode) {
+            if ($node instanceof \DOMElement && $node->localName === 'pic') {
+                return $node;
+            }
+            if ($node instanceof \DOMElement && in_array($node->localName, ['twoCellAnchor', 'oneCellAnchor', 'absoluteAnchor'], true)) {
+                return null;
+            }
+            $node = $node->parentNode;
+        }
+
+        return null;
+    }
+
     /**
      * @return array<string, mixed>
      */
-    private function drawingAnchorMetadata(\DOMElement $anchor, string $sourcePart, string $relationshipId, array $relationshipRef): array
+    private function drawingAnchorMetadata(\DOMElement $anchor, \DOMElement $blip, string $sourcePart, string $relationshipId, array $relationshipRef): array
     {
+        $picture = $this->ancestorDrawingPicture($blip);
+        $shapeProperties = $picture instanceof \DOMElement ? $this->firstChildElement($picture, 'spPr') : null;
         $extent = $this->firstChildElement($anchor, 'ext');
         $position = $this->firstChildElement($anchor, 'pos');
-        $properties = $this->firstDescendantElement($anchor, 'cNvPr');
+        $properties = $picture instanceof \DOMElement
+            ? $this->firstDescendantElement($picture, 'cNvPr')
+            : $this->firstDescendantElement($anchor, 'cNvPr');
         $from = $this->drawingMarker($this->firstChildElement($anchor, 'from'));
         $to = $this->drawingMarker($this->firstChildElement($anchor, 'to'));
         $extentEmu = $extent instanceof \DOMElement ? [
@@ -1013,6 +1033,15 @@ final class XlsxReader
             'positionPixels' => $this->drawingPointPixels($positionEmu),
             'extentEmu' => $extentEmu,
             'extentPixels' => $this->drawingExtentPixels($extentEmu),
+            'blipReferenceKind' => $this->drawingBlipReferenceKind($blip),
+            'blipCompressionState' => $this->nonEmptyAttribute($blip, 'cstate'),
+            'crop' => $this->drawingCropMetadata($this->firstChildElement($blip, 'srcRect')),
+            'transform' => $shapeProperties instanceof \DOMElement
+                ? $this->drawingTransformMetadata($this->firstChildElement($shapeProperties, 'xfrm'))
+                : null,
+            'presetGeometry' => $shapeProperties instanceof \DOMElement
+                ? $this->drawingPresetGeometry($this->firstChildElement($shapeProperties, 'prstGeom'))
+                : null,
             'nonVisualPropertyId' => $properties instanceof \DOMElement ? $this->integerAttribute($properties, 'id') : null,
             'name' => $properties instanceof \DOMElement && trim($properties->getAttribute('name')) !== '' ? trim($properties->getAttribute('name')) : null,
             'description' => $properties instanceof \DOMElement && trim($properties->getAttribute('descr')) !== '' ? trim($properties->getAttribute('descr')) : null,
@@ -1020,6 +1049,80 @@ final class XlsxReader
             'hidden' => $properties instanceof \DOMElement ? $this->booleanAttribute($properties, 'hidden') : null,
             'clientData' => $this->drawingAnchorClientData($this->firstChildElement($anchor, 'clientData')),
         ];
+    }
+
+    private function drawingBlipReferenceKind(\DOMElement $blip): ?string
+    {
+        foreach (['embed', 'link', 'id'] as $localName) {
+            if ($blip->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName) !== '' || $blip->hasAttribute('r:' . $localName)) {
+                return $localName;
+            }
+        }
+
+        foreach ($blip->attributes ?? [] as $attribute) {
+            if ($attribute instanceof \DOMAttr && in_array($attribute->localName, ['embed', 'link', 'id'], true)) {
+                return $attribute->localName;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{left:?int, top:?int, right:?int, bottom:?int}|null
+     */
+    private function drawingCropMetadata(?\DOMElement $sourceRectangle): ?array
+    {
+        if (!$sourceRectangle instanceof \DOMElement) {
+            return null;
+        }
+
+        return [
+            'left' => $this->integerAttribute($sourceRectangle, 'l'),
+            'top' => $this->integerAttribute($sourceRectangle, 't'),
+            'right' => $this->integerAttribute($sourceRectangle, 'r'),
+            'bottom' => $this->integerAttribute($sourceRectangle, 'b'),
+        ];
+    }
+
+    /**
+     * @return array{rotation:?int, flipHorizontal:?bool, flipVertical:?bool, offsetEmu:array{x:?int, y:?int}|null, offsetPixels:array{x:?float, y:?float}|null, extentEmu:array{cx:?int, cy:?int}|null, extentPixels:array{width:?float, height:?float}|null}|null
+     */
+    private function drawingTransformMetadata(?\DOMElement $transform): ?array
+    {
+        if (!$transform instanceof \DOMElement) {
+            return null;
+        }
+
+        $offset = $this->firstChildElement($transform, 'off');
+        $extent = $this->firstChildElement($transform, 'ext');
+        $offsetEmu = $offset instanceof \DOMElement ? [
+            'x' => $this->integerAttribute($offset, 'x'),
+            'y' => $this->integerAttribute($offset, 'y'),
+        ] : null;
+        $extentEmu = $extent instanceof \DOMElement ? [
+            'cx' => $this->integerAttribute($extent, 'cx'),
+            'cy' => $this->integerAttribute($extent, 'cy'),
+        ] : null;
+
+        return [
+            'rotation' => $this->integerAttribute($transform, 'rot'),
+            'flipHorizontal' => $this->booleanAttribute($transform, 'flipH'),
+            'flipVertical' => $this->booleanAttribute($transform, 'flipV'),
+            'offsetEmu' => $offsetEmu,
+            'offsetPixels' => $this->drawingPointPixels($offsetEmu),
+            'extentEmu' => $extentEmu,
+            'extentPixels' => $this->drawingExtentPixels($extentEmu),
+        ];
+    }
+
+    private function drawingPresetGeometry(?\DOMElement $presetGeometry): ?string
+    {
+        if (!$presetGeometry instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->nonEmptyAttribute($presetGeometry, 'prst');
     }
 
     /**
