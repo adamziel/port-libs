@@ -18877,6 +18877,7 @@ final class XmlHtmlDom
                 $summary['ariaReferences'] = $ariaReferences;
                 $summary['ariaReferenceAttributes'] = array_keys($ariaReferences);
                 $summary['ariaReferenceCount'] = count($ariaReferences);
+                $summary += self::ariaReferenceAggregateSummary($ariaReferences);
             }
         }
 
@@ -22508,7 +22509,7 @@ final class XmlHtmlDom
      */
     private static function ariaReferenceSummary(\DOMElement $element, array $ariaAttributes): array
     {
-        $knownIds = self::htmlDocumentElementIds($element);
+        $knownIds = self::htmlDocumentElementsById($element);
         $references = [];
         foreach (self::ARIA_ID_REFERENCE_ATTRIBUTES as $attribute => $multiple) {
             if (!array_key_exists($attribute, $ariaAttributes)) {
@@ -22519,9 +22520,37 @@ final class XmlHtmlDom
             $ids = [];
             $duplicates = [];
             $invalid = [];
-            foreach ($tokens as $token) {
+            $present = [];
+            $missing = [];
+            $duplicateTargets = [];
+            $targetSummaries = [];
+            $referenceRecords = [];
+            $issues = [];
+            $seen = [];
+
+            foreach ($tokens as $index => $token) {
+                $record = [
+                    'index' => $index,
+                    'token' => $token,
+                    'state' => 'unresolved',
+                ];
+                $firstIndex = $seen[$token] ?? null;
+                if ($firstIndex === null) {
+                    $seen[$token] = $index;
+                } else {
+                    $record['duplicateToken'] = true;
+                    $record['firstIndex'] = $firstIndex;
+                }
+
                 if (!self::isHtmlReferenceToken($token)) {
                     $invalid[] = $token;
+                    $record['state'] = 'invalid-token';
+                    $issues[] = [
+                        'code' => 'invalid-aria-reference-token',
+                        'token' => $token,
+                        'index' => $index,
+                    ];
+                    $referenceRecords[] = $record;
                     continue;
                 }
 
@@ -22529,20 +22558,94 @@ final class XmlHtmlDom
                     if (!in_array($token, $duplicates, true)) {
                         $duplicates[] = $token;
                     }
+                    $issues[] = [
+                        'code' => 'duplicate-aria-reference-token',
+                        'token' => $token,
+                        'index' => $index,
+                        'firstIndex' => $firstIndex,
+                    ];
+                } else {
+                    $ids[] = $token;
+                }
+
+                $targets = $knownIds[$token] ?? [];
+                if ($targets === []) {
+                    if (!in_array($token, $missing, true)) {
+                        $missing[] = $token;
+                    }
+                    $record = array_merge($record, [
+                        'state' => 'missing-target',
+                        'targetState' => 'missing',
+                        'targetCount' => 0,
+                        'targets' => [],
+                    ]);
+                    $issues[] = [
+                        'code' => 'missing-aria-reference-target',
+                        'token' => $token,
+                        'index' => $index,
+                    ];
+                    $referenceRecords[] = $record;
                     continue;
                 }
 
-                $ids[] = $token;
+                if (!in_array($token, $present, true)) {
+                    $present[] = $token;
+                }
+                $targets = array_map(
+                    static fn (\DOMElement $target): array => self::ariaReferenceTargetSummary($target),
+                    $targets
+                );
+                foreach ($targets as $target) {
+                    $targetSummaries[] = [
+                        'referenceIndex' => $index,
+                        'token' => $token,
+                    ] + $target;
+                }
+                if (count($targets) > 1) {
+                    if (!in_array($token, $duplicateTargets, true)) {
+                        $duplicateTargets[] = $token;
+                    }
+                    $issues[] = [
+                        'code' => 'duplicate-aria-reference-target-id',
+                        'token' => $token,
+                        'index' => $index,
+                        'targetCount' => count($targets),
+                        'targetTexts' => array_map(
+                            static fn (array $target): string => (string) ($target['text'] ?? ''),
+                            $targets
+                        ),
+                    ];
+                }
+
+                $record = array_merge($record, [
+                    'state' => count($targets) > 1 ? 'duplicate-target-id' : 'resolved',
+                    'targetState' => count($targets) > 1 ? 'duplicate-target-id' : 'resolved',
+                    'targetCount' => count($targets),
+                    'targets' => $targets,
+                    'targetTexts' => array_map(
+                        static fn (array $target): string => (string) ($target['text'] ?? ''),
+                        $targets
+                    ),
+                    'targetElementNames' => array_values(array_unique(array_map(
+                        static fn (array $target): string => (string) ($target['tag'] ?? ''),
+                        $targets
+                    ))),
+                ]);
+                if (count($targets) === 1) {
+                    $record['targetId'] = $targets[0]['id'];
+                    $record['targetElementName'] = $targets[0]['tag'];
+                    $record['targetText'] = $targets[0]['text'];
+                }
+                $referenceRecords[] = $record;
             }
 
-            $present = [];
-            $missing = [];
-            foreach ($ids as $id) {
-                if (isset($knownIds[$id])) {
-                    $present[] = $id;
-                } else {
-                    $missing[] = $id;
-                }
+            if (!$multiple && count($ids) > 1) {
+                $issues[] = [
+                    'code' => 'multiple-aria-reference-tokens',
+                    'attribute' => $attribute,
+                    'idCount' => count($ids),
+                    'ids' => $ids,
+                ];
             }
 
             $valid = $tokens !== []
@@ -22557,13 +22660,120 @@ final class XmlHtmlDom
                 'invalidTokens' => $invalid,
                 'presentIds' => $present,
                 'missingIds' => $missing,
+                'duplicateTargetIds' => $duplicateTargets,
+                'targets' => $targetSummaries,
+                'targetCount' => count($targetSummaries),
+                'references' => $referenceRecords,
+                'issues' => $issues,
+                'issueCodes' => array_values(array_unique(array_map(
+                    static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                    $issues
+                ))),
                 'valid' => $valid,
-                'resolved' => $valid && $missing === [],
+                'resolved' => $valid && $issues === [],
             ];
         }
         ksort($references);
 
         return $references;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $ariaReferences
+     * @return array<string, mixed>
+     */
+    private static function ariaReferenceAggregateSummary(array $ariaReferences): array
+    {
+        $issues = [];
+        $targetIds = [];
+        $missingIds = [];
+        $invalidTokens = [];
+        $duplicateIds = [];
+        $duplicateTargetIds = [];
+
+        foreach ($ariaReferences as $attribute => $reference) {
+            foreach ($reference['presentIds'] ?? [] as $id) {
+                self::appendUniqueString($targetIds, (string) $id);
+            }
+            foreach ($reference['missingIds'] ?? [] as $id) {
+                self::appendUniqueString($missingIds, (string) $id);
+            }
+            foreach ($reference['invalidTokens'] ?? [] as $token) {
+                self::appendUniqueString($invalidTokens, (string) $token);
+            }
+            foreach ($reference['duplicateIds'] ?? [] as $id) {
+                self::appendUniqueString($duplicateIds, (string) $id);
+            }
+            foreach ($reference['duplicateTargetIds'] ?? [] as $id) {
+                self::appendUniqueString($duplicateTargetIds, (string) $id);
+            }
+            foreach ($reference['issues'] ?? [] as $issue) {
+                $issues[] = ['attribute' => $attribute] + $issue;
+            }
+        }
+
+        return [
+            'ariaReferenceTargetIds' => $targetIds,
+            'ariaReferenceMissingIds' => $missingIds,
+            'ariaReferenceInvalidTokens' => $invalidTokens,
+            'ariaReferenceDuplicateIds' => $duplicateIds,
+            'ariaReferenceDuplicateTargetIds' => $duplicateTargetIds,
+            'ariaReferenceIssues' => $issues,
+            'ariaReferenceIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'ariaReferencesResolved' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, list<\DOMElement>>
+     */
+    private static function htmlDocumentElementsById(\DOMElement $element): array
+    {
+        $document = $element->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || !$candidate->hasAttribute('id')) {
+                continue;
+            }
+
+            $id = trim($candidate->getAttribute('id'));
+            if ($id !== '' && self::isHtmlReferenceToken($id)) {
+                $ids[$id][] = $candidate;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ariaReferenceTargetSummary(\DOMElement $target): array
+    {
+        $summary = [
+            'tag' => self::htmlElementName($target),
+            'id' => self::attributeOrNull($target, 'id'),
+            'text' => self::normalizedText($target),
+        ];
+
+        $role = self::attributeOrNull($target, 'role');
+        if ($role !== null) {
+            $summary['role'] = $role;
+        }
+
+        $label = self::attributeOrNull($target, 'aria-label');
+        if ($label !== null) {
+            $summary['ariaLabel'] = $label;
+        }
+
+        return $summary;
     }
 
     /**
