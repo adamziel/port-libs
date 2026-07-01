@@ -12765,6 +12765,19 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestSourceRecordBytes'] = (int) ($zipPackageManifest['sourceRecordBytes'] ?? 0);
         $summary['zipPackageManifestCentralExtraFieldEntryCount'] = (int) ($zipPackageManifest['centralExtraFieldEntryCount'] ?? 0);
         $summary['zipPackageManifestEntryCommentCount'] = (int) ($zipPackageManifest['entryCommentCount'] ?? 0);
+        $summary['zipPackageManifestEntryCommentLengthBucketSummaryCount'] = (int) ($zipPackageManifest['entryCommentLengthBucketSummaryCount'] ?? 0);
+        $summary['zipPackageManifestEntryCommentLengthBuckets'] = is_array($zipPackageManifest['entryCommentLengthBuckets'] ?? null)
+            ? $zipPackageManifest['entryCommentLengthBuckets']
+            : [];
+        $summary['zipPackageManifestEntryCommentLengthBucketCounts'] = is_array($zipPackageManifest['entryCommentLengthBucketCounts'] ?? null)
+            ? $zipPackageManifest['entryCommentLengthBucketCounts']
+            : [];
+        $summary['zipPackageManifestEntryCommentLengthBucketCommentedCounts'] = is_array($zipPackageManifest['entryCommentLengthBucketCommentedCounts'] ?? null)
+            ? $zipPackageManifest['entryCommentLengthBucketCommentedCounts']
+            : [];
+        $summary['zipPackageManifestEntryCommentLengthBucketSummaries'] = is_array($zipPackageManifest['entryCommentLengthBucketSummaries'] ?? null)
+            ? $zipPackageManifest['entryCommentLengthBucketSummaries']
+            : [];
         $summary['zipPackageManifestHasCentralDirectoryReviewFields'] = ($zipPackageManifest['hasCentralDirectoryReviewFields'] ?? false) === true;
         $summary['zipPackageManifestMaxPathSegmentCount'] = (int) ($zipPackageManifest['maxPathSegmentCount'] ?? 0);
         $summary['zipPackageManifestMaxDirectoryDepth'] = (int) ($zipPackageManifest['maxDirectoryDepth'] ?? 0);
@@ -14042,6 +14055,11 @@ final class DocxOpenXmlReader
             'deflatedEntryCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
             'sourceRecordBytes' => 0,
+            'entryCommentLengthBucketSummaryCount' => 0,
+            'entryCommentLengthBuckets' => [],
+            'entryCommentLengthBucketCounts' => [],
+            'entryCommentLengthBucketCommentedCounts' => [],
+            'entryCommentLengthBucketSummaries' => [],
             'maxPathSegmentCount' => 0,
             'maxDirectoryDepth' => 0,
             'deepestEntryNames' => [],
@@ -14323,6 +14341,19 @@ final class DocxOpenXmlReader
             'packageManifestSourceRecordBytes' => (int) ($packageManifest['sourceRecordBytes'] ?? 0),
             'packageManifestCentralExtraFieldEntryCount' => (int) ($packageManifest['centralExtraFieldEntryCount'] ?? 0),
             'packageManifestEntryCommentCount' => (int) ($packageManifest['entryCommentCount'] ?? 0),
+            'packageManifestEntryCommentLengthBucketSummaryCount' => (int) ($packageManifest['entryCommentLengthBucketSummaryCount'] ?? 0),
+            'packageManifestEntryCommentLengthBuckets' => is_array($packageManifest['entryCommentLengthBuckets'] ?? null)
+                ? $packageManifest['entryCommentLengthBuckets']
+                : [],
+            'packageManifestEntryCommentLengthBucketCounts' => is_array($packageManifest['entryCommentLengthBucketCounts'] ?? null)
+                ? $packageManifest['entryCommentLengthBucketCounts']
+                : [],
+            'packageManifestEntryCommentLengthBucketCommentedCounts' => is_array($packageManifest['entryCommentLengthBucketCommentedCounts'] ?? null)
+                ? $packageManifest['entryCommentLengthBucketCommentedCounts']
+                : [],
+            'packageManifestEntryCommentLengthBucketSummaries' => is_array($packageManifest['entryCommentLengthBucketSummaries'] ?? null)
+                ? $packageManifest['entryCommentLengthBucketSummaries']
+                : [],
             'packageManifestHasCentralDirectoryReviewFields' => ($packageManifest['hasCentralDirectoryReviewFields'] ?? false) === true,
             'packageManifestMaxPathSegmentCount' => (int) ($packageManifest['maxPathSegmentCount'] ?? 0),
             'packageManifestMaxDirectoryDepth' => (int) ($packageManifest['maxDirectoryDepth'] ?? 0),
@@ -19716,6 +19747,7 @@ final class DocxOpenXmlReader
             'partXmlCommentPartCount' => $partXmlComments['partCount'],
             'partXmlCommentCount' => $partXmlComments['commentCount'],
             'partXmlCommentByteLength' => $partXmlComments['byteLength'],
+            'partXmlCommentParentDepthCounts' => $partXmlComments['parentDepthCounts'],
             'partXmlCommentPartNames' => $partXmlComments['partNames'],
             'partXmlComments' => $partXmlComments['comments'],
             'partXmlCommentsTruncated' => $partXmlComments['truncated'],
@@ -37538,7 +37570,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{partCount:int, commentCount:int, byteLength:int, partNames:list<string>, comments:list<array<string, mixed>>, truncated:bool}
+     * @return array{partCount:int, commentCount:int, byteLength:int, parentDepthCounts:array<int, int>, partNames:list<string>, comments:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCommentSummary(array $partInventory): array
     {
@@ -37546,6 +37578,7 @@ final class DocxOpenXmlReader
         $comments = [];
         $commentCount = 0;
         $byteLength = 0;
+        $parentDepthCounts = [];
         $truncated = false;
         $summaryLimit = 64;
 
@@ -37559,6 +37592,14 @@ final class DocxOpenXmlReader
             $commentCount += $partCommentCount;
             $byteLength += (int) ($part['xmlCommentByteLength'] ?? 0);
             $this->appendUniqueString($partNames, $partName);
+            foreach (($part['xmlCommentParentDepthCounts'] ?? []) as $depth => $count) {
+                if (!is_int($depth) && !(is_string($depth) && ctype_digit($depth))) {
+                    continue;
+                }
+
+                $depth = (int) $depth;
+                $parentDepthCounts[$depth] = ($parentDepthCounts[$depth] ?? 0) + (int) $count;
+            }
             if (($part['xmlCommentsTruncated'] ?? false) === true) {
                 $truncated = true;
             }
@@ -37577,11 +37618,13 @@ final class DocxOpenXmlReader
         }
 
         sort($partNames, SORT_STRING);
+        ksort($parentDepthCounts, SORT_NUMERIC);
 
         return [
             'partCount' => count($partNames),
             'commentCount' => $commentCount,
             'byteLength' => $byteLength,
+            'parentDepthCounts' => $parentDepthCounts,
             'partNames' => $partNames,
             'comments' => $comments,
             'truncated' => $truncated,
@@ -37718,7 +37761,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, byteLength:int, comments:list<array<string, mixed>>, truncated:bool}
+     * @return array{count:int, byteLength:int, parentDepthCounts:array<int, int>, comments:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCommentMetadata(
         string $xml,
@@ -37729,6 +37772,7 @@ final class DocxOpenXmlReader
         $empty = [
             'count' => 0,
             'byteLength' => 0,
+            'parentDepthCounts' => [],
             'comments' => [],
             'truncated' => false,
         ];
@@ -37744,23 +37788,26 @@ final class DocxOpenXmlReader
         $comments = [];
         $count = 0;
         $byteLength = 0;
+        $parentDepthCounts = [];
         $truncated = false;
         $itemLimit = 32;
-        $walk = function (\DOMNode $node) use (&$walk, &$comments, &$count, &$byteLength, &$truncated, $itemLimit): void {
+        $walk = function (\DOMNode $node) use (&$walk, &$comments, &$count, &$byteLength, &$parentDepthCounts, &$truncated, $itemLimit): void {
             if ($node instanceof \DOMComment) {
                 ++$count;
                 $value = (string) $node->nodeValue;
                 $valueByteLength = strlen($value);
                 $byteLength += $valueByteLength;
+                $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+                $parentPath = $this->domElementPath($parent);
+                $parentDepth = $this->domElementPathDepth($parentPath);
+                $parentDepthCounts[$parentDepth] = ($parentDepthCounts[$parentDepth] ?? 0) + 1;
                 if (count($comments) >= $itemLimit) {
                     $truncated = true;
                 } else {
-                    $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
-                    $parentPath = $this->domElementPath($parent);
                     $comments[] = [
                         'index' => $count - 1,
                         'parentPath' => $parentPath,
-                        'parentDepth' => $this->domElementPathDepth($parentPath),
+                        'parentDepth' => $parentDepth,
                         'byteLength' => $valueByteLength,
                         'crc32' => sprintf('%08x', crc32($value)),
                         'sha256' => hash('sha256', $value),
@@ -37775,10 +37822,12 @@ final class DocxOpenXmlReader
             }
         };
         $walk($dom);
+        ksort($parentDepthCounts, SORT_NUMERIC);
 
         return [
             'count' => $count,
             'byteLength' => $byteLength,
+            'parentDepthCounts' => $parentDepthCounts,
             'comments' => $comments,
             'truncated' => $truncated,
         ];
@@ -44163,6 +44212,7 @@ final class DocxOpenXmlReader
                 'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
                 'xmlCommentCount' => $xmlComments['count'],
                 'xmlCommentByteLength' => $xmlComments['byteLength'],
+                'xmlCommentParentDepthCounts' => $xmlComments['parentDepthCounts'],
                 'xmlComments' => $xmlComments['comments'],
                 'xmlCommentsTruncated' => $xmlComments['truncated'],
                 'xmlProcessingInstructionCount' => $xmlProcessingInstructions['count'],
