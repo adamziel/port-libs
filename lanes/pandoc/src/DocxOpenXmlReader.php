@@ -20395,6 +20395,30 @@ final class DocxOpenXmlReader
             'contentTypeXmlParseError' => is_string($contentTypesPart['xmlParseError'] ?? null)
                 ? $contentTypesPart['xmlParseError']
                 : null,
+            'contentTypeRootValidXml' => (bool) ($contentTypesPart['rootValidXml'] ?? false),
+            'contentTypeRootXmlParseError' => is_string($contentTypesPart['rootXmlParseError'] ?? null)
+                ? $contentTypesPart['rootXmlParseError']
+                : null,
+            'contentTypeRootNamespace' => is_string($contentTypesPart['rootNamespace'] ?? null)
+                ? $contentTypesPart['rootNamespace']
+                : null,
+            'contentTypeRootLocalName' => is_string($contentTypesPart['rootLocalName'] ?? null)
+                ? $contentTypesPart['rootLocalName']
+                : null,
+            'contentTypeRootQualifiedName' => is_string($contentTypesPart['rootQualifiedName'] ?? null)
+                ? $contentTypesPart['rootQualifiedName']
+                : null,
+            'contentTypeRootPrefix' => is_string($contentTypesPart['rootPrefix'] ?? null)
+                ? $contentTypesPart['rootPrefix']
+                : null,
+            'contentTypeRootAttributeCount' => (int) ($contentTypesPart['rootAttributeCount'] ?? 0),
+            'contentTypeRootNamespaceDeclarationCount' => (int) ($contentTypesPart['rootNamespaceDeclarationCount'] ?? 0),
+            'contentTypeRootNamespacePrefixes' => is_array($contentTypesPart['rootNamespacePrefixes'] ?? null)
+                ? array_values(array_map('strval', $contentTypesPart['rootNamespacePrefixes']))
+                : [],
+            'contentTypeRootNamespacePrefixMap' => is_array($contentTypesPart['rootNamespacePrefixMap'] ?? null)
+                ? array_map('strval', $contentTypesPart['rootNamespacePrefixMap'])
+                : [],
             'contentTypeDeclaredDefaultRecordCount' => (int) ($contentTypesPart['declaredDefaultRecordCount'] ?? 0),
             'contentTypeDeclaredOverrideRecordCount' => (int) ($contentTypesPart['declaredOverrideRecordCount'] ?? 0),
             'contentTypeRecordIssueCounts' => $contentTypesPart['issueCounts'] ?? [],
@@ -41573,37 +41597,42 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, namespaceDeclarationCount:int, namespacePrefixes:list<string>}
+     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, namespaceDeclarationCount:int, namespacePrefixes:list<string>, namespacePrefixMap:array<string, string>}
+     */
+    private function emptyXmlRootProvenance(): array
+    {
+        return [
+            'validXml' => false,
+            'xmlParseError' => null,
+            'namespace' => null,
+            'localName' => null,
+            'qualifiedName' => null,
+            'prefix' => null,
+            'attributeCount' => 0,
+            'namespaceDeclarationCount' => 0,
+            'namespacePrefixes' => [],
+            'namespacePrefixMap' => [],
+        ];
+    }
+
+    /**
+     * @return array{validXml:bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, namespaceDeclarationCount:int, namespacePrefixes:list<string>, namespacePrefixMap:array<string, string>}
      */
     private function xmlRootProvenance(string $xml, string $partName): array
     {
         $dom = $this->loadXmlForProvenance($xml, $partName);
         if (!$dom instanceof \DOMDocument) {
             return [
-                'validXml' => false,
+                ...$this->emptyXmlRootProvenance(),
                 'xmlParseError' => $this->lastXmlPreflightError($xml, $partName),
-                'namespace' => null,
-                'localName' => null,
-                'qualifiedName' => null,
-                'prefix' => null,
-                'attributeCount' => 0,
-                'namespaceDeclarationCount' => 0,
-                'namespacePrefixes' => [],
             ];
         }
 
         $root = $dom->documentElement;
         if (!$root instanceof \DOMElement) {
             return [
-                'validXml' => false,
+                ...$this->emptyXmlRootProvenance(),
                 'xmlParseError' => 'missing XML document element',
-                'namespace' => null,
-                'localName' => null,
-                'qualifiedName' => null,
-                'prefix' => null,
-                'attributeCount' => 0,
-                'namespaceDeclarationCount' => 0,
-                'namespacePrefixes' => [],
             ];
         }
 
@@ -41630,11 +41659,12 @@ final class DocxOpenXmlReader
             'attributeCount' => $attributeCount,
             'namespaceDeclarationCount' => $namespaceDeclarations['count'],
             'namespacePrefixes' => $namespaceDeclarations['prefixes'],
+            'namespacePrefixMap' => $namespaceDeclarations['prefixMap'],
         ];
     }
 
     /**
-     * @return array{count:int, prefixes:list<string>}
+     * @return array{count:int, prefixes:list<string>, prefixMap:array<string, string>}
      */
     private function rootNamespaceDeclarations(string $xml): array
     {
@@ -41642,18 +41672,24 @@ final class DocxOpenXmlReader
             return [
                 'count' => 0,
                 'prefixes' => [],
+                'prefixMap' => [],
             ];
         }
 
         $prefixes = [];
+        $prefixMap = [];
         preg_match_all('/\sxmlns(?::([A-Za-z_][A-Za-z0-9_.-]*))?\s*=\s*(["\'])(.*?)\2/s', (string) $rootMatch[2], $matches, PREG_SET_ORDER);
         foreach ($matches as $match) {
-            $this->appendUniqueString($prefixes, ($match[1] ?? '') === '' ? 'default' : (string) $match[1]);
+            $prefix = ($match[1] ?? '') === '' ? 'default' : (string) $match[1];
+            $this->appendUniqueString($prefixes, $prefix);
+            $prefixMap[$prefix] = (string) ($match[3] ?? '');
         }
+        ksort($prefixMap, SORT_STRING);
 
         return [
             'count' => count($matches),
             'prefixes' => $prefixes,
+            'prefixMap' => $prefixMap,
         ];
     }
 
@@ -42419,6 +42455,9 @@ final class DocxOpenXmlReader
         $preflight = isset($parts['[Content_Types].xml'])
             ? OpcContentTypes::preflightXml($parts['[Content_Types].xml'])
             : null;
+        $rootProvenance = isset($parts['[Content_Types].xml'])
+            ? $this->xmlRootProvenance($parts['[Content_Types].xml'], '[Content_Types].xml')
+            : $this->emptyXmlRootProvenance();
         $defaults = [];
         foreach ($contentTypes['defaults'] as $extension => $contentType) {
             $defaults[$extension] = [
@@ -42538,6 +42577,16 @@ final class DocxOpenXmlReader
             'preflight' => $preflight,
             'valid' => $preflight === null ? false : $preflight['valid'],
             'xmlParseError' => $preflight === null ? null : $preflight['parseError'],
+            'rootValidXml' => $rootProvenance['validXml'],
+            'rootXmlParseError' => $rootProvenance['xmlParseError'],
+            'rootNamespace' => $rootProvenance['namespace'],
+            'rootLocalName' => $rootProvenance['localName'],
+            'rootQualifiedName' => $rootProvenance['qualifiedName'],
+            'rootPrefix' => $rootProvenance['prefix'],
+            'rootAttributeCount' => $rootProvenance['attributeCount'],
+            'rootNamespaceDeclarationCount' => $rootProvenance['namespaceDeclarationCount'],
+            'rootNamespacePrefixes' => $rootProvenance['namespacePrefixes'],
+            'rootNamespacePrefixMap' => $rootProvenance['namespacePrefixMap'],
             'issues' => $preflight === null ? ['missing-content-types-part'] : $preflight['issues'],
             'issueCounts' => $preflight === null ? ['missing-content-types-part' => 1] : $preflight['issueCounts'],
             'recordCount' => $preflight === null ? 0 : $preflight['recordCount'],

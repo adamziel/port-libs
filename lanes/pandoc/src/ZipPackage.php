@@ -14956,6 +14956,9 @@ final class ZipPackage
         $creatorVersionBelowNeededEntries = [];
         $creatorVersionBelowNeededKnownHostEntryCount = 0;
         $creatorVersionBelowNeededUnknownHostEntryCount = 0;
+        $internalAttributeEntries = [];
+        $textInternalAttributeEntries = [];
+        $unknownInternalAttributeEntries = [];
         $localHeaderOrderRelationCounts = [
             'same-order' => 0,
             'local-before-central-order' => 0,
@@ -15427,6 +15430,19 @@ final class ZipPackage
             if ($entryCentralDirectoryRawCommentBytes > 0) {
                 ++$entryCommentCount;
             }
+            $internalFileAttributes = $entry->internalFileAttributes;
+            $internalAttributeNames = $entry->internalAttributeNames();
+            $hasTextInternalAttribute = $entry->hasTextInternalAttribute();
+            $unknownInternalAttributeBits = $entry->unknownInternalAttributeBits();
+            $hasUnknownInternalAttributeBits = $unknownInternalAttributeBits !== 0;
+            $hasInternalFileAttributes = $internalFileAttributes !== 0;
+            $internalAttributeIssues = [];
+            if ($hasTextInternalAttribute) {
+                $internalAttributeIssues[] = 'internal-text-attribute';
+            }
+            if ($hasUnknownInternalAttributeBits) {
+                $internalAttributeIssues[] = 'unknown-internal-file-attribute-bits';
+            }
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
@@ -15434,6 +15450,15 @@ final class ZipPackage
                 'caseInsensitiveEquivalentEntryNames' => $caseInsensitiveEquivalentEntryNames,
                 'hasCaseInsensitiveNameCollision' => $hasCaseInsensitiveNameCollision,
                 'caseInsensitiveNameCollisionIssues' => $caseInsensitiveNameCollisionIssues,
+                'internalFileAttributes' => $internalFileAttributes,
+                'internalFileAttributesHex' => sprintf('%04x', $internalFileAttributes),
+                'internalAttributeNames' => $internalAttributeNames,
+                'hasInternalFileAttributes' => $hasInternalFileAttributes,
+                'hasTextInternalAttribute' => $hasTextInternalAttribute,
+                'unknownInternalAttributeBits' => $unknownInternalAttributeBits,
+                'unknownInternalAttributeBitsHex' => sprintf('%04x', $unknownInternalAttributeBits),
+                'hasUnknownInternalAttributeBits' => $hasUnknownInternalAttributeBits,
+                'internalAttributeIssues' => $internalAttributeIssues,
                 'versionMadeBy' => $entry->versionMadeBy,
                 'madeByHostSystem' => $madeByHostSystem,
                 'madeByHostSystemName' => $madeByHostSystemName,
@@ -15528,6 +15553,32 @@ final class ZipPackage
                 'sourceRecordBytes' => $entrySourceRecordBytes,
             ];
             $entries[] = $summary;
+            $internalAttributeEntry = [
+                'name' => $summary['name'],
+                'isDirectory' => $summary['isDirectory'],
+                'centralDirectoryIndex' => $summary['centralDirectoryIndex'],
+                'localHeaderOrder' => $summary['localHeaderOrder'],
+                'internalFileAttributes' => $summary['internalFileAttributes'],
+                'internalFileAttributesHex' => $summary['internalFileAttributesHex'],
+                'internalAttributeNames' => $summary['internalAttributeNames'],
+                'hasInternalFileAttributes' => $summary['hasInternalFileAttributes'],
+                'hasTextInternalAttribute' => $summary['hasTextInternalAttribute'],
+                'unknownInternalAttributeBits' => $summary['unknownInternalAttributeBits'],
+                'unknownInternalAttributeBitsHex' => $summary['unknownInternalAttributeBitsHex'],
+                'hasUnknownInternalAttributeBits' => $summary['hasUnknownInternalAttributeBits'],
+                'internalAttributeIssues' => $summary['internalAttributeIssues'],
+                'localRecordBytes' => $summary['localRecordBytes'],
+                'sourceRecordBytes' => $summary['sourceRecordBytes'],
+            ];
+            if ($hasInternalFileAttributes) {
+                $internalAttributeEntries[] = $internalAttributeEntry;
+            }
+            if ($hasTextInternalAttribute) {
+                $textInternalAttributeEntries[] = $internalAttributeEntry;
+            }
+            if ($hasUnknownInternalAttributeBits) {
+                $unknownInternalAttributeEntries[] = $internalAttributeEntry;
+            }
             if (!$localHeaderOrderMatchesCentralDirectoryOrder) {
                 $localHeaderOrderDisplacementEntries[] = [
                     'name' => $summary['name'],
@@ -15588,6 +15639,15 @@ final class ZipPackage
                 'caseInsensitiveEquivalentEntryNames' => $summary['caseInsensitiveEquivalentEntryNames'],
                 'hasCaseInsensitiveNameCollision' => $summary['hasCaseInsensitiveNameCollision'],
                 'caseInsensitiveNameCollisionIssues' => $summary['caseInsensitiveNameCollisionIssues'],
+                'internalFileAttributes' => $summary['internalFileAttributes'],
+                'internalFileAttributesHex' => $summary['internalFileAttributesHex'],
+                'internalAttributeNames' => $summary['internalAttributeNames'],
+                'hasInternalFileAttributes' => $summary['hasInternalFileAttributes'],
+                'hasTextInternalAttribute' => $summary['hasTextInternalAttribute'],
+                'unknownInternalAttributeBits' => $summary['unknownInternalAttributeBits'],
+                'unknownInternalAttributeBitsHex' => $summary['unknownInternalAttributeBitsHex'],
+                'hasUnknownInternalAttributeBits' => $summary['hasUnknownInternalAttributeBits'],
+                'internalAttributeIssues' => $summary['internalAttributeIssues'],
                 'versionMadeBy' => $summary['versionMadeBy'],
                 'madeByHostSystem' => $summary['madeByHostSystem'],
                 'madeByHostSystemName' => $summary['madeByHostSystemName'],
@@ -15819,6 +15879,11 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $internalAttributeSummaries = self::packageManifestInternalAttributeSummaries($entries);
+        $internalAttributeHexes = array_map(
+            static fn (array $summary): string => (string) $summary['internalFileAttributesHex'],
+            $internalAttributeSummaries
+        );
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15916,6 +15981,18 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            'internalAttributeEntryCount' => count($internalAttributeEntries),
+            'textInternalAttributeEntryCount' => count($textInternalAttributeEntries),
+            'unknownInternalAttributeEntryCount' => count($unknownInternalAttributeEntries),
+            'hasInternalFileAttributes' => $internalAttributeEntries !== [],
+            'hasTextInternalAttributes' => $textInternalAttributeEntries !== [],
+            'hasUnknownInternalAttributeBits' => $unknownInternalAttributeEntries !== [],
+            'internalAttributeHexes' => $internalAttributeHexes,
+            'internalAttributeSummaryCount' => count($internalAttributeSummaries),
+            'internalAttributeSummaries' => $internalAttributeSummaries,
+            'internalAttributeEntries' => $internalAttributeEntries,
+            'textInternalAttributeEntries' => $textInternalAttributeEntries,
+            'unknownInternalAttributeEntries' => $unknownInternalAttributeEntries,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
@@ -16106,6 +16183,18 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            'internalAttributeEntryCount' => count($internalAttributeEntries),
+            'textInternalAttributeEntryCount' => count($textInternalAttributeEntries),
+            'unknownInternalAttributeEntryCount' => count($unknownInternalAttributeEntries),
+            'hasInternalFileAttributes' => $internalAttributeEntries !== [],
+            'hasTextInternalAttributes' => $textInternalAttributeEntries !== [],
+            'hasUnknownInternalAttributeBits' => $unknownInternalAttributeEntries !== [],
+            'internalAttributeHexes' => $internalAttributeHexes,
+            'internalAttributeSummaryCount' => count($internalAttributeSummaries),
+            'internalAttributeSummaries' => $internalAttributeSummaries,
+            'internalAttributeEntries' => $internalAttributeEntries,
+            'textInternalAttributeEntries' => $textInternalAttributeEntries,
+            'unknownInternalAttributeEntries' => $unknownInternalAttributeEntries,
             'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
@@ -16334,6 +16423,99 @@ final class ZipPackage
             'issues' => $issues,
             'entries' => $entrySummaries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestInternalAttributeSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $attributes = is_int($entry['internalFileAttributes'] ?? null)
+                ? $entry['internalFileAttributes']
+                : 0;
+            if ($attributes === 0) {
+                continue;
+            }
+
+            $attributeKey = (string) $attributes;
+            $unknownBits = is_int($entry['unknownInternalAttributeBits'] ?? null)
+                ? $entry['unknownInternalAttributeBits']
+                : ($attributes & ~self::INTERNAL_TEXT_ATTRIBUTE);
+            $attributeNames = is_array($entry['internalAttributeNames'] ?? null)
+                ? array_values(array_filter($entry['internalAttributeNames'], 'is_string'))
+                : [];
+            if (!isset($summaries[$attributeKey])) {
+                $summaries[$attributeKey] = [
+                    'internalFileAttributes' => $attributes,
+                    'internalFileAttributesHex' => sprintf('%04x', $attributes),
+                    'internalAttributeNames' => $attributeNames,
+                    'hasTextInternalAttribute' => ($attributes & self::INTERNAL_TEXT_ATTRIBUTE) !== 0,
+                    'unknownInternalAttributeBits' => $unknownBits,
+                    'unknownInternalAttributeBitsHex' => sprintf('%04x', $unknownBits),
+                    'hasUnknownInternalAttributeBits' => $unknownBits !== 0,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'textInternalAttributeEntryCount' => 0,
+                    'unknownInternalAttributeEntryCount' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'directoryRoots' => [],
+                    'packagePartExtensionKeys' => [],
+                    'internalAttributeIssues' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$attributeKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$attributeKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$attributeKey]['fileEntryCount'];
+            }
+            if (($entry['hasTextInternalAttribute'] ?? false) === true) {
+                ++$summaries[$attributeKey]['textInternalAttributeEntryCount'];
+            }
+            if (($entry['hasUnknownInternalAttributeBits'] ?? false) === true) {
+                ++$summaries[$attributeKey]['unknownInternalAttributeEntryCount'];
+            }
+
+            $summaries[$attributeKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$attributeKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+
+            foreach ([
+                'directoryRoots' => (string) ($entry['directoryRoot'] ?? ''),
+                'packagePartExtensionKeys' => (string) ($entry['packagePartExtensionKey'] ?? ''),
+                'entryNames' => (string) ($entry['name'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$attributeKey][$field], true)) {
+                    $summaries[$attributeKey][$field][] = $value;
+                }
+            }
+
+            $issues = is_array($entry['internalAttributeIssues'] ?? null)
+                ? $entry['internalAttributeIssues']
+                : [];
+            foreach ($issues as $issue) {
+                if (is_string($issue) && !in_array($issue, $summaries[$attributeKey]['internalAttributeIssues'], true)) {
+                    $summaries[$attributeKey]['internalAttributeIssues'][] = $issue;
+                }
+            }
+        }
+
+        ksort($summaries, SORT_NUMERIC);
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['internalAttributeIssues'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**

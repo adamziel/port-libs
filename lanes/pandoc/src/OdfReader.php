@@ -1501,6 +1501,7 @@ final class OdfReader
         $manifestCustomChildElementItems = [];
         $objectPackageRootParts = $this->objectPackageRootParts($manifest);
         $manifestDeclaredSizeRoles = $this->manifestDeclaredSizeRoleSummary($manifest, $objectPackageRootParts);
+        $manifestDeclaredSizeMediaFamilies = $this->manifestDeclaredSizeMediaFamilySummary($manifest, $objectPackageRootParts);
         $roleCounts = [];
         $undeclaredRoleCounts = [];
         $roleByteLengths = [];
@@ -1590,6 +1591,12 @@ final class OdfReader
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
             $manifestIndex = $item['manifestIndex'] ?? count($manifestFileEntryOrder);
+            $manifestEmbeddedObjectPackage = is_string($part) && $part !== ''
+                ? $this->embeddedObjectPackageMembership($part, $objectPackageRootParts)
+                : null;
+            $manifestMediaFamily = is_string($part) && $part !== ''
+                ? $this->packagePartManifestMediaFamily($part, $item, $manifestEmbeddedObjectPackage)
+                : (($item['fullPath'] ?? null) === '/' ? 'opendocument-text-package' : 'missing-media-family');
             $manifestFileEntryOrder[] = [
                 'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($manifestFileEntryOrder),
                 'fullPath' => $item['fullPath'] ?? null,
@@ -1603,6 +1610,7 @@ final class OdfReader
                 'uriEncodedPartReference' => ($item['uriEncodedPartReference'] ?? false) === true,
                 'mediaType' => $item['mediaType'] ?? null,
                 'mediaTypeBase' => $item['mediaTypeBase'] ?? null,
+                'manifestMediaFamily' => $manifestMediaFamily,
                 'mediaTypeHasParameters' => ($item['mediaTypeHasParameters'] ?? false) === true,
                 'mediaTypeParameterCount' => $item['mediaTypeParameterCount'] ?? 0,
                 'mediaTypeParameters' => $item['mediaTypeParameters'] ?? [],
@@ -2266,6 +2274,13 @@ final class OdfReader
             'manifestDeclaredSizeRoleExistingCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleExistingCounts'],
             'manifestDeclaredSizeRoleMissingCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleMissingCounts'],
             'manifestDeclaredSizeRoleSummaries' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleSummaries'],
+            'manifestDeclaredSizeMediaFamilyCount' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyCount'],
+            'manifestDeclaredSizeMediaFamilyCounts' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyCounts'],
+            'manifestDeclaredSizeMediaFamilyByteLengths' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyByteLengths'],
+            'manifestDeclaredSizeMediaFamilyMismatchCounts' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyMismatchCounts'],
+            'manifestDeclaredSizeMediaFamilyExistingCounts' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyExistingCounts'],
+            'manifestDeclaredSizeMediaFamilyMissingCounts' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyMissingCounts'],
+            'manifestDeclaredSizeMediaFamilySummaries' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilySummaries'],
             'manifestCustomAttributeEntryCount' => count($manifestCustomAttributeItems),
             'manifestCustomAttributeCount' => $manifestCustomAttributeCount,
             'manifestCustomAttributeNames' => $manifestCustomAttributeNames,
@@ -3340,6 +3355,7 @@ final class OdfReader
                 'uriEncodedPartReference' => ($item['uriEncodedPartReference'] ?? false) === true,
                 'mediaType' => $item['mediaType'] ?? null,
                 'mediaTypeBase' => $item['mediaTypeBase'] ?? null,
+                'manifestMediaFamily' => $item['manifestMediaFamily'] ?? null,
                 'version' => $item['version'] ?? null,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'declaredSize' => $item['declaredSize'] ?? null,
@@ -3702,6 +3718,13 @@ final class OdfReader
             'manifestDeclaredSizeRoleExistingCounts' => $provenance['manifestDeclaredSizeRoleExistingCounts'] ?? [],
             'manifestDeclaredSizeRoleMissingCounts' => $provenance['manifestDeclaredSizeRoleMissingCounts'] ?? [],
             'manifestDeclaredSizeRoleSummaries' => $provenance['manifestDeclaredSizeRoleSummaries'] ?? [],
+            'manifestDeclaredSizeMediaFamilyCount' => $provenance['manifestDeclaredSizeMediaFamilyCount'] ?? 0,
+            'manifestDeclaredSizeMediaFamilyCounts' => $provenance['manifestDeclaredSizeMediaFamilyCounts'] ?? [],
+            'manifestDeclaredSizeMediaFamilyByteLengths' => $provenance['manifestDeclaredSizeMediaFamilyByteLengths'] ?? [],
+            'manifestDeclaredSizeMediaFamilyMismatchCounts' => $provenance['manifestDeclaredSizeMediaFamilyMismatchCounts'] ?? [],
+            'manifestDeclaredSizeMediaFamilyExistingCounts' => $provenance['manifestDeclaredSizeMediaFamilyExistingCounts'] ?? [],
+            'manifestDeclaredSizeMediaFamilyMissingCounts' => $provenance['manifestDeclaredSizeMediaFamilyMissingCounts'] ?? [],
+            'manifestDeclaredSizeMediaFamilySummaries' => $provenance['manifestDeclaredSizeMediaFamilySummaries'] ?? [],
             'centralDirectoryOrderMismatchRoleCount' => $provenance['centralDirectoryOrderMismatchRoleCount'] ?? 0,
             'centralDirectoryOrderMismatchRoleCounts' => $provenance['centralDirectoryOrderMismatchRoleCounts'] ?? [],
             'centralDirectoryOrderMismatchRoleByteLengths' => $provenance['centralDirectoryOrderMismatchRoleByteLengths'] ?? [],
@@ -4072,6 +4095,13 @@ final class OdfReader
             'manifestDeclaredSizeRoleExistingCounts' => $provenance['manifestDeclaredSizeRoleExistingCounts'] ?? [],
             'manifestDeclaredSizeRoleMissingCounts' => $provenance['manifestDeclaredSizeRoleMissingCounts'] ?? [],
             'manifestDeclaredSizeRoleSummaries' => $provenance['manifestDeclaredSizeRoleSummaries'] ?? [],
+            'manifestDeclaredSizeMediaFamilyCount' => $provenance['manifestDeclaredSizeMediaFamilyCount'] ?? 0,
+            'manifestDeclaredSizeMediaFamilyCounts' => $provenance['manifestDeclaredSizeMediaFamilyCounts'] ?? [],
+            'manifestDeclaredSizeMediaFamilyByteLengths' => $provenance['manifestDeclaredSizeMediaFamilyByteLengths'] ?? [],
+            'manifestDeclaredSizeMediaFamilyMismatchCounts' => $provenance['manifestDeclaredSizeMediaFamilyMismatchCounts'] ?? [],
+            'manifestDeclaredSizeMediaFamilyExistingCounts' => $provenance['manifestDeclaredSizeMediaFamilyExistingCounts'] ?? [],
+            'manifestDeclaredSizeMediaFamilyMissingCounts' => $provenance['manifestDeclaredSizeMediaFamilyMissingCounts'] ?? [],
+            'manifestDeclaredSizeMediaFamilySummaries' => $provenance['manifestDeclaredSizeMediaFamilySummaries'] ?? [],
             'centralDirectoryOrderMismatchRoleCount' => $provenance['centralDirectoryOrderMismatchRoleCount'] ?? 0,
             'centralDirectoryOrderMismatchRoleCounts' => $provenance['centralDirectoryOrderMismatchRoleCounts'] ?? [],
             'centralDirectoryOrderMismatchRoleByteLengths' => $provenance['centralDirectoryOrderMismatchRoleByteLengths'] ?? [],
@@ -24025,6 +24055,81 @@ final class OdfReader
             'manifestDeclaredSizeRoleExistingCounts' => $roleExistingCounts,
             'manifestDeclaredSizeRoleMissingCounts' => $roleMissingCounts,
             'manifestDeclaredSizeRoleSummaries' => $summaries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param array<string, array<string, mixed>> $objectPackageRootParts
+     * @return array{manifestDeclaredSizeMediaFamilyCount:int, manifestDeclaredSizeMediaFamilyCounts:array<string, int>, manifestDeclaredSizeMediaFamilyByteLengths:array<string, int>, manifestDeclaredSizeMediaFamilyMismatchCounts:array<string, int>, manifestDeclaredSizeMediaFamilyExistingCounts:array<string, int>, manifestDeclaredSizeMediaFamilyMissingCounts:array<string, int>, manifestDeclaredSizeMediaFamilySummaries:list<array{manifestMediaFamily:string, declaredSizeItemCount:int, declaredSize:int, declaredSizeMismatchCount:int, existingCount:int, missingCount:int, parts:list<string>}>}
+     */
+    private function manifestDeclaredSizeMediaFamilySummary(array $manifest, array $objectPackageRootParts): array
+    {
+        $familyCounts = [];
+        $familyByteLengths = [];
+        $familyMismatchCounts = [];
+        $familyExistingCounts = [];
+        $familyMissingCounts = [];
+        $partsByFamily = [];
+
+        foreach ($manifest as $item) {
+            $declaredSize = $item['declaredSize'] ?? null;
+            if (!is_int($declaredSize)) {
+                continue;
+            }
+
+            $part = self::manifestItemPartLabel($item);
+            $embeddedObjectPackage = is_string($item['part'] ?? null) && $item['part'] !== ''
+                ? $this->embeddedObjectPackageMembership($item['part'], $objectPackageRootParts)
+                : null;
+            $family = is_string($item['part'] ?? null) && $item['part'] !== ''
+                ? $this->packagePartManifestMediaFamily($item['part'], $item, $embeddedObjectPackage)
+                : (($item['fullPath'] ?? null) === '/' ? 'opendocument-text-package' : 'missing-media-family');
+
+            $familyCounts[$family] = ($familyCounts[$family] ?? 0) + 1;
+            $familyByteLengths[$family] = ($familyByteLengths[$family] ?? 0) + $declaredSize;
+            if (($item['declaredSizeMismatch'] ?? false) === true) {
+                $familyMismatchCounts[$family] = ($familyMismatchCounts[$family] ?? 0) + 1;
+            }
+            if (($item['exists'] ?? false) === true) {
+                $familyExistingCounts[$family] = ($familyExistingCounts[$family] ?? 0) + 1;
+            } else {
+                $familyMissingCounts[$family] = ($familyMissingCounts[$family] ?? 0) + 1;
+            }
+            $partsByFamily[$family] ??= [];
+            if (!in_array($part, $partsByFamily[$family], true)) {
+                $partsByFamily[$family][] = $part;
+            }
+        }
+
+        ksort($familyCounts, SORT_STRING);
+        ksort($familyByteLengths, SORT_STRING);
+        ksort($familyMismatchCounts, SORT_STRING);
+        ksort($familyExistingCounts, SORT_STRING);
+        ksort($familyMissingCounts, SORT_STRING);
+        ksort($partsByFamily, SORT_STRING);
+
+        $summaries = [];
+        foreach (array_keys($familyCounts) as $family) {
+            $summaries[] = [
+                'manifestMediaFamily' => $family,
+                'declaredSizeItemCount' => $familyCounts[$family],
+                'declaredSize' => $familyByteLengths[$family] ?? 0,
+                'declaredSizeMismatchCount' => $familyMismatchCounts[$family] ?? 0,
+                'existingCount' => $familyExistingCounts[$family] ?? 0,
+                'missingCount' => $familyMissingCounts[$family] ?? 0,
+                'parts' => $partsByFamily[$family] ?? [],
+            ];
+        }
+
+        return [
+            'manifestDeclaredSizeMediaFamilyCount' => count($familyCounts),
+            'manifestDeclaredSizeMediaFamilyCounts' => $familyCounts,
+            'manifestDeclaredSizeMediaFamilyByteLengths' => $familyByteLengths,
+            'manifestDeclaredSizeMediaFamilyMismatchCounts' => $familyMismatchCounts,
+            'manifestDeclaredSizeMediaFamilyExistingCounts' => $familyExistingCounts,
+            'manifestDeclaredSizeMediaFamilyMissingCounts' => $familyMissingCounts,
+            'manifestDeclaredSizeMediaFamilySummaries' => $summaries,
         ];
     }
 
