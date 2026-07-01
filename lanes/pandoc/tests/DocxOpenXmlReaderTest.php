@@ -1146,6 +1146,10 @@ XML,
         foreach ($manifest['directoryRootSummaries'] as $rootSummary) {
             $manifestDirectoryRootSummariesByRoot[$rootSummary['directoryRoot']] = $rootSummary;
         }
+        $manifestPackagePartExtensionSummariesByKey = [];
+        foreach ($manifest['packagePartExtensionSummaries'] as $extensionSummary) {
+            $manifestPackagePartExtensionSummariesByKey[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
 
         $documentCompressed = gzdeflate($parts['word/document.xml']);
         $t->true(is_string($documentCompressed), 'fixture document XML should deflate');
@@ -1237,6 +1241,11 @@ XML,
             'directoryRootCount' => 'packageManifestDirectoryRootCount',
             'directoryRoots' => 'packageManifestDirectoryRoots',
             'directoryRootSummaries' => 'packageManifestDirectoryRootSummaries',
+            'extensionlessPackagePartCount' => 'packageManifestExtensionlessPackagePartCount',
+            'hasExtensionlessPackageParts' => 'packageManifestHasExtensionlessPackageParts',
+            'packagePartExtensionSummaryCount' => 'packageManifestPackagePartExtensionSummaryCount',
+            'packagePartExtensions' => 'packageManifestPackagePartExtensions',
+            'packagePartExtensionSummaries' => 'packageManifestPackagePartExtensionSummaries',
             'centralDirectoryOrderNames' => 'packageManifestCentralDirectoryOrderNames',
             'localHeaderOrderNames' => 'packageManifestLocalHeaderOrderNames',
             'centralDirectoryOrderMatchesLocalHeaderOrder' => 'packageManifestCentralDirectoryOrderMatchesLocalHeaderOrder',
@@ -1343,12 +1352,24 @@ XML,
         $t->same($manifest['directoryRootCount'], $summary['zipPackageManifestDirectoryRootCount']);
         $t->same($manifest['directoryRoots'], $summary['zipPackageManifestDirectoryRoots']);
         $t->same($manifest['directoryRootSummaries'], $summary['zipPackageManifestDirectoryRootSummaries']);
+        $t->same($manifest['extensionlessPackagePartCount'], $summary['zipPackageManifestExtensionlessPackagePartCount']);
+        $t->same($manifest['hasExtensionlessPackageParts'], $summary['zipPackageManifestHasExtensionlessPackageParts']);
+        $t->same($manifest['packagePartExtensionSummaryCount'], $summary['zipPackageManifestPackagePartExtensionSummaryCount']);
+        $t->same($manifest['packagePartExtensions'], $summary['zipPackageManifestPackagePartExtensions']);
+        $t->same($manifest['packagePartExtensionSummaries'], $summary['zipPackageManifestPackagePartExtensionSummaries']);
         $t->same($manifest['centralDirectoryOrderNames'], $summary['zipPackageManifestCentralDirectoryOrderNames']);
         $t->same($manifest['localHeaderOrderNames'], $summary['zipPackageManifestLocalHeaderOrderNames']);
         $t->same($manifest['centralDirectoryOrderMatchesLocalHeaderOrder'], $summary['zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder']);
 
         $t->same(4, $summary['zipPackageManifestDirectoryRootCount']);
         $t->same(['/', '_rels/', 'docProps/', 'word/'], $summary['zipPackageManifestDirectoryRoots']);
+        $t->same(0, $summary['zipPackageManifestExtensionlessPackagePartCount']);
+        $t->same(false, $summary['zipPackageManifestHasExtensionlessPackageParts']);
+        $t->same(3, $summary['zipPackageManifestPackagePartExtensionSummaryCount']);
+        $t->same(['png', 'rels', 'xml'], $summary['zipPackageManifestPackagePartExtensions']);
+        $t->same(5, $manifestPackagePartExtensionSummariesByKey['xml']['fileEntryCount']);
+        $t->same(2, $manifestPackagePartExtensionSummariesByKey['rels']['fileEntryCount']);
+        $t->same(1, $manifestPackagePartExtensionSummariesByKey['png']['fileEntryCount']);
         $t->same(5, $manifestDirectoryRootSummariesByRoot['word/']['entryCount']);
         $t->same(5, $manifestDirectoryRootSummariesByRoot['word/']['fileEntryCount']);
         $t->same(0, $manifestDirectoryRootSummariesByRoot['word/']['directoryEntryCount']);
@@ -1365,6 +1386,14 @@ XML,
 
         $t->same($documentManifest['directoryRoot'], $documentEntry['directoryRoot']);
         $t->same('word/', $documentEntry['directoryRoot']);
+        $t->same($documentManifest['packagePartExtension'], $documentEntry['packagePartExtension']);
+        $t->same($documentManifest['packagePartExtensionKey'], $documentEntry['packagePartExtensionKey']);
+        $t->same($documentManifest['extensionlessPackagePart'], $documentEntry['extensionlessPackagePart']);
+        $t->same('xml', $documentEntry['packagePartExtension']);
+        $t->same('xml', $documentEntry['packagePartExtensionKey']);
+        $t->same(false, $documentEntry['extensionlessPackagePart']);
+        $t->same('xml', $contentTypesEntry['packagePartExtension']);
+        $t->same('xml', $contentTypesEntry['packagePartExtensionKey']);
         $t->same($documentManifest['localHeaderLength'], $documentEntry['localHeaderLength']);
         $t->same($documentManifest['localHeaderSha256'], $documentEntry['localHeaderSha256']);
         foreach ([

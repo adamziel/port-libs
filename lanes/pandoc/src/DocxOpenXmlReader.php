@@ -12271,6 +12271,15 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestDirectoryRootSummaries'] = is_array($zipPackageManifest['directoryRootSummaries'] ?? null)
             ? $zipPackageManifest['directoryRootSummaries']
             : [];
+        $summary['zipPackageManifestExtensionlessPackagePartCount'] = (int) ($zipPackageManifest['extensionlessPackagePartCount'] ?? 0);
+        $summary['zipPackageManifestHasExtensionlessPackageParts'] = ($zipPackageManifest['hasExtensionlessPackageParts'] ?? false) === true;
+        $summary['zipPackageManifestPackagePartExtensionSummaryCount'] = (int) ($zipPackageManifest['packagePartExtensionSummaryCount'] ?? 0);
+        $summary['zipPackageManifestPackagePartExtensions'] = is_array($zipPackageManifest['packagePartExtensions'] ?? null)
+            ? $zipPackageManifest['packagePartExtensions']
+            : [];
+        $summary['zipPackageManifestPackagePartExtensionSummaries'] = is_array($zipPackageManifest['packagePartExtensionSummaries'] ?? null)
+            ? $zipPackageManifest['packagePartExtensionSummaries']
+            : [];
         $summary['zipPackageManifestCentralDirectoryOrderNames'] = is_array($zipPackageManifest['centralDirectoryOrderNames'] ?? null)
             ? $zipPackageManifest['centralDirectoryOrderNames']
             : [];
@@ -12643,6 +12652,11 @@ final class DocxOpenXmlReader
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
                 'directoryRoot' => is_array($manifestEntry) ? ($manifestEntry['directoryRoot'] ?? null) : null,
+                'packagePartExtension' => is_array($manifestEntry) ? ($manifestEntry['packagePartExtension'] ?? null) : null,
+                'packagePartExtensionKey' => is_array($manifestEntry) && is_string($manifestEntry['packagePartExtensionKey'] ?? null)
+                    ? $manifestEntry['packagePartExtensionKey']
+                    : ($isDirectory ? '(directory)' : null),
+                'extensionlessPackagePart' => is_array($manifestEntry) ? (($manifestEntry['extensionlessPackagePart'] ?? false) === true) : false,
                 'roles' => $this->zipPackageEntryRoles($entry, $loadedPart),
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
@@ -13255,6 +13269,11 @@ final class DocxOpenXmlReader
             'directoryRootCount' => 0,
             'directoryRoots' => [],
             'directoryRootSummaries' => [],
+            'extensionlessPackagePartCount' => 0,
+            'hasExtensionlessPackageParts' => false,
+            'packagePartExtensionSummaryCount' => 0,
+            'packagePartExtensions' => [],
+            'packagePartExtensionSummaries' => [],
             'centralDirectoryOrderNames' => [],
             'localHeaderOrderNames' => [],
             'centralDirectoryOrderMatchesLocalHeaderOrder' => null,
@@ -13445,6 +13464,15 @@ final class DocxOpenXmlReader
                 : [],
             'packageManifestDirectoryRootSummaries' => is_array($packageManifest['directoryRootSummaries'] ?? null)
                 ? $packageManifest['directoryRootSummaries']
+                : [],
+            'packageManifestExtensionlessPackagePartCount' => (int) ($packageManifest['extensionlessPackagePartCount'] ?? 0),
+            'packageManifestHasExtensionlessPackageParts' => ($packageManifest['hasExtensionlessPackageParts'] ?? false) === true,
+            'packageManifestPackagePartExtensionSummaryCount' => (int) ($packageManifest['packagePartExtensionSummaryCount'] ?? 0),
+            'packageManifestPackagePartExtensions' => is_array($packageManifest['packagePartExtensions'] ?? null)
+                ? $packageManifest['packagePartExtensions']
+                : [],
+            'packageManifestPackagePartExtensionSummaries' => is_array($packageManifest['packagePartExtensionSummaries'] ?? null)
+                ? $packageManifest['packagePartExtensionSummaries']
                 : [],
             'packageManifestCentralDirectoryOrderNames' => is_array($packageManifest['centralDirectoryOrderNames'] ?? null)
                 ? $packageManifest['centralDirectoryOrderNames']
