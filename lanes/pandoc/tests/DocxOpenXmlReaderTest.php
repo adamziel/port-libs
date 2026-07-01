@@ -1196,8 +1196,17 @@ XML,
         }
         $t->same(count($manifest['deepestEntryNames']), $zipPackage['packageManifestDeepestEntryNameCount']);
         $t->same($manifest['entryCount'], $zipPackage['packageManifestLocalHeaderHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestLocalHeaderVariableFieldHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestLocalHeaderRawNameHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestLocalHeaderExtraFieldHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestLocalRecordHashCount']);
         $t->same($manifest['entryCount'], $zipPackage['packageManifestCompressedDataHashCount']);
+        $t->same(0, $zipPackage['packageManifestDataDescriptorHashCount']);
         $t->same($manifest['entryCount'], $zipPackage['packageManifestCentralDirectoryRecordHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestCentralDirectoryVariableFieldHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestCentralDirectoryRawNameHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestCentralDirectoryExtraFieldHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestCentralDirectoryRawCommentHashCount']);
         $t->same('zip-package-manifest-v1', $summary['zipPackageManifestVersion']);
         $t->same($manifest['manifestSha256'], $summary['zipPackageManifestSha256']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestEntryCount']);
@@ -1205,8 +1214,17 @@ XML,
         $t->same($manifest['directoryRoots'], $summary['zipPackageManifestDirectoryRoots']);
         $t->same($manifest['directoryRootSummaries'], $summary['zipPackageManifestDirectoryRootSummaries']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalHeaderHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalHeaderVariableFieldHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalHeaderRawNameHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalHeaderExtraFieldHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalRecordHashCount']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestCompressedDataHashCount']);
+        $t->same(0, $summary['zipPackageManifestDataDescriptorHashCount']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryRecordHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryVariableFieldHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryRawNameHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryExtraFieldHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryRawCommentHashCount']);
         $t->same($manifest['packageSource'], $summary['zipPackageManifestPackageSource']);
         $t->same($manifest['archiveBytes'], $summary['zipPackageManifestArchiveBytes']);
         $t->same($manifest['archiveLength'], $summary['zipPackageManifestArchiveLength']);
@@ -1299,18 +1317,68 @@ XML,
         $t->same('word/', $documentEntry['directoryRoot']);
         $t->same($documentManifest['localHeaderLength'], $documentEntry['localHeaderLength']);
         $t->same($documentManifest['localHeaderSha256'], $documentEntry['localHeaderSha256']);
+        foreach ([
+            'localHeaderFixedHeaderBytes',
+            'localHeaderVariableFieldOffset',
+            'localHeaderVariableFieldBytes',
+            'localHeaderVariableFieldSha256',
+            'localHeaderRawNameOffset',
+            'localHeaderRawNameBytes',
+            'localHeaderRawNameSha256',
+            'localHeaderExtraFieldOffset',
+            'localHeaderExtraFieldBytes',
+            'localHeaderExtraFieldSha256',
+            'localHeaderReviewFieldBytes',
+            'localRecordOffset',
+            'localRecordBytes',
+            'localRecordEnd',
+            'localRecordSha256',
+        ] as $manifestEntryKey) {
+            $t->same($documentManifest[$manifestEntryKey], $documentEntry[$manifestEntryKey], "{$manifestEntryKey} document entry");
+        }
         $t->same($documentManifest['compressedDataOffset'], $documentEntry['compressedDataOffset']);
+        $t->same($documentManifest['compressedSize'], $documentEntry['compressedDataBytes']);
         $t->same($documentManifest['compressedDataEnd'], $documentEntry['compressedDataEnd']);
         $t->same($documentManifest['compressedDataSha256'], $documentEntry['compressedDataSha256']);
         $t->same(hash('sha256', $documentCompressed), $documentEntry['compressedDataSha256']);
+        $t->same($documentManifest['usesDataDescriptor'], $documentEntry['usesDataDescriptor']);
+        $t->same($documentManifest['dataDescriptorBytes'], $documentEntry['dataDescriptorBytes']);
+        $t->same($documentManifest['dataDescriptorSha256'], $documentEntry['dataDescriptorSha256']);
         $t->same($documentManifest['centralDirectoryRecordOffset'], $documentEntry['centralDirectoryRecordOffset']);
+        $t->same($documentManifest['centralDirectoryRecordBytes'], $documentEntry['centralDirectoryRecordBytes']);
         $t->same($documentManifest['centralDirectoryRecordEnd'], $documentEntry['centralDirectoryRecordEnd']);
         $t->same($documentManifest['centralDirectoryRecordSha256'], $documentEntry['centralDirectoryRecordSha256']);
+        foreach ([
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldOffset',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryVariableFieldSha256',
+            'centralDirectoryRawNameOffset',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryRawNameSha256',
+            'centralDirectoryExtraFieldOffset',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryExtraFieldSha256',
+            'centralDirectoryRawCommentOffset',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryRawCommentSha256',
+            'centralDirectoryReviewFieldBytes',
+        ] as $manifestEntryKey) {
+            $t->same($documentManifest[$manifestEntryKey], $documentEntry[$manifestEntryKey], "{$manifestEntryKey} document entry");
+        }
 
         $t->same($documentEntry['directoryRoot'], $documentPart['zipDirectoryRoot']);
         $t->same($documentEntry['localHeaderSha256'], $documentPart['localHeaderSha256']);
+        $t->same($documentEntry['localHeaderVariableFieldSha256'], $documentPart['localHeaderVariableFieldSha256']);
+        $t->same($documentEntry['localHeaderRawNameSha256'], $documentPart['localHeaderRawNameSha256']);
+        $t->same($documentEntry['localHeaderExtraFieldSha256'], $documentPart['localHeaderExtraFieldSha256']);
+        $t->same($documentEntry['localRecordSha256'], $documentPart['localRecordSha256']);
         $t->same($documentEntry['compressedDataSha256'], $documentPart['compressedDataSha256']);
         $t->same($documentEntry['centralDirectoryRecordSha256'], $documentPart['centralDirectoryRecordSha256']);
+        $t->same($documentEntry['centralDirectoryVariableFieldSha256'], $documentPart['centralDirectoryVariableFieldSha256']);
+        $t->same($documentEntry['centralDirectoryRawNameSha256'], $documentPart['centralDirectoryRawNameSha256']);
+        $t->same($documentEntry['centralDirectoryExtraFieldSha256'], $documentPart['centralDirectoryExtraFieldSha256']);
+        $t->same($documentEntry['centralDirectoryRawCommentSha256'], $documentPart['centralDirectoryRawCommentSha256']);
         $t->same($documentEntry['compressedDataOffset'], $documentPart['compressedDataOffset']);
         $t->same($documentEntry['compressedDataEnd'], $documentPart['compressedDataEnd']);
 
@@ -1320,8 +1388,10 @@ XML,
         $t->same(0, $contentTypesEntry['compressionMethod']);
         $t->same(hash('sha256', $parts['[Content_Types].xml']), $contentTypesEntry['compressedDataSha256']);
         $t->same($contentTypesManifest['localHeaderSha256'], $contentTypesPart['localHeaderSha256']);
+        $t->same($contentTypesManifest['localHeaderRawNameSha256'], $contentTypesPart['localHeaderRawNameSha256']);
         $t->same($contentTypesManifest['compressedDataSha256'], $contentTypesPart['compressedDataSha256']);
         $t->same($contentTypesManifest['centralDirectoryRecordSha256'], $contentTypesPart['centralDirectoryRecordSha256']);
+        $t->same($contentTypesManifest['centralDirectoryRawNameSha256'], $contentTypesPart['centralDirectoryRawNameSha256']);
     },
     'preserves docx unsupported zip compression provenance without aborting ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

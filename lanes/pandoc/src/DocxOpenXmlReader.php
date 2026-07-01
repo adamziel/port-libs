@@ -11994,8 +11994,17 @@ final class DocxOpenXmlReader
             ? $zipPackageManifest['directoryRootSummaries']
             : [];
         $summary['zipPackageManifestLocalHeaderHashCount'] = $zipManifestHashCounts['localHeaderHashCount'];
+        $summary['zipPackageManifestLocalHeaderVariableFieldHashCount'] = $zipManifestHashCounts['localHeaderVariableFieldHashCount'];
+        $summary['zipPackageManifestLocalHeaderRawNameHashCount'] = $zipManifestHashCounts['localHeaderRawNameHashCount'];
+        $summary['zipPackageManifestLocalHeaderExtraFieldHashCount'] = $zipManifestHashCounts['localHeaderExtraFieldHashCount'];
+        $summary['zipPackageManifestLocalRecordHashCount'] = $zipManifestHashCounts['localRecordHashCount'];
         $summary['zipPackageManifestCompressedDataHashCount'] = $zipManifestHashCounts['compressedDataHashCount'];
+        $summary['zipPackageManifestDataDescriptorHashCount'] = $zipManifestHashCounts['dataDescriptorHashCount'];
         $summary['zipPackageManifestCentralDirectoryRecordHashCount'] = $zipManifestHashCounts['centralDirectoryRecordHashCount'];
+        $summary['zipPackageManifestCentralDirectoryVariableFieldHashCount'] = $zipManifestHashCounts['centralDirectoryVariableFieldHashCount'];
+        $summary['zipPackageManifestCentralDirectoryRawNameHashCount'] = $zipManifestHashCounts['centralDirectoryRawNameHashCount'];
+        $summary['zipPackageManifestCentralDirectoryExtraFieldHashCount'] = $zipManifestHashCounts['centralDirectoryExtraFieldHashCount'];
+        $summary['zipPackageManifestCentralDirectoryRawCommentHashCount'] = $zipManifestHashCounts['centralDirectoryRawCommentHashCount'];
         $summary['zipPackageManifestPackageSource'] = is_array($zipPackageManifest['packageSource'] ?? null)
             ? $zipPackageManifest['packageSource']
             : [];
@@ -12440,12 +12449,48 @@ final class DocxOpenXmlReader
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => is_array($manifestEntry) ? ($manifestEntry['localHeaderLength'] ?? null) : null,
                 'localHeaderSha256' => is_array($manifestEntry) ? ($manifestEntry['localHeaderSha256'] ?? null) : null,
+                'localHeaderFixedHeaderBytes' => is_array($manifestEntry) ? ($manifestEntry['localHeaderFixedHeaderBytes'] ?? null) : null,
+                'localHeaderVariableFieldOffset' => is_array($manifestEntry) ? ($manifestEntry['localHeaderVariableFieldOffset'] ?? null) : null,
+                'localHeaderVariableFieldBytes' => is_array($manifestEntry) ? ($manifestEntry['localHeaderVariableFieldBytes'] ?? null) : null,
+                'localHeaderVariableFieldSha256' => is_array($manifestEntry) ? ($manifestEntry['localHeaderVariableFieldSha256'] ?? null) : null,
+                'localHeaderRawNameOffset' => is_array($manifestEntry) ? ($manifestEntry['localHeaderRawNameOffset'] ?? null) : null,
+                'localHeaderRawNameBytes' => is_array($manifestEntry) ? ($manifestEntry['localHeaderRawNameBytes'] ?? null) : null,
+                'localHeaderRawNameSha256' => is_array($manifestEntry) ? ($manifestEntry['localHeaderRawNameSha256'] ?? null) : null,
+                'localHeaderExtraFieldOffset' => is_array($manifestEntry) ? ($manifestEntry['localHeaderExtraFieldOffset'] ?? null) : null,
+                'localHeaderExtraFieldBytes' => is_array($manifestEntry) ? ($manifestEntry['localHeaderExtraFieldBytes'] ?? null) : null,
+                'localHeaderExtraFieldSha256' => is_array($manifestEntry) ? ($manifestEntry['localHeaderExtraFieldSha256'] ?? null) : null,
+                'localHeaderReviewFieldBytes' => is_array($manifestEntry) ? ($manifestEntry['localHeaderReviewFieldBytes'] ?? null) : null,
+                'localRecordOffset' => is_array($manifestEntry) ? ($manifestEntry['localRecordOffset'] ?? null) : null,
+                'localRecordBytes' => is_array($manifestEntry) ? ($manifestEntry['localRecordBytes'] ?? null) : null,
+                'localRecordEnd' => is_array($manifestEntry) ? ($manifestEntry['localRecordEnd'] ?? null) : null,
+                'localRecordSha256' => is_array($manifestEntry) ? ($manifestEntry['localRecordSha256'] ?? null) : null,
                 'compressedDataOffset' => is_array($manifestEntry) ? ($manifestEntry['compressedDataOffset'] ?? null) : null,
+                'compressedDataBytes' => is_array($manifestEntry) ? ($manifestEntry['compressedSize'] ?? null) : null,
                 'compressedDataEnd' => is_array($manifestEntry) ? ($manifestEntry['compressedDataEnd'] ?? null) : null,
                 'compressedDataSha256' => is_array($manifestEntry) ? ($manifestEntry['compressedDataSha256'] ?? null) : null,
+                'usesDataDescriptor' => is_array($manifestEntry) ? (($manifestEntry['usesDataDescriptor'] ?? false) === true) : false,
+                'dataDescriptorOffset' => is_array($manifestEntry) ? ($manifestEntry['dataDescriptorOffset'] ?? null) : null,
+                'dataDescriptorBytes' => is_array($manifestEntry) ? ($manifestEntry['dataDescriptorBytes'] ?? null) : null,
+                'dataDescriptorEnd' => is_array($manifestEntry) ? ($manifestEntry['dataDescriptorEnd'] ?? null) : null,
+                'dataDescriptorSha256' => is_array($manifestEntry) ? ($manifestEntry['dataDescriptorSha256'] ?? null) : null,
                 'centralDirectoryRecordOffset' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordOffset'] ?? null) : null,
+                'centralDirectoryRecordBytes' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordBytes'] ?? null) : null,
                 'centralDirectoryRecordEnd' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordEnd'] ?? null) : null,
                 'centralDirectoryRecordSha256' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordSha256'] ?? null) : null,
+                'centralDirectoryFixedHeaderBytes' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryFixedHeaderBytes'] ?? null) : null,
+                'centralDirectoryVariableFieldOffset' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryVariableFieldOffset'] ?? null) : null,
+                'centralDirectoryVariableFieldBytes' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryVariableFieldBytes'] ?? null) : null,
+                'centralDirectoryVariableFieldSha256' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryVariableFieldSha256'] ?? null) : null,
+                'centralDirectoryRawNameOffset' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRawNameOffset'] ?? null) : null,
+                'centralDirectoryRawNameBytes' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRawNameBytes'] ?? null) : null,
+                'centralDirectoryRawNameSha256' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRawNameSha256'] ?? null) : null,
+                'centralDirectoryExtraFieldOffset' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryExtraFieldOffset'] ?? null) : null,
+                'centralDirectoryExtraFieldBytes' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryExtraFieldBytes'] ?? null) : null,
+                'centralDirectoryExtraFieldSha256' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryExtraFieldSha256'] ?? null) : null,
+                'centralDirectoryRawCommentOffset' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRawCommentOffset'] ?? null) : null,
+                'centralDirectoryRawCommentBytes' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRawCommentBytes'] ?? null) : null,
+                'centralDirectoryRawCommentSha256' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRawCommentSha256'] ?? null) : null,
+                'centralDirectoryReviewFieldBytes' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryReviewFieldBytes'] ?? null) : null,
                 'matchesCentralDirectoryOrder' => is_array($localOrder)
                     ? $localOrder['matchesCentralDirectoryOrder']
                     : null,
@@ -12780,40 +12825,52 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, mixed> $packageManifest
-     * @return array{localHeaderHashCount:int, compressedDataHashCount:int, centralDirectoryRecordHashCount:int}
+     * @return array<string, int>
      */
     private function zipPackageManifestHashCounts(array $packageManifest): array
     {
-        $localHeaderHashCount = 0;
-        $compressedDataHashCount = 0;
-        $centralDirectoryRecordHashCount = 0;
+        $hashCounts = [
+            'localHeaderHashCount' => 0,
+            'localHeaderVariableFieldHashCount' => 0,
+            'localHeaderRawNameHashCount' => 0,
+            'localHeaderExtraFieldHashCount' => 0,
+            'localRecordHashCount' => 0,
+            'compressedDataHashCount' => 0,
+            'dataDescriptorHashCount' => 0,
+            'centralDirectoryRecordHashCount' => 0,
+            'centralDirectoryVariableFieldHashCount' => 0,
+            'centralDirectoryRawNameHashCount' => 0,
+            'centralDirectoryExtraFieldHashCount' => 0,
+            'centralDirectoryRawCommentHashCount' => 0,
+        ];
+        $hashFields = [
+            'localHeaderSha256' => 'localHeaderHashCount',
+            'localHeaderVariableFieldSha256' => 'localHeaderVariableFieldHashCount',
+            'localHeaderRawNameSha256' => 'localHeaderRawNameHashCount',
+            'localHeaderExtraFieldSha256' => 'localHeaderExtraFieldHashCount',
+            'localRecordSha256' => 'localRecordHashCount',
+            'compressedDataSha256' => 'compressedDataHashCount',
+            'dataDescriptorSha256' => 'dataDescriptorHashCount',
+            'centralDirectoryRecordSha256' => 'centralDirectoryRecordHashCount',
+            'centralDirectoryVariableFieldSha256' => 'centralDirectoryVariableFieldHashCount',
+            'centralDirectoryRawNameSha256' => 'centralDirectoryRawNameHashCount',
+            'centralDirectoryExtraFieldSha256' => 'centralDirectoryExtraFieldHashCount',
+            'centralDirectoryRawCommentSha256' => 'centralDirectoryRawCommentHashCount',
+        ];
 
         foreach (($packageManifest['entries'] ?? []) as $entry) {
             if (!is_array($entry)) {
                 continue;
             }
 
-            if (is_string($entry['localHeaderSha256'] ?? null) && $entry['localHeaderSha256'] !== '') {
-                ++$localHeaderHashCount;
-            }
-
-            if (is_string($entry['compressedDataSha256'] ?? null) && $entry['compressedDataSha256'] !== '') {
-                ++$compressedDataHashCount;
-            }
-
-            if (
-                is_string($entry['centralDirectoryRecordSha256'] ?? null)
-                && $entry['centralDirectoryRecordSha256'] !== ''
-            ) {
-                ++$centralDirectoryRecordHashCount;
+            foreach ($hashFields as $entryField => $countField) {
+                if (is_string($entry[$entryField] ?? null) && $entry[$entryField] !== '') {
+                    ++$hashCounts[$countField];
+                }
             }
         }
 
-        return [
-            'localHeaderHashCount' => $localHeaderHashCount,
-            'compressedDataHashCount' => $compressedDataHashCount,
-            'centralDirectoryRecordHashCount' => $centralDirectoryRecordHashCount,
-        ];
+        return $hashCounts;
     }
 
     /**
@@ -12937,8 +12994,17 @@ final class DocxOpenXmlReader
                 : [],
             'packageManifestCentralDirectoryOrderMatchesLocalHeaderOrder' => $packageManifest['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null,
             'packageManifestLocalHeaderHashCount' => $hashCounts['localHeaderHashCount'],
+            'packageManifestLocalHeaderVariableFieldHashCount' => $hashCounts['localHeaderVariableFieldHashCount'],
+            'packageManifestLocalHeaderRawNameHashCount' => $hashCounts['localHeaderRawNameHashCount'],
+            'packageManifestLocalHeaderExtraFieldHashCount' => $hashCounts['localHeaderExtraFieldHashCount'],
+            'packageManifestLocalRecordHashCount' => $hashCounts['localRecordHashCount'],
             'packageManifestCompressedDataHashCount' => $hashCounts['compressedDataHashCount'],
+            'packageManifestDataDescriptorHashCount' => $hashCounts['dataDescriptorHashCount'],
             'packageManifestCentralDirectoryRecordHashCount' => $hashCounts['centralDirectoryRecordHashCount'],
+            'packageManifestCentralDirectoryVariableFieldHashCount' => $hashCounts['centralDirectoryVariableFieldHashCount'],
+            'packageManifestCentralDirectoryRawNameHashCount' => $hashCounts['centralDirectoryRawNameHashCount'],
+            'packageManifestCentralDirectoryExtraFieldHashCount' => $hashCounts['centralDirectoryExtraFieldHashCount'],
+            'packageManifestCentralDirectoryRawCommentHashCount' => $hashCounts['centralDirectoryRawCommentHashCount'],
         ];
     }
 
@@ -13634,13 +13700,20 @@ final class DocxOpenXmlReader
                 'localHeaderBytes',
                 'localHeaderEnd',
                 'localHeaderSha256',
+                'localHeaderFixedHeaderBytes',
                 'localFixedHeaderBytes',
                 'localHeaderVariableFieldOffset',
                 'localHeaderVariableFieldBytes',
                 'localHeaderVariableFieldSha256',
+                'localHeaderRawNameOffset',
+                'localHeaderRawNameBytes',
+                'localHeaderRawNameSha256',
                 'localRawNameOffset',
                 'localRawNameBytes',
                 'localRawNameSha256',
+                'localHeaderExtraFieldOffset',
+                'localHeaderExtraFieldBytes',
+                'localHeaderExtraFieldSha256',
                 'localExtraFieldOffset',
                 'localExtraFieldBytes',
                 'localExtraFieldSha256',
