@@ -3449,4 +3449,92 @@ XML);
         $t->contains('Submitted date: 2026-05/', $blocks);
         $t->contains('Label date: /2025-12', $blocks);
     },
+    'carries legacy biblatex accepted and revised dates in csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{publication-state-dates,
+  author        = {Ng, Nia},
+  title         = {Publication State Packet},
+  journaltitle  = {Migration Review},
+  date          = {2026},
+  accepteddate  = {2026-06-12},
+  revisedyear   = {2026},
+  revisedmonth  = {5},
+  revisedday    = {30},
+  status        = {accepted}
+}
+
+@report{publication-state-aliases,
+  author         = {Roe, Pat},
+  title          = {Publication State Alias Packet},
+  date           = {2025},
+  date-accepted  = {2025-03},
+  revision-date  = {2025-04/2025-05}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $state = $items['publication-state-dates'];
+        $aliases = $items['publication-state-aliases'];
+
+        $t->same([2026, 6, 12], $state['accepted-date']['date-parts'][0]);
+        $t->same([2026, 5, 30], $state['revised-date']['date-parts'][0]);
+        $t->same([2025, 3], $aliases['accepted-date']['date-parts'][0]);
+        $t->same([[2025, 4], [2025, 5]], $aliases['revised-date']['date-parts']);
+        $t->same('2026-06-12', $state['rawBibtex']['fields']['accepteddate']);
+        $t->same('2026', $state['rawBibtex']['fields']['revisedyear']);
+        $t->same('2025-03', $aliases['rawBibtex']['fields']['date-accepted']);
+        $t->same('2025-04/2025-05', $aliases['rawBibtex']['fields']['revision-date']);
+        $t->same(
+            'Nia Ng. Publication State Packet. Migration Review. 2026. Accepted date: 2026-06-12. Revised date: 2026-05-30. Status: accepted.',
+            $processor->renderBibliographyText($state)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="accepted-date"/>
+        <date variable="revised-date"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="date-accepted"/>
+      <date variable="revision-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('publication-state-dates');
+        $t->same([2026, 6, 12], $normalized['acceptedDate']['parts'] ?? null);
+        $t->same('2026-05-30', $normalized['revisedDate']['display'] ?? null);
+        $t->same(
+            '[Publication State Packet | 2026-06-12 | 2026-05-30; Publication State Alias Packet | 2025-03 | 2025-04/2025-05]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'publication-state-dates', 'text' => '[@publication-state-dates]']),
+                new AstNode('citation', ['id' => 'publication-state-aliases', 'text' => '[@publication-state-aliases]']),
+            ])
+        );
+        $t->same(
+            'Publication State Alias Packet :: 2025-03 :: 2025-04/2025-05',
+            $styled->renderBibliographyEntry('publication-state-aliases')
+        );
+
+        $document = (new MarkdownReader())->read('Publication state dates cite @publication-state-dates and [@publication-state-aliases].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['publication-state-dates', 'publication-state-aliases'], $handoff['citedKeys']);
+        $t->same([2026, 6, 12], $handoff['items'][0]['accepted-date']['date-parts'][0]);
+        $t->same([[2025, 4], [2025, 5]], $handoff['bibliography']->children[1]->attr('cslItem')['revised-date']['date-parts'] ?? null);
+        $t->contains('Accepted date: 2026-06-12', $blocks);
+        $t->contains('Revised date: 2025-04/2025-05', $blocks);
+    },
 ];

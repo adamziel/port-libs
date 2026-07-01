@@ -349,6 +349,8 @@ final class BibtexCslProcessor
         }
         foreach ([
             'available-date' => 'Available date',
+            'accepted-date' => 'Accepted date',
+            'revised-date' => 'Revised date',
             'submitted' => 'Submitted date',
             'label-date' => 'Label date',
         ] as $field => $label) {
@@ -1082,6 +1084,16 @@ final class BibtexCslProcessor
         $availableDate = $this->dateVariableFromFields($fields, ['availabledate', 'available-date', 'available'], ['availableyear', 'availablemonth', 'availableday']);
         if ($availableDate !== null) {
             $item['available-date'] = $availableDate;
+        }
+
+        $acceptedDate = $this->dateVariableFromFields($fields, ['accepteddate', 'accepted-date', 'dateaccepted', 'date-accepted'], ['acceptedyear', 'acceptedmonth', 'acceptedday']);
+        if ($acceptedDate !== null) {
+            $item['accepted-date'] = $acceptedDate;
+        }
+
+        $revisedDate = $this->dateVariableFromFields($fields, ['reviseddate', 'revised-date', 'revisiondate', 'revision-date', 'daterevised', 'date-revised', 'revdate'], ['revisedyear', 'revisedmonth', 'revisedday']);
+        if ($revisedDate !== null) {
+            $item['revised-date'] = $revisedDate;
         }
 
         $submittedDate = $this->dateVariableFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday']);
