@@ -1527,6 +1527,10 @@ final class OdfReader
         $packagePathDepthCounts = [];
         $packagePathsByPathDepth = [];
         $maxPackagePathDepth = 0;
+        $packagePathDepthRoleCounts = [];
+        $entryNamesByPackagePathDepthRole = [];
+        $packagePathDepthByteExposurePolicyCounts = [];
+        $entryNamesByPackagePathDepthByteExposurePolicy = [];
         $zipPackageManifestPathSegmentPositionRoleCounts = [];
         $entryNamesByZipPackageManifestPathSegmentPositionRole = [];
         $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts = [];
@@ -1965,6 +1969,16 @@ final class OdfReader
                 is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 is_string($byteExposurePolicy) ? $byteExposurePolicy : null,
             );
+            self::recordPackagePathDepthInventory(
+                $packagePathDepthRoleCounts,
+                $entryNamesByPackagePathDepthRole,
+                $packagePathDepthByteExposurePolicyCounts,
+                $entryNamesByPackagePathDepthByteExposurePolicy,
+                $packagePathDepth,
+                $entry->name,
+                $roles,
+                is_string($byteExposurePolicy) ? $byteExposurePolicy : null
+            );
 
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
                 $packagePartByteExposurePolicyCounts[$byteExposurePolicy] = ($packagePartByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
@@ -2082,6 +2096,10 @@ final class OdfReader
         ksort($packagePathExtensionCounts, SORT_STRING);
         ksort($packagePathDepthCounts, SORT_NUMERIC);
         self::sortPackageStringListMap($packagePathsByPathDepth, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($packagePathDepthRoleCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByPackagePathDepthRole, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($packagePathDepthByteExposurePolicyCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByPackagePathDepthByteExposurePolicy, SORT_NUMERIC);
         self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionRoleCounts);
         self::sortPackageNestedStringListMap($entryNamesByZipPackageManifestPathSegmentPositionRole);
         self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionByteExposurePolicyCounts);
@@ -2242,6 +2260,10 @@ final class OdfReader
             'packagePathDepthCounts' => $packagePathDepthCounts,
             'packagePathsByPathDepth' => $packagePathsByPathDepth,
             'maxPackagePathDepth' => $maxPackagePathDepth,
+            'packagePathDepthRoleCounts' => $packagePathDepthRoleCounts,
+            'entryNamesByPackagePathDepthRole' => $entryNamesByPackagePathDepthRole,
+            'packagePathDepthByteExposurePolicyCounts' => $packagePathDepthByteExposurePolicyCounts,
+            'entryNamesByPackagePathDepthByteExposurePolicy' => $entryNamesByPackagePathDepthByteExposurePolicy,
             'zipPackageManifestPathSegmentPositionRoleCounts' => $zipPackageManifestPathSegmentPositionRoleCounts,
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $entryNamesByZipPackageManifestPathSegmentPositionRole,
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts,
@@ -3195,6 +3217,10 @@ final class OdfReader
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $provenance['packagePathsByPathDepth'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
+            'packagePathDepthRoleCounts' => $provenance['packagePathDepthRoleCounts'] ?? [],
+            'entryNamesByPackagePathDepthRole' => $provenance['entryNamesByPackagePathDepthRole'] ?? [],
+            'packagePathDepthByteExposurePolicyCounts' => $provenance['packagePathDepthByteExposurePolicyCounts'] ?? [],
+            'entryNamesByPackagePathDepthByteExposurePolicy' => $provenance['entryNamesByPackagePathDepthByteExposurePolicy'] ?? [],
             'zipPackageManifestPathSegmentPositionRoleCounts' => $provenance['zipPackageManifestPathSegmentPositionRoleCounts'] ?? [],
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $provenance['entryNamesByZipPackageManifestPathSegmentPositionRole'] ?? [],
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $provenance['zipPackageManifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
@@ -3434,6 +3460,10 @@ final class OdfReader
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $provenance['packagePathsByPathDepth'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
+            'packagePathDepthRoleCounts' => $provenance['packagePathDepthRoleCounts'] ?? [],
+            'entryNamesByPackagePathDepthRole' => $provenance['entryNamesByPackagePathDepthRole'] ?? [],
+            'packagePathDepthByteExposurePolicyCounts' => $provenance['packagePathDepthByteExposurePolicyCounts'] ?? [],
+            'entryNamesByPackagePathDepthByteExposurePolicy' => $provenance['entryNamesByPackagePathDepthByteExposurePolicy'] ?? [],
             'zipPackageManifestPathSegmentPositionRoleCounts' => $provenance['zipPackageManifestPathSegmentPositionRoleCounts'] ?? [],
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $provenance['entryNamesByZipPackageManifestPathSegmentPositionRole'] ?? [],
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $provenance['zipPackageManifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
@@ -4949,22 +4979,57 @@ final class OdfReader
         unset($paths);
     }
 
-    private static function sortPackageNestedCountMap(array &$map): void
+    private static function sortPackageNestedCountMap(array &$map, int $keySortFlags = SORT_STRING): void
     {
-        ksort($map, SORT_STRING);
+        ksort($map, $keySortFlags);
         foreach ($map as &$counts) {
             ksort($counts, SORT_STRING);
         }
         unset($counts);
     }
 
-    private static function sortPackageNestedStringListMap(array &$map): void
+    private static function sortPackageNestedStringListMap(array &$map, int $keySortFlags = SORT_STRING): void
     {
-        ksort($map, SORT_STRING);
+        ksort($map, $keySortFlags);
         foreach ($map as &$nestedMap) {
             self::sortPackageStringListMap($nestedMap, SORT_STRING);
         }
         unset($nestedMap);
+    }
+
+    /**
+     * @param list<string> $roles
+     */
+    private static function recordPackagePathDepthInventory(
+        array &$roleCounts,
+        array &$entryNamesByRole,
+        array &$byteExposurePolicyCounts,
+        array &$entryNamesByByteExposurePolicy,
+        int $depth,
+        string $entryName,
+        array $roles,
+        ?string $byteExposurePolicy
+    ): void {
+        foreach ($roles as $role) {
+            if (!is_string($role) || $role === '') {
+                continue;
+            }
+
+            $roleCounts[$depth] ??= [];
+            $roleCounts[$depth][$role] = ($roleCounts[$depth][$role] ?? 0) + 1;
+            $entryNamesByRole[$depth] ??= [];
+            $entryNamesByRole[$depth][$role] ??= [];
+            $entryNamesByRole[$depth][$role][$entryName] = true;
+        }
+
+        if ($byteExposurePolicy !== null && $byteExposurePolicy !== '') {
+            $byteExposurePolicyCounts[$depth] ??= [];
+            $byteExposurePolicyCounts[$depth][$byteExposurePolicy] =
+                ($byteExposurePolicyCounts[$depth][$byteExposurePolicy] ?? 0) + 1;
+            $entryNamesByByteExposurePolicy[$depth] ??= [];
+            $entryNamesByByteExposurePolicy[$depth][$byteExposurePolicy] ??= [];
+            $entryNamesByByteExposurePolicy[$depth][$byteExposurePolicy][$entryName] = true;
+        }
     }
 
     /**
