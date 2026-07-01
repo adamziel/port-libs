@@ -1822,7 +1822,24 @@ final class PptxReader
             $value = $inner;
         }
 
-        return preg_match('/^-?[0-9]+$/', $value) === 1 ? (int) $value : null;
+        $sign = 1;
+        $digits = $value;
+        if (str_starts_with($digits, '-')) {
+            $sign = -1;
+            $digits = substr($digits, 1);
+        }
+        if ($digits === '') {
+            return null;
+        }
+
+        if (preg_match('/^0[xX]([0-9A-Fa-f]+)$/', $digits, $matches) === 1) {
+            return $sign * (int) hexdec($matches[1]);
+        }
+        if (preg_match('/^0[oO]([0-7]+)$/', $digits, $matches) === 1) {
+            return $sign * intval($matches[1], 8);
+        }
+
+        return preg_match('/^[0-9]+$/', $digits) === 1 ? $sign * (int) $digits : null;
     }
 
     private function trimUnicodeWhitespace(string $value): string
