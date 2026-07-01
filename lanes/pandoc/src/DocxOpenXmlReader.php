@@ -16703,6 +16703,16 @@ final class DocxOpenXmlReader
             'contentTypeMissingOverrideCount' => (int) ($contentTypesPart['missingOverrideCount'] ?? 0),
             'contentTypeMissingOverrideParts' => $contentTypesPart['missingOverrideParts'] ?? [],
             'contentTypeMissingOverrides' => $contentTypesPart['missingOverrides'] ?? [],
+            'contentTypeMissingOverrideTargetCount' => (int) ($contentTypesPart['missingOverrideTargetCount'] ?? 0),
+            'contentTypeMissingOverrideTargetItems' => $contentTypesPart['missingOverrideTargetItems'] ?? [],
+            'contentTypeMissingOverrideTargetPartNames' => $contentTypesPart['missingOverrideTargetPartNames'] ?? [],
+            'contentTypeMissingOverrideTargetRoleCounts' => $contentTypesPart['missingOverrideTargetRoleCounts'] ?? [],
+            'contentTypeMissingOverrideTargetContentTypeBaseCounts' => $contentTypesPart['missingOverrideTargetContentTypeBaseCounts'] ?? [],
+            'contentTypeMissingOverrideTargetContentTypeParameterNameCounts' => $contentTypesPart['missingOverrideTargetContentTypeParameterNameCounts'] ?? [],
+            'contentTypeMissingOverrideTargetParameterizedCount' => (int) ($contentTypesPart['missingOverrideTargetParameterizedCount'] ?? 0),
+            'contentTypeMissingOverrideTargetTopLevelSegmentCounts' => $contentTypesPart['missingOverrideTargetTopLevelSegmentCounts'] ?? [],
+            'contentTypeMissingOverrideTargetDirectoryCounts' => $contentTypesPart['missingOverrideTargetDirectoryCounts'] ?? [],
+            'contentTypeMissingOverrideTargetExtensionCounts' => $contentTypesPart['missingOverrideTargetExtensionCounts'] ?? [],
             'contentTypeOverrideDeclarationIssueCounts' => $contentTypesPart['overrideDeclarationIssueCounts'] ?? [],
             'contentTypeOverrideDeclarationIssues' => $contentTypesPart['overrideDeclarationIssues'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
@@ -25565,6 +25575,7 @@ final class DocxOpenXmlReader
             $missingOverrides,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
         );
+        $missingOverrideTargetSummary = $this->contentTypeMissingOverrideTargetSummary($missingOverrides);
         $invalidContentTypeRecords = $this->invalidContentTypeRecordSnapshots($preflight);
         $invalidContentTypeRecordIssueBuckets = $this->contentTypeRecordIssueBuckets($invalidContentTypeRecords);
 
@@ -25600,6 +25611,16 @@ final class DocxOpenXmlReader
             'missingOverrideCount' => count($missingOverrides),
             'missingOverrideParts' => array_column($missingOverrides, 'partName'),
             'missingOverrides' => $missingOverrides,
+            'missingOverrideTargetCount' => $missingOverrideTargetSummary['count'],
+            'missingOverrideTargetItems' => $missingOverrideTargetSummary['items'],
+            'missingOverrideTargetPartNames' => $missingOverrideTargetSummary['partNames'],
+            'missingOverrideTargetRoleCounts' => $missingOverrideTargetSummary['roleCounts'],
+            'missingOverrideTargetContentTypeBaseCounts' => $missingOverrideTargetSummary['contentTypeBaseCounts'],
+            'missingOverrideTargetContentTypeParameterNameCounts' => $missingOverrideTargetSummary['contentTypeParameterNameCounts'],
+            'missingOverrideTargetParameterizedCount' => $missingOverrideTargetSummary['parameterizedCount'],
+            'missingOverrideTargetTopLevelSegmentCounts' => $missingOverrideTargetSummary['topLevelSegmentCounts'],
+            'missingOverrideTargetDirectoryCounts' => $missingOverrideTargetSummary['directoryCounts'],
+            'missingOverrideTargetExtensionCounts' => $missingOverrideTargetSummary['extensionCounts'],
             'parameterizedContentTypeCount' => count($parameterizedContentTypes),
             'parameterizedContentTypes' => $parameterizedContentTypes,
             'preflight' => $preflight,
@@ -25911,6 +25932,176 @@ final class DocxOpenXmlReader
             'issues' => array_keys($issueCounts),
             'declarations' => $declarations,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $missingOverrides
+     * @return array<string, mixed>
+     */
+    private function contentTypeMissingOverrideTargetSummary(array $missingOverrides): array
+    {
+        $items = [];
+        $partNames = [];
+        $roleCounts = [];
+        $contentTypeBaseCounts = [];
+        $contentTypeParameterNameCounts = [];
+        $topLevelSegmentCounts = [];
+        $directoryCounts = [];
+        $extensionCounts = [];
+        $parameterizedCount = 0;
+
+        foreach ($missingOverrides as $declaration) {
+            $partName = is_string($declaration['partName'] ?? null) ? $declaration['partName'] : '';
+            if ($partName === '') {
+                continue;
+            }
+
+            $directory = $this->packagePartDirectory($partName);
+            $pathSegments = $this->packagePartPathSegments($partName);
+            $partExtension = $this->packagePartExtension($partName);
+            $extensionKey = $partExtension ?? '(none)';
+            $contentTypeBase = is_string($declaration['contentTypeBase'] ?? null) ? $declaration['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $parameterMap = is_array($declaration['contentTypeParameterMap'] ?? null)
+                ? $declaration['contentTypeParameterMap']
+                : [];
+            $roles = $this->missingOverrideTargetRoles($declaration);
+            $topLevelSegment = $pathSegments[0] ?? '';
+
+            $partNames[] = $partName;
+            $contentTypeBaseCounts[$contentTypeBaseKey] = ($contentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+            $topLevelSegmentCounts[$topLevelSegment] = ($topLevelSegmentCounts[$topLevelSegment] ?? 0) + 1;
+            $directoryCounts[$directory] = ($directoryCounts[$directory] ?? 0) + 1;
+            $extensionCounts[$extensionKey] = ($extensionCounts[$extensionKey] ?? 0) + 1;
+            foreach ($roles as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            }
+            if ($parameterMap !== []) {
+                ++$parameterizedCount;
+            }
+            foreach ($parameterMap as $parameterName => $_parameterValue) {
+                if (is_string($parameterName) && $parameterName !== '') {
+                    $contentTypeParameterNameCounts[$parameterName] = ($contentTypeParameterNameCounts[$parameterName] ?? 0) + 1;
+                }
+            }
+
+            $items[] = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'directoryDepth' => $this->packagePartDirectoryDepth($directory),
+                'topLevelSegment' => $topLevelSegment,
+                'baseName' => $this->packagePartBaseName($partName),
+                'baseNameStem' => $this->packagePartBaseNameStem($partName),
+                'pathSegments' => $pathSegments,
+                'pathSegmentCount' => count($pathSegments),
+                'partExtension' => $partExtension,
+                'rawPartExtension' => $this->packagePartRawExtension($partName),
+                'contentType' => is_string($declaration['contentType'] ?? null) ? $declaration['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeHasParameters' => (bool) ($declaration['contentTypeHasParameters'] ?? false),
+                'contentTypeParameterCount' => (int) ($declaration['contentTypeParameterCount'] ?? count($parameterMap)),
+                'contentTypeParameters' => is_array($declaration['contentTypeParameters'] ?? null) ? $declaration['contentTypeParameters'] : [],
+                'contentTypeParameterMap' => $parameterMap,
+                'relationshipPart' => (bool) ($declaration['relationshipPart'] ?? false),
+                'relationshipSource' => is_string($declaration['relationshipSource'] ?? null) ? $declaration['relationshipSource'] : null,
+                'relationshipSourceExists' => $declaration['relationshipSourceExists'] ?? null,
+                'exists' => false,
+                'roles' => $roles,
+                'issues' => is_array($declaration['issues'] ?? null) ? array_values(array_map('strval', $declaration['issues'])) : [],
+                'byteExposurePolicy' => 'content-type-override-missing-target-no-bytes',
+                'reviewPolicy' => 'content-type-override-missing-target-metadata-only',
+            ];
+        }
+
+        sort($partNames, SORT_STRING);
+        ksort($roleCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeParameterNameCounts, SORT_STRING);
+        ksort($topLevelSegmentCounts, SORT_STRING);
+        ksort($directoryCounts, SORT_STRING);
+        ksort($extensionCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'items' => $items,
+            'partNames' => $partNames,
+            'roleCounts' => $roleCounts,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeParameterNameCounts' => $contentTypeParameterNameCounts,
+            'parameterizedCount' => $parameterizedCount,
+            'topLevelSegmentCounts' => $topLevelSegmentCounts,
+            'directoryCounts' => $directoryCounts,
+            'extensionCounts' => $extensionCounts,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     * @return list<string>
+     */
+    private function missingOverrideTargetRoles(array $declaration): array
+    {
+        $roles = ['content-type-override-target', 'missing-package-part'];
+        if (($declaration['relationshipPart'] ?? false) === true) {
+            $roles[] = 'relationship-part';
+            if (($declaration['relationshipSourceExists'] ?? null) === false) {
+                $roles[] = 'missing-relationship-source';
+            }
+        }
+
+        $contentTypeBase = is_string($declaration['contentTypeBase'] ?? null) ? $declaration['contentTypeBase'] : '';
+        $contentTypeRole = $this->contentTypeBaseInventoryRole($contentTypeBase);
+        if ($contentTypeRole !== null) {
+            $roles[] = $contentTypeRole;
+        }
+
+        return array_values(array_unique($roles));
+    }
+
+    private function contentTypeBaseInventoryRole(string $contentTypeBase): ?string
+    {
+        return match (strtolower($contentTypeBase)) {
+            self::CT_WORD_DOCUMENT,
+            self::CT_WORD_TEMPLATE,
+            self::CT_WORD_MACRO_ENABLED_DOCUMENT,
+            self::CT_WORD_MACRO_ENABLED_TEMPLATE => 'office-document',
+            self::CT_CORE_PROPERTIES => 'core-properties',
+            self::CT_EXTENDED_PROPERTIES => 'extended-properties',
+            self::CT_CUSTOM_PROPERTIES => 'custom-properties',
+            self::CT_WORD_STYLES => 'styles',
+            self::CT_WORD_STYLES_WITH_EFFECTS => 'styles-with-effects',
+            self::CT_WORD_NUMBERING => 'numbering',
+            self::CT_WORD_SETTINGS => 'settings',
+            self::CT_WORD_PRINTER_SETTINGS => 'printer-settings',
+            self::CT_WORD_WEB_SETTINGS => 'web-settings',
+            self::CT_WORD_FONT_TABLE => 'font-table',
+            self::CT_THEME => 'theme',
+            self::CT_WORD_GLOSSARY_DOCUMENT => 'glossary-document',
+            self::CT_WORD_FOOTNOTES => 'footnotes',
+            self::CT_WORD_ENDNOTES => 'endnotes',
+            self::CT_WORD_COMMENTS => 'comments',
+            self::CT_WORD_COMMENTS_EXTENDED => 'comments-extended',
+            self::CT_WORD_COMMENTS_IDS => 'comments-ids',
+            self::CT_WORD_PEOPLE => 'people',
+            self::CT_WORD_HEADER => 'header-part',
+            self::CT_WORD_FOOTER => 'footer-part',
+            self::CT_WORD_BIBLIOGRAPHY => 'bibliography-part',
+            self::CT_CUSTOM_XML_PROPERTIES => 'custom-xml-properties',
+            self::CT_PACKAGE_RELATIONSHIPS => 'relationship-part',
+            self::CT_CHART => 'chart-part',
+            self::CT_DIAGRAM_DATA => 'diagram-data',
+            self::CT_DIAGRAM_LAYOUT => 'diagram-layout',
+            self::CT_DIAGRAM_QUICK_STYLE => 'diagram-quick-style',
+            self::CT_DIAGRAM_COLORS => 'diagram-colors',
+            self::CT_ACTIVEX_XML => 'activex-control',
+            self::CT_ACTIVEX_BINARY => 'activex-binary',
+            self::CT_VBA_PROJECT => 'vba-project',
+            self::CT_VBA_PROJECT_SIGNATURE => 'vba-project-signature',
+            self::CT_VBA_DATA => 'vba-data',
+            self::CT_DIGITAL_SIGNATURE_ORIGIN => 'digital-signature-origin',
+            self::CT_DIGITAL_SIGNATURE_XMLSIGNATURE => 'digital-signature-signature',
+            default => null,
+        };
     }
 
     /**
