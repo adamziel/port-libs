@@ -11186,6 +11186,13 @@ final class MarkdownReader
             return $overrides['wikilinks'];
         }
 
+        if (
+            ($overrides['wikilinks_title_after_pipe'] ?? false)
+            || ($overrides['wikilinks_title_before_pipe'] ?? false)
+        ) {
+            return true;
+        }
+
         $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
         $canonical = MarkdownFormatProfile::canonicalFormat($format);
 

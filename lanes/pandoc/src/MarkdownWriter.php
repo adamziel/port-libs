@@ -7195,10 +7195,11 @@ final class MarkdownWriter
     private function wikiLinkTitlePosition(): string
     {
         $variant = (string) ($this->options['variant'] ?? '');
+        $overrides = $this->markdownExtensionOverrides();
         if (
             (bool) ($this->options['wikilinksTitleBeforePipe'] ?? false)
             || str_contains($variant, 'wikilinks_title_before_pipe')
-            || $this->markdownExtensionOverride('wikilinks_title_before_pipe') === true
+            || ($overrides['wikilinks_title_before_pipe'] ?? null) === true
         ) {
             return 'before';
         }
@@ -7206,12 +7207,29 @@ final class MarkdownWriter
         if (
             (bool) ($this->options['wikilinksTitleAfterPipe'] ?? false)
             || str_contains($variant, 'wikilinks_title_after_pipe')
-            || $this->markdownExtensionOverride('wikilinks_title_after_pipe') === true
+            || ($overrides['wikilinks_title_after_pipe'] ?? null) === true
         ) {
             return 'after';
         }
 
-        if ($this->markdownExtensionOverride('wikilinks') === true) {
+        if (($overrides['wikilinks'] ?? null) === false) {
+            return '';
+        }
+
+        if (($overrides['wikilinks'] ?? null) === true) {
+            return 'before';
+        }
+
+        if (
+            array_key_exists('wikilinks_title_before_pipe', $overrides)
+            || array_key_exists('wikilinks_title_after_pipe', $overrides)
+        ) {
+            return '';
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+        if (in_array($canonical, ['markdown', 'commonmark_x'], true)) {
             return 'before';
         }
 
@@ -7220,6 +7238,10 @@ final class MarkdownWriter
 
     private function isRenderableWikiLink(AstNode $node): bool
     {
+        if ($this->linkTitle($node) !== '') {
+            return false;
+        }
+
         $attrs = $this->linkAttrTuple($node);
         if ($attrs['id'] !== '' || $attrs['attributes'] !== []) {
             return false;
@@ -7245,12 +7267,11 @@ final class MarkdownWriter
 
     private function escapeWikiLinkComponent(string $value): string
     {
-        return strtr($value, [
+        return $this->escapeHtml(strtr($value, [
             '\\' => '\\\\',
-            '[' => '\\[',
             ']' => '\\]',
             '|' => '\\|',
-        ]);
+        ]));
     }
 
     /**
