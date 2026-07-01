@@ -1263,6 +1263,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['activeXControlExistingCount'] = $activeXControls['existingCount'];
         $packageProvenance['summary']['activeXControlMissingCount'] = $activeXControls['missingCount'];
         $packageProvenance['summary']['activeXControlExternalCount'] = $activeXControls['externalCount'];
+        $packageProvenance['summary']['activeXControlOcxClassIdCount'] = $activeXControls['ocxClassIdCount'];
+        $packageProvenance['summary']['activeXControlOcxClassIds'] = $activeXControls['ocxClassIds'];
+        $packageProvenance['summary']['activeXControlOcxPersistenceModes'] = $activeXControls['ocxPersistenceModes'];
+        $packageProvenance['summary']['activeXControlOcxPersistenceModeCounts'] = $activeXControls['ocxPersistenceModeCounts'];
         $packageProvenance['summary']['activeXBinaryCount'] = $activeXControls['binaryCount'];
         $packageProvenance['summary']['activeXBinaryExistingCount'] = $activeXControls['existingBinaryCount'];
         $packageProvenance['summary']['activeXBinaryMissingCount'] = $activeXControls['missingBinaryCount'];
@@ -7687,6 +7691,9 @@ final class DocxOpenXmlReader
         $externalTargets = [];
         $unsafeBinaryExternalTargets = [];
         $contentTypesSeen = [];
+        $ocxClassIds = [];
+        $ocxPersistenceModes = [];
+        $ocxPersistenceModeCounts = [];
         $issueCodes = [];
         $binaryExternalTargetIssueCodes = [];
         $allowedExternalBinaryCount = 0;
@@ -7694,6 +7701,12 @@ final class DocxOpenXmlReader
         foreach ($items as $item) {
             $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            $this->appendUniqueString($ocxClassIds, is_string($item['ocxClassId'] ?? null) ? $item['ocxClassId'] : null);
+            $ocxPersistence = is_string($item['ocxPersistence'] ?? null) ? $item['ocxPersistence'] : null;
+            $this->appendUniqueString($ocxPersistenceModes, $ocxPersistence);
+            if ($ocxPersistence !== null) {
+                $ocxPersistenceModeCounts[$ocxPersistence] = ($ocxPersistenceModeCounts[$ocxPersistence] ?? 0) + 1;
+            }
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
             }
@@ -7731,6 +7744,7 @@ final class DocxOpenXmlReader
         }
         ksort($issueCodes, SORT_STRING);
         ksort($binaryExternalTargetIssueCodes, SORT_STRING);
+        ksort($ocxPersistenceModeCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -7767,6 +7781,10 @@ final class DocxOpenXmlReader
             'binaryPartNames' => $binaryPartNames,
             'externalTargets' => $externalTargets,
             'unsafeBinaryExternalTargets' => $unsafeBinaryExternalTargets,
+            'ocxClassIdCount' => count($ocxClassIds),
+            'ocxClassIds' => $ocxClassIds,
+            'ocxPersistenceModes' => $ocxPersistenceModes,
+            'ocxPersistenceModeCounts' => $ocxPersistenceModeCounts,
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
             'binaryExternalTargetIssueCodes' => array_keys($binaryExternalTargetIssueCodes),
@@ -7812,6 +7830,19 @@ final class DocxOpenXmlReader
             'controlName' => $this->activeXControlAttribute($control, 'name'),
             'shapeId' => $this->activeXControlAttribute($control, 'shapeid'),
         ];
+    }
+
+    /**
+     * @return ?string
+     */
+    private function activeXPartRootAttribute(\DOMElement $root, string $localName): ?string
+    {
+        $value = $this->emptyStringToNull($root->getAttributeNS(self::NS_ACTIVEX, $localName));
+        if ($value !== null) {
+            return $value;
+        }
+
+        return $this->emptyStringToNull($root->getAttribute($localName));
     }
 
     /**
@@ -7869,6 +7900,8 @@ final class DocxOpenXmlReader
             'xmlParseError' => null,
             'rootNamespace' => null,
             'rootLocalName' => null,
+            'ocxClassId' => null,
+            'ocxPersistence' => null,
             'validRoot' => null,
             'binaries' => $this->emptyActiveXBinaryParts(),
             'byteExposurePolicy' => 'activex-control-bytes-blocked',
@@ -7954,6 +7987,13 @@ final class DocxOpenXmlReader
                 $item['issues'][] = 'invalid-control-xml';
             } elseif ($item['validRoot'] === false) {
                 $item['issues'][] = 'unexpected-control-root';
+            } else {
+                $dom = $this->loadXmlForProvenance($parts[$targetPart], $targetPart);
+                $rootElement = $dom instanceof \DOMDocument ? $dom->documentElement : null;
+                if ($rootElement instanceof \DOMElement) {
+                    $item['ocxClassId'] = $this->activeXPartRootAttribute($rootElement, 'classid');
+                    $item['ocxPersistence'] = $this->activeXPartRootAttribute($rootElement, 'persistence');
+                }
             }
         }
 
