@@ -73,7 +73,29 @@ return [
         $t->same(6, $summary['unsupportedDiagnosticCounts']['package-assembly-not-implemented']);
         $t->same(1, $summary['unsupportedDiagnosticCounts']['external-notebook-tooling-disallowed']);
         $t->same(1, $summary['unsupportedDiagnosticCounts']['renderer-engine-disallowed']);
+        $t->same([
+            'external-notebook-tooling-disallowed' => ['ipynb'],
+            'notebook-writer-not-implemented' => ['ipynb'],
+            'package-assembly-not-implemented' => ['docx', 'odt', 'epub2', 'pptx', 'chunkedhtml', 'icml'],
+            'rendered-artifact-not-produced' => ['pdf'],
+            'renderer-engine-disallowed' => ['pdf'],
+            'writer-component-missing' => ['docx', 'odt', 'opendocument', 'epub2', 'ipynb', 'pptx', 'chunkedhtml', 'icml', 'pdf'],
+        ], $summary['unsupportedDiagnosticFormats']);
         $t->same(5, $summary['unsupportedGateCounts']['shared-zip-package-core']);
+        $t->same([
+            'chunked-html-package-writer-core' => ['chunkedhtml'],
+            'doctemplate-core' => ['icml'],
+            'docx-openxml-writer-core' => ['docx'],
+            'epub2-package-writer-core' => ['epub2'],
+            'icml-writer-core' => ['icml'],
+            'ipynb-notebook-writer-core' => ['ipynb'],
+            'odf-open-document-writer-core' => ['odt', 'opendocument'],
+            'opc-xml-relationships-core' => ['docx', 'pptx'],
+            'pdf-engine-handoff-core' => ['pdf'],
+            'pptx-openxml-writer-core' => ['pptx'],
+            'shared-zip-package-core' => ['docx', 'odt', 'epub2', 'pptx', 'chunkedhtml'],
+            'xml-html5-dom-core' => ['epub2', 'chunkedhtml'],
+        ], $summary['unsupportedGateFormats']);
         $t->same(['doc', 'ods', 'odp', 'zip'], $summary['unsupportedSourceAliasExtensions']);
         $t->same(['.docx', '.epub', '.fodt', '.icml', '.ipynb', '.odt', '.pdf', '.pptx'], $summary['unsupportedExtensionNames']);
 
