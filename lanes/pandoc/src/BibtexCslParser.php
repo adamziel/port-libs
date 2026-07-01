@@ -9,6 +9,24 @@ final class BibtexCslParser
     private const BIBLATEX_CUSTOM_FIELDS = ['usera', 'userb', 'userc', 'userd', 'usere', 'userf', 'verba', 'verbb', 'verbc'];
     private const BIBLATEX_CUSTOM_LIST_FIELDS = ['lista', 'listb', 'listc', 'listd', 'liste', 'listf'];
     private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
+    private const ORIGINAL_PUBLISHER_PLACE_FIELDS = [
+        'origlocation',
+        'orig-location',
+        'originallocation',
+        'original-location',
+        'origaddress',
+        'orig-address',
+        'originaladdress',
+        'original-address',
+        'origplace',
+        'orig-place',
+        'originalplace',
+        'original-place',
+        'originalpublisherplace',
+        'original-publisher-place',
+        'originalpublisherlocation',
+        'original-publisher-location',
+    ];
     private const BIBLATEX_NAME_ANNOTATION_FIELDS = [
         'author',
         'editor',
@@ -717,7 +735,7 @@ final class BibtexCslParser
         $publisherList = self::literalListFromFirstField($fields, ['publisher', 'institution', 'school', 'organization']);
         $publisherPlaceList = self::literalListFromFirstField($fields, self::publisherPlaceFieldNames($type, $fields));
         $originalPublisherList = self::literalListFromFirstField($fields, ['origpublisher', 'originalpublisher', 'original-publisher']);
-        $originalPublisherPlaceList = self::literalListFromFirstField($fields, ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place']);
+        $originalPublisherPlaceList = self::literalListFromFirstField($fields, self::ORIGINAL_PUBLISHER_PLACE_FIELDS);
         $languageList = self::literalListFromFirstField($fields, ['language']);
         $originalLanguageList = self::literalListFromFirstField($fields, ['origlanguage', 'originallanguage', 'original-language']);
         $eventPlaceList = self::literalListFromFirstField($fields, ['eventvenue', 'event-venue', 'eventlocation', 'event-location', 'eventplace', 'event-place', 'venue']);

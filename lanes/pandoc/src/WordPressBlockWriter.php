@@ -3467,11 +3467,6 @@ final class WordPressBlockWriter
 
     private function noteSourceLabel(AstNode $node): string
     {
-        // Keep legacy Markdown footnotes numeric; note-style CSL output needs source labels for reviewer handoff.
-        if (!$this->containsProcessedCslNoteCitation($node)) {
-            return '';
-        }
-
         foreach (['label', 'noteLabel'] as $attribute) {
             $label = $node->attr($attribute);
             if (!is_scalar($label)) {
@@ -3479,30 +3474,12 @@ final class WordPressBlockWriter
             }
 
             $label = trim(preg_replace('/\s+/', ' ', (string) $label) ?? (string) $label);
-            if ($this->isSafeFootnoteAnchorLabel($label)) {
+            if ($this->isSafeFootnoteAnchorLabel($label) && !ctype_digit($label)) {
                 return $label;
             }
         }
 
         return '';
-    }
-
-    private function containsProcessedCslNoteCitation(AstNode $node): bool
-    {
-        if (
-            $node->type === 'citation'
-            && (string) $node->attr('cslStyleClass', '') === 'note'
-        ) {
-            return true;
-        }
-
-        foreach ($node->children as $child) {
-            if ($this->containsProcessedCslNoteCitation($child)) {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private function isSafeFootnoteAnchorLabel(string $label): bool

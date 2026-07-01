@@ -6,6 +6,62 @@ namespace PortLibs\Pandoc;
 
 final class CitationCslProcessor
 {
+    /** @var list<string> */
+    private const ORIGINAL_PUBLISHER_PLACE_FIELDS = [
+        'original-publisher-place',
+        'originalPublisherPlace',
+        'originalpublisherplace',
+        'original-location',
+        'originalLocation',
+        'originallocation',
+        'origlocation',
+        'origLocation',
+        'orig-location',
+        'origaddress',
+        'origAddress',
+        'orig-address',
+        'originaladdress',
+        'originalAddress',
+        'original-address',
+        'origplace',
+        'origPlace',
+        'orig-place',
+        'originalplace',
+        'originalPlace',
+        'original-place',
+        'original-publisher-location',
+        'originalPublisherLocation',
+        'originalpublisherlocation',
+    ];
+
+    /** @var list<string> */
+    private const ORIGINAL_PUBLISHER_PLACE_LIST_FIELDS = [
+        'original-publisher-place-list',
+        'originalPublisherPlaceList',
+        'originalpublisherplacelist',
+        'original-location-list',
+        'originalLocationList',
+        'originallocationlist',
+        'origlocationlist',
+        'origLocationList',
+        'orig-location-list',
+        'origaddresslist',
+        'origAddressList',
+        'orig-address-list',
+        'originaladdresslist',
+        'originalAddressList',
+        'original-address-list',
+        'origplacelist',
+        'origPlaceList',
+        'orig-place-list',
+        'originalplacelist',
+        'originalPlaceList',
+        'original-place-list',
+        'original-publisher-location-list',
+        'originalPublisherLocationList',
+        'originalpublisherlocationlist',
+    ];
+
     /** @var array<string, array<string, mixed>> */
     private array $itemsById;
 
@@ -1169,7 +1225,7 @@ final class CitationCslProcessor
             'location',
         ]);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher', 'origPublisher']);
-        $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origLocation', 'origaddress', 'origAddress']);
+        $originalPublisherPlace = self::firstStringField($item, self::ORIGINAL_PUBLISHER_PLACE_FIELDS);
         $originalCollectionTitle = self::firstStringField($item, ['original-collection-title', 'originalCollectionTitle', 'originalcollectiontitle', 'origseries', 'origSeries', 'orig-series', 'original-series', 'originalSeries', 'originalseries']);
         $originalCollectionNumber = self::firstStringField($item, ['original-collection-number', 'originalCollectionNumber', 'originalcollectionnumber', 'origseriesnumber', 'origSeriesNumber', 'orig-series-number', 'original-series-number', 'originalSeriesNumber', 'originalseriesnumber']);
         $originalEdition = self::firstStringField($item, ['original-edition', 'originalEdition', 'originaledition', 'origedition', 'origEdition', 'orig-edition']);
@@ -1224,7 +1280,7 @@ final class CitationCslProcessor
             $publisherPlace = implode('; ', $publisherPlaceList);
         }
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist', 'origPublisherList']);
-        $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origLocationList', 'origaddresslist', 'origAddressList']);
+        $originalPublisherPlaceList = self::stringListFromFirstField($item, self::ORIGINAL_PUBLISHER_PLACE_LIST_FIELDS);
         $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList', 'languagelist']);
         $language = self::firstStringField($item, ['language', 'langid', 'language-id', 'languageId', 'languageid', 'hyphenation']);
         if ($language === '' && $languageList !== []) {
@@ -11426,9 +11482,9 @@ final class CitationCslProcessor
             'xref-keys' => implode(', ', is_array($item['xrefKeys'] ?? null) ? $item['xrefKeys'] : []),
             'missing-xref-keys' => implode(', ', is_array($item['missingXrefKeys'] ?? null) ? $item['missingXrefKeys'] : []),
             'original-publisher', 'originalpublisher', 'origpublisher' => (string) ($item['originalPublisher'] ?? ''),
-            'original-publisher-place', 'originalpublisherplace', 'origlocation', 'origaddress' => (string) ($item['originalPublisherPlace'] ?? ''),
+            'original-publisher-place', 'originalpublisherplace', 'original-location', 'originallocation', 'origlocation', 'orig-location', 'origaddress', 'orig-address', 'originaladdress', 'original-address', 'origplace', 'orig-place', 'originalplace', 'original-place', 'original-publisher-location', 'originalpublisherlocation' => (string) ($item['originalPublisherPlace'] ?? ''),
             'original-publisher-list', 'originalpublisherlist', 'origpublisherlist' => implode('; ', is_array($item['originalPublisherList'] ?? null) ? $item['originalPublisherList'] : []),
-            'original-publisher-place-list', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
+            'original-publisher-place-list', 'originalpublisherplacelist', 'original-location-list', 'originallocationlist', 'origlocationlist', 'orig-location-list', 'origaddresslist', 'orig-address-list', 'originaladdresslist', 'original-address-list', 'origplacelist', 'orig-place-list', 'originalplacelist', 'original-place-list', 'original-publisher-location-list', 'originalpublisherlocationlist' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'original-language', 'originallanguage', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),
             'original-language-list', 'originallanguagelist', 'origlanguagelist' => implode('; ', is_array($item['originalLanguageList'] ?? null) ? $item['originalLanguageList'] : []),
             'original-edition', 'originaledition', 'origedition', 'orig-edition' => (string) ($item['originalEdition'] ?? ''),
@@ -11696,7 +11752,7 @@ final class CitationCslProcessor
 
         return match ($variable) {
             'publisher-place', 'publisherplace', 'publisher-location', 'publisherlocation', 'publication-place', 'publicationplace', 'pubplace', 'address', 'location' => ['publisher-place', 'place'],
-            'archive-place', 'event-place', 'original-publisher-place' => [$variable, 'place'],
+            'archive-place', 'event-place', 'original-publisher-place', 'original-location', 'originallocation', 'origlocation', 'orig-location', 'origaddress', 'orig-address', 'originaladdress', 'original-address', 'origplace', 'orig-place', 'originalplace', 'original-place', 'original-publisher-location', 'originalpublisherlocation' => [$variable, 'place'],
             'publisher', 'institution', 'organization', 'school', 'original-publisher', 'authority', 'authority-list', 'authoritylist', 'issuing-authority', 'issuingauthority', 'issuing-authority-list', 'issuingauthoritylist' => [$variable, 'institution'],
             default => [$variable],
         };

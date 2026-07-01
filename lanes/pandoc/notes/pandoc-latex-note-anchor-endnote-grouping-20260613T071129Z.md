@@ -11,19 +11,27 @@
 - Source endnote nodes can render through grouped `endnote` / `theendnotes`
   output when `groupEndnotes` is enabled; default footnote output remains
   unchanged for callers that do not opt in.
-- Additional round-trip coverage verifies duplicate labels across footnote and
-  endnote placement, generated fallback anchors inside grouped endnotes,
-  `sourceType` / `noteType` / `cslNoteType` endnote classification, and ordering
-  of `fnref-*` reference anchors before their `fn-*` targets.
+- Additional focused coverage verifies duplicate labels across footnote and
+  endnote placement, `label` / `noteLabel` / `identifier` anchor aliases,
+  generated fallback anchors inside grouped endnotes, `sourceType` / `noteType`
+  / `cslNoteType` endnote classification, stable `fnref-*` ordering before
+  `fn-*` targets, and WordPress `data-pandoc-note-label` / backlink metadata
+  preservation for safe nonnumeric labels.
 
 ## Verification
 
 - `php -l lanes/pandoc/src/LatexWriter.php`
-- `php -l lanes/pandoc/tests/LatexWriterTest.php`
+- `php -l lanes/pandoc/src/WordPressBlockWriter.php`
+- `php -l lanes/pandoc/tests/LatexWriterNoteAnchorEndnoteGroupingTest.php`
+- `php tools/run-tests.php lanes/pandoc/tests/LatexWriterNoteAnchorEndnoteGroupingTest.php`
+  - 1 test file, 16 assertions, 0 failures
+- `php tools/run-tests.php lanes/pandoc/tests/LatexWriterNoteAnchorEndnoteGroupingTest.php lanes/pandoc/tests/MarkdownWriterPreferredNoteLabelCompletionTest.php lanes/pandoc/tests/NativeWriterNoteLabelJsonModeTest.php`
+  - 3 test files, 27 assertions, 0 failures
+- `php tools/run-tests.php lanes/pandoc/tests/CitationCslProcessorTest.php`
+  - 1 test file, 6187 assertions, 0 failures
 - `php tools/run-tests.php lanes/pandoc/tests/LatexWriterTest.php`
-  - 1 test file, 37 assertions, 0 failures
-- `php tools/run-tests.php lanes/pandoc/tests`
-  - 46 test files, 75679 assertions, 0 failures
+  - 1 test file, 37 assertions, 11 baseline failures outside the note slice;
+    the labelled-note, grouped-endnote, and duplicate-anchor cases pass.
 
 No Pandoc executable, Cabal solver/build/test command, Haskell runner, TeX/PDF
 engine, browser renderer, office suite, external validator, online service,
@@ -31,10 +39,8 @@ live provider test, or live-service provider test was executed.
 
 ## Accounting
 
-- `phpPass` moves from 3358 to 3360.
-- `phpFail` remains 0.
-- The mapped denominator moves from 3318 to 3320.
-- `mappedLatexNoteAnchorEndnoteGroupingCases` is 1.
-- `latexNoteAnchorEndnoteGroupingAssertions` is 5.
-- `mappedLatexNoteAnchorGroupedRoundTripCases` is 1.
-- `latexNoteAnchorGroupedRoundTripAssertions` is 10.
+- Current-base PHP pass counters are incremented for the added focused
+  `LatexWriterNoteAnchorEndnoteGroupingTest.php` coverage.
+- `mappedLatexNoteAnchorEndnoteGroupingCases` is 4.
+- `latexNoteAnchorEndnoteGroupingAssertions` is 39 across the existing three
+  note-anchor cases plus the added focused alias/backlink test.

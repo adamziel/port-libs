@@ -1802,13 +1802,13 @@ final class PandocJsonReader
             'Space' => new AstNode('space'),
             'SoftBreak' => new AstNode('softbreak'),
             'LineBreak' => new AstNode('linebreak'),
-            'Emph' => new AstNode('emph', [], $this->readInlines($this->listContent($content, 'Emph'))),
-            'Strong' => new AstNode('strong', [], $this->readInlines($this->listContent($content, 'Strong'))),
-            'Underline' => new AstNode('underline', [], $this->readInlines($this->listContent($content, 'Underline'))),
-            'Strikeout' => new AstNode('strikeout', [], $this->readInlines($this->listContent($content, 'Strikeout'))),
-            'Superscript' => new AstNode('superscript', [], $this->readInlines($this->listContent($content, 'Superscript'))),
-            'Subscript' => new AstNode('subscript', [], $this->readInlines($this->listContent($content, 'Subscript'))),
-            'SmallCaps' => new AstNode('small_caps', [], $this->readInlines($this->listContent($content, 'SmallCaps'))),
+            'Emph' => $this->readInlineContainer('emph', $content, 'Emph'),
+            'Strong' => $this->readInlineContainer('strong', $content, 'Strong'),
+            'Underline' => $this->readInlineContainer('underline', $content, 'Underline'),
+            'Strikeout' => $this->readInlineContainer('strikeout', $content, 'Strikeout'),
+            'Superscript' => $this->readInlineContainer('superscript', $content, 'Superscript'),
+            'Subscript' => $this->readInlineContainer('subscript', $content, 'Subscript'),
+            'SmallCaps' => $this->readInlineContainer('small_caps', $content, 'SmallCaps'),
             'Quoted' => $this->readQuotedInline($content),
             'Code' => $this->readCodeInline($content),
             'Math' => $this->readMathInline($content),
@@ -1816,12 +1816,21 @@ final class PandocJsonReader
             'Cite' => $this->readCiteInline($content),
             'Link' => $this->readTargetInline('link', $content),
             'Image' => $this->readTargetInline('image', $content),
-            'Note' => new AstNode('note', $this->noteAttrs($value), $this->readBlocks($this->listContent($content, 'Note'))),
+            'Note' => $this->readNoteInline($value, $content),
             'Span' => $this->readSpanInline($content),
             default => $this->nativeFallbackNode('native_inline', $tag, $value),
         };
 
         return $this->withConstructorPayload($node, $tag, $value);
+    }
+
+    private function readInlineContainer(string $type, mixed $content, string $context): AstNode
+    {
+        $inlinesNative = $this->listContent($content, $context);
+
+        return new AstNode($type, [
+            'inlineListNative' => $inlinesNative,
+        ], $this->readInlines($inlinesNative));
     }
 
     private function withConstructorPayload(AstNode $node, string $constructor, mixed $native): AstNode
@@ -1857,6 +1866,15 @@ final class PandocJsonReader
             && preg_match('/[\]\s]/u', $label) !== 1;
     }
 
+    private function readNoteInline(mixed $value, mixed $content): AstNode
+    {
+        $blocksNative = $this->listContent($content, 'Note');
+
+        return new AstNode('note', array_replace($this->noteAttrs($value), [
+            'noteBlocksNative' => $blocksNative,
+        ]), $this->readBlocks($blocksNative));
+    }
+
     private function nativeFallbackNode(string $type, string $constructor, mixed $native): AstNode
     {
         if (!is_array($native) || array_is_list($native)) {
@@ -1877,6 +1895,7 @@ final class PandocJsonReader
 
         return new AstNode('quoted', [
             'kind' => $this->quoteTypeFromConstructor($quoteTypeConstructor),
+            'inlineListNative' => $tuple[1],
             'quoteTypeConstructor' => $quoteTypeConstructor,
             'quoteTypeNative' => $quoteTypeNative,
         ], $this->readInlines($this->listContent($tuple[1], 'Quoted inlines')));
@@ -2107,6 +2126,7 @@ final class PandocJsonReader
 
         $label = $this->readInlines($this->listContent($labelContent, ucfirst($type) . ' label'));
         $targetAttrs = [
+            'inlineListNative' => $labelContent,
             'url' => $target[0],
             'title' => $target[1],
             'targetNative' => $targetNative,
@@ -2173,7 +2193,9 @@ final class PandocJsonReader
     {
         $tuple = $this->singleWrappedTuple($content, 2, 'Span');
 
-        return new AstNode('span', $this->readAttrTuple($tuple[0]), $this->readInlines($this->listContent($tuple[1], 'Span inlines')));
+        return new AstNode('span', array_replace($this->readAttrTuple($tuple[0]), [
+            'inlineListNative' => $tuple[1],
+        ]), $this->readInlines($this->listContent($tuple[1], 'Span inlines')));
     }
 
     /**

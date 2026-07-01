@@ -919,6 +919,7 @@ final class PdfEngineHandoff
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
      *     pdfHeaderVersion: string|null,
+     *     pdfByteBoundaryPolicy: array<string, mixed>,
      *     pdfHeaderPolicy: array{reviewStatus:string, headerOffset:int, headerLineBytes:int, headerLineTruncated:bool, headerVersion:string|null, knownVersion:bool|null, lineEnding:string, binaryCommentPresent:bool, binaryCommentOffset:int|null, binaryCommentBytes:int|null, firstBodyOffset:int|null, issues:list<string>}|array{},
      *     pdfCatalogVersion: string|null,
      *     pdfEffectiveVersion: string|null,
@@ -1945,6 +1946,7 @@ final class PdfEngineHandoff
         $pdfEncryptMetadata = null;
         $pdfEncryptionDefaultFilters = [];
         $pdfEncryptionCryptFilters = [];
+        $pdfByteBoundaryPolicy = [];
         if (is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-')) {
             if (strlen($pdfBytes) > self::MAX_PDF_OUTPUT_INSPECTION_BYTES) {
                 $diagnostics[] = 'pdf-byte-inspection-skipped:too-large';
@@ -5406,6 +5408,23 @@ final class PdfEngineHandoff
                 }
             }
         }
+        $pdfByteBoundaryPolicy = $this->pdfByteBoundaryPolicy(
+            $pdfHeaderPolicy,
+            $pdfEofMarkerPolicy,
+            $pdfStartXrefPolicy
+        );
+        if ($pdfByteBoundaryPolicy !== []) {
+            $diagnostics[] = 'pdf-byte-boundary-policy:' . $pdfByteBoundaryPolicy['reviewStatus'];
+            $diagnostics[] = 'pdf-byte-boundary-policies:' . $pdfByteBoundaryPolicy['presentPolicyCount'];
+            if (($pdfByteBoundaryPolicy['reviewPolicyCount'] ?? 0) > 0) {
+                $diagnostics[] = 'pdf-byte-boundary-review-policies:' . $pdfByteBoundaryPolicy['reviewPolicyCount'];
+            }
+            foreach (($pdfByteBoundaryPolicy['issueCounts'] ?? []) as $issue => $count) {
+                if (is_string($issue) && is_int($count) && $count > 0) {
+                    $diagnostics[] = 'pdf-byte-boundary-policy-issue:' . $issue . ':' . $count;
+                }
+            }
+        }
         if (
             is_string($pdfBytes)
             && str_starts_with($pdfBytes, '%PDF-')
@@ -5565,6 +5584,9 @@ final class PdfEngineHandoff
         if (($pdfHeaderPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'pdf-header-policy:' . $pdfHeaderPolicy['reviewStatus'];
         }
+        if (($pdfByteBoundaryPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'pdf-byte-boundary-policy:' . $pdfByteBoundaryPolicy['reviewStatus'];
+        }
         if (($sourceInput['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-source-input:' . $sourceInput['reviewStatus'];
         }
@@ -5598,6 +5620,7 @@ final class PdfEngineHandoff
             'handoffInputProvenance' => $handoffInputProvenance,
             'sourceSha256' => $sourceSha256,
             'pdfSha256' => is_string($pdfBytes) ? hash('sha256', $pdfBytes) : null,
+            'pdfByteBoundaryPolicy' => $pdfByteBoundaryPolicy,
             'pdfHeaderPolicy' => $pdfHeaderPolicy,
             'pdfEofMarkerPolicy' => $pdfEofMarkerPolicy,
             'pdfStartXrefPolicy' => $pdfStartXrefPolicy,
@@ -5700,6 +5723,7 @@ final class PdfEngineHandoff
             'declaredOutputPages' => $declaredOutput['pages'],
             'declaredOutputBytes' => $declaredOutput['bytes'],
             'pdfHeaderVersion' => $pdfHeaderVersion,
+            'pdfByteBoundaryPolicy' => $pdfByteBoundaryPolicy,
             'pdfHeaderPolicy' => $pdfHeaderPolicy,
             'pdfCatalogVersion' => $pdfCatalogVersion,
             'pdfEffectiveVersion' => $pdfEffectiveVersion,
@@ -5882,6 +5906,7 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputPages: int|null,
      *     finalDeclaredOutputBytes: int|null,
      *     finalPdfHeaderVersion: string|null,
+     *     finalPdfByteBoundaryPolicy: array<string, mixed>,
      *     finalPdfHeaderPolicy: array{reviewStatus:string, headerOffset:int, headerLineBytes:int, headerLineTruncated:bool, headerVersion:string|null, knownVersion:bool|null, lineEnding:string, binaryCommentPresent:bool, binaryCommentOffset:int|null, binaryCommentBytes:int|null, firstBodyOffset:int|null, issues:list<string>}|array{},
      *     finalPdfCatalogVersion: string|null,
      *     finalPdfEffectiveVersion: string|null,
@@ -6220,6 +6245,7 @@ final class PdfEngineHandoff
             'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
             'finalPdfHeaderVersion' => is_array($finalRun) && is_string($finalRun['pdfHeaderVersion'] ?? null) ? $finalRun['pdfHeaderVersion'] : null,
+            'finalPdfByteBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['pdfByteBoundaryPolicy'] ?? null) ? $finalRun['pdfByteBoundaryPolicy'] : [],
             'finalPdfHeaderPolicy' => is_array($finalRun) && is_array($finalRun['pdfHeaderPolicy'] ?? null) ? $finalRun['pdfHeaderPolicy'] : [],
             'finalPdfCatalogVersion' => is_array($finalRun) && is_string($finalRun['pdfCatalogVersion'] ?? null) ? $finalRun['pdfCatalogVersion'] : null,
             'finalPdfEffectiveVersion' => is_array($finalRun) && is_string($finalRun['pdfEffectiveVersion'] ?? null) ? $finalRun['pdfEffectiveVersion'] : null,
@@ -14865,6 +14891,89 @@ final class PdfEngineHandoff
             'trailingNonWhitespaceByteCount' => $trailingNonWhitespaceByteCount,
             'completeTrailer' => $completeTrailer,
             'repeatedEofMarker' => $count > 1,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $headerPolicy
+     * @param array<string, mixed> $eofMarkerPolicy
+     * @param array<string, mixed> $startXrefPolicy
+     * @return array{
+     *     reviewStatus:string,
+     *     policyCount:int,
+     *     presentPolicyCount:int,
+     *     missingPolicyCount:int,
+     *     reviewPolicyCount:int,
+     *     policyStatuses:array<string, string>,
+     *     policyStatusCounts:array<string, int>,
+     *     issueCount:int,
+     *     issueCounts:array<string, int>,
+     *     issues:list<string>
+     * }|array{}
+     */
+    private function pdfByteBoundaryPolicy(array $headerPolicy, array $eofMarkerPolicy, array $startXrefPolicy): array
+    {
+        $policies = [
+            'header' => $headerPolicy,
+            'eof-marker' => $eofMarkerPolicy,
+            'startxref' => $startXrefPolicy,
+        ];
+        $policyStatuses = [];
+        $policyStatusCounts = [];
+        $issueCounts = [];
+        $issues = [];
+        $presentPolicyCount = 0;
+        $reviewPolicyCount = 0;
+
+        foreach ($policies as $policyName => $policy) {
+            if ($policy === []) {
+                $policyStatuses[$policyName] = 'missing';
+                continue;
+            }
+
+            ++$presentPolicyCount;
+            $reviewStatus = is_string($policy['reviewStatus'] ?? null) && $policy['reviewStatus'] !== ''
+                ? $policy['reviewStatus']
+                : 'review';
+            $policyStatuses[$policyName] = $reviewStatus;
+            $policyStatusCounts[$reviewStatus] = ($policyStatusCounts[$reviewStatus] ?? 0) + 1;
+            if ($reviewStatus !== 'ok') {
+                ++$reviewPolicyCount;
+            }
+
+            foreach (is_array($policy['issues'] ?? null) ? $policy['issues'] : [] as $issue) {
+                if (!is_string($issue) || $issue === '') {
+                    continue;
+                }
+
+                $issueKey = $policyName . ':' . $issue;
+                $issueCounts[$issueKey] = ($issueCounts[$issueKey] ?? 0) + 1;
+                if (!in_array($issueKey, $issues, true)) {
+                    $issues[] = $issueKey;
+                }
+            }
+        }
+
+        if ($presentPolicyCount === 0) {
+            return [];
+        }
+
+        ksort($policyStatuses, SORT_STRING);
+        ksort($policyStatusCounts, SORT_STRING);
+        ksort($issueCounts, SORT_STRING);
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $reviewPolicyCount === 0 ? 'ok' : 'review',
+            'policyCount' => count($policies),
+            'presentPolicyCount' => $presentPolicyCount,
+            'missingPolicyCount' => count($policies) - $presentPolicyCount,
+            'reviewPolicyCount' => $reviewPolicyCount,
+            'policyStatuses' => $policyStatuses,
+            'policyStatusCounts' => $policyStatusCounts,
+            'issueCount' => array_sum($issueCounts),
+            'issueCounts' => $issueCounts,
             'issues' => $issues,
         ];
     }
