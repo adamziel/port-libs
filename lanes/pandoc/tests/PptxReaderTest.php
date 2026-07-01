@@ -2480,21 +2480,31 @@ return [
         $t->contains('Link ( "" , [  ] , [  ] ) [ Str "Open" , Space , Str "the" , Space , Str "text" , Space , Str "box" ] ( "https://example.test/text-box" , "Open text box" )', $native);
     },
 
-    'reads text and images inside grouped pptx shapes' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
+    'skips grouped pptx shapes to match upstream reader output' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildGroupedShapesPptxPackage());
         $review = $document->attr('pptx');
         $paragraphs = $nodesOfType($document, 'paragraph');
         $images = $nodesOfType($document, 'image');
         $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+        $issue = $review['slides'][0]['shapeIssues'][0] ?? [];
 
-        $t->same(true, in_array('Grouped body', $texts, true));
-        $t->same(true, in_array('Nested grouped body', $texts, true));
-        $t->same(1, count($images));
-        $t->same('ppt/media/grouped.png', $images[0]->attr('url'));
-        $t->same('Grouped Picture', $images[0]->attr('title'));
-        $t->same('Grouped alt', $images[0]->attr('alt'));
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Grouped slide', $document->children[0]->attr('text'));
+        $t->same(false, in_array('Grouped body', $texts, true));
+        $t->same(false, in_array('Nested grouped body', $texts, true));
+        $t->same(0, count($images));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
         $t->same([], $review['slides'][0]['imageIssues'] ?? null);
+        $t->same(1, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->same('unsupported-drawable-shape', $issue['issue'] ?? null);
+        $t->same('grpSp', $issue['element'] ?? null);
+        $t->same('10', $issue['id'] ?? null);
+        $t->same('Group 1', $issue['name'] ?? null);
+        $t->same(['x' => 100, 'y' => 200, 'cx' => 300, 'cy' => 400], $issue['layout'] ?? null);
+        $t->true(!str_contains($native, 'Grouped body'), 'Grouped child text should stay out of upstream-compatible output');
+        $t->true(!str_contains($native, 'Nested grouped body'), 'Nested grouped child text should stay out of upstream-compatible output');
+        $t->true(!str_contains($native, 'Grouped Picture'), 'Grouped child picture should stay out of upstream-compatible output');
     },
 
     'records unsupported pptx connector shapes without fabricating content' => static function (TestRunner $t) use ($buildUnsupportedConnectorPptxPackage, $nodesOfType): void {
