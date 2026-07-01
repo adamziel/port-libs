@@ -374,6 +374,66 @@ XML);
         $t->same('paragraph', $document->children[0]->type);
         $t->same('Missing parent and known parent.', $document->children[0]->attr('text'));
     },
+    'reports direct odt parent style cycle diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <style:style style:name="CycleA" style:family="text" style:parent-style-name="CycleB"/>
+    <style:style style:name="CycleB" style:family="text" style:parent-style-name="CycleC"/>
+    <style:style style:name="CycleC" style:family="text" style:parent-style-name="CycleA"/>
+    <style:style style:name="PlainText" style:family="text"/>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="CycleA">Cyclic style</text:span> and <text:span text:style-name="PlainText">plain style</text:span>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnostic = $meta['odtStyleDiagnostics'][0];
+
+        $t->same(4, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtStyleDiagnosticCount']);
+        $t->same(['odt-style-parent-cycle' => 1], $meta['odtStyleDiagnosticCodeCounts']);
+        $t->same('styles.xml', $diagnostic['sourcePart']);
+        $t->same('style:style', $diagnostic['element']);
+        $t->same('CycleA', $diagnostic['styleName']);
+        $t->same('CycleB', $diagnostic['parentStyleName']);
+        $t->same('text', $diagnostic['family']);
+        $t->same(['CycleA', 'CycleB', 'CycleC'], $diagnostic['styleNames']);
+        $t->same(['CycleA', 'CycleB', 'CycleC', 'CycleA'], $diagnostic['cyclePath']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Cyclic style and plain style.', $document->children[0]->attr('text'));
+    },
     'reports direct odt missing next style diagnostics' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {

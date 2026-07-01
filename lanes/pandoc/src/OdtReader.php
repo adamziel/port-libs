@@ -126,6 +126,7 @@ final class OdtReader
         $this->appendListStyleDuplicateDiagnostics($listStyles, $contentListStyles);
         $this->listStyles = array_replace_recursive($listStyles, $contentListStyles);
         array_push($this->styleDiagnostics, ...$this->styleReferenceDiagnostics($this->styleDefinitions, $this->listStyles, $fontFaces));
+        array_push($this->styleDiagnostics, ...$this->styleParentCycleDiagnostics($this->styleDefinitions));
         array_push($this->styleDiagnostics, ...$this->contentStyleReferenceDiagnostics($content));
 
         $metadata = $meta_xml !== '' ? $this->metadata($this->loadXml($meta_xml, 'ODT meta.xml')) : [];
@@ -819,6 +820,72 @@ final class OdtReader
             $diagnostic['family'] = $family;
         }
         $diagnostics[] = $diagnostic;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return list<array<string, mixed>>
+     */
+    private function styleParentCycleDiagnostics(array $styles): array
+    {
+        $diagnostics = [];
+        $reported = [];
+
+        foreach (array_keys($styles) as $styleName) {
+            $path = [];
+            $positions = [];
+            $current = $styleName;
+
+            while ($current !== '' && isset($styles[$current])) {
+                if (isset($positions[$current])) {
+                    $cycle = array_slice($path, $positions[$current]);
+                    $cycle[] = $current;
+                    $members = array_slice($cycle, 0, -1);
+                    $keyParts = $members;
+                    sort($keyParts);
+                    $key = implode("\0", $keyParts);
+                    if (isset($reported[$key])) {
+                        break;
+                    }
+
+                    $reported[$key] = true;
+                    $firstStyleName = (string) ($members[0] ?? $styleName);
+                    $firstStyle = $styles[$firstStyleName] ?? [];
+                    $diagnostic = [
+                        'code' => 'odt-style-parent-cycle',
+                        'styleName' => $firstStyleName,
+                        'styleNames' => $members,
+                        'cyclePath' => $cycle,
+                    ];
+                    $sourcePart = (string) ($firstStyle['sourcePart'] ?? '');
+                    if ($sourcePart !== '') {
+                        $diagnostic['sourcePart'] = $sourcePart;
+                    }
+                    $element = (string) ($firstStyle['element'] ?? '');
+                    if ($element !== '') {
+                        $diagnostic['element'] = $element;
+                    }
+                    $family = (string) ($firstStyle['family'] ?? '');
+                    if ($family !== '') {
+                        $diagnostic['family'] = $family;
+                    }
+                    $parentStyleName = (string) ($firstStyle['parentName'] ?? '');
+                    if ($parentStyleName !== '') {
+                        $diagnostic['parentStyleName'] = $parentStyleName;
+                    }
+                    $diagnostics[] = $diagnostic;
+
+                    break;
+                }
+
+                $positions[$current] = count($path);
+                $path[] = $current;
+                $parentName = $styles[$current]['parentName'] ?? '';
+                $current = is_string($parentName) ? $parentName : '';
+            }
+        }
+
+        return $diagnostics;
     }
 
     /**
