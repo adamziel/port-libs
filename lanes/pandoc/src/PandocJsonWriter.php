@@ -498,7 +498,11 @@ final class PandocJsonWriter
 
     private function singleWrappedMetaContent(mixed $content): mixed
     {
-        return is_array($content) && array_is_list($content) && count($content) === 1 ? $content[0] : $content;
+        while (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
+        }
+
+        return $content;
     }
 
     private function singleWrappedMetaListContent(mixed $content): mixed
