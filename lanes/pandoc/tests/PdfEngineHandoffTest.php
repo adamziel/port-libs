@@ -7545,6 +7545,92 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'preserves typst bundle export boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $missingFeaturePlan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/bundle-missing-feature.pdf',
+            'source' => '= Typst Bundle Missing Feature Packet',
+            'engineOptions' => ['--format=bundle'],
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/bundle-boundary.pdf',
+            'source' => '= Typst Bundle Boundary Packet',
+            'engineOptions' => [
+                '--features=bundle,html',
+                '--format=bundle',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst bundle boundary packet\n%%EOF\n";
+        $expectedBundle = [
+            'reviewStatus' => 'review',
+            'enabled' => true,
+            'format' => 'bundle',
+            'featureEnabled' => true,
+            'featureSource' => 'engine-option',
+            'featureCount' => 2,
+            'features' => ['bundle', 'html'],
+            'multiFileOutput' => true,
+            'assetOutputPossible' => true,
+            'issues' => ['bundle-output-multi-file-boundary'],
+        ];
+        $expectedBundleDetails = [
+            'enabled' => true,
+            'format' => 'bundle',
+            'featureEnabled' => true,
+            'featureSource' => 'engine-option',
+            'featureCount' => 2,
+            'multiFileOutput' => true,
+            'assetOutputPossible' => true,
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/bundle-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/bundle-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same([
+            'bundle-output-multi-file-boundary',
+            'bundle-feature-gate-missing',
+        ], $missingFeaturePlan['typstBoundaryProvenance']['bundleExport']['issues']);
+        $t->contains('typst-bundle-export-feature:missing', implode(',', $missingFeaturePlan['diagnostics']));
+        $t->same('review', $plan['typstBoundaryProvenance']['reviewStatus']);
+        $t->same([
+            'explicit-format-not-pdf:bundle',
+            'bundle-output-multi-file-boundary',
+        ], $plan['typstBoundaryProvenance']['issues']);
+        $t->same($expectedBundle, $plan['typstBoundaryProvenance']['bundleExport']);
+        $t->contains('typst-bundle-export:enabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-bundle-export-feature:enabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-bundle-export-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(['feature-gates', 'output-format', 'bundle-export'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same($expectedBundleDetails, $cases['bundle-export']['details']);
+        $t->same(['bundle-output-multi-file-boundary'], $cases['bundle-export']['issues']);
+        $t->contains('bundle-export:bundle-output-multi-file-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedBundle, $result['typstBoundaryProvenance']['bundleExport']);
+        $t->same($expectedBundle, $result['artifactProvenanceReview']['typstBoundaryProvenance']['bundleExport']);
+        $t->same($plan['typstBoundaryMatrix'], $result['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($expectedBundle, $sequence['finalTypstBoundaryProvenance']['bundleExport']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'fake runner preserves typst output format history boundary provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [

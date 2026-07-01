@@ -535,6 +535,18 @@ final class PdfEngineHandoff
                     }
                 }
             }
+            if (($typstBoundaryProvenance['bundleExport'] ?? []) !== []) {
+                $bundleExport = $typstBoundaryProvenance['bundleExport'];
+                if (is_array($bundleExport) && ($bundleExport['enabled'] ?? false) === true) {
+                    $diagnostics[] = 'typst-bundle-export:enabled';
+                }
+                if (is_array($bundleExport)) {
+                    $diagnostics[] = 'typst-bundle-export-feature:' . (($bundleExport['featureEnabled'] ?? false) === true ? 'enabled' : 'missing');
+                }
+                if (is_array($bundleExport) && ($bundleExport['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-bundle-export-issues:' . count($bundleExport['issues']);
+                }
+            }
             if (($typstBoundaryProvenance['pdfExport'] ?? []) !== []) {
                 $pdfExport = $typstBoundaryProvenance['pdfExport'];
                 if (is_array($pdfExport) && is_array($pdfExport['pageSelection'] ?? null)) {
@@ -7350,6 +7362,7 @@ final class PdfEngineHandoff
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
         $outputFormatPolicy = $this->typstOutputFormatBoundaryPolicy($outputFormatHistory, $overrides);
+        $bundleExportPolicy = $this->typstBundleExportPolicy($outputFormat, $featureGates);
         $pdfTagIssues = [];
         if ($noPdfTagsCount > 0 && $this->typstPdfStandardRequestsPdfUa($pdfStandard)) {
             $pdfTagIssues[] = 'pdf-tags-disabled-for-pdfua';
@@ -7376,6 +7389,9 @@ final class PdfEngineHandoff
             $issues[] = $issue;
         }
         foreach (($pdfStandardPolicy['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
+        foreach (($bundleExportPolicy['issues'] ?? []) as $issue) {
             $issues[] = $issue;
         }
         foreach (($creationTimestampEnvironmentShadow['issues'] ?? []) as $issue) {
@@ -7515,6 +7531,9 @@ final class PdfEngineHandoff
         if ($outputFormat !== null) {
             $provenance['outputFormat'] = $outputFormat;
             $provenance['outputFormatPolicy'] = $outputFormatPolicy;
+        }
+        if ($bundleExportPolicy !== []) {
+            $provenance['bundleExport'] = $bundleExportPolicy;
         }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
@@ -7700,6 +7719,43 @@ final class PdfEngineHandoff
             'distinctFormats' => $distinctFormats,
             'formatEntryCount' => count($formatHistory),
             'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
+     * @param array{format?: string, raw?: string}|null $outputFormat
+     * @param array{features?: list<string>, source?: string}|null $featureGates
+     * @return array{reviewStatus:string, enabled:bool, format:string, featureEnabled:bool, featureSource:string|null, featureCount:int, features:list<string>, multiFileOutput:bool, assetOutputPossible:bool, issues:list<string>}|array{}
+     */
+    private function typstBundleExportPolicy(?array $outputFormat, ?array $featureGates): array
+    {
+        if (($outputFormat['format'] ?? null) !== 'bundle') {
+            return [];
+        }
+
+        $features = array_values(array_filter(
+            is_array($featureGates['features'] ?? null) ? $featureGates['features'] : [],
+            static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+        ));
+        $featureEnabled = in_array('bundle', $features, true);
+        $issues = ['bundle-output-multi-file-boundary'];
+        if (!$featureEnabled) {
+            $issues[] = 'bundle-feature-gate-missing';
+        }
+
+        return [
+            'reviewStatus' => 'review',
+            'enabled' => true,
+            'format' => 'bundle',
+            'featureEnabled' => $featureEnabled,
+            'featureSource' => $featureEnabled
+                ? (is_string($featureGates['source'] ?? null) ? $featureGates['source'] : 'engine-option')
+                : null,
+            'featureCount' => count($features),
+            'features' => $features,
+            'multiFileOutput' => true,
+            'assetOutputPossible' => true,
+            'issues' => $issues,
         ];
     }
 
@@ -8200,6 +8256,20 @@ final class PdfEngineHandoff
                 'explicitFormat' => is_string($formatPolicy['explicitFormat'] ?? null) ? $formatPolicy['explicitFormat'] : null,
                 'distinctFormats' => $distinctFormats,
             ], $formatIssues);
+        }
+
+        $bundleExport = is_array($provenance['bundleExport'] ?? null) ? $provenance['bundleExport'] : [];
+        if ($bundleExport !== []) {
+            $bundleExportIssues = is_array($bundleExport['issues'] ?? null) ? $bundleExport['issues'] : [];
+            $appendCase('bundle-export', $bundleExportIssues === [] ? 'ok' : 'review', 1, [
+                'enabled' => ($bundleExport['enabled'] ?? false) === true,
+                'format' => is_string($bundleExport['format'] ?? null) ? $bundleExport['format'] : null,
+                'featureEnabled' => ($bundleExport['featureEnabled'] ?? false) === true,
+                'featureSource' => is_string($bundleExport['featureSource'] ?? null) ? $bundleExport['featureSource'] : null,
+                'featureCount' => is_int($bundleExport['featureCount'] ?? null) ? $bundleExport['featureCount'] : 0,
+                'multiFileOutput' => ($bundleExport['multiFileOutput'] ?? false) === true,
+                'assetOutputPossible' => ($bundleExport['assetOutputPossible'] ?? false) === true,
+            ], $bundleExportIssues);
         }
 
         $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
