@@ -1831,6 +1831,11 @@ final class OdfReader
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
             $packagePathShape = self::packagePathShape($entry->name, $entry->isDirectory());
+            $packageBasename = is_string($packagePathShape['basename'] ?? null) ? $packagePathShape['basename'] : null;
+            $packageBasenameStem = is_string($packageBasename) && $packageBasename !== ''
+                ? self::packagePartBasenameStem($packageBasename)
+                : null;
+            $packageCaseFoldedBasenameStem = is_string($packageBasenameStem) ? strtolower($packageBasenameStem) : null;
             $packageArea = self::packagePathAreaFromShape($packagePathShape);
             $packagePathDepth = self::packagePathDepthFromShape($packagePathShape);
             $packagePathByteLength = strlen($entry->name);
@@ -1895,7 +1900,9 @@ final class OdfReader
                 'packageDirectoryBaseName' => $packagePathShape['directoryBaseName'] ?? null,
                 'packageDirectoryBaseNameStem' => $packagePathShape['directoryBaseNameStem'] ?? null,
                 'packageCaseFoldDirectoryBaseNameStem' => $packagePathShape['caseFoldDirectoryBaseNameStem'] ?? null,
-                'packageBasename' => $packagePathShape['basename'] ?? null,
+                'packageBasename' => $packageBasename,
+                'packageBasenameStem' => $packageBasenameStem,
+                'packageCaseFoldedBasenameStem' => $packageCaseFoldedBasenameStem,
                 'packageArea' => $packageArea,
                 'packagePathDepth' => $packagePathDepth,
                 'packagePathByteLength' => $packagePathByteLength,
@@ -2299,11 +2306,16 @@ final class OdfReader
             'packageBasenameCounts' => $packagePartBasenames['packageBasenameCounts'],
             'entryNamesByPackageBasename' => $packagePartBasenames['entryNamesByPackageBasename'],
             'packageBasenameStemCounts' => $packagePartBasenames['packageBasenameStemCounts'],
+            'packageCaseFoldedBasenameStemCounts' => $packagePartBasenames['packageCaseFoldedBasenameStemCounts'],
+            'entryNamesByPackageCaseFoldedBasenameStem' => $packagePartBasenames['entryNamesByPackageCaseFoldedBasenameStem'],
             'packageCaseFoldedBasenameCounts' => $packagePartBasenames['packageCaseFoldedBasenameCounts'],
             'entryNamesByPackageCaseFoldedBasename' => $packagePartBasenames['entryNamesByPackageCaseFoldedBasename'],
             'duplicatePackageBasenameCount' => $packagePartBasenames['duplicatePackageBasenameCount'],
             'duplicatePackageBasenameEntryCount' => $packagePartBasenames['duplicatePackageBasenameEntryCount'],
             'duplicatePackageBasenameSummaries' => $packagePartBasenames['duplicatePackageBasenameSummaries'],
+            'caseFoldedPackageBasenameStemDuplicateCount' => $packagePartBasenames['caseFoldedPackageBasenameStemDuplicateCount'],
+            'caseFoldedPackageBasenameStemDuplicateEntryCount' => $packagePartBasenames['caseFoldedPackageBasenameStemDuplicateEntryCount'],
+            'caseFoldedPackageBasenameStemDuplicateSummaries' => $packagePartBasenames['caseFoldedPackageBasenameStemDuplicateSummaries'],
             'caseFoldedPackageBasenameDuplicateCount' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateCount'],
             'caseFoldedPackageBasenameDuplicateEntryCount' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateEntryCount'],
             'caseFoldedPackageBasenameDuplicateSummaries' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateSummaries'],
@@ -3385,6 +3397,8 @@ final class OdfReader
                 'packageDirectoryBaseNameStem' => $item['packageDirectoryBaseNameStem'] ?? null,
                 'packageCaseFoldDirectoryBaseNameStem' => $item['packageCaseFoldDirectoryBaseNameStem'] ?? null,
                 'packageBasename' => $item['packageBasename'] ?? null,
+                'packageBasenameStem' => $item['packageBasenameStem'] ?? null,
+                'packageCaseFoldedBasenameStem' => $item['packageCaseFoldedBasenameStem'] ?? null,
                 'packageArea' => $item['packageArea'] ?? null,
                 'packagePathDepth' => $item['packagePathDepth'] ?? null,
                 'packagePathByteLength' => $item['packagePathByteLength'] ?? null,
@@ -3719,11 +3733,16 @@ final class OdfReader
             'packageBasenameCounts' => $provenance['packageBasenameCounts'] ?? [],
             'entryNamesByPackageBasename' => $provenance['entryNamesByPackageBasename'] ?? [],
             'packageBasenameStemCounts' => $provenance['packageBasenameStemCounts'] ?? [],
+            'packageCaseFoldedBasenameStemCounts' => $provenance['packageCaseFoldedBasenameStemCounts'] ?? [],
+            'entryNamesByPackageCaseFoldedBasenameStem' => $provenance['entryNamesByPackageCaseFoldedBasenameStem'] ?? [],
             'packageCaseFoldedBasenameCounts' => $provenance['packageCaseFoldedBasenameCounts'] ?? [],
             'entryNamesByPackageCaseFoldedBasename' => $provenance['entryNamesByPackageCaseFoldedBasename'] ?? [],
             'duplicatePackageBasenameCount' => $provenance['duplicatePackageBasenameCount'] ?? 0,
             'duplicatePackageBasenameEntryCount' => $provenance['duplicatePackageBasenameEntryCount'] ?? 0,
             'duplicatePackageBasenameSummaries' => $provenance['duplicatePackageBasenameSummaries'] ?? [],
+            'caseFoldedPackageBasenameStemDuplicateCount' => $provenance['caseFoldedPackageBasenameStemDuplicateCount'] ?? 0,
+            'caseFoldedPackageBasenameStemDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameStemDuplicateEntryCount'] ?? 0,
+            'caseFoldedPackageBasenameStemDuplicateSummaries' => $provenance['caseFoldedPackageBasenameStemDuplicateSummaries'] ?? [],
             'caseFoldedPackageBasenameDuplicateCount' => $provenance['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateSummaries' => $provenance['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
@@ -4089,11 +4108,16 @@ final class OdfReader
             'packageBasenameCounts' => $provenance['packageBasenameCounts'] ?? [],
             'entryNamesByPackageBasename' => $provenance['entryNamesByPackageBasename'] ?? [],
             'packageBasenameStemCounts' => $provenance['packageBasenameStemCounts'] ?? [],
+            'packageCaseFoldedBasenameStemCounts' => $provenance['packageCaseFoldedBasenameStemCounts'] ?? [],
+            'entryNamesByPackageCaseFoldedBasenameStem' => $provenance['entryNamesByPackageCaseFoldedBasenameStem'] ?? [],
             'packageCaseFoldedBasenameCounts' => $provenance['packageCaseFoldedBasenameCounts'] ?? [],
             'entryNamesByPackageCaseFoldedBasename' => $provenance['entryNamesByPackageCaseFoldedBasename'] ?? [],
             'duplicatePackageBasenameCount' => $provenance['duplicatePackageBasenameCount'] ?? 0,
             'duplicatePackageBasenameEntryCount' => $provenance['duplicatePackageBasenameEntryCount'] ?? 0,
             'duplicatePackageBasenameSummaries' => $provenance['duplicatePackageBasenameSummaries'] ?? [],
+            'caseFoldedPackageBasenameStemDuplicateCount' => $provenance['caseFoldedPackageBasenameStemDuplicateCount'] ?? 0,
+            'caseFoldedPackageBasenameStemDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameStemDuplicateEntryCount'] ?? 0,
+            'caseFoldedPackageBasenameStemDuplicateSummaries' => $provenance['caseFoldedPackageBasenameStemDuplicateSummaries'] ?? [],
             'caseFoldedPackageBasenameDuplicateCount' => $provenance['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateSummaries' => $provenance['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
@@ -4809,11 +4833,16 @@ final class OdfReader
      *     packageBasenameCounts:array<string, int>,
      *     entryNamesByPackageBasename:array<string, list<string>>,
      *     packageBasenameStemCounts:array<string, int>,
+     *     packageCaseFoldedBasenameStemCounts:array<string, int>,
+     *     entryNamesByPackageCaseFoldedBasenameStem:array<string, list<string>>,
      *     packageCaseFoldedBasenameCounts:array<string, int>,
      *     entryNamesByPackageCaseFoldedBasename:array<string, list<string>>,
      *     duplicatePackageBasenameCount:int,
      *     duplicatePackageBasenameEntryCount:int,
      *     duplicatePackageBasenameSummaries:list<array<string, mixed>>,
+     *     caseFoldedPackageBasenameStemDuplicateCount:int,
+     *     caseFoldedPackageBasenameStemDuplicateEntryCount:int,
+     *     caseFoldedPackageBasenameStemDuplicateSummaries:list<array<string, mixed>>,
      *     caseFoldedPackageBasenameDuplicateCount:int,
      *     caseFoldedPackageBasenameDuplicateEntryCount:int,
      *     caseFoldedPackageBasenameDuplicateSummaries:list<array<string, mixed>>
@@ -4824,6 +4853,10 @@ final class OdfReader
         $basenameCounts = [];
         $entryNamesByBasename = [];
         $stemCounts = [];
+        $caseFoldedStemCounts = [];
+        $entryNamesByCaseFoldedStem = [];
+        $stemsByCaseFoldedStem = [];
+        $basenamesByCaseFoldedStem = [];
         $caseFoldedBasenameCounts = [];
         $entryNamesByCaseFoldedBasename = [];
         $basenamesByCaseFoldedBasename = [];
@@ -4841,9 +4874,14 @@ final class OdfReader
 
             $stem = self::packagePartBasenameStem($basename);
             $caseFoldKey = strtolower($basename);
+            $caseFoldStemKey = strtolower($stem);
             $basenameCounts[$basename] = ($basenameCounts[$basename] ?? 0) + 1;
             $entryNamesByBasename[$basename][] = $path;
             $stemCounts[$stem] = ($stemCounts[$stem] ?? 0) + 1;
+            $caseFoldedStemCounts[$caseFoldStemKey] = ($caseFoldedStemCounts[$caseFoldStemKey] ?? 0) + 1;
+            $entryNamesByCaseFoldedStem[$caseFoldStemKey][] = $path;
+            $stemsByCaseFoldedStem[$caseFoldStemKey][$stem] = true;
+            $basenamesByCaseFoldedStem[$caseFoldStemKey][$basename] = true;
             $caseFoldedBasenameCounts[$caseFoldKey] = ($caseFoldedBasenameCounts[$caseFoldKey] ?? 0) + 1;
             $entryNamesByCaseFoldedBasename[$caseFoldKey][] = $path;
             $basenamesByCaseFoldedBasename[$caseFoldKey][$basename] = true;
@@ -4856,6 +4894,14 @@ final class OdfReader
             $entryNamesByBasename[$basename] = $names;
         }
         ksort($stemCounts, SORT_STRING);
+        ksort($caseFoldedStemCounts, SORT_STRING);
+        ksort($entryNamesByCaseFoldedStem, SORT_STRING);
+        foreach ($entryNamesByCaseFoldedStem as $caseFoldStemKey => $names) {
+            sort($names, SORT_STRING);
+            $entryNamesByCaseFoldedStem[$caseFoldStemKey] = $names;
+        }
+        ksort($stemsByCaseFoldedStem, SORT_STRING);
+        ksort($basenamesByCaseFoldedStem, SORT_STRING);
         ksort($caseFoldedBasenameCounts, SORT_STRING);
         ksort($entryNamesByCaseFoldedBasename, SORT_STRING);
         foreach ($entryNamesByCaseFoldedBasename as $caseFoldKey => $names) {
@@ -4875,6 +4921,27 @@ final class OdfReader
             $duplicateSummaries[] = [
                 'packageBasename' => $basename,
                 'entryCount' => count($names),
+                'entryNames' => $names,
+            ];
+        }
+
+        $caseFoldedStemDuplicateSummaries = [];
+        $caseFoldedStemDuplicateEntryCount = 0;
+        foreach ($entryNamesByCaseFoldedStem as $caseFoldStemKey => $names) {
+            if (count($names) < 2) {
+                continue;
+            }
+
+            $stems = array_keys($stemsByCaseFoldedStem[$caseFoldStemKey] ?? []);
+            $basenames = array_keys($basenamesByCaseFoldedStem[$caseFoldStemKey] ?? []);
+            sort($stems, SORT_STRING);
+            sort($basenames, SORT_STRING);
+            $caseFoldedStemDuplicateEntryCount += count($names);
+            $caseFoldedStemDuplicateSummaries[] = [
+                'caseFoldStemKey' => $caseFoldStemKey,
+                'entryCount' => count($names),
+                'packageBasenameStems' => $stems,
+                'packageBasenames' => $basenames,
                 'entryNames' => $names,
             ];
         }
@@ -4901,11 +4968,16 @@ final class OdfReader
             'packageBasenameCounts' => $basenameCounts,
             'entryNamesByPackageBasename' => $entryNamesByBasename,
             'packageBasenameStemCounts' => $stemCounts,
+            'packageCaseFoldedBasenameStemCounts' => $caseFoldedStemCounts,
+            'entryNamesByPackageCaseFoldedBasenameStem' => $entryNamesByCaseFoldedStem,
             'packageCaseFoldedBasenameCounts' => $caseFoldedBasenameCounts,
             'entryNamesByPackageCaseFoldedBasename' => $entryNamesByCaseFoldedBasename,
             'duplicatePackageBasenameCount' => count($duplicateSummaries),
             'duplicatePackageBasenameEntryCount' => $duplicateEntryCount,
             'duplicatePackageBasenameSummaries' => $duplicateSummaries,
+            'caseFoldedPackageBasenameStemDuplicateCount' => count($caseFoldedStemDuplicateSummaries),
+            'caseFoldedPackageBasenameStemDuplicateEntryCount' => $caseFoldedStemDuplicateEntryCount,
+            'caseFoldedPackageBasenameStemDuplicateSummaries' => $caseFoldedStemDuplicateSummaries,
             'caseFoldedPackageBasenameDuplicateCount' => count($caseFoldedDuplicateSummaries),
             'caseFoldedPackageBasenameDuplicateEntryCount' => $caseFoldedDuplicateEntryCount,
             'caseFoldedPackageBasenameDuplicateSummaries' => $caseFoldedDuplicateSummaries,

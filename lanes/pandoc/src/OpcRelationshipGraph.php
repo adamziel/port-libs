@@ -1418,6 +1418,14 @@ final class OpcRelationshipGraph
             self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
         );
         $zipSourceRecordManifest = self::zipEntrySourceRecordManifest($entries);
+        $entryCommentFields = [
+            'entryCommentCount' => $packageManifest['entryCommentCount'],
+            'hasEntryComments' => $packageManifest['hasEntryComments'],
+            'commentedEntryNames' => $packageManifest['commentedEntryNames'],
+            'entryCommentSummaryCount' => $packageManifest['entryCommentSummaryCount'],
+            'entryCommentSourceRecordBytes' => $packageManifest['entryCommentSourceRecordBytes'],
+            'entryCommentSummaries' => $packageManifest['entryCommentSummaries'],
+        ];
 
         return [
             'valid' => $issues === [],
@@ -1510,6 +1518,7 @@ final class OpcRelationshipGraph
             'zipSourceRecordHandoffKindSummaryCount' => $zipSourceRecordManifest['handoffKindSummaryCount'],
             'zipSourceRecordHandoffKindSummaries' => $zipSourceRecordManifest['handoffKindSummaries'],
             'zipSourceRecordManifest' => $zipSourceRecordManifest,
+            ...$entryCommentFields,
             ...self::zipExtraFieldManifestSummaryFields($zipExtraFields, $zipExtraFieldPreflightError),
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
@@ -2713,6 +2722,7 @@ final class OpcRelationshipGraph
             self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
         );
         $zipSourceRecordManifest = self::zipEntrySourceRecordManifest($entries);
+        $entryCommentFields = self::zipEntryCommentSummaryFields($entries);
 
         return [
             'valid' => $issues === [],
@@ -2821,6 +2831,7 @@ final class OpcRelationshipGraph
             'zipSourceRecordHandoffKindSummaryCount' => $zipSourceRecordManifest['handoffKindSummaryCount'],
             'zipSourceRecordHandoffKindSummaries' => $zipSourceRecordManifest['handoffKindSummaries'],
             'zipSourceRecordManifest' => $zipSourceRecordManifest,
+            ...$entryCommentFields,
             ...self::zipExtraFieldManifestSummaryFields($zipExtraFields, $zipExtraFieldPreflightError),
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
@@ -9841,6 +9852,76 @@ final class OpcRelationshipGraph
         }
 
         return substr($entryName, 0, $separator + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{entryCommentCount:int, hasEntryComments:bool, commentedEntryNames:list<string>, entryCommentSummaryCount:int, entryCommentSourceRecordBytes:int, entryCommentSummaries:list<array<string, mixed>>}
+     */
+    private static function zipEntryCommentSummaryFields(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $rawCommentBytes = is_int($entry['centralDirectoryRawCommentBytes'] ?? null)
+                ? $entry['centralDirectoryRawCommentBytes']
+                : 0;
+            if ($rawCommentBytes <= 0) {
+                continue;
+            }
+
+            $entryName = is_string($entry['entryName'] ?? null)
+                ? $entry['entryName']
+                : (is_string($entry['name'] ?? null) ? $entry['name'] : '');
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $partName = is_string($entry['partName'] ?? null) ? $entry['partName'] : null;
+            $extension = $isDirectory
+                ? ''
+                : ($partName === null ? self::partNameExtension($entryName) : self::partNameExtension($partName));
+            $compressionMethod = is_int($entry['compressionMethod'] ?? null) ? $entry['compressionMethod'] : null;
+
+            $summaries[] = [
+                'name' => $entryName,
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : (is_int($entry['entryIndex'] ?? null) ? $entry['entryIndex'] : null),
+                'directoryRoot' => self::zipEntryManifestDirectoryRoot($entryName),
+                'packagePartExtensionKey' => $isDirectory ? '(directory)' : ($extension === '' ? '(none)' : $extension),
+                'compressionMethod' => $compressionMethod,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null)
+                    ? $entry['compressionMethodName']
+                    : ($compressionMethod === null ? '' : self::zipCompressionMethodName($compressionMethod)),
+                'centralDirectoryRawCommentOffset' => is_int($entry['centralDirectoryRawCommentOffset'] ?? null)
+                    ? $entry['centralDirectoryRawCommentOffset']
+                    : null,
+                'centralDirectoryRawCommentBytes' => $rawCommentBytes,
+                'centralDirectoryRawCommentSha256' => is_string($entry['centralDirectoryRawCommentSha256'] ?? null)
+                    ? $entry['centralDirectoryRawCommentSha256']
+                    : null,
+                'centralDirectoryRecordBytes' => (int) ($entry['centralDirectoryRecordBytes'] ?? 0),
+                'centralDirectoryReviewFieldBytes' => (int) ($entry['centralDirectoryReviewFieldBytes'] ?? 0),
+                'sourceRecordBytes' => (int) ($entry['sourceRecordBytes'] ?? 0),
+                'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
+                'entryCommentCanExposeBytes' => false,
+            ];
+        }
+
+        $commentedEntryNames = array_map(
+            static fn (array $summary): string => (string) $summary['name'],
+            $summaries
+        );
+        $entryCommentSourceRecordBytes = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['sourceRecordBytes'],
+            $summaries
+        ));
+
+        return [
+            'entryCommentCount' => count($summaries),
+            'hasEntryComments' => $summaries !== [],
+            'commentedEntryNames' => $commentedEntryNames,
+            'entryCommentSummaryCount' => count($summaries),
+            'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
+            'entryCommentSummaries' => $summaries,
+        ];
     }
 
     /**

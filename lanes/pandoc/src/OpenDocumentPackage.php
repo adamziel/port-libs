@@ -1244,6 +1244,11 @@ final class OpenDocumentPackage
             }
 
             $pathShape = self::pathShape($entry->name);
+            $packageBasename = is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : null;
+            $packageBasenameStem = is_string($packageBasename) && $packageBasename !== ''
+                ? self::packagePartBasenameStem($packageBasename)
+                : null;
+            $packageCaseFoldedBasenameStem = is_string($packageBasenameStem) ? strtolower($packageBasenameStem) : null;
             $packageArea = self::packageAreaFromPathShape($pathShape);
             $packagePathDepth = self::packagePathDepthFromPathShape($pathShape);
             $packagePathByteLength = strlen($entry->name);
@@ -1280,6 +1285,9 @@ final class OpenDocumentPackage
             $item = [
                 'path' => $entry->name,
                 'pathShape' => $pathShape,
+                'packageBasename' => $packageBasename,
+                'packageBasenameStem' => $packageBasenameStem,
+                'packageCaseFoldedBasenameStem' => $packageCaseFoldedBasenameStem,
                 'packageDirectoryBaseName' => $pathShape['directoryBaseName'] ?? null,
                 'packageDirectoryBaseNameStem' => $pathShape['directoryBaseNameStem'] ?? null,
                 'packageCaseFoldDirectoryBaseNameStem' => $pathShape['caseFoldDirectoryBaseNameStem'] ?? null,
@@ -1653,11 +1661,16 @@ final class OpenDocumentPackage
             'packageBasenameCounts' => $packagePartBasenames['packageBasenameCounts'],
             'entryNamesByPackageBasename' => $packagePartBasenames['entryNamesByPackageBasename'],
             'packageBasenameStemCounts' => $packagePartBasenames['packageBasenameStemCounts'],
+            'packageCaseFoldedBasenameStemCounts' => $packagePartBasenames['packageCaseFoldedBasenameStemCounts'],
+            'entryNamesByPackageCaseFoldedBasenameStem' => $packagePartBasenames['entryNamesByPackageCaseFoldedBasenameStem'],
             'packageCaseFoldedBasenameCounts' => $packagePartBasenames['packageCaseFoldedBasenameCounts'],
             'entryNamesByPackageCaseFoldedBasename' => $packagePartBasenames['entryNamesByPackageCaseFoldedBasename'],
             'duplicatePackageBasenameCount' => $packagePartBasenames['duplicatePackageBasenameCount'],
             'duplicatePackageBasenameEntryCount' => $packagePartBasenames['duplicatePackageBasenameEntryCount'],
             'duplicatePackageBasenameSummaries' => $packagePartBasenames['duplicatePackageBasenameSummaries'],
+            'caseFoldedPackageBasenameStemDuplicateCount' => $packagePartBasenames['caseFoldedPackageBasenameStemDuplicateCount'],
+            'caseFoldedPackageBasenameStemDuplicateEntryCount' => $packagePartBasenames['caseFoldedPackageBasenameStemDuplicateEntryCount'],
+            'caseFoldedPackageBasenameStemDuplicateSummaries' => $packagePartBasenames['caseFoldedPackageBasenameStemDuplicateSummaries'],
             'caseFoldedPackageBasenameDuplicateCount' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateCount'],
             'caseFoldedPackageBasenameDuplicateEntryCount' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateEntryCount'],
             'caseFoldedPackageBasenameDuplicateSummaries' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateSummaries'],
@@ -2735,6 +2748,9 @@ final class OpenDocumentPackage
             $packageEntries[] = self::withoutEmptyValues([
                 'path' => $part['path'] ?? null,
                 'pathShape' => $part['pathShape'] ?? [],
+                'packageBasename' => $part['packageBasename'] ?? null,
+                'packageBasenameStem' => $part['packageBasenameStem'] ?? null,
+                'packageCaseFoldedBasenameStem' => $part['packageCaseFoldedBasenameStem'] ?? null,
                 'packageDirectoryBaseName' => $part['packageDirectoryBaseName'] ?? null,
                 'packageDirectoryBaseNameStem' => $part['packageDirectoryBaseNameStem'] ?? null,
                 'packageCaseFoldDirectoryBaseNameStem' => $part['packageCaseFoldDirectoryBaseNameStem'] ?? null,
@@ -3064,11 +3080,16 @@ final class OpenDocumentPackage
             'packageBasenameCounts' => $packageInventory['packageBasenameCounts'] ?? [],
             'entryNamesByPackageBasename' => $packageInventory['entryNamesByPackageBasename'] ?? [],
             'packageBasenameStemCounts' => $packageInventory['packageBasenameStemCounts'] ?? [],
+            'packageCaseFoldedBasenameStemCounts' => $packageInventory['packageCaseFoldedBasenameStemCounts'] ?? [],
+            'entryNamesByPackageCaseFoldedBasenameStem' => $packageInventory['entryNamesByPackageCaseFoldedBasenameStem'] ?? [],
             'packageCaseFoldedBasenameCounts' => $packageInventory['packageCaseFoldedBasenameCounts'] ?? [],
             'entryNamesByPackageCaseFoldedBasename' => $packageInventory['entryNamesByPackageCaseFoldedBasename'] ?? [],
             'duplicatePackageBasenameCount' => $packageInventory['duplicatePackageBasenameCount'] ?? 0,
             'duplicatePackageBasenameEntryCount' => $packageInventory['duplicatePackageBasenameEntryCount'] ?? 0,
             'duplicatePackageBasenameSummaries' => $packageInventory['duplicatePackageBasenameSummaries'] ?? [],
+            'caseFoldedPackageBasenameStemDuplicateCount' => $packageInventory['caseFoldedPackageBasenameStemDuplicateCount'] ?? 0,
+            'caseFoldedPackageBasenameStemDuplicateEntryCount' => $packageInventory['caseFoldedPackageBasenameStemDuplicateEntryCount'] ?? 0,
+            'caseFoldedPackageBasenameStemDuplicateSummaries' => $packageInventory['caseFoldedPackageBasenameStemDuplicateSummaries'] ?? [],
             'caseFoldedPackageBasenameDuplicateCount' => $packageInventory['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateEntryCount' => $packageInventory['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateSummaries' => $packageInventory['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
@@ -4275,11 +4296,16 @@ final class OpenDocumentPackage
      *     packageBasenameCounts:array<string, int>,
      *     entryNamesByPackageBasename:array<string, list<string>>,
      *     packageBasenameStemCounts:array<string, int>,
+     *     packageCaseFoldedBasenameStemCounts:array<string, int>,
+     *     entryNamesByPackageCaseFoldedBasenameStem:array<string, list<string>>,
      *     packageCaseFoldedBasenameCounts:array<string, int>,
      *     entryNamesByPackageCaseFoldedBasename:array<string, list<string>>,
      *     duplicatePackageBasenameCount:int,
      *     duplicatePackageBasenameEntryCount:int,
      *     duplicatePackageBasenameSummaries:list<array<string, mixed>>,
+     *     caseFoldedPackageBasenameStemDuplicateCount:int,
+     *     caseFoldedPackageBasenameStemDuplicateEntryCount:int,
+     *     caseFoldedPackageBasenameStemDuplicateSummaries:list<array<string, mixed>>,
      *     caseFoldedPackageBasenameDuplicateCount:int,
      *     caseFoldedPackageBasenameDuplicateEntryCount:int,
      *     caseFoldedPackageBasenameDuplicateSummaries:list<array<string, mixed>>
@@ -4290,6 +4316,10 @@ final class OpenDocumentPackage
         $basenameCounts = [];
         $entryNamesByBasename = [];
         $stemCounts = [];
+        $caseFoldedStemCounts = [];
+        $entryNamesByCaseFoldedStem = [];
+        $stemsByCaseFoldedStem = [];
+        $basenamesByCaseFoldedStem = [];
         $caseFoldedBasenameCounts = [];
         $entryNamesByCaseFoldedBasename = [];
         $basenamesByCaseFoldedBasename = [];
@@ -4304,9 +4334,14 @@ final class OpenDocumentPackage
 
             $stem = self::packagePartBasenameStem($basename);
             $caseFoldKey = strtolower($basename);
+            $caseFoldStemKey = strtolower($stem);
             $basenameCounts[$basename] = ($basenameCounts[$basename] ?? 0) + 1;
             $entryNamesByBasename[$basename][] = $path;
             $stemCounts[$stem] = ($stemCounts[$stem] ?? 0) + 1;
+            $caseFoldedStemCounts[$caseFoldStemKey] = ($caseFoldedStemCounts[$caseFoldStemKey] ?? 0) + 1;
+            $entryNamesByCaseFoldedStem[$caseFoldStemKey][] = $path;
+            $stemsByCaseFoldedStem[$caseFoldStemKey][$stem] = true;
+            $basenamesByCaseFoldedStem[$caseFoldStemKey][$basename] = true;
             $caseFoldedBasenameCounts[$caseFoldKey] = ($caseFoldedBasenameCounts[$caseFoldKey] ?? 0) + 1;
             $entryNamesByCaseFoldedBasename[$caseFoldKey][] = $path;
             $basenamesByCaseFoldedBasename[$caseFoldKey][$basename] = true;
@@ -4319,6 +4354,14 @@ final class OpenDocumentPackage
             $entryNamesByBasename[$basename] = $names;
         }
         ksort($stemCounts, SORT_STRING);
+        ksort($caseFoldedStemCounts, SORT_STRING);
+        ksort($entryNamesByCaseFoldedStem, SORT_STRING);
+        foreach ($entryNamesByCaseFoldedStem as $caseFoldStemKey => $names) {
+            sort($names, SORT_STRING);
+            $entryNamesByCaseFoldedStem[$caseFoldStemKey] = $names;
+        }
+        ksort($stemsByCaseFoldedStem, SORT_STRING);
+        ksort($basenamesByCaseFoldedStem, SORT_STRING);
         ksort($caseFoldedBasenameCounts, SORT_STRING);
         ksort($entryNamesByCaseFoldedBasename, SORT_STRING);
         foreach ($entryNamesByCaseFoldedBasename as $caseFoldKey => $names) {
@@ -4338,6 +4381,27 @@ final class OpenDocumentPackage
             $duplicateSummaries[] = [
                 'packageBasename' => $basename,
                 'entryCount' => count($names),
+                'entryNames' => $names,
+            ];
+        }
+
+        $caseFoldedStemDuplicateSummaries = [];
+        $caseFoldedStemDuplicateEntryCount = 0;
+        foreach ($entryNamesByCaseFoldedStem as $caseFoldStemKey => $names) {
+            if (count($names) < 2) {
+                continue;
+            }
+
+            $stems = array_keys($stemsByCaseFoldedStem[$caseFoldStemKey] ?? []);
+            $basenames = array_keys($basenamesByCaseFoldedStem[$caseFoldStemKey] ?? []);
+            sort($stems, SORT_STRING);
+            sort($basenames, SORT_STRING);
+            $caseFoldedStemDuplicateEntryCount += count($names);
+            $caseFoldedStemDuplicateSummaries[] = [
+                'caseFoldStemKey' => $caseFoldStemKey,
+                'entryCount' => count($names),
+                'packageBasenameStems' => $stems,
+                'packageBasenames' => $basenames,
                 'entryNames' => $names,
             ];
         }
@@ -4364,11 +4428,16 @@ final class OpenDocumentPackage
             'packageBasenameCounts' => $basenameCounts,
             'entryNamesByPackageBasename' => $entryNamesByBasename,
             'packageBasenameStemCounts' => $stemCounts,
+            'packageCaseFoldedBasenameStemCounts' => $caseFoldedStemCounts,
+            'entryNamesByPackageCaseFoldedBasenameStem' => $entryNamesByCaseFoldedStem,
             'packageCaseFoldedBasenameCounts' => $caseFoldedBasenameCounts,
             'entryNamesByPackageCaseFoldedBasename' => $entryNamesByCaseFoldedBasename,
             'duplicatePackageBasenameCount' => count($duplicateSummaries),
             'duplicatePackageBasenameEntryCount' => $duplicateEntryCount,
             'duplicatePackageBasenameSummaries' => $duplicateSummaries,
+            'caseFoldedPackageBasenameStemDuplicateCount' => count($caseFoldedStemDuplicateSummaries),
+            'caseFoldedPackageBasenameStemDuplicateEntryCount' => $caseFoldedStemDuplicateEntryCount,
+            'caseFoldedPackageBasenameStemDuplicateSummaries' => $caseFoldedStemDuplicateSummaries,
             'caseFoldedPackageBasenameDuplicateCount' => count($caseFoldedDuplicateSummaries),
             'caseFoldedPackageBasenameDuplicateEntryCount' => $caseFoldedDuplicateEntryCount,
             'caseFoldedPackageBasenameDuplicateSummaries' => $caseFoldedDuplicateSummaries,

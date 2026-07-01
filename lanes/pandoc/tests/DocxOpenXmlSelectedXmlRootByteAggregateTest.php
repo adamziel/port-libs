@@ -22,8 +22,52 @@ return [
             + strlen($parts['word/theme/review-theme.xml']);
 
         $t->same(18, $selected['count']);
+        $t->same([
+            'document',
+            'coreProperties',
+            'extendedProperties',
+            'customProperties',
+            'styles',
+            'stylesWithEffects',
+            'numbering',
+            'settings',
+            'webSettings',
+            'fontTable',
+            'theme',
+            'glossaryDocument',
+            'footnotes',
+            'endnotes',
+            'comments',
+            'commentsExtended',
+            'commentsIds',
+            'people',
+        ], $selected['kinds']);
+        $t->same($selected['kinds'], $summary['selectedXmlPartKinds']);
         $t->same(6, $selected['existingCount']);
+        $t->same(['document', 'coreProperties', 'styles', 'numbering', 'settings', 'theme'], $selected['existingKinds']);
+        $t->same($selected['existingKinds'], $summary['selectedXmlPartExistingKinds']);
+        $t->same([
+            'extendedProperties',
+            'customProperties',
+            'stylesWithEffects',
+            'webSettings',
+            'fontTable',
+            'glossaryDocument',
+            'footnotes',
+            'endnotes',
+            'comments',
+            'commentsExtended',
+            'commentsIds',
+            'people',
+        ], $selected['missingKinds']);
+        $t->same($selected['missingKinds'], $summary['selectedXmlPartMissingKinds']);
         $t->same(4, $selected['relationshipSelectedCount']);
+        $t->same(['document', 'coreProperties', 'settings', 'theme'], $selected['relationshipSelectedKinds']);
+        $t->same($selected['relationshipSelectedKinds'], $summary['selectedXmlPartRelationshipSelectedKinds']);
+        $t->same(['document', 'coreProperties', 'styles', 'numbering', 'settings', 'theme'], $selected['byteDigestKinds']);
+        $t->same($selected['byteDigestKinds'], $summary['selectedXmlPartByteDigestKinds']);
+        $t->same([], $selected['missingRequiredOrReferencedKinds']);
+        $t->same($selected['missingRequiredOrReferencedKinds'], $summary['selectedXmlPartMissingRequiredOrReferencedKinds']);
         $t->same($expectedByteLength, $selected['byteLength']);
         $t->same($selected['byteLength'], $summary['selectedXmlPartByteLength']);
         $t->same([
