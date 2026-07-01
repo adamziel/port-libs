@@ -1984,59 +1984,6 @@ final class PptxReader
     }
 
     /**
-     * @return array<string, mixed>
-     */
-    private function chartDataLabels(\DOMElement $chartContainer): array
-    {
-        $dataLabels = $this->firstChildElement($chartContainer, 'dLbls');
-        if (!$dataLabels instanceof \DOMElement) {
-            return [];
-        }
-
-        $metadata = [];
-        $position = $this->firstChildElement($dataLabels, 'dLblPos');
-        if ($position instanceof \DOMElement && trim($position->getAttribute('val')) !== '') {
-            $metadata['position'] = trim($position->getAttribute('val'));
-        }
-
-        foreach ([
-            'showLegendKey' => 'showLegendKey',
-            'showVal' => 'showValue',
-            'showCatName' => 'showCategoryName',
-            'showSerName' => 'showSeriesName',
-            'showPercent' => 'showPercent',
-            'showBubbleSize' => 'showBubbleSize',
-            'showLeaderLines' => 'showLeaderLines',
-        ] as $source => $target) {
-            $element = $this->firstChildElement($dataLabels, $source);
-            if ($element instanceof \DOMElement && $element->hasAttribute('val')) {
-                $metadata[$target] = $this->xmlBooleanValue($element->getAttribute('val'));
-            }
-        }
-
-        $numberFormat = $this->firstChildElement($dataLabels, 'numFmt');
-        if ($numberFormat instanceof \DOMElement) {
-            $format = trim($numberFormat->getAttribute('formatCode'));
-            if ($format !== '') {
-                $metadata['numberFormat'] = $format;
-            }
-            if ($numberFormat->hasAttribute('sourceLinked')) {
-                $metadata['sourceLinked'] = $this->xmlBooleanValue($numberFormat->getAttribute('sourceLinked'));
-            }
-        }
-
-        $separator = $this->firstChildElement($dataLabels, 'separator');
-        if ($separator instanceof \DOMElement) {
-            $text = trim($this->allDescendantText($separator));
-            if ($text !== '') {
-                $metadata['separator'] = $text;
-            }
-        }
-
-        return $metadata;
-    }
-
-    /**
      * @return list<array<string, mixed>>
      */
     private function chartAxes(\DOMElement $chartElement): array
@@ -2157,7 +2104,93 @@ final class PptxReader
             $this->addChartCacheMetadata($series, 'name', $this->chartCacheSummary($text));
         }
 
+        $dataLabels = $this->chartDataLabels($seriesElement);
+        if ($dataLabels !== []) {
+            $series['dataLabels'] = $dataLabels;
+        }
+
         return $series;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartDataLabels(\DOMElement $container): array
+    {
+        $dataLabels = $this->firstChildElement($container, 'dLbls');
+        if (!$dataLabels instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = $this->chartDataLabelMetadata($dataLabels);
+        $points = [];
+        foreach ($this->childElements($dataLabels, 'dLbl') as $dataLabel) {
+            $point = $this->chartDataLabelMetadata($dataLabel);
+            $index = $this->firstChildElement($dataLabel, 'idx');
+            if ($index instanceof \DOMElement && $index->getAttribute('val') !== '') {
+                $point = ['pointIndex' => $index->getAttribute('val')] + $point;
+            }
+            if ($point !== []) {
+                $points[] = $point;
+            }
+        }
+
+        if ($points !== []) {
+            $metadata['points'] = $points;
+            $metadata['pointCount'] = count($points);
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartDataLabelMetadata(\DOMElement $dataLabel): array
+    {
+        $metadata = [];
+        $position = $this->firstChildElement($dataLabel, 'dLblPos');
+        if ($position instanceof \DOMElement && $position->getAttribute('val') !== '') {
+            $metadata['position'] = $position->getAttribute('val');
+        }
+
+        $numberFormat = $this->firstChildElement($dataLabel, 'numFmt');
+        if ($numberFormat instanceof \DOMElement) {
+            $format = trim($numberFormat->getAttribute('formatCode'));
+            if ($format !== '') {
+                $metadata['numberFormat'] = $format;
+            }
+            if ($numberFormat->hasAttribute('sourceLinked')) {
+                $metadata['sourceLinked'] = $this->xmlBooleanValue($numberFormat->getAttribute('sourceLinked'));
+            }
+        }
+
+        $separator = $this->firstChildElement($dataLabel, 'separator');
+        if ($separator instanceof \DOMElement) {
+            $text = trim($this->allDescendantText($separator));
+            if ($text !== '') {
+                $metadata['separator'] = $text;
+            }
+        }
+
+        foreach ([
+            'showLegendKey' => 'showLegendKey',
+            'showVal' => 'showValue',
+            'showCatName' => 'showCategoryName',
+            'showSerName' => 'showSeriesName',
+            'showPercent' => 'showPercent',
+            'showBubbleSize' => 'showBubbleSize',
+            'showLeaderLines' => 'showLeaderLines',
+        ] as $source => $target) {
+            $element = $this->firstChildElement($dataLabel, $source);
+            if ($element instanceof \DOMElement) {
+                $metadata[$target] = $element->hasAttribute('val')
+                    ? $this->xmlBooleanValue($element->getAttribute('val'))
+                    : true;
+            }
+        }
+
+        return $metadata;
     }
 
     /**
@@ -2611,6 +2644,18 @@ final class PptxReader
             if ($textStyle->hasAttribute($source)) {
                 $style[$target] = $this->xmlBooleanValue($textStyle->getAttribute($source));
             }
+        }
+
+        foreach (['u' => 'underline', 'strike' => 'strike'] as $source => $target) {
+            $value = trim($textStyle->getAttribute($source));
+            if ($value !== '') {
+                $style[$target] = $value;
+            }
+        }
+
+        $fontSize = $this->integerAttribute($textStyle, 'sz');
+        if ($fontSize !== null) {
+            $style['fontSize'] = $fontSize;
         }
 
         $fontRef = $this->firstChildElement($textStyle, 'fontRef');

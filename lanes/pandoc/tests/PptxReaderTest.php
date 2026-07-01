@@ -247,7 +247,7 @@ XML);
         <a:lnB w="12700"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:prstDash val="solid"/></a:lnB>
       </a:tcStyle>
     </a:wholeTbl>
-    <a:firstRow><a:tcTxStyle b="1"/></a:firstRow>
+    <a:firstRow><a:tcTxStyle b="1" i="1" u="sng" strike="sngStrike" sz="1400"/></a:firstRow>
   </a:tblStyle>
 </a:tblStyleLst>
 XML);
@@ -270,6 +270,7 @@ XML);
           <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
         </c:ser>
         <c:dLbls>
+          <c:dLbl><c:idx val="1"/><c:dLblPos val="bestFit"/><c:showVal val="1"/><c:showCatName val="1"/></c:dLbl>
           <c:dLblPos val="outEnd"/>
           <c:numFmt formatCode="0.0" sourceLinked="0"/>
           <c:separator>, </c:separator>
@@ -290,6 +291,7 @@ XML);
           <c:tx><c:strRef><c:f>Sheet1!$C$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>South</c:v></c:pt></c:strCache></c:strRef></c:tx>
           <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
           <c:val><c:numRef><c:f>Sheet1!$C$2:$C$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>9</c:v></c:pt><c:pt idx="1"><c:v>13</c:v></c:pt></c:numCache></c:numRef></c:val>
+          <c:dLbls><c:dLblPos val="r"/><c:showVal val="0"/><c:showCatName val="1"/></c:dLbls>
         </c:ser>
         <c:axId val="10"/><c:axId val="20"/>
       </c:lineChart>
@@ -611,6 +613,10 @@ return [
                 'firstRow' => [
                     'text' => [
                         'bold' => true,
+                        'italic' => true,
+                        'underline' => 'sng',
+                        'strike' => 'sngStrike',
+                        'fontSize' => 1400,
                     ],
                 ],
             ],
@@ -620,6 +626,10 @@ return [
         $t->same(['Col1', 'Col2', 'Col3'], array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $tables[0]->children[0]->children[0]->children));
         $t->same(['wholeTbl', 'firstRow'], $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['appliedParts'] ?? null);
         $t->same(true, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['bold'] ?? null);
+        $t->same(true, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['italic'] ?? null);
+        $t->same('sng', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['underline'] ?? null);
+        $t->same('sngStrike', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['strike'] ?? null);
+        $t->same(1400, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['fontSize'] ?? null);
         $t->same('minor', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['fontRef'] ?? null);
         $t->same('theme:accent2', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['fillColor'] ?? null);
         $t->same('ED7D31', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['resolvedFillColor'] ?? null);
@@ -671,6 +681,9 @@ return [
         $t->same('col', $chartDivs[0]->attr('pptxChart')['plots'][0]['barDirection'] ?? null);
         $t->same([
             'position' => 'outEnd',
+            'numberFormat' => '0.0',
+            'sourceLinked' => false,
+            'separator' => ',',
             'showLegendKey' => false,
             'showValue' => true,
             'showCategoryName' => true,
@@ -678,9 +691,13 @@ return [
             'showPercent' => false,
             'showBubbleSize' => false,
             'showLeaderLines' => true,
-            'numberFormat' => '0.0',
-            'sourceLinked' => false,
-            'separator' => ',',
+            'points' => [[
+                'pointIndex' => '1',
+                'position' => 'bestFit',
+                'showValue' => true,
+                'showCategoryName' => true,
+            ]],
+            'pointCount' => 1,
         ], $chartDivs[0]->attr('pptxChart')['plots'][0]['dataLabels'] ?? null);
         $t->same(['10', '20'], $chartDivs[0]->attr('pptxChart')['plots'][0]['axisIds'] ?? null);
         $t->same('line', $chartDivs[0]->attr('pptxChart')['plots'][1]['type'] ?? null);
@@ -700,6 +717,9 @@ return [
         $t->same(['9', '13'], $chartDivs[0]->attr('pptxChart')['series'][1]['values'] ?? null);
         $t->same('Sheet1!$C$1', $chartDivs[0]->attr('pptxChart')['series'][1]['nameFormula'] ?? null);
         $t->same('Sheet1!$C$2:$C$3', $chartDivs[0]->attr('pptxChart')['series'][1]['valueFormula'] ?? null);
+        $t->same('r', $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['position'] ?? null);
+        $t->same(false, $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['showValue'] ?? null);
+        $t->same(true, $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['showCategoryName'] ?? null);
         $t->same('Quarter', $chartDivs[0]->attr('pptxChart')['axes'][0]['title'] ?? null);
         $t->same('Revenue', $chartDivs[0]->attr('pptxChart')['axes'][1]['title'] ?? null);
         $t->same('$#,##0', $chartDivs[0]->attr('pptxChart')['axes'][1]['numberFormat'] ?? null);
