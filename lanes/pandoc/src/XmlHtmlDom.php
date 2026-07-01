@@ -15166,6 +15166,9 @@ final class XmlHtmlDom
             $summary['disabled'] = $node->hasAttribute('disabled');
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
+            if (in_array($inputType['inputType'], ['checkbox', 'radio'], true)) {
+                $summary += self::checkableInputStateReviewSummary($node, $inputType['inputType']);
+            }
             $summary += self::formControlConstraintSummary($node, $name);
             $summary += self::typedInputValueReviewSummary($node, $inputType['inputType']);
             if ($inputType['inputType'] === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
@@ -25125,6 +25128,229 @@ final class XmlHtmlDom
             'inputTypeMissingDefaulted' => $missing,
             'inputTypeInvalidValueDefaulted' => !$missing && !$known,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function checkableInputStateReviewSummary(\DOMElement $input, string $inputType): array
+    {
+        $valueRaw = self::attributeOrNull($input, 'value');
+        $value = $valueRaw ?? 'on';
+        $checked = $input->hasAttribute('checked');
+        $required = $input->hasAttribute('required');
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($input);
+        $issues = [];
+
+        if ($checked && $effectiveDisabled) {
+            $issues[] = [
+                'code' => 'checked-disabled-checkable-input',
+                'value' => $value,
+            ];
+        }
+
+        if ($inputType === 'checkbox' && $required && !$effectiveDisabled && !$checked) {
+            $issues[] = [
+                'code' => 'required-checkbox-unchecked',
+                'value' => $value,
+            ];
+        }
+
+        $radioGroupSummary = [];
+        if ($inputType === 'radio') {
+            $radioGroupSummary = self::radioInputGroupStateReviewSummary($input);
+            foreach ($radioGroupSummary['radioGroupIssues'] ?? [] as $issue) {
+                if (is_array($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+        }
+
+        return [
+            'checkableInputReviewPolicy' => 'html-checkable-input-state-review',
+            'checkableInputReviewOnlyNoBrowserStateMutation' => true,
+            'checkableInputType' => $inputType,
+            'checkableInputName' => self::attributeOrNull($input, 'name'),
+            'checkableInputValueRaw' => $valueRaw,
+            'checkableInputValue' => $value,
+            'checkableInputValueDefaulted' => $valueRaw === null,
+            'checkableInputChecked' => $checked,
+            'checkableInputRequired' => $required,
+            'checkableInputDisabled' => $input->hasAttribute('disabled'),
+            'checkableInputEffectiveDisabled' => $effectiveDisabled,
+            'checkableInputSuccessful' => $checked && !$effectiveDisabled,
+            'checkableInputSuccessfulValue' => $checked && !$effectiveDisabled ? $value : null,
+            'checkableInputIssues' => $issues,
+            'checkableInputIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'checkableInputStateValid' => $issues === [],
+        ] + $radioGroupSummary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function radioInputGroupStateReviewSummary(\DOMElement $input): array
+    {
+        $controls = self::radioInputGroupElements($input);
+        $records = [];
+        $currentIndex = null;
+
+        foreach ($controls as $index => $control) {
+            if ($control->isSameNode($input)) {
+                $currentIndex = $index;
+            }
+            $records[] = self::radioInputGroupControlSummary($control, $index, $control->isSameNode($input));
+        }
+
+        $checkedRecords = array_values(array_filter(
+            $records,
+            static fn (array $record): bool => (bool) ($record['checked'] ?? false)
+        ));
+        $enabledRecords = array_values(array_filter(
+            $records,
+            static fn (array $record): bool => !(bool) ($record['effectiveDisabled'] ?? false)
+        ));
+        $enabledCheckedRecords = array_values(array_filter(
+            $checkedRecords,
+            static fn (array $record): bool => !(bool) ($record['effectiveDisabled'] ?? false)
+        ));
+        $required = count(array_filter(
+            $enabledRecords,
+            static fn (array $record): bool => (bool) ($record['required'] ?? false)
+        )) > 0;
+        $valueMissing = $required && $enabledRecords !== [] && $enabledCheckedRecords === [];
+        $issues = [];
+
+        if (count($checkedRecords) > 1) {
+            $issues[] = [
+                'code' => 'multiple-checked-radio-group',
+                'checkedCount' => count($checkedRecords),
+                'checkedValues' => self::radioInputGroupValues($checkedRecords),
+                'checkedIds' => self::radioInputGroupIds($checkedRecords),
+            ];
+        }
+        if ($valueMissing) {
+            $issues[] = [
+                'code' => 'required-radio-group-missing-value',
+                'name' => self::attributeOrNull($input, 'name'),
+                'controlCount' => count($records),
+            ];
+        }
+
+        $form = self::formOwnerElement($input);
+
+        return [
+            'radioGroupReviewPolicy' => 'html-radio-group-state-review',
+            'radioGroupNameRaw' => self::attributeOrNull($input, 'name'),
+            'radioGroupName' => self::normalizedNonEmptyAttribute(self::attributeOrNull($input, 'name')),
+            'radioGroupFormOwnerId' => $form instanceof \DOMElement ? self::attributeOrNull($form, 'id') : null,
+            'radioGroupControlCount' => count($records),
+            'radioGroupEnabledControlCount' => count($enabledRecords),
+            'radioGroupDisabledControlCount' => count($records) - count($enabledRecords),
+            'radioGroupCheckedCount' => count($checkedRecords),
+            'radioGroupEnabledCheckedCount' => count($enabledCheckedRecords),
+            'radioGroupCheckedValues' => self::radioInputGroupValues($checkedRecords),
+            'radioGroupEnabledCheckedValues' => self::radioInputGroupValues($enabledCheckedRecords),
+            'radioGroupCheckedIds' => self::radioInputGroupIds($checkedRecords),
+            'radioGroupRequired' => $required,
+            'radioGroupValueMissing' => $valueMissing,
+            'radioGroupMultipleChecked' => count($checkedRecords) > 1,
+            'radioGroupCurrentIndex' => $currentIndex,
+            'radioGroupControls' => $records,
+            'radioGroupIssues' => $issues,
+            'radioGroupIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'radioGroupStateValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function radioInputGroupElements(\DOMElement $input): array
+    {
+        $document = $input->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [$input];
+        }
+
+        $name = $input->getAttribute('name');
+        $form = self::formOwnerElement($input);
+        $controls = [];
+
+        foreach ($document->getElementsByTagName('input') as $candidate) {
+            if (!$candidate instanceof \DOMElement || self::inputType($candidate) !== 'radio') {
+                continue;
+            }
+            if ($candidate->getAttribute('name') !== $name) {
+                continue;
+            }
+
+            $candidateForm = self::formOwnerElement($candidate);
+            if (
+                ($form instanceof \DOMElement && (!$candidateForm instanceof \DOMElement || !$candidateForm->isSameNode($form)))
+                || (!$form instanceof \DOMElement && $candidateForm instanceof \DOMElement)
+            ) {
+                continue;
+            }
+
+            $controls[] = $candidate;
+        }
+
+        return $controls;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function radioInputGroupControlSummary(\DOMElement $control, int $index, bool $current): array
+    {
+        $valueRaw = self::attributeOrNull($control, 'value');
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+
+        return [
+            'index' => $index,
+            'id' => self::attributeOrNull($control, 'id'),
+            'name' => self::attributeOrNull($control, 'name'),
+            'valueRaw' => $valueRaw,
+            'value' => $valueRaw ?? 'on',
+            'valueDefaulted' => $valueRaw === null,
+            'checked' => $control->hasAttribute('checked'),
+            'required' => $control->hasAttribute('required'),
+            'disabled' => $control->hasAttribute('disabled'),
+            'effectiveDisabled' => $effectiveDisabled,
+            'successful' => $control->hasAttribute('checked') && !$effectiveDisabled,
+            'current' => $current,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function radioInputGroupValues(array $records): array
+    {
+        return array_values(array_map(
+            static fn (array $record): string => (string) ($record['value'] ?? ''),
+            $records
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function radioInputGroupIds(array $records): array
+    {
+        return array_values(array_filter(
+            array_map(static fn (array $record): ?string => $record['id'] ?? null, $records),
+            static fn (?string $id): bool => $id !== null && $id !== ''
+        ));
     }
 
     /**
