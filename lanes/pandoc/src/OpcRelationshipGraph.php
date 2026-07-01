@@ -985,6 +985,7 @@ final class OpcRelationshipGraph
         $creatorVersionComparisonsByHandoffKind = [];
         $creatorHostSystemIssueCounts = [];
         $entryNamesByCreatorHostSystemIssue = [];
+        $crc32SummariesByHex = [];
         $pathSegmentPositionRoleEntryCounts = [];
         $entryNamesByPathSegmentPositionRole = [];
         $pathSegmentPositionHandoffKindEntryCounts = [];
@@ -1202,6 +1203,7 @@ final class OpcRelationshipGraph
                 $entryNamesByCreatorHostSystemIssue,
                 $entry,
             );
+            self::recordZipEntryManifestCrc32Summary($crc32SummariesByHex, $entry);
 
             if (
                 $largestPayloadEntry === null
@@ -1395,6 +1397,7 @@ final class OpcRelationshipGraph
             $creatorHostSystemIssueCounts,
             $entryNamesByCreatorHostSystemIssue,
         );
+        $crc32Provenance = self::zipEntryManifestCrc32Provenance($crc32SummariesByHex);
         sort($contentTypesItems, SORT_STRING);
         sort($contentTypeUnusedOverridePartNames, SORT_STRING);
         sort($contentTypeExactOverridePartNames, SORT_STRING);
@@ -1594,6 +1597,17 @@ final class OpcRelationshipGraph
             'creatorVersionComparisonsByHandoffKind' => $creatorVersionComparisonsByHandoffKind,
             'creatorHostSystemIssueCounts' => $creatorHostSystemIssueCounts,
             'entryNamesByCreatorHostSystemIssue' => $entryNamesByCreatorHostSystemIssue,
+            'crc32SummaryCount' => $crc32Provenance['crc32SummaryCount'],
+            'crc32Summaries' => $crc32Provenance['crc32Summaries'],
+            'crc32HexCounts' => $crc32Provenance['crc32HexCounts'],
+            'entryNamesByCrc32Hex' => $crc32Provenance['entryNamesByCrc32Hex'],
+            'crc32HexesByRole' => $crc32Provenance['crc32HexesByRole'],
+            'crc32HexesByHandoffKind' => $crc32Provenance['crc32HexesByHandoffKind'],
+            'duplicateCrc32HexCount' => $crc32Provenance['duplicateCrc32HexCount'],
+            'duplicateCrc32EntryCount' => $crc32Provenance['duplicateCrc32EntryCount'],
+            'hasDuplicateCrc32Entries' => $crc32Provenance['hasDuplicateCrc32Entries'],
+            'duplicateCrc32Hexes' => $crc32Provenance['duplicateCrc32Hexes'],
+            'duplicateCrc32Summaries' => $crc32Provenance['duplicateCrc32Summaries'],
             'largestPayloadEntry' => $largestPayloadEntry,
             'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
             'largestPayloadEntryCount' => count($largestPayloadEntries),
@@ -2059,6 +2073,9 @@ final class OpcRelationshipGraph
                 'localCrc32Hex' => isset($localHeaderMetadataEntry['localCrc32'])
                     ? sprintf('%08x', $localHeaderMetadataEntry['localCrc32'])
                     : null,
+                'crc32Hex' => is_int($centralEntry['crc32'] ?? null)
+                    ? sprintf('%08x', $centralEntry['crc32'])
+                    : null,
                 'centralCompressedSize' => $localHeaderMetadataEntry['centralCompressedSize'] ?? $centralEntry['compressedSize'],
                 'localCompressedSize' => $localHeaderMetadataEntry['localCompressedSize'] ?? null,
                 'centralUncompressedSize' => $localHeaderMetadataEntry['centralUncompressedSize'] ?? $centralEntry['uncompressedSize'],
@@ -2305,6 +2322,7 @@ final class OpcRelationshipGraph
         $creatorVersionComparisonsByHandoffKind = [];
         $creatorHostSystemIssueCounts = [];
         $entryNamesByCreatorHostSystemIssue = [];
+        $crc32SummariesByHex = [];
         $directoryRootCounts = [];
         $entryNamesByDirectoryRoot = [];
         $directoryRootSummariesByRoot = [];
@@ -2449,6 +2467,7 @@ final class OpcRelationshipGraph
                 $entryNamesByCreatorHostSystemIssue,
                 $entry,
             );
+            self::recordZipEntryManifestCrc32Summary($crc32SummariesByHex, $entry);
 
             if (!$entry['byteCountsAreExact']) {
                 $unknownByteCountEntries[] = [
@@ -2590,6 +2609,7 @@ final class OpcRelationshipGraph
             $creatorHostSystemIssueCounts,
             $entryNamesByCreatorHostSystemIssue,
         );
+        $crc32Provenance = self::zipEntryManifestCrc32Provenance($crc32SummariesByHex);
         sort($contentTypesItems, SORT_STRING);
         usort(
             $relationshipParts,
@@ -2751,6 +2771,17 @@ final class OpcRelationshipGraph
             'creatorVersionComparisonsByHandoffKind' => $creatorVersionComparisonsByHandoffKind,
             'creatorHostSystemIssueCounts' => $creatorHostSystemIssueCounts,
             'entryNamesByCreatorHostSystemIssue' => $entryNamesByCreatorHostSystemIssue,
+            'crc32SummaryCount' => $crc32Provenance['crc32SummaryCount'],
+            'crc32Summaries' => $crc32Provenance['crc32Summaries'],
+            'crc32HexCounts' => $crc32Provenance['crc32HexCounts'],
+            'entryNamesByCrc32Hex' => $crc32Provenance['entryNamesByCrc32Hex'],
+            'crc32HexesByRole' => $crc32Provenance['crc32HexesByRole'],
+            'crc32HexesByHandoffKind' => $crc32Provenance['crc32HexesByHandoffKind'],
+            'duplicateCrc32HexCount' => $crc32Provenance['duplicateCrc32HexCount'],
+            'duplicateCrc32EntryCount' => $crc32Provenance['duplicateCrc32EntryCount'],
+            'hasDuplicateCrc32Entries' => $crc32Provenance['hasDuplicateCrc32Entries'],
+            'duplicateCrc32Hexes' => $crc32Provenance['duplicateCrc32Hexes'],
+            'duplicateCrc32Summaries' => $crc32Provenance['duplicateCrc32Summaries'],
             'largestPayloadEntry' => $largestPayloadEntry,
             'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
             'largestPayloadEntryCount' => count($largestPayloadEntries),
@@ -10308,6 +10339,129 @@ final class OpcRelationshipGraph
         self::sortStringListMap($flagNamesByHandoffKind);
         ksort($issueCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByIssue);
+    }
+
+    private static function recordZipEntryManifestCrc32Summary(array &$summaries, array $entry): void
+    {
+        $crc32Hex = $entry['crc32Hex'] ?? $entry['centralCrc32Hex'] ?? null;
+        if (!is_string($crc32Hex) || $crc32Hex === '') {
+            return;
+        }
+
+        $summaries[$crc32Hex] ??= [
+            'crc32Hex' => $crc32Hex,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'unknownByteCountEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        $byteCountsAreExact = ($entry['byteCountsAreExact'] ?? true) === true;
+        $compressedSize = $byteCountsAreExact
+            ? (int) ($entry['exactCompressedSize'] ?? $entry['compressedSize'] ?? 0)
+            : 0;
+        $uncompressedSize = $byteCountsAreExact
+            ? (int) ($entry['exactUncompressedSize'] ?? $entry['uncompressedSize'] ?? 0)
+            : 0;
+        $role = (string) ($entry['role'] ?? '');
+        $handoffKind = (string) ($entry['handoffKind'] ?? '');
+
+        $summaries[$crc32Hex]['entryCount']++;
+        if (($entry['isDirectory'] ?? false) === true) {
+            $summaries[$crc32Hex]['directoryEntryCount']++;
+        } else {
+            $summaries[$crc32Hex]['fileEntryCount']++;
+        }
+        if (($entry['isPackagePart'] ?? false) === true) {
+            $summaries[$crc32Hex]['packagePartCount']++;
+        }
+        if (!$byteCountsAreExact) {
+            $summaries[$crc32Hex]['unknownByteCountEntryCount']++;
+        }
+        $summaries[$crc32Hex]['compressedBytes'] += $compressedSize;
+        $summaries[$crc32Hex]['uncompressedBytes'] += $uncompressedSize;
+
+        if ($role !== '') {
+            $summaries[$crc32Hex]['roleCounts'][$role] = ($summaries[$crc32Hex]['roleCounts'][$role] ?? 0) + 1;
+        }
+        if ($handoffKind !== '') {
+            $summaries[$crc32Hex]['handoffKindCounts'][$handoffKind] =
+                ($summaries[$crc32Hex]['handoffKindCounts'][$handoffKind] ?? 0) + 1;
+        }
+
+        self::appendUniqueString($summaries[$crc32Hex]['entryNames'], (string) ($entry['entryName'] ?? ''));
+        if (is_string($entry['partName'] ?? null)) {
+            self::appendUniqueString($summaries[$crc32Hex]['partNames'], $entry['partName']);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function zipEntryManifestCrc32Provenance(array $summariesByHex): array
+    {
+        ksort($summariesByHex, SORT_STRING);
+        $crc32HexCounts = [];
+        $entryNamesByCrc32Hex = [];
+        $crc32HexesByRole = [];
+        $crc32HexesByHandoffKind = [];
+
+        foreach ($summariesByHex as &$summary) {
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['handoffKindCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+
+            $crc32Hex = (string) $summary['crc32Hex'];
+            $crc32HexCounts[$crc32Hex] = (int) $summary['entryCount'];
+            $entryNamesByCrc32Hex[$crc32Hex] = $summary['entryNames'];
+            foreach (array_keys($summary['roleCounts']) as $role) {
+                $crc32HexesByRole[$role] ??= [];
+                self::appendUniqueString($crc32HexesByRole[$role], $crc32Hex);
+            }
+            foreach (array_keys($summary['handoffKindCounts']) as $handoffKind) {
+                $crc32HexesByHandoffKind[$handoffKind] ??= [];
+                self::appendUniqueString($crc32HexesByHandoffKind[$handoffKind], $crc32Hex);
+            }
+        }
+        unset($summary);
+
+        self::sortStringListMap($crc32HexesByRole);
+        self::sortStringListMap($crc32HexesByHandoffKind);
+        $crc32Summaries = array_values($summariesByHex);
+        $duplicateCrc32Summaries = array_values(array_filter(
+            $crc32Summaries,
+            static fn (array $summary): bool => (int) $summary['entryCount'] > 1
+        ));
+        $duplicateCrc32Hexes = array_map(
+            static fn (array $summary): string => (string) $summary['crc32Hex'],
+            $duplicateCrc32Summaries
+        );
+        $duplicateCrc32EntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['entryCount'],
+            $duplicateCrc32Summaries
+        ));
+
+        return [
+            'crc32SummaryCount' => count($crc32Summaries),
+            'crc32Summaries' => $crc32Summaries,
+            'crc32HexCounts' => $crc32HexCounts,
+            'entryNamesByCrc32Hex' => $entryNamesByCrc32Hex,
+            'crc32HexesByRole' => $crc32HexesByRole,
+            'crc32HexesByHandoffKind' => $crc32HexesByHandoffKind,
+            'duplicateCrc32HexCount' => count($duplicateCrc32Summaries),
+            'duplicateCrc32EntryCount' => $duplicateCrc32EntryCount,
+            'hasDuplicateCrc32Entries' => $duplicateCrc32Summaries !== [],
+            'duplicateCrc32Hexes' => $duplicateCrc32Hexes,
+            'duplicateCrc32Summaries' => $duplicateCrc32Summaries,
+        ];
     }
 
     /**

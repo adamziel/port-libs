@@ -813,6 +813,77 @@ XML;
         $t->same($expectedReviewFieldBytes, $sourceRecordDocumentEntry['reviewFieldBytes']);
         $t->same($expectedReviewFieldBytes, $sourceRecordDocumentEntry['knownReviewFieldBytes']);
     },
+    'groups duplicate ZIP crc32 fingerprints for OPC manifest handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+        $crc32Hex = static fn (string $bytes): string => sprintf('%08x', (int) sprintf('%u', crc32($bytes)));
+        $xmlPayload = '<review><same>payload</same></review>';
+        $imagePayload = "same image bytes\n";
+        $xmlCrc32Hex = $crc32Hex($xmlPayload);
+        $imageCrc32Hex = $crc32Hex($imagePayload);
+        $duplicateCrc32Hexes = [$imageCrc32Hex, $xmlCrc32Hex];
+        sort($duplicateCrc32Hexes, SORT_STRING);
+
+        $package = ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $xmlPayload, 'compressionMethod' => 0],
+            ['name' => 'word/styles.xml', 'data' => $xmlPayload, 'compressionMethod' => 0],
+            ['name' => 'word/media/cover.png', 'data' => $imagePayload, 'compressionMethod' => 0],
+            ['name' => 'word/media/preview.png', 'data' => $imagePayload, 'compressionMethod' => 0],
+        ]);
+        $zipManifest = $package->packageManifestPreflight();
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($package->bytes());
+
+        $zipCrc32Summaries = [];
+        foreach ($zipManifest['crc32Summaries'] as $row) {
+            $zipCrc32Summaries[$row['crc32Hex']] = $row;
+        }
+        $crc32Summaries = [];
+        foreach ($summary['crc32Summaries'] as $row) {
+            $crc32Summaries[$row['crc32Hex']] = $row;
+        }
+
+        $t->same(4, $zipManifest['crc32SummaryCount']);
+        $t->same(2, $zipManifest['duplicateCrc32HexCount']);
+        $t->same(4, $zipManifest['duplicateCrc32EntryCount']);
+        $t->same(true, $zipManifest['hasDuplicateCrc32Entries']);
+        $t->same($duplicateCrc32Hexes, $zipManifest['duplicateCrc32Hexes']);
+        $t->same(['word/'], $zipCrc32Summaries[$xmlCrc32Hex]['directoryRoots']);
+        $t->same(['stored'], $zipCrc32Summaries[$xmlCrc32Hex]['compressionMethodNames']);
+        $t->same(['word/document.xml', 'word/styles.xml'], $zipCrc32Summaries[$xmlCrc32Hex]['entryNames']);
+        $t->same(2, $zipCrc32Summaries[$xmlCrc32Hex]['fileEntryCount']);
+        $t->same(2 * strlen($xmlPayload), $zipCrc32Summaries[$xmlCrc32Hex]['uncompressedBytes']);
+        $t->same(['word/media/cover.png', 'word/media/preview.png'], $zipCrc32Summaries[$imageCrc32Hex]['entryNames']);
+        $t->same(2 * strlen($imagePayload), $zipCrc32Summaries[$imageCrc32Hex]['compressedBytes']);
+
+        $t->same(4, $summary['duplicateCrc32EntryCount']);
+        $t->same($duplicateCrc32Hexes, $summary['duplicateCrc32Hexes']);
+        $t->same($summary['crc32Summaries'], $rawSummary['crc32Summaries']);
+        $t->same($summary['crc32HexCounts'], $rawSummary['crc32HexCounts']);
+        $t->same($summary['entryNamesByCrc32Hex'], $rawSummary['entryNamesByCrc32Hex']);
+        $t->same($summary['duplicateCrc32Summaries'], $rawSummary['duplicateCrc32Summaries']);
+        $t->same(2, $summary['crc32HexCounts'][$xmlCrc32Hex]);
+        $t->same(2, $summary['crc32HexCounts'][$imageCrc32Hex]);
+        $t->same(['word/document.xml', 'word/styles.xml'], $summary['entryNamesByCrc32Hex'][$xmlCrc32Hex]);
+        $t->same(['word/media/cover.png', 'word/media/preview.png'], $summary['entryNamesByCrc32Hex'][$imageCrc32Hex]);
+        $t->same(['xml-part' => 2], $crc32Summaries[$xmlCrc32Hex]['roleCounts']);
+        $t->same(['xml' => 2], $crc32Summaries[$xmlCrc32Hex]['handoffKindCounts']);
+        $t->same(['/word/document.xml', '/word/styles.xml'], $crc32Summaries[$xmlCrc32Hex]['partNames']);
+        $t->same(['media' => 2], $crc32Summaries[$imageCrc32Hex]['roleCounts']);
+        $t->same(['media' => 2], $crc32Summaries[$imageCrc32Hex]['handoffKindCounts']);
+        $t->same(['/word/media/cover.png', '/word/media/preview.png'], $crc32Summaries[$imageCrc32Hex]['partNames']);
+        $t->same([$xmlCrc32Hex], $summary['crc32HexesByRole']['xml-part']);
+        $t->same([$imageCrc32Hex], $summary['crc32HexesByRole']['media']);
+        $t->same([$xmlCrc32Hex], $summary['crc32HexesByHandoffKind']['xml']);
+        $t->same([$imageCrc32Hex], $summary['crc32HexesByHandoffKind']['media']);
+    },
     'carries OPC ZIP local header and compressed payload source hashes through manifest preflights' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
