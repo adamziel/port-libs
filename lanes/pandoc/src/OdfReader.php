@@ -17939,6 +17939,7 @@ final class OdfReader
             'partCount' => count($items),
             'fileCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] !== true)),
             'directoryCount' => count(array_filter($items, static fn (array $item): bool => $item['isDirectory'] === true)),
+            'readableCount' => count(array_filter($items, static fn (array $item): bool => $item['byteLength'] !== null)),
             'storedPartCount' => count(array_filter($items, static fn (array $item): bool => $item['storedByteLength'] !== null)),
             'declaredCount' => count(array_filter($items, static fn (array $item): bool => $item['declared'] === true)),
             'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),

@@ -2959,11 +2959,12 @@ XML;
         $inventory = $summary['packageInventory'];
 
         $t->same(5, $summary['packageConfigurations']['count']);
-        $t->same(3, $summary['packageConfigurations']['readableCount']);
+        $t->same(0, $summary['packageConfigurations']['readableCount']);
         $t->same(4, $summary['packageConfigurations']['declaredCount']);
         $t->same(1, $summary['packageConfigurations']['undeclaredCount']);
         $t->same(1, $summary['packageConfigurations']['missingCount']);
         $t->same(1, $summary['packageConfigurations']['directoryCount']);
+        $t->same(4, $summary['packageConfigurations']['storedPartCount']);
         $t->same(0, $summary['packageConfigurations']['encryptedCount']);
         $t->same(0, $summary['packageConfigurations']['invalidMediaTypeCount']);
         $t->same(2, $summary['packageConfigurations']['issueCount']);
@@ -3022,8 +3023,11 @@ XML;
         $t->same(true, $acceleratorConfiguration['declared']);
         $t->same(false, $acceleratorConfiguration['undeclared']);
         $t->same(true, $acceleratorConfiguration['valid']);
-        $t->same(strlen($acceleratorXml), $acceleratorConfiguration['byteLength']);
-        $t->same(sprintf('%08x', crc32($acceleratorXml)), $acceleratorConfiguration['crc32']);
+        $t->same(null, $acceleratorConfiguration['byteLength']);
+        $t->same(strlen($acceleratorXml), $acceleratorConfiguration['storedByteLength']);
+        $t->same(null, $acceleratorConfiguration['crc32']);
+        $t->same(sprintf('%08x', crc32($acceleratorXml)), $acceleratorConfiguration['storedCrc32']);
+        $t->same(false, $acceleratorConfiguration['canExposeBytes']);
         $t->same(false, $acceleratorConfiguration['canExposeAsDocumentMedia']);
         $t->same('configuration-package-bytes-blocked', $acceleratorConfiguration['byteExposurePolicy']);
         $t->same('configuration-package-metadata-only', $acceleratorConfiguration['reviewPolicy']);
@@ -3039,8 +3043,10 @@ XML;
         $t->same('images', $iconConfiguration['configurationArea']);
         $t->same('configuration-image', $iconConfiguration['configurationKind']);
         $t->same('image/png', $iconConfiguration['mediaType']);
-        $t->same(strlen($configIconBytes), $iconConfiguration['byteLength']);
-        $t->same(sprintf('%08x', crc32($configIconBytes)), $iconConfiguration['crc32']);
+        $t->same(null, $iconConfiguration['byteLength']);
+        $t->same(strlen($configIconBytes), $iconConfiguration['storedByteLength']);
+        $t->same(null, $iconConfiguration['crc32']);
+        $t->same(sprintf('%08x', crc32($configIconBytes)), $iconConfiguration['storedCrc32']);
 
         $missing = $reviewByPath['Configurations2/toolbar/missing.xml'];
         $t->same(false, $missing['exists']);
@@ -3064,7 +3070,8 @@ XML;
         $t->same(true, $orphanConfiguration['undeclared']);
         $t->same('statusbar', $orphanConfiguration['configurationArea']);
         $t->same('text/xml', $orphanConfiguration['mediaType']);
-        $t->same(strlen($statusbarXml), $orphanConfiguration['byteLength']);
+        $t->same(null, $orphanConfiguration['byteLength']);
+        $t->same(strlen($statusbarXml), $orphanConfiguration['storedByteLength']);
         $t->same(['odf-configuration-undeclared-package-part'], $orphanConfiguration['issues']);
     },
     'reports compact ODT configuration package issue buckets as metadata-only review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
@@ -3092,11 +3099,12 @@ XML;
         }
 
         $t->same(4, $configurations['count']);
-        $t->same(2, $configurations['readableCount']);
+        $t->same(0, $configurations['readableCount']);
         $t->same(3, $configurations['declaredCount']);
         $t->same(1, $configurations['undeclaredCount']);
         $t->same(1, $configurations['missingCount']);
         $t->same(0, $configurations['directoryCount']);
+        $t->same(3, $configurations['storedPartCount']);
         $t->same(1, $configurations['encryptedCount']);
         $t->same(1, $configurations['invalidMediaTypeCount']);
         $t->same(4, $configurations['issueCount']);
@@ -3126,8 +3134,10 @@ XML;
         $t->same('configuration-part', $invalid['configurationKind']);
         $t->same('text/plain', $invalid['mediaType']);
         $t->same(false, $invalid['valid']);
-        $t->same(strlen($invalidImageBytes), $invalid['byteLength']);
-        $t->same(sprintf('%08x', crc32($invalidImageBytes)), $invalid['crc32']);
+        $t->same(null, $invalid['byteLength']);
+        $t->same(strlen($invalidImageBytes), $invalid['storedByteLength']);
+        $t->same(null, $invalid['crc32']);
+        $t->same(sprintf('%08x', crc32($invalidImageBytes)), $invalid['storedCrc32']);
         $t->same(['odf-configuration-invalid-media-type'], $invalid['issues']);
 
         $missing = $itemsByPath['Configurations2/toolbar/missing.xml'];
@@ -3140,7 +3150,8 @@ XML;
         $t->same(true, $orphan['undeclared']);
         $t->same(true, $orphan['valid']);
         $t->same('text/xml', $orphan['mediaType']);
-        $t->same(strlen($orphanXml), $orphan['byteLength']);
+        $t->same(null, $orphan['byteLength']);
+        $t->same(strlen($orphanXml), $orphan['storedByteLength']);
         $t->same(['odf-configuration-undeclared-package-part'], $orphan['issues']);
 
         $reviewByPath = [];
