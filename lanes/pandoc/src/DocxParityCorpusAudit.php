@@ -363,6 +363,20 @@ final class DocxParityCorpusAudit
     {
         $dryRunDescriptor = UpstreamRunnerDependencyAudit::expectedCabalPlanCommands()['runner-test-dependencies'];
         $workspace = UpstreamRunnerDependencyAudit::expectedCabalPlanWorkspace();
+        $futureListTestsDescriptor = [
+            'program' => 'cabal',
+            'arguments' => [
+                'v2-run',
+                '--offline',
+                '--project-dir=.',
+                '--builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run',
+                'test:test-pandoc',
+                '--',
+                '--list-tests',
+                '--pattern',
+                '($2 == "Readers" || $2 == "Writers") && $3 == "Docx"',
+            ],
+        ];
         $futureTargetedDescriptor = [
             'program' => 'cabal',
             'arguments' => [
@@ -380,10 +394,69 @@ final class DocxParityCorpusAudit
         return [
             'status' => self::DOCX_RUNNER_PLAN_STATUS,
             'evidenceKind' => 'runner-entry-fixture-command-plan-only',
+            'preflightPlanTool' => 'tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current',
+            'preflightEvidenceKind' => DocxUpstreamRunnerPlan::EVIDENCE_KIND,
             'resultRecorded' => false,
             'runnerExecuted' => false,
             'upstreamCommit' => UpstreamRunnerDependencyAudit::UPSTREAM_COMMIT,
             'runnerTarget' => 'test:test-pandoc',
+            'localReadinessGate' => [
+                'command' => 'tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current',
+                'reportField' => 'localExecutionReadiness',
+                'evidenceKind' => DocxUpstreamRunnerPlan::LOCAL_READINESS_EVIDENCE_KIND,
+                'readyStatus' => DocxUpstreamRunnerPlan::LOCAL_READINESS_STATUS_READY,
+                'blockedStatus' => DocxUpstreamRunnerPlan::LOCAL_READINESS_STATUS_BLOCKED,
+                'machineReadableBlockerCodes' => [
+                    DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_SOURCE,
+                    DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_UNVERIFIED_PINNED_SOURCE,
+                    DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_CABAL,
+                    DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_GHC,
+                    DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_INSUFFICIENT_DISK,
+                ],
+                'checks' => [
+                    'required DOCX runner source paths and fixture directories are present',
+                    'hydrated upstream root HEAD equals the pinned DOCX runner commit',
+                    'cabal executable is present on PATH',
+                    'ghc executable is present on PATH',
+                    'freeBytes is at least minimumSuggestedFreeBytes before using the isolated runner workspace',
+                ],
+                'executionPolicy' => 'source/tool/disk readiness only; this PHP gate does not execute Cabal/Tasty, admit result artifacts, or claim DOCX/OpenXML parity',
+            ],
+            'selectedTestInventoryArtifact' => [
+                'command' => 'tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json',
+                'path' => '.port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json',
+                'evidenceKind' => DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_EVIDENCE_KIND,
+                'statusWhenHydrated' => DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_STATUS_REPORTED,
+                'source' => 'static DOCX Haskell test source plus filesystem fixture inventory',
+                'contents' => [
+                    'selected DOCX reader and writer source group identifiers',
+                    'candidate static labels from DOCX Haskell test source text',
+                    'root test/docx .docx and .native fixture names, stems, and byte sizes',
+                    'writer-golden test/docx/golden .docx fixture names, stems, and byte sizes',
+                ],
+                'executionPolicy' => 'metadata-only static source/fixture inventory; no Cabal command, Tasty runner, DOCX package-byte read, generated writer output, or pass/fail result is executed or asserted',
+            ],
+            'resultArtifactGate' => [
+                'command' => 'tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-current --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs',
+                'evidenceKind' => DocxUpstreamRunnerPlan::RESULT_ARTIFACT_GATE_EVIDENCE_KIND,
+                'admissibleStatus' => DocxUpstreamRunnerPlan::RESULT_ARTIFACT_GATE_STATUS_ADMISSIBLE,
+                'requires' => [
+                    '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+                    '.port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt',
+                    '.port-libs/pandoc-runner/logs/docx-targeted-run.txt',
+                    '.port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json',
+                    '.port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json',
+                ],
+                'checks' => [
+                    'required artifact presence and non-empty readability',
+                    'result.json required fields, pinned upstream commit, runner target, Tasty pattern, and pass/fail/skip count consistency',
+                    'result.json SHA-256 fields bound to the selected inventory and transcript artifacts',
+                    'runnerExecuted=true inside result.json before artifacts can be admitted',
+                    'transcripts include exact Cabal command lines, exit-code markers, DOCX Tasty --list-tests labels, and DOCX Tasty run result output',
+                    'missing or placeholder runner transcripts remain a blocking hard evidence gap, not pass evidence',
+                ],
+                'executionPolicy' => 'artifact-shape, transcript-evidence, and hash-binding validation only; this PHP gate does not execute Cabal/Tasty, independently prove transcript authenticity, record a runner result, or claim DOCX/OpenXML parity',
+            ],
             'runnerEntryPoint' => [
                 'packageFile' => 'pandoc.cabal',
                 'component' => 'test:test-pandoc',
@@ -444,6 +517,14 @@ final class DocxParityCorpusAudit
                 'transcriptFile' => $workspace['transcriptFiles']['runner-test-dependencies'],
                 'claim' => 'Descriptor-only Cabal dependency dry-run command; this audit did not execute it.',
             ],
+            'futureListTestsCommand' => [
+                'program' => $futureListTestsDescriptor['program'],
+                'arguments' => $futureListTestsDescriptor['arguments'],
+                'commandLine' => self::shellCommandLine($futureListTestsDescriptor['program'], $futureListTestsDescriptor['arguments']),
+                'workingDirectory' => 'hydrated Pandoc upstream checkout root',
+                'executionPolicy' => 'future targeted test inventory only after reviewed dry-run plan; not executed by this audit',
+                'requiredResultArtifact' => 'Record selected DOCX test names before any targeted runner pass/fail result is admitted.',
+            ],
             'futureTargetedRunCommand' => [
                 'program' => $futureTargetedDescriptor['program'],
                 'arguments' => $futureTargetedDescriptor['arguments'],
@@ -451,7 +532,40 @@ final class DocxParityCorpusAudit
                 'workingDirectory' => 'hydrated Pandoc upstream checkout root',
                 'executionPolicy' => 'future targeted runner only after reviewed dry-run plan; not executed by this audit',
                 'tastyPatternSource' => 'Tasty AWK-like pattern fields from test tree: $1 outer group, $2 reader/writer group, $3 Docx subgroup.',
-                'requiredResultArtifact' => 'A future run must record command transcript, exit code, upstream commit, selected test names or --list-tests output, and per-test pass/fail rows before closing upstream-docx-runner-results.',
+                'requiredResultArtifact' => 'A future run must record exact Cabal command transcripts, exit-code markers, upstream commit, DOCX --list-tests labels, targeted Tasty run output, and pass/fail/skip counts before closing upstream-docx-runner-results.',
+            ],
+            'resultArtifactContract' => [
+                'requiredBeforeResultRecorded' => [
+                    '.port-libs/pandoc-runner/logs/runner-test-dependencies.txt',
+                    '.port-libs/pandoc-runner/logs/docx-targeted-list-tests.txt',
+                    '.port-libs/pandoc-runner/logs/docx-targeted-run.txt',
+                    '.port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json',
+                    '.port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json',
+                ],
+                'resultJsonRequiredFields' => [
+                    'runnerExecuted',
+                    'upstreamCommit',
+                    'commandLine',
+                    'exitCode',
+                    'runnerTarget',
+                    'tastyPattern',
+                    'selectedTestCount',
+                    'passedCount',
+                    'failedCount',
+                    'skippedCount',
+                    'startedAtUtc',
+                    'finishedAtUtc',
+                    'selectedTestInventorySha256',
+                    'dependencyDryRunTranscriptSha256',
+                    'listTestsTranscriptSha256',
+                    'targetedRunTranscriptSha256',
+                ],
+                'transcriptEvidenceRequirements' => [
+                    'dependencyDryRunTranscript' => 'must include the exact Cabal dry-run command line and exitCode: 0 marker',
+                    'listTestsTranscript' => 'must include the exact Cabal/Tasty --list-tests command line, exitCode: 0 marker, and DOCX Tasty test labels',
+                    'targetedRunTranscript' => 'must include the exact targeted Cabal/Tasty command line, an exitCode marker matching result.json, and DOCX Tasty result output',
+                ],
+                'admissionRule' => 'Do not set resultRecorded=true until command transcript, exit code, selected test inventory, pass/fail counts, and concrete Tasty DOCX list/run output are captured for the pinned upstream checkout.',
             ],
             'honestClaim' => 'This records entry points, fixture closure, and commands for a future targeted run only. It is not an upstream DOCX runner result.',
         ];
@@ -827,6 +941,7 @@ final class DocxParityCorpusAudit
         $writer = is_array($plan['docxWriterEntryPoint'] ?? null) ? $plan['docxWriterEntryPoint'] : [];
         $fixtureClosure = is_array($plan['fixtureClosure'] ?? null) ? $plan['fixtureClosure'] : [];
         $dryRun = is_array($plan['nonMutatingDryRunPlanCommand'] ?? null) ? $plan['nonMutatingDryRunPlanCommand'] : [];
+        $readiness = is_array($plan['localReadinessGate'] ?? null) ? $plan['localReadinessGate'] : [];
         $future = is_array($plan['futureTargetedRunCommand'] ?? null) ? $plan['futureTargetedRunCommand'] : [];
 
         $lines[] = 'Upstream DOCX runner plan: '
@@ -854,6 +969,18 @@ final class DocxParityCorpusAudit
                 . (string) ($dryRun['commandLine'] ?? '')
                 . ' ['
                 . (string) ($dryRun['executionPolicy'] ?? '')
+                . ']';
+        }
+        if ($readiness !== []) {
+            $codes = is_array($readiness['machineReadableBlockerCodes'] ?? null)
+                ? $readiness['machineReadableBlockerCodes']
+                : [];
+            $lines[] = 'DOCX runner local readiness gate: '
+                . (string) ($readiness['blockedStatus'] ?? DocxUpstreamRunnerPlan::LOCAL_READINESS_STATUS_BLOCKED)
+                . '; blocker codes='
+                . implode(', ', array_map('strval', $codes))
+                . ' ['
+                . (string) ($readiness['executionPolicy'] ?? '')
                 . ']';
         }
         if ($future !== []) {

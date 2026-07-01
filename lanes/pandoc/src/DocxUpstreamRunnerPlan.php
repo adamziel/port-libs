@@ -22,6 +22,12 @@ final class DocxUpstreamRunnerPlan
     public const DEFAULT_RELATIVE_LOG_ROOT = '.port-libs/pandoc-runner/logs';
     public const LOCAL_READINESS_STATUS_READY = 'ready-for-targeted-docx-runner-execution';
     public const LOCAL_READINESS_STATUS_BLOCKED = 'blocked-targeted-docx-runner-local-prerequisites';
+    public const LOCAL_READINESS_EVIDENCE_KIND = 'targeted-docx-runner-local-readiness-gate-only';
+    public const LOCAL_READINESS_BLOCKER_MISSING_SOURCE = 'missing-docx-upstream-source';
+    public const LOCAL_READINESS_BLOCKER_UNVERIFIED_PINNED_SOURCE = 'unverified-pinned-upstream-commit';
+    public const LOCAL_READINESS_BLOCKER_MISSING_CABAL = 'missing-cabal-executable';
+    public const LOCAL_READINESS_BLOCKER_MISSING_GHC = 'missing-ghc-executable';
+    public const LOCAL_READINESS_BLOCKER_INSUFFICIENT_DISK = 'insufficient-disk-for-targeted-runner-workspace';
     public const PINNED_SOURCE_STATUS_MATCHED = 'matched-pinned-upstream-commit';
     public const PINNED_SOURCE_STATUS_MISMATCHED = 'mismatched-pinned-upstream-commit';
     public const PINNED_SOURCE_STATUS_ROOT_MISSING = 'not-checked-upstream-root-missing';
@@ -64,9 +70,15 @@ final class DocxUpstreamRunnerPlan
 
     private readonly string $repoRoot;
     private readonly string $upstreamRoot;
+    private readonly ?\Closure $executableResolver;
+    private readonly ?\Closure $freeSpaceResolver;
 
-    public function __construct(string $repoRoot, string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT)
-    {
+    public function __construct(
+        string $repoRoot,
+        string $upstreamRoot = self::DEFAULT_RELATIVE_UPSTREAM_ROOT,
+        ?callable $executableResolver = null,
+        ?callable $freeSpaceResolver = null
+    ) {
         if ($repoRoot === '') {
             throw new \InvalidArgumentException('Repository root must not be empty');
         }
@@ -76,6 +88,8 @@ final class DocxUpstreamRunnerPlan
 
         $this->repoRoot = rtrim($repoRoot, DIRECTORY_SEPARATOR);
         $this->upstreamRoot = $this->absolutePath($upstreamRoot);
+        $this->executableResolver = $executableResolver === null ? null : \Closure::fromCallable($executableResolver);
+        $this->freeSpaceResolver = $freeSpaceResolver === null ? null : \Closure::fromCallable($freeSpaceResolver);
     }
 
     /**
@@ -175,6 +189,8 @@ final class DocxUpstreamRunnerPlan
                 . (string) ($readiness['status'] ?? 'unknown')
                 . '; blockers='
                 . count(is_array($readiness['blockers'] ?? null) ? $readiness['blockers'] : []);
+            $codes = is_array($readiness['blockerCodes'] ?? null) ? $readiness['blockerCodes'] : [];
+            $lines[] = 'Local execution blocker codes: ' . implode(', ', array_map('strval', $codes));
             foreach (is_array($readiness['blockers'] ?? null) ? $readiness['blockers'] : [] as $blocker) {
                 $lines[] = 'Local execution blocker: ' . (string) $blocker;
             }
@@ -282,46 +298,71 @@ final class DocxUpstreamRunnerPlan
      */
     private function localExecutionReadiness(array $sourcePreflight, bool $sourceReady): array
     {
-        $cabalPath = self::executableOnPath('cabal');
-        $ghcPath = self::executableOnPath('ghc');
-        $freeBytesRaw = disk_free_space($this->repoRoot);
-        $freeBytes = $freeBytesRaw === false ? null : (int) $freeBytesRaw;
+        $cabalPath = $this->resolvedExecutable('cabal');
+        $ghcPath = $this->resolvedExecutable('ghc');
+        $freeBytes = $this->resolvedFreeBytes($this->repoRoot);
         $sufficientDisk = $freeBytes === null ? null : $freeBytes >= self::MINIMUM_SUGGESTED_FREE_BYTES;
         $pinnedSource = is_array($sourcePreflight['pinnedSource'] ?? null) ? $sourcePreflight['pinnedSource'] : [];
         $pinnedSourceMatched = ($pinnedSource['matchesPinnedCommit'] ?? false) === true;
 
         $blockers = [];
+        $blockerCodes = [];
+        $blockerEvidence = [];
+        $addBlocker = static function (string $code, string $message, array $evidence = []) use (&$blockers, &$blockerCodes, &$blockerEvidence): void {
+            $blockers[] = $message;
+            $blockerCodes[] = $code;
+            $blockerEvidence[] = ['code' => $code, 'message' => $message] + $evidence;
+        };
+
         if (!$sourceReady) {
-            $blockers[] = 'missing DOCX upstream source paths under '
+            $missingFiles = array_values(array_map('strval', $sourcePreflight['missingFiles'] ?? []));
+            $missingDirectories = array_values(array_map('strval', $sourcePreflight['missingDirectories'] ?? []));
+            $addBlocker(self::LOCAL_READINESS_BLOCKER_MISSING_SOURCE, 'missing DOCX upstream source paths under '
                 . $this->displayPath($this->upstreamRoot)
                 . ': files='
-                . implode(',', array_map('strval', $sourcePreflight['missingFiles'] ?? []))
+                . implode(',', $missingFiles)
                 . '; directories='
-                . implode(',', array_map('strval', $sourcePreflight['missingDirectories'] ?? []));
+                . implode(',', $missingDirectories), [
+                    'upstreamRoot' => $this->displayPath($this->upstreamRoot),
+                    'missingFiles' => $missingFiles,
+                    'missingDirectories' => $missingDirectories,
+                ]);
         }
         if ($sourceReady && !$pinnedSourceMatched) {
-            $blockers[] = 'pinned upstream commit is not verified for targeted runner admission: status='
+            $addBlocker(self::LOCAL_READINESS_BLOCKER_UNVERIFIED_PINNED_SOURCE, 'pinned upstream commit is not verified for targeted runner admission: status='
                 . (string) ($pinnedSource['status'] ?? 'unknown')
                 . '; expectedCommit='
                 . self::PINNED_UPSTREAM_COMMIT
                 . '; observedCommit='
-                . (string) ($pinnedSource['observedCommit'] ?? 'none');
+                . (string) ($pinnedSource['observedCommit'] ?? 'none'), [
+                    'expectedCommit' => self::PINNED_UPSTREAM_COMMIT,
+                    'observedCommit' => $pinnedSource['observedCommit'] ?? null,
+                    'pinnedSourceStatus' => $pinnedSource['status'] ?? 'unknown',
+                ]);
         }
         if ($cabalPath === null) {
-            $blockers[] = 'cabal executable not found on PATH';
+            $addBlocker(self::LOCAL_READINESS_BLOCKER_MISSING_CABAL, 'cabal executable not found on PATH', [
+                'tool' => 'cabal',
+            ]);
         }
         if ($ghcPath === null) {
-            $blockers[] = 'ghc executable not found on PATH';
+            $addBlocker(self::LOCAL_READINESS_BLOCKER_MISSING_GHC, 'ghc executable not found on PATH', [
+                'tool' => 'ghc',
+            ]);
         }
         if ($sufficientDisk === false) {
-            $blockers[] = 'available disk space is below the suggested targeted-runner workspace floor: freeBytes='
+            $addBlocker(self::LOCAL_READINESS_BLOCKER_INSUFFICIENT_DISK, 'available disk space is below the suggested targeted-runner workspace floor: freeBytes='
                 . (string) $freeBytes
                 . '; minimumSuggestedFreeBytes='
-                . (string) self::MINIMUM_SUGGESTED_FREE_BYTES;
+                . (string) self::MINIMUM_SUGGESTED_FREE_BYTES, [
+                    'freeBytes' => $freeBytes,
+                    'minimumSuggestedFreeBytes' => self::MINIMUM_SUGGESTED_FREE_BYTES,
+                ]);
         }
 
         return [
             'schemaVersion' => 1,
+            'evidenceKind' => self::LOCAL_READINESS_EVIDENCE_KIND,
             'status' => $blockers === [] ? self::LOCAL_READINESS_STATUS_READY : self::LOCAL_READINESS_STATUS_BLOCKED,
             'runnerExecutionAttemptedByThisTool' => false,
             'resultRecordedByThisTool' => false,
@@ -339,6 +380,8 @@ final class DocxUpstreamRunnerPlan
                 'minimumSuggestedFreeBytes' => self::MINIMUM_SUGGESTED_FREE_BYTES,
                 'sufficientDiskForTargetedWorkspace' => $sufficientDisk,
             ],
+            'blockerCodes' => $blockerCodes,
+            'blockerEvidence' => $blockerEvidence,
             'blockers' => $blockers,
             'claim' => 'Local source/tool/disk readiness for a possible targeted DOCX Cabal/Tasty run only; this does not execute the runner or admit artifacts.',
         ];
@@ -1388,6 +1431,30 @@ final class DocxUpstreamRunnerPlan
         }
 
         return $count;
+    }
+
+    private function resolvedExecutable(string $name): ?string
+    {
+        if ($this->executableResolver !== null) {
+            $resolved = ($this->executableResolver)($name);
+
+            return is_string($resolved) && $resolved !== '' ? $resolved : null;
+        }
+
+        return self::executableOnPath($name);
+    }
+
+    private function resolvedFreeBytes(string $path): ?int
+    {
+        if ($this->freeSpaceResolver !== null) {
+            $resolved = ($this->freeSpaceResolver)($path);
+
+            return is_int($resolved) && $resolved >= 0 ? $resolved : null;
+        }
+
+        $freeBytes = disk_free_space($path);
+
+        return $freeBytes === false ? null : (int) $freeBytes;
     }
 
     /**

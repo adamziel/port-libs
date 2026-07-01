@@ -122,7 +122,12 @@ return [
     'reports blocked docx runner preflight without hydrated upstream source' => static function (TestRunner $t) use ($makeTempRoot, $removeTree): void {
         $repoRoot = $makeTempRoot();
         try {
-            $report = (new DocxUpstreamRunnerPlan($repoRoot))->report();
+            $report = (new DocxUpstreamRunnerPlan(
+                $repoRoot,
+                DocxUpstreamRunnerPlan::DEFAULT_RELATIVE_UPSTREAM_ROOT,
+                static fn (string $name): ?string => null,
+                static fn (string $path): int => DocxUpstreamRunnerPlan::MINIMUM_SUGGESTED_FREE_BYTES - 1
+            ))->report();
             $text = DocxUpstreamRunnerPlan::formatTextReport($report);
 
             $t->same(DocxUpstreamRunnerPlan::STATUS_BLOCKED_MISSING_UPSTREAM_SOURCE, $report['status']);
@@ -145,14 +150,33 @@ return [
             $t->same(false, $report['selectedTestInventory']['cabalExecuted']);
             $t->same(false, $report['selectedTestInventory']['docxPackageBytesRead']);
             $readiness = $report['localExecutionReadiness'];
+            $t->same(DocxUpstreamRunnerPlan::LOCAL_READINESS_EVIDENCE_KIND, $readiness['evidenceKind']);
             $t->same(DocxUpstreamRunnerPlan::LOCAL_READINESS_STATUS_BLOCKED, $readiness['status']);
             $t->same(false, $readiness['runnerExecutionAttemptedByThisTool']);
             $t->same(false, $readiness['resultRecordedByThisTool']);
             $t->same(false, $readiness['checks']['sourcePreflightReady']);
             $t->same(false, $readiness['checks']['upstreamRootPresent']);
             $t->same(false, $readiness['checks']['sourceCommitMatchesPinned']);
+            $t->same(null, $readiness['checks']['cabalExecutable']);
+            $t->same(null, $readiness['checks']['ghcExecutable']);
+            $t->same(DocxUpstreamRunnerPlan::MINIMUM_SUGGESTED_FREE_BYTES - 1, $readiness['checks']['freeBytes']);
+            $t->same(false, $readiness['checks']['sufficientDiskForTargetedWorkspace']);
+            $t->same([
+                DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_SOURCE,
+                DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_CABAL,
+                DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_GHC,
+                DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_INSUFFICIENT_DISK,
+            ], $readiness['blockerCodes']);
+            $t->same(DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_SOURCE, $readiness['blockerEvidence'][0]['code'] ?? null);
+            $t->same(DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_CABAL, $readiness['blockerEvidence'][1]['code'] ?? null);
+            $t->same(DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_MISSING_GHC, $readiness['blockerEvidence'][2]['code'] ?? null);
+            $t->same(DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_INSUFFICIENT_DISK, $readiness['blockerEvidence'][3]['code'] ?? null);
             $t->contains('missing DOCX upstream source paths', implode("\n", $readiness['blockers']));
+            $t->contains('cabal executable not found on PATH', implode("\n", $readiness['blockers']));
+            $t->contains('ghc executable not found on PATH', implode("\n", $readiness['blockers']));
+            $t->contains('available disk space is below the suggested targeted-runner workspace floor', implode("\n", $readiness['blockers']));
             $t->contains('Local execution readiness: blocked-targeted-docx-runner-local-prerequisites', $text);
+            $t->contains('Local execution blocker codes: missing-docx-upstream-source, missing-cabal-executable, missing-ghc-executable, insufficient-disk-for-targeted-runner-workspace', $text);
             $t->contains('Local execution blocker: missing DOCX upstream source paths', $text);
             $t->contains('Pinned source: not-checked-upstream-root-missing', $text);
             $t->contains('--dry-run --only-dependencies', $report['commands']['dependencyDryRun']['commandLine']);
@@ -172,7 +196,16 @@ return [
             $upstreamRoot = $repoRoot . '/cache/pandoc-current';
             $hydrateRunnerPlanFixture($upstreamRoot);
 
-            $report = (new DocxUpstreamRunnerPlan($repoRoot, 'cache/pandoc-current'))->report();
+            $report = (new DocxUpstreamRunnerPlan(
+                $repoRoot,
+                'cache/pandoc-current',
+                static fn (string $name): ?string => match ($name) {
+                    'cabal' => '/usr/bin/cabal-fixture',
+                    'ghc' => '/usr/bin/ghc-fixture',
+                    default => null,
+                },
+                static fn (string $path): int => DocxUpstreamRunnerPlan::MINIMUM_SUGGESTED_FREE_BYTES + 1
+            ))->report();
 
             $t->same(DocxUpstreamRunnerPlan::STATUS_READY, $report['status']);
             $t->same([], $report['sourcePreflight']['missingFiles']);
@@ -208,6 +241,12 @@ return [
             $t->same(true, $readiness['checks']['sourcePreflightReady']);
             $t->same(true, $readiness['checks']['upstreamRootPresent']);
             $t->same(false, $readiness['checks']['sourceCommitMatchesPinned']);
+            $t->same('/usr/bin/cabal-fixture', $readiness['checks']['cabalExecutable']);
+            $t->same('/usr/bin/ghc-fixture', $readiness['checks']['ghcExecutable']);
+            $t->same(DocxUpstreamRunnerPlan::MINIMUM_SUGGESTED_FREE_BYTES + 1, $readiness['checks']['freeBytes']);
+            $t->same(true, $readiness['checks']['sufficientDiskForTargetedWorkspace']);
+            $t->same([DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_UNVERIFIED_PINNED_SOURCE], $readiness['blockerCodes']);
+            $t->same(DocxUpstreamRunnerPlan::LOCAL_READINESS_BLOCKER_UNVERIFIED_PINNED_SOURCE, $readiness['blockerEvidence'][0]['code'] ?? null);
             $t->same(false, $readiness['runnerExecutionAttemptedByThisTool']);
             $t->same(false, $readiness['resultRecordedByThisTool']);
             $t->true(is_array($readiness['blockers']), 'Readiness blockers must be a list even when local tooling availability varies');
