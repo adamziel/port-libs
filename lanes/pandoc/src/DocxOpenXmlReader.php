@@ -12986,6 +12986,13 @@ final class DocxOpenXmlReader
         $summary['zipSourceCreatorVersionComparisonCounts'] = is_array($zipSourceRecords['creatorVersionComparisonCounts'] ?? null)
             ? $zipSourceRecords['creatorVersionComparisonCounts']
             : [];
+        $summary['zipSourceCreatorHostSystemCounts'] = is_array($zipSourceRecords['creatorHostSystemCounts'] ?? null)
+            ? $zipSourceRecords['creatorHostSystemCounts']
+            : [];
+        $summary['zipSourceEntryNamesByCreatorHostSystem'] =
+            is_array($zipSourceRecords['entryNamesByCreatorHostSystem'] ?? null)
+                ? $zipSourceRecords['entryNamesByCreatorHostSystem']
+                : [];
         $summary['zipSourceCreatorHostSystems'] = is_array($zipSourceRecords['creatorHostSystems'] ?? null)
             ? $zipSourceRecords['creatorHostSystems']
             : [];
@@ -13642,6 +13649,8 @@ final class DocxOpenXmlReader
                 'equals-needed' => 0,
                 'above-needed' => 0,
             ],
+            'creatorHostSystemCounts' => [],
+            'entryNamesByCreatorHostSystem' => [],
             'creatorHostSystems' => [],
             'unknownCreatorHostSystemEntries' => [],
             'creatorVersionBelowNeededEntries' => [],
@@ -13842,6 +13851,8 @@ final class DocxOpenXmlReader
             'creatorVersionEqualNeededEntryCount' => $creatorHostSystems['creatorVersionEqualNeededEntryCount'],
             'creatorVersionAboveNeededEntryCount' => $creatorHostSystems['creatorVersionAboveNeededEntryCount'],
             'creatorVersionComparisonCounts' => $creatorHostSystems['creatorVersionComparisonCounts'],
+            'creatorHostSystemCounts' => $creatorHostSystems['creatorHostSystemCounts'],
+            'entryNamesByCreatorHostSystem' => $creatorHostSystems['entryNamesByCreatorHostSystem'],
             'creatorHostSystems' => $creatorHostSystems['hostSystems'],
             'unknownCreatorHostSystemEntries' => $creatorHostSystems['unknownEntries'],
             'creatorVersionBelowNeededEntries' => $creatorHostSystems['creatorVersionBelowNeededEntries'],
@@ -13880,6 +13891,8 @@ final class DocxOpenXmlReader
         $unknownEntries = [];
         $creatorVersionBelowNeededEntries = [];
         $hostSystems = [];
+        $creatorHostSystemCounts = [];
+        $entryNamesByCreatorHostSystem = [];
         $creatorVersionComparisonCounts = [
             'below-needed' => 0,
             'equals-needed' => 0,
@@ -13921,6 +13934,11 @@ final class DocxOpenXmlReader
             $creatorVersionComparisonCounts[$creatorVersionComparison]++;
             $creatorVersionMeetsNeeded = $creatorVersionDelta >= 0;
             $isKnown = $hostSystemName !== 'unknown';
+            $creatorHostSystemCounts[$hostSystemName] = ($creatorHostSystemCounts[$hostSystemName] ?? 0) + 1;
+            if ($entryName !== '') {
+                $entryNamesByCreatorHostSystem[$hostSystemName] ??= [];
+                $entryNamesByCreatorHostSystem[$hostSystemName][] = $entryName;
+            }
             $issues = [];
             if (!$isKnown) {
                 $issues[] = 'unknown-creator-host-system';
@@ -13962,6 +13980,12 @@ final class DocxOpenXmlReader
         }
 
         ksort($hostSystems, SORT_NUMERIC);
+        ksort($creatorHostSystemCounts, SORT_STRING);
+        ksort($entryNamesByCreatorHostSystem, SORT_STRING);
+        foreach ($entryNamesByCreatorHostSystem as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
 
         return [
             'entryCount' => count($creatorEntries),
@@ -13973,6 +13997,8 @@ final class DocxOpenXmlReader
             'creatorVersionEqualNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed'],
             'creatorVersionAboveNeededEntryCount' => $creatorVersionComparisonCounts['above-needed'],
             'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
+            'creatorHostSystemCounts' => $creatorHostSystemCounts,
+            'entryNamesByCreatorHostSystem' => $entryNamesByCreatorHostSystem,
             'hostSystems' => array_values($hostSystems),
             'unknownEntries' => $unknownEntries,
             'creatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries,
@@ -44611,6 +44637,12 @@ final class DocxOpenXmlReader
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
             'zipEntryCount' => (int) ($summary['zipEntryCount'] ?? 0),
+            'zipSourceCreatorHostSystemCounts' => $this->packageIdentityCountMap(
+                $summary['zipSourceCreatorHostSystemCounts'] ?? []
+            ),
+            'zipSourceEntryNamesByCreatorHostSystem' => $this->packageIdentityStringListMap(
+                $summary['zipSourceEntryNamesByCreatorHostSystem'] ?? []
+            ),
             'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
                 ? $summary['zipUnixOwners']
                 : $this->emptyZipUnixOwnerMetadataProvenance(),
