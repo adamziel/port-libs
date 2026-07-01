@@ -17867,6 +17867,102 @@ XML;
         $t->same($review['externalTargetKindCounts'], $summary['numberingRelationshipExternalTargetKindCounts']);
         $t->same($review['externalTargetSchemeCounts'], $summary['numberingRelationshipExternalTargetSchemeCounts']);
     },
+    'summarizes docx numbering relationship target path provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $numberingRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+        $numberingContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+        $reviewNumberingXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="30">
+    <w:lvl w:ilvl="0"><w:start w:val="4"/><w:numFmt w:val="upperLetter"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="30"/></w:num>
+</w:numbering>
+XML;
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering/review-lists.xml" ContentType="' . $numberingContentType . '; profile=path-review"/>' . "\n" .
+            '  <Override PartName="/word/numbering/missing-lists.xml" ContentType="' . $numberingContentType . '"/>' . "\n" .
+            '  <Override PartName="/customXml/list-defs/outline-numbering.xml" ContentType="' . $numberingContentType . '"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rReviewLists" Type="' . $numberingRel . '" Target="numbering/review-lists.xml?variant=alpha#defs"/>' . "\n" .
+            '  <Relationship Id="rNestedLists" Type="' . $numberingRel . '" Target="../customXml/list-defs/outline-numbering.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingLists" Type="' . $numberingRel . '" Target="numbering/missing-lists.xml"/>' . "\n" .
+            '  <Relationship Id="rRemoteLists" Type="' . $numberingRel . '" Target="https://cdn.example.test/numbering/remote-lists.xml?remote=1#defs" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/numbering/review-lists.xml'] = $reviewNumberingXml;
+        $parts['customXml/list-defs/outline-numbering.xml'] = '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $summary = $docx['packageProvenance']['summary'];
+        $review = $docx['numberingRelationshipReview'];
+        $selected = $review['byRelationshipId']['rReviewLists'];
+        $nested = $review['byRelationshipId']['rNestedLists'];
+        $missing = $review['byRelationshipId']['rMissingLists'];
+        $remote = $review['byRelationshipId']['rRemoteLists'];
+
+        $t->same('word/numbering/review-lists.xml', $docx['numberingPart']);
+        $t->same('rReviewLists', $docx['numberingRelationship']['id']);
+        $t->same(4, $review['relationshipCount']);
+        $t->same(3, $review['internalRelationshipCount']);
+        $t->same(1, $review['externalRelationshipCount']);
+        $t->same(2, $review['targetDirectoryCount']);
+        $t->same(['customXml/list-defs', 'word/numbering'], $review['targetDirectories']);
+        $t->same(['customXml/list-defs' => 1, 'word/numbering' => 2], $review['targetDirectoryCounts']);
+        $t->same(2, $review['targetDirectoryBaseNameCount']);
+        $t->same(['list-defs', 'numbering'], $review['targetDirectoryBaseNames']);
+        $t->same(['list-defs' => 1, 'numbering' => 2], $review['targetDirectoryBaseNameCounts']);
+        $t->same(3, $review['targetBaseNameCount']);
+        $t->same(['missing-lists.xml', 'outline-numbering.xml', 'review-lists.xml'], $review['targetBaseNames']);
+        $t->same(['missing-lists.xml' => 1, 'outline-numbering.xml' => 1, 'review-lists.xml' => 1], $review['targetBaseNameCounts']);
+        $t->same(3, $review['targetBaseNameStemCount']);
+        $t->same(['missing-lists', 'outline-numbering', 'review-lists'], $review['targetBaseNameStems']);
+        $t->same(['missing-lists' => 1, 'outline-numbering' => 1, 'review-lists' => 1], $review['targetBaseNameStemCounts']);
+        $t->same(7, $review['targetPathSegmentCount']);
+        $t->same(9, $review['targetPathSegmentOccurrenceCount']);
+        $t->same([
+            'customXml' => 1,
+            'list-defs' => 1,
+            'missing-lists.xml' => 1,
+            'numbering' => 2,
+            'outline-numbering.xml' => 1,
+            'review-lists.xml' => 1,
+            'word' => 2,
+        ], $review['targetPathSegmentCounts']);
+
+        $t->same('word/numbering', $selected['targetDirectory']);
+        $t->same('numbering', $selected['targetDirectoryBaseName']);
+        $t->same('review-lists.xml', $selected['targetBaseName']);
+        $t->same('review-lists', $selected['targetBaseNameStem']);
+        $t->same(['word', 'numbering', 'review-lists.xml'], $selected['targetPathSegments']);
+        $t->same(3, $selected['targetPathSegmentCount']);
+        $t->same('customXml/list-defs', $nested['targetDirectory']);
+        $t->same('outline-numbering.xml', $nested['targetBaseName']);
+        $t->same(['customXml', 'list-defs', 'outline-numbering.xml'], $nested['targetPathSegments']);
+        $t->same('word/numbering/missing-lists.xml', $missing['targetPart']);
+        $t->same('word/numbering', $missing['targetDirectory']);
+        $t->same(false, $missing['exists']);
+        $t->same(null, $remote['targetDirectory']);
+        $t->same([], $remote['targetPathSegments']);
+        $t->same(0, $remote['targetPathSegmentCount']);
+
+        $t->same($review['targetDirectoryCount'], $summary['numberingRelationshipTargetDirectoryCount']);
+        $t->same($review['targetDirectories'], $summary['numberingRelationshipTargetDirectories']);
+        $t->same($review['targetDirectoryBaseNameCount'], $summary['numberingRelationshipTargetDirectoryBaseNameCount']);
+        $t->same($review['targetDirectoryBaseNames'], $summary['numberingRelationshipTargetDirectoryBaseNames']);
+        $t->same($review['targetBaseNameCount'], $summary['numberingRelationshipTargetBaseNameCount']);
+        $t->same($review['targetBaseNames'], $summary['numberingRelationshipTargetBaseNames']);
+        $t->same($review['targetPathSegmentCount'], $summary['numberingRelationshipTargetPathSegmentCount']);
+        $t->same($review['targetPathSegmentOccurrenceCount'], $summary['numberingRelationshipTargetPathSegmentOccurrenceCount']);
+        $t->same($review['targetPathSegmentCounts'], $summary['numberingRelationshipTargetPathSegmentCounts']);
+    },
     'preserves raw docx numbering relationship records before id de-duplication' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $numberingRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
