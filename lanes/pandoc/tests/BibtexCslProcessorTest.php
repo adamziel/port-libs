@@ -3583,6 +3583,98 @@ XML);
         $t->contains('<p>Relation source [Relation Review Manual | Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related | dataonly, skipbib | missing-related | Xref: Source Proceedings (2023)] keeps relation handoff metadata.</p>', $blocks);
         $t->contains('Relation Review Manual :: Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related :: dataonly, skipbib :: missing-related :: Xref: Source Proceedings (2023)', $blocks);
     },
+    'resolves biblatex related key aliases into canonical csl summaries' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{relation-alias-manual,
+  author         = {Ng, Nia},
+  title          = {Relation Alias Manual},
+  date           = {2026},
+  relatedkeys    = {alias-appendix, missing-alias},
+  relatedtype    = {reviewof},
+  relatedstring  = {Reviewed source},
+  relatedoptions = {dataonly, skipbib},
+  xref           = {alias-proceedings, missing-xref}
+}
+
+@online{alias-appendix,
+  options = {dataonly},
+  title   = {Alias Appendix},
+  date    = {2025},
+  url     = {https://example.test/alias-appendix}
+}
+
+@proceedings{alias-proceedings,
+  title = {Alias Proceedings},
+  date  = {2024}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['relation-alias-manual'];
+
+        $t->same('alias-appendix, missing-alias', $item['related']);
+        $t->same(['alias-appendix', 'missing-alias'], $item['relatedKeys']);
+        $t->same(['alias-appendix', 'missing-alias'], $item['related-keys']);
+        $t->same(['missing-alias'], $item['missingRelatedKeys']);
+        $t->same(['missing-alias'], $item['missing-related-keys']);
+        $t->same('reviewof', $item['relatedType']);
+        $t->same('Reviewed source', $item['relatedString']);
+        $t->same(['dataonly', 'skipbib'], $item['relatedOptions']);
+        $t->same('dataonly, skipbib', $item['related-options']);
+        $t->same('Alias Appendix', $item['relatedItems'][0]['title'] ?? null);
+        $t->same(true, $item['relatedItems'][0]['dataOnly'] ?? null);
+        $t->same('Reviewed source (reviewof): Alias Appendix (2025); missing: missing-alias', $item['relatedSummary']);
+        $t->same(['alias-proceedings', 'missing-xref'], $item['xrefKeys']);
+        $t->same(['alias-proceedings', 'missing-xref'], $item['xref-keys']);
+        $t->same(['missing-xref'], $item['missingXrefKeys']);
+        $t->same(['missing-xref'], $item['missing-xref-keys']);
+        $t->same('Alias Proceedings', $item['xrefItems'][0]['title'] ?? null);
+        $t->same('Xref: Alias Proceedings (2024); missing: missing-xref', $item['xrefSummary']);
+
+        $bibliography = $processor->renderBibliographyText($item);
+        $t->contains('Related: alias-appendix, missing-alias', $bibliography);
+        $t->contains('Reviewed source (reviewof): Alias Appendix (2025); missing: missing-alias', $bibliography);
+        $t->contains('Xref: Alias Proceedings (2024); missing: missing-xref', $bibliography);
+
+        $document = (new MarkdownReader())->read('Alias relation @relation-alias-manual keeps canonical relation metadata.');
+        $handoff = $processor->citationHandoff($document, $source);
+
+        $t->same(['relation-alias-manual'], $handoff['citedKeys']);
+        $t->same(['alias-appendix', 'missing-alias'], $handoff['items'][0]['relatedKeys'] ?? null);
+        $t->same(['missing-xref'], $handoff['bibliography']->children[0]->attr('cslItem')['missingXrefKeys'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-summary"/>
+        <text variable="related-keys"/>
+        <text variable="missing-related-keys"/>
+        <text variable="xref-summary"/>
+        <text variable="missing-xref-keys"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+      <text variable="related-options"/>
+      <text variable="xref-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Relation Alias Manual | Reviewed source (reviewof): Alias Appendix (2025); missing: missing-alias | alias-appendix, missing-alias | missing-alias | Xref: Alias Proceedings (2024); missing: missing-xref | missing-xref]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'relation-alias-manual', 'text' => '[@relation-alias-manual]']),
+        ]));
+        $t->same('Relation Alias Manual :: Reviewed source (reviewof): Alias Appendix (2025); missing: missing-alias :: dataonly, skipbib :: Xref: Alias Proceedings (2024); missing: missing-xref', $styled->renderBibliographyEntry('relation-alias-manual'));
+    },
     'labels known biblatex related types without explicit related strings in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{reprint-manual,
