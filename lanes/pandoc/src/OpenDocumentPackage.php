@@ -805,10 +805,8 @@ final class OpenDocumentPackage
             $byteExposurePolicy = null;
             if (is_array($manifestEntry)) {
                 $byteExposurePolicy = $manifestEntry['byteExposurePolicy'] ?? null;
-            } elseif ($isUndeclared) {
-                $byteExposurePolicy = 'undeclared-package-entry-no-bytes';
-            } elseif (is_array($embeddedObjectPackage)) {
-                $byteExposurePolicy = 'embedded-object-package-bytes-blocked';
+            } elseif ($isUndeclared || is_array($embeddedObjectPackage)) {
+                $byteExposurePolicy = self::undeclaredPackageEntryByteExposurePolicy($entry->name, $embeddedObjectPackage);
             }
             $item = [
                 'path' => $entry->name,
@@ -894,6 +892,7 @@ final class OpenDocumentPackage
                 'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
                 'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
                 'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
+                'thumbnailPackagePart' => self::isThumbnailPackagePartName($entry->name),
                 'objectReplacementPackagePart' => self::isObjectReplacementPackagePartName($entry->name),
                 'scriptPackagePart' => self::isScriptPackagePartName($entry->name),
                 'signaturePackagePart' => self::isSignaturePackagePartName($entry->name),
@@ -2360,6 +2359,7 @@ final class OpenDocumentPackage
                 ? self::embeddedObjectPackageMembership($packagePath, $objectPackageRootParts)
                 : null;
             $embeddedObjectPackagePart = is_array($embeddedObjectPackage);
+            $thumbnailPackagePart = is_string($packagePath) && self::isThumbnailPackagePartName($packagePath);
             $scriptPackagePart = is_string($packagePath) && self::isScriptPackagePartName($packagePath);
             $signaturePackagePart = is_string($packagePath) && self::isSignaturePackagePartName($packagePath);
             $configurationPackagePart = is_string($packagePath) && self::isConfigurationPackagePartName($packagePath);
@@ -2384,6 +2384,7 @@ final class OpenDocumentPackage
                 && !$isDirectory
                 && !$encrypted
                 && !$embeddedObjectPackagePart
+                && !$thumbnailPackagePart
                 && !$scriptPackagePart
                 && !$signaturePackagePart
                 && !$configurationPackagePart
@@ -2449,6 +2450,7 @@ final class OpenDocumentPackage
                 'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
                 'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
                 'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
+                'thumbnailPackagePart' => $thumbnailPackagePart,
                 'scriptPackagePart' => $scriptPackagePart,
                 'signaturePackagePart' => $signaturePackagePart,
                 'configurationPackagePart' => $configurationPackagePart,
@@ -2463,6 +2465,7 @@ final class OpenDocumentPackage
                     $isDirectory,
                     $encrypted,
                     $embeddedObjectPackagePart,
+                    $thumbnailPackagePart,
                     $scriptPackagePart,
                     $signaturePackagePart,
                     $configurationPackagePart,
@@ -2486,6 +2489,7 @@ final class OpenDocumentPackage
         bool $isDirectory,
         bool $encrypted,
         bool $embeddedObjectPackagePart,
+        bool $thumbnailPackagePart,
         bool $scriptPackagePart,
         bool $signaturePackagePart,
         bool $configurationPackagePart,
@@ -2507,6 +2511,9 @@ final class OpenDocumentPackage
         }
         if ($embeddedObjectPackagePart) {
             return 'embedded-object-package-bytes-blocked';
+        }
+        if ($thumbnailPackagePart) {
+            return 'package-thumbnail-bytes-blocked';
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
@@ -2639,6 +2646,7 @@ final class OpenDocumentPackage
             'META-INF/manifest.xml' => true,
         ];
         $entries = [];
+        $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
 
         foreach ($this->package->entries() as $entry) {
             $path = $entry->name;
@@ -2646,6 +2654,7 @@ final class OpenDocumentPackage
                 continue;
             }
 
+            $embeddedObjectPackage = self::embeddedObjectPackageMembership($path, $objectPackageRootParts);
             $entries[] = [
                 'path' => $path,
                 'pathShape' => self::pathShape($path),
@@ -2656,6 +2665,7 @@ final class OpenDocumentPackage
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
                 'byteSha256' => null,
+                'thumbnailPackagePart' => self::isThumbnailPackagePartName($path),
                 'scriptPackagePart' => self::isScriptPackagePartName($path),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($path),
                 'fontPackagePart' => self::isFontPackagePartName($path),
@@ -2663,12 +2673,48 @@ final class OpenDocumentPackage
                 'objectReplacementPackagePart' => self::isObjectReplacementPackagePartName($path),
                 'layoutCachePackagePart' => self::isLayoutCachePackagePartName($path),
                 'canExposeBytes' => false,
-                'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
+                'byteExposurePolicy' => self::undeclaredPackageEntryByteExposurePolicy($path, $embeddedObjectPackage),
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
             ];
         }
 
         return $entries;
+    }
+
+    /**
+     * @param array<string, mixed>|null $embeddedObjectPackage
+     */
+    private static function undeclaredPackageEntryByteExposurePolicy(string $path, ?array $embeddedObjectPackage = null): string
+    {
+        if (is_array($embeddedObjectPackage)) {
+            return 'embedded-object-package-bytes-blocked';
+        }
+        if (self::isThumbnailPackagePartName($path)) {
+            return 'package-thumbnail-bytes-blocked';
+        }
+        if (self::isScriptPackagePartName($path)) {
+            return 'script-package-bytes-blocked';
+        }
+        if (self::isSignaturePackagePartName($path)) {
+            return 'signature-package-bytes-blocked';
+        }
+        if (self::isConfigurationPackagePartName($path)) {
+            return 'configuration-package-bytes-blocked';
+        }
+        if (self::isFontPackagePartName($path)) {
+            return 'font-package-bytes-blocked';
+        }
+        if (self::isRdfPartName($path)) {
+            return 'rdf-metadata-bytes-blocked';
+        }
+        if (self::isObjectReplacementPackagePartName($path)) {
+            return 'object-replacement-package-bytes-blocked';
+        }
+        if (self::isLayoutCachePackagePartName($path)) {
+            return 'layout-cache-package-bytes-blocked';
+        }
+
+        return 'undeclared-package-entry-no-bytes';
     }
 
     /**
@@ -3103,6 +3149,7 @@ final class OpenDocumentPackage
                 'declared' => false,
                 'declaredSize' => null,
                 'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => 'font-package-bytes-blocked',
             ];
         }
 
@@ -3362,6 +3409,7 @@ final class OpenDocumentPackage
                 'declared' => false,
                 'declaredSize' => null,
                 'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => 'package-thumbnail-bytes-blocked',
             ];
         }
 
@@ -3428,6 +3476,7 @@ final class OpenDocumentPackage
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'package-thumbnail-bytes-blocked',
                 'reviewPolicy' => 'package-thumbnail-metadata-only',
                 'issues' => $issues,
             ];
@@ -3452,6 +3501,8 @@ final class OpenDocumentPackage
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'byteExposurePolicy' => 'package-thumbnail-bytes-blocked',
+            'reviewPolicy' => 'package-thumbnail-metadata-only',
             'items' => $items,
         ];
     }

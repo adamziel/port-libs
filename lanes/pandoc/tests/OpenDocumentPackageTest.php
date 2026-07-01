@@ -1472,7 +1472,7 @@ XML;
 
         $settings = $undeclaredByPath['Configurations2/status.xml'];
         $t->same(strlen($settingsBytes), $settings['storedByteLength']);
-        $t->same('undeclared-package-entry-no-bytes', $settings['byteExposurePolicy']);
+        $t->same('configuration-package-bytes-blocked', $settings['byteExposurePolicy']);
     },
     'resolves compact ODT URI encoded manifest paths to ZIP package parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SRCIMAGE';
@@ -2964,7 +2964,7 @@ XML;
         $t->same('Configurations2/statusbar/standardbar.xml', $orphan['path']);
         $t->same(true, $orphan['configurationPackagePart']);
         $t->same(false, $orphan['canExposeBytes']);
-        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+        $t->same('configuration-package-bytes-blocked', $orphan['byteExposurePolicy']);
 
         $orphanConfiguration = $configurationByPath['Configurations2/statusbar/standardbar.xml'];
         $t->same(false, $orphanConfiguration['declared']);
@@ -3433,7 +3433,7 @@ XML;
         $t->same('Scripts/orphan.js', $orphan['path']);
         $t->same(true, $orphan['scriptPackagePart']);
         $t->same(false, $orphan['canExposeBytes']);
-        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+        $t->same('script-package-bytes-blocked', $orphan['byteExposurePolicy']);
 
         $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
         $t->same(1, $summary['exposableMediaPartCount']);

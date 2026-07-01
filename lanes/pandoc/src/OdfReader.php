@@ -648,6 +648,7 @@ final class OdfReader
                 ? $this->embeddedObjectPackageMembership($part, $objectPackageRootParts)
                 : null;
             $embeddedObjectPackagePart = is_array($embeddedObjectPackage);
+            $thumbnailPackagePart = is_string($part) && $this->isThumbnailPackagePartName($part);
             $scriptPackagePart = is_string($part) && $this->isScriptPackagePartName($part);
             $signaturePackagePart = is_string($part) && $this->isSignaturePartName($part);
             $configurationPackagePart = is_string($part) && self::isConfigurationPackagePartName($part);
@@ -658,6 +659,7 @@ final class OdfReader
             $canExposeBytes = !$encrypted
                 && !$isDirectory
                 && !$embeddedObjectPackagePart
+                && !$thumbnailPackagePart
                 && !$scriptPackagePart
                 && !$signaturePackagePart
                 && !$configurationPackagePart
@@ -674,6 +676,7 @@ final class OdfReader
                 $isDirectory,
                 $encrypted,
                 $embeddedObjectPackagePart,
+                $thumbnailPackagePart,
                 $scriptPackagePart,
                 $signaturePackagePart,
                 $configurationPackagePart,
@@ -703,6 +706,7 @@ final class OdfReader
                 'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
                 'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
                 'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
+                'thumbnailPackagePart' => $thumbnailPackagePart,
                 'scriptPackagePart' => $scriptPackagePart,
                 'signaturePackagePart' => $signaturePackagePart,
                 'configurationPackagePart' => $configurationPackagePart,
@@ -1351,6 +1355,7 @@ final class OdfReader
         bool $isDirectory,
         bool $encrypted,
         bool $embeddedObjectPackagePart,
+        bool $thumbnailPackagePart,
         bool $scriptPackagePart,
         bool $signaturePackagePart,
         bool $configurationPackagePart,
@@ -1372,6 +1377,9 @@ final class OdfReader
         }
         if ($embeddedObjectPackagePart) {
             return 'embedded-object-package-bytes-blocked';
+        }
+        if ($thumbnailPackagePart) {
+            return 'package-thumbnail-bytes-blocked';
         }
         if ($scriptPackagePart) {
             return 'script-package-bytes-blocked';
@@ -1534,6 +1542,7 @@ final class OdfReader
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
+                'thumbnailPackagePart' => ($item['thumbnailPackagePart'] ?? false) === true,
                 'scriptPackagePart' => ($item['scriptPackagePart'] ?? false) === true,
                 'signaturePackagePart' => ($item['signaturePackagePart'] ?? false) === true,
                 'configurationPackagePart' => ($item['configurationPackagePart'] ?? false) === true,
@@ -1780,6 +1789,7 @@ final class OdfReader
                 'embeddedObjectRoot' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] === true,
                 'embeddedObjectContainedPart' => is_array($embeddedObjectPackage) && $embeddedObjectPackage['isRoot'] !== true,
                 'embeddedObjectMediaType' => is_array($embeddedObjectPackage) ? $embeddedObjectPackage['mediaType'] : null,
+                'thumbnailPackagePart' => $this->isThumbnailPackagePartName($entry->name),
                 'scriptPackagePart' => $this->isScriptPackagePartName($entry->name),
                 'configurationPackagePart' => self::isConfigurationPackagePartName($entry->name),
                 'signaturePackagePart' => $this->isSignaturePartName($entry->name),
@@ -2124,6 +2134,7 @@ final class OdfReader
                 'exists' => ($item['exists'] ?? false) === true,
                 'isDirectory' => ($item['isDirectory'] ?? false) === true,
                 'encrypted' => ($item['encrypted'] ?? false) === true,
+                'thumbnailPackagePart' => ($item['thumbnailPackagePart'] ?? false) === true,
                 'scriptPackagePart' => ($item['scriptPackagePart'] ?? false) === true,
                 'signaturePackagePart' => ($item['signaturePackagePart'] ?? false) === true,
                 'configurationPackagePart' => ($item['configurationPackagePart'] ?? false) === true,
@@ -2260,6 +2271,7 @@ final class OdfReader
                 'customManifestChildElementNames' => $item['customManifestChildElementNames'] ?? [],
                 'manifestDiagnostics' => $item['manifestDiagnostics'] ?? [],
                 'manifestEncryptionIssueCodes' => $item['manifestEncryptionIssueCodes'] ?? [],
+                'thumbnailPackagePart' => ($item['thumbnailPackagePart'] ?? false) === true,
                 'scriptPackagePart' => ($item['scriptPackagePart'] ?? false) === true,
                 'signaturePackagePart' => ($item['signaturePackagePart'] ?? false) === true,
                 'configurationPackagePart' => ($item['configurationPackagePart'] ?? false) === true,
@@ -16007,6 +16019,7 @@ final class OdfReader
                 'encrypted' => false,
                 'canExposeBytes' => true,
                 'declared' => false,
+                'byteExposurePolicy' => 'package-thumbnail-bytes-blocked',
             ];
         }
 
@@ -16069,6 +16082,7 @@ final class OdfReader
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? 'package-thumbnail-bytes-blocked',
                 'reviewPolicy' => 'package-thumbnail-metadata-only',
                 'issues' => $issues,
             ];
@@ -16093,6 +16107,8 @@ final class OdfReader
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'byteExposurePolicy' => 'package-thumbnail-bytes-blocked',
+            'reviewPolicy' => 'package-thumbnail-metadata-only',
             'items' => $items,
         ];
     }
@@ -17386,12 +17402,14 @@ final class OdfReader
         }
 
         $entries = [];
+        $objectPackageRootParts = $this->objectPackageRootParts($manifest);
         foreach ($package->entries() as $entry) {
             if ($entry->isDirectory() || isset($declaredParts[$entry->name])) {
                 continue;
             }
 
-            $byteExposurePolicy = $this->undeclaredPackageEntryByteExposurePolicy($entry->name);
+            $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
+            $byteExposurePolicy = $this->undeclaredPackageEntryByteExposurePolicy($entry->name, $embeddedObjectPackage);
             $entries[] = [
                 'part' => $entry->name,
                 'diagnostic' => 'odf-manifest-undeclared-package-entry',
@@ -17409,13 +17427,37 @@ final class OdfReader
         return $entries;
     }
 
-    private function undeclaredPackageEntryByteExposurePolicy(string $part): string
+    /**
+     * @param array<string, mixed>|null $embeddedObjectPackage
+     */
+    private function undeclaredPackageEntryByteExposurePolicy(string $part, ?array $embeddedObjectPackage = null): string
     {
+        if (is_array($embeddedObjectPackage)) {
+            return 'embedded-object-package-bytes-blocked';
+        }
+        if ($this->isThumbnailPackagePartName($part)) {
+            return 'package-thumbnail-bytes-blocked';
+        }
+        if ($this->isScriptPackagePartName($part)) {
+            return 'script-package-bytes-blocked';
+        }
         if ($this->isSignaturePartName($part)) {
             return 'signature-package-bytes-blocked';
         }
+        if (self::isConfigurationPackagePartName($part)) {
+            return 'configuration-package-bytes-blocked';
+        }
         if ($this->isFontPackagePartName($part)) {
             return 'font-package-bytes-blocked';
+        }
+        if ($this->isRdfPartName($part)) {
+            return 'rdf-metadata-bytes-blocked';
+        }
+        if ($this->isObjectReplacementPackagePartName($part)) {
+            return 'object-replacement-package-bytes-blocked';
+        }
+        if ($this->isLayoutCachePackagePartName($part)) {
+            return 'layout-cache-package-bytes-blocked';
         }
 
         return 'undeclared-package-entry-no-bytes';
