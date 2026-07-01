@@ -189,6 +189,43 @@ final class MarkdownFormatProfile
         return $overrides;
     }
 
+    public static function markdownExtensionOptionSuffix(mixed $extensions): string
+    {
+        if (is_scalar($extensions)) {
+            return trim((string) $extensions);
+        }
+
+        if (!is_array($extensions)) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($extensions as $name => $value) {
+            if (is_int($name)) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $token = trim((string) $value);
+                if ($token === '') {
+                    continue;
+                }
+                $tokens[] = str_starts_with($token, '+') || str_starts_with($token, '-')
+                    ? $token
+                    : '+' . $token;
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $tokens[] = (self::extensionOptionEnabled($value) ? '+' : '-') . (string) $name;
+        }
+
+        return implode('', $tokens);
+    }
+
     private static function canonicalExtension(string $extension): string
     {
         return self::EXTENSION_ALIASES[$extension] ?? $extension;
@@ -329,6 +366,11 @@ final class MarkdownFormatProfile
         }
 
         return $default;
+    }
+
+    private static function extensionOptionEnabled(mixed $value): bool
+    {
+        return self::boolFlag($value, (bool) $value);
     }
 
     private static function extensionFlag(mixed $format, string $extension, bool $default): bool

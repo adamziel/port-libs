@@ -11238,39 +11238,7 @@ final class MarkdownReader
 
     private function markdownExtensionOptionSuffix(mixed $extensions): string
     {
-        if (is_scalar($extensions)) {
-            return trim((string) $extensions);
-        }
-
-        if (!is_array($extensions)) {
-            return '';
-        }
-
-        $tokens = [];
-        foreach ($extensions as $name => $value) {
-            if (is_int($name)) {
-                if (!is_scalar($value)) {
-                    continue;
-                }
-
-                $token = trim((string) $value);
-                if ($token === '') {
-                    continue;
-                }
-                $tokens[] = str_starts_with($token, '+') || str_starts_with($token, '-')
-                    ? $token
-                    : '+' . $token;
-                continue;
-            }
-
-            if (!is_scalar($value)) {
-                continue;
-            }
-
-            $tokens[] = ((bool) $value ? '+' : '-') . (string) $name;
-        }
-
-        return implode('', $tokens);
+        return MarkdownFormatProfile::markdownExtensionOptionSuffix($extensions);
     }
 
     /**
