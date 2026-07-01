@@ -2017,13 +2017,13 @@ final class PptxReader
         $paragraphNamespace = $drawingNamespace ?? $this->localNamespaceForPrefix($textBody, 'a');
 
         return array_map(
-            function (\DOMElement $paragraphElement) use ($relationships): array {
+            function (\DOMElement $paragraphElement) use ($relationships, $drawingNamespace): array {
                 $paragraph = array_replace([
-                    'level' => $this->paragraphLevel($paragraphElement),
+                    'level' => $this->paragraphLevel($paragraphElement, $drawingNamespace),
                     'bullet' => false,
                     'listType' => '',
                     'text' => $this->drawingText($paragraphElement),
-                ], $this->paragraphListMetadata($paragraphElement));
+                ], $this->paragraphListMetadata($paragraphElement, $drawingNamespace));
                 if ($relationships instanceof OpcRelationships) {
                     $inlines = $this->drawingParagraphStructuredInlines($paragraphElement, $relationships);
                 } else {
@@ -2085,9 +2085,9 @@ final class PptxReader
         return $inlines;
     }
 
-    private function paragraphLevel(\DOMElement $paragraphElement): int
+    private function paragraphLevel(\DOMElement $paragraphElement, ?string $drawingNamespace): int
     {
-        $properties = $this->firstDrawingChildElement($paragraphElement, 'pPr');
+        $properties = $this->firstChildElementForOuterPrefix($paragraphElement, 'a', 'pPr', $drawingNamespace);
         if (!$properties instanceof \DOMElement) {
             return 0;
         }
@@ -2103,31 +2103,31 @@ final class PptxReader
     /**
      * @return array{bullet:bool, listType:string, continuation?:bool}
      */
-    private function paragraphListMetadata(\DOMElement $paragraphElement): array
+    private function paragraphListMetadata(\DOMElement $paragraphElement, ?string $drawingNamespace): array
     {
-        $properties = $this->firstDrawingChildElement($paragraphElement, 'pPr');
+        $properties = $this->firstChildElementForOuterPrefix($paragraphElement, 'a', 'pPr', $drawingNamespace);
         if ($properties instanceof \DOMElement) {
-            if ($this->firstDrawingChildElement($properties, 'buChar') instanceof \DOMElement) {
+            if ($this->firstChildElementForOuterPrefix($properties, 'a', 'buChar', $drawingNamespace) instanceof \DOMElement) {
                 return ['bullet' => true, 'listType' => 'bullet_list'];
             }
         }
 
-        if ($this->paragraphHasWingdingsRunSymbol($paragraphElement)) {
+        if ($this->paragraphHasWingdingsRunSymbol($paragraphElement, $drawingNamespace)) {
             return ['bullet' => true, 'listType' => 'bullet_list'];
         }
 
-        if ($properties instanceof \DOMElement && $this->firstDrawingChildElement($properties, 'buNone') instanceof \DOMElement) {
+        if ($properties instanceof \DOMElement && $this->firstChildElementForOuterPrefix($properties, 'a', 'buNone', $drawingNamespace) instanceof \DOMElement) {
             return ['bullet' => false, 'listType' => '', 'continuation' => true];
         }
 
         return ['bullet' => false, 'listType' => ''];
     }
 
-    private function paragraphHasWingdingsRunSymbol(\DOMElement $paragraphElement): bool
+    private function paragraphHasWingdingsRunSymbol(\DOMElement $paragraphElement, ?string $drawingNamespace): bool
     {
-        foreach ($this->drawingChildElements($paragraphElement, 'r') as $runElement) {
-            $properties = $this->firstDrawingChildElement($runElement, 'rPr');
-            $symbol = $properties instanceof \DOMElement ? $this->firstDrawingChildElement($properties, 'sym') : null;
+        foreach ($this->childElementsForOuterPrefix($paragraphElement, 'a', 'r', $drawingNamespace) as $runElement) {
+            $properties = $this->firstChildElementForOuterPrefix($runElement, 'a', 'rPr', $drawingNamespace);
+            $symbol = $properties instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($properties, 'a', 'sym', $drawingNamespace) : null;
             if ($symbol instanceof \DOMElement && str_contains($symbol->getAttribute('typeface'), 'Wingdings')) {
                 return true;
             }

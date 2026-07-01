@@ -3461,6 +3461,73 @@ XML);
     }
 };
 
+$buildInheritedParagraphPropertiesPrefixPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-inherited-paragraph-prefix-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Inherited paragraph prefix</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Body 1"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:bodyPr/><a:lstStyle/>
+        <a:p><a:pPr lvl="3"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Inherited bullet metadata</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildShadowedDrawingMediaPrefixPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-shadowed-drawing-media-prefix-');
     if ($path === false) {
@@ -5490,6 +5557,21 @@ return [
         $t->same([], $nodesOfType($document, 'paragraph'));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Shadowed" , Space , Str "drawing" , Space , Str "prefix" , Space , Str "title" ]', $native);
         $t->true(!str_contains($native, 'Shadowed drawing prefix body'), 'Locally corrected text-body DrawingML should not override the slide root a prefix binding');
+    },
+
+    'ignores inherited pptx paragraph property prefixes like upstream' => static function (TestRunner $t) use ($buildInheritedParagraphPropertiesPrefixPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildInheritedParagraphPropertiesPrefixPptxPackage());
+        $review = $document->attr('pptx');
+        $headings = $nodesOfType($document, 'heading');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('Inherited paragraph prefix', $headings[0]->attr('text'));
+        $t->same(true, in_array('Inherited bullet metadata', $paragraphTexts, true));
+        $t->contains('Para [ Str "Inherited" , Space , Str "bullet" , Space , Str "metadata" ]', $native);
+        $t->true(!str_contains($native, 'BulletList'), 'Paragraph properties inheriting a from txBody should not create upstream PPTX bullets');
     },
 
     'uses the slide root a prefix binding for pictures and graphic frames like upstream' => static function (TestRunner $t) use ($buildShadowedDrawingMediaPrefixPptxPackage, $nodesOfType): void {
