@@ -3754,6 +3754,8 @@ final class OdfReader
     {
         return [
             'zipPackageManifestVersion' => $manifest['manifestVersion'] ?? null,
+            'zipPackageManifestArchiveBytes' => $manifest['archiveBytes'] ?? ($manifest['archiveLength'] ?? 0),
+            'zipPackageManifestArchiveLength' => $manifest['archiveLength'] ?? ($manifest['archiveBytes'] ?? 0),
             'zipPackageManifestEntryCount' => $manifest['entryCount'] ?? 0,
             'zipPackageManifestFileEntryCount' => $manifest['fileEntryCount'] ?? 0,
             'zipPackageManifestDirectoryEntryCount' => $manifest['directoryEntryCount'] ?? 0,
@@ -3782,6 +3784,7 @@ final class OdfReader
             'zipPackageManifestCentralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'] ?? 0,
             'zipPackageManifestCentralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'] ?? 0,
             'zipPackageManifestEntryCommentCount' => $manifest['entryCommentCount'] ?? 0,
+            'zipPackageManifestHasPackageComment' => ($manifest['hasPackageComment'] ?? false) === true,
             'zipPackageManifestHasCentralDirectoryReviewFields' => ($manifest['hasCentralDirectoryReviewFields'] ?? false) === true,
             'zipPackageManifestMaxPathSegmentCount' => $manifest['maxPathSegmentCount'] ?? 0,
             'zipPackageManifestMaxDirectoryDepth' => $manifest['maxDirectoryDepth'] ?? 0,

@@ -61,6 +61,8 @@ $package = ZipPackage::fromParts([
 
 $aggregateFields = [
     'manifestVersion' => 'zipPackageManifestVersion',
+    'archiveBytes' => 'zipPackageManifestArchiveBytes',
+    'archiveLength' => 'zipPackageManifestArchiveLength',
     'entryCount' => 'zipPackageManifestEntryCount',
     'fileEntryCount' => 'zipPackageManifestFileEntryCount',
     'directoryEntryCount' => 'zipPackageManifestDirectoryEntryCount',
@@ -89,6 +91,7 @@ $aggregateFields = [
     'centralDirectoryReviewFieldBytes' => 'zipPackageManifestCentralDirectoryReviewFieldBytes',
     'centralExtraFieldEntryCount' => 'zipPackageManifestCentralExtraFieldEntryCount',
     'entryCommentCount' => 'zipPackageManifestEntryCommentCount',
+    'hasPackageComment' => 'zipPackageManifestHasPackageComment',
     'hasCentralDirectoryReviewFields' => 'zipPackageManifestHasCentralDirectoryReviewFields',
     'maxPathSegmentCount' => 'zipPackageManifestMaxPathSegmentCount',
     'maxDirectoryDepth' => 'zipPackageManifestMaxDirectoryDepth',
