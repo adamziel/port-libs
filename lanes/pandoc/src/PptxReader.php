@@ -1557,15 +1557,15 @@ final class PptxReader
 
             return $this->withShapeMetadata($tableNode instanceof AstNode ? [$tableNode] : [], $shapeElement, $zOrder);
         }
-        if (str_contains($uri, 'chart')) {
-            $chart = $this->chartNode($package, $graphicData, $slideRelationships);
-
-            return $this->withShapeMetadata($chart instanceof AstNode ? [$chart] : [], $shapeElement, $zOrder);
-        }
         if (str_contains($uri, 'diagram')) {
             $diagram = $this->diagramNode($package, $graphicData, $slideRelationships);
 
             return $this->withShapeMetadata($diagram instanceof AstNode ? [$diagram] : [], $shapeElement, $zOrder);
+        }
+        if (str_contains($uri, 'chart')) {
+            $chart = $this->chartNode($package, $graphicData, $slideRelationships);
+
+            return $this->withShapeMetadata($chart instanceof AstNode ? [$chart] : [], $shapeElement, $zOrder);
         }
 
         return $this->withShapeMetadata([$this->paragraph('[Graphic: other: ' . $uri . ']')], $shapeElement, $zOrder);

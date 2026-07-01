@@ -2974,6 +2974,10 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="13" name="Diagram Unknown Rel"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdMissingData" r:lo="rIdMissingLayout"/></a:graphicData></a:graphic>
     </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="14" name="Chart Diagram URI"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart-diagram"/></a:graphic>
+    </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -4659,11 +4663,13 @@ return [
         ] as $expected) {
             $t->same(true, in_array($expected, $texts, true));
         }
+        $t->same(2, count(array_filter($texts, static fn (string $text): bool => $text === '[Graphic: diagram-no-relIds]')));
 
         $t->contains('Para [ Str "[Graphic:" , Space , Str "no-uri]" ]', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-no-relIds]" ]', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-missing-rels]" ]', $native);
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "Relationship" , Space , Str "not" , Space , Str "found:" , Space , Str "rIdMissingData]" ]', $native);
+        $t->true(!str_contains($native, 'chart-diagram'), 'Graphic URIs containing diagram should follow the upstream diagram branch before chart handling');
 
         $placeholderParagraphs = array_values(array_filter(
             $paragraphs,
@@ -4671,11 +4677,12 @@ return [
                 || str_starts_with((string) $paragraph->attr('text'), '[Diagram parse error:')
         ));
 
-        $t->same(4, count($placeholderParagraphs));
+        $t->same(5, count($placeholderParagraphs));
         $t->same('No URI Graphic', $placeholderParagraphs[0]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram No RelIds', $placeholderParagraphs[1]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram Missing Rels', $placeholderParagraphs[2]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram Unknown Rel', $placeholderParagraphs[3]->attr('pptxShape')['name'] ?? null);
+        $t->same('Chart Diagram URI', $placeholderParagraphs[4]->attr('pptxShape')['name'] ?? null);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
 
