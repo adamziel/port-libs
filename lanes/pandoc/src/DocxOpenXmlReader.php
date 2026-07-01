@@ -1175,6 +1175,7 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['chartPartExistingCount'] = $chartParts['existingCount'];
         $packageProvenance['summary']['chartPartMissingCount'] = $chartParts['missingCount'];
         $packageProvenance['summary']['chartPartExternalCount'] = $chartParts['externalCount'];
+        $packageProvenance['summary']['chartPartSourceTypeCounts'] = $chartParts['sourceTypeCounts'];
         $packageProvenance['summary']['chartPartIssueCount'] = $chartParts['issueCount'];
         $packageProvenance['summary']['chartPartIssueCodes'] = $chartParts['issueCodes'];
         $packageProvenance['summary']['chartEmbeddedPackageCount'] = $chartParts['embeddedPackageCount'];
@@ -1190,6 +1191,7 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['diagramPartExistingCount'] = $diagramParts['existingCount'];
         $packageProvenance['summary']['diagramPartMissingCount'] = $diagramParts['missingCount'];
         $packageProvenance['summary']['diagramPartExternalCount'] = $diagramParts['externalCount'];
+        $packageProvenance['summary']['diagramPartSourceTypeCounts'] = $diagramParts['sourceTypeCounts'];
         $packageProvenance['summary']['diagramPartIssueCount'] = $diagramParts['issueCount'];
         $packageProvenance['summary']['diagramPartIssueCodes'] = $diagramParts['issueCodes'];
         $packageProvenance['summary']['diagramEmbeddedPackageCount'] = $diagramParts['embeddedPackageCount'];
@@ -6317,6 +6319,7 @@ final class DocxOpenXmlReader
         $partNames = [];
         $externalTargets = [];
         $contentTypesSeen = [];
+        $sourceTypeCounts = [];
         $issueCodes = [];
         $embeddedPackageRelationshipIds = [];
         $embeddedPackagePartNames = [];
@@ -6330,6 +6333,10 @@ final class DocxOpenXmlReader
         foreach ($items as $item) {
             if (($item['relationshipType'] ?? null) === self::CHART_REL) {
                 $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            }
+            $itemSourceType = is_string($item['sourceType'] ?? null) ? $item['sourceType'] : '';
+            if ($itemSourceType !== '') {
+                $sourceTypeCounts[$itemSourceType] = ($sourceTypeCounts[$itemSourceType] ?? 0) + 1;
             }
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             if (($item['external'] ?? false) === true) {
@@ -6361,6 +6368,7 @@ final class DocxOpenXmlReader
                 }
             }
         }
+        ksort($sourceTypeCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
         ksort($embeddedPackageIssueCodes, SORT_STRING);
 
@@ -6369,6 +6377,7 @@ final class DocxOpenXmlReader
             'relationshipCount' => $relationshipCount,
             'sourcePartCount' => count($sourceParts),
             'sourceTypes' => $sourceTypes,
+            'sourceTypeCounts' => $sourceTypeCounts,
             'sourceParts' => $sourceParts,
             'relationshipsParts' => $relationshipsParts,
             'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
@@ -6917,6 +6926,7 @@ final class DocxOpenXmlReader
         $externalTargets = [];
         $contentTypesSeen = [];
         $roleCounts = [];
+        $sourceTypeCounts = [];
         $issueCodes = [];
         $embeddedPackageRelationshipIds = [];
         $embeddedPackagePartNames = [];
@@ -6931,6 +6941,10 @@ final class DocxOpenXmlReader
             $role = is_string($item['role'] ?? null) ? $item['role'] : '';
             if ($role !== '') {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            }
+            $itemSourceType = is_string($item['sourceType'] ?? null) ? $item['sourceType'] : '';
+            if ($itemSourceType !== '') {
+                $sourceTypeCounts[$itemSourceType] = ($sourceTypeCounts[$itemSourceType] ?? 0) + 1;
             }
             if ($this->isDiagramRelationshipType((string) ($item['relationshipType'] ?? ''))) {
                 $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
@@ -6965,6 +6979,7 @@ final class DocxOpenXmlReader
                 }
             }
         }
+        ksort($sourceTypeCounts, SORT_STRING);
         ksort($roleCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
         ksort($embeddedPackageIssueCodes, SORT_STRING);
@@ -6974,6 +6989,7 @@ final class DocxOpenXmlReader
             'relationshipCount' => $relationshipCount,
             'sourcePartCount' => count($sourceParts),
             'sourceTypes' => $sourceTypes,
+            'sourceTypeCounts' => $sourceTypeCounts,
             'sourceParts' => $sourceParts,
             'relationshipsParts' => $relationshipsParts,
             'referencedCount' => count(array_filter($items, static fn (array $item): bool => $item['referenced'] === true)),
