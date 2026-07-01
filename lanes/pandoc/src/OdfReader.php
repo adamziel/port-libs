@@ -1486,6 +1486,7 @@ final class OdfReader
         $manifestCustomChildElementNames = [];
         $manifestCustomChildElementItems = [];
         $objectPackageRootParts = $this->objectPackageRootParts($manifest);
+        $manifestDeclaredSizeRoles = $this->manifestDeclaredSizeRoleSummary($manifest, $objectPackageRootParts);
         $roleCounts = [];
         $undeclaredRoleCounts = [];
         $roleByteLengths = [];
@@ -2179,6 +2180,13 @@ final class OdfReader
             'missingManifestDeclaredRoleCounts' => $missingManifestDeclaredRoleCounts,
             'missingManifestDeclaredByteExposurePolicyCounts' => $missingManifestDeclaredByteExposurePolicyCounts,
             'missingManifestDeclaredMediaTypeBaseCounts' => $missingManifestDeclaredMediaTypeBaseCounts,
+            'manifestDeclaredSizeRoleCount' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleCount'],
+            'manifestDeclaredSizeRoleCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleCounts'],
+            'manifestDeclaredSizeRoleByteLengths' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleByteLengths'],
+            'manifestDeclaredSizeRoleMismatchCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleMismatchCounts'],
+            'manifestDeclaredSizeRoleExistingCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleExistingCounts'],
+            'manifestDeclaredSizeRoleMissingCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleMissingCounts'],
+            'manifestDeclaredSizeRoleSummaries' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleSummaries'],
             'manifestCustomAttributeEntryCount' => count($manifestCustomAttributeItems),
             'manifestCustomAttributeCount' => $manifestCustomAttributeCount,
             'manifestCustomAttributeNames' => $manifestCustomAttributeNames,
@@ -3287,6 +3295,13 @@ final class OdfReader
             'preferredViewModes' => $preferredViewModes,
             'roleCounts' => $provenance['roleCounts'] ?? [],
             'undeclaredRoleCounts' => $provenance['undeclaredRoleCounts'] ?? [],
+            'manifestDeclaredSizeRoleCount' => $provenance['manifestDeclaredSizeRoleCount'] ?? 0,
+            'manifestDeclaredSizeRoleCounts' => $provenance['manifestDeclaredSizeRoleCounts'] ?? [],
+            'manifestDeclaredSizeRoleByteLengths' => $provenance['manifestDeclaredSizeRoleByteLengths'] ?? [],
+            'manifestDeclaredSizeRoleMismatchCounts' => $provenance['manifestDeclaredSizeRoleMismatchCounts'] ?? [],
+            'manifestDeclaredSizeRoleExistingCounts' => $provenance['manifestDeclaredSizeRoleExistingCounts'] ?? [],
+            'manifestDeclaredSizeRoleMissingCounts' => $provenance['manifestDeclaredSizeRoleMissingCounts'] ?? [],
+            'manifestDeclaredSizeRoleSummaries' => $provenance['manifestDeclaredSizeRoleSummaries'] ?? [],
             'centralDirectoryOrderMismatchRoleCount' => $provenance['centralDirectoryOrderMismatchRoleCount'] ?? 0,
             'centralDirectoryOrderMismatchRoleCounts' => $provenance['centralDirectoryOrderMismatchRoleCounts'] ?? [],
             'centralDirectoryOrderMismatchRoleByteLengths' => $provenance['centralDirectoryOrderMismatchRoleByteLengths'] ?? [],
@@ -3538,6 +3553,13 @@ final class OdfReader
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'roleCounts' => $provenance['roleCounts'] ?? [],
+            'manifestDeclaredSizeRoleCount' => $provenance['manifestDeclaredSizeRoleCount'] ?? 0,
+            'manifestDeclaredSizeRoleCounts' => $provenance['manifestDeclaredSizeRoleCounts'] ?? [],
+            'manifestDeclaredSizeRoleByteLengths' => $provenance['manifestDeclaredSizeRoleByteLengths'] ?? [],
+            'manifestDeclaredSizeRoleMismatchCounts' => $provenance['manifestDeclaredSizeRoleMismatchCounts'] ?? [],
+            'manifestDeclaredSizeRoleExistingCounts' => $provenance['manifestDeclaredSizeRoleExistingCounts'] ?? [],
+            'manifestDeclaredSizeRoleMissingCounts' => $provenance['manifestDeclaredSizeRoleMissingCounts'] ?? [],
+            'manifestDeclaredSizeRoleSummaries' => $provenance['manifestDeclaredSizeRoleSummaries'] ?? [],
             'centralDirectoryOrderMismatchRoleCount' => $provenance['centralDirectoryOrderMismatchRoleCount'] ?? 0,
             'centralDirectoryOrderMismatchRoleCounts' => $provenance['centralDirectoryOrderMismatchRoleCounts'] ?? [],
             'centralDirectoryOrderMismatchRoleByteLengths' => $provenance['centralDirectoryOrderMismatchRoleByteLengths'] ?? [],
@@ -20970,6 +20992,76 @@ final class OdfReader
         }
 
         return '/';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @param array<string, array<string, mixed>> $objectPackageRootParts
+     * @return array{manifestDeclaredSizeRoleCount:int, manifestDeclaredSizeRoleCounts:array<string, int>, manifestDeclaredSizeRoleByteLengths:array<string, int>, manifestDeclaredSizeRoleMismatchCounts:array<string, int>, manifestDeclaredSizeRoleExistingCounts:array<string, int>, manifestDeclaredSizeRoleMissingCounts:array<string, int>, manifestDeclaredSizeRoleSummaries:list<array{role:string, declaredSizeItemCount:int, declaredSize:int, declaredSizeMismatchCount:int, existingCount:int, missingCount:int, parts:list<string>}>}
+     */
+    private function manifestDeclaredSizeRoleSummary(array $manifest, array $objectPackageRootParts): array
+    {
+        $roleCounts = [];
+        $roleByteLengths = [];
+        $roleMismatchCounts = [];
+        $roleExistingCounts = [];
+        $roleMissingCounts = [];
+        $partsByRole = [];
+
+        foreach ($manifest as $item) {
+            $declaredSize = $item['declaredSize'] ?? null;
+            if (!is_int($declaredSize)) {
+                continue;
+            }
+
+            $part = self::manifestItemPartLabel($item);
+            foreach ($this->missingManifestDeclaredRoles($item, $objectPackageRootParts) as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $declaredSize;
+                if (($item['declaredSizeMismatch'] ?? false) === true) {
+                    $roleMismatchCounts[$role] = ($roleMismatchCounts[$role] ?? 0) + 1;
+                }
+                if (($item['exists'] ?? false) === true) {
+                    $roleExistingCounts[$role] = ($roleExistingCounts[$role] ?? 0) + 1;
+                } else {
+                    $roleMissingCounts[$role] = ($roleMissingCounts[$role] ?? 0) + 1;
+                }
+                $partsByRole[$role] ??= [];
+                if (!in_array($part, $partsByRole[$role], true)) {
+                    $partsByRole[$role][] = $part;
+                }
+            }
+        }
+
+        ksort($roleCounts, SORT_STRING);
+        ksort($roleByteLengths, SORT_STRING);
+        ksort($roleMismatchCounts, SORT_STRING);
+        ksort($roleExistingCounts, SORT_STRING);
+        ksort($roleMissingCounts, SORT_STRING);
+        ksort($partsByRole, SORT_STRING);
+
+        $summaries = [];
+        foreach (array_keys($roleCounts) as $role) {
+            $summaries[] = [
+                'role' => $role,
+                'declaredSizeItemCount' => $roleCounts[$role],
+                'declaredSize' => $roleByteLengths[$role] ?? 0,
+                'declaredSizeMismatchCount' => $roleMismatchCounts[$role] ?? 0,
+                'existingCount' => $roleExistingCounts[$role] ?? 0,
+                'missingCount' => $roleMissingCounts[$role] ?? 0,
+                'parts' => $partsByRole[$role] ?? [],
+            ];
+        }
+
+        return [
+            'manifestDeclaredSizeRoleCount' => count($roleCounts),
+            'manifestDeclaredSizeRoleCounts' => $roleCounts,
+            'manifestDeclaredSizeRoleByteLengths' => $roleByteLengths,
+            'manifestDeclaredSizeRoleMismatchCounts' => $roleMismatchCounts,
+            'manifestDeclaredSizeRoleExistingCounts' => $roleExistingCounts,
+            'manifestDeclaredSizeRoleMissingCounts' => $roleMissingCounts,
+            'manifestDeclaredSizeRoleSummaries' => $summaries,
+        ];
     }
 
     /**

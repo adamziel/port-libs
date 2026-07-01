@@ -2274,6 +2274,7 @@ final class OpenDocumentPackage
 
         $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
         $preferredViewModes = self::manifestPreferredViewModeSummary($this->manifestEntries);
+        $manifestDeclaredSizeRoles = self::manifestDeclaredSizeRoleSummary($this->manifestEntries);
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -2299,6 +2300,13 @@ final class OpenDocumentPackage
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'preferredViewModes' => $preferredViewModes,
+            'manifestDeclaredSizeRoleCount' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleCount'],
+            'manifestDeclaredSizeRoleCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleCounts'],
+            'manifestDeclaredSizeRoleByteLengths' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleByteLengths'],
+            'manifestDeclaredSizeRoleMismatchCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleMismatchCounts'],
+            'manifestDeclaredSizeRoleExistingCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleExistingCounts'],
+            'manifestDeclaredSizeRoleMissingCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleMissingCounts'],
+            'manifestDeclaredSizeRoleSummaries' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleSummaries'],
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
@@ -8590,6 +8598,7 @@ final class OpenDocumentPackage
             self::MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT
         );
         $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
+        $summary += self::manifestDeclaredSizeRoleSummary($entries);
         sort($summary['manifestCustomAttributeNames'], SORT_STRING);
         sort($summary['manifestCustomChildElementNames'], SORT_STRING);
         ksort($summary['manifestPathKindCounts'], SORT_STRING);
@@ -8999,6 +9008,75 @@ final class OpenDocumentPackage
         });
 
         return array_slice($items, 0, max(0, $limit));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{manifestDeclaredSizeRoleCount:int, manifestDeclaredSizeRoleCounts:array<string, int>, manifestDeclaredSizeRoleByteLengths:array<string, int>, manifestDeclaredSizeRoleMismatchCounts:array<string, int>, manifestDeclaredSizeRoleExistingCounts:array<string, int>, manifestDeclaredSizeRoleMissingCounts:array<string, int>, manifestDeclaredSizeRoleSummaries:list<array{role:string, declaredSizeItemCount:int, declaredSize:int, declaredSizeMismatchCount:int, existingCount:int, missingCount:int, parts:list<string>}>}
+     */
+    private static function manifestDeclaredSizeRoleSummary(array $entries): array
+    {
+        $roleCounts = [];
+        $roleByteLengths = [];
+        $roleMismatchCounts = [];
+        $roleExistingCounts = [];
+        $roleMissingCounts = [];
+        $partsByRole = [];
+
+        foreach ($entries as $entry) {
+            $declaredSize = $entry['declaredSize'] ?? ($entry['size'] ?? null);
+            if (!is_int($declaredSize)) {
+                continue;
+            }
+
+            $part = self::manifestMediaTypePartLabel($entry);
+            foreach (self::missingManifestDeclaredRoles($entry) as $role) {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $declaredSize;
+                if (($entry['declaredSizeMismatch'] ?? false) === true) {
+                    $roleMismatchCounts[$role] = ($roleMismatchCounts[$role] ?? 0) + 1;
+                }
+                if (($entry['exists'] ?? false) === true) {
+                    $roleExistingCounts[$role] = ($roleExistingCounts[$role] ?? 0) + 1;
+                } else {
+                    $roleMissingCounts[$role] = ($roleMissingCounts[$role] ?? 0) + 1;
+                }
+                $partsByRole[$role] ??= [];
+                if (!in_array($part, $partsByRole[$role], true)) {
+                    $partsByRole[$role][] = $part;
+                }
+            }
+        }
+
+        ksort($roleCounts, SORT_STRING);
+        ksort($roleByteLengths, SORT_STRING);
+        ksort($roleMismatchCounts, SORT_STRING);
+        ksort($roleExistingCounts, SORT_STRING);
+        ksort($roleMissingCounts, SORT_STRING);
+        ksort($partsByRole, SORT_STRING);
+
+        $summaries = [];
+        foreach (array_keys($roleCounts) as $role) {
+            $summaries[] = [
+                'role' => $role,
+                'declaredSizeItemCount' => $roleCounts[$role],
+                'declaredSize' => $roleByteLengths[$role] ?? 0,
+                'declaredSizeMismatchCount' => $roleMismatchCounts[$role] ?? 0,
+                'existingCount' => $roleExistingCounts[$role] ?? 0,
+                'missingCount' => $roleMissingCounts[$role] ?? 0,
+                'parts' => $partsByRole[$role] ?? [],
+            ];
+        }
+
+        return [
+            'manifestDeclaredSizeRoleCount' => count($roleCounts),
+            'manifestDeclaredSizeRoleCounts' => $roleCounts,
+            'manifestDeclaredSizeRoleByteLengths' => $roleByteLengths,
+            'manifestDeclaredSizeRoleMismatchCounts' => $roleMismatchCounts,
+            'manifestDeclaredSizeRoleExistingCounts' => $roleExistingCounts,
+            'manifestDeclaredSizeRoleMissingCounts' => $roleMissingCounts,
+            'manifestDeclaredSizeRoleSummaries' => $summaries,
+        ];
     }
 
     /**
