@@ -17890,6 +17890,31 @@ final class DocxOpenXmlReader
                 $duplicateRelationshipTargetDirectoryBaseNames[] = (string) ($targetDirectoryBaseNameSummary['directoryBaseName'] ?? '');
             }
         }
+        $relationshipTargetDirectoryBaseNameStems =
+            $this->relationshipTargetDirectoryBaseNameStemSummary($relationshipTargets);
+        $relationshipTargetDirectoryBaseNameStemCounts = [];
+        $relationshipTargetExistingDirectoryBaseNameStemCounts = [];
+        $relationshipTargetMissingDirectoryBaseNameStemCounts = [];
+        $duplicateRelationshipTargetDirectoryBaseNameStems = [];
+        foreach ($relationshipTargetDirectoryBaseNameStems as $directoryBaseNameStemSummary) {
+            $directoryBaseNameStem = (string) ($directoryBaseNameStemSummary['directoryBaseNameStem'] ?? '');
+            $relationshipTargetDirectoryBaseNameStemCounts[$directoryBaseNameStem] =
+                (int) ($directoryBaseNameStemSummary['relationshipCount'] ?? 0);
+            if ((int) ($directoryBaseNameStemSummary['existingTargetCount'] ?? 0) > 0) {
+                $relationshipTargetExistingDirectoryBaseNameStemCounts[$directoryBaseNameStem] =
+                    (int) ($directoryBaseNameStemSummary['existingTargetCount'] ?? 0);
+            }
+            if ((int) ($directoryBaseNameStemSummary['missingTargetCount'] ?? 0) > 0) {
+                $relationshipTargetMissingDirectoryBaseNameStemCounts[$directoryBaseNameStem] =
+                    (int) ($directoryBaseNameStemSummary['missingTargetCount'] ?? 0);
+            }
+            if ((int) ($directoryBaseNameStemSummary['directoryCount'] ?? 0) > 1) {
+                $duplicateRelationshipTargetDirectoryBaseNameStems[] = $directoryBaseNameStem;
+            }
+        }
+        ksort($relationshipTargetDirectoryBaseNameStemCounts, SORT_STRING);
+        ksort($relationshipTargetExistingDirectoryBaseNameStemCounts, SORT_STRING);
+        ksort($relationshipTargetMissingDirectoryBaseNameStemCounts, SORT_STRING);
         $relationshipTargetCaseFoldDirectoryBaseNames = $this->relationshipTargetCaseFoldDirectoryBaseNameSummary($relationshipTargets);
         $relationshipTargetCaseFoldDirectoryBaseNameCounts = [];
         $relationshipTargetExistingCaseFoldDirectoryBaseNameCounts = [];
@@ -19151,6 +19176,13 @@ final class DocxOpenXmlReader
             'duplicateRelationshipTargetDirectoryBaseNameCount' => count($duplicateRelationshipTargetDirectoryBaseNames),
             'duplicateRelationshipTargetDirectoryBaseNames' => $duplicateRelationshipTargetDirectoryBaseNames,
             'relationshipTargetDirectoryBaseNames' => array_values($relationshipTargetDirectoryBaseNames),
+            'relationshipTargetDirectoryBaseNameStemCount' => count($relationshipTargetDirectoryBaseNameStems),
+            'relationshipTargetDirectoryBaseNameStemCounts' => $relationshipTargetDirectoryBaseNameStemCounts,
+            'relationshipTargetExistingDirectoryBaseNameStemCounts' => $relationshipTargetExistingDirectoryBaseNameStemCounts,
+            'relationshipTargetMissingDirectoryBaseNameStemCounts' => $relationshipTargetMissingDirectoryBaseNameStemCounts,
+            'duplicateRelationshipTargetDirectoryBaseNameStemCount' => count($duplicateRelationshipTargetDirectoryBaseNameStems),
+            'duplicateRelationshipTargetDirectoryBaseNameStems' => $duplicateRelationshipTargetDirectoryBaseNameStems,
+            'relationshipTargetDirectoryBaseNameStems' => $relationshipTargetDirectoryBaseNameStems,
             'relationshipTargetCaseFoldDirectoryBaseNameCount' => count($relationshipTargetCaseFoldDirectoryBaseNames),
             'relationshipTargetCaseFoldDirectoryBaseNameCounts' => $relationshipTargetCaseFoldDirectoryBaseNameCounts,
             'relationshipTargetExistingCaseFoldDirectoryBaseNameCounts' => $relationshipTargetExistingCaseFoldDirectoryBaseNameCounts,
@@ -25223,6 +25255,213 @@ final class DocxOpenXmlReader
         }
 
         return array_values($directoryBaseNames);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipTargets
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipTargetDirectoryBaseNameStemSummary(array $relationshipTargets): array
+    {
+        $directoryBaseNameStems = [];
+        foreach ($relationshipTargets as $target) {
+            $targetPart = is_string($target['targetPart'] ?? null) ? $target['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $targetDirectory = is_string($target['targetDirectory'] ?? null)
+                ? $target['targetDirectory']
+                : $this->packagePartDirectory($targetPart);
+            $targetDirectoryBaseName = is_string($target['targetDirectoryBaseName'] ?? null)
+                ? $target['targetDirectoryBaseName']
+                : $this->packagePartDirectoryBaseName($targetDirectory);
+            $directoryBaseNameStem = $targetDirectoryBaseName === ''
+                ? ''
+                : $this->packagePartBaseNameStemFromBaseName($targetDirectoryBaseName);
+            $caseFoldDirectoryBaseNameStem = $directoryBaseNameStem === ''
+                ? ''
+                : $this->packagePartCaseFoldKey($directoryBaseNameStem);
+            if (!isset($directoryBaseNameStems[$directoryBaseNameStem])) {
+                $directoryBaseNameStems[$directoryBaseNameStem] = [
+                    'directoryBaseNameStem' => $directoryBaseNameStem,
+                    'directoryBaseNameStemVariantCount' => 0,
+                    'directoryBaseNameVariantCount' => 0,
+                    'directoryCount' => 0,
+                    'relationshipCount' => 0,
+                    'existingTargetCount' => 0,
+                    'missingTargetCount' => 0,
+                    'missingContentTypeTargetCount' => 0,
+                    'parameterizedTargetCount' => 0,
+                    'existingTargetByteLength' => 0,
+                    'directoryBaseNameStemCounts' => [],
+                    'directoryBaseNameCounts' => [],
+                    'targetDirectoryCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'relationshipTypeCounts' => [],
+                    'roleCounts' => [],
+                    'targetDirectories' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'relationshipIds' => [],
+                    'relationshipTypes' => [],
+                    'contentTypes' => [],
+                    'targetParts' => [],
+                    'largestExistingTargetPart' => null,
+                    '_seenExistingTargetParts' => [],
+                ];
+            }
+
+            ++$directoryBaseNameStems[$directoryBaseNameStem]['relationshipCount'];
+            $directoryBaseNameStems[$directoryBaseNameStem]['directoryBaseNameStemCounts'][$directoryBaseNameStem] =
+                ($directoryBaseNameStems[$directoryBaseNameStem]['directoryBaseNameStemCounts'][$directoryBaseNameStem] ?? 0) + 1;
+            $directoryBaseNameStems[$directoryBaseNameStem]['directoryBaseNameCounts'][$targetDirectoryBaseName] =
+                ($directoryBaseNameStems[$directoryBaseNameStem]['directoryBaseNameCounts'][$targetDirectoryBaseName] ?? 0) + 1;
+            $directoryBaseNameStems[$directoryBaseNameStem]['targetDirectoryCounts'][$targetDirectory] =
+                ($directoryBaseNameStems[$directoryBaseNameStem]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+
+            $targetExists = ($target['targetExists'] ?? false) === true;
+            if ($targetExists) {
+                ++$directoryBaseNameStems[$directoryBaseNameStem]['existingTargetCount'];
+            } else {
+                ++$directoryBaseNameStems[$directoryBaseNameStem]['missingTargetCount'];
+            }
+
+            $targetContentTypeSource = is_string($target['targetContentTypeSource'] ?? null)
+                ? $target['targetContentTypeSource']
+                : 'missing';
+            if ($targetContentTypeSource === '') {
+                $targetContentTypeSource = 'missing';
+            }
+            $directoryBaseNameStems[$directoryBaseNameStem]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                ($directoryBaseNameStems[$directoryBaseNameStem]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+            if ($targetContentTypeSource === 'missing') {
+                ++$directoryBaseNameStems[$directoryBaseNameStem]['missingContentTypeTargetCount'];
+            }
+
+            $targetContentTypeBase = is_string($target['targetContentTypeBase'] ?? null)
+                ? $target['targetContentTypeBase']
+                : '';
+            $targetContentTypeBaseKey = $targetContentTypeBase === '' ? '(missing)' : $targetContentTypeBase;
+            $directoryBaseNameStems[$directoryBaseNameStem]['contentTypeBaseCounts'][$targetContentTypeBaseKey] =
+                ($directoryBaseNameStems[$directoryBaseNameStem]['contentTypeBaseCounts'][$targetContentTypeBaseKey] ?? 0) + 1;
+
+            if (($target['targetContentTypeHasParameters'] ?? false) === true) {
+                ++$directoryBaseNameStems[$directoryBaseNameStem]['parameterizedTargetCount'];
+            }
+
+            $relationshipType = is_string($target['relationshipType'] ?? null) ? $target['relationshipType'] : '';
+            $relationshipTypeKey = is_string($target['relationshipTypeKey'] ?? null)
+                ? $target['relationshipTypeKey']
+                : ($relationshipType === '' ? '(missing-type)' : $relationshipType);
+            $directoryBaseNameStems[$directoryBaseNameStem]['relationshipTypeCounts'][$relationshipTypeKey] =
+                ($directoryBaseNameStems[$directoryBaseNameStem]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+
+            $targetRoles = is_array($target['targetRoles'] ?? null)
+                ? array_values(array_filter(
+                    array_map('strval', $target['targetRoles']),
+                    static fn (string $role): bool => $role !== '',
+                ))
+                : [];
+            foreach ($targetRoles as $targetRole) {
+                $directoryBaseNameStems[$directoryBaseNameStem]['roleCounts'][$targetRole] =
+                    ($directoryBaseNameStems[$directoryBaseNameStem]['roleCounts'][$targetRole] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString($directoryBaseNameStems[$directoryBaseNameStem]['targetDirectories'], $targetDirectory);
+            $this->appendUniqueString(
+                $directoryBaseNameStems[$directoryBaseNameStem]['sourceParts'],
+                is_string($target['sourcePart'] ?? null) ? $target['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $directoryBaseNameStems[$directoryBaseNameStem]['relationshipParts'],
+                is_string($target['relationshipsPart'] ?? null) ? $target['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString(
+                $directoryBaseNameStems[$directoryBaseNameStem]['relationshipIds'],
+                is_string($target['relationshipId'] ?? null) ? $target['relationshipId'] : null,
+            );
+            $this->appendUniqueString($directoryBaseNameStems[$directoryBaseNameStem]['relationshipTypes'], $relationshipType);
+            $this->appendUniqueString(
+                $directoryBaseNameStems[$directoryBaseNameStem]['contentTypes'],
+                is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : null,
+            );
+            $this->appendUniqueString($directoryBaseNameStems[$directoryBaseNameStem]['targetParts'], $targetPart);
+
+            $targetBytes = is_int($target['targetBytes'] ?? null) ? (int) $target['targetBytes'] : null;
+            if (
+                !$targetExists
+                || $targetBytes === null
+                || isset($directoryBaseNameStems[$directoryBaseNameStem]['_seenExistingTargetParts'][$targetPart])
+            ) {
+                continue;
+            }
+
+            $directoryBaseNameStems[$directoryBaseNameStem]['_seenExistingTargetParts'][$targetPart] = true;
+            $targetSummary = [
+                'partName' => $targetPart,
+                'targetPart' => $targetPart,
+                'directory' => $targetDirectory,
+                'directoryBaseName' => $targetDirectoryBaseName,
+                'directoryBaseNameStem' => $directoryBaseNameStem,
+                'caseFoldDirectoryBaseNameStem' => $caseFoldDirectoryBaseNameStem,
+                'baseName' => is_string($target['targetBaseName'] ?? null)
+                    ? $target['targetBaseName']
+                    : $this->packagePartBaseName($targetPart),
+                'targetPathDepth' => is_int($target['targetPathDepth'] ?? null)
+                    ? (int) $target['targetPathDepth']
+                    : count($this->packagePartPathSegments($targetPart)),
+                'partExtension' => is_string($target['targetPartExtension'] ?? null)
+                    ? $target['targetPartExtension']
+                    : $this->packagePartExtension($targetPart),
+                'bytes' => $targetBytes,
+                'targetBytes' => $targetBytes,
+                'crc32' => is_string($target['targetCrc32'] ?? null) ? $target['targetCrc32'] : null,
+                'sha256' => is_string($target['targetSha256'] ?? null) ? $target['targetSha256'] : null,
+                'contentType' => is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : '',
+                'contentTypeBase' => $targetContentTypeBase,
+                'contentTypeSource' => $targetContentTypeSource,
+                'roles' => $targetRoles,
+            ];
+            $directoryBaseNameStems[$directoryBaseNameStem]['existingTargetByteLength'] += $targetBytes;
+            $largestTarget = $directoryBaseNameStems[$directoryBaseNameStem]['largestExistingTargetPart'];
+            if (
+                !is_array($largestTarget)
+                || $targetBytes > (int) ($largestTarget['bytes'] ?? 0)
+                || (
+                    $targetBytes === (int) ($largestTarget['bytes'] ?? 0)
+                    && strcmp($targetPart, (string) ($largestTarget['partName'] ?? '')) < 0
+                )
+            ) {
+                $directoryBaseNameStems[$directoryBaseNameStem]['largestExistingTargetPart'] = $targetSummary;
+            }
+        }
+
+        ksort($directoryBaseNameStems, SORT_STRING);
+        foreach ($directoryBaseNameStems as $directoryBaseNameStem => $summary) {
+            ksort($summary['directoryBaseNameStemCounts'], SORT_STRING);
+            ksort($summary['directoryBaseNameCounts'], SORT_STRING);
+            ksort($summary['targetDirectoryCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['relationshipTypeCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            sort($summary['targetDirectories'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['relationshipIds'], SORT_STRING);
+            sort($summary['relationshipTypes'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['targetParts'], SORT_STRING);
+            $summary['directoryBaseNameStemVariantCount'] = count($summary['directoryBaseNameStemCounts']);
+            $summary['directoryBaseNameVariantCount'] = count($summary['directoryBaseNameCounts']);
+            $summary['directoryCount'] = count($summary['targetDirectories']);
+            unset($summary['_seenExistingTargetParts']);
+            $directoryBaseNameStems[$directoryBaseNameStem] = $summary;
+        }
+
+        return array_values($directoryBaseNameStems);
     }
 
     /**
