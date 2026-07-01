@@ -19428,6 +19428,88 @@ XML;
         $t->same(null, $byKind['comments']['crc32']);
         $t->same(null, $byKind['comments']['sha256']);
     },
+    'summarizes docx selected openxml part aggregate states for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/web/missing-web-settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/bad-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rStateSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="../custom/settings/review.settings"/>' . "\n" .
+            '  <Relationship Id="rStateWebSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings" Target="web/missing-web-settings.xml?profile=missing#web"/>' . "\n" .
+            '  <Relationship Id="rStateTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/bad-theme.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['custom/settings/review.settings'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/theme/bad-theme.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="false"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+
+        $t->same(18, $selected['count']);
+        $t->same(6, $selected['existingCount']);
+        $t->same(5, $selected['relationshipSelectedCount']);
+        $t->same(1, $selected['missingRequiredOrReferencedCount']);
+        $t->same(5, $selected['validRootCount']);
+        $t->same(1, $selected['invalidRootCount']);
+        $t->same(0, $selected['unexpectedContentTypeCount']);
+        $t->same(1, $selected['missingContentTypeCount']);
+        $t->same(3, $selected['issueCount']);
+        $t->same(['settings', 'webSettings', 'theme'], $selected['issueKinds']);
+
+        $t->same($selected['count'], $summary['selectedXmlPartCount']);
+        $t->same($selected['existingCount'], $summary['selectedXmlPartExistingCount']);
+        $t->same($selected['relationshipSelectedCount'], $summary['selectedXmlPartRelationshipSelectedCount']);
+        $t->same($selected['missingRequiredOrReferencedCount'], $summary['selectedXmlPartMissingRequiredOrReferencedCount']);
+        $t->same($selected['validRootCount'], $summary['selectedXmlPartValidRootCount']);
+        $t->same($selected['invalidRootCount'], $summary['selectedXmlPartInvalidRootCount']);
+        $t->same($selected['unexpectedContentTypeCount'], $summary['selectedXmlPartUnexpectedContentTypeCount']);
+        $t->same($selected['missingContentTypeCount'], $summary['selectedXmlPartMissingContentTypeCount']);
+        $t->same($selected['issueCount'], $summary['selectedXmlPartIssueCount']);
+        $t->same($selected['issueKinds'], $summary['selectedXmlPartIssueKinds']);
+
+        $settings = $selected['byKind']['settings'];
+        $webSettings = $selected['byKind']['webSettings'];
+        $theme = $selected['byKind']['theme'];
+
+        $t->same('relationship', $settings['selectionSource']);
+        $t->same('custom/settings/review.settings', $settings['partName']);
+        $t->same(false, $settings['contentTypeMatchesExpected']);
+        $t->same(['missing-content-type'], $settings['issues']);
+        $t->same(true, $settings['validRoot']);
+
+        $t->same('relationship', $webSettings['selectionSource']);
+        $t->same('word/web/missing-web-settings.xml', $webSettings['partName']);
+        $t->same(false, $webSettings['exists']);
+        $t->same(true, $webSettings['contentTypeMatchesExpected']);
+        $t->same(['missing-relationship-target'], $webSettings['issues']);
+
+        $t->same('relationship', $theme['selectionSource']);
+        $t->same('word/theme/bad-theme.xml', $theme['partName']);
+        $t->same(true, $theme['contentTypeMatchesExpected']);
+        $t->same(false, $theme['validRoot']);
+        $t->same('settings', $theme['rootLocalName']);
+        $t->same(['unexpected-root'], $theme['issues']);
+    },
     'tracks docx selected openxml part root and content type provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

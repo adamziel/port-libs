@@ -841,6 +841,13 @@ final class DocxOpenXmlReader
         ]);
         $packageProvenance['selectedXmlParts'] = $selectedXmlParts;
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
+        $packageProvenance['summary']['selectedXmlPartExistingCount'] = $selectedXmlParts['existingCount'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipSelectedCount'] = $selectedXmlParts['relationshipSelectedCount'];
+        $packageProvenance['summary']['selectedXmlPartMissingRequiredOrReferencedCount'] = $selectedXmlParts['missingRequiredOrReferencedCount'];
+        $packageProvenance['summary']['selectedXmlPartValidRootCount'] = $selectedXmlParts['validRootCount'];
+        $packageProvenance['summary']['selectedXmlPartInvalidRootCount'] = $selectedXmlParts['invalidRootCount'];
+        $packageProvenance['summary']['selectedXmlPartUnexpectedContentTypeCount'] = $selectedXmlParts['unexpectedContentTypeCount'];
+        $packageProvenance['summary']['selectedXmlPartMissingContentTypeCount'] = $selectedXmlParts['missingContentTypeCount'];
         $packageProvenance['summary']['selectedXmlPartByteDigestCount'] = $selectedXmlParts['byteDigestCount'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartInvalidXmlCount'] = $selectedXmlParts['invalidXmlCount'];
