@@ -24322,6 +24322,7 @@ final class XmlHtmlDom
         $unsafePingUrls = [];
         $nonHttpPingUrls = [];
         $issues = [];
+        $pingRequested = $pingRaw !== null;
 
         if (($hrefSummary['unsafe'] ?? false) === true) {
             $issues[] = [
@@ -24348,6 +24349,10 @@ final class XmlHtmlDom
 
         if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
             $issues[] = ['code' => 'invalid-referrer-policy', 'referrerPolicyRaw' => $referrerPolicyRaw];
+        }
+
+        if ($pingRequested && trim($pingRaw) === '') {
+            $issues[] = ['code' => 'empty-ping-url-list'];
         }
 
         foreach ($pingUrls as $url) {
@@ -24377,6 +24382,10 @@ final class XmlHtmlDom
                 ];
             }
         }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         return [
             'hyperlinkNavigationReview' => $name,
@@ -24404,12 +24413,17 @@ final class XmlHtmlDom
             'referrerPolicyRaw' => $referrerPolicyRaw,
             'referrerPolicy' => $referrerPolicy,
             'referrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'pingRequested' => $pingRequested,
+            'pingRawEmpty' => $pingRequested ? trim($pingRaw) === '' : null,
             'pingSideEffect' => $pingUrls !== [],
             'pingUrlCount' => count($pingUrls),
             'pingUrlRecords' => $pingRecords,
             'unsafePingUrls' => $unsafePingUrls,
             'nonHttpPingUrls' => $nonHttpPingUrls,
             'navigationIssues' => $issues,
+            'navigationIssueCodes' => $issueCodes,
+            'navigationIssueCount' => count($issues),
+            'hyperlinkNavigationValid' => $issues === [],
         ] + $fragmentTarget;
     }
 
