@@ -421,6 +421,9 @@ final class PdfEngineHandoff
                 if (is_array($systemFonts) && ($systemFonts['issues'] ?? []) !== []) {
                     $diagnostics[] = 'typst-system-font-issues:' . count($systemFonts['issues']);
                 }
+                if (is_array($systemFonts) && in_array('ignore-system-fonts-environment-shadowed', $systemFonts['issues'] ?? [], true)) {
+                    $diagnostics[] = 'typst-ignore-system-fonts-environment-shadowed';
+                }
             }
             if (($typstBoundaryProvenance['embeddedFonts'] ?? []) !== []) {
                 $embeddedFonts = $typstBoundaryProvenance['embeddedFonts'];
@@ -432,6 +435,9 @@ final class PdfEngineHandoff
                 }
                 if (is_array($embeddedFonts) && ($embeddedFonts['issues'] ?? []) !== []) {
                     $diagnostics[] = 'typst-embedded-font-issues:' . count($embeddedFonts['issues']);
+                }
+                if (is_array($embeddedFonts) && in_array('ignore-embedded-fonts-environment-shadowed', $embeddedFonts['issues'] ?? [], true)) {
+                    $diagnostics[] = 'typst-ignore-embedded-fonts-environment-shadowed';
                 }
             }
             if (($typstBoundaryProvenance['openOutput'] ?? []) !== []) {
@@ -7120,6 +7126,8 @@ final class PdfEngineHandoff
         $outputFormatValues = $this->typstOutputFormatOptionValues($engineOptions);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
+        $ignoreSystemFontCliCount = $ignoreSystemFontCount;
+        $ignoreEmbeddedFontCliCount = $ignoreEmbeddedFontCount;
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
         $prettyOutputCount = $this->engineOptionFlagCount($engineOptions, '--pretty');
         $openOutputEntries = $this->typstOpenOutputEntries($engineOptions);
@@ -7214,19 +7222,35 @@ final class PdfEngineHandoff
             )));
             $environmentVariables[] = 'TYPST_FEATURES';
         }
-        if ($ignoreSystemFontCount === 0 && array_key_exists('TYPST_IGNORE_SYSTEM_FONTS', $engineEnvironment)) {
+        if (array_key_exists('TYPST_IGNORE_SYSTEM_FONTS', $engineEnvironment)) {
             $systemFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_SYSTEM_FONTS'], 'ignore-system-fonts');
-            if ($systemFontEnvironmentFlag['enabled'] === true) {
+            if ($ignoreSystemFontCount === 0 && $systemFontEnvironmentFlag['enabled'] === true) {
                 $ignoreSystemFontCount = 1;
+            }
+            if ($ignoreSystemFontCliCount > 0) {
+                $systemFontEnvironmentFlag['shadowedBy'] = 'engine-option';
+                $systemFontEnvironmentFlag['selected'] = '--ignore-system-fonts';
+                $systemFontEnvironmentFlag['issues'] = array_values(array_unique(array_merge(
+                    $systemFontEnvironmentFlag['issues'],
+                    ['ignore-system-fonts-environment-shadowed']
+                )));
             }
             if ($systemFontEnvironmentFlag['enabled'] === true || $systemFontEnvironmentFlag['issues'] !== []) {
                 $environmentVariables[] = 'TYPST_IGNORE_SYSTEM_FONTS';
             }
         }
-        if ($ignoreEmbeddedFontCount === 0 && array_key_exists('TYPST_IGNORE_EMBEDDED_FONTS', $engineEnvironment)) {
+        if (array_key_exists('TYPST_IGNORE_EMBEDDED_FONTS', $engineEnvironment)) {
             $embeddedFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_EMBEDDED_FONTS'], 'ignore-embedded-fonts');
-            if ($embeddedFontEnvironmentFlag['enabled'] === true) {
+            if ($ignoreEmbeddedFontCount === 0 && $embeddedFontEnvironmentFlag['enabled'] === true) {
                 $ignoreEmbeddedFontCount = 1;
+            }
+            if ($ignoreEmbeddedFontCliCount > 0) {
+                $embeddedFontEnvironmentFlag['shadowedBy'] = 'engine-option';
+                $embeddedFontEnvironmentFlag['selected'] = '--ignore-embedded-fonts';
+                $embeddedFontEnvironmentFlag['issues'] = array_values(array_unique(array_merge(
+                    $embeddedFontEnvironmentFlag['issues'],
+                    ['ignore-embedded-fonts-environment-shadowed']
+                )));
             }
             if ($embeddedFontEnvironmentFlag['enabled'] === true || $embeddedFontEnvironmentFlag['issues'] !== []) {
                 $environmentVariables[] = 'TYPST_IGNORE_EMBEDDED_FONTS';
@@ -7552,6 +7576,11 @@ final class PdfEngineHandoff
             if ($systemFontEnvironmentFlag !== null) {
                 $provenance['systemFonts']['environmentVariable'] = 'TYPST_IGNORE_SYSTEM_FONTS';
                 $provenance['systemFonts']['environmentValue'] = $systemFontEnvironmentFlag['raw'];
+                if (is_string($systemFontEnvironmentFlag['shadowedBy'] ?? null)) {
+                    $provenance['systemFonts']['environmentShadowed'] = true;
+                    $provenance['systemFonts']['shadowedBy'] = $systemFontEnvironmentFlag['shadowedBy'];
+                    $provenance['systemFonts']['selected'] = $systemFontEnvironmentFlag['selected'];
+                }
             }
         }
         if ($ignoreEmbeddedFontCount > 0 || ($embeddedFontEnvironmentFlag['issues'] ?? []) !== []) {
@@ -7564,6 +7593,11 @@ final class PdfEngineHandoff
             if ($embeddedFontEnvironmentFlag !== null) {
                 $provenance['embeddedFonts']['environmentVariable'] = 'TYPST_IGNORE_EMBEDDED_FONTS';
                 $provenance['embeddedFonts']['environmentValue'] = $embeddedFontEnvironmentFlag['raw'];
+                if (is_string($embeddedFontEnvironmentFlag['shadowedBy'] ?? null)) {
+                    $provenance['embeddedFonts']['environmentShadowed'] = true;
+                    $provenance['embeddedFonts']['shadowedBy'] = $embeddedFontEnvironmentFlag['shadowedBy'];
+                    $provenance['embeddedFonts']['selected'] = $embeddedFontEnvironmentFlag['selected'];
+                }
             }
         }
         if ($openOutputCount > 0) {
@@ -7944,6 +7978,11 @@ final class PdfEngineHandoff
                 $shadowEntries[] = $provenance[$key];
             }
         }
+        foreach (['systemFonts', 'embeddedFonts'] as $key) {
+            if (is_array($provenance[$key] ?? null) && is_string($provenance[$key]['shadowedBy'] ?? null)) {
+                $shadowEntries[] = $provenance[$key];
+            }
+        }
         $shadowedVariables = [];
         foreach ($shadowEntries as $entry) {
             if (!is_string($entry['shadowedBy'] ?? null)) {
@@ -8156,6 +8195,25 @@ final class PdfEngineHandoff
         $systemFonts = is_array($provenance['systemFonts'] ?? null) ? $provenance['systemFonts'] : [];
         $embeddedFonts = is_array($provenance['embeddedFonts'] ?? null) ? $provenance['embeddedFonts'] : [];
         $fontAccessIssues = array_merge($entryIssues($systemFonts), $entryIssues($embeddedFonts));
+        $fontAccessEnvironmentVariables = [];
+        $fontAccessShadowedEnvironmentVariables = [];
+        foreach ([$systemFonts, $embeddedFonts] as $fontAccessEntry) {
+            if (!is_array($fontAccessEntry)) {
+                continue;
+            }
+            $environmentVariable = is_string($fontAccessEntry['environmentVariable'] ?? null) ? $fontAccessEntry['environmentVariable'] : null;
+            if ($environmentVariable === null || $environmentVariable === '') {
+                continue;
+            }
+            $fontAccessEnvironmentVariables[] = $environmentVariable;
+            if (is_string($fontAccessEntry['shadowedBy'] ?? null)) {
+                $fontAccessShadowedEnvironmentVariables[] = $environmentVariable;
+            }
+        }
+        $fontAccessEnvironmentVariables = array_values(array_unique($fontAccessEnvironmentVariables));
+        sort($fontAccessEnvironmentVariables);
+        $fontAccessShadowedEnvironmentVariables = array_values(array_unique($fontAccessShadowedEnvironmentVariables));
+        sort($fontAccessShadowedEnvironmentVariables);
         $fontAccessControlCount = is_int($summary['fontAccessControlCount'] ?? null)
             ? $summary['fontAccessControlCount']
             : (int) (($systemFonts['systemFontAccess'] ?? null) === 'disabled') + (int) (($embeddedFonts['embeddedFontAccess'] ?? null) === 'disabled');
@@ -8166,6 +8224,10 @@ final class PdfEngineHandoff
                 'embeddedFontAccessDisabled' => ($embeddedFonts['embeddedFontAccess'] ?? null) === 'disabled',
                 'embeddedFontAccessFlagCount' => is_int($embeddedFonts['flagCount'] ?? null) ? $embeddedFonts['flagCount'] : 0,
                 'fontPathCount' => is_int($systemFonts['fontPathCount'] ?? null) ? $systemFonts['fontPathCount'] : $fontPathCount,
+                'environmentVariableCount' => count($fontAccessEnvironmentVariables),
+                'environmentVariables' => $fontAccessEnvironmentVariables,
+                'shadowedEnvironmentVariableCount' => count($fontAccessShadowedEnvironmentVariables),
+                'shadowedEnvironmentVariables' => $fontAccessShadowedEnvironmentVariables,
             ], $fontAccessIssues);
         }
 
