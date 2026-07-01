@@ -24851,6 +24851,7 @@ final class DocxOpenXmlReader
                 'caseFoldBaseName' => $this->packagePartCaseFoldKey($baseName),
                 'caseFoldBaseNameStem' => $this->packagePartCaseFoldKey($baseNameStem),
                 'pathSegments' => $pathSegments,
+                'pathSegmentPositionReviews' => $this->packagePartPathSegmentPositionReviews($pathSegments),
                 'topLevelSegment' => $pathSegments[0] ?? '',
                 'pathSegmentCount' => count($pathSegments),
                 'partExtension' => $partExtension,

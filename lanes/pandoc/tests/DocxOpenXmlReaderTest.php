@@ -1995,9 +1995,61 @@ XML;
         $t->same(['[Content_Types].xml'], $inventory['[Content_Types].xml']['pathSegments']);
         $t->same(1, $inventory['[Content_Types].xml']['pathSegmentCount']);
         $t->same(0, $inventory['[Content_Types].xml']['directoryDepth']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => '[Content_Types].xml',
+                'position' => 'only',
+                'isFirst' => true,
+                'isLast' => true,
+                'isOnly' => true,
+            ],
+        ], $inventory['[Content_Types].xml']['pathSegmentPositionReviews']);
         $t->same(['word', 'embeddings', 'charts', 'cache', 'workbook.bin'], $inventory['word/embeddings/charts/cache/workbook.bin']['pathSegments']);
         $t->same(5, $inventory['word/embeddings/charts/cache/workbook.bin']['pathSegmentCount']);
         $t->same(4, $inventory['word/embeddings/charts/cache/workbook.bin']['directoryDepth']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => 'word',
+                'position' => 'first',
+                'isFirst' => true,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'embeddings',
+                'position' => 'middle',
+                'isFirst' => false,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 2,
+                'segment' => 'charts',
+                'position' => 'middle',
+                'isFirst' => false,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 3,
+                'segment' => 'cache',
+                'position' => 'middle',
+                'isFirst' => false,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 4,
+                'segment' => 'workbook.bin',
+                'position' => 'last',
+                'isFirst' => false,
+                'isLast' => true,
+                'isOnly' => false,
+            ],
+        ], $inventory['word/embeddings/charts/cache/workbook.bin']['pathSegmentPositionReviews']);
         $t->same(['customXml', 'data', 'store', 'raw'], $inventory['customXml/data/store/raw']['pathSegments']);
         $t->same(4, $inventory['customXml/data/store/raw']['pathSegmentCount']);
         $t->same(3, $inventory['customXml/data/store/raw']['directoryDepth']);
