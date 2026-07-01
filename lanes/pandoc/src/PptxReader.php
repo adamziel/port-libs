@@ -58,6 +58,7 @@ final class PptxReader
 
             $richMedia = $this->collectRichMediaReviews($slideBlocks);
             $charts = $this->collectChartReviews($slideBlocks);
+            $links = $this->collectLinkReviews($slideBlocks);
             $slideReviews[] = [
                 'index' => $slide['index'],
                 'relationshipId' => $slide['relationshipId'],
@@ -72,6 +73,8 @@ final class PptxReader
                 'shapeIssues' => $shapeIssues,
                 'richMediaCount' => count($richMedia),
                 'richMedia' => $richMedia,
+                'linkCount' => count($links),
+                'links' => $links,
                 'chartCount' => count($charts),
                 'charts' => $charts,
             ];
@@ -836,6 +839,68 @@ final class PptxReader
      * @param list<AstNode> $blocks
      * @return list<array<string, mixed>>
      */
+    private function collectLinkReviews(array $blocks): array
+    {
+        $links = [];
+        $seen = [];
+        foreach ($blocks as $block) {
+            foreach ($this->collectLinkReviewsFromNode($block) as $record) {
+                $key = (string) ($record['relationshipId'] ?? '') . "\0" . (string) ($record['url'] ?? '') . "\0" . (string) ($record['title'] ?? '');
+                if (isset($seen[$key])) {
+                    continue;
+                }
+                $seen[$key] = true;
+                $links[] = $record;
+            }
+        }
+
+        return $links;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function collectLinkReviewsFromNode(AstNode $node): array
+    {
+        $links = [];
+        if ($node->type === 'link') {
+            $record = [];
+            foreach ([
+                'url',
+                'title',
+                'relationshipId',
+                'relationshipType',
+                'relationshipIssue',
+                'hyperlinkKind',
+                'target',
+                'targetMode',
+                'external',
+                'externalTargetAllowed',
+                'externalTargetIssues',
+                'externalTargetScheme',
+                'action',
+                'targetFrame',
+            ] as $attribute) {
+                $value = $node->attr($attribute);
+                if ($value !== null && $value !== '' && $value !== []) {
+                    $record[$attribute] = $value;
+                }
+            }
+            if ($record !== []) {
+                $links[] = $record;
+            }
+        }
+        foreach ($node->children as $child) {
+            array_push($links, ...$this->collectLinkReviewsFromNode($child));
+        }
+
+        return $links;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<array<string, mixed>>
+     */
     private function collectChartReviews(array $blocks): array
     {
         $charts = [];
@@ -1008,7 +1073,7 @@ final class PptxReader
                 );
             }
 
-            $paragraphs = $this->parseParagraphs($textBody);
+            $paragraphs = $this->parseParagraphs($textBody, $slideRelationships);
             if ($this->paragraphsContainText($paragraphs)) {
                 return $this->withShapeMetadata(
                     $this->paragraphsToBlocks($paragraphs),
@@ -1435,7 +1500,7 @@ final class PptxReader
     }
 
     /**
-     * @param list<array{level:int, bullet:bool, text:string}> $paragraphs
+     * @param list<array{level:int, bullet:bool, text:string, inlines?:list<AstNode>}> $paragraphs
      * @return list<AstNode>
      */
     private function paragraphsToBlocks(array $paragraphs): array
@@ -1452,7 +1517,7 @@ final class PptxReader
             }
         }
         if (!$hasBullets) {
-            return array_map(fn (array $paragraph): AstNode => $this->paragraph($paragraph['text']), $paragraphs);
+            return array_map(fn (array $paragraph): AstNode => $this->parsedParagraphBlock($paragraph), $paragraphs);
         }
 
         $blocks = [];
@@ -1461,7 +1526,7 @@ final class PptxReader
         while ($index < $count) {
             $paragraph = $paragraphs[$index];
             if (!$paragraph['bullet']) {
-                $blocks[] = $this->paragraph($paragraph['text']);
+                $blocks[] = $this->parsedParagraphBlock($paragraph);
                 $index++;
                 continue;
             }
@@ -1470,7 +1535,7 @@ final class PptxReader
             $level = $paragraph['level'];
             while ($index < $count && $paragraphs[$index]['bullet'] && $paragraphs[$index]['level'] === $level) {
                 $items[] = new AstNode('list_item', [], [
-                    new AstNode('plain', [], $this->textInlines($paragraphs[$index]['text'])),
+                    new AstNode('plain', [], $this->parsedParagraphInlines($paragraphs[$index])),
                 ]);
                 $index++;
             }
@@ -1481,18 +1546,147 @@ final class PptxReader
     }
 
     /**
-     * @return list<array{level:int, bullet:bool, text:string}>
+     * @param array{level:int, bullet:bool, text:string, inlines?:list<AstNode>} $paragraph
      */
-    private function parseParagraphs(\DOMElement $textBody): array
+    private function parsedParagraphBlock(array $paragraph): AstNode
+    {
+        return new AstNode('paragraph', ['text' => $paragraph['text']], $this->parsedParagraphInlines($paragraph));
+    }
+
+    /**
+     * @param array{level:int, bullet:bool, text:string, inlines?:list<AstNode>} $paragraph
+     * @return list<AstNode>
+     */
+    private function parsedParagraphInlines(array $paragraph): array
+    {
+        return isset($paragraph['inlines']) && is_array($paragraph['inlines'])
+            ? $paragraph['inlines']
+            : $this->textInlines($paragraph['text']);
+    }
+
+    /**
+     * @return list<array{level:int, bullet:bool, text:string, inlines?:list<AstNode>}>
+     */
+    private function parseParagraphs(\DOMElement $textBody, ?OpcRelationships $relationships = null): array
     {
         return array_map(
-            fn (\DOMElement $paragraphElement): array => [
-                'level' => $this->paragraphLevel($paragraphElement),
-                'bullet' => $this->paragraphHasBullet($paragraphElement),
-                'text' => $this->drawingText($paragraphElement),
-            ],
+            function (\DOMElement $paragraphElement) use ($relationships): array {
+                $paragraph = [
+                    'level' => $this->paragraphLevel($paragraphElement),
+                    'bullet' => $this->paragraphHasBullet($paragraphElement),
+                    'text' => $this->drawingText($paragraphElement),
+                ];
+                if ($relationships instanceof OpcRelationships) {
+                    $inlines = $this->drawingParagraphHyperlinkInlines($paragraphElement, $relationships);
+                    if ($inlines !== []) {
+                        $paragraph['inlines'] = $inlines;
+                    }
+                }
+
+                return $paragraph;
+            },
             $this->childElements($textBody, 'p')
         );
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function drawingParagraphHyperlinkInlines(\DOMElement $paragraphElement, OpcRelationships $relationships): array
+    {
+        $inlines = [];
+        $hasHyperlink = false;
+        foreach ($this->childElements($paragraphElement, null) as $child) {
+            if (!in_array($child->localName, ['r', 'fld'], true)) {
+                continue;
+            }
+
+            $text = $this->drawingText($child);
+            if ($text === '') {
+                continue;
+            }
+
+            $linkAttrs = $this->drawingRunHyperlinkAttrs($child, $relationships);
+            if ($linkAttrs !== null) {
+                $hasHyperlink = true;
+                $inlines[] = new AstNode('link', $linkAttrs, $this->textInlines($text));
+                continue;
+            }
+
+            $inlines[] = new AstNode('text', ['text' => $text]);
+        }
+
+        return $hasHyperlink ? $inlines : [];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function drawingRunHyperlinkAttrs(\DOMElement $runElement, OpcRelationships $relationships): ?array
+    {
+        $runProperties = $this->firstChildElement($runElement, 'rPr');
+        if (!$runProperties instanceof \DOMElement) {
+            return null;
+        }
+
+        $hyperlink = null;
+        foreach ($this->childElements($runProperties, null) as $candidate) {
+            if (in_array($candidate->localName, ['hlinkClick', 'hlinkMouseOver'], true)) {
+                $hyperlink = $candidate;
+                break;
+            }
+        }
+        if (!$hyperlink instanceof \DOMElement) {
+            return null;
+        }
+
+        $relationshipId = $this->relationshipId($hyperlink, 'id');
+        $attrs = [
+            'url' => '',
+            'hyperlinkKind' => $hyperlink->localName,
+        ];
+
+        foreach (['tooltip' => 'title', 'action' => 'action', 'tgtFrame' => 'targetFrame'] as $source => $target) {
+            $value = trim($hyperlink->getAttribute($source));
+            if ($value !== '') {
+                $attrs[$target] = $value;
+            }
+        }
+
+        if ($relationshipId === '') {
+            $attrs['relationshipIssue'] = 'missing-hyperlink-relationship-id';
+
+            return $attrs;
+        }
+
+        $attrs['relationshipId'] = $relationshipId;
+        $relationship = $relationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship) {
+            $attrs['relationshipIssue'] = 'unknown-hyperlink-relationship';
+
+            return $attrs;
+        }
+
+        $attrs['relationshipType'] = $relationship->type;
+        $attrs['target'] = $relationship->target;
+        $attrs['targetMode'] = $relationship->targetMode;
+        $attrs['external'] = $relationship->isExternal();
+        $attrs['url'] = $relationship->isExternal()
+            ? $relationship->target
+            : ltrim(OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship)), '/');
+
+        if ($relationship->isExternal()) {
+            $preflight = $relationship->externalTargetPreflight();
+            $attrs['externalTargetAllowed'] = $preflight['allowed'];
+            if ($preflight['issues'] !== []) {
+                $attrs['externalTargetIssues'] = $preflight['issues'];
+            }
+            if ($preflight['scheme'] !== null) {
+                $attrs['externalTargetScheme'] = $preflight['scheme'];
+            }
+        }
+
+        return $attrs;
     }
 
     private function paragraphLevel(\DOMElement $paragraphElement): int
@@ -1524,7 +1718,7 @@ final class PptxReader
     }
 
     /**
-     * @param list<array{level:int, bullet:bool, text:string}> $paragraphs
+     * @param list<array{level:int, bullet:bool, text:string, inlines?:list<AstNode>}> $paragraphs
      */
     private function paragraphsContainText(array $paragraphs): bool
     {

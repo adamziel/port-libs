@@ -29,13 +29,15 @@ The grouped-shape path now recursively reads drawable children inside `p:grpSp`,
 
 Unsupported drawable shapes such as `p:cxnSp` connectors now produce slide-level `shapeIssues` review metadata instead of disappearing silently. The diagnostic preserves the element type, non-visual drawing properties, z-order, and transform metadata while avoiding fabricated visible content.
 
+Text runs with DrawingML hyperlink relationships now emit Pandoc `link` inlines and slide-level `links` review metadata. External targets are preserved without fetching them, along with relationship id/type, target mode, tooltip title, and external-target preflight metadata.
+
 Latest focused verification:
 
 - `php -l lanes/pandoc/src/PptxReader.php`
 - `php -l lanes/pandoc/tests/PptxReaderTest.php`
 - `php -l lanes/pandoc/src/PandocFormatRegistry.php`
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `173` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1030` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1463` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `188` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1045` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1478` assertions, `0` failures.
 
 This closes the current upstream PPTX reader golden fixture content gate. It does not claim full PPTX writer parity or full PowerPoint package round-trip parity.
