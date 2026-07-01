@@ -15874,6 +15874,7 @@ final class DocxOpenXmlReader
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partBaseNameCharacters = $this->packagePartBaseNameCharacterSummary($partInventory);
         $partDirectoryNameCharacters = $this->packagePartDirectoryNameCharacterSummary($partInventory);
+        $partXmlRoots = $this->packagePartXmlRootSummary($partInventory);
         $partXmlCdataSections = $this->packagePartXmlCdataSectionSummary($partInventory);
         $partXmlComments = $this->packagePartXmlCommentSummary($partInventory);
         $partXmlProcessingInstructions = $this->packagePartXmlProcessingInstructionSummary($partInventory);
@@ -19707,6 +19708,20 @@ final class DocxOpenXmlReader
             'partDirectoryNameCharacterFlagPartNames' => $partDirectoryNameCharacters['flagPartNames'],
             'partDirectoryNameCharacterReviewDirectories' => $partDirectoryNameCharacters['directories'],
             'partDirectoryNameCharacterReviewDirectoryNames' => $partDirectoryNameCharacters['directoryNames'],
+            'partXmlRootPartCount' => $partXmlRoots['partCount'],
+            'partXmlRootValidXmlPartCount' => $partXmlRoots['validXmlPartCount'],
+            'partXmlRootInvalidXmlPartCount' => $partXmlRoots['invalidXmlPartCount'],
+            'partXmlRootAttributeCount' => $partXmlRoots['attributeCount'],
+            'partXmlRootNamespaceDeclarationCount' => $partXmlRoots['namespaceDeclarationCount'],
+            'partXmlRootNamespaceCounts' => $partXmlRoots['namespaceCounts'],
+            'partXmlRootLocalNameCounts' => $partXmlRoots['localNameCounts'],
+            'partXmlRootQualifiedNameCounts' => $partXmlRoots['qualifiedNameCounts'],
+            'partXmlRootPrefixCounts' => $partXmlRoots['prefixCounts'],
+            'partXmlRootNamespacePrefixCounts' => $partXmlRoots['namespacePrefixCounts'],
+            'partXmlRootPartNames' => $partXmlRoots['partNames'],
+            'partXmlRootInvalidPartNames' => $partXmlRoots['invalidPartNames'],
+            'partXmlRoots' => $partXmlRoots['roots'],
+            'partXmlRootsTruncated' => $partXmlRoots['truncated'],
             'partXmlCdataSectionPartCount' => $partXmlCdataSections['partCount'],
             'partXmlCdataSectionCount' => $partXmlCdataSections['sectionCount'],
             'partXmlCdataSectionByteLength' => $partXmlCdataSections['byteLength'],
@@ -37486,6 +37501,121 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
+     * @return array{partCount:int, validXmlPartCount:int, invalidXmlPartCount:int, attributeCount:int, namespaceDeclarationCount:int, namespaceCounts:array<string, int>, localNameCounts:array<string, int>, qualifiedNameCounts:array<string, int>, prefixCounts:array<string, int>, namespacePrefixCounts:array<string, int>, partNames:list<string>, invalidPartNames:list<string>, roots:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlRootSummary(array $partInventory): array
+    {
+        $partNames = [];
+        $invalidPartNames = [];
+        $roots = [];
+        $namespaceCounts = [];
+        $localNameCounts = [];
+        $qualifiedNameCounts = [];
+        $prefixCounts = [];
+        $namespacePrefixCounts = [];
+        $validXmlPartCount = 0;
+        $invalidXmlPartCount = 0;
+        $attributeCount = 0;
+        $namespaceDeclarationCount = 0;
+        $truncated = false;
+        $summaryLimit = 128;
+
+        foreach ($partInventory as $partName => $part) {
+            if (($part['xmlRootChecked'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $validXml = ($part['xmlRootValidXml'] ?? null) === true;
+            $namespace = is_string($part['xmlRootNamespace'] ?? null) ? (string) $part['xmlRootNamespace'] : null;
+            $localName = is_string($part['xmlRootLocalName'] ?? null) ? (string) $part['xmlRootLocalName'] : null;
+            $qualifiedName = is_string($part['xmlRootQualifiedName'] ?? null) ? (string) $part['xmlRootQualifiedName'] : null;
+            $prefix = is_string($part['xmlRootPrefix'] ?? null) ? (string) $part['xmlRootPrefix'] : null;
+            $namespacePrefixes = [];
+            if (is_array($part['xmlRootNamespacePrefixes'] ?? null)) {
+                $namespacePrefixes = array_values(array_map('strval', $part['xmlRootNamespacePrefixes']));
+            }
+
+            $this->appendUniqueString($partNames, $partName);
+            if ($validXml) {
+                ++$validXmlPartCount;
+            } else {
+                ++$invalidXmlPartCount;
+                $this->appendUniqueString($invalidPartNames, $partName);
+            }
+
+            $attributeCount += (int) ($part['xmlRootAttributeCount'] ?? 0);
+            $namespaceDeclarationCount += (int) ($part['xmlRootNamespaceDeclarationCount'] ?? 0);
+            if ($namespace !== null && $namespace !== '') {
+                $namespaceCounts[$namespace] = ($namespaceCounts[$namespace] ?? 0) + 1;
+            }
+            if ($localName !== null && $localName !== '') {
+                $localNameCounts[$localName] = ($localNameCounts[$localName] ?? 0) + 1;
+            }
+            if ($qualifiedName !== null && $qualifiedName !== '') {
+                $qualifiedNameCounts[$qualifiedName] = ($qualifiedNameCounts[$qualifiedName] ?? 0) + 1;
+            }
+            if ($prefix !== null && $prefix !== '') {
+                $prefixCounts[$prefix] = ($prefixCounts[$prefix] ?? 0) + 1;
+            }
+            foreach ($namespacePrefixes as $namespacePrefix) {
+                if ($namespacePrefix === '') {
+                    continue;
+                }
+                $namespacePrefixCounts[$namespacePrefix] = ($namespacePrefixCounts[$namespacePrefix] ?? 0) + 1;
+            }
+
+            if (count($roots) >= $summaryLimit) {
+                $truncated = true;
+                continue;
+            }
+
+            $roots[] = [
+                'partName' => $partName,
+                'validXml' => is_bool($part['xmlRootValidXml'] ?? null) ? (bool) $part['xmlRootValidXml'] : null,
+                'xmlParseError' => is_string($part['xmlRootParseError'] ?? null)
+                    ? (string) $part['xmlRootParseError']
+                    : null,
+                'namespace' => $namespace,
+                'localName' => $localName,
+                'qualifiedName' => $qualifiedName,
+                'prefix' => $prefix,
+                'attributeCount' => (int) ($part['xmlRootAttributeCount'] ?? 0),
+                'namespaceDeclarationCount' => (int) ($part['xmlRootNamespaceDeclarationCount'] ?? 0),
+                'namespacePrefixes' => $namespacePrefixes,
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? (string) $part['contentTypeBase'] : '',
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? (string) $part['contentTypeSource'] : 'missing',
+            ];
+        }
+
+        sort($partNames, SORT_STRING);
+        sort($invalidPartNames, SORT_STRING);
+        ksort($namespaceCounts, SORT_STRING);
+        ksort($localNameCounts, SORT_STRING);
+        ksort($qualifiedNameCounts, SORT_STRING);
+        ksort($prefixCounts, SORT_STRING);
+        ksort($namespacePrefixCounts, SORT_STRING);
+
+        return [
+            'partCount' => count($partNames),
+            'validXmlPartCount' => $validXmlPartCount,
+            'invalidXmlPartCount' => $invalidXmlPartCount,
+            'attributeCount' => $attributeCount,
+            'namespaceDeclarationCount' => $namespaceDeclarationCount,
+            'namespaceCounts' => $namespaceCounts,
+            'localNameCounts' => $localNameCounts,
+            'qualifiedNameCounts' => $qualifiedNameCounts,
+            'prefixCounts' => $prefixCounts,
+            'namespacePrefixCounts' => $namespacePrefixCounts,
+            'partNames' => $partNames,
+            'invalidPartNames' => $invalidPartNames,
+            'roots' => $roots,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
      * @return array{partCount:int, sectionCount:int, byteLength:int, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCdataSectionSummary(array $partInventory): array
@@ -37645,6 +37775,47 @@ final class DocxOpenXmlReader
             'partNames' => $partNames,
             'instructions' => $instructions,
             'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @return array{checked:bool, validXml:?bool, xmlParseError:?string, namespace:?string, localName:?string, qualifiedName:?string, prefix:?string, attributeCount:int, namespaceDeclarationCount:int, namespacePrefixes:list<string>}
+     */
+    private function packagePartXmlRootMetadata(
+        string $xml,
+        string $partName,
+        string $contentTypeBase,
+        ?string $partExtension,
+    ): array {
+        $empty = [
+            'checked' => false,
+            'validXml' => null,
+            'xmlParseError' => null,
+            'namespace' => null,
+            'localName' => null,
+            'qualifiedName' => null,
+            'prefix' => null,
+            'attributeCount' => 0,
+            'namespaceDeclarationCount' => 0,
+            'namespacePrefixes' => [],
+        ];
+        if (!$this->isXmlPackagePart($partName, $contentTypeBase, $partExtension)) {
+            return $empty;
+        }
+
+        $root = $this->xmlRootProvenance($xml, $partName);
+
+        return [
+            'checked' => true,
+            'validXml' => $root['validXml'],
+            'xmlParseError' => $root['xmlParseError'],
+            'namespace' => $root['namespace'],
+            'localName' => $root['localName'],
+            'qualifiedName' => $root['qualifiedName'],
+            'prefix' => $root['prefix'],
+            'attributeCount' => $root['attributeCount'],
+            'namespaceDeclarationCount' => $root['namespaceDeclarationCount'],
+            'namespacePrefixes' => $root['namespacePrefixes'],
         ];
     }
 
@@ -44098,6 +44269,12 @@ final class DocxOpenXmlReader
             $directoryNameCharacterFlags = ($directory === '' || $directory === '/')
                 ? []
                 : $this->packagePartNameCharacterFlags($directory);
+            $xmlRoot = $this->packagePartXmlRootMetadata(
+                $contents,
+                $partName,
+                (string) $contentTypeResolution['contentTypeBase'],
+                $partExtension,
+            );
             $xmlCdataSections = $this->packagePartXmlCdataSectionMetadata(
                 $contents,
                 $partName,
@@ -44157,6 +44334,16 @@ final class DocxOpenXmlReader
                 'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
                 'defaultExtension' => $contentTypeResolution['defaultExtension'],
                 'overridePartName' => $contentTypeResolution['overridePartName'],
+                'xmlRootChecked' => $xmlRoot['checked'],
+                'xmlRootValidXml' => $xmlRoot['validXml'],
+                'xmlRootParseError' => $xmlRoot['xmlParseError'],
+                'xmlRootNamespace' => $xmlRoot['namespace'],
+                'xmlRootLocalName' => $xmlRoot['localName'],
+                'xmlRootQualifiedName' => $xmlRoot['qualifiedName'],
+                'xmlRootPrefix' => $xmlRoot['prefix'],
+                'xmlRootAttributeCount' => $xmlRoot['attributeCount'],
+                'xmlRootNamespaceDeclarationCount' => $xmlRoot['namespaceDeclarationCount'],
+                'xmlRootNamespacePrefixes' => $xmlRoot['namespacePrefixes'],
                 'xmlCdataSectionCount' => $xmlCdataSections['count'],
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
