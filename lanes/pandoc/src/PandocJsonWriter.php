@@ -1544,6 +1544,9 @@ final class PandocJsonWriter
     private function sourceNoteLabel(AstNode $node): ?string
     {
         $label = trim((string) $node->attr('label', ''));
+        if ($label === '') {
+            $label = trim((string) $node->attr('noteLabel', ''));
+        }
         if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
             return null;
         }

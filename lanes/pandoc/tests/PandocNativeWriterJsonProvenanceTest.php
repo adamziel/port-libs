@@ -62,6 +62,37 @@ return [
         $t->same($formatNative, $decoded['blocks'][1]['c'][0]['c'][0]);
         $t->same('<span data-review="raw">edited</span>', $decoded['blocks'][1]['c'][0]['c'][1]);
     },
+    'writes pandoc json when generated note labels need sidecar preservation' => static function (TestRunner $t): void {
+        $noteBlocks = [
+            new AstNode('plain', [], [
+                new AstNode('text', ['text' => 'Labelled']),
+                new AstNode('space'),
+                new AstNode('text', ['text' => 'note']),
+            ]),
+        ];
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', ['text' => 'Review']),
+                new AstNode('space'),
+                new AstNode('note', ['label' => 'editor-note'], $noteBlocks),
+                new AstNode('space'),
+                new AstNode('note', ['noteLabel' => 'alias-note'], $noteBlocks),
+                new AstNode('space'),
+                new AstNode('note', ['label' => 'invalid label'], $noteBlocks),
+            ]),
+        ]);
+
+        $decoded = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $notes = array_values(array_filter(
+            $decoded['blocks'][0]['c'],
+            static fn (mixed $inline): bool => is_array($inline) && ($inline['t'] ?? null) === 'Note'
+        ));
+
+        $t->same([1, 23, 1], $decoded['pandoc-api-version']);
+        $t->same('editor-note', $notes[0]['noteLabel'] ?? null);
+        $t->same('alias-note', $notes[1]['noteLabel'] ?? null);
+        $t->same(false, array_key_exists('noteLabel', $notes[2]));
+    },
     'keeps plain sidecar-free documents on textual native output' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('paragraph', [], [

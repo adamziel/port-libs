@@ -118,7 +118,34 @@ final class NativeWriter
             return false;
         }
 
-        return is_array($document->attr('documentNative')) || $this->hasJsonNativeProvenance($document);
+        return is_array($document->attr('documentNative'))
+            || $this->hasJsonNativeProvenance($document)
+            || $this->hasJsonNativeSidecar($document);
+    }
+
+    private function hasJsonNativeSidecar(AstNode $node): bool
+    {
+        if ($node->type === 'note' && $this->safeNoteLabel($node) !== null) {
+            return true;
+        }
+
+        foreach ($node->children as $child) {
+            if ($this->hasJsonNativeSidecar($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function safeNoteLabel(AstNode $node): ?string
+    {
+        $label = trim((string) $node->attr('label', ''));
+        if ($label === '') {
+            $label = trim((string) $node->attr('noteLabel', ''));
+        }
+
+        return $label !== '' && preg_match('/[\]\s]/u', $label) !== 1 ? $label : null;
     }
 
     private function hasJsonNativeProvenance(AstNode $node): bool
