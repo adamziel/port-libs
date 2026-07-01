@@ -14840,9 +14840,28 @@ final class ZipPackage
         ];
         $localHeaderOrderDisplacementEntries = [];
         $maxLocalHeaderOrderDisplacement = 0;
+        $localHeaderFixedFieldEntries = [];
+        $localHeaderFixedFieldIssueEntries = [];
+        $localHeaderFixedFieldIssues = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
+            $localHeaderFixedFieldProvenance = self::entryLocalHeaderFixedFieldHandoffProvenance($entry, $localHeader);
+            $localHeaderFixedFieldEntries[] = [
+                'name' => $entry->name,
+                'centralDirectoryIndex' => $centralDirectoryIndex,
+            ] + $localHeaderFixedFieldProvenance;
+            if ($localHeaderFixedFieldProvenance['localHeaderFixedFieldIssues'] !== []) {
+                $localHeaderFixedFieldIssueEntries[] = [
+                    'name' => $entry->name,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                ] + $localHeaderFixedFieldProvenance;
+                foreach ($localHeaderFixedFieldProvenance['localHeaderFixedFieldIssues'] as $issue) {
+                    if (!in_array($issue, $localHeaderFixedFieldIssues, true)) {
+                        $localHeaderFixedFieldIssues[] = $issue;
+                    }
+                }
+            }
             $isDirectory = $entry->isDirectory();
             $pathSegments = self::zipEntryPathSegments($entry->name);
             $pathSegmentPositionReviews = self::zipEntryPathSegmentPositionReviews($pathSegments);
@@ -15718,6 +15737,12 @@ final class ZipPackage
             'localHeaderOrderDisplacementEntries' => $localHeaderOrderDisplacementEntries,
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+            'localHeaderFixedFieldEntryCount' => count($localHeaderFixedFieldEntries),
+            'localHeaderFixedFieldIssueEntryCount' => count($localHeaderFixedFieldIssueEntries),
+            'hasLocalHeaderFixedFieldIssues' => $localHeaderFixedFieldIssueEntries !== [],
+            'localHeaderFixedFieldIssues' => $localHeaderFixedFieldIssues,
+            'localHeaderFixedFieldEntries' => $localHeaderFixedFieldEntries,
+            'localHeaderFixedFieldIssueEntries' => $localHeaderFixedFieldIssueEntries,
             'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
             'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
             'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
@@ -15866,6 +15891,12 @@ final class ZipPackage
             'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+            'localHeaderFixedFieldEntryCount' => count($localHeaderFixedFieldEntries),
+            'localHeaderFixedFieldIssueEntryCount' => count($localHeaderFixedFieldIssueEntries),
+            'hasLocalHeaderFixedFieldIssues' => $localHeaderFixedFieldIssueEntries !== [],
+            'localHeaderFixedFieldIssues' => $localHeaderFixedFieldIssues,
+            'localHeaderFixedFieldEntries' => $localHeaderFixedFieldEntries,
+            'localHeaderFixedFieldIssueEntries' => $localHeaderFixedFieldIssueEntries,
             'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
             'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
             'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
