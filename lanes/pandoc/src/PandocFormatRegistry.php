@@ -822,6 +822,234 @@ final class PandocFormatRegistry
     }
 
     /**
+     * @return array<string, array{input:bool, output:bool, direction:string, inputStatus:string, outputStatus:string}>
+     */
+    public static function wikiFormatDirections(): array
+    {
+        return self::formatDirections(
+            self::onlyFormats(self::phpInputSupport(), self::WIKI_INPUT_FORMATS),
+            self::onlyFormats(self::phpOutputSupport(), self::WIKI_OUTPUT_FORMATS),
+            self::WIKI_INPUT_FORMATS,
+            self::WIKI_OUTPUT_FORMATS
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedWikiInputFormats(): array
+    {
+        return self::formatsWithStatus(self::onlyFormats(self::phpInputSupport(), self::WIKI_INPUT_FORMATS), 'unsupported');
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function unsupportedWikiOutputFormats(): array
+    {
+        return self::formatsWithStatus(self::onlyFormats(self::phpOutputSupport(), self::WIKI_OUTPUT_FORMATS), 'unsupported');
+    }
+
+    /**
+     * @return array{
+     *     anyUnsupported:list<string>,
+     *     unsupportedBoth:list<string>,
+     *     unsupportedInputOnly:list<string>,
+     *     unsupportedOutputOnly:list<string>,
+     *     unsupportedOutputTokens:list<string>,
+     *     noNativeReader:list<string>,
+     *     noNativeWriter:list<string>
+     * }
+     */
+    public static function wikiUnsupportedFormatSummary(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $anyUnsupported = [];
+        $unsupportedBoth = [];
+        $unsupportedInputOnly = [];
+        $unsupportedOutputOnly = [];
+
+        foreach ($directions as $format => $direction) {
+            $inputUnsupported = $direction['inputStatus'] === 'unsupported';
+            $outputUnsupported = $direction['outputStatus'] === 'unsupported';
+
+            if ($inputUnsupported || $outputUnsupported) {
+                $anyUnsupported[] = $format;
+            }
+            if ($inputUnsupported && $outputUnsupported) {
+                $unsupportedBoth[] = $format;
+            }
+            if ($direction['direction'] === 'input-only' && $inputUnsupported) {
+                $unsupportedInputOnly[] = $format;
+            }
+            if ($direction['direction'] === 'output-only' && $outputUnsupported) {
+                $unsupportedOutputOnly[] = $format;
+            }
+        }
+
+        return [
+            'anyUnsupported' => $anyUnsupported,
+            'unsupportedBoth' => $unsupportedBoth,
+            'unsupportedInputOnly' => $unsupportedInputOnly,
+            'unsupportedOutputOnly' => $unsupportedOutputOnly,
+            'unsupportedOutputTokens' => self::unsupportedWikiOutputFormats(),
+            'noNativeReader' => self::unsupportedWikiInputFormats(),
+            'noNativeWriter' => self::unsupportedWikiOutputFormats(),
+        ];
+    }
+
+    /**
+     * @return array<string, array{
+     *     format:string,
+     *     label:string,
+     *     direction:string,
+     *     input:bool,
+     *     output:bool,
+     *     inputStatus:string,
+     *     outputStatus:string,
+     *     inputImplementation:string,
+     *     outputImplementation:string,
+     *     directWriterParitySupported:bool,
+     *     externalToolFree:bool,
+     *     unsupportedReason:string,
+     *     diagnostics:list<string>,
+     *     extensionInferences:list<string>
+     * }>
+     */
+    public static function wikiOutputUnsupportedSurfaces(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::onlyFormats(self::phpInputSupport(), self::WIKI_INPUT_FORMATS);
+        $outputSupport = self::onlyFormats(self::phpOutputSupport(), self::WIKI_OUTPUT_FORMATS);
+        $surfaces = [];
+
+        foreach (self::WIKI_OUTPUT_FORMATS as $format) {
+            $direction = $directions[$format];
+            if ($direction['outputStatus'] !== 'unsupported') {
+                continue;
+            }
+
+            $surfaces[$format] = [
+                'format' => $format,
+                'label' => self::WIKI_FORMAT_LABELS[$format],
+                'direction' => $direction['direction'],
+                'input' => $direction['input'],
+                'output' => true,
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'inputImplementation' => $direction['input'] ? $inputSupport[$format]['implementation'] : '',
+                'outputImplementation' => $outputSupport[$format]['implementation'],
+                'directWriterParitySupported' => false,
+                'externalToolFree' => true,
+                'unsupportedReason' => 'wiki-writer-not-implemented',
+                'diagnostics' => ['writer-component-missing', 'external-wiki-converter-disallowed'],
+                'extensionInferences' => self::extensionInferencesForFormat($format),
+            ];
+        }
+
+        return $surfaces;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function wikiFormatParitySummary(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::onlyFormats(self::phpInputSupport(), self::WIKI_INPUT_FORMATS);
+        $outputSupport = self::onlyFormats(self::phpOutputSupport(), self::WIKI_OUTPUT_FORMATS);
+        $registeredInputImplementations = 0;
+        $registeredOutputImplementations = 0;
+
+        foreach ($directions as $format => $direction) {
+            if ($direction['input'] && $inputSupport[$format]['implementation'] !== '') {
+                ++$registeredInputImplementations;
+            }
+            if ($direction['output'] && $outputSupport[$format]['implementation'] !== '') {
+                ++$registeredOutputImplementations;
+            }
+        }
+
+        $unsupportedInputFormats = self::unsupportedWikiInputFormats();
+        $unsupportedOutputFormats = self::unsupportedWikiOutputFormats();
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'uniqueFormatCount' => count($directions),
+            'inputFormatCount' => count(self::WIKI_INPUT_FORMATS),
+            'outputFormatCount' => count(self::WIKI_OUTPUT_FORMATS),
+            'directionCounts' => [
+                'inputOutput' => count(self::formatsWithDirection($directions, 'input-output')),
+                'inputOnly' => count(self::formatsWithDirection($directions, 'input-only')),
+                'outputOnly' => count(self::formatsWithDirection($directions, 'output-only')),
+            ],
+            'inputSupportStatusCounts' => self::supportStatusCounts($inputSupport),
+            'outputSupportStatusCounts' => self::supportStatusCounts($outputSupport),
+            'extensionInferenceMappings' => count(self::WIKI_EXTENSION_INFERENCE),
+            'unsupportedInputCount' => count($unsupportedInputFormats),
+            'unsupportedOutputCount' => count($unsupportedOutputFormats),
+            'unsupportedOutputSurfaceMappings' => count(self::wikiOutputUnsupportedSurfaces()),
+            'registeredInputImplementations' => $registeredInputImplementations,
+            'registeredOutputImplementations' => $registeredOutputImplementations,
+            'externalToolFree' => true,
+            'directReaderParitySupported' => $unsupportedInputFormats === [],
+            'directWriterParitySupported' => $unsupportedOutputFormats === [],
+            'directParityClaimed' => $registeredInputImplementations > 0 || $registeredOutputImplementations > 0,
+            'directParityStatus' => $unsupportedInputFormats === [] && $unsupportedOutputFormats === [] ? 'supported' : 'unsupported',
+            'reviewNote' => 'Wiki-family output tokens are tracked as unsupported native writer targets; no PHP wiki writer or external wiki converter is used.',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function wikiFormatReviewPacket(): array
+    {
+        $directions = self::wikiFormatDirections();
+        $inputSupport = self::onlyFormats(self::phpInputSupport(), self::WIKI_INPUT_FORMATS);
+        $outputSupport = self::onlyFormats(self::phpOutputSupport(), self::WIKI_OUTPUT_FORMATS);
+        $formats = [];
+
+        foreach ($directions as $format => $direction) {
+            $hasInput = $direction['input'];
+            $hasOutput = $direction['output'];
+            $formats[$format] = [
+                'input' => $hasInput,
+                'output' => $hasOutput,
+                'direction' => $direction['direction'],
+                'inputStatus' => $direction['inputStatus'],
+                'outputStatus' => $direction['outputStatus'],
+                'extensionInferred' => self::extensionInferencesForFormat($format) !== [],
+                'extensions' => self::extensionInferencesForFormat($format),
+                'inputImplementation' => $hasInput ? $inputSupport[$format]['implementation'] : '',
+                'outputImplementation' => $hasOutput ? $outputSupport[$format]['implementation'] : '',
+            ];
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'externalToolFree' => true,
+            'inputFormats' => self::WIKI_INPUT_FORMATS,
+            'outputFormats' => self::WIKI_OUTPUT_FORMATS,
+            'directionBuckets' => [
+                'inputOutput' => self::formatsWithDirection($directions, 'input-output'),
+                'inputOnly' => self::formatsWithDirection($directions, 'input-only'),
+                'outputOnly' => self::formatsWithDirection($directions, 'output-only'),
+            ],
+            'extensionInference' => self::WIKI_EXTENSION_INFERENCE,
+            'paritySummary' => self::wikiFormatParitySummary(),
+            'unsupportedOutputSurfaces' => self::wikiOutputUnsupportedSurfaces(),
+            'unsupportedInputFormats' => self::unsupportedWikiInputFormats(),
+            'unsupportedOutputFormats' => self::unsupportedWikiOutputFormats(),
+            'unsupportedFormatSummary' => self::wikiUnsupportedFormatSummary(),
+            'formats' => $formats,
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function richPackageUnsupportedFormatSummary(): array
