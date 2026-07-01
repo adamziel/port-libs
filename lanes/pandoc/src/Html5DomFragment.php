@@ -14,6 +14,7 @@ final class Html5DomFragment
         'autoplay' => true,
         'checked' => true,
         'controls' => true,
+        'credentialless' => true,
         'default' => true,
         'defer' => true,
         'disabled' => true,

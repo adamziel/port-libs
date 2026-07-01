@@ -27204,15 +27204,25 @@ final class XmlHtmlDom
     private static function iframeCredentiallessPolicySummary(string $value): array
     {
         $valid = $value === '' || strcasecmp($value, 'credentialless') === 0;
+        $issues = $valid ? [] : [[
+            'code' => 'noncanonical-iframe-credentialless-value',
+            'credentiallessRaw' => $value,
+        ]];
 
         return [
             'iframeCredentiallessReviewPolicy' => 'iframe-credentialless-attribute-review',
             'iframeCredentiallessBooleanReviewPolicy' => 'iframe-credentialless-boolean-attribute-review',
+            'iframeCredentiallessStorageIsolationReviewPolicy' => 'iframe-credentialless-storage-isolation-review',
             'iframeCredentiallessRaw' => $value,
             'iframeCredentialless' => true,
+            'iframeCredentiallessRequested' => true,
             'iframeCredentiallessEnabled' => true,
             'iframeCredentialMode' => 'credentialless',
+            'iframeCredentiallessIsolationMode' => 'cross-origin-embedder-credentialless',
+            'iframeCredentiallessNetworkFetchedByPortLibs' => false,
+            'iframeCredentiallessCanonicalBoolean' => $valid,
             'iframeCredentiallessBooleanAttributeValid' => $valid,
+            'iframeCredentiallessIssues' => $issues,
             'iframeCredentiallessIssueCodes' => $valid ? [] : ['noncanonical-iframe-credentialless-value'],
         ];
     }
@@ -27240,7 +27250,10 @@ final class XmlHtmlDom
 
         return $csp + [
             'iframeCspReviewPolicy' => 'iframe-csp-attribute-review',
+            'iframeCspAttributeReviewPolicy' => 'iframe-content-security-policy-attribute-review',
             'iframeEmbeddedCspReviewPolicy' => 'iframe-embedded-csp-policy-review',
+            'contentSecurityPolicySource' => 'iframe-csp-attribute',
+            'contentSecurityPolicyAttribute' => 'csp',
             'iframeCspRaw' => $value,
             'iframeCspByteLength' => strlen($value),
             'iframeCspSha256' => hash('sha256', $value),
@@ -27263,6 +27276,7 @@ final class XmlHtmlDom
             'iframeCspIssues' => $issues,
             'iframeCspIssueCodes' => $issueCodes,
             'iframeCspValid' => $issueCodes === [],
+            'iframeCspEnforcedByPortLibs' => false,
         ];
     }
 
