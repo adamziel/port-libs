@@ -1663,13 +1663,24 @@ final class PptxReader
             }
         }
 
-        foreach ($paragraphElement->getElementsByTagName('*') as $descendant) {
-            if ($descendant instanceof \DOMElement && $descendant->localName === 'sym' && str_contains($descendant->getAttribute('typeface'), 'Wingdings')) {
-                return ['bullet' => true, 'listType' => 'bullet_list'];
-            }
+        if ($this->paragraphHasWingdingsRunSymbol($paragraphElement)) {
+            return ['bullet' => true, 'listType' => 'bullet_list'];
         }
 
         return ['bullet' => false, 'listType' => ''];
+    }
+
+    private function paragraphHasWingdingsRunSymbol(\DOMElement $paragraphElement): bool
+    {
+        foreach ($this->drawingChildElements($paragraphElement, 'r') as $runElement) {
+            $properties = $this->firstDrawingChildElement($runElement, 'rPr');
+            $symbol = $properties instanceof \DOMElement ? $this->firstDrawingChildElement($properties, 'sym') : null;
+            if ($symbol instanceof \DOMElement && str_contains($symbol->getAttribute('typeface'), 'Wingdings')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
