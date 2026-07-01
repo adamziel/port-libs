@@ -1546,6 +1546,10 @@ final class OdfReader
         $entryNamesByPackagePathDepthRole = [];
         $packagePathDepthByteExposurePolicyCounts = [];
         $entryNamesByPackagePathDepthByteExposurePolicy = [];
+        $packagePathSegmentPositionRoleCounts = [];
+        $entryNamesByPackagePathSegmentPositionRole = [];
+        $packagePathSegmentPositionByteExposurePolicyCounts = [];
+        $entryNamesByPackagePathSegmentPositionByteExposurePolicy = [];
         $zipPackageManifestPathSegmentPositionRoleCounts = [];
         $entryNamesByZipPackageManifestPathSegmentPositionRole = [];
         $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts = [];
@@ -2022,6 +2026,18 @@ final class OdfReader
             ] + $rawNameProvenance + $extraFieldProvenance + $unixOwnerProvenance + $generalPurposeFlagProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
 
             self::recordZipPackageManifestPathSegmentPositionInventory(
+                $packagePathSegmentPositionRoleCounts,
+                $entryNamesByPackagePathSegmentPositionRole,
+                $packagePathSegmentPositionByteExposurePolicyCounts,
+                $entryNamesByPackagePathSegmentPositionByteExposurePolicy,
+                is_array($packagePathShape['pathSegmentPositionReviews'] ?? null)
+                    ? $packagePathShape['pathSegmentPositionReviews']
+                    : [],
+                $entry->name,
+                $roles,
+                is_string($byteExposurePolicy) ? $byteExposurePolicy : null
+            );
+            self::recordZipPackageManifestPathSegmentPositionInventory(
                 $zipPackageManifestPathSegmentPositionRoleCounts,
                 $entryNamesByZipPackageManifestPathSegmentPositionRole,
                 $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts,
@@ -2190,6 +2206,10 @@ final class OdfReader
         self::sortPackageNestedStringListMap($entryNamesByPackagePathDepthRole, SORT_NUMERIC);
         self::sortPackageNestedCountMap($packagePathDepthByteExposurePolicyCounts, SORT_NUMERIC);
         self::sortPackageNestedStringListMap($entryNamesByPackagePathDepthByteExposurePolicy, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($packagePathSegmentPositionRoleCounts);
+        self::sortPackageNestedStringListMap($entryNamesByPackagePathSegmentPositionRole);
+        self::sortPackageNestedCountMap($packagePathSegmentPositionByteExposurePolicyCounts);
+        self::sortPackageNestedStringListMap($entryNamesByPackagePathSegmentPositionByteExposurePolicy);
         self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionRoleCounts);
         self::sortPackageNestedStringListMap($entryNamesByZipPackageManifestPathSegmentPositionRole);
         self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionByteExposurePolicyCounts);
@@ -2431,6 +2451,10 @@ final class OdfReader
             'entryNamesByPackagePathDepthRole' => $entryNamesByPackagePathDepthRole,
             'packagePathDepthByteExposurePolicyCounts' => $packagePathDepthByteExposurePolicyCounts,
             'entryNamesByPackagePathDepthByteExposurePolicy' => $entryNamesByPackagePathDepthByteExposurePolicy,
+            'packagePathSegmentPositionRoleCounts' => $packagePathSegmentPositionRoleCounts,
+            'entryNamesByPackagePathSegmentPositionRole' => $entryNamesByPackagePathSegmentPositionRole,
+            'packagePathSegmentPositionByteExposurePolicyCounts' => $packagePathSegmentPositionByteExposurePolicyCounts,
+            'entryNamesByPackagePathSegmentPositionByteExposurePolicy' => $entryNamesByPackagePathSegmentPositionByteExposurePolicy,
             'packagePathByteLengthBucketCount' => $packagePathByteLengths['packagePathByteLengthBucketCount'],
             'packagePathByteLengthBuckets' => $packagePathByteLengths['packagePathByteLengthBuckets'],
             'packagePathByteLengthBucketCounts' => $packagePathByteLengths['packagePathByteLengthBucketCounts'],
@@ -3836,6 +3860,10 @@ final class OdfReader
             'entryNamesByPackagePathDepthRole' => $provenance['entryNamesByPackagePathDepthRole'] ?? [],
             'packagePathDepthByteExposurePolicyCounts' => $provenance['packagePathDepthByteExposurePolicyCounts'] ?? [],
             'entryNamesByPackagePathDepthByteExposurePolicy' => $provenance['entryNamesByPackagePathDepthByteExposurePolicy'] ?? [],
+            'packagePathSegmentPositionRoleCounts' => $provenance['packagePathSegmentPositionRoleCounts'] ?? [],
+            'entryNamesByPackagePathSegmentPositionRole' => $provenance['entryNamesByPackagePathSegmentPositionRole'] ?? [],
+            'packagePathSegmentPositionByteExposurePolicyCounts' => $provenance['packagePathSegmentPositionByteExposurePolicyCounts'] ?? [],
+            'entryNamesByPackagePathSegmentPositionByteExposurePolicy' => $provenance['entryNamesByPackagePathSegmentPositionByteExposurePolicy'] ?? [],
             'packagePathByteLengthBucketCount' => $provenance['packagePathByteLengthBucketCount'] ?? 0,
             'packagePathByteLengthBuckets' => $provenance['packagePathByteLengthBuckets'] ?? [],
             'packagePathByteLengthBucketCounts' => $provenance['packagePathByteLengthBucketCounts'] ?? [],
@@ -4205,6 +4233,10 @@ final class OdfReader
             'entryNamesByPackagePathDepthRole' => $provenance['entryNamesByPackagePathDepthRole'] ?? [],
             'packagePathDepthByteExposurePolicyCounts' => $provenance['packagePathDepthByteExposurePolicyCounts'] ?? [],
             'entryNamesByPackagePathDepthByteExposurePolicy' => $provenance['entryNamesByPackagePathDepthByteExposurePolicy'] ?? [],
+            'packagePathSegmentPositionRoleCounts' => $provenance['packagePathSegmentPositionRoleCounts'] ?? [],
+            'entryNamesByPackagePathSegmentPositionRole' => $provenance['entryNamesByPackagePathSegmentPositionRole'] ?? [],
+            'packagePathSegmentPositionByteExposurePolicyCounts' => $provenance['packagePathSegmentPositionByteExposurePolicyCounts'] ?? [],
+            'entryNamesByPackagePathSegmentPositionByteExposurePolicy' => $provenance['entryNamesByPackagePathSegmentPositionByteExposurePolicy'] ?? [],
             'packagePathByteLengthBucketCount' => $provenance['packagePathByteLengthBucketCount'] ?? 0,
             'packagePathByteLengthBuckets' => $provenance['packagePathByteLengthBuckets'] ?? [],
             'packagePathByteLengthBucketCounts' => $provenance['packagePathByteLengthBucketCounts'] ?? [],
@@ -7136,6 +7168,7 @@ final class OdfReader
             return [
                 'kind' => 'missing',
                 'segments' => [],
+                'pathSegmentPositionReviews' => [],
                 'segmentCount' => 0,
                 'directorySegmentCount' => 0,
             ];
@@ -7145,6 +7178,7 @@ final class OdfReader
             return [
                 'kind' => 'root',
                 'segments' => [],
+                'pathSegmentPositionReviews' => [],
                 'segmentCount' => 0,
                 'directorySegmentCount' => 0,
             ];
@@ -7179,6 +7213,7 @@ final class OdfReader
             'basename' => $basename,
             'extension' => $extension,
             'segments' => $segments,
+            'pathSegmentPositionReviews' => self::pathSegmentPositionReviews($segments),
             'segmentCount' => count($segments),
             'directorySegmentCount' => count($directorySegments),
         ]);

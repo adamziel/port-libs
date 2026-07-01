@@ -1172,6 +1172,10 @@ final class OpenDocumentPackage
         $entryNamesByPackagePathDepthRole = [];
         $packagePathDepthByteExposurePolicyCounts = [];
         $entryNamesByPackagePathDepthByteExposurePolicy = [];
+        $packagePathSegmentPositionRoleCounts = [];
+        $entryNamesByPackagePathSegmentPositionRole = [];
+        $packagePathSegmentPositionByteExposurePolicyCounts = [];
+        $entryNamesByPackagePathSegmentPositionByteExposurePolicy = [];
         $zipPackageManifestPathSegmentPositionRoleCounts = [];
         $entryNamesByZipPackageManifestPathSegmentPositionRole = [];
         $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts = [];
@@ -1409,6 +1413,18 @@ final class OpenDocumentPackage
             ] + $rawNameProvenance + $extraFieldProvenance + $unixOwnerProvenance + $generalPurposeFlagProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
 
             self::recordZipPackageManifestPathSegmentPositionInventory(
+                $packagePathSegmentPositionRoleCounts,
+                $entryNamesByPackagePathSegmentPositionRole,
+                $packagePathSegmentPositionByteExposurePolicyCounts,
+                $entryNamesByPackagePathSegmentPositionByteExposurePolicy,
+                is_array($pathShape['pathSegmentPositionReviews'] ?? null)
+                    ? $pathShape['pathSegmentPositionReviews']
+                    : [],
+                $entry->name,
+                $roles,
+                is_string($byteExposurePolicy) ? $byteExposurePolicy : null
+            );
+            self::recordZipPackageManifestPathSegmentPositionInventory(
                 $zipPackageManifestPathSegmentPositionRoleCounts,
                 $entryNamesByZipPackageManifestPathSegmentPositionRole,
                 $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts,
@@ -1603,6 +1619,10 @@ final class OpenDocumentPackage
         self::sortPackageNestedStringListMap($entryNamesByPackagePathDepthRole, SORT_NUMERIC);
         self::sortPackageNestedCountMap($packagePathDepthByteExposurePolicyCounts, SORT_NUMERIC);
         self::sortPackageNestedStringListMap($entryNamesByPackagePathDepthByteExposurePolicy, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($packagePathSegmentPositionRoleCounts);
+        self::sortPackageNestedStringListMap($entryNamesByPackagePathSegmentPositionRole);
+        self::sortPackageNestedCountMap($packagePathSegmentPositionByteExposurePolicyCounts);
+        self::sortPackageNestedStringListMap($entryNamesByPackagePathSegmentPositionByteExposurePolicy);
         self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionRoleCounts);
         self::sortPackageNestedStringListMap($entryNamesByZipPackageManifestPathSegmentPositionRole);
         self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionByteExposurePolicyCounts);
@@ -1804,6 +1824,10 @@ final class OpenDocumentPackage
             'entryNamesByPackagePathDepthRole' => $entryNamesByPackagePathDepthRole,
             'packagePathDepthByteExposurePolicyCounts' => $packagePathDepthByteExposurePolicyCounts,
             'entryNamesByPackagePathDepthByteExposurePolicy' => $entryNamesByPackagePathDepthByteExposurePolicy,
+            'packagePathSegmentPositionRoleCounts' => $packagePathSegmentPositionRoleCounts,
+            'entryNamesByPackagePathSegmentPositionRole' => $entryNamesByPackagePathSegmentPositionRole,
+            'packagePathSegmentPositionByteExposurePolicyCounts' => $packagePathSegmentPositionByteExposurePolicyCounts,
+            'entryNamesByPackagePathSegmentPositionByteExposurePolicy' => $entryNamesByPackagePathSegmentPositionByteExposurePolicy,
             'packagePathByteLengthBucketCount' => $packagePathByteLengths['packagePathByteLengthBucketCount'],
             'packagePathByteLengthBuckets' => $packagePathByteLengths['packagePathByteLengthBuckets'],
             'packagePathByteLengthBucketCounts' => $packagePathByteLengths['packagePathByteLengthBucketCounts'],
@@ -3179,6 +3203,10 @@ final class OpenDocumentPackage
             'entryNamesByPackagePathDepthRole' => $packageInventory['entryNamesByPackagePathDepthRole'] ?? [],
             'packagePathDepthByteExposurePolicyCounts' => $packageInventory['packagePathDepthByteExposurePolicyCounts'] ?? [],
             'entryNamesByPackagePathDepthByteExposurePolicy' => $packageInventory['entryNamesByPackagePathDepthByteExposurePolicy'] ?? [],
+            'packagePathSegmentPositionRoleCounts' => $packageInventory['packagePathSegmentPositionRoleCounts'] ?? [],
+            'entryNamesByPackagePathSegmentPositionRole' => $packageInventory['entryNamesByPackagePathSegmentPositionRole'] ?? [],
+            'packagePathSegmentPositionByteExposurePolicyCounts' => $packageInventory['packagePathSegmentPositionByteExposurePolicyCounts'] ?? [],
+            'entryNamesByPackagePathSegmentPositionByteExposurePolicy' => $packageInventory['entryNamesByPackagePathSegmentPositionByteExposurePolicy'] ?? [],
             'packagePathByteLengthBucketCount' => $packageInventory['packagePathByteLengthBucketCount'] ?? 0,
             'packagePathByteLengthBuckets' => $packageInventory['packagePathByteLengthBuckets'] ?? [],
             'packagePathByteLengthBucketCounts' => $packageInventory['packagePathByteLengthBucketCounts'] ?? [],
