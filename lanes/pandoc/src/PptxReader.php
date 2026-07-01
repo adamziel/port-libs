@@ -272,7 +272,7 @@ final class PptxReader
         foreach ($this->childElementsForPrefix($slideIdList, 'p', 'sldId', $presentationNamespace) as $slideIdElement) {
             $relationshipId = $this->relationshipAttributeForPrefix($slideIdElement, 'r', 'id', $relationshipNamespace);
             if ($relationshipId === null) {
-                throw new \RuntimeException('PPTX presentation slide is missing r:id');
+                throw new \RuntimeException('Missing r:id in slide ' . $index);
             }
 
             $slides[] = ['index' => $index, 'relationshipId' => $relationshipId];

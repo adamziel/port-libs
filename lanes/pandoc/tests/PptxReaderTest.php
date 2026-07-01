@@ -6858,7 +6858,15 @@ return [
     },
 
     'requires pptx presentation slide relationship ids to use the relationship namespace like upstream' => static function (TestRunner $t) use ($buildUnqualifiedPresentationRelationshipPptxPackage): void {
-        $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($buildUnqualifiedPresentationRelationshipPptxPackage()));
+        try {
+            (new PptxReader())->read($buildUnqualifiedPresentationRelationshipPptxPackage());
+        } catch (RuntimeException $exception) {
+            $t->same('Missing r:id in slide 1', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected missing relationship namespace to reject the PPTX package');
     },
 
     'uses the presentation r prefix binding for slide relationship ids like upstream' => static function (TestRunner $t) use ($buildWrongPrefixPresentationRelationshipPptxPackage): void {
