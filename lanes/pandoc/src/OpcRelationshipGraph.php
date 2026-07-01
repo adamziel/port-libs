@@ -575,6 +575,14 @@ final class OpcRelationshipGraph
         foreach ($packageManifest['entries'] as $manifestEntry) {
             $packageManifestEntriesByCentralDirectoryIndex[$manifestEntry['centralDirectoryIndex']] = $manifestEntry;
         }
+        $dosAttributesByCentralDirectoryIndex = [];
+        foreach ($package->dosAttributePreflight()['entries'] as $attributeIndex => $attributeEntry) {
+            $dosAttributesByCentralDirectoryIndex[$attributeIndex] = $attributeEntry;
+        }
+        $internalAttributesByCentralDirectoryIndex = [];
+        foreach ($package->internalAttributePreflight()['entries'] as $attributeIndex => $attributeEntry) {
+            $internalAttributesByCentralDirectoryIndex[$attributeIndex] = $attributeEntry;
+        }
         $zipExtraFieldsByCentralDirectoryIndex = [];
         if (is_array($zipExtraFields)) {
             foreach ($zipExtraFields['entries'] as $extraFieldIndex => $extraFieldEntry) {
@@ -591,6 +599,8 @@ final class OpcRelationshipGraph
             $contentTypesItem = false;
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$entryIndex] ?? null;
             $manifestEntry = $packageManifestEntriesByCentralDirectoryIndex[$entryIndex] ?? [];
+            $dosAttributeEntry = $dosAttributesByCentralDirectoryIndex[$entryIndex] ?? [];
+            $internalAttributeEntry = $internalAttributesByCentralDirectoryIndex[$entryIndex] ?? [];
             $zipExtraFieldEntry = $zipExtraFieldsByCentralDirectoryIndex[$entryIndex] ?? null;
             $zipExtraFieldEntryFields = self::zipExtraFieldManifestEntryFields($zipExtraFieldEntry);
             $issues = array_values(array_unique(array_merge(
@@ -641,6 +651,8 @@ final class OpcRelationshipGraph
                 'creatorVersionDelta' => $manifestEntry['creatorVersionDelta'] ?? null,
                 'creatorHostSystemIsKnown' => $manifestEntry['creatorHostSystemIsKnown'] ?? null,
                 'creatorHostSystemIssues' => $manifestEntry['creatorHostSystemIssues'] ?? [],
+                ...self::zipManifestDosAttributeEntryFields($dosAttributeEntry),
+                ...self::zipManifestInternalAttributeEntryFields($internalAttributeEntry),
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
@@ -1393,6 +1405,7 @@ final class OpcRelationshipGraph
             $entryNamesByCreatorHostSystemIssue,
         );
         $crc32Provenance = self::zipEntryManifestCrc32Provenance($crc32SummariesByHex);
+        $zipAttributeProvenance = self::zipEntryManifestAttributeProvenance($entries);
         sort($contentTypesItems, SORT_STRING);
         sort($contentTypeUnusedOverridePartNames, SORT_STRING);
         sort($contentTypeExactOverridePartNames, SORT_STRING);
@@ -1612,6 +1625,7 @@ final class OpcRelationshipGraph
             'creatorVersionComparisonsByHandoffKind' => $creatorVersionComparisonsByHandoffKind,
             'creatorHostSystemIssueCounts' => $creatorHostSystemIssueCounts,
             'entryNamesByCreatorHostSystemIssue' => $entryNamesByCreatorHostSystemIssue,
+            ...$zipAttributeProvenance,
             'crc32SummaryCount' => $crc32Provenance['crc32SummaryCount'],
             'crc32Summaries' => $crc32Provenance['crc32Summaries'],
             'crc32HexCounts' => $crc32Provenance['crc32HexCounts'],
@@ -1895,6 +1909,24 @@ final class OpcRelationshipGraph
         } catch (\Throwable) {
             $creatorHostSystemByCentralDirectoryIndex = [];
         }
+        $dosAttributeByCentralDirectoryIndex = [];
+        try {
+            $dosAttributes = ZipPackage::dosAttributePolicyPreflight($bytes);
+            foreach ($dosAttributes['entries'] as $dosAttributeEntry) {
+                $dosAttributeByCentralDirectoryIndex[$dosAttributeEntry['centralDirectoryIndex']] = $dosAttributeEntry;
+            }
+        } catch (\Throwable) {
+            $dosAttributeByCentralDirectoryIndex = [];
+        }
+        $internalAttributeByCentralDirectoryIndex = [];
+        try {
+            $internalAttributes = ZipPackage::internalAttributePolicyPreflight($bytes);
+            foreach ($internalAttributes['entries'] as $internalAttributeEntry) {
+                $internalAttributeByCentralDirectoryIndex[$internalAttributeEntry['centralDirectoryIndex']] = $internalAttributeEntry;
+            }
+        } catch (\Throwable) {
+            $internalAttributeByCentralDirectoryIndex = [];
+        }
         $hashByteSlice = static function (?int $offset, ?int $bytesToHash) use ($bytes): ?string {
             if (
                 !is_int($offset)
@@ -1938,6 +1970,8 @@ final class OpcRelationshipGraph
             $centralDirectoryVariableFieldEntry = $centralDirectoryVariableFieldByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderVariableFieldEntry = $localHeaderVariableFieldByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $creatorHostEntry = $creatorHostSystemByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $dosAttributeEntry = $dosAttributeByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? [];
+            $internalAttributeEntry = $internalAttributeByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? [];
             $localHeaderMetadataIssues = $localHeaderMetadataEntry['issues'] ?? [];
             if (($centralEntry['hasZip64SizeSentinel'] ?? false) === true) {
                 $localHeaderMetadataIssues = array_values(array_diff(
@@ -2099,6 +2133,8 @@ final class OpcRelationshipGraph
                 'creatorVersionDelta' => $creatorHostEntry['creatorVersionDelta'] ?? null,
                 'creatorHostSystemIsKnown' => $creatorHostEntry['isKnown'] ?? null,
                 'creatorHostSystemIssues' => $creatorHostEntry['issues'] ?? [],
+                ...self::zipManifestDosAttributeEntryFields($dosAttributeEntry),
+                ...self::zipManifestInternalAttributeEntryFields($internalAttributeEntry),
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
@@ -2703,6 +2739,7 @@ final class OpcRelationshipGraph
             $entryNamesByCreatorHostSystemIssue,
         );
         $crc32Provenance = self::zipEntryManifestCrc32Provenance($crc32SummariesByHex);
+        $zipAttributeProvenance = self::zipEntryManifestAttributeProvenance($entries);
         sort($contentTypesItems, SORT_STRING);
         usort(
             $relationshipParts,
@@ -2878,6 +2915,7 @@ final class OpcRelationshipGraph
             'creatorVersionComparisonsByHandoffKind' => $creatorVersionComparisonsByHandoffKind,
             'creatorHostSystemIssueCounts' => $creatorHostSystemIssueCounts,
             'entryNamesByCreatorHostSystemIssue' => $entryNamesByCreatorHostSystemIssue,
+            ...$zipAttributeProvenance,
             'crc32SummaryCount' => $crc32Provenance['crc32SummaryCount'],
             'crc32Summaries' => $crc32Provenance['crc32Summaries'],
             'crc32HexCounts' => $crc32Provenance['crc32HexCounts'],
@@ -10737,6 +10775,320 @@ final class OpcRelationshipGraph
         if (is_string($entry['partName'] ?? null)) {
             self::appendUniqueString($summaries[$crc32Hex]['partNames'], $entry['partName']);
         }
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function zipManifestDosAttributeEntryFields(array $entry): array
+    {
+        $dosAttributes = is_int($entry['dosAttributes'] ?? null) ? $entry['dosAttributes'] : 0;
+        $hasHidden = ($entry['hasHiddenAttribute'] ?? false) === true;
+        $hasSystem = ($entry['hasSystemAttribute'] ?? false) === true;
+        $hasVolumeLabel = ($entry['hasVolumeLabelAttribute'] ?? false) === true;
+        $issues = array_values(array_filter(
+            is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+            'is_string'
+        ));
+        if ($hasHidden) {
+            self::appendUniqueString($issues, 'dos-hidden-attribute');
+        }
+        if ($hasSystem) {
+            self::appendUniqueString($issues, 'dos-system-attribute');
+        }
+        if ($hasVolumeLabel) {
+            self::appendUniqueString($issues, 'dos-volume-label-attribute');
+        }
+
+        return [
+            'externalAttributes' => is_int($entry['externalAttributes'] ?? null) ? $entry['externalAttributes'] : null,
+            'dosAttributes' => $dosAttributes,
+            'dosAttributesHex' => sprintf('%02x', $dosAttributes),
+            'dosAttributeNames' => array_values(array_filter(
+                is_array($entry['dosAttributeNames'] ?? null) ? $entry['dosAttributeNames'] : [],
+                'is_string'
+            )),
+            'hasDosAttributes' => $dosAttributes !== 0,
+            'hasReadOnlyAttribute' => ($entry['hasReadOnlyAttribute'] ?? false) === true,
+            'hasHiddenAttribute' => $hasHidden,
+            'hasSystemAttribute' => $hasSystem,
+            'hasVolumeLabelAttribute' => $hasVolumeLabel,
+            'hasDirectoryAttribute' => ($entry['hasDirectoryAttribute'] ?? false) === true,
+            'hasArchiveAttribute' => ($entry['hasArchiveAttribute'] ?? false) === true,
+            'dosAttributeIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function zipManifestInternalAttributeEntryFields(array $entry): array
+    {
+        $internalAttributes = is_int($entry['internalFileAttributes'] ?? null)
+            ? $entry['internalFileAttributes']
+            : 0;
+
+        return [
+            'internalFileAttributes' => $internalAttributes,
+            'internalFileAttributesHex' => sprintf('%04x', $internalAttributes),
+            'internalAttributeNames' => array_values(array_filter(
+                is_array($entry['internalAttributeNames'] ?? null) ? $entry['internalAttributeNames'] : [],
+                'is_string'
+            )),
+            'hasInternalFileAttributes' => $internalAttributes !== 0,
+            'hasTextInternalAttribute' => ($entry['hasTextInternalAttribute'] ?? false) === true,
+            'unknownInternalAttributeBits' => is_int($entry['unknownInternalAttributeBits'] ?? null)
+                ? $entry['unknownInternalAttributeBits']
+                : 0,
+            'hasUnknownInternalAttributeBits' => ($entry['hasUnknownInternalAttributeBits'] ?? false) === true,
+            'internalAttributeIssues' => array_values(array_filter(
+                is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+                'is_string'
+            )),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private static function zipEntryManifestAttributeProvenance(array $entries): array
+    {
+        $dosAttributeNameCounts = [];
+        $entryNamesByDosAttributeName = [];
+        $dosAttributeNamesByRole = [];
+        $dosAttributeNamesByHandoffKind = [];
+        $dosAttributeIssueCounts = [];
+        $entryNamesByDosAttributeIssue = [];
+        $dosAttributeSummaries = [];
+        $dosAttributeEntryCount = 0;
+        $hiddenSystemOrVolumeLabelEntryCount = 0;
+
+        $internalAttributeNameCounts = [];
+        $entryNamesByInternalAttributeName = [];
+        $internalAttributeNamesByRole = [];
+        $internalAttributeNamesByHandoffKind = [];
+        $internalAttributeIssueCounts = [];
+        $entryNamesByInternalAttributeIssue = [];
+        $internalAttributeSummaries = [];
+        $internalAttributeEntryCount = 0;
+        $textInternalAttributeEntryCount = 0;
+        $unknownInternalAttributeEntryCount = 0;
+
+        foreach ($entries as $entry) {
+            $entryName = is_string($entry['entryName'] ?? null) ? $entry['entryName'] : '';
+            $partName = is_string($entry['partName'] ?? null) ? $entry['partName'] : null;
+            $role = is_string($entry['role'] ?? null) ? $entry['role'] : 'unknown';
+            $handoffKind = is_string($entry['handoffKind'] ?? null) ? $entry['handoffKind'] : 'unknown';
+
+            $dosAttributes = is_int($entry['dosAttributes'] ?? null) ? $entry['dosAttributes'] : 0;
+            if ($dosAttributes !== 0) {
+                ++$dosAttributeEntryCount;
+                $dosAttributeNames = array_values(array_filter(
+                    is_array($entry['dosAttributeNames'] ?? null) ? $entry['dosAttributeNames'] : [],
+                    'is_string'
+                ));
+                $dosAttributeIssues = array_values(array_filter(
+                    is_array($entry['dosAttributeIssues'] ?? null) ? $entry['dosAttributeIssues'] : [],
+                    'is_string'
+                ));
+                if ($dosAttributeIssues !== []) {
+                    ++$hiddenSystemOrVolumeLabelEntryCount;
+                }
+                foreach ($dosAttributeNames as $name) {
+                    $dosAttributeNameCounts[$name] = ($dosAttributeNameCounts[$name] ?? 0) + 1;
+                    $entryNamesByDosAttributeName[$name] ??= [];
+                    self::appendUniqueString($entryNamesByDosAttributeName[$name], $entryName);
+                    $dosAttributeNamesByRole[$role] ??= [];
+                    self::appendUniqueString($dosAttributeNamesByRole[$role], $name);
+                    $dosAttributeNamesByHandoffKind[$handoffKind] ??= [];
+                    self::appendUniqueString($dosAttributeNamesByHandoffKind[$handoffKind], $name);
+                }
+                foreach ($dosAttributeIssues as $issue) {
+                    $dosAttributeIssueCounts[$issue] = ($dosAttributeIssueCounts[$issue] ?? 0) + 1;
+                    $entryNamesByDosAttributeIssue[$issue] ??= [];
+                    self::appendUniqueString($entryNamesByDosAttributeIssue[$issue], $entryName);
+                }
+
+                $dosKey = sprintf('%02x', $dosAttributes);
+                $dosAttributeSummaries[$dosKey] ??= [
+                    'dosAttributes' => $dosAttributes,
+                    'dosAttributesHex' => $dosKey,
+                    'dosAttributeNames' => $dosAttributeNames,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'packagePartCount' => 0,
+                    'roleCounts' => [],
+                    'handoffKindCounts' => [],
+                    'entryNames' => [],
+                    'partNames' => [],
+                    'issueCount' => 0,
+                    'issues' => [],
+                ];
+                ++$dosAttributeSummaries[$dosKey]['entryCount'];
+                if (($entry['isDirectory'] ?? false) === true) {
+                    ++$dosAttributeSummaries[$dosKey]['directoryEntryCount'];
+                } else {
+                    ++$dosAttributeSummaries[$dosKey]['fileEntryCount'];
+                }
+                if (($entry['isPackagePart'] ?? false) === true) {
+                    ++$dosAttributeSummaries[$dosKey]['packagePartCount'];
+                }
+                $dosAttributeSummaries[$dosKey]['roleCounts'][$role] =
+                    ($dosAttributeSummaries[$dosKey]['roleCounts'][$role] ?? 0) + 1;
+                $dosAttributeSummaries[$dosKey]['handoffKindCounts'][$handoffKind] =
+                    ($dosAttributeSummaries[$dosKey]['handoffKindCounts'][$handoffKind] ?? 0) + 1;
+                self::appendUniqueString($dosAttributeSummaries[$dosKey]['entryNames'], $entryName);
+                if ($partName !== null) {
+                    self::appendUniqueString($dosAttributeSummaries[$dosKey]['partNames'], $partName);
+                }
+                foreach ($dosAttributeIssues as $issue) {
+                    self::appendUniqueString($dosAttributeSummaries[$dosKey]['issues'], $issue);
+                }
+                $dosAttributeSummaries[$dosKey]['issueCount'] = count($dosAttributeSummaries[$dosKey]['issues']);
+            }
+
+            $internalAttributes = is_int($entry['internalFileAttributes'] ?? null)
+                ? $entry['internalFileAttributes']
+                : 0;
+            if ($internalAttributes === 0) {
+                continue;
+            }
+
+            ++$internalAttributeEntryCount;
+            if (($entry['hasTextInternalAttribute'] ?? false) === true) {
+                ++$textInternalAttributeEntryCount;
+            }
+            if (($entry['hasUnknownInternalAttributeBits'] ?? false) === true) {
+                ++$unknownInternalAttributeEntryCount;
+            }
+            $internalAttributeNames = array_values(array_filter(
+                is_array($entry['internalAttributeNames'] ?? null) ? $entry['internalAttributeNames'] : [],
+                'is_string'
+            ));
+            $internalAttributeIssues = array_values(array_filter(
+                is_array($entry['internalAttributeIssues'] ?? null) ? $entry['internalAttributeIssues'] : [],
+                'is_string'
+            ));
+            foreach ($internalAttributeNames as $name) {
+                $internalAttributeNameCounts[$name] = ($internalAttributeNameCounts[$name] ?? 0) + 1;
+                $entryNamesByInternalAttributeName[$name] ??= [];
+                self::appendUniqueString($entryNamesByInternalAttributeName[$name], $entryName);
+                $internalAttributeNamesByRole[$role] ??= [];
+                self::appendUniqueString($internalAttributeNamesByRole[$role], $name);
+                $internalAttributeNamesByHandoffKind[$handoffKind] ??= [];
+                self::appendUniqueString($internalAttributeNamesByHandoffKind[$handoffKind], $name);
+            }
+            foreach ($internalAttributeIssues as $issue) {
+                $internalAttributeIssueCounts[$issue] = ($internalAttributeIssueCounts[$issue] ?? 0) + 1;
+                $entryNamesByInternalAttributeIssue[$issue] ??= [];
+                self::appendUniqueString($entryNamesByInternalAttributeIssue[$issue], $entryName);
+            }
+
+            $internalKey = sprintf('%04x', $internalAttributes);
+            $internalAttributeSummaries[$internalKey] ??= [
+                'internalFileAttributes' => $internalAttributes,
+                'internalFileAttributesHex' => $internalKey,
+                'internalAttributeNames' => $internalAttributeNames,
+                'entryCount' => 0,
+                'fileEntryCount' => 0,
+                'directoryEntryCount' => 0,
+                'packagePartCount' => 0,
+                'roleCounts' => [],
+                'handoffKindCounts' => [],
+                'entryNames' => [],
+                'partNames' => [],
+                'issueCount' => 0,
+                'issues' => [],
+            ];
+            ++$internalAttributeSummaries[$internalKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$internalAttributeSummaries[$internalKey]['directoryEntryCount'];
+            } else {
+                ++$internalAttributeSummaries[$internalKey]['fileEntryCount'];
+            }
+            if (($entry['isPackagePart'] ?? false) === true) {
+                ++$internalAttributeSummaries[$internalKey]['packagePartCount'];
+            }
+            $internalAttributeSummaries[$internalKey]['roleCounts'][$role] =
+                ($internalAttributeSummaries[$internalKey]['roleCounts'][$role] ?? 0) + 1;
+            $internalAttributeSummaries[$internalKey]['handoffKindCounts'][$handoffKind] =
+                ($internalAttributeSummaries[$internalKey]['handoffKindCounts'][$handoffKind] ?? 0) + 1;
+            self::appendUniqueString($internalAttributeSummaries[$internalKey]['entryNames'], $entryName);
+            if ($partName !== null) {
+                self::appendUniqueString($internalAttributeSummaries[$internalKey]['partNames'], $partName);
+            }
+            foreach ($internalAttributeIssues as $issue) {
+                self::appendUniqueString($internalAttributeSummaries[$internalKey]['issues'], $issue);
+            }
+            $internalAttributeSummaries[$internalKey]['issueCount'] =
+                count($internalAttributeSummaries[$internalKey]['issues']);
+        }
+
+        ksort($dosAttributeNameCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByDosAttributeName);
+        self::sortStringListMap($dosAttributeNamesByRole);
+        self::sortStringListMap($dosAttributeNamesByHandoffKind);
+        ksort($dosAttributeIssueCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByDosAttributeIssue);
+        ksort($dosAttributeSummaries, SORT_STRING);
+        foreach ($dosAttributeSummaries as &$summary) {
+            sort($summary['dosAttributeNames'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['handoffKindCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($internalAttributeNameCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByInternalAttributeName);
+        self::sortStringListMap($internalAttributeNamesByRole);
+        self::sortStringListMap($internalAttributeNamesByHandoffKind);
+        ksort($internalAttributeIssueCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByInternalAttributeIssue);
+        ksort($internalAttributeSummaries, SORT_STRING);
+        foreach ($internalAttributeSummaries as &$summary) {
+            sort($summary['internalAttributeNames'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['handoffKindCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+        }
+        unset($summary);
+
+        return [
+            'zipAttributeProvenanceVersion' => 'zip-opc-attribute-provenance-v1',
+            'dosAttributeEntryCount' => $dosAttributeEntryCount,
+            'hasDosAttributeEntries' => $dosAttributeEntryCount > 0,
+            'hiddenSystemOrVolumeLabelEntryCount' => $hiddenSystemOrVolumeLabelEntryCount,
+            'hasHiddenSystemOrVolumeLabelEntries' => $hiddenSystemOrVolumeLabelEntryCount > 0,
+            'dosAttributeNameCounts' => $dosAttributeNameCounts,
+            'entryNamesByDosAttributeName' => $entryNamesByDosAttributeName,
+            'dosAttributeNamesByRole' => $dosAttributeNamesByRole,
+            'dosAttributeNamesByHandoffKind' => $dosAttributeNamesByHandoffKind,
+            'dosAttributeIssueCounts' => $dosAttributeIssueCounts,
+            'entryNamesByDosAttributeIssue' => $entryNamesByDosAttributeIssue,
+            'dosAttributeSummaryCount' => count($dosAttributeSummaries),
+            'dosAttributeSummaries' => array_values($dosAttributeSummaries),
+            'internalAttributeEntryCount' => $internalAttributeEntryCount,
+            'hasInternalAttributeEntries' => $internalAttributeEntryCount > 0,
+            'textInternalAttributeEntryCount' => $textInternalAttributeEntryCount,
+            'unknownInternalAttributeEntryCount' => $unknownInternalAttributeEntryCount,
+            'internalAttributeNameCounts' => $internalAttributeNameCounts,
+            'entryNamesByInternalAttributeName' => $entryNamesByInternalAttributeName,
+            'internalAttributeNamesByRole' => $internalAttributeNamesByRole,
+            'internalAttributeNamesByHandoffKind' => $internalAttributeNamesByHandoffKind,
+            'internalAttributeIssueCounts' => $internalAttributeIssueCounts,
+            'entryNamesByInternalAttributeIssue' => $entryNamesByInternalAttributeIssue,
+            'internalAttributeSummaryCount' => count($internalAttributeSummaries),
+            'internalAttributeSummaries' => array_values($internalAttributeSummaries),
+        ];
     }
 
     /**
