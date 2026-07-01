@@ -10888,6 +10888,84 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfPageProductionMetadata'] ?? null);
     },
 
+    'fake runner summarizes bounded pdf page production reference policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/print-production-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 2 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /SeparationInfo 5 0 R /PresSteps << /S /NA /Next [8 0 R 99 0 R] >> >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R /BoxColorInfo 6 0 R /SeparationInfo << /Pages [4 0 R 42 0 R] /DeviceColorant (Spot Review) >> /PresSteps 7 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Pages [3 0 R 42 0 R] /DeviceColorant /PANTONE#20123#20C /ColorSpace /DeviceCMYK >>',
+            'endobj',
+            '6 0 obj',
+            '<< /TrimBox << /C [0 0 1] /W 0.5 /S /D >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /S /Render /Next 8 0 R >>',
+            'endobj',
+            '8 0 obj',
+            '<< /S /Proof >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/print-production-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/print-production-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'metadataPageCount' => 2,
+            'boxColorInfoCount' => 1,
+            'separationInfoCount' => 2,
+            'separationPageReferenceCount' => 4,
+            'unresolvedSeparationPageReferences' => ['42 0 R'],
+            'presentationStepsCount' => 2,
+            'presentationStepNextReferenceCount' => 3,
+            'unresolvedPresentationStepNextReferences' => ['99 0 R'],
+            'issues' => [
+                'page-production-unresolved-separation-page',
+                'page-production-unresolved-presentation-step',
+            ],
+        ];
+
+        $diagnostics = implode(',', $result['diagnostics']);
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['pdfPageProductionPolicy']);
+        $t->same($expectedPolicy, $sequence['finalPdfPageProductionPolicy']);
+        $t->contains('pdf-byte-page-production-policy:review', $diagnostics);
+        $t->contains('pdf-byte-page-production-policy-pages:2', $diagnostics);
+        $t->contains('pdf-byte-page-production-policy-separation-pages:4', $diagnostics);
+        $t->contains('pdf-byte-page-production-policy-unresolved-separation-pages:1', $diagnostics);
+        $t->contains('pdf-byte-page-production-policy-presentation-next:3', $diagnostics);
+        $t->contains('pdf-byte-page-production-policy-unresolved-presentation-next:1', $diagnostics);
+        $t->contains('pdf-byte-page-production-policy-issue:page-production-unresolved-separation-page', $diagnostics);
+        $t->contains('pdf-byte-page-production-policy-issue:page-production-unresolved-presentation-step', $diagnostics);
+    },
+
     'fake runner extracts bounded pdf page display metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/display.pdf']);
