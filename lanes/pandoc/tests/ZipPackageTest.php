@@ -1195,6 +1195,11 @@ return [
             'duplicatePackagePartCaseFoldBaseNameStemCount' => $manifest['duplicatePackagePartCaseFoldBaseNameStemCount'],
             'duplicatePackagePartCaseFoldBaseNameStems' => $manifest['duplicatePackagePartCaseFoldBaseNameStems'],
             'duplicatePackagePartCaseFoldBaseNameStemSummaries' => $manifest['duplicatePackagePartCaseFoldBaseNameStemSummaries'],
+            'pathSegmentSummaryCount' => $manifest['pathSegmentSummaryCount'],
+            'pathSegmentOccurrenceCount' => $manifest['pathSegmentOccurrenceCount'],
+            'pathSegmentCounts' => $manifest['pathSegmentCounts'],
+            'pathSegmentEntryCounts' => $manifest['pathSegmentEntryCounts'],
+            'pathSegmentSummaries' => $manifest['pathSegmentSummaries'],
             'pathSegmentPositionSummaryCount' => $manifest['pathSegmentPositionSummaryCount'],
             'pathSegmentPositionOccurrenceCount' => $manifest['pathSegmentPositionOccurrenceCount'],
             'pathSegmentPositionCounts' => $manifest['pathSegmentPositionCounts'],
@@ -1418,6 +1423,10 @@ return [
         foreach ($manifest['pathSegmentPositionSummaries'] as $position) {
             $positions[$position['position']] = $position;
         }
+        $segments = [];
+        foreach ($manifest['pathSegmentSummaries'] as $segment) {
+            $segments[$segment['segment']] = $segment;
+        }
 
         $t->same($pathSegmentPositionReviews(['mimetype']), $entriesByName['mimetype']['pathSegmentPositionReviews']);
         $t->same(
@@ -1429,6 +1438,55 @@ return [
         $t->same(['first' => 3, 'last' => 3, 'middle' => 3, 'only' => 1], $manifest['pathSegmentPositionCounts']);
         $t->same(['first' => 3, 'last' => 3, 'middle' => 2, 'only' => 1], $manifest['pathSegmentPositionEntryCounts']);
         $t->same(['first', 'last', 'middle', 'only'], array_column($manifest['pathSegmentPositionSummaries'], 'position'));
+        $t->same(6, $manifest['pathSegmentSummaryCount']);
+        $t->same(10, $manifest['pathSegmentOccurrenceCount']);
+        $t->same([
+            'deep' => 2,
+            'document.xml' => 1,
+            'media' => 2,
+            'mimetype' => 1,
+            'scan.png' => 1,
+            'word' => 3,
+        ], $manifest['pathSegmentCounts']);
+        $t->same($manifest['pathSegmentCounts'], $manifest['pathSegmentEntryCounts']);
+        $t->same(['deep', 'document.xml', 'media', 'mimetype', 'scan.png', 'word'], array_column($manifest['pathSegmentSummaries'], 'segment'));
+
+        $word = $segments['word'];
+        $wordEntrySourceBytes = $entriesByName['word/document.xml']['sourceRecordBytes']
+            + $entriesByName['word/media/deep/scan.png']['sourceRecordBytes']
+            + $entriesByName['word/media/deep/']['sourceRecordBytes'];
+        $wordEntryLocalRecordBytes = $entriesByName['word/document.xml']['localRecordBytes']
+            + $entriesByName['word/media/deep/scan.png']['localRecordBytes']
+            + $entriesByName['word/media/deep/']['localRecordBytes'];
+        $t->same('word', $word['segment']);
+        $t->same('word', $word['caseFoldSegment']);
+        $t->same(3, $word['occurrenceCount']);
+        $t->same(3, $word['entryCount']);
+        $t->same(2, $word['fileEntryCount']);
+        $t->same(1, $word['directoryEntryCount']);
+        $t->same(strlen($documentXml) + strlen($scanBytes), $word['compressedBytes']);
+        $t->same(strlen($documentXml) + strlen($scanBytes), $word['uncompressedBytes']);
+        $t->same($wordEntryLocalRecordBytes, $word['localRecordBytes']);
+        $t->same($wordEntrySourceBytes, $word['sourceRecordBytes']);
+        $t->same([0 => 3], $word['pathSegmentIndexCounts']);
+        $t->same(['word/' => 3], $word['directoryRootCounts']);
+        $t->same(['(directory)' => 1, 'png' => 1, 'xml' => 1], $word['packagePartExtensionCounts']);
+        $t->same(['0' => 3], $word['compressionMethodCounts']);
+        $t->same([
+            'word/document.xml',
+            'word/media/deep/',
+            'word/media/deep/scan.png',
+        ], $word['entryNames']);
+
+        $deep = $segments['deep'];
+        $t->same(2, $deep['occurrenceCount']);
+        $t->same(2, $deep['entryCount']);
+        $t->same(1, $deep['fileEntryCount']);
+        $t->same(1, $deep['directoryEntryCount']);
+        $t->same(strlen($scanBytes), $deep['compressedBytes']);
+        $t->same([2 => 2], $deep['pathSegmentIndexCounts']);
+        $t->same(['(directory)' => 1, 'png' => 1], $deep['packagePartExtensionCounts']);
+        $t->same(['word/media/deep/', 'word/media/deep/scan.png'], $deep['entryNames']);
 
         $middle = $positions['middle'];
         $t->same(3, $middle['occurrenceCount']);
@@ -2377,6 +2435,11 @@ return [
             'duplicatePackagePartCaseFoldBaseNameStemCount' => $manifest['duplicatePackagePartCaseFoldBaseNameStemCount'],
             'duplicatePackagePartCaseFoldBaseNameStems' => $manifest['duplicatePackagePartCaseFoldBaseNameStems'],
             'duplicatePackagePartCaseFoldBaseNameStemSummaries' => $manifest['duplicatePackagePartCaseFoldBaseNameStemSummaries'],
+            'pathSegmentSummaryCount' => $manifest['pathSegmentSummaryCount'],
+            'pathSegmentOccurrenceCount' => $manifest['pathSegmentOccurrenceCount'],
+            'pathSegmentCounts' => $manifest['pathSegmentCounts'],
+            'pathSegmentEntryCounts' => $manifest['pathSegmentEntryCounts'],
+            'pathSegmentSummaries' => $manifest['pathSegmentSummaries'],
             'pathSegmentPositionSummaryCount' => $manifest['pathSegmentPositionSummaryCount'],
             'pathSegmentPositionOccurrenceCount' => $manifest['pathSegmentPositionOccurrenceCount'],
             'pathSegmentPositionCounts' => $manifest['pathSegmentPositionCounts'],
