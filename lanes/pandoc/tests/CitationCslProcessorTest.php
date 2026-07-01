@@ -4980,6 +4980,54 @@ XML);
         $t->contains('<p>Availability alias (Alias | 2026-08-09 | uncertain | 2026-07-01/2026-07-03) remains visible.</p>', $blocks);
         $t->contains('<dt>Alias 2026</dt><dd>Hyphen Availability Packet :: 2026-08-09 :: uncertain :: 2026-07-01/2026-07-03 :: Date markers: available-date uncertain (2026-08-09?)</dd>', $blocks);
     },
+    'maps bare biblatex available alias into csl availability metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{bare-available-alias,
+  author    = {Lane, Nia},
+  title     = {Bare Available Alias Packet},
+  date      = {2026},
+  url       = {https://example.test/bare-available-alias},
+  available = {2026-09-02},
+  submitted = {2026-09-01}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same(['date-parts' => [[2026, 9, 2]]], $items[0]['available-date'] ?? null);
+        $t->same(['date-parts' => [[2026, 9, 1]]], $items[0]['submitted'] ?? null);
+        $t->same('2026-09-02', $items[0]['rawBibtex']['fields']['available'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="(" suffix=")">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="available-date"/>
+        <date variable="submitted"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="available-date"/>
+      <date variable="submitted"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $item = $processor->item('bare-available-alias');
+        $t->same('2026-09-02', $item['availableDate']['display'] ?? null);
+        $t->same('2026-09-01', $item['submittedDate']['display'] ?? null);
+        $t->same('(Lane | 2026-09-02 | 2026-09-01)', $processor->renderCitationCluster([
+            $citation('bare-available-alias', '[@bare-available-alias]'),
+        ]));
+        $t->same('Bare Available Alias Packet :: 2026-09-02 :: 2026-09-01', $processor->renderBibliographyEntry('bare-available-alias'));
+    },
     'maps bounded biblatex split url date fields into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{split-url-date,
