@@ -14,17 +14,20 @@ final class PptxWriter
 
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_CP = 'http://schemas.openxmlformats.org/package/2006/metadata/core-properties';
+    private const NS_CUSTOM_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/custom-properties';
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_DCTERMS = 'http://purl.org/dc/terms/';
     private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
     private const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
     private const NS_PIC = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
     private const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const NS_VT = 'http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes';
     private const NS_XSI = 'http://www.w3.org/2001/XMLSchema-instance';
 
     private const REL_OFFICE_DOCUMENT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const REL_CORE_PROPERTIES = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     private const REL_EXTENDED_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
+    private const REL_CUSTOM_PROPERTIES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties';
     private const REL_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide';
     private const REL_SLIDE_LAYOUT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout';
     private const REL_SLIDE_MASTER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster';
@@ -37,6 +40,7 @@ final class PptxWriter
 
     private const CT_CORE_PROPERTIES = 'application/vnd.openxmlformats-package.core-properties+xml';
     private const CT_EXTENDED_PROPERTIES = 'application/vnd.openxmlformats-officedocument.extended-properties+xml';
+    private const CT_CUSTOM_PROPERTIES = 'application/vnd.openxmlformats-officedocument.custom-properties+xml';
     private const CT_PRESENTATION = 'application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml';
     private const CT_SLIDE = 'application/vnd.openxmlformats-officedocument.presentationml.slide+xml';
     private const CT_SLIDE_LAYOUT = 'application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml';
@@ -53,8 +57,9 @@ final class PptxWriter
         '_rels/.rels' => 1,
         'docProps/core.xml' => 2,
         'docProps/app.xml' => 3,
-        'ppt/presentation.xml' => 4,
-        'ppt/_rels/presentation.xml.rels' => 5,
+        'docProps/custom.xml' => 4,
+        'ppt/presentation.xml' => 5,
+        'ppt/_rels/presentation.xml.rels' => 6,
         'ppt/slideMasters/slideMaster1.xml' => 100,
         'ppt/slideMasters/_rels/slideMaster1.xml.rels' => 101,
         'ppt/slideLayouts/slideLayout1.xml' => 102,
@@ -148,6 +153,7 @@ final class PptxWriter
             ['name' => '_rels/.rels', 'data' => $this->rootRelationshipsXml()],
             ['name' => 'docProps/core.xml', 'data' => $this->corePropertiesXml($metadata)],
             ['name' => 'docProps/app.xml', 'data' => $this->extendedPropertiesXml($metadata, count($slides), $notesSlideCount)],
+            ['name' => 'docProps/custom.xml', 'data' => $this->customPropertiesXml($metadata)],
             ['name' => 'ppt/presentation.xml', 'data' => $this->presentationXml(count($slides), $notesSlideCount)],
             ['name' => 'ppt/_rels/presentation.xml.rels', 'data' => $this->presentationRelationshipsXml(count($slides), $notesSlideCount)],
             ['name' => 'ppt/slideMasters/slideMaster1.xml', 'data' => $this->slideMasterXml()],
@@ -1323,6 +1329,7 @@ final class PptxWriter
             ['id' => 'rId1', 'type' => self::REL_OFFICE_DOCUMENT, 'target' => 'ppt/presentation.xml'],
             ['id' => 'rId2', 'type' => self::REL_CORE_PROPERTIES, 'target' => 'docProps/core.xml'],
             ['id' => 'rId3', 'type' => self::REL_EXTENDED_PROPERTIES, 'target' => 'docProps/app.xml'],
+            ['id' => 'rId4', 'type' => self::REL_CUSTOM_PROPERTIES, 'target' => 'docProps/custom.xml'],
         ]);
     }
 
@@ -1493,6 +1500,7 @@ final class PptxWriter
         $overrides = [
             '/docProps/core.xml' => self::CT_CORE_PROPERTIES,
             '/docProps/app.xml' => self::CT_EXTENDED_PROPERTIES,
+            '/docProps/custom.xml' => self::CT_CUSTOM_PROPERTIES,
             '/ppt/presentation.xml' => self::CT_PRESENTATION,
             '/ppt/slideMasters/slideMaster1.xml' => self::CT_SLIDE_MASTER,
             '/ppt/slideLayouts/slideLayout1.xml' => self::CT_SLIDE_LAYOUT,
@@ -1528,6 +1536,8 @@ final class PptxWriter
     private function corePropertiesXml(array $metadata): string
     {
         $keywords = $metadata['keywords'] === [] ? '' : implode(', ', $metadata['keywords']);
+        $category = (string) ($metadata['category'] ?? '');
+        $categoryXml = $category === '' ? '' : '  <cp:category>' . $this->xml($category) . '</cp:category>' . "\n";
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<cp:coreProperties xmlns:cp="' . self::NS_CP . '" xmlns:dc="' . self::NS_DC . '" xmlns:dcterms="' . self::NS_DCTERMS . '" xmlns:xsi="' . self::NS_XSI . '">' . "\n"
@@ -1536,10 +1546,42 @@ final class PptxWriter
             . '  <dc:subject>' . $this->xml((string) $metadata['subject']) . '</dc:subject>' . "\n"
             . '  <cp:keywords>' . $this->xml($keywords) . '</cp:keywords>' . "\n"
             . '  <dc:description>' . $this->xml((string) $metadata['description']) . '</dc:description>' . "\n"
+            . $categoryXml
             . '  <cp:lastModifiedBy>Port Libs</cp:lastModifiedBy>' . "\n"
             . '  <dcterms:created xsi:type="dcterms:W3CDTF">' . $this->xml((string) $metadata['modified']) . '</dcterms:created>' . "\n"
             . '  <dcterms:modified xsi:type="dcterms:W3CDTF">' . $this->xml((string) $metadata['modified']) . '</dcterms:modified>' . "\n"
             . '</cp:coreProperties>' . "\n";
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     */
+    private function customPropertiesXml(array $metadata): string
+    {
+        $properties = $metadata['customProperties'] ?? [];
+        if (!is_array($properties) || $properties === []) {
+            return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+                . '<Properties xmlns="' . self::NS_CUSTOM_PROPERTIES . '" xmlns:vt="' . self::NS_VT . '" />' . "\n";
+        }
+
+        $rows = [];
+        $pid = 2;
+        foreach ($properties as $name => $value) {
+            if (!is_string($name)) {
+                continue;
+            }
+            $rows[] = '  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="' . $pid++ . '" name="' . $this->xml($name) . '"><vt:lpwstr>' . $this->xml((string) $value) . '</vt:lpwstr></property>';
+        }
+
+        if ($rows === []) {
+            return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+                . '<Properties xmlns="' . self::NS_CUSTOM_PROPERTIES . '" xmlns:vt="' . self::NS_VT . '" />' . "\n";
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+            . '<Properties xmlns="' . self::NS_CUSTOM_PROPERTIES . '" xmlns:vt="' . self::NS_VT . '">' . "\n"
+            . implode("\n", $rows) . "\n"
+            . '</Properties>' . "\n";
     }
 
     /**
@@ -1745,12 +1787,12 @@ final class PptxWriter
     }
 
     /**
-     * @return array{title:string, creator:string, subject:string, description:string, modified:string, keywords:list<string>}
+     * @return array{title:string, creator:string, subject:string, description:string, category:string, modified:string, keywords:list<string>, customProperties:array<string, string>}
      */
     private function metadata(AstNode $document): array
     {
         $meta = $document->attr('meta', []);
-        $meta = is_array($meta) ? $meta : [];
+        $meta = is_array($meta) && !array_is_list($meta) ? $meta : [];
         $title = $this->optionString('title')
             ?? $this->metaString($meta, ['title'])
             ?? $this->firstHeadingText($document)
@@ -1761,8 +1803,10 @@ final class PptxWriter
             'creator' => $this->optionString('author') ?? $this->metaString($meta, ['author', 'creator']) ?? 'Port Libs',
             'subject' => $this->optionString('subject') ?? $this->metaString($meta, ['subject']) ?? '',
             'description' => $this->optionString('description') ?? $this->metaString($meta, ['description']) ?? '',
+            'category' => $this->optionString('category') ?? $this->metaString($meta, ['category']) ?? '',
             'modified' => $this->optionString('modified') ?? $this->metaString($meta, ['modified', 'date']) ?? self::GENERATED_TIMESTAMP,
             'keywords' => $this->optionStringList('keywords') ?: $this->metaStringList($meta, ['keywords', 'subject']),
+            'customProperties' => $this->customProperties($meta),
         ];
     }
 
@@ -1823,7 +1867,19 @@ final class PptxWriter
                 continue;
             }
             $value = $meta[$key];
-            if (is_array($value)) {
+            if (is_array($value) && isset($value['type']) && $value['type'] === 'MetaList' && is_array($value['value'])) {
+                $items = [];
+                foreach ($value['value'] as $item) {
+                    $text = $this->stringFromMetaValue($item);
+                    if ($text !== null && $text !== '') {
+                        $items[] = $text;
+                    }
+                }
+                if ($items !== []) {
+                    return $items;
+                }
+            }
+            if (is_array($value) && array_is_list($value)) {
                 $items = [];
                 foreach ($value as $item) {
                     $text = $this->stringFromMetaValue($item);
@@ -1855,6 +1911,14 @@ final class PptxWriter
         if (!is_array($value)) {
             return null;
         }
+        if (isset($value['type']) && array_key_exists('value', $value)) {
+            return match ($value['type']) {
+                'MetaInlines' => is_array($value['value']) ? $this->inlineText($value['value']) : null,
+                'MetaBlocks' => is_array($value['value']) ? $this->metadataBlockText($value['value']) : null,
+                'MetaList' => is_array($value['value']) ? $this->metadataListText($value['value'], '; ') : null,
+                default => null,
+            };
+        }
 
         $parts = [];
         foreach ($value as $item) {
@@ -1865,6 +1929,113 @@ final class PptxWriter
         }
 
         return $parts === [] ? null : implode(' ', $parts);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return array<string, string>
+     */
+    private function customProperties(array $meta): array
+    {
+        $coreKeys = array_fill_keys([
+            'author',
+            'authorInlines',
+            'category',
+            'created',
+            'creator',
+            'date',
+            'dateInlines',
+            'description',
+            'keywords',
+            'lang',
+            'language',
+            'modified',
+            'notes',
+            'speaker-notes',
+            'speakerNotes',
+            'subject',
+            'title',
+            'titleInlines',
+        ], true);
+
+        $properties = [];
+        foreach ($meta as $key => $value) {
+            if (!is_string($key) || isset($coreKeys[$key])) {
+                continue;
+            }
+            $properties[$key] = $this->customPropertyText($value);
+        }
+
+        return $properties;
+    }
+
+    private function customPropertyText(mixed $value, string $separator = '; '): string
+    {
+        if (is_array($value)) {
+            if (isset($value['type']) && array_key_exists('value', $value)) {
+                return match ($value['type']) {
+                    'MetaInlines' => is_array($value['value']) ? $this->inlineText($value['value']) : '',
+                    'MetaBlocks' => is_array($value['value']) ? $this->metadataBlockText($value['value']) : '',
+                    'MetaList' => is_array($value['value']) ? $this->customPropertyListText($value['value'], $separator) : '',
+                    default => '',
+                };
+            }
+
+            return '';
+        }
+
+        return is_scalar($value) || $value === null ? (string) $value : '';
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function customPropertyListText(array $items, string $separator): string
+    {
+        $parts = [];
+        foreach ($items as $item) {
+            $part = $this->customPropertyText($item, $separator);
+            if ($part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return implode($separator, $parts);
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function metadataListText(array $items, string $separator): string
+    {
+        $parts = [];
+        foreach ($items as $item) {
+            $part = $this->stringFromMetaValue($item);
+            if ($part !== null && $part !== '') {
+                $parts[] = $part;
+            }
+        }
+
+        return implode($separator, $parts);
+    }
+
+    /**
+     * @param list<mixed> $blocks
+     */
+    private function metadataBlockText(array $blocks): string
+    {
+        $parts = [];
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                continue;
+            }
+            $text = $this->blockText($block);
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode("_x000d_\n", $parts);
     }
 
     private function firstHeadingText(AstNode $node): ?string

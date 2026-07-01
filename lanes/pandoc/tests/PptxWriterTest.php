@@ -130,6 +130,16 @@ $upstreamCodeNative = <<<'NATIVE'
   [CodeBlock ("",[],[]) "safeHead :: [a] -> Maybe a\nsafeHead [] = Nothing\nsafeHead (x:_) = Just x"]]]
 NATIVE;
 
+$upstreamDocumentPropertiesNative = <<<'NATIVE'
+Pandoc (Meta {unMeta = fromList [("Company",MetaInlines [Str "My",Space,Str "Company"]),("Second Custom Property",MetaInlines [Str "Second",Space,Str "custom",Space,Str "property",Space,Str "value"]),("abstract",MetaBlocks [Plain [Str "Quite",Space,Str "a",Space,Str "long",Space,Str "description",SoftBreak,Str "spanning",Space,Str "several",Space,Str "lines"]]),("author",MetaList [MetaInlines [Str "A.",Space,Str "M."]]),("category",MetaInlines [Str "My",Space,Str "Category"]),("custom1",MetaInlines [Str "First",Space,Str "custom",Space,Str "property",Space,Str "value"]),("custom3",MetaInlines [Str "Escaping",Space,Str "amp",Space,Str "&",Space,Str "."]),("custom4",MetaInlines [Str "Escaping",Space,Str "LT,GT",Space,Str "<",Space,Str "asdf",Space,Str ">",Space,Str "<"]),("custom5",MetaInlines [Str "Escaping",Space,Str "html",Space,RawInline (Format "html") "<i>",Str "asdf",RawInline (Format "html") "</i>"]),("custom6",MetaInlines [Str "Escaping",Space,Emph [Str "MD"],Space,Str "\225",Space,Str "a"]),("custom9",MetaInlines [Str "Extended",Space,Str "chars:",Space,Str "\8364",Space,Str "\225",Space,Str "\233",Space,Str "\237",Space,Str "\243",Space,Str "\250",Space,Str "$"]),("description",MetaBlocks [Para [Str "Long",Space,Str "description",Space,Str "spanning",SoftBreak,Str "several",Space,Str "lines."],Plain [Str "This",Space,Str "is",Space,Str "\225",Space,Str "second",Space,RawInline (Format "html") "<i>",Str "line",RawInline (Format "html") "</i>",Str "."]]),("keywords",MetaList [MetaInlines [Str "keyword",Space,Str "1"],MetaInlines [Str "keyword",Space,Str "2"]]),("lang",MetaInlines [Str "en-US"]),("nested-custom",MetaList [MetaMap (fromList [("custom 7",MetaInlines [Str "Nested",Space,Str "Custom",Space,Str "value",Space,Str "7"])]),MetaMap (fromList [("custom 8",MetaInlines [Str "Nested",Space,Str "Custom",Space,Str "value",Space,Str "8"])])]),("subject",MetaInlines [Str "This",Space,Str "is",Space,Str "the",Space,Str "subject"]),("subtitle",MetaInlines [Str "This",Space,Str "is",Space,Str "a",Space,Str "subtitle"]),("title",MetaInlines [Str "Testing",Space,Str "custom",Space,Str "properties"])]})
+[Para [Str "Testing",Space,Str "document",Space,Str "properties"]]
+NATIVE;
+
+$upstreamDocumentPropertiesShortDescNative = <<<'NATIVE'
+Pandoc (Meta {unMeta = fromList [("author",MetaList [MetaInlines [Str "A.",Space,Str "M."]]),("description",MetaInlines [Str "Short",Space,RawInline (Format "html") "<i>",Str "description",RawInline (Format "html") "</i>",Space,Str "&."]),("keywords",MetaList [MetaInlines [Str "keyword",Space,Str "1"],MetaInlines [Str "keyword",Space,Str "2"]]),("subject",MetaInlines [Str "This",Space,Str "is",Space,Str "the",Space,Str "subject"]),("title",MetaInlines [Str "Testing",Space,Str "custom",Space,Str "properties"])]})
+[Para [Str "Testing",Space,Str "document",Space,Str "properties"]]
+NATIVE;
+
 $upstreamEndnotesNative = <<<'NATIVE'
 Pandoc (Meta {unMeta = fromList []})
 [Para [Str "Here",Space,Str "is",Space,Str "one",Space,Str "note.",Note [Para [Str "Here",Space,Str "is",Space,Str "the",Space,Str "note."]],Space,Str "And",Space,Str "one",Space,Str "more",Space,Str "note.",Note [Para [Str "And",Space,Str "another",Space,Str "note."]]]]
@@ -205,6 +215,7 @@ return [
             '_rels/.rels',
             'docProps/core.xml',
             'docProps/app.xml',
+            'docProps/custom.xml',
             'ppt/presentation.xml',
             'ppt/_rels/presentation.xml.rels',
             'ppt/slides/slide1.xml',
@@ -222,7 +233,12 @@ return [
         $contentTypes = $package->read('[Content_Types].xml');
         $t->contains('presentationml.presentation.main+xml', $contentTypes);
         $t->contains('presentationml.slide+xml', $contentTypes);
+        $t->contains('officedocument.custom-properties+xml', $contentTypes);
         $t->contains('Extension="png" ContentType="image/png"', $contentTypes);
+
+        $rootRelationships = $package->read('_rels/.rels');
+        $t->contains('relationships/custom-properties', $rootRelationships);
+        $t->contains('Target="docProps/custom.xml"', $rootRelationships);
 
         $presentation = $package->read('ppt/presentation.xml');
         $t->contains('r:id="rId1"', $presentation);
@@ -438,6 +454,59 @@ return [
         $t->contains('<a:latin typeface="Courier"/></a:rPr><a:t>head</a:t>', $slide3);
         $t->contains('safeHead :: [a] -&gt; Maybe a', $slide3);
         $t->contains('<Slides>3</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream document properties into core and custom parts' => static function (TestRunner $t) use ($upstreamDocumentPropertiesNative, $upstreamDocumentPropertiesShortDescNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamDocumentPropertiesNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('docProps/custom.xml', $names, true), 'Expected custom document properties part');
+
+        $contentTypes = $package->read('[Content_Types].xml');
+        $t->contains('/docProps/custom.xml', $contentTypes);
+        $t->contains('application/vnd.openxmlformats-officedocument.custom-properties+xml', $contentTypes);
+
+        $rootRelationships = $package->read('_rels/.rels');
+        $t->contains('relationships/custom-properties', $rootRelationships);
+        $t->contains('Target="docProps/custom.xml"', $rootRelationships);
+
+        $core = $package->read('docProps/core.xml');
+        $t->contains('<dc:title>Testing custom properties</dc:title>', $core);
+        $t->contains('<dc:creator>A. M.</dc:creator>', $core);
+        $t->contains('<cp:keywords>keyword 1, keyword 2</cp:keywords>', $core);
+        $t->contains('<dc:subject>This is the subject</dc:subject>', $core);
+        $t->contains('Long description spanning several lines.', $core);
+        $t->contains("_x000d_\nThis is \u{00E1} second line.", $core);
+        $t->contains('<cp:category>My Category</cp:category>', $core);
+        foreach (['MetaInlines', 'MetaBlocks', 'MetaList'] as $constructor) {
+            $t->true(!str_contains($core, $constructor), "Core properties leaked {$constructor}");
+        }
+
+        $custom = $package->read('docProps/custom.xml');
+        $t->contains('name="Company"><vt:lpwstr>My Company</vt:lpwstr>', $custom);
+        $t->contains('name="Second Custom Property"><vt:lpwstr>Second custom property value</vt:lpwstr>', $custom);
+        $t->contains('name="abstract"><vt:lpwstr>Quite a long description spanning several lines</vt:lpwstr>', $custom);
+        $t->contains('name="custom1"><vt:lpwstr>First custom property value</vt:lpwstr>', $custom);
+        $t->contains('name="custom3"><vt:lpwstr>Escaping amp &amp; .</vt:lpwstr>', $custom);
+        $t->contains('name="custom4"><vt:lpwstr>Escaping LT,GT &lt; asdf &gt; &lt;</vt:lpwstr>', $custom);
+        $t->contains('name="custom5"><vt:lpwstr>Escaping html asdf</vt:lpwstr>', $custom);
+        $t->contains("name=\"custom6\"><vt:lpwstr>Escaping MD \u{00E1} a</vt:lpwstr>", $custom);
+        $t->contains("name=\"custom9\"><vt:lpwstr>Extended chars: \u{20AC} \u{00E1} \u{00E9} \u{00ED} \u{00F3} \u{00FA} $</vt:lpwstr>", $custom);
+        $t->contains('name="nested-custom"><vt:lpwstr></vt:lpwstr>', $custom);
+        $t->contains('name="subtitle"><vt:lpwstr>This is a subtitle</vt:lpwstr>', $custom);
+        foreach (['MetaInlines', 'MetaBlocks', 'MetaList', '&lt;i&gt;'] as $leak) {
+            $t->true(!str_contains($custom, $leak), "Custom properties leaked {$leak}");
+        }
+
+        $shortDocument = (new NativeReader())->read($upstreamDocumentPropertiesShortDescNative);
+        $shortPackage = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($shortDocument));
+        $shortCore = $shortPackage->read('docProps/core.xml');
+        $shortCustom = $shortPackage->read('docProps/custom.xml');
+
+        $t->contains('<dc:description>Short description &amp;.</dc:description>', $shortCore);
+        $t->true(!str_contains($shortCore, '<cp:category>'), 'Short description fixture must not emit an empty category element');
+        $t->true(!str_contains($shortCustom, '<property '), 'Fixture without custom metadata should still emit an empty custom properties part');
     },
 
     'maps upstream inline notes into a public endnotes slide' => static function (TestRunner $t) use ($upstreamEndnotesNative, $mediaOptions): void {
