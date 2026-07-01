@@ -35,6 +35,12 @@ $missingManifestXml = str_replace(
 
 $invalidManifestXml = str_replace('manifest:media-type="application/binary"', 'manifest:media-type="image/png"', $manifestXml);
 
+$invalidSizeManifestXml = str_replace(
+    'manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . $layoutCacheSize . '"',
+    'manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . $layoutCacheSize . 'bytes"',
+    $manifestXml
+);
+
 $encryptedManifestXml = str_replace(
     '<manifest:file-entry manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . $layoutCacheSize . '"/>',
     '<manifest:file-entry manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . $encryptedLayoutCacheSize . '"><manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="layout-cache-checksum"/></manifest:file-entry>',
@@ -106,7 +112,9 @@ return [
         $manifestXml,
         $missingManifestXml,
         $invalidManifestXml,
+        $invalidSizeManifestXml,
         $encryptedManifestXml,
+        $layoutCacheSize,
         $layoutCacheBytes,
         $encryptedLayoutCacheBytes,
         $heroBytes
@@ -132,6 +140,7 @@ return [
         $t->same(0, $layoutCaches['missingCount']);
         $t->same(0, $layoutCaches['encryptedCount']);
         $t->same(0, $layoutCaches['invalidMediaTypeCount']);
+        $t->same(0, $layoutCaches['invalidDeclaredSizeCount']);
         $t->same(0, $layoutCaches['issueCount']);
         $t->same('layout-cache-package-bytes-blocked', $layoutCaches['byteExposurePolicy']);
         $t->same('layout-cache-metadata-only', $layoutCaches['reviewPolicy']);
@@ -188,6 +197,33 @@ return [
         $t->same(['odf-layout-cache-invalid-media-type'], $invalid['issues']);
         $t->same('layout-cache-package-bytes-blocked', $invalid['byteExposurePolicy']);
 
+        $invalidSizeResult = (new OdfReader())->readPackage($buildPackage($invalidSizeManifestXml, [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]));
+        $invalidSizeCaches = $invalidSizeResult['packageLayoutCaches'];
+        $invalidSize = $invalidSizeCaches['items'][0];
+        $invalidSizeManifestByPart = $indexBy($invalidSizeResult['manifest'], 'part');
+        $t->same(1, $invalidSizeCaches['invalidDeclaredSizeCount']);
+        $t->same(1, $invalidSizeCaches['issueCount']);
+        $t->same(['odf-layout-cache-invalid-declared-size'], $invalidSizeCaches['issueCodes']);
+        $t->same(null, $invalidSize['declaredSize']);
+        $t->same($layoutCacheSize . 'bytes', $invalidSize['declaredSizeRaw']);
+        $t->same(false, $invalidSize['declaredSizeValid']);
+        $t->same(true, $invalidSize['declaredSizeInvalid']);
+        $t->same(false, $invalidSize['declaredSizeMismatch']);
+        $t->same(strlen($layoutCacheBytes), $invalidSize['byteLength']);
+        $t->same(false, $invalidSize['canExposeAsDocumentMedia']);
+        $t->same('layout-cache-package-bytes-blocked', $invalidSize['byteExposurePolicy']);
+        $t->same(['odf-layout-cache-invalid-declared-size'], $invalidSize['issues']);
+        $t->same(null, $invalidSizeManifestByPart['layout-cache']['declaredSize']);
+        $t->same($layoutCacheSize . 'bytes', $invalidSizeManifestByPart['layout-cache']['declaredSizeRaw']);
+        $t->same(false, $invalidSizeManifestByPart['layout-cache']['declaredSizeValid']);
+        $t->same(true, $invalidSizeManifestByPart['layout-cache']['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $invalidSizeManifestByPart['layout-cache']['diagnostics']);
+        $t->same(false, $invalidSizeManifestByPart['layout-cache']['canExposeBytes']);
+        $t->same('layout-cache-package-bytes-blocked', $invalidSizeManifestByPart['layout-cache']['byteExposurePolicy']);
+        $t->same(null, $invalidSizeManifestByPart['layout-cache']['byteSha256']);
+
         $encrypted = (new OdfReader())->readPackage($buildPackage($encryptedManifestXml, [
             ['name' => 'layout-cache', 'data' => $encryptedLayoutCacheBytes, 'compressionMethod' => 0],
         ]))['packageLayoutCaches']['items'][0];
@@ -226,6 +262,7 @@ return [
         $t->same(0, $compactLayoutCaches['missingCount']);
         $t->same(0, $compactLayoutCaches['encryptedCount']);
         $t->same(0, $compactLayoutCaches['invalidMediaTypeCount']);
+        $t->same(0, $compactLayoutCaches['invalidDeclaredSizeCount']);
         $t->same('layout-cache-package-bytes-blocked', $compactLayoutCaches['byteExposurePolicy']);
         $t->same('layout-cache-metadata-only', $compactLayoutCaches['reviewPolicy']);
 
@@ -256,5 +293,32 @@ return [
         $t->same(['layout-cache', 'manifest-declared'], $inventory['parts']['layout-cache']['roles']);
         $t->same(true, $inventory['parts']['layout-cache']['layoutCachePackagePart']);
         $t->same(false, $inventory['parts']['layout-cache']['canExposeBytes']);
+
+        $compactInvalidSize = OpenDocumentPackage::fromPackage($buildPackage($invalidSizeManifestXml, [
+            ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+        ]))->summarize();
+        $compactInvalidSizeCaches = $compactInvalidSize['packageLayoutCaches'];
+        $compactInvalidSizeItem = $compactInvalidSizeCaches['items'][0];
+        $compactInvalidSizeReview = $indexBy($compactInvalidSize['manifestReview']['items'], 'path')['layout-cache'];
+        $t->same(1, $compactInvalidSizeCaches['invalidDeclaredSizeCount']);
+        $t->same(1, $compactInvalidSizeCaches['issueCount']);
+        $t->same(['odf-layout-cache-invalid-declared-size'], $compactInvalidSizeCaches['issueCodes']);
+        $t->same(null, $compactInvalidSizeItem['declaredSize']);
+        $t->same($layoutCacheSize . 'bytes', $compactInvalidSizeItem['declaredSizeRaw']);
+        $t->same(false, $compactInvalidSizeItem['declaredSizeValid']);
+        $t->same(true, $compactInvalidSizeItem['declaredSizeInvalid']);
+        $t->same(false, $compactInvalidSizeItem['declaredSizeMismatch']);
+        $t->same(strlen($layoutCacheBytes), $compactInvalidSizeItem['byteLength']);
+        $t->same(false, $compactInvalidSizeItem['canExposeAsDocumentMedia']);
+        $t->same('layout-cache-package-bytes-blocked', $compactInvalidSizeItem['byteExposurePolicy']);
+        $t->same(['odf-layout-cache-invalid-declared-size'], $compactInvalidSizeItem['issues']);
+        $t->same(null, $compactInvalidSizeReview['declaredSize']);
+        $t->same($layoutCacheSize . 'bytes', $compactInvalidSizeReview['declaredSizeRaw']);
+        $t->same(false, $compactInvalidSizeReview['declaredSizeValid']);
+        $t->same(true, $compactInvalidSizeReview['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $compactInvalidSizeReview['diagnostics']);
+        $t->same(false, $compactInvalidSizeReview['canExposeBytes']);
+        $t->same('layout-cache-package-bytes-blocked', $compactInvalidSizeReview['byteExposurePolicy']);
+        $t->same(null, $compactInvalidSizeReview['byteSha256']);
     },
 ];
