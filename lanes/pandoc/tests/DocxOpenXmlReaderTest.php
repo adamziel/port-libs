@@ -1628,6 +1628,78 @@ XML;
         $t->same('docx-zip-entry-metadata-only', $finderPart['zipByteExposurePolicy']);
         $t->same(false, $finderPart['zipCanExposeBytes']);
     },
+    'preserves docx source zip archive and central directory signature metadata only' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $signatureBytes = 'docx-central-directory-signature';
+        $zip = docx_openxml_reader_central_directory_signature_zip($parts, $signatureBytes);
+        $archivePreflight = $zip->archivePreflight();
+        $signaturePreflight = $zip->centralDirectorySignaturePreflight();
+
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
+        $archive = $zipPackage['archive'];
+        $signature = $zipPackage['centralDirectorySignature'];
+        $encodedPackage = json_encode($package, JSON_UNESCAPED_SLASHES);
+        if (!is_string($encodedPackage)) {
+            $encodedPackage = '';
+        }
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $zip->hasCentralDirectorySignature());
+        $t->same(true, $archive['present']);
+        $t->same(strlen($zip->bytes()), $archive['archiveLength']);
+        $t->same($archivePreflight['eocdOffset'], $archive['eocdOffset']);
+        $t->same($archivePreflight['centralDirectoryOffset'], $archive['centralDirectoryOffset']);
+        $t->same($archivePreflight['centralDirectorySize'], $archive['centralDirectorySize']);
+        $t->same($archivePreflight['centralDirectoryEnd'], $archive['centralDirectoryEnd']);
+        $t->same(true, $archive['isSingleDisk']);
+        $t->same(false, $archive['requiresZip64']);
+        $t->same(true, $archive['isArchiveLayoutSupported']);
+        $t->same(false, $archive['isSupportedByBoundedReader']);
+        $t->same(true, $archive['hasCentralDirectorySignature']);
+        $t->same($signaturePreflight['offset'], $archive['centralDirectorySignatureOffset']);
+        $t->same(strlen($signatureBytes), $archive['centralDirectorySignatureLength']);
+        $t->same(['central-directory-signature-unverified'], $archive['issueCodes']);
+        $t->same('docx-zip-archive-metadata-only', $archive['byteExposurePolicy']);
+        $t->same(false, $archive['canExposeBytes']);
+        $t->true(!array_key_exists('packageComment', $archive), 'raw package comments stay out of DOCX archive provenance');
+
+        $t->same(true, $signature['present']);
+        $t->same($archive['centralDirectoryEnd'], $signature['offset']);
+        $t->same(strlen($signatureBytes), $signature['signatureLength']);
+        $t->same(hash('sha256', $signatureBytes), $signature['signatureSha256']);
+        $t->same('not-performed-native-bounded-reader', $signature['cryptographicVerification']);
+        $t->same(false, $signature['isSupportedByBoundedReader']);
+        $t->same(['central-directory-signature-unverified'], $signature['issueCodes']);
+        $t->same('docx-zip-central-directory-signature-metadata-only', $signature['byteExposurePolicy']);
+        $t->same(false, $signature['canExposeBytes']);
+        $t->true(!array_key_exists('signatureData', $signature), 'raw central-directory signature bytes stay blocked');
+        $t->true(!str_contains($encodedPackage, $signatureBytes), 'raw central-directory signature bytes stay out of DOCX provenance');
+
+        $t->same(true, $summary['zipArchivePreflightPresent']);
+        $t->same(true, $summary['zipArchiveLayoutSupported']);
+        $t->same($archive['centralDirectoryOffset'], $summary['zipArchiveCentralDirectoryOffset']);
+        $t->same($archive['centralDirectorySize'], $summary['zipArchiveCentralDirectorySize']);
+        $t->same($archive['centralDirectoryEnd'], $summary['zipArchiveCentralDirectoryEnd']);
+        $t->same(1, $summary['zipArchiveIssueCount']);
+        $t->same(['central-directory-signature-unverified'], $summary['zipArchiveIssueCodes']);
+        $t->same(false, $summary['zipArchiveCanExposeBytes']);
+        $t->same(true, $summary['zipCentralDirectorySignaturePresent']);
+        $t->same($signature['offset'], $summary['zipCentralDirectorySignatureOffset']);
+        $t->same(strlen($signatureBytes), $summary['zipCentralDirectorySignatureLength']);
+        $t->same(hash('sha256', $signatureBytes), $summary['zipCentralDirectorySignatureSha256']);
+        $t->same(['central-directory-signature-unverified'], $summary['zipCentralDirectorySignatureIssueCodes']);
+        $t->same(false, $summary['zipCentralDirectorySignatureCanExposeBytes']);
+
+        $t->same($summary['zipArchiveCentralDirectoryOffset'], $identity['zipArchiveCentralDirectoryOffset']);
+        $t->same($summary['zipArchiveCentralDirectorySize'], $identity['zipArchiveCentralDirectorySize']);
+        $t->same($summary['zipCentralDirectorySignaturePresent'], $identity['zipCentralDirectorySignaturePresent']);
+        $t->same($summary['zipCentralDirectorySignatureSha256'], $identity['zipCentralDirectorySignatureSha256']);
+        $t->same(false, $identity['zipCentralDirectorySignatureCanExposeBytes']);
+    },
     'preserves docx package inventory CRC32 provenance for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['customXml/raw-review.bin'] = 'raw custom payload bytes';
@@ -34033,6 +34105,38 @@ function docx_openxml_reader_zip_package_with_raw_name_entries(array $parts, arr
     }
 
     return ZipPackage::fromString(docx_openxml_reader_raw_zip_bytes($entries));
+}
+
+/**
+ * @param array<string, string> $parts
+ */
+function docx_openxml_reader_central_directory_signature_zip(array $parts, string $signatureBytes): ZipPackage
+{
+    if (strlen($signatureBytes) > 0xffff) {
+        throw new RuntimeException('Central-directory signature fixture is too large');
+    }
+
+    $entries = [];
+    foreach ($parts as $name => $contents) {
+        $entries[] = [
+            'name' => $name,
+            'data' => $contents,
+        ];
+    }
+
+    $zip = docx_openxml_reader_raw_zip_bytes($entries);
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('Unable to locate DOCX fixture EOCD record');
+    }
+
+    $signatureRecord = pack('Vv', 0x05054b50, strlen($signatureBytes)) . $signatureBytes;
+
+    return ZipPackage::fromString(
+        substr($zip, 0, $eocdOffset)
+        . $signatureRecord
+        . substr($zip, $eocdOffset)
+    );
 }
 
 /**
