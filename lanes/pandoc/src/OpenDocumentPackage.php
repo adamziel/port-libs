@@ -1250,6 +1250,9 @@ final class OpenDocumentPackage
             $packagePathByteLengthBucket = self::packagePathByteLengthBucket($packagePathByteLength);
             $packagePartExtension = self::packagePartExtension($entry->name);
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
+            $directoryNameCharacterFlags = OdfPackageDirectoryNameCharacters::flags(
+                is_string($pathShape['directory'] ?? null) ? $pathShape['directory'] : ''
+            );
             $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared, $embeddedObjectPackage);
             $byteExposurePolicy = null;
             if (is_array($manifestEntry)) {
@@ -1294,6 +1297,11 @@ final class OpenDocumentPackage
                 'packagePartExtensionHasUppercase' => $rawPackagePartExtension !== null && preg_match('/[A-Z]/', $rawPackagePartExtension) === 1,
                 'packagePartExtensionWasNormalized' => $packagePartExtension !== null && $rawPackagePartExtension !== null && $packagePartExtension !== $rawPackagePartExtension,
                 'extensionlessPackagePart' => !$entry->isDirectory() && $packagePartExtension === null,
+                'directoryNameCharacterFlags' => $directoryNameCharacterFlags,
+                'directoryNameHasUppercase' => in_array('uppercase', $directoryNameCharacterFlags, true),
+                'directoryNameHasWhitespace' => in_array('whitespace', $directoryNameCharacterFlags, true),
+                'directoryNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $directoryNameCharacterFlags, true),
+                'directoryNameHasNonAscii' => in_array('non-ascii', $directoryNameCharacterFlags, true),
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
@@ -1612,6 +1620,7 @@ final class OpenDocumentPackage
         $packagePartRawExtensions = self::packagePartRawExtensionInventory($parts);
         $packagePartBasenames = self::packagePartBasenameInventory($parts);
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
+        $packageDirectoryNameCharacters = OdfPackageDirectoryNameCharacters::summarize($parts, 'path', 'pathShape');
         $packageCaseFoldTopLevelSegments = self::packageCaseFoldTopLevelSegmentInventory($parts);
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
         $packageZipSourceRecordPackagePartExtensions = self::packageZipSourceRecordPackagePartExtensionInventory($parts);
@@ -1685,6 +1694,17 @@ final class OpenDocumentPackage
             'duplicatePackageCaseFoldDirectoryBaseNameStemCount' => $packageDirectoryBaseNames['duplicatePackageCaseFoldDirectoryBaseNameStemCount'],
             'duplicatePackageCaseFoldDirectoryBaseNameStems' => $packageDirectoryBaseNames['duplicatePackageCaseFoldDirectoryBaseNameStems'],
             'packageCaseFoldDirectoryBaseNameStems' => $packageDirectoryBaseNames['packageCaseFoldDirectoryBaseNameStems'],
+            'packageDirectoryNameCharacterReviewDirectoryCount' => $packageDirectoryNameCharacters['directoryCount'],
+            'packageDirectoryNameCharacterReviewEntryCount' => $packageDirectoryNameCharacters['entryCount'],
+            'packageDirectoryNameUppercaseEntryCount' => (int) ($packageDirectoryNameCharacters['flagEntryCounts']['uppercase'] ?? 0),
+            'packageDirectoryNameWhitespaceEntryCount' => (int) ($packageDirectoryNameCharacters['flagEntryCounts']['whitespace'] ?? 0),
+            'packageDirectoryNamePercentEncodedOctetEntryCount' => (int) ($packageDirectoryNameCharacters['flagEntryCounts']['percent-encoded-octet'] ?? 0),
+            'packageDirectoryNameNonAsciiEntryCount' => (int) ($packageDirectoryNameCharacters['flagEntryCounts']['non-ascii'] ?? 0),
+            'packageDirectoryNameCharacterFlagEntryCounts' => $packageDirectoryNameCharacters['flagEntryCounts'],
+            'packageDirectoryNameCharacterFlagDirectories' => $packageDirectoryNameCharacters['flagDirectories'],
+            'packageDirectoryNameCharacterFlagEntryNames' => $packageDirectoryNameCharacters['flagEntryNames'],
+            'packageDirectoryNameCharacterReviewDirectories' => $packageDirectoryNameCharacters['directories'],
+            'packageDirectoryNameCharacterReviewDirectoryNames' => $packageDirectoryNameCharacters['directoryNames'],
             'packageZipSourceRecordDirectoryRootCount' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDirectoryRootCount'],
             'packageZipSourceRecordDirectoryRootCounts' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDirectoryRootCounts'],
             'packageZipSourceRecordDirectoryRootBytes' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDirectoryRootBytes'],
@@ -2749,6 +2769,11 @@ final class OpenDocumentPackage
                 'packagePartExtensionHasUppercase' => ($part['packagePartExtensionHasUppercase'] ?? false) === true,
                 'packagePartExtensionWasNormalized' => ($part['packagePartExtensionWasNormalized'] ?? false) === true,
                 'extensionlessPackagePart' => ($part['extensionlessPackagePart'] ?? false) === true,
+                'directoryNameCharacterFlags' => $part['directoryNameCharacterFlags'] ?? [],
+                'directoryNameHasUppercase' => ($part['directoryNameHasUppercase'] ?? false) === true,
+                'directoryNameHasWhitespace' => ($part['directoryNameHasWhitespace'] ?? false) === true,
+                'directoryNameHasPercentEncodedOctet' => ($part['directoryNameHasPercentEncodedOctet'] ?? false) === true,
+                'directoryNameHasNonAscii' => ($part['directoryNameHasNonAscii'] ?? false) === true,
                 'roles' => $part['roles'] ?? [],
                 'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
                 'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
@@ -3096,6 +3121,17 @@ final class OpenDocumentPackage
             'duplicatePackageCaseFoldDirectoryBaseNameStemCount' => $packageInventory['duplicatePackageCaseFoldDirectoryBaseNameStemCount'] ?? 0,
             'duplicatePackageCaseFoldDirectoryBaseNameStems' => $packageInventory['duplicatePackageCaseFoldDirectoryBaseNameStems'] ?? [],
             'packageCaseFoldDirectoryBaseNameStems' => $packageInventory['packageCaseFoldDirectoryBaseNameStems'] ?? [],
+            'packageDirectoryNameCharacterReviewDirectoryCount' => $packageInventory['packageDirectoryNameCharacterReviewDirectoryCount'] ?? 0,
+            'packageDirectoryNameCharacterReviewEntryCount' => $packageInventory['packageDirectoryNameCharacterReviewEntryCount'] ?? 0,
+            'packageDirectoryNameUppercaseEntryCount' => $packageInventory['packageDirectoryNameUppercaseEntryCount'] ?? 0,
+            'packageDirectoryNameWhitespaceEntryCount' => $packageInventory['packageDirectoryNameWhitespaceEntryCount'] ?? 0,
+            'packageDirectoryNamePercentEncodedOctetEntryCount' => $packageInventory['packageDirectoryNamePercentEncodedOctetEntryCount'] ?? 0,
+            'packageDirectoryNameNonAsciiEntryCount' => $packageInventory['packageDirectoryNameNonAsciiEntryCount'] ?? 0,
+            'packageDirectoryNameCharacterFlagEntryCounts' => $packageInventory['packageDirectoryNameCharacterFlagEntryCounts'] ?? [],
+            'packageDirectoryNameCharacterFlagDirectories' => $packageInventory['packageDirectoryNameCharacterFlagDirectories'] ?? [],
+            'packageDirectoryNameCharacterFlagEntryNames' => $packageInventory['packageDirectoryNameCharacterFlagEntryNames'] ?? [],
+            'packageDirectoryNameCharacterReviewDirectories' => $packageInventory['packageDirectoryNameCharacterReviewDirectories'] ?? [],
+            'packageDirectoryNameCharacterReviewDirectoryNames' => $packageInventory['packageDirectoryNameCharacterReviewDirectoryNames'] ?? [],
             'packageZipSourceRecordDirectoryRootCount' => $packageInventory['packageZipSourceRecordDirectoryRootCount'] ?? 0,
             'packageZipSourceRecordDirectoryRootCounts' => $packageInventory['packageZipSourceRecordDirectoryRootCounts'] ?? [],
             'packageZipSourceRecordDirectoryRootBytes' => $packageInventory['packageZipSourceRecordDirectoryRootBytes'] ?? [],
