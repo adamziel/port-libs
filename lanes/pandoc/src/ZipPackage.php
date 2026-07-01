@@ -13114,6 +13114,29 @@ final class ZipPackage
      */
     public function packageManifestPreflight(): array
     {
+        $archive = self::endOfCentralDirectoryPreflight($this->bytes);
+        $archiveBytes = strlen($this->bytes);
+        $archiveSha256 = hash('sha256', $this->bytes);
+        $centralDirectoryOffset = $archive['centralDirectoryOffset'];
+        $centralDirectoryBytes = $archive['centralDirectorySize'];
+        $centralDirectoryEnd = $archive['centralDirectoryEnd'];
+        $centralDirectorySha256 = hash(
+            'sha256',
+            substr($this->bytes, $centralDirectoryOffset, $centralDirectoryBytes)
+        );
+        $endOfCentralDirectoryOffset = $archive['eocdOffset'];
+        $endOfCentralDirectoryBytes = 22 + $archive['packageCommentLength'];
+        $endOfCentralDirectoryEnd = $endOfCentralDirectoryOffset + $endOfCentralDirectoryBytes;
+        $endOfCentralDirectorySha256 = hash(
+            'sha256',
+            substr($this->bytes, $endOfCentralDirectoryOffset, $endOfCentralDirectoryBytes)
+        );
+        $centralDirectorySignatureBytes = $this->centralDirectorySignatureData === null
+            ? 0
+            : strlen($this->centralDirectorySignatureData);
+        $centralDirectorySignatureSha256 = $this->centralDirectorySignatureData === null
+            ? null
+            : hash('sha256', $this->centralDirectorySignatureData);
         $localEntries = $this->localEntries();
         $localOrderByName = [];
         foreach ($localEntries as $localHeaderOrder => $entry) {
@@ -13259,6 +13282,17 @@ final class ZipPackage
         $localHeaderOrderNames = $this->localNames();
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
+            'archiveBytes' => $archiveBytes,
+            'archiveSha256' => $archiveSha256,
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryBytes' => $centralDirectoryBytes,
+            'centralDirectorySha256' => $centralDirectorySha256,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
+            'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'entries' => $manifestEntries,
@@ -13271,6 +13305,8 @@ final class ZipPackage
         return [
             'manifestVersion' => 'zip-package-manifest-v1',
             'manifestSha256' => hash('sha256', $manifestJson),
+            'archiveBytes' => $archiveBytes,
+            'archiveSha256' => $archiveSha256,
             'entryCount' => count($this->entries),
             'fileEntryCount' => $fileEntryCount,
             'directoryEntryCount' => $directoryEntryCount,
@@ -13282,6 +13318,19 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryBytes' => $centralDirectoryBytes,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'centralDirectorySha256' => $centralDirectorySha256,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'packageCommentBytes' => $archive['packageCommentLength'],
+            'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
+            'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
+            'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
