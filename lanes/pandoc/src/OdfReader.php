@@ -1558,6 +1558,18 @@ final class OdfReader
             'sections' => [],
             'truncated' => false,
         ];
+        $packagePartXmlTextNodes = [
+            'partCount' => 0,
+            'nodeCount' => 0,
+            'byteLength' => 0,
+            'whitespaceCount' => 0,
+            'nonWhitespaceCount' => 0,
+            'lineBreakCount' => 0,
+            'parentDepthCounts' => [],
+            'partNames' => [],
+            'nodes' => [],
+            'truncated' => false,
+        ];
         $packagePartXmlComments = [
             'partCount' => 0,
             'commentCount' => 0,
@@ -1865,6 +1877,11 @@ final class OdfReader
                 $entry,
                 is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : ''
             );
+            $xmlTextNodes = self::packagePartXmlTextNodeMetadata(
+                $package,
+                $entry,
+                is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : ''
+            );
             $xmlComments = self::packagePartXmlCommentMetadata(
                 $package,
                 $entry,
@@ -1934,6 +1951,14 @@ final class OdfReader
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
                 'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
+                'xmlTextNodeCount' => $xmlTextNodes['count'],
+                'xmlTextNodeByteLength' => $xmlTextNodes['byteLength'],
+                'xmlTextNodeWhitespaceCount' => $xmlTextNodes['whitespaceCount'],
+                'xmlTextNodeNonWhitespaceCount' => $xmlTextNodes['nonWhitespaceCount'],
+                'xmlTextNodeLineBreakCount' => $xmlTextNodes['lineBreakCount'],
+                'xmlTextNodeParentDepthCounts' => $xmlTextNodes['parentDepthCounts'],
+                'xmlTextNodes' => $xmlTextNodes['nodes'],
+                'xmlTextNodesTruncated' => $xmlTextNodes['truncated'],
                 'xmlCommentCount' => $xmlComments['count'],
                 'xmlCommentByteLength' => $xmlComments['byteLength'],
                 'xmlCommentParentDepthCounts' => $xmlComments['parentDepthCounts'],
@@ -2156,6 +2181,7 @@ final class OdfReader
             }
             self::recordPackagePartXmlRootElementSummary($packagePartXmlRootElements, $entry->name, $xmlRootElement);
             self::recordPackagePartXmlCdataSectionSummary($packagePartXmlCdataSections, $entry->name, $xmlCdataSections);
+            self::recordPackagePartXmlTextNodeSummary($packagePartXmlTextNodes, $entry->name, $xmlTextNodes);
             self::recordPackagePartXmlCommentSummary($packagePartXmlComments, $entry->name, $xmlComments);
             self::recordPackagePartXmlProcessingInstructionSummary(
                 $packagePartXmlProcessingInstructions,
@@ -2493,6 +2519,16 @@ final class OdfReader
             'packagePartXmlCdataSectionPartNames' => $packagePartXmlCdataSections['partNames'],
             'packagePartXmlCdataSections' => $packagePartXmlCdataSections['sections'],
             'packagePartXmlCdataSectionsTruncated' => $packagePartXmlCdataSections['truncated'],
+            'packagePartXmlTextNodePartCount' => $packagePartXmlTextNodes['partCount'],
+            'packagePartXmlTextNodeCount' => $packagePartXmlTextNodes['nodeCount'],
+            'packagePartXmlTextNodeByteLength' => $packagePartXmlTextNodes['byteLength'],
+            'packagePartXmlTextNodeWhitespaceCount' => $packagePartXmlTextNodes['whitespaceCount'],
+            'packagePartXmlTextNodeNonWhitespaceCount' => $packagePartXmlTextNodes['nonWhitespaceCount'],
+            'packagePartXmlTextNodeLineBreakCount' => $packagePartXmlTextNodes['lineBreakCount'],
+            'packagePartXmlTextNodeParentDepthCounts' => $packagePartXmlTextNodes['parentDepthCounts'],
+            'packagePartXmlTextNodePartNames' => $packagePartXmlTextNodes['partNames'],
+            'packagePartXmlTextNodes' => $packagePartXmlTextNodes['nodes'],
+            'packagePartXmlTextNodesTruncated' => $packagePartXmlTextNodes['truncated'],
             'packagePartXmlCommentPartCount' => $packagePartXmlComments['partCount'],
             'packagePartXmlCommentCount' => $packagePartXmlComments['commentCount'],
             'packagePartXmlCommentByteLength' => $packagePartXmlComments['byteLength'],
@@ -3006,6 +3042,162 @@ final class OdfReader
             'sections' => $sections,
             'truncated' => $truncated,
         ];
+    }
+
+    /**
+     * @param array{partCount:int, nodeCount:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, lineBreakCount:int, parentDepthCounts:array<int, int>, partNames:list<string>, nodes:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{count:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, lineBreakCount:int, parentDepthCounts:array<int, int>, nodes:list<array<string, mixed>>, truncated:bool} $metadata
+     */
+    private static function recordPackagePartXmlTextNodeSummary(array &$summary, string $partName, array $metadata): void
+    {
+        $nodeCount = (int) ($metadata['count'] ?? 0);
+        if ($nodeCount <= 0) {
+            return;
+        }
+
+        ++$summary['partCount'];
+        $summary['nodeCount'] += $nodeCount;
+        $summary['byteLength'] += (int) ($metadata['byteLength'] ?? 0);
+        $summary['whitespaceCount'] += (int) ($metadata['whitespaceCount'] ?? 0);
+        $summary['nonWhitespaceCount'] += (int) ($metadata['nonWhitespaceCount'] ?? 0);
+        $summary['lineBreakCount'] += (int) ($metadata['lineBreakCount'] ?? 0);
+        $summary['partNames'][] = $partName;
+        foreach (($metadata['parentDepthCounts'] ?? []) as $depth => $count) {
+            if (!is_int($depth) && !(is_string($depth) && ctype_digit($depth))) {
+                continue;
+            }
+
+            $depth = (int) $depth;
+            $summary['parentDepthCounts'][$depth] = ($summary['parentDepthCounts'][$depth] ?? 0) + (int) $count;
+        }
+        if (($metadata['truncated'] ?? false) === true) {
+            $summary['truncated'] = true;
+        }
+
+        $summaryLimit = 64;
+        foreach (($metadata['nodes'] ?? []) as $node) {
+            if (!is_array($node)) {
+                continue;
+            }
+            if (count($summary['nodes']) >= $summaryLimit) {
+                $summary['truncated'] = true;
+                continue;
+            }
+
+            $summary['nodes'][] = ['partName' => $partName] + $node;
+        }
+
+        sort($summary['partNames'], SORT_STRING);
+        ksort($summary['parentDepthCounts'], SORT_NUMERIC);
+    }
+
+    /**
+     * @return array{count:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, lineBreakCount:int, parentDepthCounts:array<int, int>, nodes:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function packagePartXmlTextNodeMetadata(
+        ZipPackage $package,
+        ZipPackageEntry $entry,
+        string $mediaTypeBase
+    ): array {
+        $empty = [
+            'count' => 0,
+            'byteLength' => 0,
+            'whitespaceCount' => 0,
+            'nonWhitespaceCount' => 0,
+            'lineBreakCount' => 0,
+            'parentDepthCounts' => [],
+            'nodes' => [],
+            'truncated' => false,
+        ];
+        if (
+            $entry->isDirectory()
+            || !in_array($entry->compressionMethod, [0, 8], true)
+            || !self::isXmlPackagePart($entry->name, $mediaTypeBase, self::packagePartExtension($entry->name))
+        ) {
+            return $empty;
+        }
+
+        try {
+            $dom = self::loadXmlForPackageProvenance($package->read($entry->name));
+        } catch (\Throwable) {
+            return $empty;
+        }
+        if (!$dom instanceof \DOMDocument) {
+            return $empty;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $textNodes = $xpath->query('//text()');
+        if (!$textNodes instanceof \DOMNodeList) {
+            return $empty;
+        }
+
+        $nodes = [];
+        $count = 0;
+        $byteLength = 0;
+        $whitespaceCount = 0;
+        $nonWhitespaceCount = 0;
+        $lineBreakCount = 0;
+        $parentDepthCounts = [];
+        $truncated = false;
+        $itemLimit = 32;
+        foreach ($textNodes as $node) {
+            if (!$node instanceof \DOMNode || $node->nodeType !== XML_TEXT_NODE) {
+                continue;
+            }
+
+            ++$count;
+            $value = (string) $node->nodeValue;
+            $valueByteLength = strlen($value);
+            $nodeLineBreakCount = self::xmlTextLineBreakCount($value);
+            $isWhitespaceOnly = preg_match('/\S/', $value) !== 1;
+            $byteLength += $valueByteLength;
+            $lineBreakCount += $nodeLineBreakCount;
+            if ($isWhitespaceOnly) {
+                ++$whitespaceCount;
+            } else {
+                ++$nonWhitespaceCount;
+            }
+
+            $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+            $parentPath = self::domElementPath($parent);
+            $parentDepth = self::domElementPathDepth($parentPath);
+            $parentDepthCounts[$parentDepth] = ($parentDepthCounts[$parentDepth] ?? 0) + 1;
+            if (count($nodes) >= $itemLimit) {
+                $truncated = true;
+                continue;
+            }
+
+            $nodes[] = [
+                'index' => $count - 1,
+                'parentPath' => $parentPath,
+                'parentDepth' => $parentDepth,
+                'byteLength' => $valueByteLength,
+                'whitespaceOnly' => $isWhitespaceOnly,
+                'lineBreakCount' => $nodeLineBreakCount,
+                'crc32' => sprintf('%08x', crc32($value)),
+                'sha256' => hash('sha256', $value),
+            ];
+        }
+        ksort($parentDepthCounts, SORT_NUMERIC);
+
+        return [
+            'count' => $count,
+            'byteLength' => $byteLength,
+            'whitespaceCount' => $whitespaceCount,
+            'nonWhitespaceCount' => $nonWhitespaceCount,
+            'lineBreakCount' => $lineBreakCount,
+            'parentDepthCounts' => $parentDepthCounts,
+            'nodes' => $nodes,
+            'truncated' => $truncated,
+        ];
+    }
+
+    private static function xmlTextLineBreakCount(string $value): int
+    {
+        preg_match_all('/\r\n|\r|\n/', $value, $matches);
+
+        return count($matches[0]);
     }
 
     /**
