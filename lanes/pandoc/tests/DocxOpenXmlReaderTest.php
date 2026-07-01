@@ -15218,6 +15218,145 @@ XML;
         $t->same('Reviewer: Ada', $document->children[1]->attr('text'));
         $t->contains('unmatched inline', $document->children[2]->attr('text'));
     },
+    'summarizes docx story part content control custom xml data bindings' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $customXmlPropsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
+        $headerRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/header';
+        $footerRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
+        $storeItemId = '{bbbbbbbb-cccc-dddd-eeee-ffffffffffff}';
+        $missingStoreItemId = '{cccccccc-dddd-eeee-ffff-000000000000}';
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/>' . "\n" .
+            '  <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>' . "\n" .
+            '  <Override PartName="/customXml/story-item.xml" ContentType="application/xml; profile=story-control"/>' . "\n" .
+            '  <Override PartName="/customXml/story-item-props.xml" ContentType="application/vnd.openxmlformats-officedocument.customXmlProperties+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rStoryHeader" Type="' . $headerRel . '" Target="header1.xml"/>' . "\n" .
+            '  <Relationship Id="rStoryFooter" Type="' . $footerRel . '" Target="footer1.xml"/>' . "\n" .
+            '  <Relationship Id="rStoryCustomXml" Type="' . $customXmlRel . '" Target="../customXml/story-item.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:sectPr>' . "\n" .
+            '      <w:headerReference w:type="default" r:id="rStoryHeader"/>' . "\n" .
+            '      <w:footerReference w:type="default" r:id="rStoryFooter"/>' . "\n" .
+            '    </w:sectPr>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+        $parts['word/header1.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:sdt>
+    <w:sdtPr>
+      <w:alias w:val="Header reviewer"/>
+      <w:tag w:val="header-reviewer"/>
+      <w:id w:val="201"/>
+      <w:text/>
+      <w:dataBinding w:storeItemID="{$storeItemId}" w:xpath="/story/header/reviewer[1]" w:prefixMappings="xmlns:story=&quot;urn:example:story&quot;"/>
+    </w:sdtPr>
+    <w:sdtContent><w:p><w:r><w:t>Header reviewer: Bea</w:t></w:r></w:p></w:sdtContent>
+  </w:sdt>
+</w:hdr>
+XML;
+        $parts['word/footer1.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:sdt>
+    <w:sdtPr>
+      <w:alias w:val="Footer missing packet"/>
+      <w:tag w:val="footer-missing"/>
+      <w:id w:val="202"/>
+      <w:text/>
+      <w:dataBinding w:storeItemID="{$missingStoreItemId}" w:xpath="/story/footer/missing[1]" w:prefixMappings="xmlns:story=&quot;urn:example:story&quot;"/>
+    </w:sdtPr>
+    <w:sdtContent><w:p><w:r><w:t>Footer unresolved packet</w:t></w:r></w:p></w:sdtContent>
+  </w:sdt>
+</w:ftr>
+XML;
+        $parts['customXml/story-item.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<story:story xmlns:story="urn:example:story">
+  <story:header><story:reviewer>Bea</story:reviewer></story:header>
+</story:story>
+XML;
+        $parts['customXml/_rels/story-item.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rStoryItemProps" Type="{$customXmlPropsRel}" Target="story-item-props.xml"/>
+</Relationships>
+XML;
+        $parts['customXml/story-item-props.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<ds:datastoreItem ds:itemID="{$storeItemId}" xmlns:ds="http://schemas.openxmlformats.org/officeDocument/2006/customXml">
+  <ds:schemaRefs>
+    <ds:schemaRef ds:uri="urn:example:story-schema"/>
+  </ds:schemaRefs>
+</ds:datastoreItem>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $contentControls = $docx['contentControls'];
+        $summary = $docx['packageProvenance']['summary'];
+        $header = $contentControls['items'][0];
+        $footer = $contentControls['items'][1];
+        $reference = $header['storeItemReferences'][0];
+
+        $t->same($contentControls, $docx['packageProvenance']['contentControls']);
+        $t->same(2, $contentControls['count']);
+        $t->same(2, $contentControls['dataBindingCount']);
+        $t->same(1, $contentControls['matchedDataBindingCount']);
+        $t->same(1, $contentControls['unmatchedDataBindingCount']);
+        $t->same(['block' => 2], $contentControls['scopeCounts']);
+        $t->same(['footer' => 1, 'header' => 1], $contentControls['sourceTypeCounts']);
+        $t->same(2, $contentControls['storyPartCount']);
+        $t->same(['word/header1.xml', 'word/footer1.xml'], $contentControls['partNames']);
+        $t->same([$storeItemId, $missingStoreItemId], $contentControls['storeItemIds']);
+        $t->same([$storeItemId], $contentControls['matchedStoreItemIds']);
+        $t->same(['header-reviewer', 'footer-missing'], $contentControls['tags']);
+        $t->same(1, $contentControls['issueCount']);
+        $t->same(['unmatched-store-item-id'], $contentControls['issueCodes']);
+        $t->same(2, $summary['contentControlStoryPartCount']);
+        $t->same(['word/header1.xml', 'word/footer1.xml'], $summary['contentControlPartNames']);
+        $t->same(['footer' => 1, 'header' => 1], $summary['contentControlSourceTypeCounts']);
+
+        $t->same('header', $header['sourceType']);
+        $t->same('word/header1.xml', $header['partName']);
+        $t->same('block', $header['scope']);
+        $t->same('Header reviewer', $header['alias']);
+        $t->same('header-reviewer', $header['tag']);
+        $t->same(201, $header['id']);
+        $t->same(['p'], $header['contentKinds']);
+        $t->same('Header reviewer: Bea', $header['text']);
+        $t->same($storeItemId, $header['storeItemId']);
+        $t->same('/story/header/reviewer[1]', $header['xpath']);
+        $t->same(true, $header['matchedStoreItem']);
+        $t->same([], $header['issues']);
+        $t->same('rStoryCustomXml', $reference['customXmlRelationshipId']);
+        $t->same('customXml/story-item.xml', $reference['customXmlPartName']);
+        $t->same('urn:example:story', $reference['customXmlRootNamespace']);
+        $t->same('story', $reference['customXmlRootLocalName']);
+        $t->same('rStoryItemProps', $reference['propertiesRelationshipId']);
+        $t->same(['urn:example:story-schema'], $reference['schemaRefs']);
+
+        $t->same('footer', $footer['sourceType']);
+        $t->same('word/footer1.xml', $footer['partName']);
+        $t->same('Footer missing packet', $footer['alias']);
+        $t->same('footer-missing', $footer['tag']);
+        $t->same(202, $footer['id']);
+        $t->same($missingStoreItemId, $footer['storeItemId']);
+        $t->same(false, $footer['matchedStoreItem']);
+        $t->same(['unmatched-store-item-id'], $footer['issues']);
+    },
     'resolves docx numbering from the document relationship target' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

@@ -780,7 +780,23 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $contentTypes,
         );
-        $contentControls = $this->readContentControls($parts[$documentPart], $documentPart, $customXmlParts);
+        $contentControls = $this->readContentControls(
+            $this->contentControlSources(
+                $parts,
+                $documentPart,
+                $headers,
+                $footers,
+                $footnotesPart,
+                $footnotes,
+                $endnotesPart,
+                $endnotes,
+                $commentsPart,
+                $comments,
+                $glossaryDocumentPart,
+                $glossaryDocument,
+            ),
+            $customXmlParts,
+        );
         $selectedXmlParts = $this->selectedXmlPartProvenance($parts, $contentTypes, [
             $this->selectedXmlPartDefinition(
                 'document',
@@ -945,6 +961,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlMatchedDataBindingCount'] = $contentControls['matchedDataBindingCount'];
         $packageProvenance['summary']['contentControlUnmatchedDataBindingCount'] = $contentControls['unmatchedDataBindingCount'];
         $packageProvenance['summary']['contentControlDuplicateStoreItemBindingCount'] = $contentControls['duplicateStoreItemBindingCount'];
+        $packageProvenance['summary']['contentControlStoryPartCount'] = $contentControls['storyPartCount'];
+        $packageProvenance['summary']['contentControlPartNames'] = $contentControls['partNames'];
+        $packageProvenance['summary']['contentControlSourceTypeCounts'] = $contentControls['sourceTypeCounts'];
         $packageProvenance['summary']['contentControlIssueCount'] = $contentControls['issueCount'];
         $packageProvenance['summary']['contentControlIssueCodes'] = $contentControls['issueCodes'];
         $packageProvenance['settingsRelationships'] = $settingsRelationshipInventory;
@@ -10237,53 +10256,157 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, string> $parts
+     * @param array<string, mixed> $headers
+     * @param array<string, mixed> $footers
+     * @param array<string, mixed> $footnotesPart
+     * @param array<string, mixed> $footnotes
+     * @param array<string, mixed> $endnotesPart
+     * @param array<string, mixed> $endnotes
+     * @param array<string, mixed> $commentsPart
+     * @param array<string, mixed> $comments
+     * @param array<string, mixed> $glossaryDocumentPart
+     * @param array<string, mixed> $glossaryDocument
+     * @return list<array{sourceType:string, partName:string, xml:string}>
+     */
+    private function contentControlSources(
+        array $parts,
+        string $documentPart,
+        array $headers,
+        array $footers,
+        array $footnotesPart,
+        array $footnotes,
+        array $endnotesPart,
+        array $endnotes,
+        array $commentsPart,
+        array $comments,
+        array $glossaryDocumentPart,
+        array $glossaryDocument,
+    ): array {
+        $sources = [[
+            'sourceType' => 'document',
+            'partName' => $documentPart,
+            'xml' => $parts[$documentPart],
+        ]];
+
+        foreach (['header' => $headers, 'footer' => $footers] as $sourceType => $collection) {
+            foreach (($collection['items'] ?? []) as $item) {
+                if (!is_array($item) || ($item['validRoot'] ?? null) !== true) {
+                    continue;
+                }
+
+                $partName = is_string($item['partName'] ?? null) ? $item['partName'] : '';
+                if ($partName === '' || !isset($parts[$partName])) {
+                    continue;
+                }
+
+                $sources[] = [
+                    'sourceType' => $sourceType,
+                    'partName' => $partName,
+                    'xml' => $parts[$partName],
+                ];
+            }
+        }
+
+        foreach ([
+            'footnotes' => [$footnotesPart, $footnotes['summary'] ?? []],
+            'endnotes' => [$endnotesPart, $endnotes['summary'] ?? []],
+            'comments' => [$commentsPart, $comments['summary'] ?? []],
+            'glossaryDocument' => [$glossaryDocumentPart, $glossaryDocument],
+        ] as $sourceType => [$part, $summary]) {
+            if (!is_array($part) || !is_array($summary)) {
+                continue;
+            }
+            if (($part['exists'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = is_string($part['partName'] ?? null) ? $part['partName'] : '';
+            $xml = is_string($part['xml'] ?? null) ? $part['xml'] : '';
+            if ($partName === '' || $xml === '') {
+                continue;
+            }
+            $validRoot = ($summary['validRoot'] ?? null) === true;
+            if (!$validRoot && $sourceType === 'comments') {
+                $validRoot = $this->xmlPartHasRoot($xml, $partName, self::NS_W, 'comments');
+            }
+            if (!$validRoot) {
+                continue;
+            }
+
+            $sources[] = [
+                'sourceType' => $sourceType,
+                'partName' => $partName,
+                'xml' => $xml,
+            ];
+        }
+
+        return $sources;
+    }
+
+    private function xmlPartHasRoot(string $xml, string $partName, string $namespace, string $localName): bool
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        $root = $dom instanceof \DOMDocument ? $dom->documentElement : null;
+
+        return $root instanceof \DOMElement
+            && $root->namespaceURI === $namespace
+            && $root->localName === $localName;
+    }
+
+    /**
+     * @param list<array{sourceType:string, partName:string, xml:string}> $sources
      * @param array<string, mixed> $customXmlParts
      * @return array<string, mixed>
      */
-    private function readContentControls(string $xml, string $partName, array $customXmlParts): array
+    private function readContentControls(array $sources, array $customXmlParts): array
     {
-        if ($xml === '') {
-            return $this->emptyContentControlSummary();
-        }
-
-        $dom = $this->loadXml($xml, $partName);
-        $xpath = $this->xpath($dom);
         $storeItemReferences = $this->customXmlStoreItemReferences($customXmlParts);
         $items = [];
         $issueCodes = [];
         $scopeCounts = [];
+        $sourceTypeCounts = [];
         $storeItemIds = [];
         $matchedStoreItemIds = [];
         $byStoreItemId = [];
+        $partNames = [];
         $tags = [];
 
-        foreach ($this->elements($xpath, '//w:sdt') as $contentControl) {
-            $item = $this->contentControlItem($contentControl, $xpath, $partName, count($items), $storeItemReferences);
-            $items[] = $item;
+        foreach ($sources as $source) {
+            $sourceType = $source['sourceType'];
+            $partName = $source['partName'];
+            $xml = $source['xml'];
+            foreach ($this->contentControlItems($xml, $partName, $sourceType, $storeItemReferences, count($items)) as $item) {
+                $items[] = $item;
 
-            $scope = is_string($item['scope'] ?? null) ? $item['scope'] : 'unknown';
-            $scopeCounts[$scope] = ($scopeCounts[$scope] ?? 0) + 1;
-            $tag = is_string($item['tag'] ?? null) ? $item['tag'] : '';
-            $this->appendUniqueString($tags, $tag === '' ? null : $tag);
+                $scope = is_string($item['scope'] ?? null) ? $item['scope'] : 'unknown';
+                $scopeCounts[$scope] = ($scopeCounts[$scope] ?? 0) + 1;
+                $itemSourceType = is_string($item['sourceType'] ?? null) ? $item['sourceType'] : 'unknown';
+                $sourceTypeCounts[$itemSourceType] = ($sourceTypeCounts[$itemSourceType] ?? 0) + 1;
+                $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+                $tag = is_string($item['tag'] ?? null) ? $item['tag'] : '';
+                $this->appendUniqueString($tags, $tag === '' ? null : $tag);
 
-            $storeItemId = is_string($item['storeItemId'] ?? null) ? $item['storeItemId'] : '';
-            if ($storeItemId !== '') {
-                $this->appendUniqueString($storeItemIds, $storeItemId);
-                $byStoreItemId[$storeItemId][] = $item;
-                if (($item['matchedStoreItem'] ?? false) === true) {
-                    $this->appendUniqueString($matchedStoreItemIds, $storeItemId);
+                $storeItemId = is_string($item['storeItemId'] ?? null) ? $item['storeItemId'] : '';
+                if ($storeItemId !== '') {
+                    $this->appendUniqueString($storeItemIds, $storeItemId);
+                    $byStoreItemId[$storeItemId][] = $item;
+                    if (($item['matchedStoreItem'] ?? false) === true) {
+                        $this->appendUniqueString($matchedStoreItemIds, $storeItemId);
+                    }
                 }
-            }
 
-            foreach (($item['issues'] ?? []) as $issue) {
-                if (is_string($issue) && $issue !== '') {
-                    $issueCodes[$issue] = true;
+                foreach (($item['issues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issueCodes[$issue] = true;
+                    }
                 }
             }
         }
 
         ksort($issueCodes, SORT_STRING);
         ksort($scopeCounts, SORT_STRING);
+        ksort($sourceTypeCounts, SORT_STRING);
         ksort($byStoreItemId, SORT_STRING);
 
         return [
@@ -10294,6 +10417,9 @@ final class DocxOpenXmlReader
             'missingStoreItemIdCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-store-item-id', $item['issues'], true))),
             'duplicateStoreItemBindingCount' => count(array_filter($items, static fn (array $item): bool => in_array('duplicate-store-item-id', $item['issues'], true))),
             'scopeCounts' => $scopeCounts,
+            'sourceTypeCounts' => $sourceTypeCounts,
+            'storyPartCount' => count($partNames),
+            'partNames' => $partNames,
             'storeItemIds' => $storeItemIds,
             'matchedStoreItemIds' => $matchedStoreItemIds,
             'tags' => $tags,
@@ -10304,6 +10430,42 @@ final class DocxOpenXmlReader
             'byteExposurePolicy' => 'content-control-data-binding-bytes-blocked',
             'reviewPolicy' => 'content-control-data-binding-metadata-only',
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $storeItemReferences
+     * @return list<array<string, mixed>>
+     */
+    private function contentControlItems(
+        string $xml,
+        string $partName,
+        string $sourceType,
+        array $storeItemReferences,
+        int $offset
+    ): array {
+        if ($xml === '') {
+            return [];
+        }
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return [];
+        }
+
+        $xpath = $this->xpath($dom);
+        $items = [];
+        foreach ($this->elements($xpath, '//w:sdt') as $contentControl) {
+            $items[] = $this->contentControlItem(
+                $contentControl,
+                $xpath,
+                $partName,
+                $sourceType,
+                $offset + count($items),
+                $storeItemReferences,
+            );
+        }
+
+        return $items;
     }
 
     /**
@@ -10319,6 +10481,9 @@ final class DocxOpenXmlReader
             'missingStoreItemIdCount' => 0,
             'duplicateStoreItemBindingCount' => 0,
             'scopeCounts' => [],
+            'sourceTypeCounts' => [],
+            'storyPartCount' => 0,
+            'partNames' => [],
             'storeItemIds' => [],
             'matchedStoreItemIds' => [],
             'tags' => [],
@@ -10339,6 +10504,7 @@ final class DocxOpenXmlReader
         \DOMElement $contentControl,
         \DOMXPath $xpath,
         string $partName,
+        string $sourceType,
         int $index,
         array $storeItemReferences
     ): array {
@@ -10363,6 +10529,7 @@ final class DocxOpenXmlReader
 
         return [
             'index' => $index,
+            'sourceType' => $sourceType,
             'partName' => $partName,
             'scope' => $this->contentControlScope($contentControl),
             'alias' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'alias', 'val')) : null,
@@ -10403,7 +10570,7 @@ final class DocxOpenXmlReader
 
         return match ($parent->localName) {
             'p', 'r', 'hyperlink' => 'inline',
-            'body', 'tc', 'txbxContent', 'sdtContent' => 'block',
+            'body', 'hdr', 'ftr', 'footnote', 'endnote', 'comment', 'docPartBody', 'tc', 'txbxContent', 'sdtContent' => 'block',
             'tbl' => 'table',
             'tr' => 'row',
             default => 'nested',
