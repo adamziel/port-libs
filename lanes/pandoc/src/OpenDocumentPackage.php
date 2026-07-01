@@ -1013,6 +1013,11 @@ final class OpenDocumentPackage
                 'platformMetadataIssues' => $part['platformMetadataIssues'] ?? [],
                 'platformAttributeIssues' => $part['platformAttributeIssues'] ?? [],
                 'hasPlatformAttributeProvenance' => ($part['hasPlatformAttributeProvenance'] ?? false) === true,
+                'zipEntryComment' => $part['zipEntryComment'] ?? null,
+                'zipEntryCommentLength' => $part['zipEntryCommentLength'] ?? null,
+                'zipEntryCommentEncoding' => $part['zipEntryCommentEncoding'] ?? null,
+                'zipEntryHasComment' => ($part['zipEntryHasComment'] ?? false) === true,
+                'zipEntryCommentIssues' => $part['zipEntryCommentIssues'] ?? [],
                 'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
                 'manifestIndex' => $part['manifestIndex'] ?? null,
                 'manifestPath' => $part['manifestPath'] ?? null,
@@ -1031,6 +1036,7 @@ final class OpenDocumentPackage
             ]);
         }
 
+        $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -1043,6 +1049,10 @@ final class OpenDocumentPackage
             'manifestRootExtensionElements' => $this->manifestRootExtensionElements['extensionElements'] ?? [],
             'manifestPaths' => array_column($manifestEntries, 'path'),
             'packagePaths' => array_column($packageEntries, 'path'),
+            'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+            'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
+            'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
+            'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
             'manifestMediaFamilyCounts' => $packageInventory['manifestMediaFamilyCounts'] ?? [],
@@ -1069,8 +1079,17 @@ final class OpenDocumentPackage
             'exposableByteLength' => $packageInventory['exposableByteLength'] ?? 0,
             'blockedByteLength' => $packageInventory['blockedByteLength'] ?? 0,
         ];
+        $identityPayload = $payload + [
+            'comments' => [
+                'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+                'packageComment' => $comments['packageComment'] ?? null,
+                'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
+                'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+                'entries' => is_array($comments['entries'] ?? null) ? $comments['entries'] : [],
+            ],
+        ];
         $identityJson = json_encode(
-            self::canonicalIdentityValue($payload),
+            self::canonicalIdentityValue($identityPayload),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
         );
 

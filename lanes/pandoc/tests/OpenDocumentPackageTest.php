@@ -4342,20 +4342,34 @@ XML;
         $t->same(1, count($summary['mediaParts']), 'settings.xml must remain outside media handoff');
     },
     'surfaces compact ODT ZIP package comments as metadata-only provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
-        $package = ZipPackage::fromParts([
+        $commentedParts = [
             ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'comment' => 'manifest review'],
             ['name' => 'content.xml', 'data' => $contentXml, 'comment' => 'body review'],
             ['name' => 'styles.xml', 'data' => $stylesXml],
             ['name' => 'meta.xml', 'data' => $metaXml],
             ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0, 'comment' => 'media review'],
-        ], 'odt package review');
+        ];
+        $package = ZipPackage::fromParts($commentedParts, 'odt package review');
 
         $summary = OpenDocumentPackage::fromPackage($package)->summarize();
         $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
         $comments = $inventory['comments'];
         $content = $inventory['parts']['content.xml'];
         $hero = $inventory['parts']['Pictures/hero.png'];
+        $identityParts = [];
+        foreach ($identity['packageEntries'] as $packageEntry) {
+            $identityParts[$packageEntry['path']] = $packageEntry;
+        }
+        $changedPackageCommentIdentity = OpenDocumentPackage::fromPackage(
+            ZipPackage::fromParts($commentedParts, 'odt package review changed')
+        )->summarize()['packageIdentity'];
+        $changedEntryCommentParts = $commentedParts;
+        $changedEntryCommentParts[2]['comment'] = 'body review changed';
+        $changedEntryCommentIdentity = OpenDocumentPackage::fromPackage(
+            ZipPackage::fromParts($changedEntryCommentParts, 'odt package review')
+        )->summarize()['packageIdentity'];
 
         $t->same($comments, $package->commentPreflight());
         $t->same($comments, $summary['packageInventory']['comments']);
@@ -4370,6 +4384,10 @@ XML;
         $t->same(true, $inventory['hasEntryComments']);
         $t->same(3, $inventory['entryCommentCount']);
         $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $inventory['commentedEntryNames']);
+        $t->same(true, $identity['hasPackageComment']);
+        $t->same(true, $identity['hasEntryComments']);
+        $t->same(3, $identity['entryCommentCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['commentedEntryNames']);
 
         $t->same('body review', $content['zipEntryComment']);
         $t->same(strlen('body review'), $content['zipEntryCommentLength']);
@@ -4379,6 +4397,18 @@ XML;
         $t->same('media review', $hero['zipEntryComment']);
         $t->same(true, $hero['zipEntryHasComment']);
         $t->same('package-bytes-exposable', $hero['byteExposurePolicy']);
+        $t->same('manifest review', $identityParts['META-INF/manifest.xml']['zipEntryComment']);
+        $t->same('body review', $identityParts['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $identityParts['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $identityParts['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $identityParts['content.xml']['zipEntryHasComment']);
+        $t->same([], $identityParts['content.xml']['zipEntryCommentIssues'] ?? []);
+        $t->same('media review', $identityParts['Pictures/hero.png']['zipEntryComment']);
+        $t->same(false, $identityParts['styles.xml']['zipEntryHasComment']);
+        $t->same('odf-package-identity-metadata-only', $identity['byteExposurePolicy']);
+        $t->same(false, $identity['canExposeBytes']);
+        $t->true($identity['identitySha256'] !== $changedPackageCommentIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedEntryCommentIdentity['identitySha256']);
         $t->same(1, count($summary['mediaParts']));
         $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
         $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
