@@ -12667,6 +12667,28 @@ final class DocxOpenXmlReader
             ? $zipPackageManifest['centralDirectorySignatureByteExposurePolicy']
             : 'not-present';
         $summary['zipPackageManifestCentralDirectorySignatureCanExposeBytes'] = ($zipPackageManifest['centralDirectorySignatureCanExposeBytes'] ?? false) === true;
+        $summary['zipPackageManifestByteLayout'] = is_array($zipPackageManifest['packageByteLayout'] ?? null)
+            ? $zipPackageManifest['packageByteLayout']
+            : [];
+        $summary['zipPackageManifestByteLayoutVersion'] = is_string($zipPackageManifest['packageByteLayoutVersion'] ?? null)
+            ? $zipPackageManifest['packageByteLayoutVersion']
+            : null;
+        $summary['zipPackageManifestByteLayoutIssueCount'] = (int) ($zipPackageManifest['packageByteLayoutIssueCount'] ?? 0);
+        $summary['zipPackageManifestByteLayoutIssues'] = is_array($zipPackageManifest['packageByteLayoutIssues'] ?? null)
+            ? $zipPackageManifest['packageByteLayoutIssues']
+            : [];
+        $summary['zipPackageManifestByteLayoutIsLocalRegionContiguous'] =
+            ($zipPackageManifest['packageByteLayoutIsLocalRegionContiguous'] ?? false) === true;
+        $summary['zipPackageManifestByteLayoutIsArchiveLayoutContiguous'] =
+            ($zipPackageManifest['packageByteLayoutIsArchiveLayoutContiguous'] ?? false) === true;
+        $summary['zipPackageManifestByteLayoutUnclaimedLocalBytes'] =
+            (int) ($zipPackageManifest['packageByteLayoutUnclaimedLocalBytes'] ?? 0);
+        $summary['zipPackageManifestByteLayoutInterEntryGapCount'] =
+            (int) ($zipPackageManifest['packageByteLayoutInterEntryGapCount'] ?? 0);
+        $summary['zipPackageManifestByteLayoutUnaccountedArchiveBytes'] =
+            (int) ($zipPackageManifest['packageByteLayoutUnaccountedArchiveBytes'] ?? 0);
+        $summary['zipPackageManifestByteLayoutTrailingByteCount'] =
+            (int) ($zipPackageManifest['packageByteLayoutTrailingByteCount'] ?? 0);
         $summary['zipPackageManifestFileEntryCount'] = (int) ($zipPackageManifest['fileEntryCount'] ?? 0);
         $summary['zipPackageManifestDirectoryEntryCount'] = (int) ($zipPackageManifest['directoryEntryCount'] ?? 0);
         $summary['zipPackageManifestCompressedBytes'] = (int) ($zipPackageManifest['compressedBytes'] ?? 0);
@@ -13960,6 +13982,28 @@ final class DocxOpenXmlReader
             'packageManifestPackageSource' => is_array($packageManifest['packageSource'] ?? null)
                 ? $packageManifest['packageSource']
                 : [],
+            'packageManifestByteLayout' => is_array($packageManifest['packageByteLayout'] ?? null)
+                ? $packageManifest['packageByteLayout']
+                : [],
+            'packageManifestByteLayoutVersion' => is_string($packageManifest['packageByteLayoutVersion'] ?? null)
+                ? $packageManifest['packageByteLayoutVersion']
+                : null,
+            'packageManifestByteLayoutIssueCount' => (int) ($packageManifest['packageByteLayoutIssueCount'] ?? 0),
+            'packageManifestByteLayoutIssues' => is_array($packageManifest['packageByteLayoutIssues'] ?? null)
+                ? $packageManifest['packageByteLayoutIssues']
+                : [],
+            'packageManifestByteLayoutIsLocalRegionContiguous' =>
+                ($packageManifest['packageByteLayoutIsLocalRegionContiguous'] ?? false) === true,
+            'packageManifestByteLayoutIsArchiveLayoutContiguous' =>
+                ($packageManifest['packageByteLayoutIsArchiveLayoutContiguous'] ?? false) === true,
+            'packageManifestByteLayoutUnclaimedLocalBytes' =>
+                (int) ($packageManifest['packageByteLayoutUnclaimedLocalBytes'] ?? 0),
+            'packageManifestByteLayoutInterEntryGapCount' =>
+                (int) ($packageManifest['packageByteLayoutInterEntryGapCount'] ?? 0),
+            'packageManifestByteLayoutUnaccountedArchiveBytes' =>
+                (int) ($packageManifest['packageByteLayoutUnaccountedArchiveBytes'] ?? 0),
+            'packageManifestByteLayoutTrailingByteCount' =>
+                (int) ($packageManifest['packageByteLayoutTrailingByteCount'] ?? 0),
             'packageManifestArchiveBytes' => (int) ($packageManifest['archiveBytes'] ?? 0),
             'packageManifestArchiveLength' => (int) ($packageManifest['archiveLength'] ?? 0),
             'packageManifestArchiveSha256' => is_string($packageManifest['archiveSha256'] ?? null)

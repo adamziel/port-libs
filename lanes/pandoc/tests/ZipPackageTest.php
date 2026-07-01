@@ -1231,6 +1231,16 @@ return [
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $manifest['packageSource'],
+            'packageByteLayout' => $manifest['packageByteLayout'],
+            'packageByteLayoutVersion' => $manifest['packageByteLayoutVersion'],
+            'packageByteLayoutIssueCount' => $manifest['packageByteLayoutIssueCount'],
+            'packageByteLayoutIssues' => $manifest['packageByteLayoutIssues'],
+            'packageByteLayoutIsLocalRegionContiguous' => $manifest['packageByteLayoutIsLocalRegionContiguous'],
+            'packageByteLayoutIsArchiveLayoutContiguous' => $manifest['packageByteLayoutIsArchiveLayoutContiguous'],
+            'packageByteLayoutUnclaimedLocalBytes' => $manifest['packageByteLayoutUnclaimedLocalBytes'],
+            'packageByteLayoutInterEntryGapCount' => $manifest['packageByteLayoutInterEntryGapCount'],
+            'packageByteLayoutUnaccountedArchiveBytes' => $manifest['packageByteLayoutUnaccountedArchiveBytes'],
+            'packageByteLayoutTrailingByteCount' => $manifest['packageByteLayoutTrailingByteCount'],
             'archiveBytes' => $manifest['archiveBytes'],
             'archiveSha256' => $manifest['archiveSha256'],
             'centralDirectoryOffset' => $manifest['centralDirectoryOffset'],
@@ -2368,6 +2378,7 @@ return [
         $layout = ZipPackage::packageByteLayoutPreflight($zip);
         $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
         $source = $manifest['packageSource'];
+        $layoutSummary = $manifest['packageByteLayout'];
 
         $t->same(strlen($zip), $source['archiveLength']);
         $t->same(strlen($zip), $manifest['archiveBytes']);
@@ -2400,6 +2411,36 @@ return [
         $t->same(null, $manifest['centralDirectorySignatureOffset']);
         $t->same(0, $manifest['centralDirectorySignatureBytes']);
         $t->same(null, $manifest['centralDirectorySignatureSha256']);
+        $t->same('zip-package-byte-layout-summary-v1', $manifest['packageByteLayoutVersion']);
+        $t->same($manifest['packageByteLayoutVersion'], $layoutSummary['layoutVersion']);
+        $t->same($layout['archiveLength'], $layoutSummary['archiveLength']);
+        $t->same($layout['archiveSha256'], $layoutSummary['archiveSha256']);
+        $t->same($layout['prefixByteCount'], $layoutSummary['prefixByteCount']);
+        $t->same($layout['localRegionBytes'], $layoutSummary['localRegionBytes']);
+        $t->same($layout['localRegionSha256'], $layoutSummary['localRegionSha256']);
+        $t->same($layout['localEntryRecordBytes'], $layoutSummary['localEntryRecordBytes']);
+        $t->same($layout['unclaimedLocalBytes'], $layoutSummary['unclaimedLocalBytes']);
+        $t->same($layout['interEntryGapCount'], $layoutSummary['interEntryGapCount']);
+        $t->same($layout['unaccountedArchiveBytes'], $layoutSummary['unaccountedArchiveBytes']);
+        $t->same($layout['trailingByteCount'], $layoutSummary['trailingByteCount']);
+        $t->same($layout['isLocalRegionContiguous'], $layoutSummary['isLocalRegionContiguous']);
+        $t->same($layout['isArchiveLayoutContiguous'], $layoutSummary['isArchiveLayoutContiguous']);
+        $t->same(0, $manifest['packageByteLayoutIssueCount']);
+        $t->same([], $manifest['packageByteLayoutIssues']);
+        $t->same($layoutSummary['issueCount'], $manifest['packageByteLayoutIssueCount']);
+        $t->same($layoutSummary['issues'], $manifest['packageByteLayoutIssues']);
+        $t->same($layoutSummary['isLocalRegionContiguous'], $manifest['packageByteLayoutIsLocalRegionContiguous']);
+        $t->same($layoutSummary['isArchiveLayoutContiguous'], $manifest['packageByteLayoutIsArchiveLayoutContiguous']);
+        $t->same($layoutSummary['unclaimedLocalBytes'], $manifest['packageByteLayoutUnclaimedLocalBytes']);
+        $t->same($layoutSummary['interEntryGapCount'], $manifest['packageByteLayoutInterEntryGapCount']);
+        $t->same($layoutSummary['unaccountedArchiveBytes'], $manifest['packageByteLayoutUnaccountedArchiveBytes']);
+        $t->same($layoutSummary['trailingByteCount'], $manifest['packageByteLayoutTrailingByteCount']);
+        $t->same(count($layout['entries']), count($layoutSummary['entries']));
+        $t->same($layout['entries'][0]['name'], $layoutSummary['entries'][0]['name']);
+        $t->same($layout['entries'][0]['localRecordBytes'], $layoutSummary['entries'][0]['localRecordBytes']);
+        $t->same($layout['entries'][0]['recordEnd'], $layoutSummary['entries'][0]['recordEnd']);
+        $t->same($layout['entries'][0]['nextOffset'], $layoutSummary['entries'][0]['nextOffset']);
+        $t->same([], $layoutSummary['entries'][0]['issues']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
 
@@ -2408,7 +2449,9 @@ return [
         $signedManifest = $signedPackage->packageManifestPreflight();
         $signedRaw = ZipPackage::rawStrictImportPreflight($signedZip, 2048, 100.0, 2048);
         $signedSignature = ZipPackage::centralDirectorySignaturePolicyPreflight($signedZip);
+        $signedLayout = ZipPackage::packageByteLayoutPreflight($signedZip);
         $signedSource = $signedManifest['packageSource'];
+        $signedLayoutSummary = $signedManifest['packageByteLayout'];
 
         $t->same(true, $signedManifest['hasCentralDirectorySignature']);
         $t->same(strlen('central-signature'), $signedManifest['centralDirectorySignatureBytes']);
@@ -2433,6 +2476,12 @@ return [
         $t->same($signedSource['centralDirectoryToEocdGapOffset'], $signedManifest['centralDirectoryToEocdGapOffset']);
         $t->same($signedSource['centralDirectoryToEocdGapBytes'], $signedManifest['centralDirectoryToEocdGapBytes']);
         $t->same($signedSource['centralDirectoryToEocdGapSha256'], $signedManifest['centralDirectoryToEocdGapSha256']);
+        $t->same($signedLayout['centralDirectoryToEocdGapBytes'], $signedLayoutSummary['centralDirectoryToEocdGapBytes']);
+        $t->same($signedLayout['centralDirectoryToEocdGapSignature'], $signedLayoutSummary['centralDirectoryToEocdGapSignature']);
+        $t->same($signedLayout['centralDirectoryToEocdGapSha256'], $signedLayoutSummary['centralDirectoryToEocdGapSha256']);
+        $t->same(true, $signedLayoutSummary['isCentralDirectoryToEocdGapExplainedBySignature']);
+        $t->same(true, $signedManifest['packageByteLayoutIsArchiveLayoutContiguous']);
+        $t->same(0, $signedManifest['packageByteLayoutIssueCount']);
         $t->same($signedManifest, $signedRaw['packageManifest']);
         $t->same($signedManifest, $signedRaw['strictImport']['packageManifest']);
     },
@@ -2896,6 +2945,16 @@ return [
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $manifest['packageSource'],
+            'packageByteLayout' => $manifest['packageByteLayout'],
+            'packageByteLayoutVersion' => $manifest['packageByteLayoutVersion'],
+            'packageByteLayoutIssueCount' => $manifest['packageByteLayoutIssueCount'],
+            'packageByteLayoutIssues' => $manifest['packageByteLayoutIssues'],
+            'packageByteLayoutIsLocalRegionContiguous' => $manifest['packageByteLayoutIsLocalRegionContiguous'],
+            'packageByteLayoutIsArchiveLayoutContiguous' => $manifest['packageByteLayoutIsArchiveLayoutContiguous'],
+            'packageByteLayoutUnclaimedLocalBytes' => $manifest['packageByteLayoutUnclaimedLocalBytes'],
+            'packageByteLayoutInterEntryGapCount' => $manifest['packageByteLayoutInterEntryGapCount'],
+            'packageByteLayoutUnaccountedArchiveBytes' => $manifest['packageByteLayoutUnaccountedArchiveBytes'],
+            'packageByteLayoutTrailingByteCount' => $manifest['packageByteLayoutTrailingByteCount'],
             'archiveBytes' => $manifest['archiveBytes'],
             'archiveSha256' => $manifest['archiveSha256'],
             'centralDirectoryOffset' => $manifest['centralDirectoryOffset'],

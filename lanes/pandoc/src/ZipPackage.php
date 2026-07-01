@@ -14704,6 +14704,9 @@ final class ZipPackage
             'centralDirectorySignatureByteExposurePolicy' => $centralDirectorySignatureByteExposurePolicy,
             'centralDirectorySignatureCanExposeBytes' => false,
         ];
+        $packageByteLayout = self::packageManifestByteLayoutSummary(
+            self::packageByteLayoutPreflight($this->bytes)
+        );
         $localEntries = $this->localEntries();
         $localOrderByName = [];
         foreach ($localEntries as $localHeaderOrder => $entry) {
@@ -15614,6 +15617,16 @@ final class ZipPackage
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $packageSource,
+            'packageByteLayout' => $packageByteLayout,
+            'packageByteLayoutVersion' => $packageByteLayout['layoutVersion'],
+            'packageByteLayoutIssueCount' => $packageByteLayout['issueCount'],
+            'packageByteLayoutIssues' => $packageByteLayout['issues'],
+            'packageByteLayoutIsLocalRegionContiguous' => $packageByteLayout['isLocalRegionContiguous'],
+            'packageByteLayoutIsArchiveLayoutContiguous' => $packageByteLayout['isArchiveLayoutContiguous'],
+            'packageByteLayoutUnclaimedLocalBytes' => $packageByteLayout['unclaimedLocalBytes'],
+            'packageByteLayoutInterEntryGapCount' => $packageByteLayout['interEntryGapCount'],
+            'packageByteLayoutUnaccountedArchiveBytes' => $packageByteLayout['unaccountedArchiveBytes'],
+            'packageByteLayoutTrailingByteCount' => $packageByteLayout['trailingByteCount'],
             'archiveBytes' => $archiveBytes,
             'archiveSha256' => $archiveSha256,
             'centralDirectoryOffset' => $centralDirectoryOffset,
@@ -15754,6 +15767,16 @@ final class ZipPackage
             'manifestVersion' => 'zip-package-manifest-v1',
             'manifestSha256' => hash('sha256', $manifestJson),
             'packageSource' => $packageSource,
+            'packageByteLayout' => $packageByteLayout,
+            'packageByteLayoutVersion' => $packageByteLayout['layoutVersion'],
+            'packageByteLayoutIssueCount' => $packageByteLayout['issueCount'],
+            'packageByteLayoutIssues' => $packageByteLayout['issues'],
+            'packageByteLayoutIsLocalRegionContiguous' => $packageByteLayout['isLocalRegionContiguous'],
+            'packageByteLayoutIsArchiveLayoutContiguous' => $packageByteLayout['isArchiveLayoutContiguous'],
+            'packageByteLayoutUnclaimedLocalBytes' => $packageByteLayout['unclaimedLocalBytes'],
+            'packageByteLayoutInterEntryGapCount' => $packageByteLayout['interEntryGapCount'],
+            'packageByteLayoutUnaccountedArchiveBytes' => $packageByteLayout['unaccountedArchiveBytes'],
+            'packageByteLayoutTrailingByteCount' => $packageByteLayout['trailingByteCount'],
             'archiveBytes' => $archiveBytes,
             'archiveLength' => $packageSource['archiveLength'],
             'archiveSha256' => $archiveSha256,
@@ -15935,6 +15958,125 @@ final class ZipPackage
             'maxLocalHeaderOrderDisplacement' => $maxLocalHeaderOrderDisplacement,
             'localHeaderOrderDisplacementEntries' => $localHeaderOrderDisplacementEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $layout
+     * @return array<string, mixed>
+     */
+    private static function packageManifestByteLayoutSummary(array $layout): array
+    {
+        $entrySummaries = [];
+        foreach (($layout['entries'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+            $entrySummaries[] = [
+                'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : null,
+                'localHeaderOffset' => is_int($entry['localHeaderOffset'] ?? null)
+                    ? $entry['localHeaderOffset']
+                    : null,
+                'localHeaderLength' => is_int($entry['localHeaderLength'] ?? null)
+                    ? $entry['localHeaderLength']
+                    : null,
+                'compressedSize' => is_int($entry['compressedSize'] ?? null)
+                    ? $entry['compressedSize']
+                    : null,
+                'descriptorLength' => is_int($entry['descriptorLength'] ?? null)
+                    ? $entry['descriptorLength']
+                    : null,
+                'recordEnd' => is_int($entry['recordEnd'] ?? null)
+                    ? $entry['recordEnd']
+                    : null,
+                'nextOffset' => is_int($entry['nextOffset'] ?? null)
+                    ? $entry['nextOffset']
+                    : null,
+                'localRecordBytes' => is_int($entry['localRecordBytes'] ?? null)
+                    ? $entry['localRecordBytes']
+                    : null,
+                'unclaimedBytes' => is_int($entry['unclaimedBytes'] ?? null)
+                    ? $entry['unclaimedBytes']
+                    : 0,
+                'unclaimedBytesSignature' => is_string($entry['unclaimedBytesSignature'] ?? null)
+                    ? $entry['unclaimedBytesSignature']
+                    : null,
+                'isContiguousWithNext' => ($entry['isContiguousWithNext'] ?? false) === true,
+                'issueCount' => count($issues),
+                'issues' => $issues,
+            ];
+        }
+
+        $issues = array_values(array_filter($layout['issues'] ?? [], 'is_string'));
+
+        return [
+            'layoutVersion' => 'zip-package-byte-layout-summary-v1',
+            'entryCount' => (int) ($layout['entryCount'] ?? 0),
+            'totalEntryCount' => (int) ($layout['totalEntryCount'] ?? 0),
+            'archiveLength' => (int) ($layout['archiveLength'] ?? 0),
+            'archiveSha256' => is_string($layout['archiveSha256'] ?? null) ? $layout['archiveSha256'] : null,
+            'prefixByteCount' => (int) ($layout['prefixByteCount'] ?? 0),
+            'hasPackagePrefix' => ($layout['hasPackagePrefix'] ?? false) === true,
+            'prefixSha256' => is_string($layout['prefixSha256'] ?? null) ? $layout['prefixSha256'] : null,
+            'localRegionOffset' => (int) ($layout['localRegionOffset'] ?? 0),
+            'localRegionBytes' => (int) ($layout['localRegionBytes'] ?? 0),
+            'localRegionSha256' => is_string($layout['localRegionSha256'] ?? null)
+                ? $layout['localRegionSha256']
+                : null,
+            'localHeaderFixedBytes' => (int) ($layout['localHeaderFixedBytes'] ?? 0),
+            'localHeaderVariableFieldBytes' => (int) ($layout['localHeaderVariableFieldBytes'] ?? 0),
+            'localHeaderBytes' => (int) ($layout['localHeaderBytes'] ?? 0),
+            'localPayloadBytes' => (int) ($layout['localPayloadBytes'] ?? 0),
+            'dataDescriptorBytes' => (int) ($layout['dataDescriptorBytes'] ?? 0),
+            'localEntryRecordBytes' => (int) ($layout['localEntryRecordBytes'] ?? 0),
+            'unclaimedLocalBytes' => (int) ($layout['unclaimedLocalBytes'] ?? 0),
+            'localRegionAccountedBytes' => (int) ($layout['localRegionAccountedBytes'] ?? 0),
+            'localRegionUnaccountedBytes' => (int) ($layout['localRegionUnaccountedBytes'] ?? 0),
+            'interEntryGapCount' => (int) ($layout['interEntryGapCount'] ?? 0),
+            'centralDirectoryOffset' => (int) ($layout['centralDirectoryOffset'] ?? 0),
+            'centralDirectoryBytes' => (int) ($layout['centralDirectoryBytes'] ?? 0),
+            'centralDirectoryEnd' => (int) ($layout['centralDirectoryEnd'] ?? 0),
+            'centralDirectorySha256' => is_string($layout['centralDirectorySha256'] ?? null)
+                ? $layout['centralDirectorySha256']
+                : null,
+            'centralDirectoryToEocdGapOffset' => is_int($layout['centralDirectoryToEocdGapOffset'] ?? null)
+                ? $layout['centralDirectoryToEocdGapOffset']
+                : null,
+            'centralDirectoryToEocdGapBytes' => (int) ($layout['centralDirectoryToEocdGapBytes'] ?? 0),
+            'centralDirectoryToEocdGapSignature' => is_string($layout['centralDirectoryToEocdGapSignature'] ?? null)
+                ? $layout['centralDirectoryToEocdGapSignature']
+                : null,
+            'centralDirectoryToEocdGapSha256' => is_string($layout['centralDirectoryToEocdGapSha256'] ?? null)
+                ? $layout['centralDirectoryToEocdGapSha256']
+                : null,
+            'isCentralDirectoryToEocdGapExplainedBySignature' =>
+                ($layout['isCentralDirectoryToEocdGapExplainedBySignature'] ?? false) === true,
+            'endOfCentralDirectoryBytes' => (int) ($layout['endOfCentralDirectoryBytes'] ?? 0),
+            'endOfCentralDirectorySha256' => is_string($layout['endOfCentralDirectorySha256'] ?? null)
+                ? $layout['endOfCentralDirectorySha256']
+                : null,
+            'packageCommentBytes' => (int) ($layout['packageCommentBytes'] ?? 0),
+            'packageCommentSha256' => is_string($layout['packageCommentSha256'] ?? null)
+                ? $layout['packageCommentSha256']
+                : null,
+            'declaredArchiveEndOffset' => (int) ($layout['declaredArchiveEndOffset'] ?? 0),
+            'trailingByteCount' => (int) ($layout['trailingByteCount'] ?? 0),
+            'trailingBytesSha256' => is_string($layout['trailingBytesSha256'] ?? null)
+                ? $layout['trailingBytesSha256']
+                : null,
+            'accountedArchiveBytes' => (int) ($layout['accountedArchiveBytes'] ?? 0),
+            'unaccountedArchiveBytes' => (int) ($layout['unaccountedArchiveBytes'] ?? 0),
+            'isLocalRegionContiguous' => ($layout['isLocalRegionContiguous'] ?? false) === true,
+            'isArchiveLayoutContiguous' => ($layout['isArchiveLayoutContiguous'] ?? false) === true,
+            'isSupportedByBoundedReader' => ($layout['isSupportedByBoundedReader'] ?? false) === true,
+            'issueCount' => count($issues),
+            'issues' => $issues,
+            'entries' => $entrySummaries,
         ];
     }
 

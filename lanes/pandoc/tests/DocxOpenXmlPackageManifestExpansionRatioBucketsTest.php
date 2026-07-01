@@ -32,6 +32,12 @@ return [
         $t->same($manifest['expansionRatioBucketSummaries'], $zipPackage['packageManifestExpansionRatioBucketSummaries']);
         $t->same(false, array_key_exists('contents', $summary['zipPackageManifestExpansionRatioBucketSummaries'][0]));
         $t->same(false, array_key_exists('contents', $zipPackage['packageManifestExpansionRatioBucketSummaries'][0]));
+        $t->same('zip-package-byte-layout-summary-v1', $zipPackage['packageManifestByteLayoutVersion']);
+        $t->same($manifest['packageByteLayout'], $zipPackage['packageManifestByteLayout']);
+        $t->same($manifest['packageByteLayoutIssues'], $zipPackage['packageManifestByteLayoutIssues']);
+        $t->same($manifest['packageByteLayoutIsArchiveLayoutContiguous'], $zipPackage['packageManifestByteLayoutIsArchiveLayoutContiguous']);
+        $t->same($manifest['packageByteLayoutUnclaimedLocalBytes'], $zipPackage['packageManifestByteLayoutUnclaimedLocalBytes']);
+        $t->same($zipPackage['packageManifestByteLayout'], $summary['zipPackageManifestByteLayout']);
 
         $t->same(['word/media/zero.bin'], $manifestBuckets['zero-byte']['entryNames']);
         $t->same(['stored'], $manifestBuckets['zero-byte']['compressionMethodNames']);
