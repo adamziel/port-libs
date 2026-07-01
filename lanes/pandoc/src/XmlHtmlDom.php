@@ -18599,6 +18599,9 @@ final class XmlHtmlDom
         if ($name === 'code') {
             $summary += self::codeElementReviewSummary($element);
         }
+        if ($name === 'kbd') {
+            $summary += self::keyboardInputReviewSummary($element);
+        }
         if ($name === 'bdi' || $name === 'bdo') {
             if ($name === 'bdi' && !$element->hasAttribute('dir')) {
                 $summary['textDirection'] = 'auto';
@@ -18612,6 +18615,86 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function keyboardInputReviewSummary(\DOMElement $kbd): array
+    {
+        $text = self::normalizedText($kbd);
+        $parent = $kbd->parentNode;
+        $parentName = $parent instanceof \DOMElement ? self::htmlElementName($parent) : null;
+        $nestedKeyTexts = [];
+        $nestedOutputTexts = [];
+        $issues = [];
+
+        foreach ($kbd->childNodes as $child) {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $childName = self::htmlElementName($child);
+            if ($childName === 'kbd') {
+                $keyText = self::normalizedText($child);
+                $nestedKeyTexts[] = $keyText;
+                if ($keyText === '') {
+                    $issues[] = [
+                        'code' => 'empty-nested-keyboard-key',
+                        'index' => count($nestedKeyTexts) - 1,
+                    ];
+                }
+                continue;
+            }
+
+            if ($childName === 'samp') {
+                $nestedOutputTexts[] = self::normalizedText($child);
+            }
+        }
+
+        if ($text === '') {
+            array_unshift($issues, ['code' => 'empty-keyboard-input']);
+        }
+
+        $context = 'keyboard-input';
+        if ($parentName === 'kbd') {
+            $context = 'nested-key';
+        } elseif ($parentName === 'samp') {
+            $context = 'echoed-input';
+        } elseif ($nestedKeyTexts !== []) {
+            $context = 'keyboard-shortcut';
+        } elseif ($nestedOutputTexts !== []) {
+            $context = 'system-output-derived-input';
+        }
+
+        $issueCodes = [];
+        foreach ($issues as $issue) {
+            $code = (string) $issue['code'];
+            if (!in_array($code, $issueCodes, true)) {
+                $issueCodes[] = $code;
+            }
+        }
+
+        return [
+            'keyboardInputReviewPolicy' => 'html-keyboard-input-review',
+            'keyboardInputText' => $text,
+            'keyboardInputRawText' => $kbd->textContent,
+            'keyboardInputCommandText' => $text === '' ? null : $text,
+            'keyboardInputContext' => $context,
+            'keyboardInputParentElement' => $parentName,
+            'keyboardInputHasNestedKeys' => $nestedKeyTexts !== [],
+            'keyboardInputNestedKeyCount' => count($nestedKeyTexts),
+            'keyboardInputNestedKeyTexts' => $nestedKeyTexts,
+            'keyboardInputKeySequence' => $nestedKeyTexts,
+            'keyboardInputShortcutText' => $nestedKeyTexts === [] ? null : implode('+', $nestedKeyTexts),
+            'keyboardInputDerivedFromSystemOutput' => $nestedOutputTexts !== [],
+            'keyboardInputNestedOutputCount' => count($nestedOutputTexts),
+            'keyboardInputNestedOutputTexts' => $nestedOutputTexts,
+            'keyboardInputValid' => $issues === [],
+            'keyboardInputIssueCodes' => $issueCodes,
+            'keyboardInputIssueCount' => count($issues),
+            'keyboardInputIssues' => $issues,
+        ];
     }
 
     /**
