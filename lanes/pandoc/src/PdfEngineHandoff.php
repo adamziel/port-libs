@@ -743,6 +743,24 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['creationTimestampEnvironmentShadowed'] ?? false) === true) {
                 $diagnostics[] = 'typst-boundary-summary-creation-timestamp-shadowed';
             }
+            if (($typstBoundarySummary['pdfExportControlCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-export:' . $typstBoundarySummary['pdfExportControlCount'];
+            }
+            if (($typstBoundarySummary['pdfExportPageSelectionSegmentCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-pages:' . $typstBoundarySummary['pdfExportPageSelectionSegmentCount'];
+            }
+            if (($typstBoundarySummary['pdfExportPageSelectionOverlapCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-page-overlaps:' . $typstBoundarySummary['pdfExportPageSelectionOverlapCount'];
+            }
+            if (($typstBoundarySummary['pdfExportPpiPresent'] ?? false) === true) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-ppi:' . ($typstBoundarySummary['pdfExportPpiValue'] ?? 'invalid');
+            }
+            if (($typstBoundarySummary['pdfExportPdfStandardCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-standards:' . $typstBoundarySummary['pdfExportPdfStandardCount'];
+            }
+            if (($typstBoundarySummary['pdfExportIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-export-issues:' . $typstBoundarySummary['pdfExportIssueCount'];
+            }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
@@ -9851,6 +9869,131 @@ final class PdfEngineHandoff
                 ++$pdfExportControlCount;
             }
         }
+        $pageSelection = is_array($pdfExport['pageSelection'] ?? null) ? $pdfExport['pageSelection'] : [];
+        $pageSelectionPolicy = is_array($pdfExport['pageSelectionPolicy'] ?? null) ? $pdfExport['pageSelectionPolicy'] : [];
+        $pageSelectionHistory = is_array($provenance['pageSelectionHistory'] ?? null) ? $provenance['pageSelectionHistory'] : [];
+        $pageSelectionSegmentCounts = [
+            'page' => 0,
+            'range' => 0,
+            'range-from' => 0,
+            'range-to' => 0,
+            'invalid' => 0,
+        ];
+        foreach (is_array($pageSelection['segments'] ?? null) ? $pageSelection['segments'] : [] as $segment) {
+            $kind = is_array($segment) && is_string($segment['kind'] ?? null) ? $segment['kind'] : 'invalid';
+            if (!array_key_exists($kind, $pageSelectionSegmentCounts)) {
+                $kind = 'invalid';
+            }
+            ++$pageSelectionSegmentCounts[$kind];
+        }
+        $ppi = is_array($pdfExport['ppi'] ?? null) ? $pdfExport['ppi'] : [];
+        $ppiHistory = is_array($provenance['ppiHistory'] ?? null) ? $provenance['ppiHistory'] : [];
+        $ppiValue = $ppi['ppi'] ?? null;
+        $pdfStandard = is_array($provenance['pdfStandard'] ?? null) ? $provenance['pdfStandard'] : [];
+        $pdfStandardPolicy = is_array($provenance['pdfStandardPolicy'] ?? null) ? $provenance['pdfStandardPolicy'] : [];
+        $pdfStandardHistory = is_array($provenance['pdfStandardHistory'] ?? null) ? $provenance['pdfStandardHistory'] : [];
+        $pdfExportTags = is_array($pdfExport['tags'] ?? null) ? $pdfExport['tags'] : [];
+        $pdfExportPretty = is_array($pdfExport['pretty'] ?? null) ? $pdfExport['pretty'] : [];
+        $pdfExportOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry)
+                && in_array($entry['option'] ?? null, ['pages', 'ppi', 'pdfStandard'], true)
+        ));
+        $countUnsafePdfExportEntries = static function (array $entries): int {
+            $count = 0;
+            foreach ($entries as $entry) {
+                if (!is_array($entry) || ($entry['safe'] ?? false) !== true) {
+                    ++$count;
+                }
+            }
+
+            return $count;
+        };
+        $collectPdfExportEntryIssues = static function (array $entries): array {
+            $issues = [];
+            foreach ($entries as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issues[] = $issue;
+                    }
+                }
+            }
+
+            return $issues;
+        };
+        $pdfExportPageSelectionIssues = array_merge(
+            is_array($pageSelection['issues'] ?? null) ? $pageSelection['issues'] : [],
+            is_array($pageSelectionPolicy['issues'] ?? null) ? $pageSelectionPolicy['issues'] : [],
+            $collectPdfExportEntryIssues($pageSelectionHistory)
+        );
+        $pdfExportPpiIssues = array_merge(
+            is_array($ppi['issues'] ?? null) ? $ppi['issues'] : [],
+            $collectPdfExportEntryIssues($ppiHistory)
+        );
+        $pdfExportPdfStandardIssues = array_merge(
+            is_array($pdfStandard['issues'] ?? null) ? $pdfStandard['issues'] : [],
+            is_array($pdfStandardPolicy['issues'] ?? null) ? $pdfStandardPolicy['issues'] : [],
+            $collectPdfExportEntryIssues($pdfStandardHistory)
+        );
+        foreach ($pdfExportOverrides as $override) {
+            if (!is_array($override) || !is_string($override['issue'] ?? null) || $override['issue'] === '') {
+                continue;
+            }
+            if (($override['option'] ?? null) === 'pages') {
+                $pdfExportPageSelectionIssues[] = $override['issue'];
+            } elseif (($override['option'] ?? null) === 'ppi') {
+                $pdfExportPpiIssues[] = $override['issue'];
+            } elseif (($override['option'] ?? null) === 'pdfStandard') {
+                $pdfExportPdfStandardIssues[] = $override['issue'];
+            }
+        }
+        $pdfExportPageSelectionIssues = array_values(array_unique(array_filter(
+            $pdfExportPageSelectionIssues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        )));
+        sort($pdfExportPageSelectionIssues);
+        $pdfExportPpiIssues = array_values(array_unique(array_filter(
+            $pdfExportPpiIssues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        )));
+        sort($pdfExportPpiIssues);
+        $pdfExportPdfStandardIssues = array_values(array_unique(array_filter(
+            $pdfExportPdfStandardIssues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        )));
+        sort($pdfExportPdfStandardIssues);
+        $pdfExportIssues = array_values(array_filter(
+            is_array($pdfExport['issues'] ?? null) ? $pdfExport['issues'] : [],
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        ));
+        array_push($pdfExportIssues, ...$pdfExportPageSelectionIssues, ...$pdfExportPpiIssues, ...$pdfExportPdfStandardIssues);
+        $pdfExportIssues = array_values(array_unique($pdfExportIssues));
+        sort($pdfExportIssues);
+        $pdfStandards = array_values(array_filter(
+            is_array($pdfStandard['standards'] ?? null) ? $pdfStandard['standards'] : [],
+            static fn (mixed $standard): bool => is_string($standard) && $standard !== ''
+        ));
+        $pdfVersionCount = is_int($pdfStandardPolicy['pdfVersionCount'] ?? null)
+            ? $pdfStandardPolicy['pdfVersionCount']
+            : count(array_filter(
+                $pdfStandards,
+                static fn (string $standard): bool => preg_match('/\A(?:1\.[4567]|2\.0)\z/', $standard) === 1
+            ));
+        $pdfaCount = is_int($pdfStandardPolicy['pdfaCount'] ?? null)
+            ? $pdfStandardPolicy['pdfaCount']
+            : count(array_filter(
+                $pdfStandards,
+                static fn (string $standard): bool => preg_match('/\Aa-\d/', $standard) === 1
+            ));
+        $pdfuaCount = is_int($pdfStandardPolicy['pdfuaCount'] ?? null)
+            ? $pdfStandardPolicy['pdfuaCount']
+            : count(array_filter(
+                $pdfStandards,
+                static fn (string $standard): bool => preg_match('/\Aua-\d/', $standard) === 1
+            ));
         $openOutput = is_array($provenance['openOutput'] ?? null) ? $provenance['openOutput'] : [];
         $openOutputViewers = is_array($openOutput['viewers'] ?? null) ? $openOutput['viewers'] : [];
         $openOutputDefaultViewerCount = 0;
@@ -10001,6 +10144,41 @@ final class PdfEngineHandoff
             'distinctOutputFormatCount' => count($distinctOutputFormats),
             'outputFormatIssueCount' => count($outputFormatIssues),
             'pdfExportControlCount' => $pdfExportControlCount,
+            'pdfExportPageSelectionPresent' => $pageSelection !== [],
+            'pdfExportPageSelectionValue' => is_string($pageSelection['value'] ?? null) ? $pageSelection['value'] : null,
+            'pdfExportPageSelectionSegmentCount' => count(is_array($pageSelection['segments'] ?? null) ? $pageSelection['segments'] : []),
+            'pdfExportPageSelectionPageSegmentCount' => is_int($pageSelectionPolicy['pageSegmentCount'] ?? null) ? $pageSelectionPolicy['pageSegmentCount'] : $pageSelectionSegmentCounts['page'],
+            'pdfExportPageSelectionRangeSegmentCount' => is_int($pageSelectionPolicy['rangeSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeSegmentCount'] : $pageSelectionSegmentCounts['range'],
+            'pdfExportPageSelectionRangeFromSegmentCount' => is_int($pageSelectionPolicy['rangeFromSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeFromSegmentCount'] : $pageSelectionSegmentCounts['range-from'],
+            'pdfExportPageSelectionRangeToSegmentCount' => is_int($pageSelectionPolicy['rangeToSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeToSegmentCount'] : $pageSelectionSegmentCounts['range-to'],
+            'pdfExportPageSelectionInvalidSegmentCount' => is_int($pageSelectionPolicy['invalidSegmentCount'] ?? null) ? $pageSelectionPolicy['invalidSegmentCount'] : $pageSelectionSegmentCounts['invalid'],
+            'pdfExportPageSelectionOverlapCount' => is_int($pageSelectionPolicy['overlapCount'] ?? null) ? $pageSelectionPolicy['overlapCount'] : 0,
+            'pdfExportPageSelectionHistoryCount' => count($pageSelectionHistory),
+            'pdfExportInvalidPageSelectionCount' => $countUnsafePdfExportEntries($pageSelectionHistory),
+            'pdfExportPageSelectionIssueCount' => count($pdfExportPageSelectionIssues),
+            'pdfExportPpiPresent' => $ppi !== [],
+            'pdfExportPpiValue' => is_string($ppi['value'] ?? null) ? $ppi['value'] : null,
+            'pdfExportPpi' => is_int($ppiValue) || is_float($ppiValue) ? $ppiValue : null,
+            'pdfExportPpiHistoryCount' => count($ppiHistory),
+            'pdfExportInvalidPpiCount' => $countUnsafePdfExportEntries($ppiHistory),
+            'pdfExportPpiIssueCount' => count($pdfExportPpiIssues),
+            'pdfExportPdfStandardCount' => is_int($pdfStandardPolicy['standardCount'] ?? null)
+                ? $pdfStandardPolicy['standardCount']
+                : (is_int($pdfStandard['standardCount'] ?? null) ? $pdfStandard['standardCount'] : count($pdfStandards)),
+            'pdfExportPdfVersionCount' => $pdfVersionCount,
+            'pdfExportPdfaCount' => $pdfaCount,
+            'pdfExportPdfuaCount' => $pdfuaCount,
+            'pdfExportPdfStandards' => $pdfStandards,
+            'pdfExportPdfStandardHistoryCount' => count($pdfStandardHistory),
+            'pdfExportInvalidPdfStandardCount' => $countUnsafePdfExportEntries($pdfStandardHistory),
+            'pdfExportPdfStandardIssueCount' => count($pdfExportPdfStandardIssues),
+            'pdfExportTagsDisabled' => ($pdfExportTags['disabled'] ?? false) === true,
+            'pdfExportTagsFlagCount' => is_int($pdfExportTags['flagCount'] ?? null) ? $pdfExportTags['flagCount'] : 0,
+            'pdfExportPrettyEnabled' => ($pdfExportPretty['enabled'] ?? false) === true,
+            'pdfExportPrettyFlagCount' => is_int($pdfExportPretty['flagCount'] ?? null) ? $pdfExportPretty['flagCount'] : 0,
+            'pdfExportOverrideCount' => count($pdfExportOverrides),
+            'pdfExportIssueCount' => count($pdfExportIssues),
+            'pdfExportIssues' => $pdfExportIssues,
             'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
             'executionPolicyPresent' => $executionPolicy !== [],
             'selectedExecutionJobs' => $selectedExecutionJobs,
