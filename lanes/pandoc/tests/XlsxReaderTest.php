@@ -253,6 +253,8 @@ $buildStyleCommentImageXlsxPackage = static function () use ($tinyPngBytes, $tin
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
   <Override PartName="/xl/comments/comment1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml"/>
+  <Override PartName="/xl/threadedComments/threadedComment1.xml" ContentType="application/vnd.ms-excel.threadedcomments+xml"/>
+  <Override PartName="/xl/persons/person.xml" ContentType="application/vnd.ms-excel.person+xml"/>
   <Override PartName="/xl/drawings/drawing1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/>
 </Types>
 XML,
@@ -286,6 +288,7 @@ XML,
   <Relationship Id="rSheet" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
   <Relationship Id="rSharedStrings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings" Target="sharedStrings.xml"/>
   <Relationship Id="rStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+  <Relationship Id="rThreadedCommentPersons" Type="http://schemas.microsoft.com/office/2017/10/relationships/person" Target="persons/person.xml"/>
 </Relationships>
 XML,
         ],
@@ -401,6 +404,7 @@ XML,
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target="../comments/comment1.xml"/>
+  <Relationship Id="rThreadedComments" Type="http://schemas.microsoft.com/office/2017/10/relationships/threadedComment" Target="../threadedComments/threadedComment1.xml"/>
   <Relationship Id="rDrawing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing1.xml"/>
 </Relationships>
 XML,
@@ -415,6 +419,30 @@ XML,
     <comment ref="B2" authorId="0"><text><r><rPr><b/><color rgb="FFFF0000"/><sz val="9"/><rFont val="Calibri"/></rPr><t>Check </t></r><r><rPr><i/><u val="single"/></rPr><t>revenue</t></r></text></comment>
   </commentList>
 </comments>
+XML,
+        ],
+        [
+            'name' => 'xl/threadedComments/threadedComment1.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<ThreadedComments xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments">
+  <threadedComment ref="F2" id="{11111111-1111-1111-1111-111111111111}" personId="{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}" dT="2024-01-16T09:30:00Z" done="0">
+    <text>Follow up on note</text>
+  </threadedComment>
+  <threadedComment ref="F2" id="{22222222-2222-2222-2222-222222222222}" parentId="{11111111-1111-1111-1111-111111111111}" personId="{bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb}" dT="2024-01-16T10:00:00Z" done="1">
+    <text>Resolved with owner</text>
+  </threadedComment>
+</ThreadedComments>
+XML,
+        ],
+        [
+            'name' => 'xl/persons/person.xml',
+            'data' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<personList xmlns="http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments">
+  <person displayName="Reviewer" id="{aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa}" userId="reviewer@example.test" providerId="None"/>
+  <person displayName="Owner" id="{bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb}" userId="owner@example.test" providerId="None"/>
+</personList>
 XML,
         ],
         [
@@ -895,6 +923,7 @@ return [
         $dateCell = $bodyCells[2];
         $elapsedCell = $bodyCells[3];
         $percentCell = $bodyCells[4];
+        $commentedCell = $bodyCells[5];
         $timeCell = $bodyCells[6];
         $scientificCell = $bodyCells[7];
         $fractionCell = $bodyCells[8];
@@ -915,8 +944,10 @@ return [
         $t->same(1, $review['cellStyles'][1]['xfId'] ?? null);
         $t->same(40, $review['cellStyles'][1]['builtinId'] ?? null);
         $t->same(true, $review['cellStyles'][1]['customBuiltin'] ?? null);
-        $t->same(1, $review['commentCount'] ?? null);
-        $t->same(1, $review['sheets'][0]['commentCount'] ?? null);
+        $t->same(3, $review['commentCount'] ?? null);
+        $t->same(3, $review['sheets'][0]['commentCount'] ?? null);
+        $t->same([], $review['sheets'][0]['commentDiagnostics'] ?? null);
+        $t->same('legacy', $review['sheets'][0]['comments'][0]['kind'] ?? null);
         $t->same('B2', $review['sheets'][0]['comments'][0]['ref'] ?? null);
         $t->same('Reviewer', $review['sheets'][0]['comments'][0]['author'] ?? null);
         $t->same('Check revenue', $review['sheets'][0]['comments'][0]['text'] ?? null);
@@ -941,6 +972,20 @@ return [
         $t->same(true, $commentRuns[1]['italic'] ?? null);
         $t->same(true, $commentRuns[1]['underline'] ?? null);
         $t->same('single', $commentRuns[1]['underlineStyle'] ?? null);
+        $t->same('threaded', $review['sheets'][0]['comments'][1]['kind'] ?? null);
+        $t->same('F2', $review['sheets'][0]['comments'][1]['ref'] ?? null);
+        $t->same('{11111111-1111-1111-1111-111111111111}', $review['sheets'][0]['comments'][1]['id'] ?? null);
+        $t->same(null, $review['sheets'][0]['comments'][1]['parentId'] ?? null);
+        $t->same('Reviewer', $review['sheets'][0]['comments'][1]['author'] ?? null);
+        $t->same('reviewer@example.test', $review['sheets'][0]['comments'][1]['person']['userId'] ?? null);
+        $t->same('2024-01-16T09:30:00Z', $review['sheets'][0]['comments'][1]['dateTime'] ?? null);
+        $t->same(false, $review['sheets'][0]['comments'][1]['done'] ?? null);
+        $t->same('Follow up on note', $review['sheets'][0]['comments'][1]['text'] ?? null);
+        $t->same('threaded', $review['sheets'][0]['comments'][2]['kind'] ?? null);
+        $t->same('{11111111-1111-1111-1111-111111111111}', $review['sheets'][0]['comments'][2]['parentId'] ?? null);
+        $t->same('Owner', $review['sheets'][0]['comments'][2]['author'] ?? null);
+        $t->same(true, $review['sheets'][0]['comments'][2]['done'] ?? null);
+        $t->same('Resolved with owner', $review['sheets'][0]['comments'][2]['text'] ?? null);
 
         $t->same('($1,234.50)', $moneyCell->attr('text'));
         $t->same('right', $moneyCell->attr('align'));
@@ -987,6 +1032,12 @@ return [
         $t->same('Check ', $moneyCell->attr('xlsxComments')[0]['richTextRuns'][0]['text'] ?? null);
         $t->same('revenue', $moneyCell->attr('xlsxComments')[0]['richTextRuns'][1]['text'] ?? null);
         $t->same('underline', $moneyCell->children[0]->children[0]->type);
+        $t->same(2, $commentedCell->attr('xlsxCommentCount'));
+        $t->same(['Reviewer', 'Owner'], $commentedCell->attr('xlsxCommentAuthors'));
+        $t->same('threaded', $commentedCell->attr('xlsxComments')[0]['kind'] ?? null);
+        $t->same('Follow up on note', $commentedCell->attr('xlsxComments')[0]['text'] ?? null);
+        $t->same(hash('sha256', 'Follow up on note'), $commentedCell->attr('xlsxComments')[0]['textSha256'] ?? null);
+        $t->same('Owner', $commentedCell->attr('xlsxComments')[1]['author'] ?? null);
 
         $t->same('2024-01-15', $dateCell->attr('text'));
         $t->same('date', $dateCell->attr('xlsxValueType'));
@@ -1048,6 +1099,16 @@ return [
         $t->same('comments', $comments['rootLocalName']);
         $t->same(true, $comments['validRoot']);
         $t->same('xl/worksheets/sheet1.xml', $comments['relationshipRefs'][0]['sourcePart']);
+        $t->same(1, $features['byKind']['threadedComments']['count'] ?? null);
+        $threadedComments = $findPart($features['byKind']['threadedComments']['items'], 'xl/threadedComments/threadedComment1.xml');
+        $t->same('ThreadedComments', $threadedComments['rootLocalName']);
+        $t->same(true, $threadedComments['validRoot']);
+        $t->same('xl/worksheets/sheet1.xml', $threadedComments['relationshipRefs'][0]['sourcePart']);
+        $t->same(1, $features['byKind']['threadedCommentPerson']['count'] ?? null);
+        $threadedPerson = $findPart($features['byKind']['threadedCommentPerson']['items'], 'xl/persons/person.xml');
+        $t->same('personList', $threadedPerson['rootLocalName']);
+        $t->same(true, $threadedPerson['validRoot']);
+        $t->same('xl/workbook.xml', $threadedPerson['relationshipRefs'][0]['sourcePart']);
 
         $t->same(2, $features['byKind']['image']['count'] ?? null);
         $image = $findPart($features['byKind']['image']['items'], 'xl/media/image1.png');

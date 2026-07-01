@@ -8,6 +8,10 @@ final class XlsxReader
 {
     private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const COMMENTS_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+    private const THREADED_COMMENTS_RELATIONSHIP = 'http://schemas.microsoft.com/office/2017/10/relationships/threadedComment';
+    private const THREADED_COMMENT_PERSON_RELATIONSHIP = 'http://schemas.microsoft.com/office/2017/10/relationships/person';
+    private const THREADED_COMMENTS_NAMESPACE = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments';
     private const MAX_XML_PART_BYTES = 8_388_608;
     private const MAX_MEDIA_METADATA_BYTES = 16_777_216;
     private const EMUS_PER_PIXEL = 9525;
@@ -70,11 +74,25 @@ final class XlsxReader
             'rootLocalName' => 'slicerCaches',
         ],
         'comments' => [
-            'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments'],
+            'relationshipTypes' => [self::COMMENTS_RELATIONSHIP],
             'contentTypes' => ['application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml'],
             'pathMarkers' => ['/comments'],
             'rootNamespace' => 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
             'rootLocalName' => 'comments',
+        ],
+        'threadedComments' => [
+            'relationshipTypes' => [self::THREADED_COMMENTS_RELATIONSHIP],
+            'contentTypes' => ['application/vnd.ms-excel.threadedcomments+xml'],
+            'pathMarkers' => ['/threadedComments/'],
+            'rootNamespace' => self::THREADED_COMMENTS_NAMESPACE,
+            'rootLocalName' => 'ThreadedComments',
+        ],
+        'threadedCommentPerson' => [
+            'relationshipTypes' => [self::THREADED_COMMENT_PERSON_RELATIONSHIP],
+            'contentTypes' => ['application/vnd.ms-excel.person+xml'],
+            'pathMarkers' => ['/persons/'],
+            'rootNamespace' => self::THREADED_COMMENTS_NAMESPACE,
+            'rootLocalName' => 'personList',
         ],
     ];
 
@@ -3047,81 +3065,25 @@ final class XlsxReader
         $comments = [];
         $commentsByCell = [];
         $diagnostics = [];
+        $threadedPersonsById = null;
 
         foreach ($relationships->all() as $relationship) {
-            if ($relationship->type !== 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments') {
-                continue;
-            }
-            if ($relationship->isExternal()) {
-                $diagnostics[] = 'comments-external-relationship-skipped:' . $relationship->id;
+            if ($relationship->type === self::COMMENTS_RELATIONSHIP) {
+                $this->appendLegacyCommentsForRelationship($package, $sheetPart, $relationships, $relationship, $comments, $commentsByCell, $diagnostics);
                 continue;
             }
 
-            try {
-                $part = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
-            } catch (\Throwable $exception) {
-                $diagnostics[] = 'comments-target-resolution-error:' . $relationship->id;
+            if ($relationship->type !== self::THREADED_COMMENTS_RELATIONSHIP) {
                 continue;
             }
 
-            if (!$package->has($part)) {
-                $diagnostics[] = 'comments-part-missing:' . ltrim($part, '/');
-                continue;
+            if ($threadedPersonsById === null) {
+                $personReview = $this->readThreadedCommentPersons($package);
+                $threadedPersonsById = $personReview['personsById'];
+                $diagnostics = array_merge($diagnostics, $personReview['diagnostics']);
             }
 
-            try {
-                $document = $this->loadPackageXml($package, $part, 'XLSX comments ' . $relationship->id . ' for ' . ltrim($sheetPart, '/'));
-            } catch (\InvalidArgumentException|\RuntimeException) {
-                $diagnostics[] = 'comments-part-unreadable:' . ltrim($part, '/');
-                continue;
-            }
-
-            $root = XmlHtmlDom::rootElement($document, 'comments');
-            if (!$root instanceof \DOMElement) {
-                $diagnostics[] = 'comments-root-missing:' . ltrim($part, '/');
-                continue;
-            }
-
-            $authors = [];
-            $authorsElement = $this->firstChildElement($root, 'authors');
-            if ($authorsElement instanceof \DOMElement) {
-                foreach ($this->childElements($authorsElement, 'author') as $authorElement) {
-                    $authors[] = $authorElement->textContent;
-                }
-            }
-
-            $commentList = $this->firstChildElement($root, 'commentList');
-            if (!$commentList instanceof \DOMElement) {
-                continue;
-            }
-
-            foreach ($this->childElements($commentList, 'comment') as $commentElement) {
-                $ref = trim($commentElement->getAttribute('ref'));
-                if ($this->parseCellReference($ref) === null) {
-                    $diagnostics[] = 'comments-invalid-ref:' . ($ref === '' ? '<empty>' : $ref);
-                    continue;
-                }
-
-                $authorId = $this->integerAttribute($commentElement, 'authorId');
-                $textElement = $this->firstChildElement($commentElement, 'text');
-                $text = $textElement instanceof \DOMElement ? $this->allDescendantText($textElement) : '';
-                $richTextRuns = $textElement instanceof \DOMElement ? $this->parseRichTextRuns($textElement) : [];
-                $record = [
-                    'ref' => $ref,
-                    'authorId' => $authorId,
-                    'author' => $authorId !== null ? ($authors[$authorId] ?? null) : null,
-                    'text' => $text,
-                    'textBytes' => strlen($text),
-                    'textSha256' => hash('sha256', $text),
-                    'richTextRunCount' => count($richTextRuns),
-                    'richTextRuns' => $richTextRuns,
-                    'partName' => ltrim($part, '/'),
-                    'relationshipId' => $relationship->id,
-                ];
-                $comments[] = $record;
-                $commentsByCell[$ref] ??= [];
-                $commentsByCell[$ref][] = $record;
-            }
+            $this->appendThreadedCommentsForRelationship($package, $sheetPart, $relationships, $relationship, $threadedPersonsById, $comments, $commentsByCell, $diagnostics);
         }
 
         return [
@@ -3230,6 +3192,309 @@ final class XlsxReader
             $attrs,
             static fn (mixed $value): bool => $value !== null && $value !== ''
         );
+    }
+
+    /**
+     * @param list<array<string, mixed>> $comments
+     * @param array<string, list<array<string, mixed>>> $commentsByCell
+     * @param list<string> $diagnostics
+     */
+    private function appendLegacyCommentsForRelationship(
+        ZipPackage $package,
+        string $sheetPart,
+        OpcRelationships $relationships,
+        OpcRelationship $relationship,
+        array &$comments,
+        array &$commentsByCell,
+        array &$diagnostics
+    ): void {
+        $part = $this->commentRelationshipPart($package, $relationships, $relationship, 'comments', $diagnostics);
+        if ($part === null) {
+            return;
+        }
+
+        try {
+            $document = $this->loadPackageXml($package, $part, 'XLSX comments ' . $relationship->id . ' for ' . ltrim($sheetPart, '/'));
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            $diagnostics[] = 'comments-part-unreadable:' . ltrim($part, '/');
+            return;
+        }
+
+        $root = XmlHtmlDom::rootElement($document, 'comments');
+        if (!$root instanceof \DOMElement) {
+            $diagnostics[] = 'comments-root-missing:' . ltrim($part, '/');
+            return;
+        }
+
+        $authors = [];
+        $authorsElement = $this->firstChildElement($root, 'authors');
+        if ($authorsElement instanceof \DOMElement) {
+            foreach ($this->childElements($authorsElement, 'author') as $authorElement) {
+                $authors[] = $authorElement->textContent;
+            }
+        }
+
+        $commentList = $this->firstChildElement($root, 'commentList');
+        if (!$commentList instanceof \DOMElement) {
+            return;
+        }
+
+        foreach ($this->childElements($commentList, 'comment') as $commentElement) {
+            $ref = trim($commentElement->getAttribute('ref'));
+            if ($this->parseCellReference($ref) === null) {
+                $diagnostics[] = 'comments-invalid-ref:' . ($ref === '' ? '<empty>' : $ref);
+                continue;
+            }
+
+            $authorId = $this->integerAttribute($commentElement, 'authorId');
+            $textElement = $this->firstChildElement($commentElement, 'text');
+            $text = $this->commentText($textElement);
+            $richTextRuns = $textElement instanceof \DOMElement ? $this->parseRichTextRuns($textElement) : [];
+            $this->appendCellCommentRecord([
+                'kind' => 'legacy',
+                'ref' => $ref,
+                'authorId' => $authorId,
+                'author' => $authorId !== null ? ($authors[$authorId] ?? null) : null,
+                'text' => $text,
+                'textBytes' => strlen($text),
+                'textSha256' => hash('sha256', $text),
+                'richTextRunCount' => count($richTextRuns),
+                'richTextRuns' => $richTextRuns,
+                'partName' => ltrim($part, '/'),
+                'relationshipId' => $relationship->id,
+            ], $comments, $commentsByCell);
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $personsById
+     * @param list<array<string, mixed>> $comments
+     * @param array<string, list<array<string, mixed>>> $commentsByCell
+     * @param list<string> $diagnostics
+     */
+    private function appendThreadedCommentsForRelationship(
+        ZipPackage $package,
+        string $sheetPart,
+        OpcRelationships $relationships,
+        OpcRelationship $relationship,
+        array $personsById,
+        array &$comments,
+        array &$commentsByCell,
+        array &$diagnostics
+    ): void {
+        $part = $this->commentRelationshipPart($package, $relationships, $relationship, 'threaded-comments', $diagnostics);
+        if ($part === null) {
+            return;
+        }
+
+        try {
+            $document = $this->loadPackageXml($package, $part, 'XLSX threaded comments ' . $relationship->id . ' for ' . ltrim($sheetPart, '/'));
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            $diagnostics[] = 'threaded-comments-part-unreadable:' . ltrim($part, '/');
+            return;
+        }
+
+        $root = XmlHtmlDom::rootElement($document, 'ThreadedComments') ?? XmlHtmlDom::rootElement($document, 'threadedComments');
+        if (!$root instanceof \DOMElement) {
+            $diagnostics[] = 'threaded-comments-root-missing:' . ltrim($part, '/');
+            return;
+        }
+
+        foreach ($this->childElements($root, 'threadedComment') as $commentElement) {
+            $ref = trim($commentElement->getAttribute('ref'));
+            if ($this->parseCellReference($ref) === null) {
+                $diagnostics[] = 'threaded-comments-invalid-ref:' . ($ref === '' ? '<empty>' : $ref);
+                continue;
+            }
+
+            $personId = $this->stringAttribute($commentElement, 'personId');
+            $person = $personId === null ? null : ($personsById[$personId] ?? null);
+            if ($personId !== null && $person === null) {
+                $diagnostics[] = 'threaded-comments-person-missing:' . $personId;
+            }
+
+            $textElement = $this->firstChildElement($commentElement, 'text');
+            $text = $this->commentText($textElement);
+            $author = is_array($person)
+                ? ($person['displayName'] ?? $person['userId'] ?? null)
+                : null;
+
+            $this->appendCellCommentRecord([
+                'kind' => 'threaded',
+                'ref' => $ref,
+                'id' => $this->stringAttribute($commentElement, 'id'),
+                'parentId' => $this->stringAttribute($commentElement, 'parentId'),
+                'personId' => $personId,
+                'author' => $author,
+                'person' => $person,
+                'dateTime' => $this->stringAttribute($commentElement, 'dT'),
+                'done' => $this->booleanAttribute($commentElement, 'done'),
+                'text' => $text,
+                'textBytes' => strlen($text),
+                'textSha256' => hash('sha256', $text),
+                'partName' => ltrim($part, '/'),
+                'relationshipId' => $relationship->id,
+            ], $comments, $commentsByCell);
+        }
+    }
+
+    /**
+     * @return array{personsById:array<string, array<string, mixed>>, diagnostics:list<string>}
+     */
+    private function readThreadedCommentPersons(ZipPackage $package): array
+    {
+        $personsById = [];
+        $diagnostics = [];
+        $parsedParts = [];
+        $relationshipInventory = $this->packageRelationshipSets($package);
+
+        foreach ($relationshipInventory['parseErrors'] as $parseError) {
+            $diagnostics[] = 'threaded-comment-person-relationship-parse-error:' . $parseError['relationshipPart'];
+        }
+
+        foreach ($relationshipInventory['sets'] as $relationshipSet) {
+            $relationships = $relationshipSet['relationships'];
+            foreach ($relationships->all() as $relationship) {
+                if ($relationship->type !== self::THREADED_COMMENT_PERSON_RELATIONSHIP) {
+                    continue;
+                }
+
+                $part = $this->commentRelationshipPart($package, $relationships, $relationship, 'threaded-comment-person', $diagnostics);
+                if ($part === null) {
+                    continue;
+                }
+
+                $partKey = ltrim($part, '/');
+                if (isset($parsedParts[$partKey])) {
+                    continue;
+                }
+
+                $parsedParts[$partKey] = true;
+                $this->appendThreadedCommentPersonsFromPart($package, $part, $personsById, $diagnostics);
+            }
+        }
+
+        foreach ($package->names() as $name) {
+            try {
+                $part = OpcPackagePath::canonicalPartName($name);
+            } catch (\InvalidArgumentException) {
+                continue;
+            }
+
+            $partKey = ltrim($part, '/');
+            if (isset($parsedParts[$partKey]) || !str_contains(strtolower($part), '/persons/')) {
+                continue;
+            }
+
+            $parsedParts[$partKey] = true;
+            $this->appendThreadedCommentPersonsFromPart($package, $part, $personsById, $diagnostics);
+        }
+
+        return [
+            'personsById' => $personsById,
+            'diagnostics' => array_values(array_unique($diagnostics)),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $personsById
+     * @param list<string> $diagnostics
+     */
+    private function appendThreadedCommentPersonsFromPart(ZipPackage $package, string $part, array &$personsById, array &$diagnostics): void
+    {
+        if (!$package->has($part)) {
+            $diagnostics[] = 'threaded-comment-person-part-missing:' . ltrim($part, '/');
+            return;
+        }
+
+        try {
+            $document = $this->loadPackageXml($package, $part, 'XLSX threaded comment persons ' . ltrim($part, '/'));
+        } catch (\InvalidArgumentException|\RuntimeException) {
+            $diagnostics[] = 'threaded-comment-person-part-unreadable:' . ltrim($part, '/');
+            return;
+        }
+
+        $root = XmlHtmlDom::rootElement($document, 'personList');
+        if (!$root instanceof \DOMElement) {
+            $diagnostics[] = 'threaded-comment-person-root-missing:' . ltrim($part, '/');
+            return;
+        }
+
+        foreach ($this->childElements($root, 'person') as $personElement) {
+            $id = $this->stringAttribute($personElement, 'id');
+            if ($id === null) {
+                $diagnostics[] = 'threaded-comment-person-invalid-id:' . ltrim($part, '/');
+                continue;
+            }
+
+            $personsById[$id] = [
+                'id' => $id,
+                'displayName' => $this->stringAttribute($personElement, 'displayName'),
+                'userId' => $this->stringAttribute($personElement, 'userId'),
+                'providerId' => $this->stringAttribute($personElement, 'providerId'),
+                'partName' => ltrim($part, '/'),
+            ];
+        }
+    }
+
+    /**
+     * @param list<string> $diagnostics
+     */
+    private function commentRelationshipPart(ZipPackage $package, OpcRelationships $relationships, OpcRelationship $relationship, string $diagnosticPrefix, array &$diagnostics): ?string
+    {
+        if ($relationship->isExternal()) {
+            $diagnostics[] = $diagnosticPrefix . '-external-relationship-skipped:' . $relationship->id;
+            return null;
+        }
+
+        try {
+            $part = OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
+        } catch (\Throwable) {
+            $diagnostics[] = $diagnosticPrefix . '-target-resolution-error:' . $relationship->id;
+            return null;
+        }
+
+        if (!$package->has($part)) {
+            $diagnostics[] = $diagnosticPrefix . '-part-missing:' . ltrim($part, '/');
+            return null;
+        }
+
+        return $part;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param list<array<string, mixed>> $comments
+     * @param array<string, list<array<string, mixed>>> $commentsByCell
+     */
+    private function appendCellCommentRecord(array $record, array &$comments, array &$commentsByCell): void
+    {
+        $comments[] = $record;
+        $ref = (string) ($record['ref'] ?? '');
+        $commentsByCell[$ref] ??= [];
+        $commentsByCell[$ref][] = $record;
+    }
+
+    private function stringAttribute(\DOMElement $element, string $attribute): ?string
+    {
+        if (!$element->hasAttribute($attribute)) {
+            return null;
+        }
+
+        $value = trim($element->getAttribute($attribute));
+
+        return $value === '' ? null : $value;
+    }
+
+    private function commentText(?\DOMElement $textElement): string
+    {
+        if (!$textElement instanceof \DOMElement) {
+            return '';
+        }
+
+        $richText = $this->allDescendantText($textElement);
+
+        return $richText === '' ? $textElement->textContent : $richText;
     }
 
     /**
