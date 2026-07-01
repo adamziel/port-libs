@@ -80,10 +80,10 @@ $indexEntries = static function (array $entries, string $key): array {
     return $indexed;
 };
 
-$indexGroups = static function (array $groups): array {
+$indexGroups = static function (array $groups, string $key = 'caseFoldDirectoryBaseName'): array {
     $indexed = [];
     foreach ($groups as $group) {
-        $indexed[(string) $group['caseFoldDirectoryBaseName']] = $group;
+        $indexed[(string) $group[$key]] = $group;
     }
 
     return $indexed;
@@ -118,9 +118,11 @@ return [
             'thumbnails' => 1,
         ];
 
-        foreach ([$compactInventory, $compactIdentity, $richProvenance, $richIdentity] as $handoff) {
+        foreach ([$compactInventory, $compactIdentity, $richProvenance, $richIdentity, $documentProvenance] as $handoff) {
             $t->same(6, $handoff['packageDirectoryBaseNameCount']);
             $t->same($expectedDirectoryBaseNameCounts, $handoff['packageDirectoryBaseNameCounts']);
+            $t->same(2, $handoff['duplicatePackageDirectoryBaseNameCount']);
+            $t->same(['Pictures', 'pictures'], $handoff['duplicatePackageDirectoryBaseNames']);
             $t->same(5, $handoff['packageCaseFoldDirectoryBaseNameCount']);
             $t->same($expectedCaseFoldDirectoryBaseNameCounts, $handoff['packageCaseFoldDirectoryBaseNameCounts']);
             $t->same(1, $handoff['duplicatePackageCaseFoldDirectoryBaseNameCount']);
@@ -143,6 +145,35 @@ return [
             ],
             $richProvenance['entryNamesByPackageCaseFoldDirectoryBaseName']['pictures']
         );
+
+        $compactExactGroups = $indexGroups($compactInventory['packageDirectoryBaseNames'], 'directoryBaseName');
+        $richExactGroups = $indexGroups($richProvenance['packageDirectoryBaseNames'], 'directoryBaseName');
+        foreach ([$compactExactGroups['Pictures'], $richExactGroups['Pictures']] as $picturesGroup) {
+            $t->same(2, $picturesGroup['directoryCount']);
+            $t->same(4, $picturesGroup['entryCount']);
+            $t->same(2, $picturesGroup['fileEntryCount']);
+            $t->same(2, $picturesGroup['directoryEntryCount']);
+            $t->same(38, $picturesGroup['byteLength']);
+            $t->same([
+                'Objects/Pictures/' => 2,
+                'Pictures/' => 2,
+            ], $picturesGroup['packageDirectoryCounts']);
+            $t->same(['image/png' => 1, 'text/plain' => 1], $picturesGroup['manifestMediaTypeBaseCounts']);
+            $t->same(
+                ['Objects/Pictures/', 'Objects/Pictures/readme.txt', 'Pictures/', 'Pictures/HERO.PNG'],
+                $picturesGroup['entryNames']
+            );
+
+            $largest = $picturesGroup['largestEntry'];
+            $t->same('Objects/Pictures/readme.txt', $largest['entryName']);
+            $t->same('Objects/Pictures/', $largest['packageDirectory']);
+            $t->same('Pictures', $largest['directoryBaseName']);
+            $t->same('pictures', $largest['caseFoldDirectoryBaseName']);
+            $t->same('readme.txt', $largest['packageBasename']);
+            $t->same(3, $largest['packagePathDepth']);
+            $t->same('txt', $largest['packagePartExtension']);
+            $t->same(31, $largest['byteLength']);
+        }
 
         $compactGroups = $indexGroups($compactInventory['packageCaseFoldDirectoryBaseNames']);
         $richGroups = $indexGroups($richProvenance['packageCaseFoldDirectoryBaseNames']);
