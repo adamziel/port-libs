@@ -5,7 +5,7 @@ Scope: native PHP `PortLibs\Pandoc\PptxReader` coverage for the upstream Pandoc 
 ## Upstream Basis
 
 - Upstream repository: `jgm/pandoc`.
-- Fixture commit: `612e143fbe6d735b612c4800d21e61b7d44e4dca`.
+- Fixture/source commit: `d8ea25c10e980105d4d023d656990a56e295ccb4` (`main`, checked 2026-07-01). The PPTX reader source files and `test/pptx-reader/basic.*` fixture bytes match the previously pinned `612e143fbe6d735b612c4800d21e61b7d44e4dca` evidence.
 - Reader test source: `test/Tests/Readers/Pptx.hs`.
 - Fixture pair:
   - `test/pptx-reader/basic.pptx`
@@ -45,6 +45,8 @@ DrawingML list paragraph levels now import as nested Pandoc lists instead of adj
 
 DrawingML `a:buNone` paragraphs at deeper list levels now import as continuation blocks inside the previous list item instead of escaping to top-level paragraphs. This matches the reader to the existing PPTX writer's list-continuation shape while preserving standalone non-list paragraphs.
 
+Rowless DrawingML tables now emit no visible table block, matching upstream's `PptxTable []` behavior rather than fabricating an empty table in the AST.
+
 Broken SmartArt diagram relationships now fail soft into visible parse-diagnostic paragraphs instead of aborting the PPTX import when referenced diagram data/layout parts are missing or invalid. The fallback block keeps shape metadata so the unsupported/broken drawing frame remains traceable.
 
 Slide-level `notesSlide` relationships now import speaker notes as Pandoc `Div` blocks with the `notes` class. The reader extracts note-body DrawingML paragraphs, skips notes-page slide-image and slide-number placeholders, and records relationship id, target, package part, text, and block count in slide review metadata without embedding AST nodes in the review sidecar.
@@ -54,8 +56,8 @@ Latest focused verification:
 - `php -l lanes/pandoc/src/PptxReader.php`
 - `php -l lanes/pandoc/tests/PptxReaderTest.php`
 - `php -l lanes/pandoc/src/PandocFormatRegistry.php`
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `287` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1144` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1577` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `291` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1148` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1581` assertions, `0` failures.
 
 This closes the current upstream PPTX reader golden fixture content gate. It does not claim full PPTX writer parity or full PowerPoint package round-trip parity.

@@ -444,6 +444,71 @@ XML);
     }
 };
 
+$buildEmptyTablePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-table-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Empty table</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="8" name="Empty Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl><a:tblPr/><a:tblGrid/></a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildMissingImagePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-missing-image-');
     if ($path === false) {
@@ -1735,7 +1800,7 @@ return [
 
         $t->same(1, $review['upstreamEvidence']['denominator'] ?? null);
         $t->same(1, $review['upstreamEvidence']['covered'] ?? null);
-        $t->same('612e143fbe6d735b612c4800d21e61b7d44e4dca', $review['upstreamEvidence']['fixtureCommit'] ?? null);
+        $t->same('d8ea25c10e980105d4d023d656990a56e295ccb4', $review['upstreamEvidence']['fixtureCommit'] ?? null);
         $t->same(['test/pptx-reader/basic.pptx', 'test/pptx-reader/basic.native'], $review['upstreamEvidence']['fixtures'] ?? null);
         $t->same(4, $review['slideCount'] ?? null);
         $t->same(49, $review['entryCount'] ?? null);
@@ -1767,6 +1832,17 @@ return [
         $t->same('javascript', $tableStyles['externalTargetPolicy']['scheme'] ?? null);
         $t->same(false, $tableStyles['externalTargetPolicy']['allowed'] ?? null);
         $t->same(['external-target-unsafe-scheme'], $tableStyles['externalTargetPolicy']['issues'] ?? null);
+    },
+
+    'drops rowless pptx tables from visible reader content' => static function (TestRunner $t) use ($buildEmptyTablePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildEmptyTablePptxPackage());
+        $review = $document->attr('pptx');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same([], $nodesOfType($document, 'table'));
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->true(!str_contains($native, 'Table'), 'Rowless PPTX table should not emit a native Table block');
+        $t->true(!str_contains($native, 'Empty Table'), 'Rowless PPTX table shape name should not leak into visible content');
     },
 
     'drops missing image parts from visible pptx reader content with diagnostics' => static function (TestRunner $t) use ($buildMissingImagePptxPackage, $nodesOfType): void {
