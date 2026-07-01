@@ -2471,6 +2471,7 @@ final class OdfReader
 
         return in_array($base, [
             'application/vnd.oasis.opendocument.chart',
+            'application/vnd.oasis.opendocument.database',
             'application/vnd.oasis.opendocument.formula',
             'application/vnd.oasis.opendocument.graphics',
             'application/vnd.oasis.opendocument.presentation',
@@ -11247,6 +11248,7 @@ final class OdfReader
 
         return match ($base) {
             'application/vnd.oasis.opendocument.chart' => 'chart',
+            'application/vnd.oasis.opendocument.database' => 'database',
             'application/vnd.oasis.opendocument.formula' => 'formula',
             'application/vnd.oasis.opendocument.graphics' => 'graphics',
             'application/vnd.oasis.opendocument.presentation' => 'presentation',
