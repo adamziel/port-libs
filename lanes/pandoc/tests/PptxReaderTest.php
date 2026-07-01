@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\PandocConverter;
+use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\PptxReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -4170,11 +4171,15 @@ return [
         $document = (new PptxReader())->read($buildEmptyHeaderTablePptxPackage());
         $tables = $nodesOfType($document, 'table');
         $native = PandocConverter::write($document, 'native');
+        $json = (new PandocJsonWriter())->toArray($document);
+        $jsonTable = $json['blocks'][1] ?? [];
 
         $t->same(1, count($tables));
         $t->same([], $tables[0]->attr('alignments'));
         $t->same(0, $tables[0]->attr('nativeColumnCount'));
         $t->same([1828800, 1828800], $tables[0]->attr('columnWidths'));
+        $t->same('Table', is_array($jsonTable) ? ($jsonTable['t'] ?? null) : null);
+        $t->same([], is_array($jsonTable) ? ($jsonTable['c'][2] ?? null) : null);
         $t->same(0, count($tables[0]->children[0]->children[0]->children));
         $t->same('Body A', $tables[0]->children[1]->children[0]->children[0]->attr('text'));
         $t->same('Body B', $tables[0]->children[1]->children[0]->children[1]->attr('text'));

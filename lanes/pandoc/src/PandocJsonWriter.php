@@ -1210,11 +1210,14 @@ final class PandocJsonWriter
         $alignmentNatives = $node->attr('alignmentNatives', []);
         $columnSpecNatives = $node->attr('columnSpecNatives', []);
         $columnWidthNatives = $node->attr('columnWidthNatives', []);
-        $columnCount = max(
-            is_array($alignments) ? count($alignments) : 0,
-            is_array($widths) ? count($widths) : 0,
-            TableGeometry::columnCount($node)
-        );
+        $nativeColumnCount = $node->attr('nativeColumnCount');
+        $columnCount = is_int($nativeColumnCount) || (is_string($nativeColumnCount) && preg_match('/^\d+$/', $nativeColumnCount) === 1)
+            ? max(0, (int) $nativeColumnCount)
+            : max(
+                is_array($alignments) ? count($alignments) : 0,
+                is_array($widths) ? count($widths) : 0,
+                TableGeometry::columnCount($node)
+            );
         $specs = [];
         for ($index = 0; $index < $columnCount; $index++) {
             $alignment = is_array($alignments) ? (string) ($alignments[$index] ?? 'default') : 'default';
