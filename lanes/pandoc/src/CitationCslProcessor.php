@@ -11220,7 +11220,7 @@ final class CitationCslProcessor
             'original-collection-title', 'originalcollectiontitle', 'origseries', 'orig-series', 'original-series', 'originalseries' => (string) ($item['originalCollectionTitle'] ?? ''),
             'original-collection-number', 'originalcollectionnumber', 'origseriesnumber', 'orig-series-number', 'original-series-number', 'originalseriesnumber' => (string) ($item['originalCollectionNumber'] ?? ''),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext', 'book-title', 'booktitle', 'journal-title', 'journaltitle', 'journal', 'publication-title', 'publicationtitle' => (string) $item['containerTitle'],
-            'container-title-short', 'containertitleshort', 'book-title-short', 'booktitleshort', 'container-title-abbreviation', 'containertitleabbreviation' => (string) $item['containerTitleShort'],
+            'container-title-short', 'containertitleshort', 'book-title-short', 'booktitleshort', 'shortbooktitle', 'short-booktitle', 'short-book-title', 'container-title-abbreviation', 'containertitleabbreviation' => (string) $item['containerTitleShort'],
             'journalabbreviation', 'journal-abbreviation', 'shortjournal', 'short-journal', 'shortjournaltitle', 'short-journal-title', 'journaltitleshort', 'journal-title-short' => (string) $item['journalAbbreviation'],
             'container-title-addon', 'containertitleaddon', 'book-title-addon', 'booktitleaddon', 'journal-title-addon', 'journaltitleaddon', 'publication-title-addon', 'publicationtitleaddon' => (string) $item['containerTitleAddon'],
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => (string) $item['mainTitle'],

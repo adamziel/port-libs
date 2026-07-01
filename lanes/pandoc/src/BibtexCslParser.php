@@ -793,8 +793,8 @@ final class BibtexCslParser
                 ],
                 ['journalsubtitle', 'journal-subtitle', 'booksubtitle', 'book-subtitle', 'container-subtitle', 'containersubtitle', 'publication-subtitle', 'publicationsubtitle']
             ),
-            'container-title-short' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation', 'container-title-short', 'containertitleshort']),
-            'journalAbbreviation' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation', 'container-title-short', 'containertitleshort']),
+            'container-title-short' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation', 'container-title-short', 'containertitleshort', 'shortbooktitle', 'short-booktitle', 'short-book-title', 'booktitleshort', 'booktitle-short', 'book-title-short']),
+            'journalAbbreviation' => self::firstField($fields, ['shortjournal', 'shortjournaltitle', 'shortjournal-title', 'journaltitle-short', 'journalabbreviation', 'journal-abbreviation', 'container-title-short', 'containertitleshort', 'shortbooktitle', 'short-booktitle', 'short-book-title', 'booktitleshort', 'booktitle-short', 'book-title-short']),
             'container-title-addon' => self::firstField($fields, ['journaltitleaddon', 'booktitleaddon', 'journal-title-addon', 'book-title-addon', 'container-title-addon', 'containertitleaddon']),
             'main-title' => self::composedTitle($fields, ['maintitle', 'main-title', 'maintitletext', 'main-title-text'], ['mainsubtitle', 'main-subtitle']),
             'main-title-addon' => self::firstField($fields, ['maintitleaddon', 'main-title-addon']),
