@@ -15216,6 +15216,20 @@ final class DocxOpenXmlReader
         }
         ksort($partDirectoryDepthCounts, SORT_NUMERIC);
         $partTopLevelSegments = $this->packagePartTopLevelSegmentSummary($partInventory);
+        $partCaseFoldTopLevelSegments = $this->packagePartCaseFoldTopLevelSegmentSummary($partInventory);
+        $partCaseFoldTopLevelSegmentCounts = [];
+        $duplicatePartCaseFoldTopLevelSegments = [];
+        $duplicatePartCaseFoldTopLevelSegmentPartCount = 0;
+        foreach ($partCaseFoldTopLevelSegments as $caseFoldTopLevelSegmentSummary) {
+            $caseFoldTopLevelSegment = (string) ($caseFoldTopLevelSegmentSummary['caseFoldTopLevelSegment'] ?? '');
+            $partCount = (int) ($caseFoldTopLevelSegmentSummary['partCount'] ?? 0);
+            $partCaseFoldTopLevelSegmentCounts[$caseFoldTopLevelSegment] = $partCount;
+            if ((int) ($caseFoldTopLevelSegmentSummary['topLevelSegmentVariantCount'] ?? 0) > 1) {
+                $duplicatePartCaseFoldTopLevelSegments[] = $caseFoldTopLevelSegment;
+                $duplicatePartCaseFoldTopLevelSegmentPartCount += $partCount;
+            }
+        }
+        ksort($partCaseFoldTopLevelSegmentCounts, SORT_STRING);
         $partPathSegments = $this->packagePartPathSegmentSummary($partInventory);
         $partPathSegmentOccurrenceCount = 0;
         foreach ($partPathSegments as $partPathSegment) {
@@ -18145,6 +18159,11 @@ final class DocxOpenXmlReader
             'partDirectoryDepthParameterizedPartCount' => $parameterizedPartDirectoryDepthCount,
             'partDirectoryDepthMissingContentTypeBucketCount' => $missingContentTypePartDirectoryDepthCount,
             'partTopLevelSegmentCount' => count($partTopLevelSegments),
+            'partCaseFoldTopLevelSegmentCount' => count($partCaseFoldTopLevelSegments),
+            'partCaseFoldTopLevelSegmentCounts' => $partCaseFoldTopLevelSegmentCounts,
+            'duplicatePartCaseFoldTopLevelSegmentCount' => count($duplicatePartCaseFoldTopLevelSegments),
+            'duplicatePartCaseFoldTopLevelSegmentPartCount' => $duplicatePartCaseFoldTopLevelSegmentPartCount,
+            'duplicatePartCaseFoldTopLevelSegments' => $duplicatePartCaseFoldTopLevelSegments,
             'partPathSegmentCount' => count($partPathSegments),
             'partPathSegmentOccurrenceCount' => $partPathSegmentOccurrenceCount,
             'partCaseFoldPathSegmentCount' => count($partCaseFoldPathSegments),
@@ -18695,6 +18714,7 @@ final class DocxOpenXmlReader
             'partCaseFoldDirectoryBaseNameStems' => $partCaseFoldDirectoryBaseNameStems,
             'partDirectoryDepths' => $partDirectoryDepths,
             'partTopLevelSegments' => $partTopLevelSegments,
+            'partCaseFoldTopLevelSegments' => $partCaseFoldTopLevelSegments,
             'partPathSegments' => $partPathSegments,
             'partCaseFoldPathSegments' => $partCaseFoldPathSegments,
             'partPathSegmentPositions' => $partPathSegmentPositions,
@@ -24681,6 +24701,155 @@ final class DocxOpenXmlReader
             ksort($summary['roleCounts'], SORT_STRING);
             $summary['directories'] = $directories;
             $segments[$segment] = $summary;
+        }
+
+        return array_values($segments);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartCaseFoldTopLevelSegmentSummary(array $partInventory): array
+    {
+        $segments = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : $this->packagePartTopLevelSegment($partName);
+            $caseFoldTopLevelSegment = $this->packagePartCaseFoldKey($topLevelSegment);
+            $pathSegments = is_array($part['pathSegments'] ?? null)
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '',
+                        $part['pathSegments'],
+                    ),
+                    static fn (string $segment): bool => $segment !== '',
+                ))
+                : $this->packagePartPathSegments($partName);
+            $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
+                ? (int) $part['pathSegmentCount']
+                : count($pathSegments);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $contentType = is_string($part['contentType'] ?? null)
+                ? $part['contentType']
+                : '';
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $roles = array_values(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            ));
+            $partSummary = [
+                'partName' => $partName,
+                'topLevelSegment' => $topLevelSegment,
+                'caseFoldTopLevelSegment' => $caseFoldTopLevelSegment,
+                'directory' => $directory,
+                'baseName' => $baseName,
+                'pathSegmentCount' => $pathSegmentCount,
+                'pathSegments' => $pathSegments,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => $roles,
+            ];
+
+            if (!isset($segments[$caseFoldTopLevelSegment])) {
+                $segments[$caseFoldTopLevelSegment] = [
+                    'caseFoldTopLevelSegment' => $caseFoldTopLevelSegment,
+                    'topLevelSegmentVariantCount' => 0,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'topLevelSegmentCounts' => [],
+                    'pathDepthCounts' => [],
+                    'directoryCounts' => [],
+                    'directories' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$segments[$caseFoldTopLevelSegment]['partCount'];
+            $segments[$caseFoldTopLevelSegment]['byteLength'] += $bytes;
+            $segments[$caseFoldTopLevelSegment]['topLevelSegmentCounts'][$topLevelSegment] =
+                ($segments[$caseFoldTopLevelSegment]['topLevelSegmentCounts'][$topLevelSegment] ?? 0) + 1;
+            $segments[$caseFoldTopLevelSegment]['pathDepthCounts'][$pathSegmentCount] =
+                ($segments[$caseFoldTopLevelSegment]['pathDepthCounts'][$pathSegmentCount] ?? 0) + 1;
+            $segments[$caseFoldTopLevelSegment]['directoryCounts'][$directory] =
+                ($segments[$caseFoldTopLevelSegment]['directoryCounts'][$directory] ?? 0) + 1;
+            $segments[$caseFoldTopLevelSegment]['directories'][$directory] = true;
+            $segments[$caseFoldTopLevelSegment]['partNames'][] = $partName;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$segments[$caseFoldTopLevelSegment]['relationshipPartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$segments[$caseFoldTopLevelSegment]['parameterizedPartCount'];
+            }
+            if ($contentTypeSource === 'missing') {
+                ++$segments[$caseFoldTopLevelSegment]['missingContentTypePartCount'];
+            }
+            $segments[$caseFoldTopLevelSegment]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($segments[$caseFoldTopLevelSegment]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $segments[$caseFoldTopLevelSegment]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($segments[$caseFoldTopLevelSegment]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            foreach ($roles as $role) {
+                $segments[$caseFoldTopLevelSegment]['roleCounts'][$role] =
+                    ($segments[$caseFoldTopLevelSegment]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $largestPart = $segments[$caseFoldTopLevelSegment]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $segments[$caseFoldTopLevelSegment]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($segments, SORT_STRING);
+        foreach ($segments as $caseFoldTopLevelSegment => $summary) {
+            $directories = array_keys($summary['directories']);
+            sort($directories, SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
+            ksort($summary['pathDepthCounts'], SORT_NUMERIC);
+            ksort($summary['directoryCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['directories'] = $directories;
+            $summary['topLevelSegmentVariantCount'] = count($summary['topLevelSegmentCounts']);
+            $segments[$caseFoldTopLevelSegment] = $summary;
         }
 
         return array_values($segments);
