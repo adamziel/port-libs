@@ -1232,6 +1232,7 @@ XML,
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $zipPackage = $package['zipPackage'];
         $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
         $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
@@ -1327,6 +1328,9 @@ XML,
             'sourceRecordBytes' => 'packageManifestSourceRecordBytes',
             'centralExtraFieldEntryCount' => 'packageManifestCentralExtraFieldEntryCount',
             'entryCommentCount' => 'packageManifestEntryCommentCount',
+            'centralDirectoryVariableFieldMixSummaryCount' => 'packageManifestCentralDirectoryVariableFieldMixSummaryCount',
+            'centralDirectoryVariableFieldMixes' => 'packageManifestCentralDirectoryVariableFieldMixes',
+            'centralDirectoryVariableFieldMixSummaries' => 'packageManifestCentralDirectoryVariableFieldMixSummaries',
             'hasCentralDirectoryReviewFields' => 'packageManifestHasCentralDirectoryReviewFields',
             'maxPathSegmentCount' => 'packageManifestMaxPathSegmentCount',
             'maxDirectoryDepth' => 'packageManifestMaxDirectoryDepth',
@@ -1472,6 +1476,30 @@ XML,
         $t->same($manifest['centralDirectoryReviewFieldBytes'], $summary['zipPackageManifestCentralDirectoryReviewFieldBytes']);
         $t->same($manifest['centralExtraFieldEntryCount'], $summary['zipPackageManifestCentralExtraFieldEntryCount']);
         $t->same($manifest['entryCommentCount'], $summary['zipPackageManifestEntryCommentCount']);
+        $t->same(
+            $manifest['centralDirectoryVariableFieldMixSummaryCount'],
+            $summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaryCount']
+        );
+        $t->same(
+            $manifest['centralDirectoryVariableFieldMixes'],
+            $summary['zipPackageManifestCentralDirectoryVariableFieldMixes']
+        );
+        $t->same(
+            $manifest['centralDirectoryVariableFieldMixSummaries'],
+            $summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaries']
+        );
+        $t->same(
+            $summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaryCount'],
+            $identity['zipPackageManifestCentralDirectoryVariableFieldMixSummaryCount']
+        );
+        $t->same(
+            $summary['zipPackageManifestCentralDirectoryVariableFieldMixes'],
+            $identity['zipPackageManifestCentralDirectoryVariableFieldMixes']
+        );
+        $t->same(
+            $summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaries'],
+            $identity['zipPackageManifestCentralDirectoryVariableFieldMixSummaries']
+        );
         $t->same(true, $summary['zipPackageManifestHasCentralDirectoryReviewFields']);
         $t->same($manifest['maxPathSegmentCount'], $summary['zipPackageManifestMaxPathSegmentCount']);
         $t->same($manifest['maxDirectoryDepth'], $summary['zipPackageManifestMaxDirectoryDepth']);
