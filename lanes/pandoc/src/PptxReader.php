@@ -1670,14 +1670,14 @@ final class PptxReader
             if ($this->firstDrawingChildElement($properties, 'buChar') instanceof \DOMElement) {
                 return ['bullet' => true, 'listType' => 'bullet_list'];
             }
-
-            if ($this->firstDrawingChildElement($properties, 'buNone') instanceof \DOMElement) {
-                return ['bullet' => false, 'listType' => '', 'continuation' => true];
-            }
         }
 
         if ($this->paragraphHasWingdingsRunSymbol($paragraphElement)) {
             return ['bullet' => true, 'listType' => 'bullet_list'];
+        }
+
+        if ($properties instanceof \DOMElement && $this->firstDrawingChildElement($properties, 'buNone') instanceof \DOMElement) {
+            return ['bullet' => false, 'listType' => '', 'continuation' => true];
         }
 
         return ['bullet' => false, 'listType' => ''];
