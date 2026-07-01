@@ -2921,6 +2921,7 @@ return [
                     'segmentCount' => 4,
                     'pageSegmentCount' => 1,
                     'rangeSegmentCount' => 2,
+                    'rangeToSegmentCount' => 0,
                     'rangeFromSegmentCount' => 1,
                     'invalidSegmentCount' => 0,
                     'finiteRangeCount' => 3,
@@ -2961,6 +2962,85 @@ return [
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+    },
+
+    'plans typst open-start page selection boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/pdf-pages-open-start-boundary.pdf',
+            'source' => '= Typst Open Start Pages Boundary Packet',
+            'engineOptions' => [
+                '--pages=-2,2,4-',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst open-start page selection packet\n%%EOF\n";
+        $expected = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => ['pages-overlapping-selection-boundary'],
+            'pdfExport' => [
+                'pageSelection' => [
+                    'raw' => '-2,2,4-',
+                    'value' => '-2,2,4-',
+                    'segments' => [
+                        ['raw' => '-2', 'kind' => 'range-to', 'start' => null, 'end' => 2, 'issues' => []],
+                        ['raw' => '2', 'kind' => 'page', 'start' => 2, 'end' => 2, 'issues' => []],
+                        ['raw' => '4-', 'kind' => 'range-from', 'start' => 4, 'end' => null, 'issues' => []],
+                    ],
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'issues' => ['pages-overlapping-selection-boundary'],
+                'pageSelectionPolicy' => [
+                    'reviewStatus' => 'review',
+                    'segmentCount' => 3,
+                    'pageSegmentCount' => 1,
+                    'rangeSegmentCount' => 0,
+                    'rangeToSegmentCount' => 1,
+                    'rangeFromSegmentCount' => 1,
+                    'invalidSegmentCount' => 0,
+                    'finiteRangeCount' => 2,
+                    'openEndedRangeCount' => 1,
+                    'overlapCount' => 1,
+                    'overlaps' => [
+                        ['left' => '-2', 'right' => '2'],
+                    ],
+                    'issues' => ['pages-overlapping-selection-boundary'],
+                ],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/pdf-pages-open-start-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/pdf-pages-open-start-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same($expected, $plan['typstBoundaryProvenance']);
+        $t->contains('typst-pdf-pages:-2,2,4-', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-pages-overlaps:1', implode(',', $plan['diagnostics']));
+        $t->same(1, $cases['pdf-export-controls']['details']['pageSelectionRangeToSegmentCount']);
+        $t->same(1, $cases['pdf-export-controls']['details']['pageSelectionRangeFromSegmentCount']);
+        $t->contains('pdf-export-controls:pages-overlapping-selection-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['typstBoundaryProvenance']);
+        $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
@@ -4052,7 +4132,6 @@ return [
             'inputVariables' => [],
             'issues' => [
                 'creation-timestamp-invalid-boundary',
-                'pages-invalid-segment-boundary:-3',
                 'ppi-invalid-boundary',
                 'jobs-invalid-boundary',
             ],
@@ -4084,17 +4163,16 @@ return [
                     'segments' => [
                         [
                             'raw' => '-3',
-                            'kind' => 'invalid',
+                            'kind' => 'range-to',
                             'start' => null,
-                            'end' => null,
-                            'issues' => ['pages-invalid-segment-boundary:-3'],
+                            'end' => 3,
+                            'issues' => [],
                         ],
                     ],
-                    'safe' => false,
-                    'issues' => ['pages-invalid-segment-boundary:-3'],
+                    'safe' => true,
+                    'issues' => [],
                 ],
                 'issues' => [
-                    'pages-invalid-segment-boundary:-3',
                     'ppi-invalid-boundary',
                 ],
                 'ppi' => [
@@ -4124,7 +4202,7 @@ return [
         $t->contains('typst-pdf-pages:-3', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-ppi:invalid', implode(',', $plan['diagnostics']));
         $t->contains('typst-creation-timestamp:invalid', implode(',', $plan['diagnostics']));
-        $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
@@ -11487,14 +11565,116 @@ MARKDOWN);
                 'angleUnits' => [],
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'ok',
+            'pageCount' => 2,
+            'viewportCount' => 3,
+            'pagesWithViewports' => [1, 2],
+            'pageWithViewportCount' => 2,
+            'namedViewportCount' => 3,
+            'bboxCount' => 3,
+            'missingBBoxCount' => 0,
+            'measureCount' => 2,
+            'measureSubtypes' => ['RL' => 2],
+            'scaleRatioCount' => 2,
+            'unitFormatCount' => 8,
+            'unitCategories' => [
+                'xUnits' => 3,
+                'yUnits' => 1,
+                'distanceUnits' => 2,
+                'areaUnits' => 1,
+                'angleUnits' => 1,
+            ],
+            'units' => ['cm', 'deg', 'ft', 'in', 'm', 'sq m'],
+            'issues' => [],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfPageViewports'] ?? null);
-        $t->contains('pdf-byte-page-viewports:3', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-viewport-measures:2', implode(',', $result['diagnostics']));
-        $t->contains('pdf-byte-page-viewport-unit-formats:8', implode(',', $result['diagnostics']));
+        $t->same($expectedPolicy, $result['pdfPageViewportPolicy'] ?? null);
+        $t->contains('pdf-byte-page-viewports:3', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-measures:2', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-unit-formats:8', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy:ok', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-viewports:3', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-pages:2', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-measures:2', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-unit-category:xUnits:3', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageViewports'] ?? null);
+        $t->same($expectedPolicy, $sequence['finalPdfPageViewportPolicy'] ?? null);
+    },
+
+    'fake runner summarizes bounded pdf page viewport review policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'typst', 'outputPath' => 'packets/viewport-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /VP << /Type /Viewport /Name (Draft scale) /Measure << /Type /Measure /X [<< /U (ft) /C 0 >>] >> >> >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/viewport-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/viewport-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'pageCount' => 1,
+            'viewportCount' => 1,
+            'pagesWithViewports' => [1],
+            'pageWithViewportCount' => 1,
+            'namedViewportCount' => 1,
+            'bboxCount' => 0,
+            'missingBBoxCount' => 1,
+            'measureCount' => 1,
+            'measureSubtypes' => [],
+            'scaleRatioCount' => 0,
+            'unitFormatCount' => 1,
+            'unitCategories' => [
+                'xUnits' => 1,
+            ],
+            'units' => ['ft'],
+            'issues' => [
+                'nonpositive-unit-conversion',
+                'viewport-measure-missing-scale-ratio',
+                'viewport-measure-missing-subtype',
+                'viewport-missing-bbox',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['pdfPageViewportPolicy'] ?? null);
+        $t->contains('pdf-byte-page-viewport-policy:review', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-missing-boxes:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-unit-category:xUnits:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-issues:4', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-issue:nonpositive-unit-conversion:1', $diagnostics);
+        $t->contains('pdf-byte-page-viewport-policy-issue:viewport-missing-bbox:1', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedPolicy, $sequence['finalPdfPageViewportPolicy'] ?? null);
     },
 
     'fake runner extracts bounded pdf font resources and embedded font streams from produced bytes' => static function (TestRunner $t) use ($document): void {
@@ -19866,6 +20046,104 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfAcroFormMetadata']);
     },
 
+    'fake runner summarizes pdf acroform appearance regeneration policy from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/acroform-appearance-policy.pdf']);
+        $textAppearance = "q BT /Helv 10 Tf (Migration Desk) Tj ET Q\n";
+        $choiceAppearance = "q BT /Helv 10 Tf (Archive) Tj ET Q\n";
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /AcroForm 8 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R /Annots [4 0 R 5 0 R 6 0 R 7 0 R] >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Tx /T (reviewer.name) /V (Migration Desk) /AP << /N 10 0 R >> >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Btn /T (approved) /V /Off >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Type /Annot /Subtype /Widget /FT /Ch /T (routing.queue) /V (Archive) /AS /Archive /AP << /N << /Archive 11 0 R >> >> >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Type /Annot /Subtype /Link /Rect [0 0 24 24] /AP << /N 12 0 R >> >>',
+            'endobj',
+            '8 0 obj',
+            '<< /Fields [4 0 R 5 0 R 6 0 R] /NeedAppearances true >>',
+            'endobj',
+            '10 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 180 24] /Length ' . strlen($textAppearance) . ' >>',
+            'stream',
+            $textAppearance,
+            'endstream',
+            'endobj',
+            '11 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 180 24] /Length ' . strlen($choiceAppearance) . ' >>',
+            'stream',
+            $choiceAppearance,
+            'endstream',
+            'endobj',
+            '12 0 obj',
+            '<< /Type /XObject /Subtype /Form /BBox [0 0 24 24] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/acroform-appearance-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/acroform-appearance-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+        $expected = [
+            'reviewStatus' => 'review',
+            'fieldCount' => 3,
+            'fieldNames' => ['approved', 'reviewer.name', 'routing.queue'],
+            'needAppearances' => true,
+            'defaultResourcesPresent' => false,
+            'defaultAppearancePresent' => false,
+            'xfaPresent' => false,
+            'appearancePolicyCount' => 2,
+            'normalAppearanceFieldCount' => 2,
+            'fieldsWithoutNormalAppearanceCount' => 1,
+            'fieldsWithoutNormalAppearance' => ['approved'],
+            'reviewAppearanceCount' => 0,
+            'issues' => [
+                'fields-without-normal-appearance',
+                'need-appearances-regeneration-boundary',
+                'need-appearances-without-default-appearance',
+                'need-appearances-without-default-resources',
+            ],
+        ];
+        $diagnostics = implode(',', $result['diagnostics']);
+
+        $t->same(true, $result['ok']);
+        $t->same($expected, $result['pdfAcroFormAppearancePolicy']);
+        $t->contains('pdf-byte-acroform-appearance-policy:review', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-fields:3', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-missing-normal-fields:1', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-policy-issues:4', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-policy-issue:fields-without-normal-appearance', $diagnostics);
+        $t->contains('pdf-byte-acroform-appearance-policy-issue:need-appearances-without-default-resources', $diagnostics);
+        $t->same(true, $sequence['ok']);
+        $t->same($expected, $sequence['finalPdfAcroFormAppearancePolicy']);
+    },
+
     'fake runner extracts bounded pdf xfa packet provenance from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/xfa-packets.pdf']);
@@ -20035,15 +20313,40 @@ MARKDOWN);
                 'missing' => false,
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'fieldCount' => 3,
+            'calculationOrderCount' => 3,
+            'resolvedFieldCount' => 2,
+            'missingFieldCount' => 1,
+            'undeclaredFieldCount' => 0,
+            'fieldObjects' => ['4 0 R', '5 0 R', '99 0 R'],
+            'missingFieldObjects' => ['99 0 R'],
+            'undeclaredFieldObjects' => [],
+            'fieldNames' => ['review.subtotal', 'review.total'],
+            'fieldTypeLabels' => ['text' => 2],
+            'flagNames' => ['multiline' => 1, 'readOnly' => 2],
+            'issues' => ['calculation-order-boundary', 'missing-calculation-order-field'],
+        ];
         $diagnostics = implode(',', $result['diagnostics']);
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfAcroFormCalculationOrder']);
+        $t->same($expectedPolicy, $result['pdfAcroFormCalculationOrderPolicy']);
         $t->contains('pdf-byte-acroform-calculation-order:3', $diagnostics);
         $t->contains('pdf-byte-acroform-calculation-order-fields:2', $diagnostics);
         $t->contains('pdf-byte-acroform-calculation-order-missing:1', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy:review', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-entries:3', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-fields:2', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-missing:1', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-type:text:2', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-flag:readOnly:2', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-issue:calculation-order-boundary', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-issue:missing-calculation-order-field', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfAcroFormCalculationOrder']);
+        $t->same($expectedPolicy, $sequence['finalPdfAcroFormCalculationOrderPolicy']);
     },
 
     'fake runner extracts bounded pdf digital signature metadata from produced bytes' => static function (TestRunner $t) use ($document): void {

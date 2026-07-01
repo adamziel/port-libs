@@ -779,6 +779,7 @@ final class PdfEngineHandoff
      *     pdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, embeddedFileActionCount?:int, mediaActionCount?:int, issues:list<string>}|array{},
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
+     *     pdfPageViewportPolicy: array<string, mixed>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pdfPageContentResourceUsage: array<string, int>,
      *     pdfPageResourceSources: list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}>,
@@ -850,7 +851,9 @@ final class PdfEngineHandoff
      *     pdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     pdfCollectionPolicy: array<string, mixed>,
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
+     *     pdfAcroFormAppearancePolicy: array{reviewStatus:string, fieldCount:int, fieldNames:list<string>, needAppearances:bool|null, defaultResourcesPresent:bool, defaultAppearancePresent:bool, xfaPresent:bool, appearancePolicyCount:int, normalAppearanceFieldCount:int, fieldsWithoutNormalAppearanceCount:int, fieldsWithoutNormalAppearance:list<string>, reviewAppearanceCount:int, issues:list<string>}|array{},
      *     pdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
+     *     pdfAcroFormCalculationOrderPolicy: array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{},
      *     pdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     pdfThreadPolicy: array<string, mixed>,
@@ -1543,6 +1546,7 @@ final class PdfEngineHandoff
         $pdfPageActions = [];
         $pdfPageActionPolicy = [];
         $pdfPageViewports = [];
+        $pdfPageViewportPolicy = [];
         $pdfPageContentStreams = [];
         $pdfPageContentResourceUsage = [];
         $pdfPageResourceSources = [];
@@ -1615,7 +1619,9 @@ final class PdfEngineHandoff
         $pdfCollectionMetadata = [];
         $pdfCollectionPolicy = [];
         $pdfAcroFormMetadata = [];
+        $pdfAcroFormAppearancePolicy = [];
         $pdfAcroFormCalculationOrder = [];
+        $pdfAcroFormCalculationOrderPolicy = [];
         $pdfXfaPackets = [];
         $pdfThreads = [];
         $pdfThreadPolicy = [];
@@ -1700,6 +1706,7 @@ final class PdfEngineHandoff
                 $pdfPageActions = $pdfInspection['pageActions'];
                 $pdfPageActionPolicy = $pdfInspection['pageActionPolicy'];
                 $pdfPageViewports = $pdfInspection['pageViewports'];
+                $pdfPageViewportPolicy = $pdfInspection['pageViewportPolicy'];
                 $pdfPageContentStreams = $pdfInspection['pageContentStreams'];
                 $pdfPageContentResourceUsage = $pdfInspection['pageContentResourceUsage'];
                 $pdfPageResourceSources = $pdfInspection['pageResourceSources'];
@@ -1772,7 +1779,9 @@ final class PdfEngineHandoff
                 $pdfCollectionMetadata = $pdfInspection['collectionMetadata'];
                 $pdfCollectionPolicy = $pdfInspection['collectionPolicy'];
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
+                $pdfAcroFormAppearancePolicy = $pdfInspection['acroFormAppearancePolicy'];
                 $pdfAcroFormCalculationOrder = $pdfInspection['acroFormCalculationOrder'];
+                $pdfAcroFormCalculationOrderPolicy = $pdfInspection['acroFormCalculationOrderPolicy'];
                 $pdfXfaPackets = $pdfInspection['xfaPackets'];
                 $pdfThreads = $pdfInspection['threads'];
                 $pdfThreadPolicy = $pdfInspection['threadPolicy'];
@@ -2225,6 +2234,50 @@ final class PdfEngineHandoff
                     }
                     if ($viewportUnitFormatCount > 0) {
                         $diagnostics[] = 'pdf-byte-page-viewport-unit-formats:' . $viewportUnitFormatCount;
+                    }
+                }
+                if ($pdfPageViewportPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-viewport-policy:' . ($pdfPageViewportPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'viewportCount' => 'viewports',
+                        'pageWithViewportCount' => 'pages',
+                        'namedViewportCount' => 'named',
+                        'bboxCount' => 'boxes',
+                        'missingBBoxCount' => 'missing-boxes',
+                        'measureCount' => 'measures',
+                        'scaleRatioCount' => 'scale-ratios',
+                        'unitFormatCount' => 'unit-formats',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageViewportPolicy[$policyKey]) && is_int($pdfPageViewportPolicy[$policyKey]) && $pdfPageViewportPolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-page-viewport-policy-' . $diagnosticName . ':' . $pdfPageViewportPolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfPageViewportPolicy['measureSubtypes']) && is_array($pdfPageViewportPolicy['measureSubtypes'])) {
+                        foreach ($pdfPageViewportPolicy['measureSubtypes'] as $subtype => $count) {
+                            if (is_string($subtype) && is_int($count) && $count > 0) {
+                                $diagnostics[] = 'pdf-byte-page-viewport-policy-measure-subtype:' . $subtype . ':' . $count;
+                            }
+                        }
+                    }
+                    if (isset($pdfPageViewportPolicy['unitCategories']) && is_array($pdfPageViewportPolicy['unitCategories'])) {
+                        foreach ($pdfPageViewportPolicy['unitCategories'] as $category => $count) {
+                            if (is_string($category) && is_int($count) && $count > 0) {
+                                $diagnostics[] = 'pdf-byte-page-viewport-policy-unit-category:' . $category . ':' . $count;
+                            }
+                        }
+                    }
+                    if (isset($pdfPageViewportPolicy['issues']) && is_array($pdfPageViewportPolicy['issues']) && $pdfPageViewportPolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-viewport-policy-issues:' . count($pdfPageViewportPolicy['issues']);
+                        $issueCounts = [];
+                        foreach ($pdfPageViewportPolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                            }
+                        }
+                        ksort($issueCounts);
+                        foreach ($issueCounts as $issue => $count) {
+                            $diagnostics[] = 'pdf-byte-page-viewport-policy-issue:' . $issue . ':' . $count;
+                        }
                     }
                 }
                 if ($pdfPageContentStreams !== []) {
@@ -3989,6 +4042,26 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-acroform-xfa-packets:' . count($pdfAcroFormMetadata['xfaPacketNames']);
                     }
                 }
+                if ($pdfAcroFormAppearancePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-acroform-appearance-policy:' . $pdfAcroFormAppearancePolicy['reviewStatus'];
+                    if (($pdfAcroFormAppearancePolicy['fieldCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-acroform-appearance-fields:' . $pdfAcroFormAppearancePolicy['fieldCount'];
+                    }
+                    if (($pdfAcroFormAppearancePolicy['fieldsWithoutNormalAppearanceCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-acroform-appearance-missing-normal-fields:' . $pdfAcroFormAppearancePolicy['fieldsWithoutNormalAppearanceCount'];
+                    }
+                    if (($pdfAcroFormAppearancePolicy['reviewAppearanceCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-acroform-appearance-review-annotations:' . $pdfAcroFormAppearancePolicy['reviewAppearanceCount'];
+                    }
+                    if (isset($pdfAcroFormAppearancePolicy['issues']) && is_array($pdfAcroFormAppearancePolicy['issues']) && $pdfAcroFormAppearancePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-acroform-appearance-policy-issues:' . count($pdfAcroFormAppearancePolicy['issues']);
+                        foreach ($pdfAcroFormAppearancePolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-acroform-appearance-policy-issue:' . $issue;
+                            }
+                        }
+                    }
+                }
                 if ($pdfXfaPackets !== []) {
                     $diagnostics[] = 'pdf-byte-xfa-packets:' . count($pdfXfaPackets);
                     $xfaPacketNames = 0;
@@ -4038,6 +4111,34 @@ final class PdfEngineHandoff
                     }
                     if ($missingCalculationFields > 0) {
                         $diagnostics[] = 'pdf-byte-acroform-calculation-order-missing:' . $missingCalculationFields;
+                    }
+                }
+                if ($pdfAcroFormCalculationOrderPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-acroform-calculation-policy:' . ($pdfAcroFormCalculationOrderPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'calculationOrderCount' => 'entries',
+                        'resolvedFieldCount' => 'fields',
+                        'missingFieldCount' => 'missing',
+                        'undeclaredFieldCount' => 'undeclared',
+                    ] as $key => $label) {
+                        if (isset($pdfAcroFormCalculationOrderPolicy[$key]) && is_int($pdfAcroFormCalculationOrderPolicy[$key]) && $pdfAcroFormCalculationOrderPolicy[$key] > 0) {
+                            $diagnostics[] = 'pdf-byte-acroform-calculation-policy-' . $label . ':' . $pdfAcroFormCalculationOrderPolicy[$key];
+                        }
+                    }
+                    foreach ($pdfAcroFormCalculationOrderPolicy['fieldTypeLabels'] ?? [] as $label => $count) {
+                        if (is_string($label) && is_int($count) && $label !== '') {
+                            $diagnostics[] = 'pdf-byte-acroform-calculation-policy-type:' . $label . ':' . $count;
+                        }
+                    }
+                    foreach ($pdfAcroFormCalculationOrderPolicy['flagNames'] ?? [] as $flagName => $count) {
+                        if (is_string($flagName) && is_int($count) && $flagName !== '') {
+                            $diagnostics[] = 'pdf-byte-acroform-calculation-policy-flag:' . $flagName . ':' . $count;
+                        }
+                    }
+                    foreach ($pdfAcroFormCalculationOrderPolicy['issues'] ?? [] as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $diagnostics[] = 'pdf-byte-acroform-calculation-policy-issue:' . $issue;
+                        }
                     }
                 }
                 if ($pdfThreads !== []) {
@@ -5379,6 +5480,7 @@ final class PdfEngineHandoff
             'pdfPageActions' => $pdfPageActions,
             'pdfPageActionPolicy' => $pdfPageActionPolicy,
             'pdfPageViewports' => $pdfPageViewports,
+            'pdfPageViewportPolicy' => $pdfPageViewportPolicy,
             'pdfPageContentStreams' => $pdfPageContentStreams,
             'pdfPageContentResourceUsage' => $pdfPageContentResourceUsage,
             'pdfPageResourceSources' => $pdfPageResourceSources,
@@ -5451,7 +5553,9 @@ final class PdfEngineHandoff
             'pdfCollectionMetadata' => $pdfCollectionMetadata,
             'pdfCollectionPolicy' => $pdfCollectionPolicy,
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
+            'pdfAcroFormAppearancePolicy' => $pdfAcroFormAppearancePolicy,
             'pdfAcroFormCalculationOrder' => $pdfAcroFormCalculationOrder,
+            'pdfAcroFormCalculationOrderPolicy' => $pdfAcroFormCalculationOrderPolicy,
             'pdfXfaPackets' => $pdfXfaPackets,
             'pdfThreads' => $pdfThreads,
             'pdfThreadPolicy' => $pdfThreadPolicy,
@@ -5546,6 +5650,7 @@ final class PdfEngineHandoff
      *     finalPdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, embeddedFileActionCount?:int, mediaActionCount?:int, issues:list<string>}|array{},
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
+     *     finalPdfPageViewportPolicy: array<string, mixed>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     finalPdfPageContentResourceUsage: array<string, int>,
      *     finalPdfPageResourceSources: list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, procSetNames:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, patternNames:list<string>, shadingNames:list<string>, propertyNames:list<string>}>,
@@ -5627,7 +5732,9 @@ final class PdfEngineHandoff
      *     finalPdfCollectionMetadata: array{type:string|null, view:string|null, defaultDocument:string|null, schemaFields:list<array{name:string, subtype:string|null, title:string|null, order:int|null, visible:bool|null, editable:bool|null}>, sort:array{fields:list<string>, ascending:list<bool>}|array{}}|array{},
      *     finalPdfCollectionPolicy: array<string, mixed>,
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
+     *     finalPdfAcroFormAppearancePolicy: array{reviewStatus:string, fieldCount:int, fieldNames:list<string>, needAppearances:bool|null, defaultResourcesPresent:bool, defaultAppearancePresent:bool, xfaPresent:bool, appearancePolicyCount:int, normalAppearanceFieldCount:int, fieldsWithoutNormalAppearanceCount:int, fieldsWithoutNormalAppearance:list<string>, reviewAppearanceCount:int, issues:list<string>}|array{},
      *     finalPdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
+     *     finalPdfAcroFormCalculationOrderPolicy: array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{},
      *     finalPdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     finalPdfThreadPolicy: array<string, mixed>,
@@ -5881,6 +5988,7 @@ final class PdfEngineHandoff
             'finalPdfPageActions' => is_array($finalRun) && is_array($finalRun['pdfPageActions'] ?? null) ? $finalRun['pdfPageActions'] : [],
             'finalPdfPageActionPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageActionPolicy'] ?? null) ? $finalRun['pdfPageActionPolicy'] : [],
             'finalPdfPageViewports' => is_array($finalRun) && is_array($finalRun['pdfPageViewports'] ?? null) ? $finalRun['pdfPageViewports'] : [],
+            'finalPdfPageViewportPolicy' => is_array($finalRun) && is_array($finalRun['pdfPageViewportPolicy'] ?? null) ? $finalRun['pdfPageViewportPolicy'] : [],
             'finalPdfPageContentStreams' => is_array($finalRun) && is_array($finalRun['pdfPageContentStreams'] ?? null) ? $finalRun['pdfPageContentStreams'] : [],
             'finalPdfPageContentResourceUsage' => is_array($finalRun) && is_array($finalRun['pdfPageContentResourceUsage'] ?? null) ? $finalRun['pdfPageContentResourceUsage'] : [],
             'finalPdfPageResourceSources' => is_array($finalRun) && is_array($finalRun['pdfPageResourceSources'] ?? null) ? $finalRun['pdfPageResourceSources'] : [],
@@ -5963,7 +6071,9 @@ final class PdfEngineHandoff
             'finalPdfCollectionMetadata' => is_array($finalRun) && is_array($finalRun['pdfCollectionMetadata'] ?? null) ? $finalRun['pdfCollectionMetadata'] : [],
             'finalPdfCollectionPolicy' => is_array($finalRun) && is_array($finalRun['pdfCollectionPolicy'] ?? null) ? $finalRun['pdfCollectionPolicy'] : [],
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
+            'finalPdfAcroFormAppearancePolicy' => is_array($finalRun) && is_array($finalRun['pdfAcroFormAppearancePolicy'] ?? null) ? $finalRun['pdfAcroFormAppearancePolicy'] : [],
             'finalPdfAcroFormCalculationOrder' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrder'] ?? null) ? $finalRun['pdfAcroFormCalculationOrder'] : [],
+            'finalPdfAcroFormCalculationOrderPolicy' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrderPolicy'] ?? null) ? $finalRun['pdfAcroFormCalculationOrderPolicy'] : [],
             'finalPdfXfaPackets' => is_array($finalRun) && is_array($finalRun['pdfXfaPackets'] ?? null) ? $finalRun['pdfXfaPackets'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
             'finalPdfThreadPolicy' => is_array($finalRun) && is_array($finalRun['pdfThreadPolicy'] ?? null) ? $finalRun['pdfThreadPolicy'] : [],
@@ -8218,6 +8328,7 @@ final class PdfEngineHandoff
             $pageSelectionSegmentCounts = [
                 'page' => 0,
                 'range' => 0,
+                'range-to' => 0,
                 'range-from' => 0,
                 'invalid' => 0,
             ];
@@ -8263,6 +8374,7 @@ final class PdfEngineHandoff
                 'pageSelectionSegmentCount' => count(is_array($pageSelection['segments'] ?? null) ? $pageSelection['segments'] : []),
                 'pageSelectionPageSegmentCount' => is_int($pageSelectionPolicy['pageSegmentCount'] ?? null) ? $pageSelectionPolicy['pageSegmentCount'] : $pageSelectionSegmentCounts['page'],
                 'pageSelectionRangeSegmentCount' => is_int($pageSelectionPolicy['rangeSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeSegmentCount'] : $pageSelectionSegmentCounts['range'],
+                'pageSelectionRangeToSegmentCount' => is_int($pageSelectionPolicy['rangeToSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeToSegmentCount'] : $pageSelectionSegmentCounts['range-to'],
                 'pageSelectionRangeFromSegmentCount' => is_int($pageSelectionPolicy['rangeFromSegmentCount'] ?? null) ? $pageSelectionPolicy['rangeFromSegmentCount'] : $pageSelectionSegmentCounts['range-from'],
                 'pageSelectionInvalidSegmentCount' => is_int($pageSelectionPolicy['invalidSegmentCount'] ?? null) ? $pageSelectionPolicy['invalidSegmentCount'] : $pageSelectionSegmentCounts['invalid'],
                 'pageSelectionOverlapCount' => is_int($pageSelectionPolicy['overlapCount'] ?? null) ? $pageSelectionPolicy['overlapCount'] : 0,
@@ -9808,6 +9920,9 @@ final class PdfEngineHandoff
                     if ($start > $end) {
                         $segmentIssues[] = 'pages-descending-range-boundary:' . $segment;
                     }
+                } elseif (preg_match('/\A-([1-9][0-9]*)\z/', $segment, $matches) === 1) {
+                    $kind = 'range-to';
+                    $end = (int) $matches[1];
                 } elseif (preg_match('/\A([1-9][0-9]*)-\z/', $segment, $matches) === 1) {
                     $kind = 'range-from';
                     $start = (int) $matches[1];
@@ -9839,7 +9954,7 @@ final class PdfEngineHandoff
 
     /**
      * @param array{segments?:list<array{raw:string, kind:string, start:int|null, end:int|null, issues:list<string>}>}|null $pageSelection
-     * @return array{reviewStatus:string, segmentCount:int, pageSegmentCount:int, rangeSegmentCount:int, rangeFromSegmentCount:int, invalidSegmentCount:int, finiteRangeCount:int, openEndedRangeCount:int, overlapCount:int, overlaps:list<array{left:string, right:string}>, issues:list<string>}|array{}
+     * @return array{reviewStatus:string, segmentCount:int, pageSegmentCount:int, rangeSegmentCount:int, rangeToSegmentCount:int, rangeFromSegmentCount:int, invalidSegmentCount:int, finiteRangeCount:int, openEndedRangeCount:int, overlapCount:int, overlaps:list<array{left:string, right:string}>, issues:list<string>}|array{}
      */
     private function typstPageSelectionPolicy(?array $pageSelection): array
     {
@@ -9850,6 +9965,7 @@ final class PdfEngineHandoff
         $kindCounts = [
             'page' => 0,
             'range' => 0,
+            'range-to' => 0,
             'range-from' => 0,
             'invalid' => 0,
         ];
@@ -9868,7 +9984,10 @@ final class PdfEngineHandoff
 
             $start = $segment['start'] ?? null;
             $end = $segment['end'] ?? null;
-            if (!is_int($start) || !in_array($kind, ['page', 'range', 'range-from'], true)) {
+            if ($kind === 'range-to' && is_int($end)) {
+                $start = 1;
+            }
+            if (!is_int($start) || !in_array($kind, ['page', 'range', 'range-to', 'range-from'], true)) {
                 continue;
             }
 
@@ -9905,9 +10024,10 @@ final class PdfEngineHandoff
             'segmentCount' => count($pageSelection['segments']),
             'pageSegmentCount' => $kindCounts['page'],
             'rangeSegmentCount' => $kindCounts['range'],
+            'rangeToSegmentCount' => $kindCounts['range-to'],
             'rangeFromSegmentCount' => $kindCounts['range-from'],
             'invalidSegmentCount' => $kindCounts['invalid'],
-            'finiteRangeCount' => $kindCounts['page'] + $kindCounts['range'],
+            'finiteRangeCount' => $kindCounts['page'] + $kindCounts['range'] + $kindCounts['range-to'],
             'openEndedRangeCount' => $kindCounts['range-from'],
             'overlapCount' => count($overlaps),
             'overlaps' => $overlaps,
@@ -12889,6 +13009,7 @@ final class PdfEngineHandoff
      *     pageActions:list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pageActionPolicy:array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, embeddedFileActionCount?:int, mediaActionCount?:int, issues:list<string>}|array{},
      *     pageViewports:list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
+     *     pageViewportPolicy:array<string, mixed>,
      *     pageContentStreams:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pageContentResourceUsage:array<string, int>,
      *     pageResourceSources:list<array{page:int, pageObject:string|null, resourceSourceObject:string|null, inherited:bool, categories:list<string>, fontNames:list<string>, xobjectNames:list<string>, colorSpaceNames:list<string>, graphicsStateNames:list<string>, propertyNames:list<string>}>,
@@ -12981,6 +13102,7 @@ final class PdfEngineHandoff
      *     embeddedFileNames:list<string>,
      *     embeddedFiles:list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}>,
      *     acroFormCalculationOrder:list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
+     *     acroFormCalculationOrderPolicy:array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{},
      *     formFields:list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     formFieldTypes:array<string, int>,
      *     formFieldActions:list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -13046,6 +13168,14 @@ final class PdfEngineHandoff
         $signatureAppearanceByteRanges = $this->summarizePdfSignatureAppearanceByteRanges($signatures, $annotationAppearances, $pdfBytes);
         $signatureAppearancePolicy = $this->summarizePdfSignatureAppearancePolicy($signatures, $annotationAppearances, $signatureAppearanceByteRanges);
         $annotationAppearancePolicy = $this->summarizePdfAnnotationAppearancePolicy($annotationAppearances);
+        $acroFormMetadata = $this->extractPdfAcroFormMetadata($pdfBytes, $catalog);
+        $acroFormCalculationOrder = $this->extractPdfAcroFormCalculationOrder($pdfBytes, $catalog);
+        $xfaPackets = $this->extractPdfXfaPackets($pdfBytes, $catalog);
+        $acroFormAppearancePolicy = $this->summarizePdfAcroFormAppearancePolicy(
+            $acroFormMetadata,
+            $formFields,
+            $annotationAppearancePolicy
+        );
         $embeddedFiles = $this->extractPdfEmbeddedFiles($pdfBytes, $catalog);
         $collectionMetadata = $this->extractPdfCollectionMetadata($pdfBytes, $catalog);
         $threads = $this->extractPdfThreads($pdfBytes, $catalog);
@@ -13136,6 +13266,7 @@ final class PdfEngineHandoff
             'pageActions' => $pageActions,
             'pageActionPolicy' => $this->summarizePdfPageActionPolicy($pageActions, $this->extractPdfPageCount($pdfBytes)),
             'pageViewports' => $pageViewports,
+            'pageViewportPolicy' => $this->summarizePdfPageViewportPolicy($pageViewports, $this->extractPdfPageCount($pdfBytes)),
             'pageContentStreams' => $pageContentStreams,
             'pageContentResourceUsage' => $this->summarizePdfPageContentResourceUsage($pageContentStreams),
             'pageResourceSources' => $pageResourceSources,
@@ -13207,9 +13338,11 @@ final class PdfEngineHandoff
             'optionalContentMemberships' => $this->extractPdfOptionalContentMemberships($pdfBytes, $catalog),
             'collectionMetadata' => $collectionMetadata,
             'collectionPolicy' => $this->summarizePdfCollectionPolicy($collectionMetadata, $embeddedFiles),
-            'acroFormMetadata' => $this->extractPdfAcroFormMetadata($pdfBytes, $catalog),
-            'acroFormCalculationOrder' => $this->extractPdfAcroFormCalculationOrder($pdfBytes, $catalog),
-            'xfaPackets' => $this->extractPdfXfaPackets($pdfBytes, $catalog),
+            'acroFormMetadata' => $acroFormMetadata,
+            'acroFormAppearancePolicy' => $acroFormAppearancePolicy,
+            'acroFormCalculationOrder' => $acroFormCalculationOrder,
+            'acroFormCalculationOrderPolicy' => $this->summarizePdfAcroFormCalculationOrderPolicy($acroFormMetadata, $acroFormCalculationOrder),
+            'xfaPackets' => $xfaPackets,
             'threads' => $threads,
             'threadPolicy' => $this->summarizePdfThreadPolicy($threads),
             'documentPartMetadata' => $documentPartMetadata,
@@ -28501,6 +28634,126 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}> $viewports
+     * @return array{reviewStatus:string, pageCount:int|null, viewportCount:int, pagesWithViewports:list<int>, pageWithViewportCount:int, namedViewportCount:int, bboxCount:int, missingBBoxCount:int, measureCount:int, measureSubtypes:array<string, int>, scaleRatioCount:int, unitFormatCount:int, unitCategories:array<string, int>, units:list<string>, issues:list<string>}|array{}
+     */
+    private function summarizePdfPageViewportPolicy(array $viewports, ?int $pageCount): array
+    {
+        if ($viewports === []) {
+            return [];
+        }
+
+        $pages = [];
+        $namedViewportCount = 0;
+        $bboxCount = 0;
+        $missingBBoxCount = 0;
+        $measureCount = 0;
+        $measureSubtypes = [];
+        $scaleRatioCount = 0;
+        $unitFormatCount = 0;
+        $unitCategories = [
+            'xUnits' => 0,
+            'yUnits' => 0,
+            'distanceUnits' => 0,
+            'areaUnits' => 0,
+            'angleUnits' => 0,
+        ];
+        $units = [];
+        $issues = [];
+
+        foreach ($viewports as $viewport) {
+            $page = $viewport['page'] ?? null;
+            if (is_int($page) && $page > 0) {
+                $pages[$page] = true;
+            }
+
+            if (is_string($viewport['name'] ?? null) && $viewport['name'] !== '') {
+                $namedViewportCount++;
+            }
+
+            $bbox = $viewport['bbox'] ?? null;
+            if (is_array($bbox) && count($bbox) === 4) {
+                $bboxCount++;
+            } else {
+                $missingBBoxCount++;
+                $issues[] = 'viewport-missing-bbox';
+            }
+
+            $measureSubtype = is_string($viewport['measureSubtype'] ?? null) && $viewport['measureSubtype'] !== ''
+                ? $viewport['measureSubtype']
+                : null;
+            $scaleRatio = is_string($viewport['scaleRatio'] ?? null) && $viewport['scaleRatio'] !== ''
+                ? $viewport['scaleRatio']
+                : null;
+            $viewportUnitCount = 0;
+
+            foreach (array_keys($unitCategories) as $unitCategory) {
+                $unitFormats = is_array($viewport[$unitCategory] ?? null) ? $viewport[$unitCategory] : [];
+                $unitCategories[$unitCategory] += count($unitFormats);
+                $viewportUnitCount += count($unitFormats);
+                foreach ($unitFormats as $unitFormat) {
+                    if (!is_array($unitFormat)) {
+                        continue;
+                    }
+                    if (is_string($unitFormat['unit'] ?? null) && $unitFormat['unit'] !== '') {
+                        $units[] = $unitFormat['unit'];
+                    }
+                    if (is_float($unitFormat['conversionFactor'] ?? null) || is_int($unitFormat['conversionFactor'] ?? null)) {
+                        if ($unitFormat['conversionFactor'] <= 0) {
+                            $issues[] = 'nonpositive-unit-conversion';
+                        }
+                    }
+                }
+            }
+
+            if ($measureSubtype !== null || $scaleRatio !== null || $viewportUnitCount > 0) {
+                $measureCount++;
+                if ($measureSubtype === null) {
+                    $issues[] = 'viewport-measure-missing-subtype';
+                } else {
+                    $measureSubtypes[$measureSubtype] = ($measureSubtypes[$measureSubtype] ?? 0) + 1;
+                }
+                if ($scaleRatio === null) {
+                    $issues[] = 'viewport-measure-missing-scale-ratio';
+                } else {
+                    $scaleRatioCount++;
+                }
+            }
+            $unitFormatCount += $viewportUnitCount;
+        }
+
+        $pagesWithViewports = array_keys($pages);
+        sort($pagesWithViewports);
+        ksort($measureSubtypes);
+        $unitCategories = array_filter(
+            $unitCategories,
+            static fn (int $count): bool => $count > 0
+        );
+        $units = $this->uniqueStrings($units);
+        sort($units, SORT_STRING);
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'pageCount' => $pageCount,
+            'viewportCount' => count($viewports),
+            'pagesWithViewports' => $pagesWithViewports,
+            'pageWithViewportCount' => count($pagesWithViewports),
+            'namedViewportCount' => $namedViewportCount,
+            'bboxCount' => $bboxCount,
+            'missingBBoxCount' => $missingBBoxCount,
+            'measureCount' => $measureCount,
+            'measureSubtypes' => $measureSubtypes,
+            'scaleRatioCount' => $scaleRatioCount,
+            'unitFormatCount' => $unitFormatCount,
+            'unitCategories' => $unitCategories,
+            'units' => $units,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
      * @return list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>
      */
     private function extractPdfPageTimings(string $pdfBytes, ?string $catalog): array
@@ -34809,6 +35062,221 @@ final class PdfEngineHandoff
             'calculationOrder' => $calculationOrder,
             'xfaPresent' => $xfaValue !== null,
             'xfaPacketNames' => $xfaValue === null ? [] : $this->extractPdfXfaPacketNames($xfaValue, $objects),
+        ];
+    }
+
+    /**
+     * @param array{fieldReferences?:list<string>, fieldCount?:int, needAppearances?:bool|null, defaultResourcesPresent?:bool, defaultAppearance?:string|null, xfaPresent?:bool} $metadata
+     * @param list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}> $fields
+     * @param list<array{fieldName:string|null, normalAppearanceCount:int, reviewStatus:string, issues:list<string>}> $annotationAppearancePolicy
+     * @return array{reviewStatus:string, fieldCount:int, fieldNames:list<string>, needAppearances:bool|null, defaultResourcesPresent:bool, defaultAppearancePresent:bool, xfaPresent:bool, appearancePolicyCount:int, normalAppearanceFieldCount:int, fieldsWithoutNormalAppearanceCount:int, fieldsWithoutNormalAppearance:list<string>, reviewAppearanceCount:int, issues:list<string>}|array{}
+     */
+    private function summarizePdfAcroFormAppearancePolicy(array $metadata, array $fields, array $annotationAppearancePolicy): array
+    {
+        if ($metadata === []) {
+            return [];
+        }
+
+        $fieldNames = [];
+        foreach ($fields as $field) {
+            if (!is_string($field['name'] ?? null) || $field['name'] === '') {
+                continue;
+            }
+
+            $fieldNames[$field['name']] = true;
+        }
+        $fieldNames = array_keys($fieldNames);
+        sort($fieldNames, SORT_STRING);
+
+        $fieldNameSet = array_fill_keys($fieldNames, true);
+        $normalAppearanceFields = [];
+        $appearancePolicyCount = 0;
+        $reviewAppearanceCount = 0;
+        foreach ($annotationAppearancePolicy as $policy) {
+            if (!is_array($policy)) {
+                continue;
+            }
+            $policyFieldName = is_string($policy['fieldName'] ?? null) && $policy['fieldName'] !== ''
+                ? $policy['fieldName']
+                : null;
+            if ($policyFieldName === null || !isset($fieldNameSet[$policyFieldName])) {
+                continue;
+            }
+
+            ++$appearancePolicyCount;
+            if (($policy['reviewStatus'] ?? 'ok') !== 'ok' || ($policy['issues'] ?? []) !== []) {
+                ++$reviewAppearanceCount;
+            }
+            if (
+                is_int($policy['normalAppearanceCount'] ?? null)
+                && $policy['normalAppearanceCount'] > 0
+            ) {
+                $normalAppearanceFields[$policyFieldName] = true;
+            }
+        }
+        $normalAppearanceFieldNames = array_keys($normalAppearanceFields);
+        sort($normalAppearanceFieldNames, SORT_STRING);
+
+        $fieldsWithoutNormalAppearance = array_values(array_diff($fieldNames, $normalAppearanceFieldNames));
+        sort($fieldsWithoutNormalAppearance, SORT_STRING);
+
+        $needAppearances = array_key_exists('needAppearances', $metadata) && is_bool($metadata['needAppearances'])
+            ? $metadata['needAppearances']
+            : null;
+        $defaultResourcesPresent = ($metadata['defaultResourcesPresent'] ?? false) === true;
+        $defaultAppearancePresent = is_string($metadata['defaultAppearance'] ?? null) && $metadata['defaultAppearance'] !== '';
+        $xfaPresent = ($metadata['xfaPresent'] ?? false) === true;
+
+        $issues = [];
+        if ($needAppearances === true) {
+            $issues[] = 'need-appearances-regeneration-boundary';
+            if (!$defaultResourcesPresent) {
+                $issues[] = 'need-appearances-without-default-resources';
+            }
+            if (!$defaultAppearancePresent) {
+                $issues[] = 'need-appearances-without-default-appearance';
+            }
+        }
+        if ($fieldsWithoutNormalAppearance !== []) {
+            $issues[] = 'fields-without-normal-appearance';
+        }
+        if ($reviewAppearanceCount > 0) {
+            $issues[] = 'annotation-appearance-policy-review';
+        }
+        if ($xfaPresent) {
+            $issues[] = 'xfa-form-appearance-boundary';
+        }
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'fieldCount' => is_int($metadata['fieldCount'] ?? null) ? $metadata['fieldCount'] : count($fieldNames),
+            'fieldNames' => $fieldNames,
+            'needAppearances' => $needAppearances,
+            'defaultResourcesPresent' => $defaultResourcesPresent,
+            'defaultAppearancePresent' => $defaultAppearancePresent,
+            'xfaPresent' => $xfaPresent,
+            'appearancePolicyCount' => $appearancePolicyCount,
+            'normalAppearanceFieldCount' => count($normalAppearanceFieldNames),
+            'fieldsWithoutNormalAppearanceCount' => count($fieldsWithoutNormalAppearance),
+            'fieldsWithoutNormalAppearance' => $fieldsWithoutNormalAppearance,
+            'reviewAppearanceCount' => $reviewAppearanceCount,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array{fieldReferences?:list<string>, fieldCount?:int, calculationOrder?:list<string>} $metadata
+     * @param list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}> $calculationOrder
+     * @return array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{}
+     */
+    private function summarizePdfAcroFormCalculationOrderPolicy(array $metadata, array $calculationOrder): array
+    {
+        $declaredFieldReferences = [];
+        foreach (is_array($metadata['fieldReferences'] ?? null) ? $metadata['fieldReferences'] : [] as $reference) {
+            if (is_string($reference) && $reference !== '') {
+                $declaredFieldReferences[$reference] = true;
+            }
+        }
+
+        $fieldObjects = [];
+        foreach (is_array($metadata['calculationOrder'] ?? null) ? $metadata['calculationOrder'] : [] as $reference) {
+            if (is_string($reference) && $reference !== '') {
+                $fieldObjects[$reference] = true;
+            }
+        }
+
+        if ($calculationOrder === [] && $fieldObjects === []) {
+            return [];
+        }
+
+        $resolvedFieldCount = 0;
+        $missingFieldObjects = [];
+        $undeclaredFieldObjects = [];
+        $fieldNames = [];
+        $fieldTypeLabels = [];
+        $flagNames = [];
+
+        foreach ($calculationOrder as $entry) {
+            $fieldObject = is_string($entry['fieldObject'] ?? null) && $entry['fieldObject'] !== ''
+                ? $entry['fieldObject']
+                : null;
+            if ($fieldObject !== null) {
+                $fieldObjects[$fieldObject] = true;
+            }
+
+            if (($entry['missing'] ?? false) === true) {
+                if ($fieldObject !== null) {
+                    $missingFieldObjects[$fieldObject] = true;
+                }
+                continue;
+            }
+
+            $resolvedFieldCount++;
+            if ($fieldObject !== null && $declaredFieldReferences !== [] && !isset($declaredFieldReferences[$fieldObject])) {
+                $undeclaredFieldObjects[$fieldObject] = true;
+            }
+
+            if (is_string($entry['fieldName'] ?? null) && $entry['fieldName'] !== '') {
+                $fieldNames[$entry['fieldName']] = true;
+            }
+
+            $fieldTypeLabel = is_string($entry['fieldTypeLabel'] ?? null) && $entry['fieldTypeLabel'] !== ''
+                ? $entry['fieldTypeLabel']
+                : (is_string($entry['fieldType'] ?? null) && $entry['fieldType'] !== '' ? $entry['fieldType'] : null);
+            if ($fieldTypeLabel !== null) {
+                $fieldTypeLabels[$fieldTypeLabel] = ($fieldTypeLabels[$fieldTypeLabel] ?? 0) + 1;
+            }
+
+            foreach (is_array($entry['flagNames'] ?? null) ? $entry['flagNames'] : [] as $flagName) {
+                if (!is_string($flagName) || $flagName === '') {
+                    continue;
+                }
+                $flagNames[$flagName] = ($flagNames[$flagName] ?? 0) + 1;
+            }
+        }
+
+        $fieldObjectList = array_keys($fieldObjects);
+        $missingFieldObjectList = array_keys($missingFieldObjects);
+        $undeclaredFieldObjectList = array_keys($undeclaredFieldObjects);
+        $fieldNameList = array_keys($fieldNames);
+        sort($fieldObjectList, SORT_STRING);
+        sort($missingFieldObjectList, SORT_STRING);
+        sort($undeclaredFieldObjectList, SORT_STRING);
+        sort($fieldNameList, SORT_STRING);
+        ksort($fieldTypeLabels);
+        ksort($flagNames);
+
+        $issues = [];
+        if ($fieldObjectList !== []) {
+            $issues[] = 'calculation-order-boundary';
+        }
+        if ($missingFieldObjectList !== []) {
+            $issues[] = 'missing-calculation-order-field';
+        }
+        if ($undeclaredFieldObjectList !== []) {
+            $issues[] = 'calculation-order-field-not-declared';
+        }
+        if ($resolvedFieldCount === 0 && $fieldObjectList !== []) {
+            $issues[] = 'calculation-order-unresolved';
+        }
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'fieldCount' => is_int($metadata['fieldCount'] ?? null) ? $metadata['fieldCount'] : count($declaredFieldReferences),
+            'calculationOrderCount' => count($fieldObjectList),
+            'resolvedFieldCount' => $resolvedFieldCount,
+            'missingFieldCount' => count($missingFieldObjectList),
+            'undeclaredFieldCount' => count($undeclaredFieldObjectList),
+            'fieldObjects' => $fieldObjectList,
+            'missingFieldObjects' => $missingFieldObjectList,
+            'undeclaredFieldObjects' => $undeclaredFieldObjectList,
+            'fieldNames' => $fieldNameList,
+            'fieldTypeLabels' => $fieldTypeLabels,
+            'flagNames' => $flagNames,
+            'issues' => $issues,
         ];
     }
 

@@ -22,7 +22,7 @@ final class MarkdownWriter
     /** @var array<string, bool> */
     private array $referenceUsedLabels = [];
 
-    /** @var array<string, string> */
+    /** @var array<string, array{plain:string, markdown:string}> */
     private array $referenceTargetLabels = [];
 
     /** @var array<string, int> */
@@ -34,8 +34,13 @@ final class MarkdownWriter
 
     private bool $escapeInlineSpaces = false;
 
+    private int $linkLabelRenderDepth = 0;
+
     /** @var list<string> */
     private array $plainTemplatePartialStack = [];
+
+    /** @var list<string> */
+    private array $inlineDelimiterStack = [];
 
     /**
      * @param array{variant?: string, setextHeadings?: bool, referenceLinks?: bool, referenceLocation?: string, linkAttributes?: bool, headerAttributes?: bool, fencedCodeBlocks?: bool, backtickCodeBlocks?: bool, fencedCodeAttributes?: bool, definitionLists?: bool, lineBlocks?: bool, bracketedSpans?: bool, nativeSpans?: bool, fencedDivs?: bool, nativeDivs?: bool, implicitFigures?: bool, markdownInHtmlBlocks?: bool, markdownAttribute?: bool, rawAttribute?: bool, rawHtml?: bool, rawTex?: bool, simpleTables?: bool, pipeTables?: bool, multilineTables?: bool, gridTables?: bool, tableCaptions?: bool, columns?: int, tabStop?: int, wrap?: string, strikeout?: bool, superscript?: bool, subscript?: bool, preferAscii?: bool, smart?: bool, escapedLineBreaks?: bool, hardLineBreaks?: bool, wikilinksTitleAfterPipe?: bool, wikilinksTitleBeforePipe?: bool, gutenberg?: bool, template?: bool|string, templatePath?: string, standalone?: bool, tableOfContents?: bool, toc?: bool, tocDepth?: int, numberSections?: bool, variables?: array<string, mixed>, partials?: array<string, string>, headerIncludes?: mixed, includeBefore?: mixed, includeAfter?: mixed, opmlNoteMarkdown?: bool} $options
@@ -60,6 +65,7 @@ final class MarkdownWriter
         $this->lastReferenceIndex = 0;
         $this->escapeInlineSpaces = false;
         $this->plainTemplatePartialStack = [];
+        $this->inlineDelimiterStack = [];
 
         $customPlainTemplate = $this->customPlainTemplateSource();
         if ($customPlainTemplate !== null) {
@@ -67,9 +73,13 @@ final class MarkdownWriter
         }
 
         $blocks = [];
-        $titleBlock = $this->renderPlainTemplateTitleBlock($document);
-        if ($titleBlock !== '') {
-            $this->appendBlockEntry($blocks, $titleBlock);
+        $metadataPreamble = $this->renderMarkdownMetadataPreamble($document);
+        if ($metadataPreamble !== '') {
+            $this->appendBlockEntry($blocks, $metadataPreamble);
+        }
+        $plainTemplateTitleBlock = $this->renderPlainTemplateTitleBlock($document);
+        if ($plainTemplateTitleBlock !== '') {
+            $this->appendBlockEntry($blocks, $plainTemplateTitleBlock);
         }
         foreach ($this->renderPlainTemplateVariableBlocks($document, 'header-includes') as $block) {
             $this->appendBlockEntry($blocks, $block);
@@ -233,6 +243,418 @@ final class MarkdownWriter
             implode('; ', $authors),
             $date,
         ]);
+    }
+
+    private function renderMarkdownMetadataPreamble(AstNode $document): string
+    {
+        if ($this->isPlainTextVariant()) {
+            return '';
+        }
+
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta) || $meta === []) {
+            return '';
+        }
+
+        $titleBlock = $this->renderMarkdownTitleBlock($meta);
+        if (
+            $titleBlock !== null
+            && !$this->markdownMetadataRequiresYamlBlock($meta)
+            && !$this->yamlMetadataExplicitlyEnabled()
+        ) {
+            return $titleBlock;
+        }
+
+        if ($this->yamlMetadataEnabled()) {
+            return $this->renderYamlMetadataBlock($meta);
+        }
+
+        return $titleBlock ?? '';
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function renderMarkdownTitleBlock(array $meta): ?string
+    {
+        if (!$this->titleBlockEnabled()) {
+            return null;
+        }
+
+        $titleLines = $this->markdownTitleBlockTitleLines($meta);
+        $authorLines = $this->markdownTitleBlockAuthorLines($meta);
+        $dateLines = $this->markdownTitleBlockDateLines($meta);
+
+        $fields = [$titleLines, $authorLines, $dateLines];
+        $lastPopulated = -1;
+        foreach ($fields as $index => $lines) {
+            if ($lines !== []) {
+                $lastPopulated = $index;
+            }
+        }
+
+        if ($lastPopulated < 0) {
+            return null;
+        }
+
+        $lines = [];
+        for ($index = 0; $index <= $lastPopulated; $index++) {
+            $fieldLines = $fields[$index];
+            $first = array_shift($fieldLines);
+            $lines[] = $first === null || $first === '' ? '%' : '% ' . $first;
+
+            foreach ($fieldLines as $line) {
+                $lines[] = '  ' . $line;
+            }
+        }
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return list<string>
+     */
+    private function markdownTitleBlockTitleLines(array $meta): array
+    {
+        if (isset($meta['titleInlines']) && is_array($meta['titleInlines'])) {
+            return $this->renderMarkdownMetaInlineLines($meta['titleInlines']);
+        }
+
+        if (isset($meta['title']) && is_array($meta['title']) && $this->arrayIsAstNodeList($meta['title'])) {
+            return $this->renderMarkdownMetaInlineLines($meta['title']);
+        }
+
+        return $this->markdownMetaScalarLines($meta['title'] ?? null);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return list<string>
+     */
+    private function markdownTitleBlockAuthorLines(array $meta): array
+    {
+        if (isset($meta['authorInlines']) && is_array($meta['authorInlines'])) {
+            return $this->renderMarkdownMetaInlineListLines($meta['authorInlines']);
+        }
+
+        if (array_key_exists('authors', $meta)) {
+            return $this->renderMarkdownMetaAuthorList($meta['authors']);
+        }
+
+        if (!array_key_exists('author', $meta)) {
+            return [];
+        }
+
+        $author = $meta['author'];
+        if (is_array($author) && $this->arrayIsAstNodeList($author)) {
+            return $this->renderMarkdownMetaInlineLines($author);
+        }
+
+        if (is_array($author) && array_is_list($author)) {
+            $authors = [];
+            foreach ($this->renderMarkdownMetaAuthorList($author) as $line) {
+                if ($line !== '') {
+                    $authors[] = $line;
+                }
+            }
+
+            return $authors === [] ? [] : [implode('; ', $authors)];
+        }
+
+        return $this->markdownMetaScalarLines($author);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return list<string>
+     */
+    private function markdownTitleBlockDateLines(array $meta): array
+    {
+        if (isset($meta['dateInlines']) && is_array($meta['dateInlines'])) {
+            return $this->renderMarkdownMetaInlineLines($meta['dateInlines']);
+        }
+
+        if (isset($meta['date']) && is_array($meta['date']) && $this->arrayIsAstNodeList($meta['date'])) {
+            return $this->renderMarkdownMetaInlineLines($meta['date']);
+        }
+
+        return $this->markdownMetaScalarLines($meta['date'] ?? null);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<string>
+     */
+    private function renderMarkdownMetaInlineLines(array $nodes): array
+    {
+        $lines = [];
+        $current = [];
+        foreach ($nodes as $node) {
+            if ($node->type === 'softbreak' || $node->type === 'linebreak') {
+                $lines[] = $this->normalizeMarkdownMetaLine($this->renderInlines($current));
+                $current = [];
+                continue;
+            }
+
+            $current[] = $node;
+        }
+
+        $lines[] = $this->normalizeMarkdownMetaLine($this->renderInlines($current));
+
+        return $this->nonEmptyMarkdownMetaLines($lines);
+    }
+
+    /**
+     * @param list<mixed> $authors
+     * @return list<string>
+     */
+    private function renderMarkdownMetaInlineListLines(array $authors): array
+    {
+        $lines = [];
+        foreach ($authors as $author) {
+            if (is_array($author) && $this->arrayIsAstNodeList($author)) {
+                $rendered = implode(' ', $this->renderMarkdownMetaInlineLines($author));
+                if ($rendered !== '') {
+                    $lines[] = $rendered;
+                }
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderMarkdownMetaAuthorList(mixed $value): array
+    {
+        if (is_array($value) && $this->arrayIsAstNodeList($value)) {
+            return $this->renderMarkdownMetaInlineLines($value);
+        }
+
+        if (!is_array($value)) {
+            return $this->markdownMetaScalarLines($value);
+        }
+
+        $lines = [];
+        foreach ($value as $author) {
+            if (is_array($author) && $this->arrayIsAstNodeList($author)) {
+                $rendered = implode(' ', $this->renderMarkdownMetaInlineLines($author));
+            } elseif (is_scalar($author)) {
+                $rendered = implode(' ', $this->markdownMetaScalarLines($author));
+            } else {
+                $rendered = '';
+            }
+
+            $rendered = $this->normalizeMarkdownMetaLine($rendered);
+            if ($rendered !== '') {
+                $lines[] = $rendered;
+            }
+        }
+
+        return $lines;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function markdownMetaScalarLines(mixed $value): array
+    {
+        if (!is_scalar($value)) {
+            return [];
+        }
+
+        $text = str_replace(["\r\n", "\r"], "\n", (string) $value);
+        $lines = array_map(fn (string $line): string => $this->normalizeMarkdownMetaLine($line), explode("\n", $text));
+
+        return $this->nonEmptyMarkdownMetaLines($lines);
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return list<string>
+     */
+    private function nonEmptyMarkdownMetaLines(array $lines): array
+    {
+        return array_values(array_filter($lines, static fn (string $line): bool => $line !== ''));
+    }
+
+    private function normalizeMarkdownMetaLine(string $value): string
+    {
+        return trim(preg_replace('/[ \t]+/u', ' ', $value) ?? $value);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function markdownMetadataRequiresYamlBlock(array $meta): bool
+    {
+        $allowed = [
+            'title' => true,
+            'titleInlines' => true,
+            'author' => true,
+            'authors' => true,
+            'authorInlines' => true,
+            'date' => true,
+            'dateInlines' => true,
+        ];
+        foreach ($meta as $key => $_value) {
+            if (!isset($allowed[$key])) {
+                return true;
+            }
+        }
+
+        if (array_key_exists('author', $meta) && is_string($meta['author']) && str_contains($meta['author'], ';')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     */
+    private function renderYamlMetadataBlock(array $meta): string
+    {
+        $normalized = $this->normalizedYamlMetadata($meta);
+        if ($normalized === []) {
+            return '';
+        }
+
+        $lines = ['---'];
+        foreach ($normalized as $key => $value) {
+            foreach ($this->renderYamlMetadataValue((string) $key, $value, 0, in_array($key, ['title', 'author', 'date'], true)) as $line) {
+                $lines[] = $line;
+            }
+        }
+        $lines[] = '...';
+
+        return implode("\n", $lines);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @return array<string, mixed>
+     */
+    private function normalizedYamlMetadata(array $meta): array
+    {
+        $normalized = [];
+        foreach ($meta as $key => $value) {
+            if ($key === 'titleInlines' || $key === 'dateInlines' || $key === 'authorInlines') {
+                continue;
+            }
+
+            $normalized[$key] = $this->normalizeYamlMetadataValue($value);
+        }
+
+        if (!array_key_exists('title', $normalized) && isset($meta['titleInlines']) && is_array($meta['titleInlines'])) {
+            $normalized['title'] = implode(' ', $this->renderMarkdownMetaInlineLines($meta['titleInlines']));
+        }
+        if (!array_key_exists('date', $normalized) && isset($meta['dateInlines']) && is_array($meta['dateInlines'])) {
+            $normalized['date'] = implode(' ', $this->renderMarkdownMetaInlineLines($meta['dateInlines']));
+        }
+        if (!array_key_exists('author', $normalized) && isset($meta['authorInlines']) && is_array($meta['authorInlines'])) {
+            $normalized['author'] = $this->renderMarkdownMetaInlineListLines($meta['authorInlines']);
+        }
+
+        return array_filter($normalized, static fn (mixed $value): bool => $value !== null && $value !== [] && $value !== '');
+    }
+
+    private function normalizeYamlMetadataValue(mixed $value): mixed
+    {
+        if ($value instanceof AstNode) {
+            return $this->isInlineNode($value)
+                ? $this->renderInlines([$value])
+                : trim(implode("\n", $this->renderBlock($value, 0)));
+        }
+
+        if (is_array($value)) {
+            if ($this->arrayIsAstNodeList($value)) {
+                return implode(' ', $this->renderMarkdownMetaInlineLines($value));
+            }
+
+            $normalized = [];
+            foreach ($value as $key => $item) {
+                $normalized[$key] = $this->normalizeYamlMetadataValue($item);
+            }
+
+            return $normalized;
+        }
+
+        return is_scalar($value) ? $value : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderYamlMetadataValue(string $key, mixed $value, int $indent, bool $preferQuotedScalar = false): array
+    {
+        $prefix = str_repeat(' ', $indent);
+        if (is_array($value)) {
+            if ($value === []) {
+                return [$prefix . $key . ': []'];
+            }
+
+            if (array_is_list($value)) {
+                $lines = [$prefix . $key . ':'];
+                foreach ($value as $item) {
+                    if (is_array($item)) {
+                        $lines[] = $prefix . '  -';
+                        foreach ($this->renderYamlMetadataMapping($item, $indent + 4) as $line) {
+                            $lines[] = $line;
+                        }
+                    } else {
+                        $lines[] = $prefix . '  - ' . $this->renderYamlScalar($item, $preferQuotedScalar);
+                    }
+                }
+
+                return $lines;
+            }
+
+            $lines = [$prefix . $key . ':'];
+            foreach ($this->renderYamlMetadataMapping($value, $indent + 2) as $line) {
+                $lines[] = $line;
+            }
+
+            return $lines;
+        }
+
+        return [$prefix . $key . ': ' . $this->renderYamlScalar($value, $preferQuotedScalar)];
+    }
+
+    /**
+     * @param array<string|int, mixed> $mapping
+     * @return list<string>
+     */
+    private function renderYamlMetadataMapping(array $mapping, int $indent): array
+    {
+        $lines = [];
+        foreach ($mapping as $key => $value) {
+            foreach ($this->renderYamlMetadataValue((string) $key, $value, $indent) as $line) {
+                $lines[] = $line;
+            }
+        }
+
+        return $lines;
+    }
+
+    private function renderYamlScalar(mixed $value, bool $preferQuoted = false): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        $text = (string) $value;
+        if (!$preferQuoted && preg_match('/^[A-Za-z0-9_.-]+(?: [A-Za-z0-9_.-]+)*$/', $text) === 1) {
+            return $text;
+        }
+
+        return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $text) . '"';
     }
 
     private function renderPlainTemplateBodyOverride(AstNode $document): ?string
@@ -6121,7 +6543,13 @@ final class MarkdownWriter
     {
         $text = '';
         foreach ($nodes as $index => $node) {
-            $text .= $this->renderInline($node, array_slice($nodes, $index + 1), $escapeInitialPlainMarker && $index === 0);
+            $text .= $this->renderInline(
+                $node,
+                array_slice($nodes, $index + 1),
+                $escapeInitialPlainMarker && $index === 0,
+                $nodes[$index - 1] ?? null,
+                $nodes[$index - 2] ?? null
+            );
             $next = $nodes[$index + 1] ?? null;
             if ($node->type === 'math' && $next instanceof AstNode && $next->type === 'text') {
                 $nextText = (string) $next->attr('text', '');
@@ -6137,21 +6565,29 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function renderInline(AstNode $node, array $following = [], bool $escapeInitialPlainMarker = false): string
+    private function renderInline(
+        AstNode $node,
+        array $following = [],
+        bool $escapeInitialPlainMarker = false,
+        ?AstNode $previous = null,
+        ?AstNode $beforePrevious = null
+    ): string
     {
         return match ($node->type) {
             'text' => $this->escapeText(
                 (string) $node->attr('text', ''),
                 $following,
                 $escapeInitialPlainMarker,
-                (bool) $node->attr('preserveSmartPunctuation', false)
+                (bool) $node->attr('preserveSmartPunctuation', false),
+                $this->previousInlineCouldRenderReference($previous),
+                $this->previousBreakFollowsReference($previous, $beforePrevious)
             ),
-            'softbreak' => $this->renderSoftBreak($following),
+            'softbreak' => $this->renderSoftBreak($following, $previous),
             'space' => ' ',
             'linebreak' => $this->renderLineBreak(),
             'code' => $this->renderCode($node),
             'emph' => $this->renderEmph($node),
-            'strong' => $this->delimitInlineContent('**', '**', $this->renderInlines($node->children)),
+            'strong' => $this->renderStrong($node, $following),
             'mark' => $this->renderMark($node),
             'underline' => $this->renderUnderline($node),
             'small_caps' => $this->renderSmallCaps($node),
@@ -6293,7 +6729,34 @@ final class MarkdownWriter
 
     private function renderCode(AstNode $node): string
     {
-        $text = (string) $node->attr('text', '');
+        $text = $this->normalizedCodeSpanText((string) $node->attr('text', ''));
+        $attrs = $this->linkAttrTuple($node);
+        if (!$this->isNullAttrTuple($attrs) && !$this->inlineCodeAttributesEnabled()) {
+            if ($this->rawHtmlEnabled()) {
+                return '<code'
+                    . $this->renderHtmlAttributes($this->htmlAttributesFromAttrTuple($attrs))
+                    . '>'
+                    . $this->escapeHtml($text)
+                    . '</code>';
+            }
+
+            $attrs = [
+                'id' => '',
+                'classes' => [],
+                'attributes' => [],
+            ];
+        }
+
+        return $this->renderCodeSpan($text, $this->renderAttributesTuple($attrs));
+    }
+
+    private function normalizedCodeSpanText(string $text): string
+    {
+        return str_replace("\n", ' ', str_replace(["\r\n", "\r"], "\n", $text));
+    }
+
+    private function renderCodeSpan(string $text, string $attrs = ''): string
+    {
         $longestTickRun = 0;
         if (preg_match_all('/`+/', $text, $matches) !== false) {
             foreach ($matches[0] as $run) {
@@ -6302,14 +6765,16 @@ final class MarkdownWriter
         }
 
         $marker = str_repeat('`', $longestTickRun + 1);
-        $spacer = $longestTickRun === 0 ? '' : ' ';
+        $spacePadded = $longestTickRun > 0
+            || ($text !== '' && trim($text, ' ') !== '' && ($text[0] === ' ' || str_ends_with($text, ' ')));
+        $spacer = $spacePadded ? ' ' : '';
 
         return $marker
             . $spacer
             . $text
             . $spacer
             . $marker
-            . $this->renderAttributesTuple($this->linkAttrTuple($node));
+            . $attrs;
     }
 
     private function renderLineBreak(): string
@@ -6332,7 +6797,7 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function renderSoftBreak(array $following = []): string
+    private function renderSoftBreak(array $following = [], ?AstNode $previous = null): string
     {
         $next = $following[0] ?? null;
         if (
@@ -6344,7 +6809,69 @@ final class MarkdownWriter
             return "\n";
         }
 
+        if ($this->linkLabelRenderDepth > 0) {
+            return "\n";
+        }
+
+        if (
+            $this->previousInlineCouldRenderReference($previous)
+            && $this->followingStartsReferenceSuffixConflict($following)
+        ) {
+            return "\n";
+        }
+
         return $this->writerWrapText() === 'preserve' ? "\n" : ' ';
+    }
+
+    private function previousBreakFollowsReference(?AstNode $previous, ?AstNode $beforePrevious): bool
+    {
+        return $previous instanceof AstNode
+            && in_array($previous->type, ['softbreak', 'linebreak'], true)
+            && $this->previousInlineCouldRenderReference($beforePrevious);
+    }
+
+    private function previousInlineCouldRenderReference(?AstNode $node): bool
+    {
+        if (!$node instanceof AstNode || !(bool) ($this->options['referenceLinks'] ?? false)) {
+            return false;
+        }
+
+        if ($node->type === 'link') {
+            return !$this->canRenderAutolink($node) && $this->renderWikiLink($node) === null;
+        }
+
+        if ($node->type === 'image') {
+            return !$this->shouldRenderRawHtmlFallback($this->imageAttrTuple($node));
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function followingStartsReferenceSuffixConflict(array $following): bool
+    {
+        $next = $following[0] ?? null;
+        if (!$next instanceof AstNode) {
+            return false;
+        }
+
+        if (in_array($next->type, ['space', 'softbreak', 'linebreak'], true)) {
+            return $this->followingStartsReferenceSuffixConflict(array_slice($following, 1));
+        }
+
+        if ($next->type === 'text') {
+            $text = (string) $next->attr('text', '');
+        } elseif (in_array($next->type, ['raw_inline', 'raw_markdown', 'raw_html_inline'], true)) {
+            $text = (string) $next->attr('text', $next->attr('markdown', $next->attr('html', '')));
+        } else {
+            return false;
+        }
+
+        $text = ltrim($text, " \t\r\n");
+
+        return $text !== '' && $this->startsWithReferenceSuffixConflict($text);
     }
 
     /**
@@ -6426,11 +6953,110 @@ final class MarkdownWriter
 
     private function renderEmph(AstNode $node): string
     {
-        if (count($node->children) === 1 && $node->children[0]->type === 'emph') {
-            return $this->renderInlines($node->children[0]->children);
+        $delimiter = $this->inlineEmphasisDelimiter($node);
+
+        return $this->renderDelimitedInline($delimiter, $delimiter, $node->children);
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function renderStrong(AstNode $node, array $following = []): string
+    {
+        $delimiter = $this->inlineStrongDelimiter($node, $following);
+
+        return $this->renderDelimitedInline($delimiter, $delimiter, $node->children);
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function renderDelimitedInline(string $opener, string $closer, array $children): string
+    {
+        $this->inlineDelimiterStack[] = $opener;
+        try {
+            return $this->delimitInlineContent($opener, $closer, $this->renderInlines($children));
+        } finally {
+            array_pop($this->inlineDelimiterStack);
+        }
+    }
+
+    private function inlineEmphasisDelimiter(AstNode $node): string
+    {
+        $explicit = $this->explicitInlineDelimiter($node, ['delimiter', 'markdownDelimiter', 'markdownEmphDelimiter', 'sourceDelimiter']);
+        if ($explicit !== null) {
+            return $explicit === 'underscore' ? '_' : '*';
         }
 
-        return $this->delimitInlineContent('*', '*', $this->renderInlines($node->children));
+        return $this->currentInlineDelimiterFamily() === 'asterisk' ? '_' : '*';
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function inlineStrongDelimiter(AstNode $node, array $following = []): string
+    {
+        $explicit = $this->explicitInlineDelimiter($node, ['delimiter', 'markdownStrongDelimiter', 'markdownDelimiter', 'sourceDelimiter']);
+        if ($explicit !== null) {
+            return $explicit === 'underscore' ? '__' : '**';
+        }
+
+        if ($this->currentInlineDelimiterFamily() !== 'asterisk') {
+            return '**';
+        }
+
+        return $following !== [] && $this->inlineChildrenStartWithWhitespace($node->children) ? '**' : '__';
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function inlineChildrenStartWithWhitespace(array $children): bool
+    {
+        $first = $children[0] ?? null;
+        if (!$first instanceof AstNode) {
+            return false;
+        }
+
+        return match ($first->type) {
+            'space', 'softbreak', 'linebreak' => true,
+            'text' => preg_match('/^\s/u', (string) $first->attr('text', '')) === 1,
+            default => false,
+        };
+    }
+
+    /**
+     * @param list<string> $names
+     */
+    private function explicitInlineDelimiter(AstNode $node, array $names): ?string
+    {
+        foreach ($names as $name) {
+            $value = $node->attr($name, null);
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $normalized = strtolower(trim((string) $value));
+            if (in_array($normalized, ['_', '__', 'underscore', 'underscores'], true)) {
+                return 'underscore';
+            }
+
+            if (in_array($normalized, ['*', '**', 'asterisk', 'asterisks'], true)) {
+                return 'asterisk';
+            }
+        }
+
+        return null;
+    }
+
+    private function currentInlineDelimiterFamily(): string
+    {
+        $delimiter = end($this->inlineDelimiterStack);
+        if ($delimiter === false) {
+            return '';
+        }
+
+        return str_contains($delimiter, '_') ? 'underscore' : 'asterisk';
     }
 
     private function renderScript(string $kind, string $delimiter, string $htmlTag, AstNode $node): string
@@ -6866,12 +7492,18 @@ final class MarkdownWriter
 
     private function renderMath(AstNode $node): string
     {
-        $text = (string) $node->attr('text', '');
+        $text = $this->escapeMathText((string) $node->attr('text', ''));
+        $attrs = $this->renderAttributesTuple($this->linkAttrTuple($node));
         if ((bool) $node->attr('display', false)) {
-            return '$$' . $text . '$$';
+            return '$$' . $text . '$$' . $attrs;
         }
 
-        return '$' . trim($text) . '$';
+        return '$' . trim($text) . '$' . $attrs;
+    }
+
+    private function escapeMathText(string $text): string
+    {
+        return str_replace('$', '\\$', $text);
     }
 
     private function renderRawAttributeInline(AstNode $node): string
@@ -7090,11 +7722,83 @@ final class MarkdownWriter
             ? (string) $node->attr('url', '')
             : $this->renderLinkDestination((string) $node->attr('url', ''));
 
-        return '[' . $this->renderInlines($node->children) . ']('
+        return '[' . $this->renderLinkLabelInlines($node->children) . ']('
             . $destination
             . $titleMarkdown
             . ')'
             . $this->renderLinkAttributes($node);
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderLinkLabelInlines(array $nodes): string
+    {
+        $this->linkLabelRenderDepth++;
+        try {
+            return $this->restoreBalancedLinkLabelBrackets($this->renderInlines($nodes));
+        } finally {
+            $this->linkLabelRenderDepth--;
+        }
+    }
+
+    private function renderReferenceLabelText(string $label): string
+    {
+        return $this->restoreBalancedLinkLabelBrackets($this->escapeText($label));
+    }
+
+    private function restoreBalancedLinkLabelBrackets(string $text): string
+    {
+        $length = strlen($text);
+        $tokens = [];
+        $stack = [];
+        for ($offset = 0; $offset < $length - 1; $offset++) {
+            $token = substr($text, $offset, 2);
+            if ($token === '\\[') {
+                $index = count($tokens);
+                $tokens[] = ['offset' => $offset, 'paired' => false];
+                $stack[] = $index;
+                $offset++;
+                continue;
+            }
+
+            if ($token === '\\]') {
+                $openIndex = array_pop($stack);
+                if ($openIndex !== null) {
+                    $tokens[$openIndex]['paired'] = true;
+                    $tokens[] = ['offset' => $offset, 'paired' => true];
+                }
+                $offset++;
+            }
+        }
+
+        if ($tokens === []) {
+            return $text;
+        }
+
+        $pairedOffsets = [];
+        foreach ($tokens as $token) {
+            if ($token['paired']) {
+                $pairedOffsets[$token['offset']] = true;
+            }
+        }
+
+        if ($pairedOffsets === []) {
+            return $text;
+        }
+
+        $restored = '';
+        for ($offset = 0; $offset < $length; $offset++) {
+            if (isset($pairedOffsets[$offset]) && isset($text[$offset + 1])) {
+                $restored .= $text[$offset + 1];
+                $offset++;
+                continue;
+            }
+
+            $restored .= $text[$offset];
+        }
+
+        return $restored;
     }
 
     private function renderWikiLink(AstNode $node): ?string
@@ -7197,7 +7901,7 @@ final class MarkdownWriter
      */
     private function renderReferenceLink(AstNode $node, array $following): string
     {
-        $labelText = $this->renderInlines($node->children);
+        $labelText = $this->renderLinkLabelInlines($node->children);
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
@@ -7206,12 +7910,12 @@ final class MarkdownWriter
             $this->linkAttrTuple($node)
         );
 
-        $shortcutable = $referenceLabel === $plainLabel && $this->canUseShortcutReference($following);
+        $shortcutable = $referenceLabel['plain'] === $plainLabel && $this->canUseShortcutReference($following);
         if ($shortcutable) {
             return '[' . $labelText . ']';
         }
 
-        $suffix = $referenceLabel === $plainLabel ? '[]' : '[' . $referenceLabel . ']';
+        $suffix = $referenceLabel['plain'] === $plainLabel ? '[]' : '[' . $referenceLabel['markdown'] . ']';
 
         return '[' . $labelText . ']' . $suffix;
     }
@@ -7241,8 +7945,9 @@ final class MarkdownWriter
 
     /**
      * @param array<string, mixed> $attrs
+     * @return array{plain:string, markdown:string}
      */
-    private function registerReference(string $suggestedLabel, string $url, string $title, array $attrs): string
+    private function registerReference(string $suggestedLabel, string $url, string $title, array $attrs): array
     {
         $targetKey = $url . "\0" . $title . "\0" . $this->attributeSignature($attrs);
         if (isset($this->referenceTargetLabels[$targetKey])) {
@@ -7251,20 +7956,24 @@ final class MarkdownWriter
 
         $label = $this->normalizeReferenceLabelText($suggestedLabel);
         if ($this->requiresGeneratedReferenceLabel($label)) {
-            $actualLabel = $this->nextGeneratedReferenceLabel();
+            $actualPlainLabel = $this->nextGeneratedReferenceLabel();
         } else {
-            $key = strtolower($label);
+            $key = $this->referenceLabelKey($label);
             $use = $this->referenceLabelUses[$key] ?? 0;
             $this->referenceLabelUses[$key] = $use + 1;
-            $actualLabel = $use === 0 && !isset($this->referenceUsedLabels[$key])
+            $actualPlainLabel = $use === 0 && !isset($this->referenceUsedLabels[$key])
                 ? $label
                 : $this->nextGeneratedReferenceLabel();
         }
 
-        $this->referenceUsedLabels[strtolower($actualLabel)] = true;
+        $actualLabel = [
+            'plain' => $actualPlainLabel,
+            'markdown' => $this->renderReferenceLabelText($actualPlainLabel),
+        ];
+        $this->referenceUsedLabels[$this->referenceLabelKey($actualPlainLabel)] = true;
         $this->referenceTargetLabels[$targetKey] = $actualLabel;
         $this->references[] = [
-            'label' => $actualLabel,
+            'label' => $actualLabel['markdown'],
             'url' => $url,
             'title' => $title,
             'attrs' => $attrs,
@@ -7276,9 +7985,7 @@ final class MarkdownWriter
     private function requiresGeneratedReferenceLabel(string $label): bool
     {
         return $label === ''
-            || strlen($label) > 999
-            || str_contains($label, '[')
-            || str_contains($label, ']');
+            || mb_strlen($label, 'UTF-8') > 999;
     }
 
     private function nextGeneratedReferenceLabel(): string
@@ -7286,9 +7993,14 @@ final class MarkdownWriter
         do {
             $this->lastReferenceIndex++;
             $candidate = (string) $this->lastReferenceIndex;
-        } while (isset($this->referenceUsedLabels[strtolower($candidate)]));
+        } while (isset($this->referenceUsedLabels[$this->referenceLabelKey($candidate)]));
 
         return $candidate;
+    }
+
+    private function referenceLabelKey(string $label): string
+    {
+        return mb_strtolower($label, 'UTF-8');
     }
 
     /**
@@ -7305,15 +8017,15 @@ final class MarkdownWriter
             return false;
         }
 
-        if ($next->type === 'softbreak' || $next->type === 'linebreak') {
+        if ($next->type === 'space' || $next->type === 'softbreak' || $next->type === 'linebreak') {
             return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
         }
 
         if ($next->type === 'raw_inline' || $next->type === 'raw_markdown' || $next->type === 'raw_html_inline') {
-            return !$this->startsWithReferenceSuffixConflict((string) $next->attr(
+            return !$this->startsWithReferenceSuffixConflict(ltrim((string) $next->attr(
                 'text',
                 $next->attr('markdown', $next->attr('html', ''))
-            ));
+            ), " \t\r\n"));
         }
 
         if ($next->type !== 'text') {
@@ -7332,7 +8044,7 @@ final class MarkdownWriter
         $withoutLeadingSpace = ltrim($text, " \t\r\n");
         if ($withoutLeadingSpace !== $text) {
             if ($withoutLeadingSpace !== '') {
-                return !str_starts_with($withoutLeadingSpace, '[');
+                return !$this->startsWithReferenceSuffixConflict($withoutLeadingSpace);
             }
 
             return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
@@ -7355,16 +8067,20 @@ final class MarkdownWriter
             return false;
         }
 
+        if ($next->type === 'space' || $next->type === 'softbreak' || $next->type === 'linebreak') {
+            return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
+        }
+
         if ($next->type === 'text') {
             $text = (string) $next->attr('text', '');
 
-            return $text === '' || !str_starts_with(ltrim($text, " \t\r\n"), '[');
+            return $text === '' || !$this->startsWithReferenceSuffixConflict(ltrim($text, " \t\r\n"));
         }
 
         if ($next->type === 'raw_inline' || $next->type === 'raw_markdown' || $next->type === 'raw_html_inline') {
             $raw = (string) $next->attr('text', $next->attr('markdown', $next->attr('html', '')));
 
-            return !str_starts_with(ltrim($raw, " \t\r\n"), '[');
+            return !$this->startsWithReferenceSuffixConflict(ltrim($raw, " \t\r\n"));
         }
 
         return true;
@@ -7375,6 +8091,7 @@ final class MarkdownWriter
         return str_starts_with($text, '[')
             || str_starts_with($text, '(')
             || str_starts_with($text, ':')
+            || str_starts_with($text, '{')
             || str_starts_with($text, ' [');
     }
 
@@ -7402,8 +8119,14 @@ final class MarkdownWriter
     /**
      * @param list<AstNode> $following
      */
-    private function escapeText(string $text, array $following = [], bool $escapeInitialPlainMarker = false, bool $preserveSmartPunctuation = false): string
-    {
+    private function escapeText(
+        string $text,
+        array $following = [],
+        bool $escapeInitialPlainMarker = false,
+        bool $preserveSmartPunctuation = false,
+        bool $escapeAfterReference = false,
+        bool $escapeAfterReferenceBreak = false
+    ): string {
         $escaped = '';
         $length = strlen($text);
         $plainMarkerPrefixLength = $escapeInitialPlainMarker
@@ -7413,6 +8136,23 @@ final class MarkdownWriter
         for ($i = 0; $i < $length; $i++) {
             $char = $text[$i];
             $tail = substr($text, $i);
+
+            if ($i === 0 && $escapeAfterReference && preg_match('/^\t+(?=\{)/', $text, $match) === 1) {
+                $tabRunLength = strlen($match[0]);
+                $escaped .= str_repeat('&#9;', $tabRunLength);
+                $i += $tabRunLength - 1;
+                continue;
+            }
+
+            if ($i === 0 && $escapeAfterReference && $char === '{') {
+                $escaped .= '\\{';
+                continue;
+            }
+
+            if ($i === 0 && $escapeAfterReferenceBreak && $char === ':') {
+                $escaped .= '\\:';
+                continue;
+            }
 
             if ($i < $plainMarkerPrefixLength && str_contains('.()+-%', $char)) {
                 $escaped .= '\\' . $char;
@@ -8113,17 +8853,14 @@ final class MarkdownWriter
     private function canRenderAutolink(AstNode $node): bool
     {
         $url = (string) $node->attr('url', '');
-        if (!$this->isUriLike($url)) {
+        $scheme = $this->uriScheme($url);
+        if ($scheme === null) {
             return false;
         }
 
         $attrs = $this->linkAttrTuple($node);
         $classes = $attrs['classes'];
-        if (
-            $attrs['id'] !== ''
-            || $attrs['attributes'] !== []
-            || ($classes !== [] && $classes !== ['uri'] && $classes !== ['email'])
-        ) {
+        if ($attrs['id'] !== '' || $attrs['attributes'] !== []) {
             return false;
         }
 
@@ -8132,16 +8869,77 @@ final class MarkdownWriter
         }
 
         $label = (string) $node->children[0]->attr('text', '');
-        $suffix = $this->autolinkText($node);
+        $scheme = strtolower($scheme);
+        if ($scheme === 'mailto') {
+            if ($classes !== [] && $classes !== ['email']) {
+                return false;
+            }
 
-        return $label === $suffix || $this->escapeUri($label) === $suffix;
+            $address = $this->mailtoAddress($url);
+            if ($address === '' || !$this->isEmailAutolinkAddress($address)) {
+                return false;
+            }
+
+            return $label === $address || $this->escapeUri($label) === $address;
+        }
+
+        if ($classes !== [] && $classes !== ['uri']) {
+            return false;
+        }
+
+        if (!$this->isAllowedUriAutolinkScheme($scheme)) {
+            return false;
+        }
+
+        return $label === $url || $this->escapeUri($label) === $url;
     }
 
     private function autolinkText(AstNode $node): string
     {
         $url = (string) $node->attr('url', '');
 
-        return str_starts_with($url, 'mailto:') ? substr($url, 7) : $url;
+        return strtolower((string) $this->uriScheme($url)) === 'mailto'
+            ? $this->mailtoAddress($url)
+            : $url;
+    }
+
+    private function uriScheme(string $url): ?string
+    {
+        return preg_match('/^([A-Za-z][A-Za-z0-9+.-]*):/', $url, $match) === 1 ? $match[1] : null;
+    }
+
+    private function mailtoAddress(string $url): string
+    {
+        $colon = strpos($url, ':');
+
+        return $colon === false ? '' : substr($url, $colon + 1);
+    }
+
+    private function isEmailAutolinkAddress(string $address): bool
+    {
+        return preg_match('/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/u', $address) === 1;
+    }
+
+    private function isAllowedUriAutolinkScheme(string $scheme): bool
+    {
+        $length = strlen($scheme);
+        if ($length < 2 || $length > 32) {
+            return false;
+        }
+
+        if ($this->commonmarkAutolinksEnabled()) {
+            return true;
+        }
+
+        return in_array($scheme, [
+            'doi',
+            'ftp',
+            'ftps',
+            'http',
+            'https',
+            'tel',
+            'urn',
+        ], true);
     }
 
     /**
@@ -8455,22 +9253,35 @@ final class MarkdownWriter
 
     private function renderLinkDestination(string $url): string
     {
-        $url = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $url);
         if ($url === '' && $this->opmlNoteMarkdownEnabled()) {
             return '';
         }
 
+        $url = $this->percentEncodeLinkDestinationControls($url);
         if (!$this->linkDestinationNeedsAngles($url)) {
             return $url;
         }
 
-        return '<' . str_replace(['<', '>'], ['\\<', '\\>'], $url) . '>';
+        return '<' . str_replace(
+            ['\\', '<', '>', '"', "'"],
+            ['\\\\', '\\<', '\\>', '\\"', "\\'"],
+            $url
+        ) . '>';
+    }
+
+    private function percentEncodeLinkDestinationControls(string $url): string
+    {
+        return preg_replace_callback(
+            '/[\x00-\x1F\x7F]/',
+            static fn (array $match): string => sprintf('%%%02X', ord($match[0])),
+            $url
+        ) ?? $url;
     }
 
     private function linkDestinationNeedsAngles(string $url): bool
     {
         return $url === ''
-            || preg_match('/[\x00-\x1F\x7F<>]/u', $url) === 1;
+            || preg_match('/[ <>()\\\\\'"]/u', $url) === 1;
     }
 
     /**
@@ -8523,9 +9334,114 @@ final class MarkdownWriter
             && !$this->isNullAttrTuple($attrs);
     }
 
+    private function inlineCodeAttributesEnabled(): bool
+    {
+        return $this->markdownExtensionEnabled('inlineCodeAttributes', 'inline_code_attributes', [
+            'markdown' => true,
+            'commonmark' => false,
+            'commonmark_x' => true,
+            'gfm' => false,
+            'markdown_mmd' => false,
+            'markdown_phpextra' => false,
+            'markdown_strict' => false,
+        ], true);
+    }
+
     private function linkAttributesEnabled(): bool
     {
         return (bool) ($this->options['linkAttributes'] ?? true);
+    }
+
+    /**
+     * @param array<string, bool> $formatDefaults
+     */
+    private function markdownExtensionEnabled(
+        string $optionKey,
+        string $extension,
+        array $formatDefaults,
+        bool $defaultWithoutFormat
+    ): bool {
+        foreach ([$optionKey, $extension] as $key) {
+            if (array_key_exists($key, $this->options)) {
+                return $this->boolOption($this->options[$key], $defaultWithoutFormat);
+            }
+        }
+
+        $hasFormat = array_key_exists('format', $this->options);
+        $format = $this->options['format'] ?? 'markdown';
+        $default = $hasFormat
+            ? ($formatDefaults[MarkdownFormatProfile::canonicalFormat($format)] ?? $defaultWithoutFormat)
+            : $defaultWithoutFormat;
+
+        $enabled = $this->formatExtensionOverride($format, $extension, $default);
+
+        return $this->optionsExtensionOverride($extension, $enabled);
+    }
+
+    private function boolOption(mixed $value, bool $default): bool
+    {
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $value !== 0;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'yes', 'on'], true)) {
+                return true;
+            }
+            if (in_array($normalized, ['0', 'false', 'no', 'off'], true)) {
+                return false;
+            }
+        }
+
+        return $default;
+    }
+
+    private function formatExtensionOverride(mixed $format, string $extension, bool $default): bool
+    {
+        if (!is_scalar($format)) {
+            return $default;
+        }
+
+        $normalized = strtolower(trim((string) $format));
+        if ($normalized === '') {
+            return $default;
+        }
+
+        if (preg_match_all('/([+-])' . preg_quote($extension, '/') . '(?=$|[+-])/', $normalized, $matches) === false) {
+            return $default;
+        }
+
+        return $matches[1] === [] ? $default : end($matches[1]) === '+';
+    }
+
+    private function optionsExtensionOverride(string $extension, bool $default): bool
+    {
+        $extensions = $this->options['extensions'] ?? null;
+        if (!is_array($extensions)) {
+            return $default;
+        }
+
+        $enabled = $default;
+        foreach ($extensions as $key => $value) {
+            if (is_int($key) && is_string($value)) {
+                $normalized = strtolower(trim($value));
+                if (preg_match('/^([+-])' . preg_quote($extension, '/') . '$/', $normalized, $match) === 1) {
+                    $enabled = $match[1] === '+';
+                }
+                continue;
+            }
+
+            if (strtolower((string) $key) === $extension) {
+                $enabled = $this->boolOption($value, $enabled);
+            }
+        }
+
+        return $enabled;
     }
 
     private function fencedCodeBlocksEnabled(): bool
@@ -8616,6 +9532,19 @@ final class MarkdownWriter
     private function isCommonMarkVariant(): bool
     {
         return in_array($this->writerVariant(), ['commonmark', 'commonmark-x', 'gfm'], true);
+    }
+
+    private function commonmarkAutolinksEnabled(): bool
+    {
+        return $this->markdownExtensionEnabled('commonmarkAutolinks', 'commonmark_autolinks', [
+            'markdown' => false,
+            'commonmark' => true,
+            'commonmark_x' => true,
+            'gfm' => true,
+            'markdown_mmd' => false,
+            'markdown_phpextra' => false,
+            'markdown_strict' => false,
+        ], false);
     }
 
     private function isPlainTextVariant(): bool
@@ -8727,6 +9656,111 @@ final class MarkdownWriter
     private function smartEnabled(): bool
     {
         return (bool) ($this->options['smart'] ?? true);
+    }
+
+    private function emojiShortcodesEnabled(): bool
+    {
+        return $this->markdownExtensionOverride('emoji_shortcodes') === true;
+    }
+
+    private function yamlMetadataEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::yamlMetadataEnabled($options, true);
+    }
+
+    private function yamlMetadataExplicitlyEnabled(): bool
+    {
+        if (array_key_exists('yamlMetadata', $this->options)) {
+            $value = $this->options['yamlMetadata'];
+            if (is_bool($value)) {
+                return $value;
+            }
+            if (is_int($value) || is_float($value)) {
+                return $value !== 0;
+            }
+            if (is_string($value)) {
+                return in_array(strtolower(trim($value)), ['1', 'true', 'yes', 'on'], true);
+            }
+        }
+
+        return $this->markdownExtensionOverride('yaml_metadata_block') === true;
+    }
+
+    private function titleBlockEnabled(): bool
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return MarkdownFormatProfile::titleBlockEnabled($options, true);
+    }
+
+    private function markdownExtensionOverride(string $extension): ?bool
+    {
+        return $this->markdownExtensionOverrides()[$extension] ?? null;
+    }
+
+    /**
+     * @return array<string, bool>
+     */
+    private function markdownExtensionOverrides(): array
+    {
+        return MarkdownFormatProfile::markdownExtensionOverrides($this->markdownFormatWithExtensionOption());
+    }
+
+    private function markdownFormatWithExtensionOption(): string
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $format = is_scalar($format) ? (string) $format : 'markdown';
+        $extensionSuffix = $this->markdownExtensionOptionSuffix($this->options['extensions'] ?? '');
+        if ($extensionSuffix === '') {
+            return $format;
+        }
+
+        if (str_starts_with($extensionSuffix, '+') || str_starts_with($extensionSuffix, '-')) {
+            return $format . $extensionSuffix;
+        }
+
+        return $format . '+' . $extensionSuffix;
+    }
+
+    private function markdownExtensionOptionSuffix(mixed $extensions): string
+    {
+        if (is_scalar($extensions)) {
+            return trim((string) $extensions);
+        }
+
+        if (!is_array($extensions)) {
+            return '';
+        }
+
+        $tokens = [];
+        foreach ($extensions as $name => $value) {
+            if (is_int($name)) {
+                if (!is_scalar($value)) {
+                    continue;
+                }
+
+                $token = trim((string) $value);
+                if ($token === '') {
+                    continue;
+                }
+                $tokens[] = str_starts_with($token, '+') || str_starts_with($token, '-')
+                    ? $token
+                    : '+' . $token;
+                continue;
+            }
+
+            if (!is_scalar($value)) {
+                continue;
+            }
+
+            $tokens[] = ((bool) $value ? '+' : '-') . (string) $name;
+        }
+
+        return implode('', $tokens);
     }
 
     private function bracketedSpansEnabled(): bool
@@ -9212,11 +10246,17 @@ final class MarkdownWriter
 
     private function escapeLinkTitle(string $title): string
     {
+        $title = $this->normalizeLinkTitleControls($title);
         if ($this->opmlNoteMarkdownEnabled()) {
             return str_replace('\\', '\\\\', $title);
         }
 
         return str_replace(['\\', '"'], ['\\\\', '\\"'], $title);
+    }
+
+    private function normalizeLinkTitleControls(string $title): string
+    {
+        return preg_replace('/[\x00-\x1F\x7F]+/', ' ', $title) ?? $title;
     }
 
     private function referenceLocation(): string

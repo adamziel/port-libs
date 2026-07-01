@@ -8,8 +8,8 @@ use PortLibs\Pandoc\MarkdownWriter;
 $text = static fn (string $value): AstNode => new AstNode('text', ['text' => $value]);
 $paragraph = static fn (array $children): AstNode => new AstNode('paragraph', [], $children);
 $document = static fn (array $children): AstNode => new AstNode('document', [], $children);
-$link = static fn (string $url): AstNode => new AstNode('link', ['url' => $url], [$text('packet')]);
-$image = static fn (string $url): AstNode => new AstNode('image', ['url' => $url, 'alt' => 'packet']);
+$link = static fn (string $url, array $attrs = []): AstNode => new AstNode('link', ['url' => $url] + $attrs, [$text('packet')]);
+$image = static fn (string $url, array $attrs = []): AstNode => new AstNode('image', ['url' => $url, 'alt' => 'packet'] + $attrs);
 $control = static fn (int $byte): string => chr($byte);
 
 $cases = [
@@ -73,12 +73,32 @@ $cases = [
         'options' => ['format' => 'gfm', 'referenceLinks' => true],
         'expected' => "![packet]\n\n  [packet]: media/a%7Fb.png",
     ],
+    'markdown link lf title' => [
+        'node' => $link('/source', ['title' => "Line\nTwo"]),
+        'options' => ['format' => 'markdown'],
+        'expected' => '[packet](/source "Line Two")',
+    ],
+    'gfm image tab and soh title' => [
+        'node' => $image('media/source.png', ['title' => "A\tB" . $control(0x01) . 'C']),
+        'options' => ['format' => 'gfm'],
+        'expected' => '![packet](media/source.png "A B C")',
+    ],
+    'commonmark reference link cr title' => [
+        'node' => $link('/source', ['title' => "Line\rTwo"]),
+        'options' => ['format' => 'commonmark', 'referenceLinks' => true],
+        'expected' => "[packet]\n\n  [packet]: /source \"Line Two\"",
+    ],
+    'markdown reference image del title' => [
+        'node' => $image('media/source.png', ['title' => 'A' . $control(0x7F) . 'B']),
+        'options' => ['format' => 'markdown', 'referenceLinks' => true],
+        'expected' => "![packet]\n\n  [packet]: media/source.png \"A B\"",
+    ],
 ];
 
 $tests = [
     'records markdown writer link destination control surge mapped case count' =>
         static function (TestRunner $t) use ($cases): void {
-            $t->same(12, count($cases));
+            $t->same(16, count($cases));
         },
 ];
 
