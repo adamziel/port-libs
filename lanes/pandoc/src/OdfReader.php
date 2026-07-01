@@ -1543,6 +1543,14 @@ final class OdfReader
             'sections' => [],
             'truncated' => false,
         ];
+        $packagePartXmlComments = [
+            'partCount' => 0,
+            'commentCount' => 0,
+            'byteLength' => 0,
+            'partNames' => [],
+            'comments' => [],
+            'truncated' => false,
+        ];
         $packagePartXmlProcessingInstructions = [
             'partCount' => 0,
             'instructionCount' => 0,
@@ -1808,6 +1816,11 @@ final class OdfReader
                 $entry,
                 is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : ''
             );
+            $xmlComments = self::packagePartXmlCommentMetadata(
+                $package,
+                $entry,
+                is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : ''
+            );
             $xmlProcessingInstructions = self::packagePartXmlProcessingInstructionMetadata(
                 $package,
                 $entry,
@@ -1858,6 +1871,10 @@ final class OdfReader
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
                 'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
+                'xmlCommentCount' => $xmlComments['count'],
+                'xmlCommentByteLength' => $xmlComments['byteLength'],
+                'xmlComments' => $xmlComments['comments'],
+                'xmlCommentsTruncated' => $xmlComments['truncated'],
                 'xmlProcessingInstructionCount' => $xmlProcessingInstructions['count'],
                 'xmlProcessingInstructionDataByteLength' => $xmlProcessingInstructions['dataByteLength'],
                 'xmlProcessingInstructionTargets' => $xmlProcessingInstructions['targets'],
@@ -2070,6 +2087,7 @@ final class OdfReader
                 ++$decodedNameDiffersFromRawNameEntryCount;
             }
             self::recordPackagePartXmlCdataSectionSummary($packagePartXmlCdataSections, $entry->name, $xmlCdataSections);
+            self::recordPackagePartXmlCommentSummary($packagePartXmlComments, $entry->name, $xmlComments);
             self::recordPackagePartXmlProcessingInstructionSummary(
                 $packagePartXmlProcessingInstructions,
                 $entry->name,
@@ -2317,6 +2335,12 @@ final class OdfReader
             'packagePartXmlCdataSectionPartNames' => $packagePartXmlCdataSections['partNames'],
             'packagePartXmlCdataSections' => $packagePartXmlCdataSections['sections'],
             'packagePartXmlCdataSectionsTruncated' => $packagePartXmlCdataSections['truncated'],
+            'packagePartXmlCommentPartCount' => $packagePartXmlComments['partCount'],
+            'packagePartXmlCommentCount' => $packagePartXmlComments['commentCount'],
+            'packagePartXmlCommentByteLength' => $packagePartXmlComments['byteLength'],
+            'packagePartXmlCommentPartNames' => $packagePartXmlComments['partNames'],
+            'packagePartXmlComments' => $packagePartXmlComments['comments'],
+            'packagePartXmlCommentsTruncated' => $packagePartXmlComments['truncated'],
             'packagePartXmlProcessingInstructionPartCount' => $packagePartXmlProcessingInstructions['partCount'],
             'packagePartXmlProcessingInstructionCount' => $packagePartXmlProcessingInstructions['instructionCount'],
             'packagePartXmlProcessingInstructionDataByteLength' => $packagePartXmlProcessingInstructions['dataByteLength'],
@@ -2623,6 +2647,115 @@ final class OdfReader
             'count' => $count,
             'byteLength' => $byteLength,
             'sections' => $sections,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @param array{partCount:int, commentCount:int, byteLength:int, partNames:list<string>, comments:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{count:int, byteLength:int, comments:list<array<string, mixed>>, truncated:bool} $metadata
+     */
+    private static function recordPackagePartXmlCommentSummary(array &$summary, string $partName, array $metadata): void
+    {
+        $commentCount = (int) ($metadata['count'] ?? 0);
+        if ($commentCount <= 0) {
+            return;
+        }
+
+        ++$summary['partCount'];
+        $summary['commentCount'] += $commentCount;
+        $summary['byteLength'] += (int) ($metadata['byteLength'] ?? 0);
+        $summary['partNames'][] = $partName;
+        if (($metadata['truncated'] ?? false) === true) {
+            $summary['truncated'] = true;
+        }
+
+        $summaryLimit = 64;
+        foreach (($metadata['comments'] ?? []) as $comment) {
+            if (!is_array($comment)) {
+                continue;
+            }
+            if (count($summary['comments']) >= $summaryLimit) {
+                $summary['truncated'] = true;
+                continue;
+            }
+
+            $summary['comments'][] = ['partName' => $partName] + $comment;
+        }
+
+        sort($summary['partNames'], SORT_STRING);
+    }
+
+    /**
+     * @return array{count:int, byteLength:int, comments:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function packagePartXmlCommentMetadata(
+        ZipPackage $package,
+        ZipPackageEntry $entry,
+        string $mediaTypeBase
+    ): array {
+        $empty = [
+            'count' => 0,
+            'byteLength' => 0,
+            'comments' => [],
+            'truncated' => false,
+        ];
+        if (
+            $entry->isDirectory()
+            || !in_array($entry->compressionMethod, [0, 8], true)
+            || !self::isXmlPackagePart($entry->name, $mediaTypeBase, self::packagePartExtension($entry->name))
+        ) {
+            return $empty;
+        }
+
+        try {
+            $dom = self::loadXmlForPackageProvenance($package->read($entry->name));
+        } catch (\Throwable) {
+            return $empty;
+        }
+        if (!$dom instanceof \DOMDocument) {
+            return $empty;
+        }
+
+        $comments = [];
+        $count = 0;
+        $byteLength = 0;
+        $truncated = false;
+        $itemLimit = 32;
+        $walk = static function (\DOMNode $node) use (&$walk, &$comments, &$count, &$byteLength, &$truncated, $itemLimit): void {
+            if ($node instanceof \DOMComment) {
+                ++$count;
+                $value = (string) $node->nodeValue;
+                $valueByteLength = strlen($value);
+                $byteLength += $valueByteLength;
+                if (count($comments) >= $itemLimit) {
+                    $truncated = true;
+                } else {
+                    $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+                    $parentPath = self::domElementPath($parent);
+                    $comments[] = [
+                        'index' => $count - 1,
+                        'parentPath' => $parentPath,
+                        'parentDepth' => self::domElementPathDepth($parentPath),
+                        'byteLength' => $valueByteLength,
+                        'crc32' => sprintf('%08x', crc32($value)),
+                        'sha256' => hash('sha256', $value),
+                    ];
+                }
+            }
+
+            foreach ($node->childNodes as $child) {
+                if ($child instanceof \DOMNode) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($dom);
+
+        return [
+            'count' => $count,
+            'byteLength' => $byteLength,
+            'comments' => $comments,
             'truncated' => $truncated,
         ];
     }
