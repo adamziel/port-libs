@@ -260,7 +260,7 @@ final class PptxWriter
                 continue;
             }
 
-            if ($this->isImageOnlyBlock($block) && $current !== null && $this->isImageOnlySlide($current)) {
+            if ($current !== null && $this->isImageOnlySlide($current)) {
                 $slides[] = $current;
                 $current = null;
             }
@@ -1878,7 +1878,7 @@ final class PptxWriter
         $title = $this->optionString('title')
             ?? $this->metaString($meta, ['title'])
             ?? $this->firstHeadingText($document)
-            ?? 'Untitled';
+            ?? '';
 
         return [
             'title' => $title,

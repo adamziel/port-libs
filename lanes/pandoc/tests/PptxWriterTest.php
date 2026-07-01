@@ -161,6 +161,22 @@ Pandoc (Meta {unMeta = fromList []})
 ,Para [Image ("",[],[]) [Str "The",Space,Str "Moon"] ("lalune.jpg","fig:")]]
 NATIVE;
 
+$upstreamContentWithCaptionTextImageNative = <<<'NATIVE'
+[Para [Str "Some",Space,Str "text",Space,Str "here"]
+,Para [Image ("",[],[]) [Str "Followed",Space,Str "by",Space,Str "a",Space,Str "picture"] ("lalune.jpg","fig:")]]
+NATIVE;
+
+$upstreamContentWithCaptionImageTextNative = <<<'NATIVE'
+[Para [Image ("",[],[]) [Str "The",Space,Str "picture",Space,Str "first"] ("lalune.jpg","fig:")]
+,Para [Str "Then",Space,Str "some",Space,Str "text",Space,Str "here"]]
+NATIVE;
+
+$upstreamContentWithCaptionHeadingTextImageNative = <<<'NATIVE'
+[Header 1 ("a-slide",[],[]) [Str "A",Space,Str "slide"]
+,Para [Str "Some",Space,Str "text",Space,Str "here"]
+,Para [Image ("",[],[]) [Str "Followed",Space,Str "by",Space,Str "a",Space,Str "picture"] ("lalune.jpg","fig:")]]
+NATIVE;
+
 $upstreamSlideLevelZeroNative = <<<'NATIVE'
 [Header 1 ("hello",[],[]) [Str "Hello"]
 ,Para [Image ("",[],[]) [Str "An",Space,Str "image"] ("lalune.jpg","fig:")]]
@@ -606,6 +622,43 @@ return [
         $t->contains('<p:pic>', $slide3);
         $t->contains('<a:t>The Moon</a:t>', $slide3);
         $t->contains('<Slides>3</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream content-with-caption slide grouping' => static function (TestRunner $t) use ($upstreamContentWithCaptionTextImageNative, $upstreamContentWithCaptionImageTextNative, $upstreamContentWithCaptionHeadingTextImageNative, $mediaOptions): void {
+        $imageOptions = array_replace($mediaOptions, [
+            'mediaResources' => [
+                'lalune.jpg' => ['data' => "\xff\xd8moon", 'mimeType' => 'image/jpeg'],
+            ],
+        ]);
+
+        $textImage = ZipPackage::fromString((new PptxWriter($imageOptions))->write((new NativeReader())->read($upstreamContentWithCaptionTextImageNative)));
+        $textImageSlide = $textImage->read('ppt/slides/slide1.xml');
+        $t->true(!in_array('ppt/slides/slide2.xml', $textImage->names(), true), 'Text-then-figure fixture should stay on one slide');
+        $t->true(!str_contains($textImageSlide, 'type="title"'), 'No-title text-then-figure fixture should not emit an Untitled title placeholder');
+        $t->contains('<a:t>Some text here</a:t>', $textImageSlide);
+        $t->contains('<p:pic>', $textImageSlide);
+        $t->contains('<a:t>Followed by a picture</a:t>', $textImageSlide);
+        $t->contains('<Slides>1</Slides>', $textImage->read('docProps/app.xml'));
+
+        $imageText = ZipPackage::fromString((new PptxWriter($imageOptions))->write((new NativeReader())->read($upstreamContentWithCaptionImageTextNative)));
+        $imageTextSlide1 = $imageText->read('ppt/slides/slide1.xml');
+        $imageTextSlide2 = $imageText->read('ppt/slides/slide2.xml');
+        $t->true(!in_array('ppt/slides/slide3.xml', $imageText->names(), true), 'Image-then-text fixture should split into exactly two slides');
+        $t->contains('<p:pic>', $imageTextSlide1);
+        $t->contains('<a:t>The picture first</a:t>', $imageTextSlide1);
+        $t->true(!str_contains($imageTextSlide1, '<a:t>Then some text here</a:t>'), 'Image slide should not absorb following text');
+        $t->contains('<a:t>Then some text here</a:t>', $imageTextSlide2);
+        $t->true(!str_contains($imageTextSlide2, '<p:pic>'), 'Second image-text slide should contain only the following text');
+        $t->contains('<Slides>2</Slides>', $imageText->read('docProps/app.xml'));
+
+        $headingTextImage = ZipPackage::fromString((new PptxWriter($imageOptions))->write((new NativeReader())->read($upstreamContentWithCaptionHeadingTextImageNative)));
+        $headingSlide = $headingTextImage->read('ppt/slides/slide1.xml');
+        $t->true(!in_array('ppt/slides/slide2.xml', $headingTextImage->names(), true), 'Heading text figure fixture should stay on one slide');
+        $t->contains('type="title"', $headingSlide);
+        $t->contains('<a:t>A slide</a:t>', $headingSlide);
+        $t->contains('<a:t>Some text here</a:t>', $headingSlide);
+        $t->contains('<p:pic>', $headingSlide);
+        $t->contains('<a:t>Followed by a picture</a:t>', $headingSlide);
     },
 
     'uses the first heading as the slide title when slide level is zero' => static function (TestRunner $t) use ($upstreamSlideLevelZeroNative, $mediaOptions): void {
