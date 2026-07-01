@@ -209,6 +209,15 @@ final class PptxReader
         return $relationships;
     }
 
+    private function optionalRelationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
+    {
+        try {
+            return $this->relationshipsOrEmpty($package, $sourcePart);
+        } catch (\InvalidArgumentException | \RuntimeException) {
+            return new OpcRelationships($sourcePart);
+        }
+    }
+
     private function upstreamRelationshipPart(string $sourcePart): string
     {
         if ($sourcePart === '/' || $sourcePart === '') {
@@ -419,7 +428,7 @@ final class PptxReader
             $context['layoutPlaceholders'] = $this->placeholderBlocksByKey($layoutRoot);
         }
 
-        $layoutRelationships = $this->relationshipsOrEmpty($package, $layoutPart);
+        $layoutRelationships = $this->optionalRelationshipsOrEmpty($package, $layoutPart);
         $masterRelationship = $this->firstRelationshipWithTypeSuffix($layoutRelationships, '/slideMaster');
         if (!$masterRelationship instanceof OpcRelationship || $masterRelationship->isExternal()) {
             return $context;
@@ -441,7 +450,7 @@ final class PptxReader
             $context['masterPlaceholders'] = $this->placeholderBlocksByKey($masterRoot);
         }
 
-        $masterRelationships = $this->relationshipsOrEmpty($package, $masterPart);
+        $masterRelationships = $this->optionalRelationshipsOrEmpty($package, $masterPart);
         $themeRelationship = $this->firstRelationshipWithTypeSuffix($masterRelationships, '/theme');
         if (!$themeRelationship instanceof OpcRelationship || $themeRelationship->isExternal()) {
             return $context;
@@ -1311,7 +1320,7 @@ final class PptxReader
                 continue;
             }
 
-            $noteRelationships = $this->relationshipsOrEmpty($package, $partName);
+            $noteRelationships = $this->optionalRelationshipsOrEmpty($package, $partName);
             $blocks = [];
             $texts = [];
             $spTree = $this->shapeTree($root);
@@ -2511,7 +2520,7 @@ final class PptxReader
             return $this->chartReviewNode($chart);
         }
 
-        $chartRelationships = $this->relationshipsOrEmpty($package, $chartPart);
+        $chartRelationships = $this->optionalRelationshipsOrEmpty($package, $chartPart);
 
         return $this->chartReviewNode(array_replace($chart, $this->chartSummary($root, $chartRelationships)));
     }
