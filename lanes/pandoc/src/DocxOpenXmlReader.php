@@ -15304,6 +15304,7 @@ final class DocxOpenXmlReader
         $partCaseFoldBaseNameStems = $this->packagePartCaseFoldBaseNameStemSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partBaseNameCharacters = $this->packagePartBaseNameCharacterSummary($partInventory);
+        $partXmlCdataSections = $this->packagePartXmlCdataSectionSummary($partInventory);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
         $partContentTypeStructuredSyntaxPartCount = 0;
@@ -18127,6 +18128,12 @@ final class DocxOpenXmlReader
             'partBaseNameCharacterFlagCounts' => $partBaseNameCharacters['flagCounts'],
             'partBaseNameCharacterFlagPartNames' => $partBaseNameCharacters['flagPartNames'],
             'partBaseNameCharacterFlagBaseNames' => $partBaseNameCharacters['flagBaseNames'],
+            'partXmlCdataSectionPartCount' => $partXmlCdataSections['partCount'],
+            'partXmlCdataSectionCount' => $partXmlCdataSections['sectionCount'],
+            'partXmlCdataSectionByteLength' => $partXmlCdataSections['byteLength'],
+            'partXmlCdataSectionPartNames' => $partXmlCdataSections['partNames'],
+            'partXmlCdataSections' => $partXmlCdataSections['sections'],
+            'partXmlCdataSectionsTruncated' => $partXmlCdataSections['truncated'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
@@ -26999,6 +27006,163 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{partCount:int, sectionCount:int, byteLength:int, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlCdataSectionSummary(array $partInventory): array
+    {
+        $partNames = [];
+        $sections = [];
+        $sectionCount = 0;
+        $byteLength = 0;
+        $truncated = false;
+        $summaryLimit = 64;
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $partSectionCount = (int) ($part['xmlCdataSectionCount'] ?? 0);
+            if ($partSectionCount <= 0) {
+                continue;
+            }
+
+            $sectionCount += $partSectionCount;
+            $byteLength += (int) ($part['xmlCdataSectionByteLength'] ?? 0);
+            $this->appendUniqueString($partNames, $partName);
+            if (($part['xmlCdataSectionsTruncated'] ?? false) === true) {
+                $truncated = true;
+            }
+
+            foreach (($part['xmlCdataSections'] ?? []) as $section) {
+                if (!is_array($section)) {
+                    continue;
+                }
+                if (count($sections) >= $summaryLimit) {
+                    $truncated = true;
+                    continue;
+                }
+
+                $sections[] = ['partName' => $partName] + $section;
+            }
+        }
+
+        sort($partNames, SORT_STRING);
+
+        return [
+            'partCount' => count($partNames),
+            'sectionCount' => $sectionCount,
+            'byteLength' => $byteLength,
+            'partNames' => $partNames,
+            'sections' => $sections,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @return array{count:int, byteLength:int, sections:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlCdataSectionMetadata(
+        string $xml,
+        string $partName,
+        string $contentTypeBase,
+        ?string $partExtension,
+    ): array {
+        $empty = [
+            'count' => 0,
+            'byteLength' => 0,
+            'sections' => [],
+            'truncated' => false,
+        ];
+        if (!$this->isXmlPackagePart($partName, $contentTypeBase, $partExtension)) {
+            return $empty;
+        }
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return $empty;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $nodes = $xpath->query('//text()');
+        if (!$nodes instanceof \DOMNodeList) {
+            return $empty;
+        }
+
+        $sections = [];
+        $count = 0;
+        $byteLength = 0;
+        $truncated = false;
+        $itemLimit = 32;
+        foreach ($nodes as $node) {
+            if (!$node instanceof \DOMNode || $node->nodeType !== XML_CDATA_SECTION_NODE) {
+                continue;
+            }
+
+            ++$count;
+            $value = (string) $node->nodeValue;
+            $valueByteLength = strlen($value);
+            $byteLength += $valueByteLength;
+            if (count($sections) >= $itemLimit) {
+                $truncated = true;
+                continue;
+            }
+
+            $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+            $parentPath = $this->domElementPath($parent);
+            $sections[] = [
+                'index' => $count - 1,
+                'parentPath' => $parentPath,
+                'parentDepth' => $this->domElementPathDepth($parentPath),
+                'byteLength' => $valueByteLength,
+                'crc32' => sprintf('%08x', crc32($value)),
+                'sha256' => hash('sha256', $value),
+            ];
+        }
+
+        return [
+            'count' => $count,
+            'byteLength' => $byteLength,
+            'sections' => $sections,
+            'truncated' => $truncated,
+        ];
+    }
+
+    private function isXmlPackagePart(string $partName, string $contentTypeBase, ?string $partExtension): bool
+    {
+        return $partName === '[Content_Types].xml'
+            || $partExtension === 'xml'
+            || $partExtension === 'rels'
+            || $this->isXmlContentTypeBase($contentTypeBase);
+    }
+
+    private function isXmlContentTypeBase(string $contentTypeBase): bool
+    {
+        return $contentTypeBase === 'application/xml'
+            || $contentTypeBase === 'text/xml'
+            || str_ends_with($contentTypeBase, '+xml');
+    }
+
+    private function domElementPath(?\DOMElement $element): string
+    {
+        if (!$element instanceof \DOMElement) {
+            return '/';
+        }
+
+        $segments = [];
+        $node = $element;
+        while ($node instanceof \DOMElement) {
+            array_unshift($segments, $this->qualifiedDomName($node));
+            $node = $node->parentNode;
+        }
+
+        return '/' . implode('/', $segments);
+    }
+
+    private function domElementPathDepth(string $path): int
+    {
+        return $path === '/' ? 0 : substr_count($path, '/');
+    }
+
+    /**
      * @param list<array<string, mixed>> $relationshipSources
      * @return array{sourceCount:int, relationshipCount:int, relationshipRecordCount:int, sourceParts:list<string>, flagSourceCounts:array<string, int>, flagSourceParts:array<string, list<string>>, sources:list<array<string, mixed>>}
      */
@@ -31411,6 +31575,12 @@ final class DocxOpenXmlReader
             }
             $partNameCharacterFlags = $this->packagePartNameCharacterFlags($partName);
             $baseNameCharacterFlags = $this->packagePartNameCharacterFlags($baseName);
+            $xmlCdataSections = $this->packagePartXmlCdataSectionMetadata(
+                $contents,
+                $partName,
+                (string) $contentTypeResolution['contentTypeBase'],
+                $partExtension,
+            );
 
             $entry = [
                 'partName' => $partName,
@@ -31447,6 +31617,10 @@ final class DocxOpenXmlReader
                 'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
                 'defaultExtension' => $contentTypeResolution['defaultExtension'],
                 'overridePartName' => $contentTypeResolution['overridePartName'],
+                'xmlCdataSectionCount' => $xmlCdataSections['count'],
+                'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
+                'xmlCdataSections' => $xmlCdataSections['sections'],
+                'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
                 'isRelationshipPart' => $this->isRelationshipPartName($partName),
                 'roles' => $roles,
                 'partNameCharacterFlags' => $partNameCharacterFlags,
