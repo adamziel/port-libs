@@ -44,9 +44,6 @@ final class PptxReader
             if (!$relationship instanceof OpcRelationship) {
                 throw new \RuntimeException('PPTX slide relationship not found: ' . $slide['relationshipId']);
             }
-            if ($relationship->isExternal()) {
-                throw new \RuntimeException('PPTX external slide relationships are not supported');
-            }
 
             $slidePart = $this->upstreamPresentationSlidePart($relationship->target);
             $slideDocument = $this->loadPackageXml($package, $slidePart, 'PPTX slide ' . $slide['index']);
