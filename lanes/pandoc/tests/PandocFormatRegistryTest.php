@@ -272,6 +272,81 @@ return [
         $t->same(false, $summary['directReaderParityClaimed']);
         $t->same(false, $summary['directWriterParityClaimed']);
     },
+    'builds wiki-family output token taxonomy without writer parity claims' => static function (TestRunner $t): void {
+        $directions = PandocFormatRegistry::wikiFormatDirections();
+        $surfaces = PandocFormatRegistry::wikiOutputUnsupportedSurfaces();
+        $summary = PandocFormatRegistry::wikiUnsupportedFormatSummary();
+        $parity = PandocFormatRegistry::wikiFormatParitySummary();
+        $packet = PandocFormatRegistry::wikiFormatReviewPacket();
+
+        $t->same(['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki', 'xwiki', 'zimwiki'], array_keys($directions));
+        $t->same('input-output', $directions['dokuwiki']['direction']);
+        $t->same('input-output', $directions['jira']['direction']);
+        $t->same('output-only', $directions['xwiki']['direction']);
+        $t->same('unsupported', $directions['mediawiki']['outputStatus']);
+        $t->same('not-applicable', $directions['zimwiki']['inputStatus']);
+
+        $t->same(['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], PandocFormatRegistry::unsupportedWikiInputFormats());
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], PandocFormatRegistry::unsupportedWikiOutputFormats());
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], array_keys($surfaces));
+        $t->same('wiki-writer-not-implemented', $surfaces['mediawiki']['unsupportedReason']);
+        $t->same(['writer-component-missing', 'external-wiki-converter-disallowed'], $surfaces['mediawiki']['diagnostics']);
+        $t->same('', $surfaces['mediawiki']['outputImplementation']);
+        $t->same(false, $surfaces['mediawiki']['directWriterParitySupported']);
+        $t->same(true, $surfaces['mediawiki']['externalToolFree']);
+        $t->same(['wiki'], $surfaces['mediawiki']['extensionInferences']);
+        $t->same([], $surfaces['xwiki']['extensionInferences']);
+        $t->same('output-only', $surfaces['xwiki']['direction']);
+        $t->same('', $surfaces['xwiki']['inputImplementation']);
+
+        $t->same([
+            'anyUnsupported' => ['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki', 'xwiki', 'zimwiki'],
+            'unsupportedBoth' => ['dokuwiki', 'mediawiki'],
+            'unsupportedInputOnly' => ['creole', 'tikiwiki', 'twiki', 'vimwiki'],
+            'unsupportedOutputOnly' => ['xwiki', 'zimwiki'],
+            'unsupportedOutputTokens' => ['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'],
+            'noNativeReader' => ['creole', 'dokuwiki', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'],
+            'noNativeWriter' => ['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'],
+        ], $summary);
+
+        $t->same(9, $parity['uniqueFormatCount']);
+        $t->same(7, $parity['inputFormatCount']);
+        $t->same(5, $parity['outputFormatCount']);
+        $t->same(['inputOutput' => 3, 'inputOnly' => 4, 'outputOnly' => 2], $parity['directionCounts']);
+        $t->same(['partial' => 1, 'unsupported' => 6], $parity['inputSupportStatusCounts']);
+        $t->same(['unsupported' => 5], $parity['outputSupportStatusCounts']);
+        $t->same(2, $parity['extensionInferenceMappings']);
+        $t->same(5, $parity['unsupportedOutputSurfaceMappings']);
+        $t->same(1, $parity['registeredInputImplementations']);
+        $t->same(0, $parity['registeredOutputImplementations']);
+        $t->same(true, $parity['externalToolFree']);
+        $t->same(false, $parity['directWriterParitySupported']);
+        $t->same('unsupported', $parity['directParityStatus']);
+        $t->contains('no PHP wiki writer', $parity['reviewNote']);
+
+        $t->same('2026-06-03', $packet['upstreamManualDate']);
+        $t->contains('pandoc.org/demo/example2.html', $packet['upstreamManualUrl']);
+        $t->same(true, $packet['externalToolFree']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki'], $packet['directionBuckets']['inputOutput']);
+        $t->same(['creole', 'tikiwiki', 'twiki', 'vimwiki'], $packet['directionBuckets']['inputOnly']);
+        $t->same(['xwiki', 'zimwiki'], $packet['directionBuckets']['outputOnly']);
+        $t->same($summary, $packet['unsupportedFormatSummary']);
+        $t->same($parity, $packet['paritySummary']);
+        $t->same($surfaces, $packet['unsupportedOutputSurfaces']);
+        $t->same([
+            'input' => true,
+            'output' => true,
+            'direction' => 'input-output',
+            'inputStatus' => 'unsupported',
+            'outputStatus' => 'unsupported',
+            'extensionInferred' => true,
+            'extensions' => ['wiki'],
+            'inputImplementation' => '',
+            'outputImplementation' => '',
+        ], $packet['formats']['mediawiki']);
+        $t->same(false, $packet['formats']['zimwiki']['extensionInferred']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
         $t->same(['man', 'mdoc'], PandocFormatRegistry::roffManualInputFormats());
         $t->same(['man', 'ms'], PandocFormatRegistry::roffManualOutputFormats());
