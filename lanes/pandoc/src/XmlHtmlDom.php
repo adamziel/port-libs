@@ -19008,15 +19008,16 @@ final class XmlHtmlDom
             'attributionText' => $footer instanceof \DOMElement ? self::normalizedText($footer) : null,
             'citationTexts' => $citationTexts,
             'citationCount' => count($citationTexts),
-        ] + self::quoteCiteReviewSummary($cite);
+        ] + self::quoteCiteReviewSummary($element, $cite);
     }
 
     /**
      * @return array<string, mixed>
      */
-    private static function quoteCiteReviewSummary(?string $cite): array
+    private static function quoteCiteReviewSummary(\DOMElement $element, ?string $cite): array
     {
         $url = self::hyperlinkUrlReviewSummary($cite);
+        $fragmentTarget = self::quoteCiteFragmentTargetSummary($element, $cite);
         $issues = [];
         if (($url['unsafe'] ?? false) === true) {
             $issues[] = [
@@ -19024,6 +19025,9 @@ final class XmlHtmlDom
                 'cite' => $cite,
                 'scheme' => $url['scheme'],
             ];
+        }
+        foreach (($fragmentTarget['quoteCiteFragmentIssues'] ?? []) as $issue) {
+            $issues[] = $issue;
         }
 
         return [
@@ -19033,10 +19037,86 @@ final class XmlHtmlDom
             'quoteCiteScheme' => $url['scheme'],
             'quoteCiteUnsafe' => $url['unsafe'],
             'quoteCiteIssues' => $issues,
-            'quoteCiteIssueCodes' => array_values(array_map(
+            'quoteCiteIssueCodes' => array_values(array_unique(array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
                 $issues
+            ))),
+        ] + $fragmentTarget;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function quoteCiteFragmentTargetSummary(\DOMElement $element, ?string $cite): array
+    {
+        $citeRaw = $cite === null ? null : trim($cite);
+        if ($citeRaw === null || !str_starts_with($citeRaw, '#')) {
+            return [];
+        }
+
+        $fragmentRaw = substr($citeRaw, 1);
+        $fragmentTarget = rawurldecode($fragmentRaw);
+        $documentTop = $fragmentTarget === '';
+        $targetValid = $documentTop || self::isHtmlIdReferenceToken($fragmentTarget);
+        $targetType = null;
+        $targets = [];
+        $issues = [];
+
+        if (!$targetValid) {
+            $issues[] = [
+                'code' => 'invalid-quote-cite-fragment-target',
+                'fragmentRaw' => $fragmentRaw,
+            ];
+        } elseif (!$documentTop) {
+            $targets = self::htmlElementsById($element, $fragmentTarget);
+            $targetType = $targets === [] ? null : 'id';
+
+            if ($targets === []) {
+                $targets = self::htmlNamedAnchorElements($element, $fragmentTarget);
+                $targetType = $targets === [] ? null : 'anchor-name';
+            }
+
+            if ($targets === []) {
+                $issues[] = [
+                    'code' => 'missing-quote-cite-fragment-target',
+                    'fragmentTarget' => $fragmentTarget,
+                ];
+            } elseif (count($targets) > 1) {
+                $issues[] = [
+                    'code' => 'duplicate-quote-cite-fragment-target',
+                    'fragmentTarget' => $fragmentTarget,
+                    'targetType' => $targetType,
+                    'count' => count($targets),
+                ];
+            }
+        }
+
+        $targetSummaries = [];
+        foreach ($targets as $target) {
+            $targetSummaries[] = self::hyperlinkFragmentTargetElementSummary($target, $targetType ?? 'element');
+        }
+
+        return [
+            'quoteCiteFragmentReviewPolicy' => 'quote-cite-fragment-target-review',
+            'quoteCiteFragmentRaw' => $fragmentRaw,
+            'quoteCiteFragmentTarget' => $documentTop ? null : $fragmentTarget,
+            'quoteCiteFragmentTargetValid' => $targetValid,
+            'quoteCiteFragmentDocumentTop' => $documentTop,
+            'quoteCiteFragmentTargetFound' => $targetSummaries !== [],
+            'quoteCiteFragmentTargetCount' => count($targetSummaries),
+            'quoteCiteFragmentTargetKind' => self::hyperlinkFragmentTargetKind(
+                $documentTop,
+                $targetValid,
+                $targetType,
+                count($targetSummaries)
+            ),
+            'quoteCiteFragmentTargetElement' => $targetSummaries[0] ?? null,
+            'quoteCiteFragmentTargetElements' => $targetSummaries,
+            'quoteCiteFragmentIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
             )),
+            'quoteCiteFragmentIssues' => $issues,
         ];
     }
 
