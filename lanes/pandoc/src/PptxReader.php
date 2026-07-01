@@ -2250,7 +2250,7 @@ final class PptxReader
             return '/ppt/' . $path;
         }
 
-        return null;
+        return $path === '' ? null : '/' . ltrim($path, '/');
     }
 
     private function graphicDataElement(\DOMElement $graphicFrame): ?\DOMElement

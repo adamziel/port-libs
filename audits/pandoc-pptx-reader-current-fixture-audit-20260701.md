@@ -25,7 +25,7 @@ The focused reader suite also locks a missing-image relationship case against th
 
 Linked image relationships using `a:blip r:link` are now distinguished from embedded image relationships. External linked images remain out of visible content and produce `external-image-target` review metadata with the `link` relationship attribute and external-target preflight result instead of a generic missing-image diagnostic.
 
-Embedded image relationships whose internal target is `media/...` now fall back to upstream Pandoc's PPTX media resolver and load `ppt/media/...` when the strict OPC slide-relative path is absent. Missing-image diagnostics still report the strict resolved package part when neither path exists.
+Embedded image relationships whose strict OPC slide-relative package part is absent now fall back through upstream Pandoc's PPTX picture resolver branches: `../media/...` and `media/...` resolve to `ppt/media/...`, and other internal targets are tried as direct package paths. Missing-image diagnostics still report the strict resolved package part when no upstream-compatible fallback exists.
 
 Malformed `p:pic` elements without the upstream-required `p:nvPicPr/p:cNvPr` non-visual properties now stay out of visible reader content even when an embedded media relationship and package part exist. The reader records `missing-picture-nonvisual-properties` in slide image diagnostics.
 
@@ -66,8 +66,8 @@ Latest focused verification:
 - `php -l lanes/pandoc/src/PptxReader.php`
 - `php -l lanes/pandoc/tests/PptxReaderTest.php`
 - `php -l lanes/pandoc/src/PandocFormatRegistry.php`
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `325` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1182` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1615` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `333` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1190` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1623` assertions, `0` failures.
 
 This closes the current upstream PPTX reader golden fixture content gate. It does not claim full PPTX writer parity or full PowerPoint package round-trip parity.
