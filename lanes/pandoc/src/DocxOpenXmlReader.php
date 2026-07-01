@@ -15264,9 +15264,29 @@ final class DocxOpenXmlReader
         ksort($partCaseFoldTopLevelSegmentCounts, SORT_STRING);
         $partPathSegments = $this->packagePartPathSegmentSummary($partInventory);
         $partPathSegmentOccurrenceCount = 0;
+        $partPathSegmentCounts = [];
+        $partPathSegmentOccurrenceCounts = [];
+        $parameterizedPartPathSegmentCount = 0;
+        $parameterizedPartPathSegmentBucketCount = 0;
+        $missingContentTypePartPathSegmentBucketCount = 0;
         foreach ($partPathSegments as $partPathSegment) {
-            $partPathSegmentOccurrenceCount += (int) ($partPathSegment['occurrenceCount'] ?? 0);
+            $segment = (string) ($partPathSegment['segment'] ?? '');
+            $occurrenceCount = (int) ($partPathSegment['occurrenceCount'] ?? 0);
+            $partCount = (int) ($partPathSegment['partCount'] ?? 0);
+            $partPathSegmentCounts[$segment] = $partCount;
+            $partPathSegmentOccurrenceCounts[$segment] = $occurrenceCount;
+            $partPathSegmentOccurrenceCount += $occurrenceCount;
+            $parameterizedPartCount = (int) ($partPathSegment['parameterizedPartCount'] ?? 0);
+            if ($parameterizedPartCount > 0) {
+                $parameterizedPartPathSegmentBucketCount++;
+                $parameterizedPartPathSegmentCount += $parameterizedPartCount;
+            }
+            if ((int) ($partPathSegment['missingContentTypePartCount'] ?? 0) > 0) {
+                $missingContentTypePartPathSegmentBucketCount++;
+            }
         }
+        ksort($partPathSegmentCounts, SORT_STRING);
+        ksort($partPathSegmentOccurrenceCounts, SORT_STRING);
         $partCaseFoldPathSegments = $this->packagePartCaseFoldPathSegmentSummary($partInventory);
         $partCaseFoldPathSegmentOccurrenceCount = 0;
         $partCaseFoldPathSegmentCounts = [];
@@ -18381,6 +18401,11 @@ final class DocxOpenXmlReader
             'duplicatePartCaseFoldTopLevelSegments' => $duplicatePartCaseFoldTopLevelSegments,
             'partPathSegmentCount' => count($partPathSegments),
             'partPathSegmentOccurrenceCount' => $partPathSegmentOccurrenceCount,
+            'partPathSegmentCounts' => $partPathSegmentCounts,
+            'partPathSegmentOccurrenceCounts' => $partPathSegmentOccurrenceCounts,
+            'partPathSegmentParameterizedBucketCount' => $parameterizedPartPathSegmentBucketCount,
+            'partPathSegmentParameterizedPartCount' => $parameterizedPartPathSegmentCount,
+            'partPathSegmentMissingContentTypeBucketCount' => $missingContentTypePartPathSegmentBucketCount,
             'partCaseFoldPathSegmentCount' => count($partCaseFoldPathSegments),
             'partCaseFoldPathSegmentOccurrenceCount' => $partCaseFoldPathSegmentOccurrenceCount,
             'partCaseFoldPathSegmentCounts' => $partCaseFoldPathSegmentCounts,
@@ -25838,7 +25863,17 @@ final class DocxOpenXmlReader
             $baseName = is_string($part['baseName'] ?? null)
                 ? $part['baseName']
                 : $this->packagePartBaseName($partName);
+            $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
+                ? (int) $part['pathSegmentCount']
+                : count($pathSegments);
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : ($pathSegments[0] ?? '');
+            $topLevelSegmentKey = $topLevelSegment === '' ? '(none)' : $topLevelSegment;
             $bytes = (int) ($part['bytes'] ?? 0);
+            $contentType = is_string($part['contentType'] ?? null)
+                ? $part['contentType']
+                : '';
             $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
                 ? $part['contentTypeSource']
                 : 'missing';
@@ -25849,16 +25884,25 @@ final class DocxOpenXmlReader
                 ? $part['contentTypeBase']
                 : '';
             $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $roles = array_values(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            ));
             $partSummary = [
                 'partName' => $partName,
                 'directory' => $directory,
                 'baseName' => $baseName,
+                'pathSegmentCount' => $pathSegmentCount,
+                'pathSegments' => $pathSegments,
+                'topLevelSegment' => $topLevelSegment,
                 'bytes' => $bytes,
                 'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
                 'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => $contentType,
                 'contentTypeBase' => $contentTypeBase,
                 'contentTypeSource' => $contentTypeSource,
-                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => $roles,
             ];
 
             foreach ($pathSegments as $pathSegmentIndex => $segment) {
@@ -25871,7 +25915,11 @@ final class DocxOpenXmlReader
                         'byteLength' => 0,
                         'relationshipPartCount' => 0,
                         'missingContentTypePartCount' => 0,
+                        'parameterizedPartCount' => 0,
                         'pathSegmentIndexCounts' => [],
+                        'pathDepthCounts' => [],
+                        'topLevelSegmentCounts' => [],
+                        'directoryCounts' => [],
                         'directories' => [],
                         'contentTypeSourceCounts' => [],
                         'contentTypeBaseCounts' => [],
@@ -25894,8 +25942,17 @@ final class DocxOpenXmlReader
                 $segments[$segment]['byteLength'] += $bytes;
                 $segments[$segment]['partNames'][] = $partName;
                 $segments[$segment]['directories'][$directory] = true;
+                $segments[$segment]['directoryCounts'][$directory] =
+                    ($segments[$segment]['directoryCounts'][$directory] ?? 0) + 1;
+                $segments[$segment]['pathDepthCounts'][$pathSegmentCount] =
+                    ($segments[$segment]['pathDepthCounts'][$pathSegmentCount] ?? 0) + 1;
+                $segments[$segment]['topLevelSegmentCounts'][$topLevelSegmentKey] =
+                    ($segments[$segment]['topLevelSegmentCounts'][$topLevelSegmentKey] ?? 0) + 1;
                 if (($part['isRelationshipPart'] ?? false) === true) {
                     ++$segments[$segment]['relationshipPartCount'];
+                }
+                if (($part['contentTypeHasParameters'] ?? false) === true) {
+                    ++$segments[$segment]['parameterizedPartCount'];
                 }
                 if ($contentTypeSource === 'missing') {
                     ++$segments[$segment]['missingContentTypePartCount'];
@@ -25905,8 +25962,7 @@ final class DocxOpenXmlReader
                 $segments[$segment]['contentTypeBaseCounts'][$contentTypeBaseKey] =
                     ($segments[$segment]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
 
-                foreach (($part['roles'] ?? []) as $role) {
-                    $role = (string) $role;
+                foreach ($roles as $role) {
                     $segments[$segment]['roleCounts'][$role] =
                         ($segments[$segment]['roleCounts'][$role] ?? 0) + 1;
                 }
@@ -25931,6 +25987,9 @@ final class DocxOpenXmlReader
             sort($directories, SORT_STRING);
             sort($summary['partNames'], SORT_STRING);
             ksort($summary['pathSegmentIndexCounts'], SORT_NUMERIC);
+            ksort($summary['pathDepthCounts'], SORT_NUMERIC);
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
+            ksort($summary['directoryCounts'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
             ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             ksort($summary['roleCounts'], SORT_STRING);

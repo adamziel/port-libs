@@ -21,7 +21,52 @@ $tests = [
         foreach ($summary['partPathSegmentPositions'] as $position) {
             $positions[$position['position']] = $position;
         }
+        $segments = [];
+        foreach ($summary['partPathSegments'] as $segment) {
+            $segments[$segment['segment']] = $segment;
+        }
+        $expectedSegmentCounts = [
+            '.rels' => 1,
+            '[Content_Types].xml' => 1,
+            '_rels' => 2,
+            'customXml' => 2,
+            'data.bin' => 1,
+            'deep' => 1,
+            'document.xml' => 1,
+            'document.xml.rels' => 1,
+            'item.xml' => 1,
+            'media' => 2,
+            'review' => 2,
+            'review.png' => 1,
+            'root-note.xml' => 1,
+            'scan.png' => 1,
+            'word' => 4,
+        ];
 
+        $t->same(15, $summary['partPathSegmentCount']);
+        $t->same(22, $summary['partPathSegmentOccurrenceCount']);
+        $t->same($expectedSegmentCounts, $summary['partPathSegmentCounts']);
+        $t->same($expectedSegmentCounts, $summary['partPathSegmentOccurrenceCounts']);
+        $t->same(1, $summary['partPathSegmentParameterizedBucketCount']);
+        $t->same(1, $summary['partPathSegmentParameterizedPartCount']);
+        $t->same(3, $summary['partPathSegmentMissingContentTypeBucketCount']);
+        $t->same([
+            '.rels',
+            '[Content_Types].xml',
+            '_rels',
+            'customXml',
+            'data.bin',
+            'deep',
+            'document.xml',
+            'document.xml.rels',
+            'item.xml',
+            'media',
+            'review',
+            'review.png',
+            'root-note.xml',
+            'scan.png',
+            'word',
+        ], array_column($summary['partPathSegments'], 'segment'));
         $t->same(4, $summary['partPathSegmentPositionBucketCount']);
         $t->same($summary['partPathSegmentOccurrenceCount'], $summary['partPathSegmentPositionOccurrenceCount']);
         $t->same(['first' => 7, 'last' => 7, 'middle' => 6, 'only' => 2], $summary['partPathSegmentPositionCounts']);
@@ -30,6 +75,70 @@ $tests = [
         $t->same(1, $summary['partPathSegmentPositionParameterizedPartCount']);
         $t->same(3, $summary['partPathSegmentPositionMissingContentTypeBucketCount']);
         $t->same(['first', 'last', 'middle', 'only'], array_column($summary['partPathSegmentPositions'], 'position'));
+
+        $word = $segments['word'];
+        $wordPartNames = [
+            'word/_rels/document.xml.rels',
+            'word/document.xml',
+            'word/media/deep/scan.png',
+            'word/media/review.png',
+        ];
+        $t->same('word', $word['segment']);
+        $t->same('word', $word['caseFoldSegment']);
+        $t->same(4, $word['occurrenceCount']);
+        $t->same(4, $word['partCount']);
+        $t->same(array_sum(array_map(static fn (string $partName): int => strlen($parts[$partName]), $wordPartNames)), $word['byteLength']);
+        $t->same(1, $word['relationshipPartCount']);
+        $t->same(0, $word['missingContentTypePartCount']);
+        $t->same(0, $word['parameterizedPartCount']);
+        $t->same([0 => 4], $word['pathSegmentIndexCounts']);
+        $t->same([2 => 1, 3 => 2, 4 => 1], $word['pathDepthCounts']);
+        $t->same(['word' => 4], $word['topLevelSegmentCounts']);
+        $t->same([
+            'word' => 1,
+            'word/_rels' => 1,
+            'word/media' => 1,
+            'word/media/deep' => 1,
+        ], $word['directoryCounts']);
+        $t->same(['word', 'word/_rels', 'word/media', 'word/media/deep'], $word['directories']);
+        $t->same(['default' => 3, 'override' => 1], $word['contentTypeSourceCounts']);
+        $t->same([
+            $documentContentType => 1,
+            $relationshipContentType => 1,
+            'image/png' => 2,
+        ], $word['contentTypeBaseCounts']);
+        $t->same([
+            'document-relationship-target' => 2,
+            'office-document' => 1,
+            'office-document-relationships' => 1,
+            'relationship-part' => 1,
+            'root-relationship-target' => 1,
+        ], $word['roleCounts']);
+        $t->same($wordPartNames, $word['partNames']);
+        $t->same('word/_rels/document.xml.rels', $word['largestPart']['partName']);
+        $t->same(['word', '_rels', 'document.xml.rels'], $word['largestPart']['pathSegments']);
+        $t->same($relationshipContentType, $word['largestPart']['contentTypeBase']);
+        $t->same(true, $word['largestPart']['isRelationshipPart']);
+        $t->same(false, array_key_exists('contents', $word['largestPart']));
+
+        $rootNote = $segments['root-note.xml'];
+        $t->same(1, $rootNote['occurrenceCount']);
+        $t->same(1, $rootNote['partCount']);
+        $t->same(1, $rootNote['parameterizedPartCount']);
+        $t->same(['override' => 1], $rootNote['contentTypeSourceCounts']);
+        $t->same(['application/xml' => 1], $rootNote['contentTypeBaseCounts']);
+        $t->same(['custom-xml-part' => 1, 'root-relationship-target' => 1], $rootNote['roleCounts']);
+        $t->same(['root-note.xml'], $rootNote['partNames']);
+
+        $customXml = $segments['customXml'];
+        $t->same(2, $customXml['occurrenceCount']);
+        $t->same(2, $customXml['partCount']);
+        $t->same(1, $customXml['missingContentTypePartCount']);
+        $t->same([0 => 2], $customXml['pathSegmentIndexCounts']);
+        $t->same(['customXml/review' => 2], $customXml['directoryCounts']);
+        $t->same(['default' => 1, 'missing' => 1], $customXml['contentTypeSourceCounts']);
+        $t->same(['package-part' => 2], $customXml['roleCounts']);
+
         $t->same([
             [
                 'pathSegmentIndex' => 0,
