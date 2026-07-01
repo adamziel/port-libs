@@ -58,6 +58,8 @@
     "docxContentTypeDefaultDeclarationParameterRollupAssertions": 8,
     "mappedDocxSelectedXmlRootByteAggregateCases": 1,
     "docxSelectedXmlRootByteAggregateAssertions": 38,
+    "mappedWikiReaderWriterUnsupportedTaxonomyMatrixCases": 1,
+    "wikiReaderWriterUnsupportedTaxonomyMatrixAssertions": 32,
     "upstream": {
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",
