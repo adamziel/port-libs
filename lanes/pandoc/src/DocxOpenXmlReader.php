@@ -19591,6 +19591,7 @@ final class DocxOpenXmlReader
             'contentTypeParameterizedDefaultDeclarationCount' => (int) ($contentTypesPart['parameterizedDefaultDeclarationCount'] ?? 0),
             'contentTypeDefaultDeclarationContentTypeBaseCounts' => $contentTypesPart['defaultDeclarationContentTypeBaseCounts'] ?? [],
             'contentTypeDefaultDeclarationContentTypeParameterNameCounts' => $contentTypesPart['defaultDeclarationContentTypeParameterNameCounts'] ?? [],
+            'contentTypeDefaultDeclarationContentTypeParameterValueCounts' => $contentTypesPart['defaultDeclarationContentTypeParameterValueCounts'] ?? [],
             'contentTypeDefaultDeclarationRawExtensionCounts' => $contentTypesPart['defaultDeclarationRawExtensionCounts'] ?? [],
             'contentTypeDefaultDeclarationDirectoryCounts' => $contentTypesPart['defaultDeclarationDirectoryCounts'] ?? [],
             'contentTypeDefaultDeclarationTopLevelSegmentCounts' => $contentTypesPart['defaultDeclarationTopLevelSegmentCounts'] ?? [],
@@ -38102,6 +38103,7 @@ final class DocxOpenXmlReader
             'parameterizedDefaultDeclarationCount' => $defaultDeclarationSummary['parameterizedDeclarationCount'],
             'defaultDeclarationContentTypeBaseCounts' => $defaultDeclarationSummary['contentTypeBaseCounts'],
             'defaultDeclarationContentTypeParameterNameCounts' => $defaultDeclarationSummary['contentTypeParameterNameCounts'],
+            'defaultDeclarationContentTypeParameterValueCounts' => $defaultDeclarationSummary['contentTypeParameterValueCounts'],
             'defaultDeclarationRawExtensionCounts' => $defaultDeclarationSummary['rawExtensionCounts'],
             'defaultDeclarationDirectoryCounts' => $defaultDeclarationSummary['directoryCounts'],
             'defaultDeclarationTopLevelSegmentCounts' => $defaultDeclarationSummary['topLevelSegmentCounts'],
@@ -38263,7 +38265,7 @@ final class DocxOpenXmlReader
     /**
      * @param array<string, string> $parts
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
-     * @return array{declarationCount:int, usedDeclarationCount:int, unusedDeclarationCount:int, defaultResolvedPartCount:int, overrideResolvedPartCount:int, missingPartCount:int, extensionlessMissingPartCount:int, unusedExtensions:list<string>, missingExtensions:list<string>, rawExtensionCounts:array<string, int>, directoryCounts:array<string, int>, topLevelSegmentCounts:array<string, int>, largestPart:?array<string, mixed>, largestParts:list<array<string, mixed>>, issueCounts:array<string, int>, issues:list<string>, declarations:list<array<string, mixed>>, missingParts:list<array<string, mixed>>}
+     * @return array{declarationCount:int, usedDeclarationCount:int, unusedDeclarationCount:int, defaultResolvedPartCount:int, overrideResolvedPartCount:int, missingPartCount:int, extensionlessMissingPartCount:int, unusedExtensions:list<string>, missingExtensions:list<string>, contentTypeParameterValueCounts:array<string, array<string, int>>, rawExtensionCounts:array<string, int>, directoryCounts:array<string, int>, topLevelSegmentCounts:array<string, int>, largestPart:?array<string, mixed>, largestParts:list<array<string, mixed>>, issueCounts:array<string, int>, issues:list<string>, declarations:list<array<string, mixed>>, missingParts:list<array<string, mixed>>}
      */
     private function contentTypeDefaultDeclarationSummary(array $parts, array $contentTypes): array
     {
@@ -38292,6 +38294,7 @@ final class DocxOpenXmlReader
         $issueCounts = [];
         $contentTypeBaseCounts = [];
         $contentTypeParameterNameCounts = [];
+        $contentTypeParameterValueCounts = [];
         $parameterizedDeclarationCount = 0;
         $extensionlessMissingPartCount = 0;
         $rawExtensionCounts = [];
@@ -38311,6 +38314,16 @@ final class DocxOpenXmlReader
                 if (is_string($parameterName) && $parameterName !== '') {
                     $contentTypeParameterNameCounts[$parameterName] = ($contentTypeParameterNameCounts[$parameterName] ?? 0) + 1;
                 }
+            }
+            foreach ($parameterMap as $parameterName => $parameterValue) {
+                if (!is_string($parameterName) || $parameterName === '') {
+                    continue;
+                }
+
+                $parameterValue = is_scalar($parameterValue) ? (string) $parameterValue : '';
+                $parameterValueKey = $parameterValue === '' ? '(empty)' : $parameterValue;
+                $contentTypeParameterValueCounts[$parameterName][$parameterValueKey] =
+                    ($contentTypeParameterValueCounts[$parameterName][$parameterValueKey] ?? 0) + 1;
             }
         }
 
@@ -38438,6 +38451,11 @@ final class DocxOpenXmlReader
         sort($missingExtensions, SORT_STRING);
         ksort($contentTypeBaseCounts, SORT_STRING);
         ksort($contentTypeParameterNameCounts, SORT_STRING);
+        ksort($contentTypeParameterValueCounts, SORT_STRING);
+        foreach ($contentTypeParameterValueCounts as &$parameterValueCounts) {
+            ksort($parameterValueCounts, SORT_STRING);
+        }
+        unset($parameterValueCounts);
         ksort($rawExtensionCounts, SORT_STRING);
         ksort($directoryCounts, SORT_STRING);
         ksort($topLevelSegmentCounts, SORT_STRING);
@@ -38470,6 +38488,7 @@ final class DocxOpenXmlReader
             'parameterizedDeclarationCount' => $parameterizedDeclarationCount,
             'contentTypeBaseCounts' => $contentTypeBaseCounts,
             'contentTypeParameterNameCounts' => $contentTypeParameterNameCounts,
+            'contentTypeParameterValueCounts' => $contentTypeParameterValueCounts,
             'rawExtensionCounts' => $rawExtensionCounts,
             'directoryCounts' => $directoryCounts,
             'topLevelSegmentCounts' => $topLevelSegmentCounts,
