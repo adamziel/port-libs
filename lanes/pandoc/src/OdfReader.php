@@ -1837,6 +1837,7 @@ final class OdfReader
             $packagePathByteLengthBucket = self::packagePathByteLengthBucket($packagePathByteLength);
             $packagePartExtension = self::packagePartExtension($entry->name);
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
+            $packagePathCharacterFlags = self::packagePathCharacterFlags($entry->name);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldsByName[$entry->name] ?? null);
             $unixOwnerProvenance = self::zipUnixOwnerMetadataProvenance($unixOwnersByName[$entry->name] ?? null);
@@ -1902,6 +1903,11 @@ final class OdfReader
                 'packagePathByteLengthBucket' => $packagePathByteLengthBucket['packagePathByteLengthBucket'],
                 'packagePathByteLengthBucketMin' => $packagePathByteLengthBucket['minPackagePathByteLength'],
                 'packagePathByteLengthBucketMax' => $packagePathByteLengthBucket['maxPackagePathByteLength'],
+                'packagePathCharacterFlags' => $packagePathCharacterFlags,
+                'packagePathHasUppercase' => in_array('uppercase', $packagePathCharacterFlags, true),
+                'packagePathHasWhitespace' => in_array('whitespace', $packagePathCharacterFlags, true),
+                'packagePathHasPercentEncodedOctet' => in_array('percent-encoded-octet', $packagePathCharacterFlags, true),
+                'packagePathHasNonAscii' => in_array('non-ascii', $packagePathCharacterFlags, true),
                 'packagePartExtension' => $packagePartExtension,
                 'rawPackagePartExtension' => $rawPackagePartExtension,
                 'packagePartExtensionHasUppercase' => $rawPackagePartExtension !== null && preg_match('/[A-Z]/', $rawPackagePartExtension) === 1,
@@ -2211,6 +2217,7 @@ final class OdfReader
         $packageZipTimestampSources = self::packageZipTimestampSourceInventory($parts);
         $packageExtraFields = self::packageExtraFieldInventory($parts);
         $packagePathByteLengths = self::packagePathByteLengthInventory($parts);
+        $packagePathCharacters = self::packagePathCharacterInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
@@ -2440,6 +2447,17 @@ final class OdfReader
             'packagePathByteLengthByteExposurePolicyCounts' => $packagePathByteLengths['packagePathByteLengthByteExposurePolicyCounts'],
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $packagePathByteLengths['entryNamesByPackagePathByteLengthByteExposurePolicy'],
             'packagePathByteLengthBucketSummaries' => $packagePathByteLengths['packagePathByteLengthBucketSummaries'],
+            'packagePathCharacterReviewEntryCount' => $packagePathCharacters['packagePathCharacterReviewEntryCount'],
+            'packagePathCharacterFlagCount' => $packagePathCharacters['packagePathCharacterFlagCount'],
+            'packagePathCharacterFlagEntryCounts' => $packagePathCharacters['packagePathCharacterFlagEntryCounts'],
+            'entryNamesByPackagePathCharacterFlag' => $packagePathCharacters['entryNamesByPackagePathCharacterFlag'],
+            'packagePathUppercaseEntryCount' => $packagePathCharacters['packagePathUppercaseEntryCount'],
+            'packagePathWhitespaceEntryCount' => $packagePathCharacters['packagePathWhitespaceEntryCount'],
+            'packagePathPercentEncodedOctetEntryCount' => $packagePathCharacters['packagePathPercentEncodedOctetEntryCount'],
+            'packagePathNonAsciiEntryCount' => $packagePathCharacters['packagePathNonAsciiEntryCount'],
+            'packagePathCharacterReviewEntries' => $packagePathCharacters['packagePathCharacterReviewEntries'],
+            'packagePathCharacterByteExposurePolicy' => $packagePathCharacters['packagePathCharacterByteExposurePolicy'],
+            'packagePathCharacterCanExposeBytes' => $packagePathCharacters['packagePathCharacterCanExposeBytes'],
             'zipPackageManifestPathSegmentPositionRoleCounts' => $zipPackageManifestPathSegmentPositionRoleCounts,
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $entryNamesByZipPackageManifestPathSegmentPositionRole,
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts,
@@ -3391,6 +3409,11 @@ final class OdfReader
                 'packagePathByteLengthBucket' => $item['packagePathByteLengthBucket'] ?? null,
                 'packagePathByteLengthBucketMin' => $item['packagePathByteLengthBucketMin'] ?? null,
                 'packagePathByteLengthBucketMax' => $item['packagePathByteLengthBucketMax'] ?? null,
+                'packagePathCharacterFlags' => $item['packagePathCharacterFlags'] ?? [],
+                'packagePathHasUppercase' => ($item['packagePathHasUppercase'] ?? false) === true,
+                'packagePathHasWhitespace' => ($item['packagePathHasWhitespace'] ?? false) === true,
+                'packagePathHasPercentEncodedOctet' => ($item['packagePathHasPercentEncodedOctet'] ?? false) === true,
+                'packagePathHasNonAscii' => ($item['packagePathHasNonAscii'] ?? false) === true,
                 'packagePartExtension' => $item['packagePartExtension'] ?? null,
                 'rawPackagePartExtension' => $item['rawPackagePartExtension'] ?? null,
                 'packagePartExtensionHasUppercase' => ($item['packagePartExtensionHasUppercase'] ?? false) === true,
@@ -3845,6 +3868,17 @@ final class OdfReader
             'packagePathByteLengthByteExposurePolicyCounts' => $provenance['packagePathByteLengthByteExposurePolicyCounts'] ?? [],
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $provenance['entryNamesByPackagePathByteLengthByteExposurePolicy'] ?? [],
             'packagePathByteLengthBucketSummaries' => $provenance['packagePathByteLengthBucketSummaries'] ?? [],
+            'packagePathCharacterReviewEntryCount' => $provenance['packagePathCharacterReviewEntryCount'] ?? 0,
+            'packagePathCharacterFlagCount' => $provenance['packagePathCharacterFlagCount'] ?? 0,
+            'packagePathCharacterFlagEntryCounts' => $provenance['packagePathCharacterFlagEntryCounts'] ?? [],
+            'entryNamesByPackagePathCharacterFlag' => $provenance['entryNamesByPackagePathCharacterFlag'] ?? [],
+            'packagePathUppercaseEntryCount' => $provenance['packagePathUppercaseEntryCount'] ?? 0,
+            'packagePathWhitespaceEntryCount' => $provenance['packagePathWhitespaceEntryCount'] ?? 0,
+            'packagePathPercentEncodedOctetEntryCount' => $provenance['packagePathPercentEncodedOctetEntryCount'] ?? 0,
+            'packagePathNonAsciiEntryCount' => $provenance['packagePathNonAsciiEntryCount'] ?? 0,
+            'packagePathCharacterReviewEntries' => $provenance['packagePathCharacterReviewEntries'] ?? [],
+            'packagePathCharacterByteExposurePolicy' => $provenance['packagePathCharacterByteExposurePolicy'] ?? 'odf-package-path-character-metadata-only',
+            'packagePathCharacterCanExposeBytes' => ($provenance['packagePathCharacterCanExposeBytes'] ?? false) === true,
             'zipPackageManifestPathSegmentPositionRoleCounts' => $provenance['zipPackageManifestPathSegmentPositionRoleCounts'] ?? [],
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $provenance['entryNamesByZipPackageManifestPathSegmentPositionRole'] ?? [],
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $provenance['zipPackageManifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
@@ -4214,6 +4248,17 @@ final class OdfReader
             'packagePathByteLengthByteExposurePolicyCounts' => $provenance['packagePathByteLengthByteExposurePolicyCounts'] ?? [],
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $provenance['entryNamesByPackagePathByteLengthByteExposurePolicy'] ?? [],
             'packagePathByteLengthBucketSummaries' => $provenance['packagePathByteLengthBucketSummaries'] ?? [],
+            'packagePathCharacterReviewEntryCount' => $provenance['packagePathCharacterReviewEntryCount'] ?? 0,
+            'packagePathCharacterFlagCount' => $provenance['packagePathCharacterFlagCount'] ?? 0,
+            'packagePathCharacterFlagEntryCounts' => $provenance['packagePathCharacterFlagEntryCounts'] ?? [],
+            'entryNamesByPackagePathCharacterFlag' => $provenance['entryNamesByPackagePathCharacterFlag'] ?? [],
+            'packagePathUppercaseEntryCount' => $provenance['packagePathUppercaseEntryCount'] ?? 0,
+            'packagePathWhitespaceEntryCount' => $provenance['packagePathWhitespaceEntryCount'] ?? 0,
+            'packagePathPercentEncodedOctetEntryCount' => $provenance['packagePathPercentEncodedOctetEntryCount'] ?? 0,
+            'packagePathNonAsciiEntryCount' => $provenance['packagePathNonAsciiEntryCount'] ?? 0,
+            'packagePathCharacterReviewEntries' => $provenance['packagePathCharacterReviewEntries'] ?? [],
+            'packagePathCharacterByteExposurePolicy' => $provenance['packagePathCharacterByteExposurePolicy'] ?? 'odf-package-path-character-metadata-only',
+            'packagePathCharacterCanExposeBytes' => ($provenance['packagePathCharacterCanExposeBytes'] ?? false) === true,
             'zipPackageManifestPathSegmentPositionRoleCounts' => $provenance['zipPackageManifestPathSegmentPositionRoleCounts'] ?? [],
             'entryNamesByZipPackageManifestPathSegmentPositionRole' => $provenance['entryNamesByZipPackageManifestPathSegmentPositionRole'] ?? [],
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $provenance['zipPackageManifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
@@ -7631,6 +7676,113 @@ final class OdfReader
             'packagePathByteLengthByteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $entryNamesByByteExposurePolicy,
             'packagePathByteLengthBucketSummaries' => $orderedSummaries,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function packagePathCharacterFlags(string $path): array
+    {
+        $flags = [];
+        if (preg_match('/[A-Z]/', $path) === 1) {
+            $flags[] = 'uppercase';
+        }
+        if (preg_match('/[ \t\r\n\f\v]/', $path) === 1) {
+            $flags[] = 'whitespace';
+        }
+        if (preg_match('/%[0-9A-Fa-f]{2}/', $path) === 1) {
+            $flags[] = 'percent-encoded-octet';
+        }
+        if (preg_match('/[^\x00-\x7F]/', $path) === 1) {
+            $flags[] = 'non-ascii';
+        }
+
+        return $flags;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function packagePathCharacterInventory(array $parts): array
+    {
+        $flagEntryCounts = [];
+        $entryNamesByFlag = [];
+        $reviewEntries = [];
+
+        foreach ($parts as $fallbackName => $part) {
+            $entryName = is_string($part['path'] ?? null) && $part['path'] !== ''
+                ? $part['path']
+                : (is_string($part['part'] ?? null) && $part['part'] !== '' ? $part['part'] : $fallbackName);
+            if (!is_string($entryName) || $entryName === '') {
+                continue;
+            }
+
+            $flags = is_array($part['packagePathCharacterFlags'] ?? null)
+                ? array_values(array_unique(array_filter(
+                    array_map('strval', $part['packagePathCharacterFlags']),
+                    static fn (string $flag): bool => $flag !== ''
+                )))
+                : self::packagePathCharacterFlags($entryName);
+            if ($flags === []) {
+                continue;
+            }
+
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            sort($roles, SORT_STRING);
+
+            foreach ($flags as $flag) {
+                $flagEntryCounts[$flag] = ($flagEntryCounts[$flag] ?? 0) + 1;
+                $entryNamesByFlag[$flag][$entryName] = true;
+            }
+
+            $reviewEntries[] = self::withoutEmpty([
+                'entryName' => $entryName,
+                'flags' => $flags,
+                'packageArea' => is_string($part['packageArea'] ?? null) ? $part['packageArea'] : null,
+                'packagePathDepth' => is_int($part['packagePathDepth'] ?? null) ? $part['packagePathDepth'] : null,
+                'byteLength' => is_int($part['byteLength'] ?? null) ? $part['byteLength'] : null,
+                'compressedByteLength' => is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : null,
+                'roles' => $roles,
+                'byteExposurePolicy' => is_string($part['byteExposurePolicy'] ?? null) ? $part['byteExposurePolicy'] : null,
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'undeclared' => ($part['undeclared'] ?? false) === true,
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+                'reviewPolicy' => 'odf-package-path-character-metadata-only',
+            ]);
+        }
+
+        ksort($flagEntryCounts, SORT_STRING);
+        ksort($entryNamesByFlag, SORT_STRING);
+        foreach ($entryNamesByFlag as &$entryNames) {
+            $entryNames = array_keys($entryNames);
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
+        usort(
+            $reviewEntries,
+            static fn (array $left, array $right): int => strcmp(
+                (string) ($left['entryName'] ?? ''),
+                (string) ($right['entryName'] ?? '')
+            )
+        );
+
+        return [
+            'packagePathCharacterReviewEntryCount' => count($reviewEntries),
+            'packagePathCharacterFlagCount' => count($flagEntryCounts),
+            'packagePathCharacterFlagEntryCounts' => $flagEntryCounts,
+            'entryNamesByPackagePathCharacterFlag' => $entryNamesByFlag,
+            'packagePathUppercaseEntryCount' => (int) ($flagEntryCounts['uppercase'] ?? 0),
+            'packagePathWhitespaceEntryCount' => (int) ($flagEntryCounts['whitespace'] ?? 0),
+            'packagePathPercentEncodedOctetEntryCount' => (int) ($flagEntryCounts['percent-encoded-octet'] ?? 0),
+            'packagePathNonAsciiEntryCount' => (int) ($flagEntryCounts['non-ascii'] ?? 0),
+            'packagePathCharacterReviewEntries' => $reviewEntries,
+            'packagePathCharacterByteExposurePolicy' => 'odf-package-path-character-metadata-only',
+            'packagePathCharacterCanExposeBytes' => false,
         ];
     }
 
