@@ -1488,6 +1488,7 @@ final class OdfReader
         $objectPackageRootParts = $this->objectPackageRootParts($manifest);
         $roleCounts = [];
         $undeclaredRoleCounts = [];
+        $packageRoleByteExposurePolicyCounts = [];
         $roleByteLengths = [];
         $roleCompressedByteLengths = [];
         $totalByteLength = 0;
@@ -2009,6 +2010,10 @@ final class OdfReader
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
                 $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $entry->uncompressedSize;
                 $roleCompressedByteLengths[$role] = ($roleCompressedByteLengths[$role] ?? 0) + $entry->compressedSize;
+                if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                    $packageRoleByteExposurePolicyCounts[$role][$byteExposurePolicy] =
+                        ($packageRoleByteExposurePolicyCounts[$role][$byteExposurePolicy] ?? 0) + 1;
+                }
                 if ($isUndeclared) {
                     $undeclaredRoleCounts[$role] = ($undeclaredRoleCounts[$role] ?? 0) + 1;
                 }
@@ -2085,6 +2090,7 @@ final class OdfReader
         ksort($missingManifestDeclaredByteExposurePolicyCounts, SORT_STRING);
         ksort($missingManifestDeclaredMediaTypeBaseCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
+        self::sortPackageNestedCountMap($packageRoleByteExposurePolicyCounts);
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
         ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
         ksort($packageAreaCounts, SORT_STRING);
@@ -2225,6 +2231,7 @@ final class OdfReader
             'centralDirectoryOrderMismatchRoleCompressedByteLengths' => $centralDirectoryOrderMismatchRoles['roleCompressedByteLengths'],
             'centralDirectoryOrderMismatchRoleSummaries' => $centralDirectoryOrderMismatchRoles['roleSummaries'],
             'packagePartByteExposurePolicyCounts' => $packagePartByteExposurePolicyCounts,
+            'packageRoleByteExposurePolicyCounts' => $packageRoleByteExposurePolicyCounts,
             'packagePartByteExposurePolicyByteLengths' => $packagePartByteExposurePolicyByteLengths,
             'packagePartByteExposurePolicyCompressedByteLengths' => $packagePartByteExposurePolicyCompressedByteLengths,
             'packageByteHandoff' => $packageByteHandoff,
@@ -3207,6 +3214,7 @@ final class OdfReader
             'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $provenance['packageZipSourceRecordCompressionMethodUnsupportedEntryCount'] ?? 0,
             'packageZipSourceRecordCompressionMethods' => $provenance['packageZipSourceRecordCompressionMethods'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'packageRoleByteExposurePolicyCounts' => $provenance['packageRoleByteExposurePolicyCounts'] ?? [],
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
             'packageAreaSummaries' => $provenance['packageAreaSummaries'] ?? [],
@@ -3451,6 +3459,7 @@ final class OdfReader
             'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $provenance['packageZipSourceRecordCompressionMethodUnsupportedEntryCount'] ?? 0,
             'packageZipSourceRecordCompressionMethods' => $provenance['packageZipSourceRecordCompressionMethods'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'packageRoleByteExposurePolicyCounts' => $provenance['packageRoleByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
             'packageAreaSummaries' => $provenance['packageAreaSummaries'] ?? [],
             'packagePathsByPackageArea' => $provenance['packagePathsByPackageArea'] ?? [],
