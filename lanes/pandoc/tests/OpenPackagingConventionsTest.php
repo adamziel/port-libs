@@ -1321,6 +1321,125 @@ XML;
         $t->same('xml-part', $summary['largestPayloadEntries'][4]['role']);
         $t->same('xml', $summary['largestPayloadEntries'][4]['handoffKind']);
     },
+    'summarizes OPC ZIP manifest directory roots before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+</Types>
+XML;
+        $rootRelationshipsXml = '<Relationships/>';
+        $coreXml = '<cp:coreProperties/>';
+        $documentXml = '<w:document/>';
+        $documentRelationshipsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = 'PNGDATA';
+        $binaryBytes = 'BINARYDATA';
+        $customXml = '<audit/>';
+
+        $parts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/payload.bin', 'data' => $binaryBytes, 'compressionMethod' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'compressionMethod' => 0],
+        ];
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts($parts));
+        $centralSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest(ZipPackage::build($parts));
+        $roots = [];
+        foreach ($summary['directoryRootSummaries'] as $rootSummary) {
+            $roots[$rootSummary['directoryRoot']] = $rootSummary;
+        }
+        $centralRoots = [];
+        foreach ($centralSummary['directoryRootSummaries'] as $rootSummary) {
+            $centralRoots[$rootSummary['directoryRoot']] = $rootSummary;
+        }
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $expectedRootCounts = [
+            '/' => 1,
+            '_rels/' => 1,
+            'customXml/' => 1,
+            'docProps/' => 1,
+            'word/' => 5,
+        ];
+        $wordRootBytes = strlen($documentXml)
+            + strlen($documentRelationshipsXml)
+            + strlen($imageBytes)
+            + strlen($binaryBytes);
+        $expectedWordRoot = [
+            'directoryRoot' => 'word/',
+            'entryCount' => 5,
+            'fileEntryCount' => 4,
+            'directoryEntryCount' => 1,
+            'packagePartCount' => 4,
+            'validEntryCount' => 5,
+            'invalidEntryCount' => 0,
+            'unknownByteCountEntryCount' => 0,
+            'compressedBytes' => $wordRootBytes,
+            'uncompressedBytes' => $wordRootBytes,
+            'roleCounts' => [
+                'binary-part' => 1,
+                'directory' => 1,
+                'media' => 1,
+                'part-relationships' => 1,
+                'xml-part' => 1,
+            ],
+            'handoffKindCounts' => [
+                'binary' => 1,
+                'directory' => 1,
+                'media' => 1,
+                'relationships+xml' => 1,
+                'xml' => 1,
+            ],
+            'issueCounts' => [],
+            'issues' => [],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/document.xml',
+                'word/media/',
+                'word/media/image.png',
+                'word/payload.bin',
+            ],
+            'partNames' => [
+                '/word/_rels/document.xml.rels',
+                '/word/document.xml',
+                '/word/media/image.png',
+                '/word/payload.bin',
+            ],
+        ];
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $centralSummary['valid']);
+        $t->same(5, $summary['directoryRootCount']);
+        $t->same(5, $centralSummary['directoryRootCount']);
+        $t->same($expectedRootCounts, $summary['directoryRootCounts']);
+        $t->same($expectedRootCounts, $centralSummary['directoryRootCounts']);
+        $t->same([
+            'word/_rels/document.xml.rels',
+            'word/document.xml',
+            'word/media/',
+            'word/media/image.png',
+            'word/payload.bin',
+        ], $summary['entryNamesByDirectoryRoot']['word/']);
+        $t->same($summary['entryNamesByDirectoryRoot'], $centralSummary['entryNamesByDirectoryRoot']);
+        $t->same($expectedWordRoot, $roots['word/']);
+        $t->same($expectedWordRoot, $centralRoots['word/']);
+        $t->same(['document-properties' => 1], $roots['docProps/']['roleCounts']);
+        $t->same(['xml' => 1], $roots['docProps/']['handoffKindCounts']);
+        $t->same('/', $entries['[Content_Types].xml']['directoryRoot']);
+        $t->same('word/', $entries['word/media/image.png']['directoryRoot']);
+        $t->same('customXml/', $entries['customXml/item1.xml']['directoryRoot']);
+    },
     'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
