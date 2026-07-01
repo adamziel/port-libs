@@ -1587,8 +1587,8 @@ final class PptxReader
 
         $uri = $graphicData->getAttribute('uri');
         if (str_contains($uri, 'table')) {
-            $table = $this->firstDrawingChildElement($graphicData, 'tbl');
-            $tableNode = $table instanceof \DOMElement ? $this->tableNode($table, $tableStyles, $slideContext) : null;
+            $table = $this->firstChildElementForOuterPrefix($graphicData, 'a', 'tbl', $drawingNamespace);
+            $tableNode = $table instanceof \DOMElement ? $this->tableNode($table, $tableStyles, $slideContext, $drawingNamespace) : null;
 
             return $this->withShapeMetadata($tableNode instanceof AstNode ? [$tableNode] : [], $shapeElement, $zOrder);
         }
@@ -2684,14 +2684,14 @@ final class PptxReader
     /**
      * @param array<string, mixed> $tableStyles
      */
-    private function tableNode(\DOMElement $tableElement, array $tableStyles, array $slideContext): ?AstNode
+    private function tableNode(\DOMElement $tableElement, array $tableStyles, array $slideContext, ?string $drawingNamespace): ?AstNode
     {
         $theme = is_array($slideContext['theme'] ?? null) ? $slideContext['theme'] : [];
         $rows = [];
-        foreach ($this->drawingChildElements($tableElement, 'tr') as $rowElement) {
+        foreach ($this->childElementsForOuterPrefix($tableElement, 'a', 'tr', $drawingNamespace) as $rowElement) {
             $row = [];
-            foreach ($this->drawingChildElements($rowElement, 'tc') as $cellElement) {
-                $row[] = $this->tableCellData($cellElement, $theme);
+            foreach ($this->childElementsForOuterPrefix($rowElement, 'a', 'tc', $drawingNamespace) as $cellElement) {
+                $row[] = $this->tableCellData($cellElement, $theme, $drawingNamespace);
             }
             $rows[] = $row;
         }
@@ -2710,7 +2710,7 @@ final class PptxReader
         if ($style !== []) {
             $attrs['pptxTableStyle'] = $style;
         }
-        $columnWidths = $this->tableColumnWidths($tableElement);
+        $columnWidths = $this->tableColumnWidths($tableElement, $drawingNamespace);
         if ($columnWidths !== []) {
             $attrs['columnWidths'] = $columnWidths;
         }
@@ -2724,9 +2724,9 @@ final class PptxReader
     /**
      * @return array{attrs:array<string, mixed>, text:string}
      */
-    private function tableCellData(\DOMElement $cellElement, array $theme): array
+    private function tableCellData(\DOMElement $cellElement, array $theme, ?string $drawingNamespace): array
     {
-        $textBody = $this->firstDrawingChildElement($cellElement, 'txBody');
+        $textBody = $this->firstChildElementForOuterPrefix($cellElement, 'a', 'txBody', $drawingNamespace);
         $text = $textBody instanceof \DOMElement ? $this->drawingText($textBody) : '';
         $attrs = ['text' => $text];
         $pptxCell = [];
@@ -2841,15 +2841,15 @@ final class PptxReader
     /**
      * @return list<int>
      */
-    private function tableColumnWidths(\DOMElement $tableElement): array
+    private function tableColumnWidths(\DOMElement $tableElement, ?string $drawingNamespace): array
     {
-        $grid = $this->firstDrawingChildElement($tableElement, 'tblGrid');
+        $grid = $this->firstChildElementForOuterPrefix($tableElement, 'a', 'tblGrid', $drawingNamespace);
         if (!$grid instanceof \DOMElement) {
             return [];
         }
 
         $widths = [];
-        foreach ($this->drawingChildElements($grid, 'gridCol') as $column) {
+        foreach ($this->childElementsForOuterPrefix($grid, 'a', 'gridCol', $drawingNamespace) as $column) {
             $width = $this->integerAttribute($column, 'w');
             if ($width !== null) {
                 $widths[] = $width;
@@ -3416,6 +3416,19 @@ final class PptxReader
     private function firstChildElementForOuterPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $outerNamespace): ?\DOMElement
     {
         return $this->firstChildElementForPrefix(
+            $parent,
+            $prefix,
+            $localName,
+            $outerNamespace ?? $this->localNamespaceForPrefix($parent, $prefix)
+        );
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function childElementsForOuterPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $outerNamespace): array
+    {
+        return $this->childElementsForPrefix(
             $parent,
             $prefix,
             $localName,

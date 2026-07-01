@@ -3545,6 +3545,79 @@ XML);
     }
 };
 
+$buildInheritedTablePrefixPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-inherited-table-prefix-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Inherited table prefix</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Inherited Prefix Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <a:graphicData xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+          <a:tbl>
+            <a:tblGrid><a:gridCol w="1828800"/></a:tblGrid>
+            <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Inherited table header</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+            <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Inherited table body</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+          </a:tbl>
+        </a:graphicData>
+      </a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildWrongNamespacePresentationSlidesPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-wrong-ns-presentation-');
     if ($path === false) {
@@ -5435,6 +5508,21 @@ return [
         $t->true(!str_contains($native, 'shadowed-drawing.png'), 'Locally corrected picture DrawingML should not override the slide root a prefix binding');
         $t->true(!str_contains($native, 'Shadowed table header'), 'Locally corrected graphic-frame DrawingML should not override the slide root a prefix binding');
         $t->true(!str_contains($native, 'Shadowed table body'), 'Locally corrected table DrawingML should not become visible under a wrong slide root a binding');
+    },
+
+    'ignores inherited pptx table row prefixes like upstream' => static function (TestRunner $t) use ($buildInheritedTablePrefixPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildInheritedTablePrefixPptxPackage());
+        $review = $document->attr('pptx');
+        $headings = $nodesOfType($document, 'heading');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('Inherited table prefix', $headings[0]->attr('text'));
+        $t->same([], $nodesOfType($document, 'table'));
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Inherited" , Space , Str "table" , Space , Str "prefix" ]', $native);
+        $t->true(!str_contains($native, 'Inherited table header'), 'Table rows inheriting a from graphicData should stay hidden like upstream');
+        $t->true(!str_contains($native, 'Inherited table body'), 'Table cells inheriting a from graphicData should stay hidden like upstream');
     },
 
     'ignores pptx presentation slide lists outside the presentation namespace like upstream' => static function (TestRunner $t) use ($buildWrongNamespacePresentationSlidesPptxPackage): void {
