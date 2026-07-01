@@ -258,6 +258,9 @@ final class PptxReader
         if ($layoutRoot instanceof \DOMElement) {
             $context['layoutTitle'] = $this->slideTitle($layoutRoot);
             $context['layoutPlaceholders'] = $this->placeholderBlocksByKey($layoutRoot);
+            foreach ($this->slideSurfaceMetadata($layoutRoot, 'layout') as $key => $value) {
+                $context[$key] = $value;
+            }
         }
 
         $layoutRelationships = $this->relationshipsOrEmpty($package, $layoutPart);
@@ -277,6 +280,9 @@ final class PptxReader
         if ($masterRoot instanceof \DOMElement) {
             $context['masterTitle'] = $this->slideTitle($masterRoot);
             $context['masterPlaceholders'] = $this->placeholderBlocksByKey($masterRoot);
+            foreach ($this->slideSurfaceMetadata($masterRoot, 'master') as $key => $value) {
+                $context[$key] = $value;
+            }
         }
 
         $masterRelationships = $this->relationshipsOrEmpty($package, $masterPart);
@@ -314,6 +320,20 @@ final class PptxReader
             }
         }
 
+        foreach (['layoutName', 'masterName'] as $key) {
+            $value = (string) ($slideContext[$key] ?? '');
+            if ($value !== '') {
+                $review[$key] = $value;
+            }
+        }
+
+        foreach (['layoutBackground', 'layoutColorMapOverride', 'masterBackground', 'masterColorMap'] as $key) {
+            $value = $slideContext[$key] ?? [];
+            if (is_array($value) && $value !== []) {
+                $review[$key] = $value;
+            }
+        }
+
         $layoutPlaceholderKeys = $this->placeholderBucketKeys($slideContext['layoutPlaceholders'] ?? []);
         if ($layoutPlaceholderKeys !== []) {
             $review['layoutPlaceholderCount'] = count($layoutPlaceholderKeys);
@@ -332,6 +352,111 @@ final class PptxReader
         }
 
         return $review;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function slideSurfaceMetadata(\DOMElement $slideRoot, string $prefix): array
+    {
+        $metadata = [];
+        $commonSlideData = $this->firstChildElement($slideRoot, 'cSld');
+        if ($commonSlideData instanceof \DOMElement) {
+            $name = trim($commonSlideData->getAttribute('name'));
+            if ($name !== '') {
+                $metadata[$prefix . 'Name'] = $name;
+            }
+
+            $background = $this->slideBackgroundMetadata($commonSlideData);
+            if ($background !== []) {
+                $metadata[$prefix . 'Background'] = $background;
+            }
+        }
+
+        if ($prefix === 'master') {
+            $colorMap = $this->firstChildElement($slideRoot, 'clrMap');
+            if ($colorMap instanceof \DOMElement) {
+                $metadata['masterColorMap'] = $this->slideColorMapAttributes($colorMap);
+            }
+        }
+
+        if ($prefix === 'layout') {
+            $colorMapOverride = $this->firstChildElement($slideRoot, 'clrMapOvr');
+            if ($colorMapOverride instanceof \DOMElement) {
+                $metadata['layoutColorMapOverride'] = $this->slideColorMapOverrideMetadata($colorMapOverride);
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function slideBackgroundMetadata(\DOMElement $commonSlideData): array
+    {
+        $background = $this->firstChildElement($commonSlideData, 'bg');
+        if (!$background instanceof \DOMElement) {
+            return [];
+        }
+
+        foreach ($this->childElements($background, null) as $child) {
+            if (!in_array($child->localName, ['bgPr', 'bgRef'], true)) {
+                continue;
+            }
+
+            $metadata = ['type' => $child->localName];
+            $color = $this->drawingColorMetadata($child);
+            if (is_string($color['color'] ?? null) && $color['color'] !== '') {
+                $metadata['color'] = $color['color'];
+                if (is_array($color['transforms'] ?? null) && $color['transforms'] !== []) {
+                    $metadata['colorTransforms'] = $color['transforms'];
+                }
+            }
+            $index = trim($child->getAttribute('idx'));
+            if ($index !== '') {
+                $metadata['index'] = $index;
+            }
+
+            return $metadata;
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function slideColorMapAttributes(\DOMElement $colorMap): array
+    {
+        $attributes = [];
+        foreach (['bg1', 'tx1', 'bg2', 'tx2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6', 'hlink', 'folHlink'] as $name) {
+            $value = trim($colorMap->getAttribute($name));
+            if ($value !== '') {
+                $attributes[$name] = $value;
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function slideColorMapOverrideMetadata(\DOMElement $colorMapOverride): array
+    {
+        foreach ($this->childElements($colorMapOverride, null) as $child) {
+            if ($child->localName === 'masterClrMapping') {
+                return ['type' => 'masterClrMapping'];
+            }
+            if ($child->localName === 'overrideClrMapping') {
+                $attributes = $this->slideColorMapAttributes($child);
+
+                return $attributes === [] ? ['type' => 'overrideClrMapping'] : ['type' => 'overrideClrMapping', 'map' => $attributes];
+            }
+        }
+
+        return [];
     }
 
     /**
@@ -1802,6 +1927,18 @@ final class PptxReader
             if ($title !== '') {
                 $summary['title'] = $title;
             }
+            $titleLayout = $this->chartLayoutMetadata($titleElement);
+            if ($titleLayout !== []) {
+                $summary['titleLayout'] = $titleLayout;
+            }
+        }
+
+        $plotArea = $this->firstChildElement($chartElement, 'plotArea');
+        if ($plotArea instanceof \DOMElement) {
+            $plotAreaLayout = $this->chartLayoutMetadata($plotArea);
+            if ($plotAreaLayout !== []) {
+                $summary['plotAreaLayout'] = $plotAreaLayout;
+            }
         }
 
         $plots = [];
@@ -1898,6 +2035,54 @@ final class PptxReader
         $overlay = $this->firstChildElement($legend, 'overlay');
         if ($overlay instanceof \DOMElement && $overlay->hasAttribute('val')) {
             $metadata['overlay'] = $this->xmlBooleanValue($overlay->getAttribute('val'));
+        }
+
+        $layout = $this->chartLayoutMetadata($legend);
+        if ($layout !== []) {
+            $metadata['layout'] = $layout;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartLayoutMetadata(\DOMElement $container): array
+    {
+        $layout = $this->firstChildElement($container, 'layout');
+        if (!$layout instanceof \DOMElement) {
+            return [];
+        }
+
+        $manualLayout = $this->firstChildElement($layout, 'manualLayout');
+        if (!$manualLayout instanceof \DOMElement) {
+            return ['type' => 'layout'];
+        }
+
+        $metadata = ['type' => 'manual'];
+        foreach ([
+            'layoutTarget' => 'target',
+            'xMode' => 'xMode',
+            'yMode' => 'yMode',
+            'wMode' => 'widthMode',
+            'hMode' => 'heightMode',
+        ] as $source => $target) {
+            $element = $this->firstChildElement($manualLayout, $source);
+            if ($element instanceof \DOMElement && trim($element->getAttribute('val')) !== '') {
+                $metadata[$target] = trim($element->getAttribute('val'));
+            }
+        }
+
+        foreach (['x' => 'x', 'y' => 'y', 'w' => 'width', 'h' => 'height'] as $source => $target) {
+            $element = $this->firstChildElement($manualLayout, $source);
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+            $value = trim($element->getAttribute('val'));
+            if (is_numeric($value)) {
+                $metadata[$target] = (float) $value;
+            }
         }
 
         return $metadata;
@@ -2828,7 +3013,7 @@ final class PptxReader
      */
     private function tableCellStyleContainerMetadata(\DOMElement $properties): array
     {
-        $style = [];
+        $style = $this->tableCellPropertyAttributes($properties);
         $fillColor = $this->tableFillMetadata($properties);
         if (is_string($fillColor['color'] ?? null) && $fillColor['color'] !== '') {
             $style['fillColor'] = $fillColor['color'];
@@ -2861,6 +3046,38 @@ final class PptxReader
         }
         if ($borderStyles !== []) {
             $style['borderStyles'] = $borderStyles;
+        }
+
+        return $style;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableCellPropertyAttributes(\DOMElement $properties): array
+    {
+        $style = [];
+        foreach ([
+            'anchor' => 'verticalAlign',
+            'vert' => 'textDirection',
+            'horzOverflow' => 'horizontalOverflow',
+        ] as $source => $target) {
+            $value = trim($properties->getAttribute($source));
+            if ($value !== '') {
+                $style[$target] = $value;
+            }
+        }
+
+        $anchorCentered = $this->xmlBooleanAttribute($properties, 'anchorCtr');
+        if ($anchorCentered !== null) {
+            $style['anchorCentered'] = $anchorCentered;
+        }
+
+        foreach (['marL' => 'marginLeft', 'marR' => 'marginRight', 'marT' => 'marginTop', 'marB' => 'marginBottom'] as $source => $target) {
+            $value = $this->integerAttribute($properties, $source);
+            if ($value !== null) {
+                $style[$target] = $value;
+            }
         }
 
         return $style;
@@ -3081,18 +3298,6 @@ final class PptxReader
         }
 
         $style = $this->tableCellStyleContainerMetadata($properties);
-        foreach (['anchor' => 'verticalAlign', 'vert' => 'textDirection'] as $source => $target) {
-            $value = trim($properties->getAttribute($source));
-            if ($value !== '') {
-                $style[$target] = $value;
-            }
-        }
-        foreach (['marL' => 'marginLeft', 'marR' => 'marginRight', 'marT' => 'marginTop', 'marB' => 'marginBottom'] as $source => $target) {
-            $value = $this->integerAttribute($properties, $source);
-            if ($value !== null) {
-                $style[$target] = $value;
-            }
-        }
         $style = $this->withResolvedThemeColors($style, $theme);
 
         return $style;

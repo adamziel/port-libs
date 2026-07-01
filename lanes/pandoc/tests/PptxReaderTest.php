@@ -142,12 +142,15 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <p:sldLayout xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <p:cSld><p:spTree>
+  <p:cSld name="Title and Content">
+    <p:bg><p:bgPr><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></p:bgPr></p:bg>
+    <p:spTree>
     <p:sp>
       <p:nvSpPr><p:cNvPr id="1" name="Layout body"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="7"/></p:nvPr></p:nvSpPr>
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Inherited Layout Body</a:t></a:r></a:p></p:txBody>
     </p:sp>
   </p:spTree></p:cSld>
+  <p:clrMapOvr><a:overrideClrMapping bg1="lt1" tx1="dk1" accent1="accent2"/></p:clrMapOvr>
 </p:sldLayout>
 XML);
     $zip->addFromString('ppt/slideLayouts/_rels/slideLayout1.xml.rels', <<<'XML'
@@ -160,12 +163,15 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <p:sldMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
-  <p:cSld><p:spTree>
+  <p:cSld name="Office Master">
+    <p:bg><p:bgPr><a:solidFill><a:schemeClr val="accent2"><a:tint val="50000"/></a:schemeClr></a:solidFill></p:bgPr></p:bg>
+    <p:spTree>
     <p:sp>
       <p:nvSpPr><p:cNvPr id="1" name="Master footer"/><p:cNvSpPr/><p:nvPr><p:ph type="ftr" idx="8"/></p:nvPr></p:nvSpPr>
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Inherited Master Footer</a:t></a:r></a:p></p:txBody>
     </p:sp>
   </p:spTree></p:cSld>
+  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" hlink="hlink" folHlink="folHlink"/>
 </p:sldMaster>
 XML);
     $zip->addFromString('ppt/slideMasters/_rels/slideMaster1.xml.rels', <<<'XML'
@@ -213,7 +219,7 @@ XML);
         <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr>
         <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
         <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Col1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col2</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col3</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
-        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" marL="120"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB w="12700" cap="flat"><a:solidFill><a:schemeClr val="accent1"><a:lumMod val="60000"/><a:lumOff val="20000"/></a:schemeClr></a:solidFill><a:prstDash val="solid"/><a:round/><a:headEnd type="triangle" w="med" len="lg"/></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" anchorCtr="1" vert="vert270" horzOverflow="overflow" marL="120" marR="240" marT="360" marB="480"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB w="12700" cap="flat"><a:solidFill><a:schemeClr val="accent1"><a:lumMod val="60000"/><a:lumOff val="20000"/></a:schemeClr></a:solidFill><a:prstDash val="solid"/><a:round/><a:headEnd type="triangle" w="med" len="lg"/></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
         <a:tr><a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>Age</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>23</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>years</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
       </a:tbl></a:graphicData></a:graphic>
     </p:graphicFrame>
@@ -242,7 +248,7 @@ XML);
   <a:tblStyle styleId="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}" styleName="Medium Style 2 - Accent 1">
     <a:wholeTbl>
       <a:tcTxStyle b="1"><a:fontRef idx="minor"><a:schemeClr val="tx1"/></a:fontRef></a:tcTxStyle>
-      <a:tcStyle>
+      <a:tcStyle anchor="b" anchorCtr="1" horzOverflow="clip" marL="91440" marR="91440">
         <a:fill><a:solidFill><a:schemeClr val="accent2"/></a:solidFill></a:fill>
         <a:lnB w="12700"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:prstDash val="solid"/></a:lnB>
       </a:tcStyle>
@@ -259,8 +265,12 @@ XML);
   <c:style val="10"/>
   <c:roundedCorners val="1"/>
   <c:chart>
-    <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Quarterly Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>
+    <c:title>
+      <c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Quarterly Revenue</a:t></a:r></a:p></c:rich></c:tx>
+      <c:layout><c:manualLayout><c:xMode val="factor"/><c:yMode val="factor"/><c:x val="0.2"/><c:y val="0.04"/></c:manualLayout></c:layout>
+    </c:title>
     <c:plotArea>
+      <c:layout><c:manualLayout><c:layoutTarget val="inner"/><c:xMode val="factor"/><c:yMode val="factor"/><c:wMode val="factor"/><c:hMode val="factor"/><c:x val="0.12"/><c:y val="0.08"/><c:w val="0.76"/><c:h val="0.70"/></c:manualLayout></c:layout>
       <c:barChart>
         <c:barDir val="col"/>
         <c:ser>
@@ -319,7 +329,7 @@ XML);
         <c:crossAx val="10"/>
       </c:valAx>
     </c:plotArea>
-    <c:legend><c:legendPos val="r"/><c:overlay val="0"/></c:legend>
+    <c:legend><c:legendPos val="r"/><c:overlay val="0"/><c:layout><c:manualLayout><c:x val="0.82"/><c:y val="0.18"/><c:w val="0.16"/><c:h val="0.22"/></c:manualLayout></c:layout></c:legend>
     <c:plotVisOnly val="1"/>
     <c:dispBlanksAs val="gap"/>
     <c:showDLblsOverMax val="0"/>
@@ -540,6 +550,21 @@ return [
         $t->same('ppt/slideLayouts/slideLayout1.xml', $review['slides'][1]['context']['layoutPart'] ?? null);
         $t->same('ppt/slideMasters/slideMaster1.xml', $review['slides'][1]['context']['masterPart'] ?? null);
         $t->same('ppt/theme/theme1.xml', $review['slides'][1]['context']['themePart'] ?? null);
+        $t->same('Title and Content', $review['slides'][1]['context']['layoutName'] ?? null);
+        $t->same('theme:accent1', $review['slides'][1]['context']['layoutBackground']['color'] ?? null);
+        $t->same([
+            'type' => 'overrideClrMapping',
+            'map' => [
+                'bg1' => 'lt1',
+                'tx1' => 'dk1',
+                'accent1' => 'accent2',
+            ],
+        ], $review['slides'][1]['context']['layoutColorMapOverride'] ?? null);
+        $t->same('Office Master', $review['slides'][1]['context']['masterName'] ?? null);
+        $t->same('theme:accent2', $review['slides'][1]['context']['masterBackground']['color'] ?? null);
+        $t->same(['tint' => 50000], $review['slides'][1]['context']['masterBackground']['colorTransforms'] ?? null);
+        $t->same('accent1', $review['slides'][1]['context']['masterColorMap']['accent1'] ?? null);
+        $t->same('folHlink', $review['slides'][1]['context']['masterColorMap']['folHlink'] ?? null);
         $t->same('Office Theme', $review['slides'][1]['context']['theme']['name'] ?? null);
         $t->same('4472C4', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent1'] ?? null);
         $t->same('ED7D31', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent2'] ?? null);
@@ -609,6 +634,11 @@ return [
                         'textColor' => 'theme:tx1',
                     ],
                     'cell' => [
+                        'verticalAlign' => 'b',
+                        'horizontalOverflow' => 'clip',
+                        'anchorCentered' => true,
+                        'marginLeft' => 91440,
+                        'marginRight' => 91440,
                         'fillColor' => 'theme:accent2',
                         'borders' => [
                             'bottom' => 'theme:accent1',
@@ -654,6 +684,13 @@ return [
         $t->same(2, $tables[0]->children[1]->children[0]->children[0]->attr('colspan'));
         $t->same('D9EAF7', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['fillColor'] ?? null);
         $t->same('ctr', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['verticalAlign'] ?? null);
+        $t->same('vert270', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['textDirection'] ?? null);
+        $t->same('overflow', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['horizontalOverflow'] ?? null);
+        $t->same(true, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['anchorCentered'] ?? null);
+        $t->same(120, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['marginLeft'] ?? null);
+        $t->same(240, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['marginRight'] ?? null);
+        $t->same(360, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['marginTop'] ?? null);
+        $t->same(480, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['marginBottom'] ?? null);
         $t->same('theme:accent1', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borders']['bottom'] ?? null);
         $t->same('5C77A9', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['resolvedBorders']['bottom'] ?? null);
         $t->same(12700, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['width'] ?? null);
@@ -686,7 +723,36 @@ return [
         $t->same(2, $chartDivs[0]->attr('pptxChart')['chartTypeCount'] ?? null);
         $t->same('10', $chartDivs[0]->attr('pptxChart')['style'] ?? null);
         $t->same(true, $chartDivs[0]->attr('pptxChart')['roundedCorners'] ?? null);
-        $t->same(['position' => 'r', 'overlay' => false], $chartDivs[0]->attr('pptxChart')['legend'] ?? null);
+        $t->same([
+            'type' => 'manual',
+            'xMode' => 'factor',
+            'yMode' => 'factor',
+            'x' => 0.2,
+            'y' => 0.04,
+        ], $chartDivs[0]->attr('pptxChart')['titleLayout'] ?? null);
+        $t->same([
+            'type' => 'manual',
+            'target' => 'inner',
+            'xMode' => 'factor',
+            'yMode' => 'factor',
+            'widthMode' => 'factor',
+            'heightMode' => 'factor',
+            'x' => 0.12,
+            'y' => 0.08,
+            'width' => 0.76,
+            'height' => 0.7,
+        ], $chartDivs[0]->attr('pptxChart')['plotAreaLayout'] ?? null);
+        $t->same([
+            'position' => 'r',
+            'overlay' => false,
+            'layout' => [
+                'type' => 'manual',
+                'x' => 0.82,
+                'y' => 0.18,
+                'width' => 0.16,
+                'height' => 0.22,
+            ],
+        ], $chartDivs[0]->attr('pptxChart')['legend'] ?? null);
         $t->same(true, $chartDivs[0]->attr('pptxChart')['plotVisibleOnly'] ?? null);
         $t->same('gap', $chartDivs[0]->attr('pptxChart')['displayBlanksAs'] ?? null);
         $t->same(false, $chartDivs[0]->attr('pptxChart')['showDataLabelsOverMaximum'] ?? null);
