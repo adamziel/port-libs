@@ -1460,6 +1460,11 @@ final class OpcRelationshipGraph
             'packageCommentByteExposurePolicy' => $packageManifest['packageCommentByteExposurePolicy'],
             'canExposePackageCommentBytes' => $packageManifest['canExposePackageCommentBytes'],
             'hasPackageComment' => $packageManifest['hasPackageComment'],
+            'hasEntryComments' => $packageManifest['hasEntryComments'],
+            'commentedEntryNames' => $packageManifest['commentedEntryNames'],
+            'entryCommentSummaryCount' => $packageManifest['entryCommentSummaryCount'],
+            'entryCommentSourceRecordBytes' => $packageManifest['entryCommentSourceRecordBytes'],
+            'entryCommentSummaries' => $packageManifest['entryCommentSummaries'],
             'hasCentralDirectorySignature' => $packageManifest['hasCentralDirectorySignature'],
             'centralDirectorySignatureOffset' => $packageManifest['centralDirectorySignatureOffset'],
             'centralDirectorySignatureDataOffset' => $packageManifest['centralDirectorySignatureDataOffset'],
@@ -2713,6 +2718,15 @@ final class OpcRelationshipGraph
             self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
         );
         $zipSourceRecordManifest = self::zipEntrySourceRecordManifest($entries);
+        $entryCommentSummaries = self::zipEntryManifestEntryCommentSummaries($entries);
+        $commentedEntryNames = array_map(
+            static fn (array $summary): string => (string) $summary['name'],
+            $entryCommentSummaries
+        );
+        $entryCommentSourceRecordBytes = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['sourceRecordBytes'],
+            $entryCommentSummaries
+        ));
 
         return [
             'valid' => $issues === [],
@@ -2744,6 +2758,11 @@ final class OpcRelationshipGraph
             'packageCommentByteExposurePolicy' => $packageSource['packageCommentByteExposurePolicy'],
             'canExposePackageCommentBytes' => $packageSource['canExposePackageCommentBytes'],
             'hasPackageComment' => $packageSource['hasPackageComment'],
+            'hasEntryComments' => $entryCommentSummaries !== [],
+            'commentedEntryNames' => $commentedEntryNames,
+            'entryCommentSummaryCount' => count($entryCommentSummaries),
+            'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
+            'entryCommentSummaries' => $entryCommentSummaries,
             'hasCentralDirectorySignature' => $packageSource['hasCentralDirectorySignature'],
             'centralDirectorySignatureOffset' => $packageSource['centralDirectorySignatureOffset'],
             'centralDirectorySignatureDataOffset' => $packageSource['centralDirectorySignatureDataOffset'],
@@ -10097,6 +10116,52 @@ final class OpcRelationshipGraph
             ...$payload,
             'manifestSha256' => hash('sha256', $manifestJson),
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function zipEntryManifestEntryCommentSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $rawCommentBytes = (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+            if ($rawCommentBytes <= 0) {
+                continue;
+            }
+
+            $partName = is_string($entry['partName'] ?? null) ? $entry['partName'] : null;
+            $packagePartExtension = $partName === null ? '' : self::partNameExtension($partName);
+            $summaries[] = [
+                'name' => is_string($entry['entryName'] ?? null) ? $entry['entryName'] : '',
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : null,
+                'directoryRoot' => is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '',
+                'packagePartExtensionKey' => $packagePartExtension === '' ? '(none)' : $packagePartExtension,
+                'compressionMethod' => is_int($entry['compressionMethod'] ?? null)
+                    ? $entry['compressionMethod']
+                    : null,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null)
+                    ? $entry['compressionMethodName']
+                    : '',
+                'centralDirectoryRawCommentOffset' => is_int($entry['centralDirectoryRawCommentOffset'] ?? null)
+                    ? $entry['centralDirectoryRawCommentOffset']
+                    : null,
+                'centralDirectoryRawCommentBytes' => $rawCommentBytes,
+                'centralDirectoryRawCommentSha256' => is_string($entry['centralDirectoryRawCommentSha256'] ?? null)
+                    ? $entry['centralDirectoryRawCommentSha256']
+                    : null,
+                'centralDirectoryRecordBytes' => (int) ($entry['centralDirectoryRecordBytes'] ?? 0),
+                'centralDirectoryReviewFieldBytes' => (int) ($entry['centralDirectoryReviewFieldBytes'] ?? 0),
+                'sourceRecordBytes' => (int) ($entry['sourceRecordBytes'] ?? 0),
+                'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
+                'entryCommentCanExposeBytes' => false,
+            ];
+        }
+
+        return $summaries;
     }
 
     /**
