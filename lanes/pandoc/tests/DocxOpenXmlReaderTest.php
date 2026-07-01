@@ -782,6 +782,79 @@ return [
         $t->same($manifest['directoryRootCount'], $zipPackage['packageManifestDirectoryRootCount']);
         $t->same($manifest['directoryRoots'], $zipPackage['packageManifestDirectoryRoots']);
         $t->same($manifest['directoryRootSummaries'], $zipPackage['packageManifestDirectoryRootSummaries']);
+        $zipPackageManifestFields = [
+            'manifestVersion' => 'packageManifestVersion',
+            'manifestSha256' => 'packageManifestSha256',
+            'packageSource' => 'packageManifestPackageSource',
+            'archiveBytes' => 'packageManifestArchiveBytes',
+            'archiveSha256' => 'packageManifestArchiveSha256',
+            'centralDirectoryOffset' => 'packageManifestCentralDirectoryOffset',
+            'centralDirectoryBytes' => 'packageManifestCentralDirectoryBytes',
+            'centralDirectoryEnd' => 'packageManifestCentralDirectoryEnd',
+            'centralDirectorySha256' => 'packageManifestCentralDirectorySha256',
+            'centralDirectoryToEocdGapOffset' => 'packageManifestCentralDirectoryToEocdGapOffset',
+            'centralDirectoryToEocdGapBytes' => 'packageManifestCentralDirectoryToEocdGapBytes',
+            'centralDirectoryToEocdGapSha256' => 'packageManifestCentralDirectoryToEocdGapSha256',
+            'endOfCentralDirectoryOffset' => 'packageManifestEndOfCentralDirectoryOffset',
+            'endOfCentralDirectoryBytes' => 'packageManifestEndOfCentralDirectoryBytes',
+            'endOfCentralDirectoryEnd' => 'packageManifestEndOfCentralDirectoryEnd',
+            'endOfCentralDirectorySha256' => 'packageManifestEndOfCentralDirectorySha256',
+            'packageCommentOffset' => 'packageManifestPackageCommentOffset',
+            'packageCommentBytes' => 'packageManifestPackageCommentBytes',
+            'packageCommentSha256' => 'packageManifestPackageCommentSha256',
+            'hasPackageComment' => 'packageManifestHasPackageComment',
+            'hasCentralDirectorySignature' => 'packageManifestHasCentralDirectorySignature',
+            'centralDirectorySignatureOffset' => 'packageManifestCentralDirectorySignatureOffset',
+            'centralDirectorySignatureBytes' => 'packageManifestCentralDirectorySignatureBytes',
+            'centralDirectorySignatureSha256' => 'packageManifestCentralDirectorySignatureSha256',
+            'entryCount' => 'packageManifestEntryCount',
+            'fileEntryCount' => 'packageManifestFileEntryCount',
+            'directoryEntryCount' => 'packageManifestDirectoryEntryCount',
+            'compressedBytes' => 'packageManifestCompressedBytes',
+            'uncompressedBytes' => 'packageManifestUncompressedBytes',
+            'localHeaderBytes' => 'packageManifestLocalHeaderBytes',
+            'localHeaderFixedHeaderBytes' => 'packageManifestLocalHeaderFixedHeaderBytes',
+            'localHeaderVariableFieldBytes' => 'packageManifestLocalHeaderVariableFieldBytes',
+            'localHeaderRawNameBytes' => 'packageManifestLocalHeaderRawNameBytes',
+            'localHeaderExtraFieldBytes' => 'packageManifestLocalHeaderExtraFieldBytes',
+            'localHeaderReviewFieldBytes' => 'packageManifestLocalHeaderReviewFieldBytes',
+            'localExtraFieldEntryCount' => 'packageManifestLocalExtraFieldEntryCount',
+            'hasLocalHeaderReviewFields' => 'packageManifestHasLocalHeaderReviewFields',
+            'localRecordBytes' => 'packageManifestLocalRecordBytes',
+            'dataDescriptorEntryCount' => 'packageManifestDataDescriptorEntryCount',
+            'dataDescriptorBytes' => 'packageManifestDataDescriptorBytes',
+            'storedEntryCount' => 'packageManifestStoredEntryCount',
+            'deflatedEntryCount' => 'packageManifestDeflatedEntryCount',
+            'unsupportedCompressionMethodCount' => 'packageManifestUnsupportedCompressionMethodCount',
+            'centralDirectoryRecordBytes' => 'packageManifestCentralDirectoryRecordBytes',
+            'centralDirectoryFixedHeaderBytes' => 'packageManifestCentralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldBytes' => 'packageManifestCentralDirectoryVariableFieldBytes',
+            'centralDirectoryRawNameBytes' => 'packageManifestCentralDirectoryRawNameBytes',
+            'centralDirectoryExtraFieldBytes' => 'packageManifestCentralDirectoryExtraFieldBytes',
+            'centralDirectoryRawCommentBytes' => 'packageManifestCentralDirectoryRawCommentBytes',
+            'centralDirectoryReviewFieldBytes' => 'packageManifestCentralDirectoryReviewFieldBytes',
+            'centralExtraFieldEntryCount' => 'packageManifestCentralExtraFieldEntryCount',
+            'entryCommentCount' => 'packageManifestEntryCommentCount',
+            'hasCentralDirectoryReviewFields' => 'packageManifestHasCentralDirectoryReviewFields',
+            'maxPathSegmentCount' => 'packageManifestMaxPathSegmentCount',
+            'maxDirectoryDepth' => 'packageManifestMaxDirectoryDepth',
+            'deepestEntryNames' => 'packageManifestDeepestEntryNames',
+            'compressionMethodSummaryCount' => 'packageManifestCompressionMethodSummaryCount',
+            'compressionMethodSummaries' => 'packageManifestCompressionMethodSummaries',
+            'directoryRootCount' => 'packageManifestDirectoryRootCount',
+            'directoryRoots' => 'packageManifestDirectoryRoots',
+            'directoryRootSummaries' => 'packageManifestDirectoryRootSummaries',
+            'centralDirectoryOrderNames' => 'packageManifestCentralDirectoryOrderNames',
+            'localHeaderOrderNames' => 'packageManifestLocalHeaderOrderNames',
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => 'packageManifestCentralDirectoryOrderMatchesLocalHeaderOrder',
+        ];
+        foreach ($zipPackageManifestFields as $manifestKey => $zipPackageKey) {
+            $t->same($manifest[$manifestKey], $zipPackage[$zipPackageKey], "{$zipPackageKey} zip package");
+        }
+        $t->same(count($manifest['deepestEntryNames']), $zipPackage['packageManifestDeepestEntryNameCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestLocalHeaderHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestCompressedDataHashCount']);
+        $t->same($manifest['entryCount'], $zipPackage['packageManifestCentralDirectoryRecordHashCount']);
         $t->same('zip-package-manifest-v1', $summary['zipPackageManifestVersion']);
         $t->same($manifest['manifestSha256'], $summary['zipPackageManifestSha256']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestEntryCount']);

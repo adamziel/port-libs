@@ -11438,6 +11438,8 @@ final class DocxOpenXmlReader
     private function zipPackageProvenance(?ZipPackage $sourcePackage, array $parts): array
     {
         if (!$sourcePackage instanceof ZipPackage) {
+            $packageManifest = $this->emptyZipPackageManifestProvenance();
+
             return [
                 'present' => false,
                 'entryCount' => 0,
@@ -11496,12 +11498,12 @@ final class DocxOpenXmlReader
                 'packageManifestDirectoryRootCount' => 0,
                 'packageManifestDirectoryRoots' => [],
                 'packageManifestDirectoryRootSummaries' => [],
-                'packageManifest' => $this->emptyZipPackageManifestProvenance(),
+                'packageManifest' => $packageManifest,
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
                 'entries' => [],
                 'byPackagePath' => [],
-            ];
+            ] + $this->zipPackageManifestPackageProvenance($packageManifest);
         }
 
         $localHeaderOrder = $sourcePackage->localHeaderOrderPreflight();
@@ -11691,7 +11693,7 @@ final class DocxOpenXmlReader
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
-        ];
+        ] + $this->zipPackageManifestPackageProvenance($packageManifest);
     }
 
     /**
@@ -11969,6 +11971,131 @@ final class DocxOpenXmlReader
             'localHeaderHashCount' => $localHeaderHashCount,
             'compressedDataHashCount' => $compressedDataHashCount,
             'centralDirectoryRecordHashCount' => $centralDirectoryRecordHashCount,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageManifest
+     * @return array<string, mixed>
+     */
+    private function zipPackageManifestPackageProvenance(array $packageManifest): array
+    {
+        $hashCounts = $this->zipPackageManifestHashCounts($packageManifest);
+        $deepestEntryNames = is_array($packageManifest['deepestEntryNames'] ?? null)
+            ? $packageManifest['deepestEntryNames']
+            : [];
+
+        return [
+            'packageManifestVersion' => is_string($packageManifest['manifestVersion'] ?? null)
+                ? $packageManifest['manifestVersion']
+                : null,
+            'packageManifestSha256' => is_string($packageManifest['manifestSha256'] ?? null)
+                ? $packageManifest['manifestSha256']
+                : null,
+            'packageManifestPackageSource' => is_array($packageManifest['packageSource'] ?? null)
+                ? $packageManifest['packageSource']
+                : [],
+            'packageManifestArchiveBytes' => (int) ($packageManifest['archiveBytes'] ?? 0),
+            'packageManifestArchiveSha256' => is_string($packageManifest['archiveSha256'] ?? null)
+                ? $packageManifest['archiveSha256']
+                : null,
+            'packageManifestCentralDirectoryOffset' => is_int($packageManifest['centralDirectoryOffset'] ?? null)
+                ? $packageManifest['centralDirectoryOffset']
+                : null,
+            'packageManifestCentralDirectoryBytes' => (int) ($packageManifest['centralDirectoryBytes'] ?? 0),
+            'packageManifestCentralDirectoryEnd' => is_int($packageManifest['centralDirectoryEnd'] ?? null)
+                ? $packageManifest['centralDirectoryEnd']
+                : null,
+            'packageManifestCentralDirectorySha256' => is_string($packageManifest['centralDirectorySha256'] ?? null)
+                ? $packageManifest['centralDirectorySha256']
+                : null,
+            'packageManifestCentralDirectoryToEocdGapOffset' => is_int($packageManifest['centralDirectoryToEocdGapOffset'] ?? null)
+                ? $packageManifest['centralDirectoryToEocdGapOffset']
+                : null,
+            'packageManifestCentralDirectoryToEocdGapBytes' => (int) ($packageManifest['centralDirectoryToEocdGapBytes'] ?? 0),
+            'packageManifestCentralDirectoryToEocdGapSha256' => is_string($packageManifest['centralDirectoryToEocdGapSha256'] ?? null)
+                ? $packageManifest['centralDirectoryToEocdGapSha256']
+                : null,
+            'packageManifestEndOfCentralDirectoryOffset' => is_int($packageManifest['endOfCentralDirectoryOffset'] ?? null)
+                ? $packageManifest['endOfCentralDirectoryOffset']
+                : null,
+            'packageManifestEndOfCentralDirectoryBytes' => (int) ($packageManifest['endOfCentralDirectoryBytes'] ?? 0),
+            'packageManifestEndOfCentralDirectoryEnd' => is_int($packageManifest['endOfCentralDirectoryEnd'] ?? null)
+                ? $packageManifest['endOfCentralDirectoryEnd']
+                : null,
+            'packageManifestEndOfCentralDirectorySha256' => is_string($packageManifest['endOfCentralDirectorySha256'] ?? null)
+                ? $packageManifest['endOfCentralDirectorySha256']
+                : null,
+            'packageManifestPackageCommentOffset' => is_int($packageManifest['packageCommentOffset'] ?? null)
+                ? $packageManifest['packageCommentOffset']
+                : null,
+            'packageManifestPackageCommentBytes' => (int) ($packageManifest['packageCommentBytes'] ?? 0),
+            'packageManifestPackageCommentSha256' => is_string($packageManifest['packageCommentSha256'] ?? null)
+                ? $packageManifest['packageCommentSha256']
+                : null,
+            'packageManifestHasPackageComment' => ($packageManifest['hasPackageComment'] ?? false) === true,
+            'packageManifestHasCentralDirectorySignature' => ($packageManifest['hasCentralDirectorySignature'] ?? false) === true,
+            'packageManifestCentralDirectorySignatureOffset' => is_int($packageManifest['centralDirectorySignatureOffset'] ?? null)
+                ? $packageManifest['centralDirectorySignatureOffset']
+                : null,
+            'packageManifestCentralDirectorySignatureBytes' => (int) ($packageManifest['centralDirectorySignatureBytes'] ?? 0),
+            'packageManifestCentralDirectorySignatureSha256' => is_string($packageManifest['centralDirectorySignatureSha256'] ?? null)
+                ? $packageManifest['centralDirectorySignatureSha256']
+                : null,
+            'packageManifestEntryCount' => (int) ($packageManifest['entryCount'] ?? 0),
+            'packageManifestFileEntryCount' => (int) ($packageManifest['fileEntryCount'] ?? 0),
+            'packageManifestDirectoryEntryCount' => (int) ($packageManifest['directoryEntryCount'] ?? 0),
+            'packageManifestCompressedBytes' => (int) ($packageManifest['compressedBytes'] ?? 0),
+            'packageManifestUncompressedBytes' => (int) ($packageManifest['uncompressedBytes'] ?? 0),
+            'packageManifestLocalHeaderBytes' => (int) ($packageManifest['localHeaderBytes'] ?? 0),
+            'packageManifestLocalHeaderFixedHeaderBytes' => (int) ($packageManifest['localHeaderFixedHeaderBytes'] ?? 0),
+            'packageManifestLocalHeaderVariableFieldBytes' => (int) ($packageManifest['localHeaderVariableFieldBytes'] ?? 0),
+            'packageManifestLocalHeaderRawNameBytes' => (int) ($packageManifest['localHeaderRawNameBytes'] ?? 0),
+            'packageManifestLocalHeaderExtraFieldBytes' => (int) ($packageManifest['localHeaderExtraFieldBytes'] ?? 0),
+            'packageManifestLocalHeaderReviewFieldBytes' => (int) ($packageManifest['localHeaderReviewFieldBytes'] ?? 0),
+            'packageManifestLocalExtraFieldEntryCount' => (int) ($packageManifest['localExtraFieldEntryCount'] ?? 0),
+            'packageManifestHasLocalHeaderReviewFields' => ($packageManifest['hasLocalHeaderReviewFields'] ?? false) === true,
+            'packageManifestLocalRecordBytes' => (int) ($packageManifest['localRecordBytes'] ?? 0),
+            'packageManifestDataDescriptorEntryCount' => (int) ($packageManifest['dataDescriptorEntryCount'] ?? 0),
+            'packageManifestDataDescriptorBytes' => (int) ($packageManifest['dataDescriptorBytes'] ?? 0),
+            'packageManifestStoredEntryCount' => (int) ($packageManifest['storedEntryCount'] ?? 0),
+            'packageManifestDeflatedEntryCount' => (int) ($packageManifest['deflatedEntryCount'] ?? 0),
+            'packageManifestUnsupportedCompressionMethodCount' => (int) ($packageManifest['unsupportedCompressionMethodCount'] ?? 0),
+            'packageManifestCentralDirectoryRecordBytes' => (int) ($packageManifest['centralDirectoryRecordBytes'] ?? 0),
+            'packageManifestCentralDirectoryFixedHeaderBytes' => (int) ($packageManifest['centralDirectoryFixedHeaderBytes'] ?? 0),
+            'packageManifestCentralDirectoryVariableFieldBytes' => (int) ($packageManifest['centralDirectoryVariableFieldBytes'] ?? 0),
+            'packageManifestCentralDirectoryRawNameBytes' => (int) ($packageManifest['centralDirectoryRawNameBytes'] ?? 0),
+            'packageManifestCentralDirectoryExtraFieldBytes' => (int) ($packageManifest['centralDirectoryExtraFieldBytes'] ?? 0),
+            'packageManifestCentralDirectoryRawCommentBytes' => (int) ($packageManifest['centralDirectoryRawCommentBytes'] ?? 0),
+            'packageManifestCentralDirectoryReviewFieldBytes' => (int) ($packageManifest['centralDirectoryReviewFieldBytes'] ?? 0),
+            'packageManifestCentralExtraFieldEntryCount' => (int) ($packageManifest['centralExtraFieldEntryCount'] ?? 0),
+            'packageManifestEntryCommentCount' => (int) ($packageManifest['entryCommentCount'] ?? 0),
+            'packageManifestHasCentralDirectoryReviewFields' => ($packageManifest['hasCentralDirectoryReviewFields'] ?? false) === true,
+            'packageManifestMaxPathSegmentCount' => (int) ($packageManifest['maxPathSegmentCount'] ?? 0),
+            'packageManifestMaxDirectoryDepth' => (int) ($packageManifest['maxDirectoryDepth'] ?? 0),
+            'packageManifestDeepestEntryNames' => $deepestEntryNames,
+            'packageManifestDeepestEntryNameCount' => count($deepestEntryNames),
+            'packageManifestCompressionMethodSummaryCount' => (int) ($packageManifest['compressionMethodSummaryCount'] ?? 0),
+            'packageManifestCompressionMethodSummaries' => is_array($packageManifest['compressionMethodSummaries'] ?? null)
+                ? $packageManifest['compressionMethodSummaries']
+                : [],
+            'packageManifestDirectoryRootCount' => (int) ($packageManifest['directoryRootCount'] ?? 0),
+            'packageManifestDirectoryRoots' => is_array($packageManifest['directoryRoots'] ?? null)
+                ? $packageManifest['directoryRoots']
+                : [],
+            'packageManifestDirectoryRootSummaries' => is_array($packageManifest['directoryRootSummaries'] ?? null)
+                ? $packageManifest['directoryRootSummaries']
+                : [],
+            'packageManifestCentralDirectoryOrderNames' => is_array($packageManifest['centralDirectoryOrderNames'] ?? null)
+                ? $packageManifest['centralDirectoryOrderNames']
+                : [],
+            'packageManifestLocalHeaderOrderNames' => is_array($packageManifest['localHeaderOrderNames'] ?? null)
+                ? $packageManifest['localHeaderOrderNames']
+                : [],
+            'packageManifestCentralDirectoryOrderMatchesLocalHeaderOrder' => $packageManifest['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null,
+            'packageManifestLocalHeaderHashCount' => $hashCounts['localHeaderHashCount'],
+            'packageManifestCompressedDataHashCount' => $hashCounts['compressedDataHashCount'],
+            'packageManifestCentralDirectoryRecordHashCount' => $hashCounts['centralDirectoryRecordHashCount'],
         ];
     }
 
