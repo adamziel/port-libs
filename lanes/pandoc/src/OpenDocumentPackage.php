@@ -1648,6 +1648,10 @@ final class OpenDocumentPackage
             'entryNamesByPackagePartRawExtension' => $packagePartRawExtensions['entryNamesByPackagePartRawExtension'],
             'packagePartRawExtensionUppercasePartCount' => $packagePartRawExtensions['packagePartRawExtensionUppercasePartCount'],
             'packagePartRawExtensionNormalizedPartCount' => $packagePartRawExtensions['packagePartRawExtensionNormalizedPartCount'],
+            'packagePartExtensionCaseVariantCount' => $packagePartRawExtensions['packagePartExtensionCaseVariantCount'],
+            'packagePartExtensionCaseVariantExtensions' => $packagePartRawExtensions['packagePartExtensionCaseVariantExtensions'],
+            'packagePartExtensionUppercasePartCount' => $packagePartRawExtensions['packagePartExtensionUppercasePartCount'],
+            'packagePartExtensionCaseVariants' => $packagePartRawExtensions['packagePartExtensionCaseVariants'],
             'packagePartRawExtensionSummaryCount' => count($packagePartRawExtensions['packagePartRawExtensionSummaries']),
             'packagePartRawExtensionSummaries' => $packagePartRawExtensions['packagePartRawExtensionSummaries'],
             'packageBasenameCounts' => $packagePartBasenames['packageBasenameCounts'],
@@ -3059,6 +3063,10 @@ final class OpenDocumentPackage
             'entryNamesByPackagePartRawExtension' => $packageInventory['entryNamesByPackagePartRawExtension'] ?? [],
             'packagePartRawExtensionUppercasePartCount' => $packageInventory['packagePartRawExtensionUppercasePartCount'] ?? 0,
             'packagePartRawExtensionNormalizedPartCount' => $packageInventory['packagePartRawExtensionNormalizedPartCount'] ?? 0,
+            'packagePartExtensionCaseVariantCount' => $packageInventory['packagePartExtensionCaseVariantCount'] ?? 0,
+            'packagePartExtensionCaseVariantExtensions' => $packageInventory['packagePartExtensionCaseVariantExtensions'] ?? [],
+            'packagePartExtensionUppercasePartCount' => $packageInventory['packagePartExtensionUppercasePartCount'] ?? 0,
+            'packagePartExtensionCaseVariants' => $packageInventory['packagePartExtensionCaseVariants'] ?? [],
             'packagePartRawExtensionSummaryCount' => $packageInventory['packagePartRawExtensionSummaryCount'] ?? 0,
             'packagePartRawExtensionSummaries' => $packageInventory['packagePartRawExtensionSummaries'] ?? [],
             'packageBasenameCounts' => $packageInventory['packageBasenameCounts'] ?? [],
@@ -4096,6 +4104,10 @@ final class OpenDocumentPackage
      *     entryNamesByPackagePartRawExtension:array<string, list<string>>,
      *     packagePartRawExtensionUppercasePartCount:int,
      *     packagePartRawExtensionNormalizedPartCount:int,
+     *     packagePartExtensionCaseVariantCount:int,
+     *     packagePartExtensionCaseVariantExtensions:list<string>,
+     *     packagePartExtensionUppercasePartCount:int,
+     *     packagePartExtensionCaseVariants:list<array<string, mixed>>,
      *     packagePartRawExtensionSummaries:list<array<string, mixed>>
      * }
      */
@@ -4105,6 +4117,8 @@ final class OpenDocumentPackage
         $entryNamesByRawExtension = [];
         $uppercasePartCount = 0;
         $normalizedPartCount = 0;
+        $caseVariantExtensionKeys = [];
+        $caseVariantSummaries = [];
         $summaries = [];
 
         foreach ($parts as $name => $part) {
@@ -4125,6 +4139,9 @@ final class OpenDocumentPackage
             }
             if ($wasNormalized) {
                 ++$normalizedPartCount;
+            }
+            if ($extension !== null && $rawExtension !== null && ($hasUppercase || $wasNormalized)) {
+                $caseVariantExtensionKeys[$extension] = true;
             }
 
             $rawExtensionCounts[$rawExtensionKey] = ($rawExtensionCounts[$rawExtensionKey] ?? 0) + 1;
@@ -4232,6 +4249,60 @@ final class OpenDocumentPackage
                 'manifestMediaTypeBase' => $manifestMediaTypeBase === '' ? null : $manifestMediaTypeBase,
                 'manifestMediaFamily' => $manifestMediaFamily === '' ? null : $manifestMediaFamily,
             ];
+            if ($extension !== null && $rawExtension !== null) {
+                if (!isset($caseVariantSummaries[$extension])) {
+                    $caseVariantSummaries[$extension] = [
+                        'packagePartExtension' => $extension,
+                        'partCount' => 0,
+                        'uppercasePartCount' => 0,
+                        'byteLength' => 0,
+                        'compressedByteLength' => 0,
+                        'rawExtensionCounts' => [],
+                        'rawExtensionPartNames' => [],
+                        'roleCounts' => [],
+                        'byteExposurePolicyCounts' => [],
+                        'manifestMediaFamilyCounts' => [],
+                        'manifestMediaTypeBaseCounts' => [],
+                        'partNames' => [],
+                        'largestPart' => null,
+                    ];
+                }
+
+                ++$caseVariantSummaries[$extension]['partCount'];
+                if ($hasUppercase) {
+                    ++$caseVariantSummaries[$extension]['uppercasePartCount'];
+                }
+                $caseVariantSummaries[$extension]['byteLength'] += $byteLength;
+                $caseVariantSummaries[$extension]['compressedByteLength'] += $compressedByteLength;
+                $caseVariantSummaries[$extension]['rawExtensionCounts'][$rawExtension] =
+                    ($caseVariantSummaries[$extension]['rawExtensionCounts'][$rawExtension] ?? 0) + 1;
+                $caseVariantSummaries[$extension]['rawExtensionPartNames'][$rawExtension][] = $path;
+                $caseVariantSummaries[$extension]['partNames'][] = $path;
+                foreach ($roles as $role) {
+                    $caseVariantSummaries[$extension]['roleCounts'][$role] =
+                        ($caseVariantSummaries[$extension]['roleCounts'][$role] ?? 0) + 1;
+                }
+                if ($byteExposurePolicy !== '') {
+                    $caseVariantSummaries[$extension]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                        ($caseVariantSummaries[$extension]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+                }
+                if ($manifestMediaFamily !== '') {
+                    $caseVariantSummaries[$extension]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                        ($caseVariantSummaries[$extension]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+                }
+                if ($manifestMediaTypeBase !== '') {
+                    $caseVariantSummaries[$extension]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] =
+                        ($caseVariantSummaries[$extension]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] ?? 0) + 1;
+                }
+                $caseVariantLargestPart = $caseVariantSummaries[$extension]['largestPart'];
+                if (
+                    !is_array($caseVariantLargestPart)
+                    || $byteLength > (int) ($caseVariantLargestPart['byteLength'] ?? 0)
+                    || ($byteLength === (int) ($caseVariantLargestPart['byteLength'] ?? 0) && strcmp($path, (string) ($caseVariantLargestPart['path'] ?? '')) < 0)
+                ) {
+                    $caseVariantSummaries[$extension]['largestPart'] = $partSummary;
+                }
+            }
             $largestPart = $summaries[$rawExtensionKey]['largestPart'];
             if (
                 !is_array($largestPart)
@@ -4260,11 +4331,43 @@ final class OpenDocumentPackage
             $summaries[$rawExtensionKey] = $summary;
         }
 
+        ksort($caseVariantSummaries, SORT_STRING);
+        foreach ($caseVariantSummaries as $extension => $summary) {
+            if (!isset($caseVariantExtensionKeys[$extension])) {
+                unset($caseVariantSummaries[$extension]);
+                continue;
+            }
+
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['rawExtensionCounts'], SORT_STRING);
+            ksort($summary['rawExtensionPartNames'], SORT_STRING);
+            foreach ($summary['rawExtensionPartNames'] as &$partNames) {
+                sort($partNames, SORT_STRING);
+            }
+            unset($partNames);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+            $caseVariantSummaries[$extension] = $summary;
+        }
+        $caseVariantSummaries = array_values($caseVariantSummaries);
+
         return [
             'packagePartRawExtensionCounts' => $rawExtensionCounts,
             'entryNamesByPackagePartRawExtension' => $entryNamesByRawExtension,
             'packagePartRawExtensionUppercasePartCount' => $uppercasePartCount,
             'packagePartRawExtensionNormalizedPartCount' => $normalizedPartCount,
+            'packagePartExtensionCaseVariantCount' => count($caseVariantSummaries),
+            'packagePartExtensionCaseVariantExtensions' => array_values(array_map(
+                static fn (array $summary): string => (string) $summary['packagePartExtension'],
+                $caseVariantSummaries,
+            )),
+            'packagePartExtensionUppercasePartCount' => array_sum(array_map(
+                static fn (array $summary): int => (int) ($summary['uppercasePartCount'] ?? 0),
+                $caseVariantSummaries,
+            )),
+            'packagePartExtensionCaseVariants' => $caseVariantSummaries,
             'packagePartRawExtensionSummaries' => array_values($summaries),
         ];
     }
