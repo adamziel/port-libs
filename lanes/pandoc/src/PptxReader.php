@@ -2154,8 +2154,14 @@ final class PptxReader
     {
         $nonVisual = $this->firstChildElement($pictureElement, 'nvPicPr');
         $properties = $nonVisual instanceof \DOMElement ? $this->firstChildElement($nonVisual, 'cNvPr') : null;
-        $title = $properties instanceof \DOMElement ? $properties->getAttribute('name') : '';
-        $alt = $properties instanceof \DOMElement ? $properties->getAttribute('descr') : '';
+        if (!$properties instanceof \DOMElement) {
+            $imageIssues[] = ['issue' => 'missing-picture-nonvisual-properties'];
+
+            return null;
+        }
+
+        $title = $properties->getAttribute('name');
+        $alt = $properties->getAttribute('descr');
         $blipFill = $this->firstChildElement($pictureElement, 'blipFill');
         $blip = $blipFill instanceof \DOMElement ? $this->firstChildElement($blipFill, 'blip') : null;
         if (!$blip instanceof \DOMElement) {
