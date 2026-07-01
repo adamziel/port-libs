@@ -7,6 +7,7 @@ namespace PortLibs\Pandoc;
 final class PptxReader
 {
     private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+    private const MISSING_RELATIONSHIP_TYPE = 'urn:port-libs:pandoc:pptx:missing-relationship-type';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const PRESENTATION_NAMESPACE = 'http://schemas.openxmlformats.org/presentationml/2006/main';
     private const DRAWING_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/main';
@@ -26,7 +27,7 @@ final class PptxReader
 
     private function readPackage(ZipPackage $package, int $sourceBytes): AstNode
     {
-        $rootRelationships = OpcRelationships::fromPackage($package, '/');
+        $rootRelationships = $this->relationshipsOrEmpty($package, '/');
         $presentationRelationship = $this->presentationRelationship($rootRelationships);
         $presentationPart = OpcPackagePath::stripQueryAndFragment($rootRelationships->resolveTarget($presentationRelationship));
         $presentation = $this->loadPackageXml($package, $presentationPart, 'PPTX presentation');
@@ -128,11 +129,42 @@ final class PptxReader
 
     private function relationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
     {
-        if (!OpcRelationships::packageHasRelationshipsForSource($package, $sourcePart)) {
+        $relationshipPart = OpcRelationships::relationshipPartNameForSource($sourcePart);
+        if (!$package->has($relationshipPart)) {
             return new OpcRelationships($sourcePart);
         }
 
-        return OpcRelationships::fromPackage($package, $sourcePart);
+        $document = $this->loadPackageXml($package, $relationshipPart, 'PPTX relationships');
+        $root = XmlHtmlDom::rootElement($document);
+        $relationships = new OpcRelationships($sourcePart);
+        if (!$root instanceof \DOMElement) {
+            return $relationships;
+        }
+
+        foreach ($this->childElements($root, null) as $relationshipElement) {
+            $id = $relationshipElement->getAttribute('Id');
+            $target = $relationshipElement->getAttribute('Target');
+            if ($id === '' || $target === '') {
+                continue;
+            }
+            if ($relationships->byId($id) instanceof OpcRelationship) {
+                continue;
+            }
+
+            $type = $relationshipElement->getAttribute('Type');
+            $targetMode = $relationshipElement->getAttribute('TargetMode');
+            $relationships->add(new OpcRelationship(
+                $id,
+                $type !== '' ? $type : self::MISSING_RELATIONSHIP_TYPE,
+                $target,
+                $targetMode === OpcRelationship::TARGET_MODE_EXTERNAL
+                    ? OpcRelationship::TARGET_MODE_EXTERNAL
+                    : OpcRelationship::TARGET_MODE_INTERNAL,
+                $targetMode !== ''
+            ));
+        }
+
+        return $relationships;
     }
 
     private function upstreamPresentationSlidePart(string $target): string
