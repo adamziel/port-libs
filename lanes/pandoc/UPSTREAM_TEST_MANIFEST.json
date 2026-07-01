@@ -1938,6 +1938,8 @@
         "mappedHtmlReaderListOrphanCases": 28,
         "mappedHtmlReaderListOrphanWordPressCases": 6,
         "mappedXmlHtmlDomFormSubmitterActionProvenanceCases": 1,
+        "mappedXmlHtmlDomSelectOptionStateReviewCases": 1,
+        "xmlHtmlDomSelectOptionStateReviewAssertions": 53,
         "mappedXmlHtmlDomRenderBlockingPolicyCases": 2,
         "xmlHtmlDomStyleRenderBlockingMetadataFields": 4,
         "markdownReaderDetailsSummaryCommandFixtureLines": 18,

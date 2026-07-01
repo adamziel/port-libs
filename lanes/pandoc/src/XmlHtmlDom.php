@@ -15153,6 +15153,7 @@ final class XmlHtmlDom
                 static fn (array $option): string => (string) $option['value'],
                 array_filter($options, static fn (array $option): bool => (bool) ($option['selected'] ?? false))
             ));
+            $summary += self::selectOptionStateReviewSummary($node, $options);
         }
         if ($name === 'input') {
             $inputType = self::inputTypeSummary($node);
@@ -32450,6 +32451,160 @@ final class XmlHtmlDom
             ))),
             'selectedContentValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @param list<array{value:string, label:string, text:string, selected:bool, disabled:bool, group?:string, groupDisabled?:bool}> $options
+     * @return array<string, mixed>
+     */
+    private static function selectOptionStateReviewSummary(\DOMElement $select, array $options): array
+    {
+        $multiple = $select->hasAttribute('multiple');
+        $required = $select->hasAttribute('required');
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($select);
+        $selectedOptions = array_values(array_filter(
+            $options,
+            static fn (array $option): bool => (bool) ($option['selected'] ?? false)
+        ));
+        $selectedOptionRecords = self::selectOptionStateRecords($selectedOptions);
+        $selectedDisabledRecords = array_values(array_filter(
+            $selectedOptionRecords,
+            static fn (array $option): bool => (bool) ($option['disabled'] ?? false)
+        ));
+        $effectiveSelectedOptions = $selectedOptions;
+        $selectionSource = 'none';
+
+        if ($selectedOptions !== []) {
+            $selectionSource = !$multiple && count($selectedOptions) > 1
+                ? 'conflicting-selected-attributes'
+                : 'selected-attribute';
+        } elseif (!$multiple && $options !== []) {
+            $effectiveSelectedOptions = [$options[0]];
+            $selectionSource = 'first-option-fallback';
+        }
+
+        $effectiveRecords = self::selectOptionStateRecords($effectiveSelectedOptions);
+        $effectiveEnabledNonEmptyValues = array_values(array_filter(
+            array_map(
+                static fn (array $option): ?string => (bool) ($option['disabled'] ?? false)
+                    ? null
+                    : (string) ($option['value'] ?? ''),
+                $effectiveRecords
+            ),
+            static fn (?string $value): bool => $value !== null && $value !== ''
+        ));
+        $issues = [];
+
+        if ($options === []) {
+            $issues[] = ['code' => 'empty-select-options'];
+        }
+        if (!$multiple && count($selectedOptions) > 1) {
+            $issues[] = [
+                'code' => 'multiple-selected-options-for-single-select',
+                'count' => count($selectedOptions),
+                'values' => self::selectOptionValues($selectedOptions),
+            ];
+        }
+        foreach ($selectedDisabledRecords as $record) {
+            $issues[] = [
+                'code' => 'selected-disabled-option',
+                'value' => $record['value'],
+                'label' => $record['label'],
+                'group' => $record['group'] ?? null,
+                'groupDisabled' => $record['groupDisabled'] ?? false,
+            ];
+        }
+
+        $valueMissing = $required && !$effectiveDisabled && $effectiveEnabledNonEmptyValues === [];
+        if ($valueMissing) {
+            $issues[] = [
+                'code' => 'required-select-missing-value',
+                'selectionSource' => $selectionSource,
+                'effectiveValues' => self::selectOptionValues($effectiveSelectedOptions),
+            ];
+        }
+
+        return [
+            'selectOptionStateReviewPolicy' => 'html-select-option-state-review',
+            'selectReviewOnlyNoBrowserStateMutation' => true,
+            'selectMultiple' => $multiple,
+            'selectRequired' => $required,
+            'selectEffectiveDisabled' => $effectiveDisabled,
+            'selectOptionCount' => count($options),
+            'selectEnabledOptionCount' => count(array_filter(
+                $options,
+                static fn (array $option): bool => !(bool) ($option['disabled'] ?? false)
+            )),
+            'selectDisabledOptionCount' => count(array_filter(
+                $options,
+                static fn (array $option): bool => (bool) ($option['disabled'] ?? false)
+            )),
+            'selectExplicitSelectedOptionCount' => count($selectedOptions),
+            'selectExplicitSelectedValues' => self::selectOptionValues($selectedOptions),
+            'selectSelectedDisabledOptionCount' => count($selectedDisabledRecords),
+            'selectSelectedDisabledValues' => self::selectOptionValues($selectedDisabledRecords),
+            'selectSelectionSource' => $selectionSource,
+            'selectEffectiveSelectedOptionCount' => count($effectiveRecords),
+            'selectEffectiveSelectedValues' => self::selectOptionValues($effectiveSelectedOptions),
+            'selectEffectiveSelectedLabels' => array_values(array_map(
+                static fn (array $option): string => (string) ($option['label'] ?? ''),
+                $effectiveRecords
+            )),
+            'selectEffectiveSelectedTexts' => array_values(array_map(
+                static fn (array $option): string => (string) ($option['text'] ?? ''),
+                $effectiveRecords
+            )),
+            'selectEffectiveSelectedOptions' => $effectiveRecords,
+            'selectRequiredValueMissing' => $valueMissing,
+            'selectSuccessfulValueCandidates' => $effectiveEnabledNonEmptyValues,
+            'selectIssues' => $issues,
+            'selectIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'selectOptionStateValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $options
+     * @return list<array<string, mixed>>
+     */
+    private static function selectOptionStateRecords(array $options): array
+    {
+        return array_values(array_map(
+            static function (array $option): array {
+                $record = [
+                    'value' => (string) ($option['value'] ?? ''),
+                    'label' => (string) ($option['label'] ?? ''),
+                    'text' => (string) ($option['text'] ?? ''),
+                    'selected' => (bool) ($option['selected'] ?? false),
+                    'disabled' => (bool) ($option['disabled'] ?? false),
+                ];
+
+                if (array_key_exists('group', $option)) {
+                    $record['group'] = $option['group'];
+                }
+                if (array_key_exists('groupDisabled', $option)) {
+                    $record['groupDisabled'] = (bool) $option['groupDisabled'];
+                }
+
+                return $record;
+            },
+            $options
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $options
+     * @return list<string>
+     */
+    private static function selectOptionValues(array $options): array
+    {
+        return array_values(array_map(
+            static fn (array $option): string => (string) ($option['value'] ?? ''),
+            $options
+        ));
     }
 
     /**
