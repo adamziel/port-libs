@@ -118,14 +118,9 @@ final class PptxReader
     private function presentationRelationship(OpcRelationships $relationships): OpcRelationship
     {
         foreach ($relationships->all() as $relationship) {
-            if (str_ends_with($relationship->type, '/officeDocument') && str_contains($relationship->target, 'presentation')) {
+            if (str_ends_with($relationship->type, '/officeDocument')) {
                 return $relationship;
             }
-        }
-
-        $relationship = $relationships->firstOfType(self::OFFICE_DOCUMENT_RELATIONSHIP);
-        if ($relationship instanceof OpcRelationship) {
-            return $relationship;
         }
 
         throw new \RuntimeException('PPTX package does not declare a presentation relationship');
