@@ -1351,6 +1351,84 @@ XML);
     }
 };
 
+$buildBrokenSmartArtPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-broken-smartart-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Broken SmartArt</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Broken SmartArt Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/missing-data.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/basicBlockList"/>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $nodesOfType = static function (AstNode $node, string $type) use (&$nodesOfType): array {
     $nodes = $node->type === $type ? [$node] : [];
     foreach ($node->children as $child) {
@@ -1807,6 +1885,23 @@ return [
         $t->same('Connector 8', $issue['name'] ?? null);
         $t->same('Connector desc', $issue['descr'] ?? null);
         $t->same(['x' => 111, 'y' => 222, 'cx' => 333, 'cy' => 444], $issue['layout'] ?? null);
+    },
+
+    'keeps broken pptx SmartArt as visible parse diagnostics' => static function (TestRunner $t) use ($buildBrokenSmartArtPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildBrokenSmartArtPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $diagnostics = array_values(array_filter(
+            $paragraphs,
+            static fn (AstNode $paragraph): bool => str_contains((string) $paragraph->attr('text'), 'missing-or-invalid-diagram-data')
+        ));
+
+        $t->same(true, in_array('[Diagram parse error: missing-or-invalid-diagram-data: ppt/diagrams/missing-data.xml]', $texts, true));
+        $t->same(1, count($diagnostics));
+        $t->same('graphicFrame', $diagnostics[0]->attr('pptxShape')['element'] ?? null);
+        $t->same('Broken SmartArt Frame', $diagnostics[0]->attr('pptxShape')['name'] ?? null);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
 
     'preserves pptx text run hyperlinks with relationship metadata' => static function (TestRunner $t) use ($buildHyperlinkedTextPptxPackage, $nodesOfType): void {

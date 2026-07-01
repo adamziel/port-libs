@@ -3101,8 +3101,16 @@ final class PptxReader
 
         $dataPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($dataRelationship));
         $layoutPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($layoutRelationship));
-        $dataDocument = $this->loadPackageXml($package, $dataPart, 'PPTX SmartArt data');
-        $layoutDocument = $this->loadPackageXml($package, $layoutPart, 'PPTX SmartArt layout');
+        $dataDocument = $this->optionalPackageXml($package, $dataPart, 'PPTX SmartArt data');
+        if (!$dataDocument instanceof \DOMDocument) {
+            return $this->paragraph('[Diagram parse error: missing-or-invalid-diagram-data: ' . ltrim($dataPart, '/') . ']');
+        }
+
+        $layoutDocument = $this->optionalPackageXml($package, $layoutPart, 'PPTX SmartArt layout');
+        if (!$layoutDocument instanceof \DOMDocument) {
+            return $this->paragraph('[Diagram parse error: missing-or-invalid-diagram-layout: ' . ltrim($layoutPart, '/') . ']');
+        }
+
         $dataRoot = XmlHtmlDom::rootElement($dataDocument, 'dataModel');
         $layoutRoot = XmlHtmlDom::rootElement($layoutDocument, 'layoutDef');
         if (!$dataRoot instanceof \DOMElement || !$layoutRoot instanceof \DOMElement) {
