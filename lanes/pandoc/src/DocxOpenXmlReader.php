@@ -12939,6 +12939,30 @@ final class DocxOpenXmlReader
         $summary['zipExtraFieldIdUsage'] = is_array($zipExtraFields['extraFieldIdUsage'] ?? null)
             ? $zipExtraFields['extraFieldIdUsage']
             : [];
+        $zipUnixOwners = is_array($zipPackage['unixOwners'] ?? null)
+            ? $zipPackage['unixOwners']
+            : $this->emptyZipUnixOwnerMetadataProvenance();
+        $summary['zipUnixOwners'] = $zipUnixOwners;
+        $summary['zipHasUnixOwnerMetadata'] = (int) ($zipUnixOwners['ownerMetadataEntryCount'] ?? 0) > 0;
+        $summary['zipHasMismatchedUnixOwnerMetadata'] = (int) ($zipUnixOwners['mismatchedOwnerMetadataEntryCount'] ?? 0) > 0;
+        $summary['zipUnixOwnerMetadataEntryCount'] = (int) ($zipUnixOwners['ownerMetadataEntryCount'] ?? 0);
+        $summary['zipCentralUnixOwnerMetadataEntryCount'] = (int) ($zipUnixOwners['centralOwnerMetadataEntryCount'] ?? 0);
+        $summary['zipLocalUnixOwnerMetadataEntryCount'] = (int) ($zipUnixOwners['localOwnerMetadataEntryCount'] ?? 0);
+        $summary['zipMismatchedUnixOwnerMetadataEntryCount'] = (int) ($zipUnixOwners['mismatchedOwnerMetadataEntryCount'] ?? 0);
+        $summary['zipUnixOwnerMetadataIssueCodes'] = array_values(array_filter([
+            $summary['zipUnixOwnerMetadataEntryCount'] > 0 ? 'unix-owner-extra-fields' : null,
+            $summary['zipMismatchedUnixOwnerMetadataEntryCount'] > 0 ? 'unix-uid-gid-mismatch' : null,
+        ]));
+        $summary['zipUnixOwnerMetadataEntries'] = is_array($zipUnixOwners['ownerMetadataEntries'] ?? null)
+            ? $zipUnixOwners['ownerMetadataEntries']
+            : [];
+        $summary['zipMismatchedUnixOwnerMetadataEntries'] = is_array(
+            $zipUnixOwners['mismatchedOwnerMetadataEntries'] ?? null
+        )
+            ? $zipUnixOwners['mismatchedOwnerMetadataEntries']
+            : [];
+        $summary['zipUnixOwnerMetadataByteExposurePolicy'] = 'zip-unix-owner-metadata-only';
+        $summary['zipUnixOwnerMetadataCanExposeBytes'] = false;
         $zipNamePolicy = $zipPackage['namePolicy'];
         $summary['zipNamePolicyValid'] = $zipNamePolicy['valid'];
         $summary['zipNamePolicyIssueCount'] = $zipNamePolicy['issueCount'];
@@ -13066,6 +13090,7 @@ final class DocxOpenXmlReader
                 'modificationTimes' => $this->emptyZipModificationTimeProvenance(),
                 'sourceRecords' => $this->emptyZipSourceRecordProvenance(),
                 'extraFields' => $this->emptyZipExtraFieldProvenance(),
+                'unixOwners' => $this->emptyZipUnixOwnerMetadataProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'comments' => $this->emptyZipCommentProvenance(),
                 'packageManifestDirectoryRootCount' => 0,
@@ -13093,6 +13118,7 @@ final class DocxOpenXmlReader
         $modificationTimes = $this->zipModificationTimeProvenance($sourcePackage->modificationTimePreflight());
         $sourceRecords = $this->zipSourceRecordProvenance($sourcePackage, $parts);
         $extraFields = $sourcePackage->extraFieldPreflight();
+        $unixOwners = $sourcePackage->unixOwnerPreflight();
         $comments = $sourcePackage->commentPreflight();
         $packageManifest = $sourcePackage->packageManifestPreflight();
         $sizeEntriesByName = [];
@@ -13111,6 +13137,12 @@ final class DocxOpenXmlReader
         foreach (($extraFields['entries'] ?? []) as $extraFieldEntry) {
             if (is_array($extraFieldEntry) && is_string($extraFieldEntry['name'] ?? null)) {
                 $extraFieldEntriesByName[$extraFieldEntry['name']] = $extraFieldEntry;
+            }
+        }
+        $unixOwnerEntriesByName = [];
+        foreach (($unixOwners['entries'] ?? []) as $unixOwnerEntry) {
+            if (is_array($unixOwnerEntry) && is_string($unixOwnerEntry['name'] ?? null)) {
+                $unixOwnerEntriesByName[$unixOwnerEntry['name']] = $unixOwnerEntry;
             }
         }
         $commentEntriesByName = [];
@@ -13171,6 +13203,7 @@ final class DocxOpenXmlReader
 
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $extraFieldEntry = $extraFieldEntriesByName[$entry->name] ?? null;
+            $unixOwnerEntry = $unixOwnerEntriesByName[$entry->name] ?? null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
             $manifestEntry = $manifestEntriesByName[$entry->name] ?? null;
             $sizeEntry = $sizeEntriesByName[$entry->name] ?? null;
@@ -13286,6 +13319,7 @@ final class DocxOpenXmlReader
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             ]
+                + $this->zipUnixOwnerMetadataEntryProvenance($unixOwnerEntry)
                 + $this->zipGeneralPurposeFlagEntryProvenance($generalPurposeFlagsByName[$entry->name] ?? null)
                 + $this->zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null)
                 + $this->zipModificationTimeEntryProvenance($modificationTimeByName[$entry->name] ?? null)
@@ -13326,6 +13360,7 @@ final class DocxOpenXmlReader
             'modificationTimes' => $modificationTimes,
             'sourceRecords' => $sourceRecords,
             'extraFields' => $extraFields,
+            'unixOwners' => $unixOwners,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'comments' => $comments,
             'packageManifestDirectoryRootCount' => (int) ($packageManifest['directoryRootCount'] ?? 0),
@@ -14203,6 +14238,46 @@ final class DocxOpenXmlReader
     /**
      * @return array<string, mixed>
      */
+    private function emptyZipUnixOwnerMetadataProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'ownerMetadataEntryCount' => 0,
+            'centralOwnerMetadataEntryCount' => 0,
+            'localOwnerMetadataEntryCount' => 0,
+            'mismatchedOwnerMetadataEntryCount' => 0,
+            'ownerMetadataEntries' => [],
+            'mismatchedOwnerMetadataEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private function zipUnixOwnerMetadataEntryProvenance(?array $entry): array
+    {
+        $centralOwner = is_array($entry['centralOwner'] ?? null) ? $entry['centralOwner'] : null;
+        $localOwner = is_array($entry['localOwner'] ?? null) ? $entry['localOwner'] : null;
+        $issues = is_array($entry['issues'] ?? null) ? $entry['issues'] : [];
+
+        return [
+            'centralUnixOwner' => $centralOwner,
+            'localUnixOwner' => $localOwner,
+            'hasCentralUnixOwnerMetadata' => ($entry['hasCentralOwnerMetadata'] ?? false) === true,
+            'hasLocalUnixOwnerMetadata' => ($entry['hasLocalOwnerMetadata'] ?? false) === true,
+            'hasUnixOwnerMetadata' => $centralOwner !== null || $localOwner !== null,
+            'unixOwnerMetadataMatches' => ($entry['ownerMetadataMatches'] ?? true) === true,
+            'unixOwnerMetadataIssues' => $issues,
+            'unixOwnerMetadataByteExposurePolicy' => 'zip-unix-owner-metadata-only',
+            'unixOwnerMetadataCanExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function emptyZipCommentProvenance(): array
     {
         return [
@@ -14831,6 +14906,17 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['hasDuplicateExtraFieldIds'] = $entry['hasDuplicateExtraFieldIds'] ?? false;
             $partInventory[$partName]['hasMismatchedExtraFieldIds'] = $entry['hasMismatchedExtraFieldIds'] ?? false;
             $partInventory[$partName]['hasMismatchedExtraFieldValues'] = $entry['hasMismatchedExtraFieldValues'] ?? false;
+            $partInventory[$partName]['centralUnixOwner'] = $entry['centralUnixOwner'] ?? null;
+            $partInventory[$partName]['localUnixOwner'] = $entry['localUnixOwner'] ?? null;
+            $partInventory[$partName]['hasCentralUnixOwnerMetadata'] = $entry['hasCentralUnixOwnerMetadata'] ?? false;
+            $partInventory[$partName]['hasLocalUnixOwnerMetadata'] = $entry['hasLocalUnixOwnerMetadata'] ?? false;
+            $partInventory[$partName]['hasUnixOwnerMetadata'] = $entry['hasUnixOwnerMetadata'] ?? false;
+            $partInventory[$partName]['unixOwnerMetadataMatches'] = $entry['unixOwnerMetadataMatches'] ?? true;
+            $partInventory[$partName]['unixOwnerMetadataIssues'] = $entry['unixOwnerMetadataIssues'] ?? [];
+            $partInventory[$partName]['unixOwnerMetadataByteExposurePolicy'] =
+                $entry['unixOwnerMetadataByteExposurePolicy'] ?? 'zip-unix-owner-metadata-only';
+            $partInventory[$partName]['unixOwnerMetadataCanExposeBytes'] =
+                $entry['unixOwnerMetadataCanExposeBytes'] ?? false;
             $partInventory[$partName]['generalPurposeFlags'] = $entry['generalPurposeFlags'] ?? null;
             $partInventory[$partName]['generalPurposeFlagNames'] = $entry['generalPurposeFlagNames'] ?? [];
             $partInventory[$partName]['generalPurposeUnsupportedFlagBits'] = $entry['generalPurposeUnsupportedFlagBits'] ?? 0;
@@ -41438,6 +41524,36 @@ final class DocxOpenXmlReader
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
             'zipEntryCount' => (int) ($summary['zipEntryCount'] ?? 0),
+            'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
+                ? $summary['zipUnixOwners']
+                : $this->emptyZipUnixOwnerMetadataProvenance(),
+            'zipHasUnixOwnerMetadata' => ($summary['zipHasUnixOwnerMetadata'] ?? false) === true,
+            'zipHasMismatchedUnixOwnerMetadata' => ($summary['zipHasMismatchedUnixOwnerMetadata'] ?? false) === true,
+            'zipUnixOwnerMetadataEntryCount' => (int) ($summary['zipUnixOwnerMetadataEntryCount'] ?? 0),
+            'zipCentralUnixOwnerMetadataEntryCount' => (int) (
+                $summary['zipCentralUnixOwnerMetadataEntryCount'] ?? 0
+            ),
+            'zipLocalUnixOwnerMetadataEntryCount' => (int) ($summary['zipLocalUnixOwnerMetadataEntryCount'] ?? 0),
+            'zipMismatchedUnixOwnerMetadataEntryCount' => (int) (
+                $summary['zipMismatchedUnixOwnerMetadataEntryCount'] ?? 0
+            ),
+            'zipUnixOwnerMetadataIssueCodes' => is_array($summary['zipUnixOwnerMetadataIssueCodes'] ?? null)
+                ? array_values($summary['zipUnixOwnerMetadataIssueCodes'])
+                : [],
+            'zipUnixOwnerMetadataEntries' => is_array($summary['zipUnixOwnerMetadataEntries'] ?? null)
+                ? array_values($summary['zipUnixOwnerMetadataEntries'])
+                : [],
+            'zipMismatchedUnixOwnerMetadataEntries' => is_array(
+                $summary['zipMismatchedUnixOwnerMetadataEntries'] ?? null
+            )
+                ? array_values($summary['zipMismatchedUnixOwnerMetadataEntries'])
+                : [],
+            'zipUnixOwnerMetadataByteExposurePolicy' => is_string(
+                $summary['zipUnixOwnerMetadataByteExposurePolicy'] ?? null
+            )
+                ? $summary['zipUnixOwnerMetadataByteExposurePolicy']
+                : 'zip-unix-owner-metadata-only',
+            'zipUnixOwnerMetadataCanExposeBytes' => ($summary['zipUnixOwnerMetadataCanExposeBytes'] ?? false) === true,
             'partZipSourceRecordDirectoryRootCount' => (int) ($summary['partZipSourceRecordDirectoryRootCount'] ?? 0),
             'partZipSourceRecordDirectoryRootCounts' => $this->packageIdentityCountMap(
                 $summary['partZipSourceRecordDirectoryRootCounts'] ?? []
@@ -41797,6 +41913,21 @@ final class DocxOpenXmlReader
                     : $this->packagePartDirectoryDepth($directory),
                 'byteExposurePolicy' => $this->packagePartByteExposurePolicy($part),
                 'canExposeBytes' => false,
+                'centralUnixOwner' => is_array($part['centralUnixOwner'] ?? null) ? $part['centralUnixOwner'] : null,
+                'localUnixOwner' => is_array($part['localUnixOwner'] ?? null) ? $part['localUnixOwner'] : null,
+                'hasCentralUnixOwnerMetadata' => ($part['hasCentralUnixOwnerMetadata'] ?? false) === true,
+                'hasLocalUnixOwnerMetadata' => ($part['hasLocalUnixOwnerMetadata'] ?? false) === true,
+                'hasUnixOwnerMetadata' => ($part['hasUnixOwnerMetadata'] ?? false) === true,
+                'unixOwnerMetadataMatches' => ($part['unixOwnerMetadataMatches'] ?? true) === true,
+                'unixOwnerMetadataIssues' => is_array($part['unixOwnerMetadataIssues'] ?? null)
+                    ? array_values($part['unixOwnerMetadataIssues'])
+                    : [],
+                'unixOwnerMetadataByteExposurePolicy' => is_string(
+                    $part['unixOwnerMetadataByteExposurePolicy'] ?? null
+                )
+                    ? $part['unixOwnerMetadataByteExposurePolicy']
+                    : 'zip-unix-owner-metadata-only',
+                'unixOwnerMetadataCanExposeBytes' => ($part['unixOwnerMetadataCanExposeBytes'] ?? false) === true,
                 'roles' => $roles,
             ];
         }
