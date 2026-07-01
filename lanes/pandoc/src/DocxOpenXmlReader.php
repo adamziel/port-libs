@@ -12260,6 +12260,15 @@ final class DocxOpenXmlReader
             ? $zipPackageManifest['deepestEntryNames']
             : [];
         $summary['zipPackageManifestDeepestEntryNameCount'] = count($summary['zipPackageManifestDeepestEntryNames']);
+        $summary['zipPackageManifestCaseInsensitiveNameCollisionGroupCount'] = (int) ($zipPackageManifest['caseInsensitiveNameCollisionGroupCount'] ?? 0);
+        $summary['zipPackageManifestCaseInsensitiveNameCollisionEntryCount'] = (int) ($zipPackageManifest['caseInsensitiveNameCollisionEntryCount'] ?? 0);
+        $summary['zipPackageManifestHasCaseInsensitiveNameCollisions'] = ($zipPackageManifest['hasCaseInsensitiveNameCollisions'] ?? false) === true;
+        $summary['zipPackageManifestCaseInsensitiveNameCollisionGroups'] = is_array($zipPackageManifest['caseInsensitiveNameCollisionGroups'] ?? null)
+            ? $zipPackageManifest['caseInsensitiveNameCollisionGroups']
+            : [];
+        $summary['zipPackageManifestCaseInsensitiveNameCollisionEntries'] = is_array($zipPackageManifest['caseInsensitiveNameCollisionEntries'] ?? null)
+            ? $zipPackageManifest['caseInsensitiveNameCollisionEntries']
+            : [];
         $summary['zipPackageManifestCompressionMethodSummaryCount'] = (int) ($zipPackageManifest['compressionMethodSummaryCount'] ?? 0);
         $summary['zipPackageManifestCompressionMethodSummaries'] = is_array($zipPackageManifest['compressionMethodSummaries'] ?? null)
             ? $zipPackageManifest['compressionMethodSummaries']
@@ -12652,6 +12661,18 @@ final class DocxOpenXmlReader
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
                 'directoryRoot' => is_array($manifestEntry) ? ($manifestEntry['directoryRoot'] ?? null) : null,
+                'caseFoldKey' => is_array($manifestEntry) && is_string($manifestEntry['caseFoldKey'] ?? null)
+                    ? $manifestEntry['caseFoldKey']
+                    : null,
+                'caseInsensitiveEquivalentEntryNames' => is_array($manifestEntry) && is_array($manifestEntry['caseInsensitiveEquivalentEntryNames'] ?? null)
+                    ? $manifestEntry['caseInsensitiveEquivalentEntryNames']
+                    : [],
+                'hasCaseInsensitiveNameCollision' => is_array($manifestEntry)
+                    ? (($manifestEntry['hasCaseInsensitiveNameCollision'] ?? false) === true)
+                    : false,
+                'caseInsensitiveNameCollisionIssues' => is_array($manifestEntry) && is_array($manifestEntry['caseInsensitiveNameCollisionIssues'] ?? null)
+                    ? $manifestEntry['caseInsensitiveNameCollisionIssues']
+                    : [],
                 'packagePartExtension' => is_array($manifestEntry) ? ($manifestEntry['packagePartExtension'] ?? null) : null,
                 'packagePartExtensionKey' => is_array($manifestEntry) && is_string($manifestEntry['packagePartExtensionKey'] ?? null)
                     ? $manifestEntry['packagePartExtensionKey']
@@ -13266,6 +13287,11 @@ final class DocxOpenXmlReader
             'maxPathSegmentCount' => 0,
             'maxDirectoryDepth' => 0,
             'deepestEntryNames' => [],
+            'caseInsensitiveNameCollisionGroupCount' => 0,
+            'caseInsensitiveNameCollisionEntryCount' => 0,
+            'hasCaseInsensitiveNameCollisions' => false,
+            'caseInsensitiveNameCollisionGroups' => [],
+            'caseInsensitiveNameCollisionEntries' => [],
             'directoryRootCount' => 0,
             'directoryRoots' => [],
             'directoryRootSummaries' => [],
@@ -13454,6 +13480,15 @@ final class DocxOpenXmlReader
             'packageManifestMaxDirectoryDepth' => (int) ($packageManifest['maxDirectoryDepth'] ?? 0),
             'packageManifestDeepestEntryNames' => $deepestEntryNames,
             'packageManifestDeepestEntryNameCount' => count($deepestEntryNames),
+            'packageManifestCaseInsensitiveNameCollisionGroupCount' => (int) ($packageManifest['caseInsensitiveNameCollisionGroupCount'] ?? 0),
+            'packageManifestCaseInsensitiveNameCollisionEntryCount' => (int) ($packageManifest['caseInsensitiveNameCollisionEntryCount'] ?? 0),
+            'packageManifestHasCaseInsensitiveNameCollisions' => ($packageManifest['hasCaseInsensitiveNameCollisions'] ?? false) === true,
+            'packageManifestCaseInsensitiveNameCollisionGroups' => is_array($packageManifest['caseInsensitiveNameCollisionGroups'] ?? null)
+                ? $packageManifest['caseInsensitiveNameCollisionGroups']
+                : [],
+            'packageManifestCaseInsensitiveNameCollisionEntries' => is_array($packageManifest['caseInsensitiveNameCollisionEntries'] ?? null)
+                ? $packageManifest['caseInsensitiveNameCollisionEntries']
+                : [],
             'packageManifestCompressionMethodSummaryCount' => (int) ($packageManifest['compressionMethodSummaryCount'] ?? 0),
             'packageManifestCompressionMethodSummaries' => is_array($packageManifest['compressionMethodSummaries'] ?? null)
                 ? $packageManifest['compressionMethodSummaries']
@@ -14110,6 +14145,10 @@ final class DocxOpenXmlReader
 
             $partInventory[$partName]['zipEntryPresent'] = true;
             $partInventory[$partName]['zipDirectoryRoot'] = $entry['directoryRoot'] ?? null;
+            $partInventory[$partName]['zipCaseFoldKey'] = $entry['caseFoldKey'] ?? null;
+            $partInventory[$partName]['zipCaseInsensitiveEquivalentEntryNames'] = $entry['caseInsensitiveEquivalentEntryNames'] ?? [];
+            $partInventory[$partName]['zipHasCaseInsensitiveNameCollision'] = $entry['hasCaseInsensitiveNameCollision'] ?? false;
+            $partInventory[$partName]['zipCaseInsensitiveNameCollisionIssues'] = $entry['caseInsensitiveNameCollisionIssues'] ?? [];
             $partInventory[$partName]['centralDirectoryIndex'] = $entry['centralDirectoryIndex'] ?? null;
             $partInventory[$partName]['localHeaderOrder'] = $entry['localHeaderOrder'] ?? null;
             $partInventory[$partName]['localHeaderOffset'] = $entry['localHeaderOffset'] ?? null;

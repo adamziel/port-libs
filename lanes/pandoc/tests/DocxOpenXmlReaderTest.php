@@ -1135,6 +1135,11 @@ XML,
             }
         }
         unset($zipPart);
+        $zipParts[] = [
+            'name' => 'word/media/Review.PNG',
+            'data' => 'alternate case image bytes',
+            'compressionMethod' => 0,
+        ];
 
         $zip = ZipPackage::fromParts($zipParts, 'docx manifest review');
         $manifest = $zip->packageManifestPreflight();
@@ -1162,8 +1167,14 @@ XML,
         $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
         $documentManifest = $manifestEntriesByName['word/document.xml'];
         $contentTypesManifest = $manifestEntriesByName['[Content_Types].xml'];
+        $mediaManifest = $manifestEntriesByName['word/media/review.png'];
+        $caseMediaManifest = $manifestEntriesByName['word/media/Review.PNG'];
+        $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
+        $caseMediaEntry = $zipPackage['byPackagePath']['word/media/Review.PNG'];
         $documentPart = $package['parts']['word/document.xml'];
         $contentTypesPart = $package['parts']['[Content_Types].xml'];
+        $mediaPart = $package['parts']['word/media/review.png'];
+        $caseMediaPart = $package['parts']['word/media/Review.PNG'];
 
         $t->same($manifest, $zipPackage['packageManifest']);
         $t->same($manifest['directoryRootCount'], $zipPackage['packageManifestDirectoryRootCount']);
@@ -1236,6 +1247,11 @@ XML,
             'maxPathSegmentCount' => 'packageManifestMaxPathSegmentCount',
             'maxDirectoryDepth' => 'packageManifestMaxDirectoryDepth',
             'deepestEntryNames' => 'packageManifestDeepestEntryNames',
+            'caseInsensitiveNameCollisionGroupCount' => 'packageManifestCaseInsensitiveNameCollisionGroupCount',
+            'caseInsensitiveNameCollisionEntryCount' => 'packageManifestCaseInsensitiveNameCollisionEntryCount',
+            'hasCaseInsensitiveNameCollisions' => 'packageManifestHasCaseInsensitiveNameCollisions',
+            'caseInsensitiveNameCollisionGroups' => 'packageManifestCaseInsensitiveNameCollisionGroups',
+            'caseInsensitiveNameCollisionEntries' => 'packageManifestCaseInsensitiveNameCollisionEntries',
             'compressionMethodSummaryCount' => 'packageManifestCompressionMethodSummaryCount',
             'compressionMethodSummaries' => 'packageManifestCompressionMethodSummaries',
             'directoryRootCount' => 'packageManifestDirectoryRootCount',
@@ -1346,7 +1362,21 @@ XML,
         $t->same(count($manifest['deepestEntryNames']), $summary['zipPackageManifestDeepestEntryNameCount']);
         $t->same(3, $summary['zipPackageManifestMaxPathSegmentCount']);
         $t->same(2, $summary['zipPackageManifestMaxDirectoryDepth']);
-        $t->same(['word/_rels/document.xml.rels', 'word/media/review.png'], $summary['zipPackageManifestDeepestEntryNames']);
+        $t->same(['word/_rels/document.xml.rels', 'word/media/review.png', 'word/media/Review.PNG'], $summary['zipPackageManifestDeepestEntryNames']);
+        $t->same($manifest['caseInsensitiveNameCollisionGroupCount'], $summary['zipPackageManifestCaseInsensitiveNameCollisionGroupCount']);
+        $t->same($manifest['caseInsensitiveNameCollisionEntryCount'], $summary['zipPackageManifestCaseInsensitiveNameCollisionEntryCount']);
+        $t->same($manifest['hasCaseInsensitiveNameCollisions'], $summary['zipPackageManifestHasCaseInsensitiveNameCollisions']);
+        $t->same($manifest['caseInsensitiveNameCollisionGroups'], $summary['zipPackageManifestCaseInsensitiveNameCollisionGroups']);
+        $t->same($manifest['caseInsensitiveNameCollisionEntries'], $summary['zipPackageManifestCaseInsensitiveNameCollisionEntries']);
+        $t->same(1, $summary['zipPackageManifestCaseInsensitiveNameCollisionGroupCount']);
+        $t->same(2, $summary['zipPackageManifestCaseInsensitiveNameCollisionEntryCount']);
+        $t->same(true, $summary['zipPackageManifestHasCaseInsensitiveNameCollisions']);
+        $t->same('word/media/review.png', $summary['zipPackageManifestCaseInsensitiveNameCollisionGroups'][0]['caseFoldKey']);
+        $t->same(['word/media/review.png', 'word/media/Review.PNG'], $summary['zipPackageManifestCaseInsensitiveNameCollisionGroups'][0]['entryNames']);
+        $t->same('word/media/review.png', $summary['zipPackageManifestCaseInsensitiveNameCollisionEntries'][0]['name']);
+        $t->same('word/media/Review.PNG', $summary['zipPackageManifestCaseInsensitiveNameCollisionEntries'][1]['name']);
+        $t->same(['case-insensitive-name-collision'], $summary['zipPackageManifestCaseInsensitiveNameCollisionEntries'][0]['caseInsensitiveNameCollisionIssues']);
+        $t->same(['case-insensitive-name-collision'], $summary['zipPackageManifestCaseInsensitiveNameCollisionEntries'][1]['caseInsensitiveNameCollisionIssues']);
         $t->same($manifest['compressionMethodSummaryCount'], $summary['zipPackageManifestCompressionMethodSummaryCount']);
         $t->same($manifest['compressionMethodSummaries'], $summary['zipPackageManifestCompressionMethodSummaries']);
         $t->same($manifest['directoryRootCount'], $summary['zipPackageManifestDirectoryRootCount']);
@@ -1369,9 +1399,9 @@ XML,
         $t->same(['png', 'rels', 'xml'], $summary['zipPackageManifestPackagePartExtensions']);
         $t->same(5, $manifestPackagePartExtensionSummariesByKey['xml']['fileEntryCount']);
         $t->same(2, $manifestPackagePartExtensionSummariesByKey['rels']['fileEntryCount']);
-        $t->same(1, $manifestPackagePartExtensionSummariesByKey['png']['fileEntryCount']);
-        $t->same(5, $manifestDirectoryRootSummariesByRoot['word/']['entryCount']);
-        $t->same(5, $manifestDirectoryRootSummariesByRoot['word/']['fileEntryCount']);
+        $t->same(2, $manifestPackagePartExtensionSummariesByKey['png']['fileEntryCount']);
+        $t->same(6, $manifestDirectoryRootSummariesByRoot['word/']['entryCount']);
+        $t->same(6, $manifestDirectoryRootSummariesByRoot['word/']['fileEntryCount']);
         $t->same(0, $manifestDirectoryRootSummariesByRoot['word/']['directoryEntryCount']);
         $t->same(
             [
@@ -1380,6 +1410,7 @@ XML,
                 'word/_rels/document.xml.rels',
                 'word/document.xml',
                 'word/media/review.png',
+                'word/media/Review.PNG',
             ],
             $manifestDirectoryRootSummariesByRoot['word/']['entryNames']
         );
@@ -1460,6 +1491,32 @@ XML,
         $t->same($documentEntry['centralDirectoryRawCommentSha256'], $documentPart['centralDirectoryRawCommentSha256']);
         $t->same($documentEntry['compressedDataOffset'], $documentPart['compressedDataOffset']);
         $t->same($documentEntry['compressedDataEnd'], $documentPart['compressedDataEnd']);
+
+        foreach ([
+            'caseFoldKey',
+            'caseInsensitiveEquivalentEntryNames',
+            'hasCaseInsensitiveNameCollision',
+            'caseInsensitiveNameCollisionIssues',
+        ] as $caseManifestEntryKey) {
+            $t->same($mediaManifest[$caseManifestEntryKey], $mediaEntry[$caseManifestEntryKey], "{$caseManifestEntryKey} media entry");
+            $t->same($caseMediaManifest[$caseManifestEntryKey], $caseMediaEntry[$caseManifestEntryKey], "{$caseManifestEntryKey} case media entry");
+        }
+        $t->same('word/media/review.png', $mediaEntry['caseFoldKey']);
+        $t->same('word/media/review.png', $caseMediaEntry['caseFoldKey']);
+        $t->same(['word/media/review.png', 'word/media/Review.PNG'], $mediaEntry['caseInsensitiveEquivalentEntryNames']);
+        $t->same(['word/media/review.png', 'word/media/Review.PNG'], $caseMediaEntry['caseInsensitiveEquivalentEntryNames']);
+        $t->same(true, $mediaEntry['hasCaseInsensitiveNameCollision']);
+        $t->same(true, $caseMediaEntry['hasCaseInsensitiveNameCollision']);
+        $t->same(['case-insensitive-name-collision'], $mediaEntry['caseInsensitiveNameCollisionIssues']);
+        $t->same(['case-insensitive-name-collision'], $caseMediaEntry['caseInsensitiveNameCollisionIssues']);
+        $t->same($mediaEntry['caseFoldKey'], $mediaPart['zipCaseFoldKey']);
+        $t->same($mediaEntry['caseInsensitiveEquivalentEntryNames'], $mediaPart['zipCaseInsensitiveEquivalentEntryNames']);
+        $t->same($mediaEntry['hasCaseInsensitiveNameCollision'], $mediaPart['zipHasCaseInsensitiveNameCollision']);
+        $t->same($mediaEntry['caseInsensitiveNameCollisionIssues'], $mediaPart['zipCaseInsensitiveNameCollisionIssues']);
+        $t->same($caseMediaEntry['caseFoldKey'], $caseMediaPart['zipCaseFoldKey']);
+        $t->same($caseMediaEntry['caseInsensitiveEquivalentEntryNames'], $caseMediaPart['zipCaseInsensitiveEquivalentEntryNames']);
+        $t->same($caseMediaEntry['hasCaseInsensitiveNameCollision'], $caseMediaPart['zipHasCaseInsensitiveNameCollision']);
+        $t->same($caseMediaEntry['caseInsensitiveNameCollisionIssues'], $caseMediaPart['zipCaseInsensitiveNameCollisionIssues']);
 
         $t->same($contentTypesManifest['directoryRoot'], $contentTypesEntry['directoryRoot']);
         $t->same('/', $contentTypesEntry['directoryRoot']);
