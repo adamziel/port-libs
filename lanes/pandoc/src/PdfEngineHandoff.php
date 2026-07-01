@@ -8555,6 +8555,7 @@ final class PdfEngineHandoff
                     $pdfStandards,
                     static fn (string $standard): bool => preg_match('/\A(?:1\.[4567]|2\.0)\z/', $standard) === 1
                 ));
+            $ppiValue = $ppi['ppi'] ?? null;
             $appendCase('pdf-export-controls', $pdfExportIssues === [] ? 'ok' : 'review', $pdfExportControlCount, [
                 'pageSelectionPresent' => $pageSelection !== [],
                 'pageSelectionValue' => is_string($pageSelection['value'] ?? null) ? $pageSelection['value'] : null,
@@ -8570,7 +8571,7 @@ final class PdfEngineHandoff
                 'invalidPageSelectionHistoryCount' => $countUnsafe($pageSelectionHistory),
                 'ppiPresent' => $ppi !== [],
                 'ppiValue' => is_string($ppi['value'] ?? null) ? $ppi['value'] : null,
-                'ppi' => is_int($ppi['ppi'] ?? null) ? $ppi['ppi'] : null,
+                'ppi' => is_int($ppiValue) || is_float($ppiValue) ? $ppiValue : null,
                 'ppiHistoryCount' => count($ppiHistory),
                 'invalidPpiCount' => $countUnsafe($ppiHistory),
                 'invalidPpiHistoryCount' => $countUnsafe($ppiHistory),
@@ -10291,7 +10292,7 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @return array{raw:string, value:string, ppi:int|null, safe:bool, issues:list<string>}
+     * @return array{raw:string, value:string, ppi:int|float|null, safe:bool, issues:list<string>}
      */
     private function typstPpiEntry(string $raw): array
     {
@@ -10301,15 +10302,15 @@ final class PdfEngineHandoff
 
         if ($value === '') {
             $issues[] = 'ppi-empty-boundary';
-        } elseif (preg_match('/\A[0-9]+\z/', $value) !== 1) {
+        } elseif (preg_match('/\A(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)\z/', $value) !== 1) {
             $issues[] = 'ppi-invalid-boundary';
-        } elseif (!$this->decimalStringLessThanOrEqual($value, '2400')) {
+        } elseif (!$this->decimalNumberStringLessThanOrEqual($value, '2400')) {
             $issues[] = 'ppi-excessive-boundary';
+        } elseif (!$this->decimalNumberStringGreaterThanZero($value)) {
+            $ppi = str_contains($value, '.') ? (float) $value : (int) $value;
+            $issues[] = 'ppi-nonpositive-boundary';
         } else {
-            $ppi = (int) $value;
-            if ($ppi < 1) {
-                $issues[] = 'ppi-nonpositive-boundary';
-            }
+            $ppi = str_contains($value, '.') ? (float) $value : (int) $value;
         }
 
         return [
@@ -10319,6 +10320,48 @@ final class PdfEngineHandoff
             'safe' => $issues === [],
             'issues' => array_values(array_unique($issues)),
         ];
+    }
+
+    private function decimalNumberStringLessThanOrEqual(string $value, string $maximum): bool
+    {
+        [$integer, $fraction] = array_pad(explode('.', $value, 2), 2, '');
+        [$maximumInteger, $maximumFraction] = array_pad(explode('.', $maximum, 2), 2, '');
+        $integer = ltrim($integer, '0');
+        $maximumInteger = ltrim($maximumInteger, '0');
+        if ($integer === '') {
+            $integer = '0';
+        }
+        if ($maximumInteger === '') {
+            $maximumInteger = '0';
+        }
+
+        if (strlen($integer) !== strlen($maximumInteger)) {
+            return strlen($integer) < strlen($maximumInteger);
+        }
+
+        $integerComparison = strcmp($integer, $maximumInteger);
+        if ($integerComparison !== 0) {
+            return $integerComparison < 0;
+        }
+
+        $fraction = rtrim($fraction, '0');
+        $maximumFraction = rtrim($maximumFraction, '0');
+        if ($fraction === '' && $maximumFraction === '') {
+            return true;
+        }
+
+        $length = max(strlen($fraction), strlen($maximumFraction));
+        $fraction = str_pad($fraction, $length, '0');
+        $maximumFraction = str_pad($maximumFraction, $length, '0');
+
+        return strcmp($fraction, $maximumFraction) <= 0;
+    }
+
+    private function decimalNumberStringGreaterThanZero(string $value): bool
+    {
+        [$integer, $fraction] = array_pad(explode('.', $value, 2), 2, '');
+
+        return ltrim($integer, '0') !== '' || rtrim($fraction, '0') !== '';
     }
 
     /**
