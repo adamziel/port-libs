@@ -1390,6 +1390,10 @@ final class DocBookReader
             if ($align !== 'default') {
                 $attrs['align'] = $align;
             }
+            $valign = $this->normalizeVerticalAlignment((string) XmlHtmlDom::attribute($entry, 'valign'));
+            if ($valign !== 'default') {
+                $attrs['valign'] = $valign;
+            }
             $colspan = $this->columnSpan($entry, $columnNames);
             if ($colspan > 1) {
                 $attrs['colspan'] = $colspan;
@@ -1449,6 +1453,17 @@ final class DocBookReader
             'center' => 'center',
             'left' => 'left',
             'right' => 'right',
+            default => 'default',
+        };
+    }
+
+    private function normalizeVerticalAlignment(string $alignment): string
+    {
+        return match (strtolower(trim($alignment))) {
+            'baseline' => 'baseline',
+            'bottom' => 'bottom',
+            'middle' => 'middle',
+            'top' => 'top',
             default => 'default',
         };
     }

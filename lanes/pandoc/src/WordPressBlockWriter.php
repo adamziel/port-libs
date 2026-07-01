@@ -901,11 +901,15 @@ final class WordPressBlockWriter
 
         $caption = (string) $node->attr('caption', '');
         $captionHtml = $caption !== '' ? $this->renderTableCaptionHtml($node) : '';
+        $figcaption = $caption !== ''
+            ? '<figcaption' . $this->renderTableFigcaptionAttrs($node) . '>' . $captionHtml . '</figcaption>'
+            : '';
+        $accessibility = $this->tableAccessibilityByCell($node);
         $html = '<table' . $this->renderTableElementAttrs($node) . '>' . $this->renderTableColgroup($node);
         if ($head instanceof AstNode && $head->children !== []) {
             $html .= '<thead' . $this->renderStoredHtmlAttrs($head, true, []) . '>';
             foreach ($head->children as $row) {
-                $html .= $this->renderTableRow($row, $node, true);
+                $html .= $this->renderTableRow($row, $node, true, 0, $accessibility);
             }
             $html .= '</thead>';
         }
@@ -919,30 +923,47 @@ final class WordPressBlockWriter
             if (is_array($bodyHeadRows)) {
                 foreach ($bodyHeadRows as $row) {
                     if ($row instanceof AstNode) {
-                        $html .= $this->renderTableRow($row, $node, true);
+                        $html .= $this->renderTableRow($row, $node, true, 0, $accessibility);
                     }
                 }
             }
             $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
             foreach ($body->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false, $rowHeadColumns);
+                $html .= $this->renderTableRow($row, $node, false, $rowHeadColumns, $accessibility);
             }
             $html .= '</tbody>';
         }
         if ($foot instanceof AstNode && $foot->children !== []) {
             $html .= '<tfoot' . $this->renderStoredHtmlAttrs($foot, true, []) . '>';
             foreach ($foot->children as $row) {
-                $html .= $this->renderTableRow($row, $node, false);
+                $html .= $this->renderTableRow($row, $node, false, 0, $accessibility);
             }
             $html .= '</tfoot>';
         }
         $html .= '</table>';
 
-        if ($caption !== '') {
-            $html .= '<figcaption' . $this->renderTableFigcaptionAttrs($node) . '>' . $captionHtml . '</figcaption>';
+        return $figcaption !== '' && $this->tableCaptionBeforeTable($node)
+            ? $figcaption . $html
+            : $html . $figcaption;
+    }
+
+    private function tableCaptionBeforeTable(AstNode $node): bool
+    {
+        $geometry = $node->attr('tableGeometry', []);
+        if (is_array($geometry)) {
+            $captions = $geometry['captions'] ?? [];
+            $long = is_array($captions) && is_array($captions['long'] ?? null) ? $captions['long'] : [];
+            if (($long['captionBeforeTable'] ?? false) === true) {
+                return true;
+            }
         }
 
-        return $html;
+        $captionSource = $node->attr('captionSource', []);
+        if (!is_array($captionSource)) {
+            return false;
+        }
+
+        return strtolower(trim((string) ($captionSource['captionSide'] ?? ''))) === 'top';
     }
 
     private function renderTableFigcaptionAttrs(AstNode $node): string
@@ -955,7 +976,7 @@ final class WordPressBlockWriter
         }
         $attrs['class'] = implode(' ', array_values(array_unique($classes)));
 
-        return $this->renderBlockHtmlAttrsWithClasses(new AstNode('figcaption', ['htmlAttributes' => $attrs]), []);
+        return $this->renderTableCaptionAttrMap($attrs);
     }
 
     /**
@@ -1032,7 +1053,10 @@ final class WordPressBlockWriter
 
     private function renderTableElementAttrs(AstNode $node): string
     {
-        return $this->renderStoredHtmlAttrs($node, true, []);
+        $attrs = $this->storedTableAttrMap($node, true, []);
+        $this->sanitizeTableElementAttrs($attrs);
+
+        return $this->renderHtmlAttrMap($attrs);
     }
 
     private function renderTableCaptionHtml(AstNode $node): string
@@ -1072,6 +1096,53 @@ final class WordPressBlockWriter
 
     private function renderTableColgroup(AstNode $node): string
     {
+        $columnCount = TableGeometry::columnCount($node);
+        $sourceColumns = $node->attr('columnSources', []);
+        if (is_array($sourceColumns) && $sourceColumns !== [] && count($sourceColumns) < $columnCount) {
+            return '';
+        }
+
+        if (is_array($sourceColumns) && $sourceColumns !== []) {
+            $html = '';
+            foreach ($this->sourceColumnGroups($sourceColumns) as $group) {
+                $source = is_array($group['source'] ?? null) ? $group['source'] : [];
+                $groupAttributes = is_array($source['colgroupAttributes'] ?? null) ? $source['colgroupAttributes'] : [];
+                $groupHtmlAttributes = is_array($groupAttributes['htmlAttributes'] ?? null) ? $groupAttributes['htmlAttributes'] : [];
+
+                $html .= '<colgroup' . $this->renderHtmlAttrMap($this->sanitizeTableColumnSourceAttrs($groupHtmlAttributes, true)) . '>';
+
+                $columns = is_array($group['columns'] ?? null) ? array_values($group['columns']) : [];
+                foreach ($columns as $offset => $column) {
+                    $column = (int) $column;
+                    $columnSource = $this->sourceForColumn($node, $column);
+                    $colAttributes = is_array($columnSource['colAttributes'] ?? null) && is_array($columnSource['colAttributes']['htmlAttributes'] ?? null)
+                        ? $columnSource['colAttributes']['htmlAttributes']
+                        : [];
+                    $attrs = $this->sanitizeTableColumnSourceAttrs($colAttributes, false);
+
+                    $width = $columnSource['width'] ?? null;
+                    if (!is_numeric($width) || (float) $width <= 0.0) {
+                        $tableWidths = $node->attr('widths', []);
+                        $width = is_array($tableWidths) && is_numeric($tableWidths[$column] ?? null)
+                            ? (float) $tableWidths[$column]
+                            : null;
+                    }
+                    if (!is_numeric($width) || (float) $width <= 0.0) {
+                        continue;
+                    }
+
+                    $styles = ['width:' . $this->formatTableWidth((float) $width)];
+                    array_push($styles, ...$this->columnSourceStyleDeclarations($columnSource));
+                    $attrs['style'] = implode('; ', $styles);
+                    $html .= '<col' . $this->renderHtmlAttrMap($attrs) . '/>';
+                }
+
+                $html .= '</colgroup>';
+            }
+
+            return $html;
+        }
+
         $widths = $node->attr('widths', null);
         if (!is_array($widths) || $widths === []) {
             return '';
@@ -1096,7 +1167,10 @@ final class WordPressBlockWriter
         return ($formatted === '' ? '0' : $formatted) . '%';
     }
 
-    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0): string
+    /**
+     * @param array<int, array<string, mixed>> $accessibility
+     */
+    private function renderTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0, array $accessibility = []): string
     {
         $html = '<tr' . $this->renderStoredHtmlAttrs($row, true, []) . '>';
         $logicalColumn = 0;
@@ -1105,7 +1179,7 @@ final class WordPressBlockWriter
                 continue;
             }
             $colspan = max(1, (int) $cell->attr('colspan', 1));
-            $attrs = $this->renderTableCellAttrs($table, $index, $cell);
+            $attrs = $this->renderTableCellAttrs($table, $logicalColumn, $cell, $accessibility[spl_object_id($cell)] ?? []);
             $tag = $header || $cell->attr('header') === true || ($logicalColumn < $rowHeadColumns && $logicalColumn + $colspan <= $rowHeadColumns) ? 'th' : 'td';
             $html .= '<' . $tag . $attrs . '>' . $this->renderTableCellContent($cell) . '</' . $tag . '>';
             $logicalColumn += $colspan;
@@ -1162,27 +1236,31 @@ final class WordPressBlockWriter
         ], true);
     }
 
-    private function renderTableCellAttrs(AstNode $table, int $index, AstNode $cell): string
+    /**
+     * @param array<string, mixed> $accessibility
+     */
+    private function renderTableCellAttrs(AstNode $table, int $column, AstNode $cell, array $accessibility = []): string
     {
-        $attrs = $this->renderStoredHtmlAttrs($cell, true, ['style']);
+        $attrMap = $this->storedTableAttrMap($cell, true, ['style']);
+        $this->sanitizeTableCellAttrs($attrMap, $cell, $accessibility);
         if ($this->shouldMarkEmptyTableCell($cell)) {
-            $attrs .= ' data-pandoc-empty-cell="true"';
+            $attrMap['data-pandoc-empty-cell'] = 'true';
         }
 
         $colspan = (int) $cell->attr('colspan', 1);
         if ($colspan > 1) {
-            $attrs .= ' colspan="' . $colspan . '"';
+            $attrMap['colspan'] = (string) $colspan;
         }
 
-        $rowspan = (int) $cell->attr('rowspan', 1);
+        $rowspan = (int) $cell->attr('renderRowspan', $cell->attr('rowspan', 1));
         if ($rowspan > 1) {
-            $attrs .= ' rowspan="' . $rowspan . '"';
+            $attrMap['rowspan'] = (string) $rowspan;
         }
 
         $alignments = $table->attr('alignments', []);
         $alignment = (string) $cell->attr('align', '');
         if ($alignment === '' && is_array($alignments)) {
-            $alignment = (string) ($alignments[$index] ?? 'default');
+            $alignment = (string) ($alignments[$column] ?? 'default');
         }
 
         $styles = [];
@@ -1198,11 +1276,20 @@ final class WordPressBlockWriter
             $styles[] = 'text-align:' . $alignment;
         }
 
-        if ($styles !== []) {
-            $attrs .= ' style="' . $this->esc(implode('; ', $styles)) . '"';
+        $verticalAlignment = (string) $cell->attr('valign', '');
+        if (
+            in_array($verticalAlignment, ['baseline', 'top', 'middle', 'bottom'], true)
+            && !isset($attrMap['valign'])
+            && preg_match('/(?:^|;)\s*vertical-align\s*:/i', $sourceStyle) !== 1
+        ) {
+            $styles[] = 'vertical-align:' . $verticalAlignment;
         }
 
-        return $attrs;
+        if ($styles !== []) {
+            $attrMap['style'] = implode('; ', $styles);
+        }
+
+        return $this->renderHtmlAttrMap($attrMap);
     }
 
     private function shouldMarkEmptyTableCell(AstNode $cell): bool
@@ -1247,6 +1334,896 @@ final class WordPressBlockWriter
         }
 
         return false;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function tableAccessibilityByCell(AstNode $table): array
+    {
+        $accessibility = TableGeometry::accessibilityAttributes($table);
+        if ($accessibility === []) {
+            return [];
+        }
+
+        $byCell = [];
+        $coverage = TableGeometry::cellCoverage($table);
+        $renderGeneratedHeaders = false;
+        foreach ($coverage as $record) {
+            $node = $record['node'] ?? null;
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+            $htmlAttributes = $node->attr('htmlAttributes', []);
+            if (is_array($htmlAttributes) && strtolower(trim((string) ($htmlAttributes['scope'] ?? ''))) === 'auto') {
+                $renderGeneratedHeaders = true;
+                break;
+            }
+        }
+
+        foreach ($coverage as $record) {
+            $node = $record['node'] ?? null;
+            if (!$node instanceof AstNode) {
+                continue;
+            }
+
+            $key = implode(':', [
+                (string) ($record['section'] ?? ''),
+                (string) ((int) ($record['row'] ?? 0)),
+                (string) ((int) ($record['sourceCell'] ?? 0)),
+                (string) ((int) ($record['sourceColumn'] ?? 0)),
+            ]);
+            if (isset($accessibility[$key]) && is_array($accessibility[$key])) {
+                $attrs = $accessibility[$key];
+                if ($renderGeneratedHeaders) {
+                    $attrs['__renderGeneratedHeaders'] = true;
+                }
+                $byCell[spl_object_id($node)] = $attrs;
+            }
+        }
+
+        return $byCell;
+    }
+
+    /**
+     * @param list<string> $skip
+     * @return array<string, string>
+     */
+    private function storedTableAttrMap(AstNode $node, bool $includeIdentity, array $skip): array
+    {
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes) || $htmlAttributes === []) {
+            return [];
+        }
+
+        $attrs = [];
+        if ($includeIdentity) {
+            $id = (string) ($htmlAttributes['id'] ?? $node->attr('id', ''));
+            if ($id !== '') {
+                $attrs['id'] = $id;
+            }
+
+            $class = (string) ($htmlAttributes['class'] ?? '');
+            if ($class === '') {
+                $classes = $node->attr('classes', []);
+                if (is_array($classes) && $classes !== []) {
+                    $class = implode(' ', array_map(static fn (mixed $value): string => (string) $value, $classes));
+                }
+            }
+            if ($class !== '') {
+                $attrs['class'] = $class;
+            }
+        }
+
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if (
+                $name === 'id'
+                || $name === 'class'
+                || in_array($name, $skip, true)
+                || !$this->isAllowedStoredTableHtmlAttr($name)
+            ) {
+                continue;
+            }
+
+            $attrs[$name] = (string) $value;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function renderHtmlAttrMap(array $attrs): string
+    {
+        $html = '';
+        foreach ($attrs as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === '' || $value === null || $value === false) {
+                continue;
+            }
+
+            $html .= ' ' . $name . '="' . $this->esc((string) $value) . '"';
+        }
+
+        return $html;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function renderTableCaptionAttrMap(array $attrs): string
+    {
+        $rendered = [];
+        foreach (['id', 'class'] as $priorityName) {
+            if (!array_key_exists($priorityName, $attrs)) {
+                continue;
+            }
+            $value = $attrs[$priorityName];
+            if ($this->isAllowedTableCaptionHtmlAttr($priorityName)) {
+                $rendered[$priorityName] = (string) $value;
+            }
+        }
+        foreach ($attrs as $name => $value) {
+            $name = strtolower((string) $name);
+            if (array_key_exists($name, $rendered)) {
+                continue;
+            }
+            if (
+                !$this->isAllowedTableCaptionHtmlAttr($name)
+                || ($name === 'translate' && $this->normalizeTranslateAttr((string) $value) === '')
+            ) {
+                continue;
+            }
+            if ($name === 'lang' || $name === 'xml:lang') {
+                $value = $this->normalizeLanguageAttr((string) $value);
+                if ($value === '') {
+                    continue;
+                }
+            }
+            $rendered[$name] = (string) $value;
+        }
+
+        return $this->renderHtmlAttrMap($rendered);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     */
+    private function sanitizeTableElementAttrs(array &$attrs): void
+    {
+        $source = $attrs;
+        $sanitized = [];
+        $xmlLanguage = isset($source['xml:lang']) ? $this->normalizeLanguageAttr((string) $source['xml:lang']) : '';
+
+        foreach ($source as $name => $value) {
+            $name = strtolower((string) $name);
+            $value = (string) $value;
+
+            if ($name === 'style') {
+                $styles = $this->tableStyleDeclarations($value);
+                if ($styles !== []) {
+                    $sanitized['style'] = implode('; ', $styles);
+                }
+                continue;
+            }
+
+            if ($name === 'lang') {
+                $language = $xmlLanguage !== '' ? $xmlLanguage : $this->normalizeLanguageAttr($value);
+                if ($language !== '') {
+                    $sanitized[$name] = $language;
+                }
+                continue;
+            }
+
+            if ($name === 'xml:lang') {
+                if ($xmlLanguage !== '') {
+                    $sanitized[$name] = $xmlLanguage;
+                }
+                continue;
+            }
+
+            if ($name === 'translate') {
+                $translate = $this->normalizeTranslateAttr($value);
+                if ($translate !== '') {
+                    $sanitized[$name] = $translate;
+                }
+                continue;
+            }
+
+            if ($name === 'width' || $name === 'height') {
+                $dimension = $this->normalizeTableDimensionAttr($value);
+                if ($dimension !== '') {
+                    $sanitized[$name] = $dimension;
+                }
+                continue;
+            }
+
+            if ($name === 'align') {
+                $alignment = $this->normalizePlacementAlignAttr($value);
+                if ($alignment !== '') {
+                    $sanitized[$name] = $alignment;
+                }
+                continue;
+            }
+
+            if ($name === 'frame') {
+                $frame = $this->normalizeTableFrameAttr($value);
+                if ($frame !== '') {
+                    $sanitized[$name] = $frame;
+                }
+                continue;
+            }
+
+            if ($name === 'rules') {
+                $rules = $this->normalizeTableRulesAttr($value);
+                if ($rules !== '') {
+                    $sanitized[$name] = $rules;
+                }
+                continue;
+            }
+
+            if ($name === 'border') {
+                $border = $this->normalizeTableBorderAttr($value);
+                if ($border !== '') {
+                    $sanitized[$name] = $border;
+                }
+                continue;
+            }
+
+            if ($name === 'cellpadding' || $name === 'cellspacing') {
+                $spacing = $this->normalizeTableSpacingAttr($value);
+                if ($spacing !== '') {
+                    $sanitized[$name] = $spacing;
+                }
+                continue;
+            }
+
+            if ($name === 'bgcolor') {
+                $color = $this->normalizeCssColor($value);
+                if ($color !== '') {
+                    $sanitized[$name] = $color;
+                }
+                continue;
+            }
+
+            if ($name === 'bordercolor') {
+                continue;
+            }
+
+            if ($this->isAllowedTableElementPassthroughAttr($name)) {
+                $sanitized[$name] = $value;
+            }
+        }
+
+        $attrs = $this->orderTableElementAttrs($sanitized);
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @param array<string, mixed> $accessibility
+     */
+    private function sanitizeTableCellAttrs(array &$attrs, AstNode $cell, array $accessibility): void
+    {
+        $source = $attrs;
+        $sanitized = [];
+        $sourceScope = strtolower(trim((string) ($source['scope'] ?? '')));
+        if ($sourceScope === 'auto') {
+            $scope = strtolower(trim((string) ($accessibility['scope'] ?? '')));
+            if (in_array($scope, ['col', 'row', 'colgroup', 'rowgroup'], true)) {
+                $sanitized['scope'] = $scope;
+            }
+        }
+
+        foreach ($source as $name => $value) {
+            $name = strtolower((string) $name);
+            $value = (string) $value;
+
+            if ($name === 'align') {
+                if (strtolower(trim($value)) === 'char') {
+                    $sanitized[$name] = 'char';
+                }
+                continue;
+            }
+
+            if ($name === 'scope') {
+                $scope = strtolower(trim($value));
+                if ($scope !== 'auto' && in_array($scope, ['col', 'row', 'colgroup', 'rowgroup'], true)) {
+                    $sanitized[$name] = $scope;
+                }
+                continue;
+            }
+
+            if ($name === 'nowrap') {
+                if (!in_array(strtolower(trim($value)), ['0', 'false', 'no'], true)) {
+                    $sanitized[$name] = $value === '' ? 'nowrap' : $value;
+                }
+                continue;
+            }
+
+            if ($name === 'valign') {
+                $valign = strtolower(trim($value));
+                if (in_array($valign, ['baseline', 'top', 'middle', 'bottom'], true)) {
+                    $sanitized[$name] = $valign;
+                }
+                continue;
+            }
+
+            if ($name === 'width' || $name === 'height') {
+                $dimension = $this->normalizeTableDimensionAttr($value);
+                if ($dimension !== '') {
+                    $sanitized[$name] = $dimension;
+                }
+                continue;
+            }
+
+            if ($name === 'lang' || $name === 'xml:lang') {
+                $language = $this->normalizeLanguageAttr($value);
+                if ($language !== '') {
+                    $sanitized[$name] = $language;
+                }
+                continue;
+            }
+
+            if ($name === 'translate') {
+                $translate = $this->normalizeTranslateAttr($value);
+                if ($translate !== '') {
+                    $sanitized[$name] = $translate;
+                }
+                continue;
+            }
+
+            if ($name === 'bgcolor') {
+                if ($this->normalizeCssColor($value) !== '') {
+                    $sanitized[$name] = $value;
+                }
+                continue;
+            }
+
+            if (in_array($name, ['id', 'class', 'abbr', 'axis', 'char', 'charoff', 'dir', 'headers', 'role', 'title'], true)
+                || str_starts_with($name, 'data-')
+                || str_starts_with($name, 'aria-')
+            ) {
+                $sanitized[$name] = $value;
+            }
+        }
+
+        if (!isset($sanitized['headers']) && ($accessibility['__renderGeneratedHeaders'] ?? false) === true) {
+            $headers = $accessibility['headers'] ?? [];
+            if (is_array($headers) && $headers !== [] && $cell->attr('header') !== true) {
+                $sanitized['headers'] = implode(' ', array_map(static fn (mixed $header): string => (string) $header, $headers));
+            }
+        }
+
+        $attrs = $sanitized;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, string>
+     */
+    private function sanitizeTableColumnSourceAttrs(array $attrs, bool $colgroup): array
+    {
+        $kept = [];
+        foreach ($attrs as $name => $value) {
+            $name = strtolower((string) $name);
+            $value = (string) $value;
+            if (
+                in_array($name, ['span', 'style', 'width'], true)
+                || !$this->isAllowedTableColumnHtmlAttr($name)
+            ) {
+                continue;
+            }
+            if ($name === 'bgcolor' && $this->normalizeCssColor($value) === '') {
+                continue;
+            }
+            if ($name === 'align') {
+                if (strtolower(trim($value)) !== 'char') {
+                    continue;
+                }
+                $value = 'char';
+            }
+            if ($name === 'valign' && !in_array(strtolower(trim($value)), ['baseline', 'top', 'middle', 'bottom'], true)) {
+                continue;
+            }
+
+            $kept[$name] = $value;
+        }
+
+        return $this->orderTableColumnAttrs($kept, $colgroup);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sourceForColumn(AstNode $table, int $column): array
+    {
+        $sources = $table->attr('columnSources', []);
+        if (is_array($sources) && isset($sources[$column]) && is_array($sources[$column])) {
+            return $sources[$column];
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<int, mixed> $sources
+     * @return list<array{source:array<string, mixed>,columns:list<int>}>
+     */
+    private function sourceColumnGroups(array $sources): array
+    {
+        $groups = [];
+        $active = null;
+        $activeKey = null;
+        foreach ($sources as $column => $source) {
+            if (!is_array($source)) {
+                continue;
+            }
+
+            $key = (string) ($source['colgroupIndex'] ?? '');
+            if ($active === null || $key !== $activeKey) {
+                if ($active !== null) {
+                    $groups[] = $active;
+                }
+                $active = [
+                    'source' => $source,
+                    'columns' => [(int) $column],
+                ];
+                $activeKey = $key;
+                continue;
+            }
+
+            $active['columns'][] = (int) $column;
+        }
+
+        if ($active !== null) {
+            $groups[] = $active;
+        }
+
+        return $groups;
+    }
+
+    /**
+     * @param array<string, mixed> $source
+     * @return list<string>
+     */
+    private function columnSourceStyleDeclarations(array $source): array
+    {
+        $colAttributes = is_array($source['colAttributes'] ?? null) && is_array($source['colAttributes']['htmlAttributes'] ?? null)
+            ? $source['colAttributes']['htmlAttributes']
+            : [];
+        $colgroupAttributes = is_array($source['colgroupAttributes'] ?? null) && is_array($source['colgroupAttributes']['htmlAttributes'] ?? null)
+            ? $source['colgroupAttributes']['htmlAttributes']
+            : [];
+
+        $styles = [];
+        $background = $this->columnBackgroundDeclaration($colAttributes);
+        if ($background === '') {
+            $background = $this->columnBackgroundDeclaration($colgroupAttributes);
+        }
+        if ($background !== '') {
+            $styles[] = $background;
+        }
+
+        $borderStyles = $this->columnBorderDeclarations($colAttributes);
+        if ($borderStyles === []) {
+            $borderStyles = $this->columnBorderDeclarations($colgroupAttributes);
+        }
+        array_push($styles, ...$borderStyles);
+
+        return $styles;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     */
+    private function columnBackgroundDeclaration(array $attrs): string
+    {
+        $styleColor = $this->styleDeclarationColor((string) ($attrs['style'] ?? ''), 'background-color');
+        if ($styleColor !== '') {
+            return 'background-color:' . $styleColor;
+        }
+
+        $legacyColor = $this->normalizeCssColor((string) ($attrs['bgcolor'] ?? ''));
+
+        return $legacyColor === '' ? '' : 'background-color:' . $legacyColor;
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return list<string>
+     */
+    private function columnBorderDeclarations(array $attrs): array
+    {
+        $style = (string) ($attrs['style'] ?? '');
+        if ($style === '') {
+            return [];
+        }
+
+        $declarations = [];
+        $borderColor = $this->styleDeclarationColor($style, 'border-color');
+        if ($borderColor !== '') {
+            $declarations[] = 'border-color:' . $borderColor;
+        }
+        $borderStyle = $this->styleDeclarationLineStyle($style, 'border-style');
+        if ($borderStyle !== '') {
+            $declarations[] = 'border-style:' . $borderStyle;
+        }
+        $borderWidth = $this->styleDeclarationBorderWidth($style, 'border-width');
+        if ($borderWidth !== '') {
+            $declarations[] = 'border-width:' . $borderWidth;
+        }
+        array_push($declarations, ...$this->styleDeclarationBorderEdges($style));
+
+        return $declarations;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableStyleDeclarations(string $style): array
+    {
+        $declarations = [];
+        $backgroundColor = $this->styleDeclarationColor($style, 'background-color');
+        if ($backgroundColor !== '') {
+            $declarations[] = 'background-color:' . $backgroundColor;
+        }
+
+        $tableLayout = strtolower(trim($this->styleDeclarationValue($style, 'table-layout')));
+        if (in_array($tableLayout, ['auto', 'fixed'], true)) {
+            $declarations[] = 'table-layout:' . $tableLayout;
+        }
+
+        $borderCollapse = strtolower(trim($this->styleDeclarationValue($style, 'border-collapse')));
+        if (in_array($borderCollapse, ['collapse', 'separate'], true)) {
+            $declarations[] = 'border-collapse:' . $borderCollapse;
+        }
+
+        $borderColor = $this->styleDeclarationColor($style, 'border-color');
+        if ($borderColor !== '') {
+            $declarations[] = 'border-color:' . $borderColor;
+        }
+        $borderStyle = $this->styleDeclarationLineStyle($style, 'border-style');
+        if ($borderStyle !== '') {
+            $declarations[] = 'border-style:' . $borderStyle;
+        }
+        $borderWidth = $this->styleDeclarationBorderWidth($style, 'border-width');
+        if ($borderWidth !== '') {
+            $declarations[] = 'border-width:' . $borderWidth;
+        }
+
+        return $declarations;
+    }
+
+    private function styleDeclarationValue(string $style, string $property): string
+    {
+        foreach (explode(';', $style) as $declaration) {
+            [$name, $value] = array_pad(explode(':', $declaration, 2), 2, '');
+            if (strtolower(trim($name)) === $property) {
+                return trim($value);
+            }
+        }
+
+        return '';
+    }
+
+    private function styleDeclarationColor(string $style, string $property): string
+    {
+        return $this->normalizeCssColor($this->styleDeclarationValue($style, $property));
+    }
+
+    private function styleDeclarationLineStyle(string $style, string $property): string
+    {
+        return $this->normalizeBorderLineStyle($this->styleDeclarationValue($style, $property));
+    }
+
+    private function styleDeclarationBorderWidth(string $style, string $property): string
+    {
+        return $this->normalizeBorderWidth($this->styleDeclarationValue($style, $property));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function styleDeclarationBorderEdges(string $style): array
+    {
+        $declarations = [];
+        foreach (['top', 'right', 'bottom', 'left'] as $edge) {
+            $shorthand = $this->normalizeBorderShorthand($this->styleDeclarationValue($style, 'border-' . $edge));
+            if ($shorthand !== '') {
+                $declarations[] = 'border-' . $edge . ':' . $shorthand;
+            }
+
+            $width = $this->styleDeclarationBorderWidth($style, 'border-' . $edge . '-width');
+            if ($width !== '') {
+                $declarations[] = 'border-' . $edge . '-width:' . $width;
+            }
+            $lineStyle = $this->styleDeclarationLineStyle($style, 'border-' . $edge . '-style');
+            if ($lineStyle !== '') {
+                $declarations[] = 'border-' . $edge . '-style:' . $lineStyle;
+            }
+            $color = $this->styleDeclarationColor($style, 'border-' . $edge . '-color');
+            if ($color !== '') {
+                $declarations[] = 'border-' . $edge . '-color:' . $color;
+            }
+        }
+
+        return $declarations;
+    }
+
+    private function normalizeBorderShorthand(string $value): string
+    {
+        $tokens = preg_split('/\s+/', trim($value), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($tokens === []) {
+            return '';
+        }
+
+        $width = '';
+        $style = '';
+        $color = '';
+        foreach ($tokens as $token) {
+            if ($width === '') {
+                $candidate = $this->normalizeBorderWidth($token);
+                if ($candidate !== '') {
+                    $width = $candidate;
+                    continue;
+                }
+            }
+            if ($style === '') {
+                $candidate = $this->normalizeBorderLineStyle($token);
+                if ($candidate !== '') {
+                    $style = $candidate;
+                    continue;
+                }
+            }
+            if ($color === '') {
+                $candidate = $this->normalizeCssColor($token);
+                if ($candidate !== '') {
+                    $color = $candidate;
+                    continue;
+                }
+            }
+
+            return '';
+        }
+
+        $parts = array_values(array_filter([$width, $style, $color], static fn (string $part): bool => $part !== ''));
+
+        return count($parts) >= 2 ? implode(' ', $parts) : '';
+    }
+
+    private function normalizeBorderLineStyle(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'], true)
+            ? $value
+            : '';
+    }
+
+    private function normalizeBorderWidth(string $value): string
+    {
+        $tokens = preg_split('/\s+/', strtolower(trim($value)), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if ($tokens === [] || count($tokens) > 4) {
+            return '';
+        }
+
+        $widths = [];
+        foreach ($tokens as $token) {
+            $width = $this->normalizeBorderWidthToken($token);
+            if ($width === '') {
+                return '';
+            }
+            $widths[] = $width;
+        }
+
+        return implode(' ', $widths);
+    }
+
+    private function normalizeBorderWidthToken(string $value): string
+    {
+        if (in_array($value, ['thin', 'medium', 'thick'], true)) {
+            return $value;
+        }
+
+        if (preg_match('/^(\d+(?:\.\d+)?)(px|pt|pc|in|cm|mm|em|rem)$/i', $value, $match) !== 1) {
+            return '';
+        }
+
+        $number = (float) $match[1];
+        if ($number < 0.0 || $number > 10000.0) {
+            return '';
+        }
+
+        $formatted = rtrim(rtrim(number_format($number, 4, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . strtolower($match[2]);
+    }
+
+    private function normalizeCssColor(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+
+        if (preg_match('/^#([0-9a-fA-F]{3})$/', $value, $match) === 1) {
+            return '#' . strtolower($match[1][0] . $match[1][0] . $match[1][1] . $match[1][1] . $match[1][2] . $match[1][2]);
+        }
+        if (preg_match('/^#([0-9a-fA-F]{6})$/', $value, $match) === 1) {
+            return '#' . strtolower($match[1]);
+        }
+        if (preg_match('/^rgb\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)$/i', $value, $match) === 1) {
+            $channels = [(int) $match[1], (int) $match[2], (int) $match[3]];
+            foreach ($channels as $channel) {
+                if ($channel < 0 || $channel > 255) {
+                    return '';
+                }
+            }
+
+            return 'rgb(' . implode(', ', array_map(static fn (int $channel): string => (string) $channel, $channels)) . ')';
+        }
+
+        $name = strtolower($value);
+
+        return in_array($name, [
+            'aqua', 'black', 'blue', 'fuchsia', 'gray', 'green', 'grey', 'lime', 'maroon', 'navy',
+            'olive', 'orange', 'purple', 'red', 'silver', 'teal', 'transparent', 'white', 'yellow',
+        ], true) ? $name : '';
+    }
+
+    private function normalizeTableDimensionAttr(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^[1-9]\d{0,3}$/', $value) === 1) {
+            return (string) (int) $value;
+        }
+        if (preg_match('/^(\d+(?:\.\d+)?)\s*%$/', $value, $match) !== 1) {
+            return '';
+        }
+
+        $width = (float) $match[1];
+        if ($width <= 0.0 || $width > 100.0) {
+            return '';
+        }
+
+        $formatted = rtrim(rtrim(number_format($width, 4, '.', ''), '0'), '.');
+
+        return ($formatted === '' ? '0' : $formatted) . '%';
+    }
+
+    private function normalizeTableSpacingAttr(string $value): string
+    {
+        $value = trim($value);
+
+        return preg_match('/^\d{1,3}$/', $value) === 1 ? (string) (int) $value : '';
+    }
+
+    private function normalizeTableBorderAttr(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '' || strtolower($value) === 'border') {
+            return '1';
+        }
+
+        return preg_match('/^\d{1,3}$/', $value) === 1 ? (string) (int) $value : '';
+    }
+
+    private function normalizeTableFrameAttr(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['void', 'above', 'below', 'hsides', 'lhs', 'rhs', 'vsides', 'box', 'border'], true) ? $value : '';
+    }
+
+    private function normalizeTableRulesAttr(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['none', 'groups', 'rows', 'cols', 'all'], true) ? $value : '';
+    }
+
+    private function normalizePlacementAlignAttr(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['left', 'right', 'center'], true) ? $value : '';
+    }
+
+    private function normalizeLanguageAttr(string $value): string
+    {
+        $value = trim($value);
+        if (preg_match('/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/', $value) !== 1) {
+            return '';
+        }
+
+        $parts = explode('-', $value);
+        $normalized = [strtolower(array_shift($parts))];
+        foreach ($parts as $part) {
+            $normalized[] = strlen($part) === 2 ? strtoupper($part) : $part;
+        }
+
+        return implode('-', $normalized);
+    }
+
+    private function normalizeTranslateAttr(string $value): string
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['yes', 'no'], true) ? $value : '';
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @return array<string, string>
+     */
+    private function orderTableElementAttrs(array $attrs): array
+    {
+        if (!isset($attrs['border']) && !isset($attrs['frame']) && !isset($attrs['rules'])) {
+            return $attrs;
+        }
+
+        $ordered = [];
+        $insertedLegacy = false;
+        foreach ($attrs as $name => $value) {
+            if (in_array($name, ['border', 'frame', 'rules'], true)) {
+                if (!$insertedLegacy) {
+                    foreach (['border', 'frame', 'rules'] as $legacyName) {
+                        if (isset($attrs[$legacyName])) {
+                            $ordered[$legacyName] = $attrs[$legacyName];
+                        }
+                    }
+                    $insertedLegacy = true;
+                }
+                continue;
+            }
+
+            $ordered[$name] = $value;
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @param array<string, string> $attrs
+     * @return array<string, string>
+     */
+    private function orderTableColumnAttrs(array $attrs, bool $colgroup): array
+    {
+        $ordered = [];
+        foreach (['id', 'class'] as $name) {
+            if (isset($attrs[$name])) {
+                $ordered[$name] = $attrs[$name];
+            }
+        }
+        foreach ($attrs as $name => $value) {
+            if (str_starts_with($name, 'aria-')) {
+                $ordered[$name] = $value;
+            }
+        }
+        foreach (['align', 'char', 'charoff', 'bgcolor'] as $name) {
+            if (isset($attrs[$name])) {
+                $ordered[$name] = $attrs[$name];
+            }
+        }
+        foreach ($attrs as $name => $value) {
+            if (str_starts_with($name, 'data-')) {
+                $ordered[$name] = $value;
+            }
+        }
+        foreach (['title', 'valign', 'dir', 'lang', 'xml:lang', 'translate', 'role'] as $name) {
+            if (isset($attrs[$name])) {
+                $ordered[$name] = $attrs[$name];
+            }
+        }
+        foreach ($attrs as $name => $value) {
+            if (!isset($ordered[$name])) {
+                $ordered[$name] = $value;
+            }
+        }
+
+        return $ordered;
     }
 
     /**
@@ -1318,7 +2295,69 @@ final class WordPressBlockWriter
 
         return str_starts_with($name, 'data-')
             || str_starts_with($name, 'aria-')
-            || in_array($name, ['abbr', 'bgcolor', 'border', 'class', 'dir', 'headers', 'id', 'lang', 'role', 'scope', 'style', 'title', 'valign'], true);
+            || in_array($name, [
+                'abbr',
+                'axis',
+                'bgcolor',
+                'border',
+                'cellpadding',
+                'cellspacing',
+                'char',
+                'charoff',
+                'class',
+                'dir',
+                'frame',
+                'headers',
+                'height',
+                'id',
+                'lang',
+                'nowrap',
+                'role',
+                'rules',
+                'scope',
+                'style',
+                'summary',
+                'title',
+                'translate',
+                'valign',
+                'width',
+                'xml:lang',
+            ], true);
+    }
+
+    private function isAllowedStoredTableHtmlAttr(string $name): bool
+    {
+        return $this->isAllowedTableHtmlAttr($name)
+            || in_array($name, ['align', 'bordercolor'], true);
+    }
+
+    private function isAllowedTableElementPassthroughAttr(string $name): bool
+    {
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['id', 'class', 'dir', 'role', 'summary', 'title'], true);
+    }
+
+    private function isAllowedTableCaptionHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['class', 'dir', 'id', 'lang', 'role', 'style', 'title', 'translate', 'xml:lang'], true);
+    }
+
+    private function isAllowedTableColumnHtmlAttr(string $name): bool
+    {
+        if (preg_match('/^[a-z][a-z0-9_.:-]*$/', $name) !== 1 || str_starts_with($name, 'on')) {
+            return false;
+        }
+
+        return str_starts_with($name, 'data-')
+            || str_starts_with($name, 'aria-')
+            || in_array($name, ['align', 'bgcolor', 'char', 'charoff', 'class', 'dir', 'id', 'lang', 'role', 'title', 'translate', 'valign', 'xml:lang'], true);
     }
 
     private function renderCodeBlock(AstNode $node): string
