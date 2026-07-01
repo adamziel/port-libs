@@ -552,7 +552,7 @@ final class OdfReader
             $childElementProvenance = $this->manifestFileEntryChildElementProvenance($entryElement);
             $encryptionElements = self::childElements($entryElement, 'encryption-data', self::MANIFEST_NS);
             $encrypted = $encryptionElements !== [];
-            $packageReference = $fullPath === '/' ? self::rootManifestPackageReference() : $this->manifestPackageReference($fullPath);
+            $packageReference = $fullPath === '/' ? self::rootManifestPackageReference() : $this->manifestPackageReference($fullPath, false);
             $part = $packageReference['part'];
             if (is_string($part) && $part !== '') {
                 if (isset($seenParts[$part])) {
@@ -17155,28 +17155,61 @@ final class OdfReader
         return in_array($class, array_map(static fn (mixed $value): string => (string) $value, $classes), true);
     }
 
-    private function manifestPackagePart(string $path): string
+    private function manifestPackagePart(string $path, bool $allowLeadingCurrentDirectory = true): string
     {
-        $path = preg_replace('/[#?].*$/', '', $path) ?? $path;
-        $path = rawurldecode($path);
-        $path = ltrim($path, '/');
-        while (str_starts_with($path, './')) {
-            $path = substr($path, 2);
-        }
-        if ($path === '') {
+        $rawPath = preg_replace('/[#?].*$/', '', $path) ?? $path;
+        if ($rawPath === '') {
             throw new \RuntimeException('ODT package part path must not be empty');
         }
-        if (str_contains($path, '..') || str_contains($path, '\\') || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $path) === 1) {
+        if (preg_match('/%(?![0-9A-Fa-f]{2})/', $rawPath) === 1) {
+            throw new \InvalidArgumentException('Malformed percent escape in ODT package part path: ' . $path);
+        }
+        if ((!$allowLeadingCurrentDirectory && str_starts_with($rawPath, '/')) || str_contains($rawPath, '\\') || self::hasAsciiControlByte($rawPath)) {
             throw new \InvalidArgumentException('ODT package part path is not a safe package-relative path: ' . $path);
         }
 
-        return $path;
+        $decodedPath = rawurldecode($rawPath);
+        if ($allowLeadingCurrentDirectory) {
+            $decodedPath = ltrim($decodedPath, '/');
+            while (str_starts_with($decodedPath, './')) {
+                $decodedPath = substr($decodedPath, 2);
+            }
+        }
+
+        if (
+            $decodedPath === ''
+            || (!$allowLeadingCurrentDirectory && str_starts_with($decodedPath, '/'))
+            || str_contains($decodedPath, '\\')
+            || self::hasAsciiControlByte($decodedPath)
+            || preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $decodedPath) === 1
+        ) {
+            throw new \InvalidArgumentException('ODT package part path is not a safe package-relative path: ' . $path);
+        }
+
+        $segments = explode('/', $decodedPath);
+        foreach ($segments as $index => $segment) {
+            $isTrailingDirectorySegment = $index === count($segments) - 1 && $segment === '';
+            if ($isTrailingDirectorySegment) {
+                continue;
+            }
+
+            if ($segment === '' || $segment === '.' || $segment === '..') {
+                throw new \InvalidArgumentException('ODT package part path is not a safe package-relative path: ' . $path);
+            }
+        }
+
+        return $decodedPath;
+    }
+
+    private static function hasAsciiControlByte(string $value): bool
+    {
+        return preg_match('/[\x00-\x1F\x7F]/', $value) === 1;
     }
 
     /**
      * @return array{part:string,partReference:string,partSuffix:string|null,partQuery:string|null,partFragment:string|null}
      */
-    private function manifestPackageReference(string $path): array
+    private function manifestPackageReference(string $path, bool $allowLeadingCurrentDirectory = true): array
     {
         $partReference = $path;
         $partSuffix = null;
@@ -17201,7 +17234,7 @@ final class OdfReader
         }
 
         return [
-            'part' => $this->manifestPackagePart($partReference),
+            'part' => $this->manifestPackagePart($partReference, $allowLeadingCurrentDirectory),
             'partReference' => $partReference,
             'partSuffix' => $partSuffix,
             'partQuery' => $partQuery,
