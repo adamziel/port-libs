@@ -2193,14 +2193,14 @@ final class PandocJsonReader
             throw new \InvalidArgumentException('Attr identifier must be a string');
         }
 
-        $classes = $this->listContent($tuple[1], 'Attr classes');
+        $classes = $this->attrClassListContent($tuple[1]);
         foreach ($classes as $class) {
             if (!is_string($class)) {
                 throw new \InvalidArgumentException('Attr classes must be strings');
             }
         }
 
-        $attributes = $this->listContent($tuple[2], 'Attr key-values');
+        $attributes = $this->attrKeyValueListContent($tuple[2]);
         $mappedAttributes = [];
         foreach ($attributes as $attribute) {
             $keyValue = $this->tuple($attribute, 2, 'Attr key-value');
@@ -2225,6 +2225,44 @@ final class PandocJsonReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function attrClassListContent(mixed $value): array
+    {
+        $classes = $this->listContent($value, 'Attr classes');
+        if (count($classes) === 1 && is_array($classes[0]) && array_is_list($classes[0])) {
+            foreach ($classes[0] as $class) {
+                if (!is_string($class)) {
+                    return $classes;
+                }
+            }
+
+            return $classes[0];
+        }
+
+        return $classes;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function attrKeyValueListContent(mixed $value): array
+    {
+        $attributes = $this->listContent($value, 'Attr key-values');
+        if (count($attributes) === 1 && is_array($attributes[0]) && array_is_list($attributes[0])) {
+            foreach ($attributes[0] as $pair) {
+                if (!is_array($pair) || !array_is_list($pair) || count($pair) !== 2) {
+                    return $attributes;
+                }
+            }
+
+            return $attributes[0];
+        }
+
+        return $attributes;
     }
 
     private function attrTupleContent(mixed $content): mixed

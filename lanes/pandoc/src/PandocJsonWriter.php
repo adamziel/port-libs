@@ -2719,31 +2719,71 @@ final class PandocJsonWriter
             return null;
         }
 
-        if (!is_array($value[1]) || !array_is_list($value[1])) {
+        $classes = $this->validAttrClasses($value[1]);
+        if ($classes === null) {
             return null;
         }
 
+        $attributes = $this->validAttrPairs($value[2]);
+        if ($attributes === null) {
+            return null;
+        }
+
+        return [$value[0], $classes, $attributes];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private function validAttrClasses(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
+            return null;
+        }
+
+        if (count($value) === 1 && is_array($value[0]) && array_is_list($value[0])) {
+            $wrapped = $this->validAttrClasses($value[0]);
+            if ($wrapped !== null) {
+                return $wrapped;
+            }
+        }
+
         $classes = [];
-        foreach ($value[1] as $class) {
+        foreach ($value as $class) {
             if (!is_string($class)) {
                 return null;
             }
             $classes[] = $class;
         }
 
-        if (!is_array($value[2]) || !array_is_list($value[2])) {
+        return $classes;
+    }
+
+    /**
+     * @return list<array{0:string, 1:string}>|null
+     */
+    private function validAttrPairs(mixed $value): ?array
+    {
+        if (!is_array($value) || !array_is_list($value)) {
             return null;
         }
 
+        if (count($value) === 1 && is_array($value[0]) && array_is_list($value[0])) {
+            $wrapped = $this->validAttrPairs($value[0]);
+            if ($wrapped !== null) {
+                return $wrapped;
+            }
+        }
+
         $attributes = [];
-        foreach ($value[2] as $pair) {
+        foreach ($value as $pair) {
             if (!is_array($pair) || !array_is_list($pair) || count($pair) !== 2 || !is_string($pair[0]) || !is_string($pair[1])) {
                 return null;
             }
             $attributes[] = [$pair[0], $pair[1]];
         }
 
-        return [$value[0], $classes, $attributes];
+        return $attributes;
     }
 
     /**

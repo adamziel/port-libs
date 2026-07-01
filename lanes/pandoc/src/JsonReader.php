@@ -425,9 +425,9 @@ final class JsonReader
         $payload = $this->singleWrappedTuplePayload($this->constructorPayload($value, 'Attr', 'Attr'), 3);
         [$idValue, $classesValue, $attributesValue] = $this->expectTuple($payload, 3, 'Attr');
         $id = $this->expectString($idValue, 'Attr identifier');
-        $classes = array_map(fn (mixed $class): string => $this->expectString($class, 'Attr class'), $this->expectList($classesValue, 'Attr classes'));
+        $classes = array_map(fn (mixed $class): string => $this->expectString($class, 'Attr class'), $this->attrClassList($classesValue));
         $pairs = [];
-        foreach ($this->expectList($attributesValue, 'Attr key-value pairs') as $pair) {
+        foreach ($this->attrKeyValueList($attributesValue) as $pair) {
             [$key, $pairValue] = $this->expectTuple($pair, 2, 'Attr key-value pair');
             $pairs[$this->expectString($key, 'Attr key')] = $this->expectString($pairValue, 'Attr value');
         }
@@ -444,6 +444,44 @@ final class JsonReader
         }
 
         return $attrs;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function attrClassList(mixed $value): array
+    {
+        $classes = $this->expectList($value, 'Attr classes');
+        if (count($classes) === 1 && is_array($classes[0]) && $this->isList($classes[0])) {
+            foreach ($classes[0] as $class) {
+                if (!is_string($class)) {
+                    return $classes;
+                }
+            }
+
+            return array_values($classes[0]);
+        }
+
+        return $classes;
+    }
+
+    /**
+     * @return array<int, mixed>
+     */
+    private function attrKeyValueList(mixed $value): array
+    {
+        $attributes = $this->expectList($value, 'Attr key-value pairs');
+        if (count($attributes) === 1 && is_array($attributes[0]) && $this->isList($attributes[0])) {
+            foreach ($attributes[0] as $pair) {
+                if (!is_array($pair) || !$this->isList($pair) || count($pair) !== 2) {
+                    return $attributes;
+                }
+            }
+
+            return array_values($attributes[0]);
+        }
+
+        return $attributes;
     }
 
     /**
