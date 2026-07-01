@@ -460,6 +460,20 @@ return [
             'pdfExportIssueCount' => 0,
             'pdfExportIssues' => [],
             'featureGateCount' => 2,
+            'selectedFeatureGateCount' => 2,
+            'selectedFeatureGates' => ['html', 'packages'],
+            'selectedFeatureGateValue' => 'html,packages',
+            'selectedFeatureGateSource' => null,
+            'featureGateHistoryCount' => 0,
+            'invalidFeatureGateHistoryCount' => 0,
+            'featureGateOverrideCount' => 0,
+            'environmentFeatureGateCount' => 0,
+            'environmentFeatureGates' => [],
+            'featureGateEnvironmentPresent' => false,
+            'featureGateEnvironmentShadowed' => false,
+            'featureGateEnvironmentVariable' => null,
+            'featureGateIssueCount' => 0,
+            'featureGateIssues' => [],
             'executionPolicyPresent' => true,
             'selectedExecutionJobs' => 'auto',
             'selectedExecutionJobMode' => 'auto',
@@ -523,6 +537,7 @@ return [
         $t->contains('typst-boundary-summary-sidecars:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-font-access-controls:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-pdf-export-controls:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-feature-gates:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-execution-jobs:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-issues:4', implode(',', $plan['diagnostics']));
         $t->contains('pdf-engine-artifacts:2', implode(',', $plan['diagnostics']));

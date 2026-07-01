@@ -869,6 +869,54 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, string>
+     */
+    public static function xmlAttributes(\DOMElement $element): array
+    {
+        $attributes = [];
+        foreach (self::xmlAttributeRecords($element) as $record) {
+            $attributes[$record['qualifiedName']] = $record['value'];
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @return list<array{qualifiedName:string, localName:string, prefix:string|null, namespaceUri:string|null, value:string, namespaced:bool, namespaceDeclaration:bool}>
+     */
+    public static function xmlAttributeRecords(\DOMElement $element): array
+    {
+        $records = [];
+        foreach ($element->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $prefix = (string) $attribute->prefix;
+            $namespaceUri = self::xmlNullableNamespaceUri($attribute->namespaceURI);
+            $qualifiedName = $prefix !== ''
+                ? $prefix . ':' . $attribute->localName
+                : $attribute->name;
+            $records[] = [
+                'qualifiedName' => $qualifiedName,
+                'localName' => $attribute->localName,
+                'prefix' => $prefix !== '' ? $prefix : null,
+                'namespaceUri' => $namespaceUri,
+                'value' => $attribute->value,
+                'namespaced' => $namespaceUri !== null,
+                'namespaceDeclaration' => self::isXmlNamespaceDeclarationAttribute($attribute),
+            ];
+        }
+        usort(
+            $records,
+            static fn (array $left, array $right): int => [$left['qualifiedName'], $left['namespaceUri'] ?? '']
+                <=> [$right['qualifiedName'], $right['namespaceUri'] ?? '']
+        );
+
+        return $records;
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public static function summarizeXmlNamespaceUsage(\DOMDocument $dom, ?string $xmlSource = null): array
@@ -4385,20 +4433,7 @@ final class XmlHtmlDom
      */
     private static function xmlAttributeMap(\DOMElement $element): array
     {
-        $attributes = [];
-        foreach ($element->attributes ?? [] as $attribute) {
-            if (!$attribute instanceof \DOMAttr) {
-                continue;
-            }
-
-            $name = $attribute->prefix !== ''
-                ? $attribute->prefix . ':' . $attribute->localName
-                : $attribute->name;
-            $attributes[$name] = $attribute->value;
-        }
-        ksort($attributes);
-
-        return $attributes;
+        return self::xmlAttributes($element);
     }
 
     /**
