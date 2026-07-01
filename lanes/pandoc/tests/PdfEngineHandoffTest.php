@@ -21205,6 +21205,10 @@ MARKDOWN);
             'maxNextDepth' => 0,
             'scriptActionCount' => 0,
             'remoteTargetCount' => 3,
+            'remoteTargetSchemes' => [
+                'https' => 2,
+                'mailto' => 1,
+            ],
             'launchActionCount' => 0,
             'formActionCount' => 0,
             'issues' => [
@@ -21236,6 +21240,7 @@ MARKDOWN);
             'actionTypes' => ['URI' => 1],
             'scriptActionCount' => 0,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['mailto' => 1],
             'launchActionCount' => 0,
             'issues' => [
                 'page-open-action',
@@ -21254,9 +21259,12 @@ MARKDOWN);
         $t->same($expectedPagePolicy, $result['pdfPageActionPolicy'] ?? null);
         $t->contains('pdf-byte-active-action-type:URI:3', $diagnostics);
         $t->contains('pdf-byte-active-action-policy-remote-targets:3', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-remote-scheme:https:2', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-remote-scheme:mailto:1', $diagnostics);
         $t->contains('pdf-byte-active-action-policy-issue:uri-action:1', $diagnostics);
         $t->contains('pdf-byte-page-action-type:URI:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-type:URI:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-remote-scheme:mailto:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-issue:uri-action:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expectedActiveActions, $sequence['finalPdfActiveActions']);
@@ -21337,6 +21345,7 @@ MARKDOWN);
             'maxNextDepth' => 0,
             'scriptActionCount' => 0,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['https' => 1],
             'launchActionCount' => 0,
             'formActionCount' => 0,
             'remoteDocumentActionCount' => 3,
@@ -21369,6 +21378,7 @@ MARKDOWN);
             'actionTypes' => ['GoToR' => 1],
             'scriptActionCount' => 0,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['https' => 1],
             'launchActionCount' => 0,
             'remoteDocumentActionCount' => 1,
             'issues' => [
@@ -21388,9 +21398,11 @@ MARKDOWN);
         $t->same($expectedPagePolicy, $result['pdfPageActionPolicy'] ?? null);
         $t->contains('pdf-byte-active-action-type:GoToR:3', $diagnostics);
         $t->contains('pdf-byte-active-action-policy-remote-document-actions:3', $diagnostics);
+        $t->contains('pdf-byte-active-action-policy-remote-scheme:https:1', $diagnostics);
         $t->contains('pdf-byte-active-action-policy-issue:remote-document-action:1', $diagnostics);
         $t->contains('pdf-byte-page-action-type:GoToR:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-remote-document-actions:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-remote-scheme:https:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-issue:remote-document-action:1', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expectedActiveActions, $sequence['finalPdfActiveActions']);
@@ -21647,6 +21659,7 @@ MARKDOWN);
             ],
             'scriptActionCount' => 1,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['https' => 1],
             'launchActionCount' => 1,
             'issues' => [
                 'launch-action',
@@ -21667,6 +21680,7 @@ MARKDOWN);
         $t->contains('pdf-byte-page-action-type:JavaScript:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-action-type:Launch:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-page-action-scripts:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-action-policy-remote-scheme:https:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfPageActions'] ?? null);
         $t->same($expectedPolicy, $sequence['finalPdfPageActionPolicy'] ?? null);
@@ -21722,6 +21736,7 @@ MARKDOWN);
             'actionTypes' => ['Named' => 1, 'SubmitForm' => 1],
             'scriptActionCount' => 0,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['mailto' => 1],
             'launchActionCount' => 0,
             'issues' => [
                 'page-close-action',
@@ -21738,6 +21753,7 @@ MARKDOWN);
         $t->contains('pdf-byte-page-action-policy:review', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-actions:2', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-remote-targets:1', $diagnostics);
+        $t->contains('pdf-byte-page-action-policy-remote-scheme:mailto:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-trigger:C:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-trigger:O:1', $diagnostics);
         $t->contains('pdf-byte-page-action-policy-type:SubmitForm:1', $diagnostics);
@@ -21974,6 +21990,7 @@ MARKDOWN);
             'maxNextDepth' => 3,
             'scriptActionCount' => 2,
             'remoteTargetCount' => 1,
+            'remoteTargetSchemes' => ['https' => 1],
             'launchActionCount' => 1,
             'formActionCount' => 2,
             'issues' => [
@@ -21993,6 +22010,7 @@ MARKDOWN);
         $t->contains('pdf-byte-active-action-policy:review', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-active-action-policy-chained-actions:6', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-active-action-policy-chain-depth:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-active-action-policy-remote-scheme:https:1', implode(',', $result['diagnostics']));
         $t->contains('pdf-byte-active-action-policy-issue:deep-next-action-chain:1', implode(',', $result['diagnostics']));
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfActiveActions']);
