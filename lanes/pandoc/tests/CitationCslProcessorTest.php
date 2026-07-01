@@ -1505,6 +1505,92 @@ BIB;
         $t->contains('<p>PDF alias source Ng (2026) keeps JabRef-style attachment metadata visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. PDF Alias Source. 2026. https://example.test/pdf-alias-source.</dd>', $blocks);
     },
+    'maps bounded biblatex compact source file aliases into attachment metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{source-file-alias-source,
+  author      = {Ng, Nia},
+  title       = {Source File Alias Packet},
+  date        = {2026-07-01},
+  url         = {https://example.test/source-file-alias},
+  source-file = {Source HTML:attachments/source-alias.html:text/html; Remote HTML:https://example.test/source-alias.html:text/html}
+}
+
+@online{attachments-alias-source,
+  author      = {Roe, Pat},
+  title       = {Attachments Alias Packet},
+  date        = {2025},
+  attachments = {Review PDF:attachments/review-alias.pdf:application/pdf; Traversal PDF:../private/review-alias.pdf:application/pdf}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same([
+            ['label' => 'Source HTML', 'path' => 'attachments/source-alias.html', 'mediaType' => 'text/html'],
+        ], $items[0]['sourceFiles'] ?? null);
+        $t->same([
+            ['label' => 'Review PDF', 'path' => 'attachments/review-alias.pdf', 'mediaType' => 'application/pdf'],
+        ], $items[1]['sourceFiles'] ?? null);
+        $t->same('remote-uri', $items[0]['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('Remote HTML', $items[0]['sourceFileDiagnostics'][0]['label'] ?? null);
+        $t->same('path-traversal', $items[1]['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('Traversal PDF', $items[1]['sourceFileDiagnostics'][0]['label'] ?? null);
+        $t->same('Source HTML:attachments/source-alias.html:text/html; Remote HTML:https://example.test/source-alias.html:text/html', $items[0]['rawBibtex']['fields']['source-file'] ?? null);
+        $t->same('Review PDF:attachments/review-alias.pdf:application/pdf; Traversal PDF:../private/review-alias.pdf:application/pdf', $items[1]['rawBibtex']['fields']['attachments'] ?? null);
+
+        $styled = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Source File Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-source-file-alias-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="source-file-summary"/>
+        <text variable="source-file-diagnostic-reasons"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="source-file-labels"/>
+      <text variable="source-file-paths"/>
+      <text variable="source-file-diagnostic-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $sourceFileItem = $styled->item('source-file-alias-source');
+        $attachmentsItem = $styled->item('attachments-alias-source');
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Source File Alias Review', $summary['title'] ?? null);
+        $t->same('source-file-summary', $citationChildren[1]['variable'] ?? null);
+        $t->same('source-file-diagnostic-reasons', $citationChildren[2]['variable'] ?? null);
+        $t->same('attachments/source-alias.html', $sourceFileItem['sourceFiles'][0]['path'] ?? null);
+        $t->same('remote-uri', $sourceFileItem['sourceFileDiagnostics'][0]['reason'] ?? null);
+        $t->same('attachments/review-alias.pdf', $attachmentsItem['sourceFiles'][0]['path'] ?? null);
+        $t->same('path-traversal', $attachmentsItem['sourceFileDiagnostics'][0]['reason'] ?? null);
+
+        $t->same('[Source File Alias Packet | Source HTML: attachments/source-alias.html (text/html) | remote-uri; Attachments Alias Packet | Review PDF: attachments/review-alias.pdf (application/pdf) | path-traversal]', $styled->renderCitationCluster([
+            $citation('source-file-alias-source', '[@source-file-alias-source]'),
+            $citation('attachments-alias-source', '[@attachments-alias-source]'),
+        ]));
+        $t->same('Source File Alias Packet :: Source HTML :: attachments/source-alias.html :: Remote HTML: remote-uri (https://example.test/source-alias.html)', $styled->renderBibliographyEntry('source-file-alias-source'));
+        $t->same('Attachments Alias Packet :: Review PDF :: attachments/review-alias.pdf :: Traversal PDF: path-traversal (../private/review-alias.pdf)', $styled->renderBibliographyEntry('attachments-alias-source'));
+
+        $document = (new MarkdownReader())->read('BibLaTeX source aliases [@source-file-alias-source; @attachments-alias-source] keep attachment policy visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>BibLaTeX source aliases [Source File Alias Packet | Source HTML: attachments/source-alias.html (text/html) | remote-uri; Attachments Alias Packet | Review PDF: attachments/review-alias.pdf (application/pdf) | path-traversal] keep attachment policy visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Source File Alias Packet :: Source HTML :: attachments/source-alias.html :: Remote HTML: remote-uri (https://example.test/source-alias.html)</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Attachments Alias Packet :: Review PDF :: attachments/review-alias.pdf :: Traversal PDF: path-traversal (../private/review-alias.pdf)</dd>', $blocks);
+    },
     'preserves bounded biblatex entry sets and related entry metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @set{migration-review-set,

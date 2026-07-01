@@ -687,6 +687,27 @@ final class BibtexCslParser
     }
 
     /**
+     * @return list<string>
+     */
+    private static function sourceFileFieldNames(): array
+    {
+        return [
+            'file',
+            'pdf',
+            'sourcefile',
+            'source-file',
+            'sourcefiles',
+            'source-files',
+            'sourceattachment',
+            'source-attachment',
+            'sourceattachments',
+            'source-attachments',
+            'attachment',
+            'attachments',
+        ];
+    }
+
+    /**
      * @param array<string, string> $fields
      * @return array<string, mixed>
      */
@@ -962,7 +983,7 @@ final class BibtexCslParser
             $item['categories'] = $categories;
         }
 
-        $sourceFileField = self::firstField($fields, ['file', 'pdf']);
+        $sourceFileField = self::firstField($fields, self::sourceFileFieldNames());
         $sourceFiles = self::sourceFilesFromField($sourceFileField);
         if ($sourceFiles !== []) {
             $item['sourceFiles'] = $sourceFiles;
