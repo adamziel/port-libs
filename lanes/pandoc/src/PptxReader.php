@@ -1676,7 +1676,7 @@ final class PptxReader
     }
 
     /**
-     * @param list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>}> $paragraphs
+     * @param list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>}> $paragraphs
      * @return list<AstNode>
      */
     private function paragraphsToBlocks(array $paragraphs): array
@@ -1708,113 +1708,27 @@ final class PptxReader
                 continue;
             }
 
-            $blocks[] = $this->paragraphListBlock($paragraphs, $index, $paragraph['level']);
+            $level = (int) ($paragraph['level'] ?? 0);
+            $items = [];
+            while ($index < $count) {
+                $current = $paragraphs[$index];
+                if (($current['listType'] ?? '') !== $listType || (int) ($current['level'] ?? 0) !== $level) {
+                    break;
+                }
+
+                $items[] = new AstNode('list_item', [], [
+                    new AstNode('plain', [], $this->parsedParagraphInlines($current)),
+                ]);
+                $index++;
+            }
+            $blocks[] = new AstNode($listType, [], $items);
         }
 
         return $blocks;
     }
 
     /**
-     * @param list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>}> $paragraphs
-     */
-    private function paragraphListBlock(array $paragraphs, int &$index, int $level): AstNode
-    {
-        $paragraph = $paragraphs[$index];
-        $listType = (string) ($paragraph['listType'] ?? '');
-        $style = (string) ($paragraph['style'] ?? 'decimal');
-        $delimiter = (string) ($paragraph['delimiter'] ?? 'period');
-        $items = [];
-        $count = count($paragraphs);
-        while ($index < $count) {
-            $current = $paragraphs[$index];
-            $currentType = (string) ($current['listType'] ?? '');
-            if ($currentType === '') {
-                if (($current['continuation'] ?? false) === true && $current['level'] > $level && $items !== []) {
-                    $items[count($items) - 1] = $this->listItemWithAppendedBlock($items[count($items) - 1], $this->parsedParagraphBlock($current));
-                    $index++;
-                    continue;
-                }
-
-                break;
-            }
-
-            $currentLevel = $current['level'];
-            if ($currentLevel < $level) {
-                break;
-            }
-
-            if ($currentLevel > $level) {
-                if ($items === []) {
-                    break;
-                }
-
-                $nested = $this->paragraphListBlock($paragraphs, $index, $currentLevel);
-                $items[count($items) - 1] = $this->listItemWithAppendedBlock($items[count($items) - 1], $nested);
-                continue;
-            }
-
-            if (!$this->paragraphContinuesList($current, $listType, $level, $style, $delimiter, $items === [])) {
-                break;
-            }
-
-            $items[] = new AstNode('list_item', [], [
-                new AstNode('plain', [], $this->parsedParagraphInlines($current)),
-            ]);
-            $index++;
-        }
-
-        return new AstNode($listType, $this->paragraphListAttrs($paragraph, $style, $delimiter), $items);
-    }
-
-    private function listItemWithAppendedBlock(AstNode $item, AstNode $block): AstNode
-    {
-        return new AstNode($item->type, $item->attrs, [...$item->children, $block]);
-    }
-
-    /**
-     * @param array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>} $paragraph
-     * @return array<string, mixed>
-     */
-    private function paragraphListAttrs(array $paragraph, string $style, string $delimiter): array
-    {
-        if (($paragraph['listType'] ?? '') !== 'ordered_list') {
-            return [];
-        }
-
-        $attrs = [
-            'start' => max(1, (int) ($paragraph['start'] ?? 1)),
-            'style' => $style,
-            'delimiter' => $delimiter,
-        ];
-        if (isset($paragraph['pptxAutoNumberType']) && is_string($paragraph['pptxAutoNumberType'])) {
-            $attrs['pptxAutoNumberType'] = $paragraph['pptxAutoNumberType'];
-        }
-
-        return $attrs;
-    }
-
-    /**
-     * @param array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>} $paragraph
-     */
-    private function paragraphContinuesList(array $paragraph, string $listType, int $level, string $style, string $delimiter, bool $first): bool
-    {
-        if (($paragraph['listType'] ?? '') !== $listType || $paragraph['level'] !== $level) {
-            return false;
-        }
-
-        if ($listType !== 'ordered_list') {
-            return true;
-        }
-
-        if ((string) ($paragraph['style'] ?? 'decimal') !== $style || (string) ($paragraph['delimiter'] ?? 'period') !== $delimiter) {
-            return false;
-        }
-
-        return $first || !((bool) ($paragraph['startExplicit'] ?? false) && max(1, (int) ($paragraph['start'] ?? 1)) > 1);
-    }
-
-    /**
-     * @param array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>} $paragraph
+     * @param array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>} $paragraph
      */
     private function parsedParagraphBlock(array $paragraph): AstNode
     {
@@ -1822,7 +1736,7 @@ final class PptxReader
     }
 
     /**
-     * @param array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>} $paragraph
+     * @param array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>} $paragraph
      * @return list<AstNode>
      */
     private function parsedParagraphInlines(array $paragraph): array
@@ -1833,7 +1747,7 @@ final class PptxReader
     }
 
     /**
-     * @return list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>}>
+     * @return list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>}>
      */
     private function parseParagraphs(\DOMElement $textBody, ?OpcRelationships $relationships = null): array
     {
@@ -2016,31 +1930,12 @@ final class PptxReader
     }
 
     /**
-     * @return array{bullet:bool, listType:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string}
+     * @return array{bullet:bool, listType:string, continuation?:bool}
      */
     private function paragraphListMetadata(\DOMElement $paragraphElement): array
     {
         $properties = $this->firstChildElement($paragraphElement, 'pPr');
         if ($properties instanceof \DOMElement) {
-            $autoNumber = $this->firstChildElement($properties, 'buAutoNum');
-            if ($autoNumber instanceof \DOMElement) {
-                $type = trim($autoNumber->getAttribute('type'));
-                $effectiveType = $type !== '' ? $type : 'arabicPeriod';
-                $metadata = [
-                    'bullet' => false,
-                    'listType' => 'ordered_list',
-                    'start' => max(1, $this->integerAttribute($autoNumber, 'startAt') ?? 1),
-                    'startExplicit' => $autoNumber->hasAttribute('startAt'),
-                    'style' => $this->autoNumberListStyle($effectiveType),
-                    'delimiter' => $this->autoNumberListDelimiter($effectiveType),
-                ];
-                if ($type !== '') {
-                    $metadata['pptxAutoNumberType'] = $type;
-                }
-
-                return $metadata;
-            }
-
             if ($this->firstChildElement($properties, 'buChar') instanceof \DOMElement) {
                 return ['bullet' => true, 'listType' => 'bullet_list'];
             }
@@ -2059,33 +1954,8 @@ final class PptxReader
         return ['bullet' => false, 'listType' => ''];
     }
 
-    private function autoNumberListStyle(string $type): string
-    {
-        $type = strtolower($type);
-
-        return match (true) {
-            str_starts_with($type, 'alphalc') => 'lower_alpha',
-            str_starts_with($type, 'alphauc') => 'upper_alpha',
-            str_starts_with($type, 'romanlc') => 'lower_roman',
-            str_starts_with($type, 'romanuc') => 'upper_roman',
-            default => 'decimal',
-        };
-    }
-
-    private function autoNumberListDelimiter(string $type): string
-    {
-        $type = strtolower($type);
-
-        return match (true) {
-            str_ends_with($type, 'parenboth') => 'two_parens',
-            str_ends_with($type, 'parenr') => 'one_paren',
-            str_ends_with($type, 'plain') => 'default',
-            default => 'period',
-        };
-    }
-
     /**
-     * @param list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>}> $paragraphs
+     * @param list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>}> $paragraphs
      */
     private function paragraphsContainText(array $paragraphs): bool
     {

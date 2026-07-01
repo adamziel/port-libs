@@ -45,11 +45,11 @@ Picture-level `a:hlinkClick` relationships on non-visual drawing properties now 
 
 DrawingML text boxes now follow upstream text extraction for explicit `a:br` and `a:tab` markers: only `<a:t>` descendants contribute visible text, joined with spaces, so break/tab markers do not become native `LineBreak` or tab-like inline nodes.
 
-DrawingML auto-numbered paragraphs using `a:buAutoNum` now import as Pandoc `ordered_list` blocks. The reader preserves the first `startAt` value, maps common PowerPoint auto-numbering type prefixes into Pandoc list styles, maps period/parenthesis/plain suffixes into Pandoc delimiters, and keeps the raw PPTX auto-numbering type as reviewable AST metadata.
+DrawingML auto-numbered paragraphs using `a:buAutoNum` now follow upstream's current bullet detector and remain plain paragraphs. Only explicit `a:buChar` bullets and Wingdings symbol bullets start visible list grouping.
 
-DrawingML list paragraph levels now import as nested Pandoc lists instead of adjacent flat lists. Higher-level `lvl` paragraphs attach to the previous list item, preserving mixed nested bullet and ordered children while keeping same-level restart/style boundaries intact.
+DrawingML list paragraph levels now follow upstream's adjacent grouping behavior instead of nesting. Consecutive explicit bullet paragraphs at the same `lvl` become a list; level changes split the visible lists.
 
-DrawingML `a:buNone` paragraphs at deeper list levels now import as continuation blocks inside the previous list item instead of escaping to top-level paragraphs. This matches the reader to the existing PPTX writer's list-continuation shape while preserving standalone non-list paragraphs.
+DrawingML `a:buNone` paragraphs now remain plain paragraphs, matching upstream's current bullet detector instead of becoming list-item continuation blocks.
 
 Empty DrawingML text paragraphs and empty DrawingML table cells now preserve explicit empty `text` inline nodes in the reader AST, matching upstream's visible empty paragraph/cell semantics. The local native pretty-printer still normalizes empty text tokens differently, so the checked-in upstream comparison continues to compare semantic content rather than byte-for-byte native rendering.
 
@@ -68,8 +68,8 @@ Latest focused verification:
 - `php -l lanes/pandoc/src/PptxReader.php`
 - `php -l lanes/pandoc/tests/PptxReaderTest.php`
 - `php -l lanes/pandoc/src/PandocFormatRegistry.php`
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `358` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1215` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1648` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `349` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1206` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1639` assertions, `0` failures.
 
 This closes the current upstream PPTX reader golden fixture content gate. It does not claim full PPTX writer parity or full PowerPoint package round-trip parity.

@@ -2703,44 +2703,28 @@ return [
         $t->true(!str_contains($native, 'LineBreak'), 'DrawingML break markers should not become native LineBreak nodes');
     },
 
-    'preserves pptx auto-numbered paragraphs as ordered lists' => static function (TestRunner $t) use ($buildNumberedListPptxPackage, $nodesOfType): void {
+    'keeps pptx auto-numbered paragraphs plain like upstream' => static function (TestRunner $t) use ($buildNumberedListPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildNumberedListPptxPackage());
         $orderedLists = $nodesOfType($document, 'ordered_list');
+        $paragraphs = $nodesOfType($document, 'paragraph');
         $native = PandocConverter::write($document, 'native');
-        $itemText = static function (AstNode $item): string {
-            $plain = $item->children[0] ?? new AstNode('plain');
-            $text = '';
-            foreach ($plain->children as $inline) {
-                if ($inline->type === 'text') {
-                    $text .= (string) $inline->attr('text');
-                } elseif ($inline->type === 'space') {
-                    $text .= ' ';
-                }
-            }
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
 
-            return $text;
-        };
-
-        $t->same(2, count($orderedLists));
-        $t->same(3, $orderedLists[0]->attr('start'));
-        $t->same('decimal', $orderedLists[0]->attr('style'));
-        $t->same('period', $orderedLists[0]->attr('delimiter'));
-        $t->same('arabicPeriod', $orderedLists[0]->attr('pptxAutoNumberType'));
-        $t->same(['Third item', 'Fourth item'], array_map($itemText, $orderedLists[0]->children));
-
-        $t->same(1, $orderedLists[1]->attr('start'));
-        $t->same('upper_alpha', $orderedLists[1]->attr('style'));
-        $t->same('one_paren', $orderedLists[1]->attr('delimiter'));
-        $t->same('alphaUcParenR', $orderedLists[1]->attr('pptxAutoNumberType'));
-        $t->same('Alpha item', $itemText($orderedLists[1]->children[0]));
-        $t->contains('OrderedList ( 3 , Decimal , Period )', $native);
-        $t->contains('OrderedList ( 1 , UpperAlpha , OneParen )', $native);
+        $t->same(0, count($orderedLists));
+        $t->same(true, in_array('Third item', $texts, true));
+        $t->same(true, in_array('Fourth item', $texts, true));
+        $t->same(true, in_array('Alpha item', $texts, true));
+        $t->contains('Para [ Str "Third" , Space , Str "item" ]', $native);
+        $t->contains('Para [ Str "Fourth" , Space , Str "item" ]', $native);
+        $t->contains('Para [ Str "Alpha" , Space , Str "item" ]', $native);
+        $t->true(!str_contains($native, 'OrderedList'), 'PPTX buAutoNum should not become a native OrderedList with the current upstream reader');
     },
 
-    'preserves pptx nested list levels inside list items' => static function (TestRunner $t) use ($buildNestedListPptxPackage, $nodesOfType): void {
+    'splits pptx list levels instead of nesting like upstream' => static function (TestRunner $t) use ($buildNestedListPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildNestedListPptxPackage());
         $bulletLists = $nodesOfType($document, 'bullet_list');
         $orderedLists = $nodesOfType($document, 'ordered_list');
+        $paragraphs = $nodesOfType($document, 'paragraph');
         $topLevelLists = array_values(array_filter(
             $document->children,
             static fn (AstNode $node): bool => in_array($node->type, ['bullet_list', 'ordered_list'], true)
@@ -2759,25 +2743,26 @@ return [
             return $text;
         };
         $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
 
-        $t->same(['bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $topLevelLists));
-        $t->same(2, count($bulletLists));
-        $t->same(1, count($orderedLists));
-        $t->same(2, count($topLevelLists[0]->children));
-        $t->same(['Parent bullet', 'Second parent'], array_map($itemText, $topLevelLists[0]->children));
-        $t->same(['plain', 'bullet_list', 'ordered_list'], array_map(static fn (AstNode $node): string => $node->type, $topLevelLists[0]->children[0]->children));
-        $t->same('Child bullet', $itemText($topLevelLists[0]->children[0]->children[1]->children[0]));
-        $t->same(2, $topLevelLists[0]->children[0]->children[2]->attr('start'));
-        $t->same('Numbered child', $itemText($topLevelLists[0]->children[0]->children[2]->children[0]));
-        $t->contains('OrderedList ( 2 , Decimal , Period )', $native);
+        $t->same(['bullet_list', 'bullet_list', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $topLevelLists));
+        $t->same(3, count($bulletLists));
+        $t->same(0, count($orderedLists));
+        $t->same(['Parent bullet'], array_map($itemText, $topLevelLists[0]->children));
+        $t->same(['Child bullet'], array_map($itemText, $topLevelLists[1]->children));
+        $t->same(['Second parent'], array_map($itemText, $topLevelLists[2]->children));
+        $t->same(true, in_array('Numbered child', $paragraphTexts, true));
+        $t->contains('Para [ Str "Numbered" , Space , Str "child" ]', $native);
+        $t->true(!str_contains($native, 'OrderedList'), 'Nested buAutoNum paragraph should remain plain with the current upstream reader');
     },
 
-    'keeps pptx buNone paragraphs as list item continuations' => static function (TestRunner $t) use ($buildListContinuationPptxPackage, $nodesOfType): void {
+    'keeps pptx buNone paragraphs plain like upstream' => static function (TestRunner $t) use ($buildListContinuationPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildListContinuationPptxPackage());
         $topLevelLists = array_values(array_filter(
             $document->children,
             static fn (AstNode $node): bool => in_array($node->type, ['bullet_list', 'ordered_list'], true)
         ));
+        $paragraphs = $nodesOfType($document, 'paragraph');
         $itemText = static function (AstNode $item): string {
             $plain = $item->children[0] ?? new AstNode('plain');
             $text = '';
@@ -2791,22 +2776,15 @@ return [
 
             return $text;
         };
-        $paragraphText = static fn (AstNode $paragraph): string => (string) $paragraph->attr('text');
         $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
 
-        $t->same(1, count($topLevelLists));
-        $t->same(['Top-level', 'Second top-level'], array_map($itemText, $topLevelLists[0]->children));
-        $t->same(['plain', 'paragraph', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $topLevelLists[0]->children[0]->children));
-        $t->same('With continuation', $paragraphText($topLevelLists[0]->children[0]->children[1]));
-        $nested = $topLevelLists[0]->children[0]->children[2];
-        $t->same('bullet_list', $nested->type);
-        $t->same(['plain', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $nested->children[0]->children));
-        $t->same('Nested bullet', $itemText($nested->children[0]));
-        $t->same('Nested continuation', $paragraphText($nested->children[0]->children[1]));
-        $t->same([], array_values(array_filter(
-            $document->children,
-            static fn (AstNode $node): bool => $node->type === 'paragraph' && in_array($node->attr('text'), ['With continuation', 'Nested continuation'], true)
-        )));
+        $t->same(3, count($topLevelLists));
+        $t->same(['Top-level'], array_map($itemText, $topLevelLists[0]->children));
+        $t->same(['Nested bullet'], array_map($itemText, $topLevelLists[1]->children));
+        $t->same(['Second top-level'], array_map($itemText, $topLevelLists[2]->children));
+        $t->same(true, in_array('With continuation', $paragraphTexts, true));
+        $t->same(true, in_array('Nested continuation', $paragraphTexts, true));
         $t->contains('Para [ Str "With" , Space , Str "continuation" ]', $native);
         $t->contains('Para [ Str "Nested" , Space , Str "continuation" ]', $native);
     },
