@@ -5338,6 +5338,11 @@ final class OpenDocumentPackage
             'layoutCacheItems' => [],
             'missingMediaTypeCount' => 0,
             'missingMediaTypeItems' => [],
+            'missingManifestDeclaredPartCount' => 0,
+            'missingManifestDeclaredItems' => [],
+            'missingManifestDeclaredRoleCounts' => [],
+            'missingManifestDeclaredByteExposurePolicyCounts' => [],
+            'missingManifestDeclaredMediaTypeBaseCounts' => [],
             'diagnosticCount' => 0,
             'diagnosticCodeCounts' => [],
             'diagnostics' => [],
@@ -5510,6 +5515,21 @@ final class OpenDocumentPackage
             } else {
                 ++$summary['missingCount'];
                 $summary['missingItems'][] = $item;
+                $missingRoles = self::missingManifestDeclaredRoles($entry);
+                $missingDeclaredItem = $item;
+                $missingDeclaredItem['roles'] = $missingRoles;
+                $summary['missingManifestDeclaredItems'][] = $missingDeclaredItem;
+                foreach ($missingRoles as $role) {
+                    $summary['missingManifestDeclaredRoleCounts'][$role] = ($summary['missingManifestDeclaredRoleCounts'][$role] ?? 0) + 1;
+                }
+                $byteExposurePolicy = $entry['byteExposurePolicy'] ?? null;
+                if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                    $summary['missingManifestDeclaredByteExposurePolicyCounts'][$byteExposurePolicy] = ($summary['missingManifestDeclaredByteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+                }
+                $mediaTypeBase = is_string($entry['mediaTypeBase'] ?? null) && $entry['mediaTypeBase'] !== ''
+                    ? $entry['mediaTypeBase']
+                    : '(missing)';
+                $summary['missingManifestDeclaredMediaTypeBaseCounts'][$mediaTypeBase] = ($summary['missingManifestDeclaredMediaTypeBaseCounts'][$mediaTypeBase] ?? 0) + 1;
             }
             if (($entry['isDirectory'] ?? false) === true) {
                 ++$summary['directoryCount'];
@@ -5545,6 +5565,7 @@ final class OpenDocumentPackage
             }
         }
         $summary['manifestPartReferenceSuffixCount'] = count($summary['manifestPartReferenceSuffixItems']);
+        $summary['missingManifestDeclaredPartCount'] = count($summary['missingManifestDeclaredItems']);
         $summary['preferredViewModes'] = self::manifestPreferredViewModeSummary($entries);
         $summary['manifestEncryption'] = self::manifestEncryptionSummary($entries);
         $summary['diagnosticCount'] = count($summary['diagnostics']);
@@ -5563,9 +5584,74 @@ final class OpenDocumentPackage
         ksort($summary['manifestMediaFamilyByteLengths'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCompressedByteLengths'], SORT_STRING);
         ksort($summary['zipTimestampSourceCounts'], SORT_STRING);
+        ksort($summary['missingManifestDeclaredRoleCounts'], SORT_STRING);
+        ksort($summary['missingManifestDeclaredByteExposurePolicyCounts'], SORT_STRING);
+        ksort($summary['missingManifestDeclaredMediaTypeBaseCounts'], SORT_STRING);
         ksort($summary['diagnosticCodeCounts'], SORT_STRING);
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return list<string>
+     */
+    private static function missingManifestDeclaredRoles(array $entry): array
+    {
+        $path = is_string($entry['packagePath'] ?? null) ? $entry['packagePath'] : '';
+        $mediaType = (string) ($entry['mediaType'] ?? '');
+        $roles = [];
+
+        if ($path === 'content.xml') {
+            $roles[] = 'odf-content';
+        }
+        if ($path === 'styles.xml') {
+            $roles[] = 'odf-styles';
+        }
+        if ($path === 'meta.xml') {
+            $roles[] = 'odf-meta';
+        }
+        if ($path === 'settings.xml') {
+            $roles[] = 'odf-settings';
+        }
+        if (($entry['thumbnailPackagePart'] ?? false) === true || self::isThumbnailPackagePartName($path)) {
+            $roles[] = 'package-thumbnail';
+        }
+        if (($entry['signaturePackagePart'] ?? false) === true || self::isSignaturePackagePartName($path)) {
+            $roles[] = 'package-signature';
+        }
+        if (($entry['configurationPackagePart'] ?? false) === true || self::isConfigurationPackagePartName($path)) {
+            $roles[] = 'configuration-package';
+        }
+        if (($entry['fontPackagePart'] ?? false) === true || self::isFontPackagePart($path, $mediaType)) {
+            $roles[] = 'font-package';
+        }
+
+        $rdfMetadataPart = ($entry['rdfMetadataPart'] ?? false) === true || self::isRdfMetadataPart($path, $mediaType);
+        if ($rdfMetadataPart) {
+            $roles[] = 'rdf-metadata';
+        }
+        if (($entry['objectReplacementPackagePart'] ?? false) === true || self::isObjectReplacementPackagePartName($path)) {
+            $roles[] = 'object-replacement';
+        }
+        if (($entry['layoutCachePackagePart'] ?? false) === true || self::isLayoutCachePackagePartName($path)) {
+            $roles[] = 'layout-cache';
+        }
+
+        $embeddedObjectPackagePart = ($entry['embeddedObjectPackagePart'] ?? false) === true;
+        if ($embeddedObjectPackagePart) {
+            $roles[] = ($entry['embeddedObjectRoot'] ?? false) === true ? 'embedded-object-root' : 'embedded-object-part';
+        }
+
+        $roles[] = 'manifest-declared';
+        if (!str_ends_with($path, '/') && self::isMediaResourceManifestEntry($entry)) {
+            $roles[] = 'media-resource';
+        }
+        if (($entry['scriptPackagePart'] ?? false) === true || self::isScriptPackagePartName($path)) {
+            $roles[] = 'script-package';
+        }
+
+        return array_values(array_unique($roles));
     }
 
     /**
