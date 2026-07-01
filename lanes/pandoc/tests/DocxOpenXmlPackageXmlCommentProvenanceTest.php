@@ -25,11 +25,13 @@ return [
         $t->same(2, $summary['partXmlCommentPartCount']);
         $t->same(3, $summary['partXmlCommentCount']);
         $t->same($expectedByteLength, $summary['partXmlCommentByteLength']);
+        $t->same([0 => 1, 2 => 1, 3 => 1], $summary['partXmlCommentParentDepthCounts']);
         $t->same(['customXml/comment-review.xml', 'word/settings.xml'], $summary['partXmlCommentPartNames']);
         $t->same(false, $summary['partXmlCommentsTruncated']);
 
         $t->same(2, $reviewPart['xmlCommentCount']);
         $t->same(strlen($reviewPrologComment) + strlen($reviewInnerComment), $reviewPart['xmlCommentByteLength']);
+        $t->same([0 => 1, 2 => 1], $reviewPart['xmlCommentParentDepthCounts']);
         $t->same(false, $reviewPart['xmlCommentsTruncated']);
         $t->same('/', $reviewPart['xmlComments'][0]['parentPath']);
         $t->same(0, $reviewPart['xmlComments'][0]['parentDepth']);
@@ -43,6 +45,7 @@ return [
 
         $t->same(1, $settingsPart['xmlCommentCount']);
         $t->same(strlen($settingsComment), $settingsPart['xmlCommentByteLength']);
+        $t->same([3 => 1], $settingsPart['xmlCommentParentDepthCounts']);
         $t->same('/w:settings/w:docVars/w:docVar', $settingsPart['xmlComments'][0]['parentPath']);
         $t->same(3, $settingsPart['xmlComments'][0]['parentDepth']);
         $t->same(sprintf('%08x', crc32($settingsComment)), $settingsPart['xmlComments'][0]['crc32']);
