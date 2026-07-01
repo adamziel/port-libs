@@ -938,14 +938,20 @@ final class DocxOpenXmlReader
         ]);
         $packageProvenance['selectedXmlParts'] = $selectedXmlParts;
         $packageProvenance['summary']['selectedXmlPartCount'] = $selectedXmlParts['count'];
+        $packageProvenance['summary']['selectedXmlPartKinds'] = $selectedXmlParts['kinds'];
         $packageProvenance['summary']['selectedXmlPartExistingCount'] = $selectedXmlParts['existingCount'];
+        $packageProvenance['summary']['selectedXmlPartExistingKinds'] = $selectedXmlParts['existingKinds'];
+        $packageProvenance['summary']['selectedXmlPartMissingKinds'] = $selectedXmlParts['missingKinds'];
         $packageProvenance['summary']['selectedXmlPartRelationshipSelectedCount'] = $selectedXmlParts['relationshipSelectedCount'];
+        $packageProvenance['summary']['selectedXmlPartRelationshipSelectedKinds'] = $selectedXmlParts['relationshipSelectedKinds'];
         $packageProvenance['summary']['selectedXmlPartMissingRequiredOrReferencedCount'] = $selectedXmlParts['missingRequiredOrReferencedCount'];
+        $packageProvenance['summary']['selectedXmlPartMissingRequiredOrReferencedKinds'] = $selectedXmlParts['missingRequiredOrReferencedKinds'];
         $packageProvenance['summary']['selectedXmlPartValidRootCount'] = $selectedXmlParts['validRootCount'];
         $packageProvenance['summary']['selectedXmlPartInvalidRootCount'] = $selectedXmlParts['invalidRootCount'];
         $packageProvenance['summary']['selectedXmlPartUnexpectedContentTypeCount'] = $selectedXmlParts['unexpectedContentTypeCount'];
         $packageProvenance['summary']['selectedXmlPartMissingContentTypeCount'] = $selectedXmlParts['missingContentTypeCount'];
         $packageProvenance['summary']['selectedXmlPartByteDigestCount'] = $selectedXmlParts['byteDigestCount'];
+        $packageProvenance['summary']['selectedXmlPartByteDigestKinds'] = $selectedXmlParts['byteDigestKinds'];
         $packageProvenance['summary']['selectedXmlPartByteLength'] = $selectedXmlParts['byteLength'];
         $packageProvenance['summary']['selectedXmlPartLargestPart'] = $selectedXmlParts['largestPart'];
         $packageProvenance['summary']['selectedXmlPartSelectionSourceCounts'] = $selectedXmlParts['selectionSourceCounts'];
@@ -41038,11 +41044,21 @@ final class DocxOpenXmlReader
         $doctypeIssueCodes = [];
         $byteLength = 0;
         $largestPart = null;
+        $kinds = [];
+        $existingKinds = [];
+        $missingKinds = [];
+        $relationshipSelectedKinds = [];
+        $byteDigestKinds = [];
+        $missingRequiredOrReferencedKinds = [];
         $selectionSourceCounts = [];
         $rootNamespaceCounts = [];
         $rootLocalNameCounts = [];
         $rootQualifiedNameCounts = [];
         foreach ($items as $item) {
+            $kind = is_string($item['kind'] ?? null) ? $item['kind'] : '';
+            if ($kind !== '') {
+                $kinds[] = $kind;
+            }
             $bytes = (int) ($item['bytes'] ?? 0);
             $byteLength += $bytes;
             $selectionSource = is_string($item['selectionSource'] ?? null) && $item['selectionSource'] !== ''
@@ -41050,6 +41066,9 @@ final class DocxOpenXmlReader
                 : '(unknown)';
             $selectionSourceCounts[$selectionSource] = ($selectionSourceCounts[$selectionSource] ?? 0) + 1;
             if (($item['exists'] ?? false) === true) {
+                if ($kind !== '') {
+                    $existingKinds[] = $kind;
+                }
                 $partSummary = $this->selectedXmlPartSummaryItem($item);
                 if (
                     !is_array($largestPart)
@@ -41061,6 +41080,23 @@ final class DocxOpenXmlReader
                 ) {
                     $largestPart = $partSummary;
                 }
+            } elseif ($kind !== '') {
+                $missingKinds[] = $kind;
+            }
+            if (($item['relationshipId'] ?? null) !== null && $kind !== '') {
+                $relationshipSelectedKinds[] = $kind;
+            }
+            if (is_string($item['sha256'] ?? null) && $kind !== '') {
+                $byteDigestKinds[] = $kind;
+            }
+            if (
+                $kind !== ''
+                && (
+                    in_array('missing-required-part', $item['issues'], true)
+                    || in_array('missing-relationship-target', $item['issues'], true)
+                )
+            ) {
+                $missingRequiredOrReferencedKinds[] = $kind;
             }
             $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
             $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
@@ -41129,9 +41165,14 @@ final class DocxOpenXmlReader
 
         return [
             'count' => count($items),
+            'kinds' => $kinds,
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
+            'existingKinds' => $existingKinds,
+            'missingKinds' => $missingKinds,
             'relationshipSelectedCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipId'] !== null)),
+            'relationshipSelectedKinds' => $relationshipSelectedKinds,
             'byteDigestCount' => count(array_filter($items, static fn (array $item): bool => is_string($item['sha256'] ?? null))),
+            'byteDigestKinds' => $byteDigestKinds,
             'byteLength' => $byteLength,
             'largestPart' => $largestPart,
             'selectionSourceCounts' => $selectionSourceCounts,
@@ -41140,6 +41181,7 @@ final class DocxOpenXmlReader
                 static fn (array $item): bool => in_array('missing-required-part', $item['issues'], true)
                     || in_array('missing-relationship-target', $item['issues'], true),
             )),
+            'missingRequiredOrReferencedKinds' => $missingRequiredOrReferencedKinds,
             'validRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === true)),
             'invalidRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === false)),
             'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-xml', $item['issues'], true))),
