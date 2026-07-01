@@ -239,6 +239,24 @@ $upstreamMathInlineNative = <<<'NATIVE'
 ,Para [Str "Fallback",Space,Math InlineMath "\\frac{a}{"]]
 NATIVE;
 
+$upstreamDefinitionBlockQuoteNative = <<<'NATIVE'
+[DefinitionList
+ [([Str "Term",Space,Emph [Str "one"]]
+  ,[[Para [Str "Definition",Space,Strong [Str "one"]]
+    ,RawBlock (Format "html") "<b>hidden</b>"
+    ,Para [Str "Second",Space,Str "definition",Space,Str "paragraph"]]])
+ ,([Str "Term",Space,Str "two"]
+  ,[[BlockQuote [Para [Str "Nested",Space,Emph [Str "quote"]]]]])]
+,BlockQuote
+ [Para [Str "Standalone",Space,Emph [Str "quote"]]]
+,Div ("",["notes"],[])
+ [DefinitionList
+  [([Str "Note",Space,Str "term"]
+   ,[[Para [Str "Note",Space,Strong [Str "definition"]]]])]
+ ,BlockQuote
+  [Para [Str "Quoted",Space,Str "note"]]]]
+NATIVE;
+
 $upstreamStartNumberingAtNative = <<<'NATIVE'
 [Header 2 ("example-numbering-mwe",[],[]) [Str "Example",Space,Str "numbering",Space,Str "MWE"]
 ,Para [Str "This",Space,Str "is",Space,Str "a",Space,Str "slide",Space,Str "with",Space,Str "examples",Space,Str "in",Space,Str "(1)",Space,Str "and",Space,Str "(2)"]
@@ -941,6 +959,37 @@ return [
 
         $t->contains('<a:t>\\frac{n}{k}</a:t>', $notes);
         $t->true(!str_contains($notes, '<a14:m>'), 'Speaker-note math should fall back to plain TeX like upstream');
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream definition lists and block quotes to structured pptx paragraphs' => static function (TestRunner $t) use ($upstreamDefinitionBlockQuoteNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamDefinitionBlockQuoteNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $slideText = trim(preg_replace('/\s+/u', ' ', strip_tags($slide)) ?? '');
+        $notesText = trim(preg_replace('/\s+/u', ' ', strip_tags($notes)) ?? '');
+
+        $t->contains('Term one', $slideText);
+        $t->contains('Definition one', $slideText);
+        $t->contains('Second definition paragraph', $slideText);
+        $t->contains('Nested quote', $slideText);
+        $t->contains('Standalone quote', $slideText);
+        $t->contains('<a:rPr lang="en-US" b="1"/><a:t>Term </a:t>', $slide);
+        $t->contains('<a:rPr lang="en-US" b="1" i="1"/><a:t>one</a:t>', $slide);
+        $t->contains('<a:pPr lvl="0" indent="0" marL="1270000">', $slide);
+        $t->contains('<a:rPr lang="en-US" sz="2000"/><a:t>Definition </a:t>', $slide);
+        $t->contains('<a:rPr lang="en-US" sz="2000" b="1"/><a:t>one</a:t>', $slide);
+        $t->contains('<a:rPr lang="en-US" sz="2000" i="1"/><a:t>quote</a:t>', $slide);
+        $t->true(!str_contains($slide, '<b>hidden</b>'), 'Raw non-OpenXML blocks inside definitions should not render');
+        $t->true(!str_contains($slide, '&lt;b&gt;hidden&lt;/b&gt;'), 'Dropped raw definition blocks must not be escaped into slide XML');
+
+        $t->contains('Note term', $notesText);
+        $t->contains('Note definition', $notesText);
+        $t->contains('Quoted note', $notesText);
+        $t->contains('<a:pPr lvl="0" indent="0" marL="1270000">', $notes);
+        $t->contains('<a:rPr lang="en-US" sz="2000"/><a:t>Note </a:t>', $notes);
+        $t->contains('<a:rPr lang="en-US" sz="2000" b="1"/><a:t>definition</a:t>', $notes);
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 

@@ -609,7 +609,15 @@ final class PptxWriter
             return $this->columnShapes($block, $shapeId, $slot, $relationships);
         }
 
-        if ($block->type === 'div' || $block->type === 'block_quote') {
+        if ($this->isBlockQuoteBlock($block)) {
+            $paragraphs = $this->blockQuoteParagraphXmls($block->children, $relationships);
+
+            return $paragraphs === []
+                ? []
+                : [$this->textShapeXml($shapeId++, $this->shapeName($block, 'Block Quote'), $paragraphs, ...$this->bodyRect($slot++))];
+        }
+
+        if ($block->type === 'div') {
             $shapes = [];
             foreach ($block->children as $child) {
                 foreach ($this->blockShapes($child, $shapeId, $slot, $relationships) as $shape) {
@@ -676,6 +684,14 @@ final class PptxWriter
             return $paragraphs === []
                 ? []
                 : [$this->textShapeXml($shapeId++, $this->shapeName($block, 'List'), $paragraphs, ...$this->bodyRect($slot++))];
+        }
+
+        if ($block->type === 'definition_list') {
+            $paragraphs = $this->definitionListParagraphXmls($block, $relationships);
+
+            return $paragraphs === []
+                ? []
+                : [$this->textShapeXml($shapeId++, $this->shapeName($block, 'Definition List'), $paragraphs, ...$this->bodyRect($slot++))];
         }
 
         if ($block->type === 'plain' || $block->type === 'paragraph' || $block->type === 'heading') {
@@ -982,7 +998,16 @@ final class PptxWriter
             if ($cursorY >= $bottom) {
                 break;
             }
-            if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
+            if ($this->isBlockQuoteBlock($block)) {
+                $paragraphs = $this->blockQuoteParagraphXmls($block->children, $relationships);
+                if ($paragraphs !== []) {
+                    $height = min(max(609600, count($paragraphs) * 304800), max(304800, $bottom - $cursorY));
+                    $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, 'Block Quote'), $paragraphs, $x, $cursorY, $cx, $height, null, $placeholderIndex);
+                    $cursorY += $height + 152400;
+                }
+                continue;
+            }
+            if ($block->type === 'div') {
                 foreach ($this->columnBlockShapes($block->children, $shapeId, $relationships, $x, $cursorY, $cx, max(0, $bottom - $cursorY), $placeholderIndex) as $shape) {
                     $shapes[] = $shape;
                 }
@@ -1021,6 +1046,15 @@ final class PptxWriter
                 if ($paragraphs !== []) {
                     $height = min(max(609600, count($paragraphs) * 304800), max(304800, $bottom - $cursorY));
                     $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, 'List'), $paragraphs, $x, $cursorY, $cx, $height, null, $placeholderIndex);
+                    $cursorY += $height + 152400;
+                }
+                continue;
+            }
+            if ($block->type === 'definition_list') {
+                $paragraphs = $this->definitionListParagraphXmls($block, $relationships);
+                if ($paragraphs !== []) {
+                    $height = min(max(609600, count($paragraphs) * 304800), max(304800, $bottom - $cursorY));
+                    $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, 'Definition List'), $paragraphs, $x, $cursorY, $cx, $height, null, $placeholderIndex);
                     $cursorY += $height + 152400;
                 }
                 continue;
@@ -1070,8 +1104,12 @@ final class PptxWriter
                 $height += 2286000;
                 continue;
             }
-            if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
+            if ($block->type === 'div' || $this->isBlockQuoteBlock($block)) {
                 $height += $this->columnBlockGroupHeight($block->children);
+                continue;
+            }
+            if ($block->type === 'definition_list') {
+                $height += max(762000, count($block->children) * 762000);
                 continue;
             }
             $height += 762000;
@@ -1159,12 +1197,20 @@ final class PptxWriter
             if ($this->isSpeakerNotesBlock($block)) {
                 continue;
             }
-            if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
+            if ($this->isBlockQuoteBlock($block)) {
+                array_push($paragraphs, ...$this->blockQuoteParagraphXmls($block->children, $relationships));
+                continue;
+            }
+            if ($block->type === 'div') {
                 array_push($paragraphs, ...$this->columnParagraphXmls($block->children, $relationships));
                 continue;
             }
             if ($block->type === 'bullet_list' || $block->type === 'ordered_list') {
                 array_push($paragraphs, ...$this->listParagraphXmls($block, $block->type === 'ordered_list', $relationships));
+                continue;
+            }
+            if ($block->type === 'definition_list') {
+                array_push($paragraphs, ...$this->definitionListParagraphXmls($block, $relationships));
                 continue;
             }
             if ($block->type === 'code_block') {
@@ -1195,6 +1241,145 @@ final class PptxWriter
             $text = $this->blockText($block);
             if ($text !== '') {
                 $paragraphs[] = $this->paragraphXml($this->textInlines($text), [], $relationships);
+            }
+        }
+
+        return $paragraphs;
+    }
+
+    private function isBlockQuoteBlock(AstNode $block): bool
+    {
+        return $block->type === 'block_quote' || $block->type === 'blockquote';
+    }
+
+    /**
+     * @return array{indent:int, marginLeft:int, fontSize:int}
+     */
+    private function blockQuoteParagraphProperties(): array
+    {
+        return [
+            'indent' => 0,
+            'marginLeft' => 1270000,
+            'fontSize' => 2000,
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     * @return list<string>
+     */
+    private function blockQuoteParagraphXmls(array $blocks, array &$relationships, bool $speakerNotes = false): array
+    {
+        return $this->paragraphBlockXmls($blocks, $relationships, $this->blockQuoteParagraphProperties(), $speakerNotes);
+    }
+
+    /**
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     * @return list<string>
+     */
+    private function definitionListParagraphXmls(AstNode $list, array &$relationships, bool $speakerNotes = false): array
+    {
+        $paragraphs = [];
+        foreach ($list->children as $item) {
+            if ($item->type !== 'definition_item') {
+                continue;
+            }
+
+            $termInlines = [];
+            foreach ($item->children as $child) {
+                if ($child->type === 'term') {
+                    $termInlines = $child->children === []
+                        ? $this->textInlines((string) $child->attr('text', $item->attr('term', '')))
+                        : $child->children;
+                    break;
+                }
+            }
+            if ($termInlines === [] && (string) $item->attr('term', '') !== '') {
+                $termInlines = $this->textInlines((string) $item->attr('term', ''));
+            }
+            if ($termInlines !== []) {
+                $term = [new AstNode('strong', [], $termInlines)];
+                $paragraphs[] = $speakerNotes
+                    ? $this->notesParagraphXml($term)
+                    : $this->paragraphXml($term, [], $relationships);
+            }
+
+            foreach ($item->children as $child) {
+                if ($child->type === 'definition') {
+                    array_push($paragraphs, ...$this->blockQuoteParagraphXmls($child->children, $relationships, $speakerNotes));
+                }
+            }
+        }
+
+        return $paragraphs;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     * @param array{indent?:int, marginLeft?:int, fontSize?:int} $properties
+     * @return list<string>
+     */
+    private function paragraphBlockXmls(array $blocks, array &$relationships, array $properties, bool $speakerNotes): array
+    {
+        $paragraphs = [];
+        foreach ($blocks as $block) {
+            if ($this->isSpeakerNotesBlock($block)) {
+                continue;
+            }
+            if ($block->type === 'div') {
+                array_push($paragraphs, ...$this->paragraphBlockXmls($block->children, $relationships, $properties, $speakerNotes));
+                continue;
+            }
+            if ($this->isBlockQuoteBlock($block)) {
+                array_push($paragraphs, ...$this->blockQuoteParagraphXmls($block->children, $relationships, $speakerNotes));
+                continue;
+            }
+            if ($block->type === 'definition_list') {
+                array_push($paragraphs, ...$this->definitionListParagraphXmls($block, $relationships, $speakerNotes));
+                continue;
+            }
+            if ($block->type === 'bullet_list' || $block->type === 'ordered_list') {
+                array_push($paragraphs, ...$this->listParagraphXmls($block, $block->type === 'ordered_list', $relationships));
+                continue;
+            }
+            if ($block->type === 'code_block') {
+                $text = (string) $block->attr('text', '');
+                if ($text !== '') {
+                    $paragraphs[] = $speakerNotes
+                        ? $this->notesParagraphXml([$this->codeInline($text)], $properties)
+                        : $this->paragraphXml([$this->codeInline($text)], $properties, $relationships);
+                }
+                continue;
+            }
+            if ($block->type === 'line_block') {
+                $inlines = $this->lineBlockInlines($block);
+                if ($inlines !== []) {
+                    $paragraphs[] = $speakerNotes
+                        ? $this->notesParagraphXml($inlines, $properties)
+                        : $this->paragraphXml($inlines, $properties, $relationships);
+                }
+                continue;
+            }
+            if ($block->type === 'raw_block') {
+                continue;
+            }
+            if ($block->type === 'plain' || $block->type === 'paragraph' || $block->type === 'heading') {
+                if ($this->inlineText($block->children) !== '') {
+                    $paragraphs[] = $speakerNotes
+                        ? $this->notesParagraphXml($block->children, $properties)
+                        : $this->paragraphXml($block->children, $properties, $relationships);
+                }
+                continue;
+            }
+
+            $text = $this->blockText($block);
+            if ($text !== '') {
+                $inlines = $this->textInlines($text);
+                $paragraphs[] = $speakerNotes
+                    ? $this->notesParagraphXml($inlines, $properties)
+                    : $this->paragraphXml($inlines, $properties, $relationships);
             }
         }
 
@@ -1318,10 +1503,21 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bullet?:bool, ordered?:bool, noBullet?:bool, level?:int, start?:int, autoNumType?:string, indent?:int, marginLeft?:int} $properties
+     * @param array{bullet?:bool, ordered?:bool, noBullet?:bool, level?:int, start?:int, autoNumType?:string, indent?:int, marginLeft?:int, fontSize?:int} $properties
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      */
     private function paragraphXml(array $inlines, array $properties, array &$relationships): string
+    {
+        $paragraphProperties = $this->paragraphPropertiesXml($properties);
+        $runs = $this->inlineRuns($inlines, $this->paragraphRunStyle($properties), $relationships);
+
+        return '<a:p>' . $paragraphProperties . ($runs === [] ? '' : implode('', $runs)) . '</a:p>';
+    }
+
+    /**
+     * @param array{bullet?:bool, ordered?:bool, noBullet?:bool, level?:int, start?:int, autoNumType?:string, indent?:int, marginLeft?:int, fontSize?:int} $properties
+     */
+    private function paragraphPropertiesXml(array $properties): string
     {
         $level = max(0, min(8, (int) ($properties['level'] ?? 0)));
         $propertyChildren = '';
@@ -1341,12 +1537,22 @@ final class PptxWriter
         } elseif (($properties['noBullet'] ?? false) === true) {
             $propertyChildren .= '<a:buNone/>';
         }
-        $paragraphProperties = $propertyChildren !== '' || $level > 0 || count($propertyAttributes) > 1
+        return $propertyChildren !== '' || $level > 0 || count($propertyAttributes) > 1
             ? '<a:pPr ' . implode(' ', $propertyAttributes) . '>' . $propertyChildren . '</a:pPr>'
             : '';
-        $runs = $this->inlineRuns($inlines, [], $relationships);
+    }
 
-        return '<a:p>' . $paragraphProperties . ($runs === [] ? '' : implode('', $runs)) . '</a:p>';
+    /**
+     * @param array{fontSize?:int} $properties
+     * @return array{fontSize?:int}
+     */
+    private function paragraphRunStyle(array $properties): array
+    {
+        if (!isset($properties['fontSize'])) {
+            return [];
+        }
+
+        return ['fontSize' => max(1, (int) $properties['fontSize'])];
     }
 
     /**
@@ -1390,7 +1596,7 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, baseline?:int, fontSize?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      * @return list<string>
      */
@@ -1536,11 +1742,14 @@ final class PptxWriter
     }
 
     /**
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, baseline?:int, fontSize?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
      */
     private function runXml(string $text, array $style): string
     {
         $attrs = ['lang="en-US"'];
+        if (isset($style['fontSize'])) {
+            $attrs[] = 'sz="' . max(1, (int) $style['fontSize']) . '"';
+        }
         if (($style['bold'] ?? false) === true) {
             $attrs[] = 'b="1"';
         }
@@ -1839,7 +2048,15 @@ final class PptxWriter
                 array_push($paragraphs, ...$this->listParagraphXmls($block, $nestedOrdered, $relationships, $level + 1));
                 continue;
             }
-            if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
+            if ($block->type === 'definition_list') {
+                array_push($paragraphs, ...$this->definitionListParagraphXmls($block, $relationships));
+                continue;
+            }
+            if ($this->isBlockQuoteBlock($block)) {
+                array_push($paragraphs, ...$this->blockQuoteParagraphXmls($block->children, $relationships));
+                continue;
+            }
+            if ($block->type === 'div') {
                 array_push(
                     $paragraphs,
                     ...$this->listItemParagraphXmls($block->children, $ordered, $listStart, $itemStart, $level, $autoNumType, $relationships, $first)
@@ -2735,7 +2952,17 @@ final class PptxWriter
                 }
                 continue;
             }
-            if ($block->type === 'div' || $block->type === 'block_quote') {
+            if ($block->type === 'definition_list') {
+                $relationships = [];
+                array_push($paragraphs, ...$this->definitionListParagraphXmls($block, $relationships, true));
+                continue;
+            }
+            if ($this->isBlockQuoteBlock($block)) {
+                $relationships = [];
+                array_push($paragraphs, ...$this->blockQuoteParagraphXmls($block->children, $relationships, true));
+                continue;
+            }
+            if ($block->type === 'div') {
                 $nested = $this->notesParagraphXmls($block->children);
                 if ($nested !== '') {
                     $paragraphs[] = $nested;
@@ -2754,17 +2981,18 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
+     * @param array{bullet?:bool, ordered?:bool, noBullet?:bool, level?:int, start?:int, autoNumType?:string, indent?:int, marginLeft?:int, fontSize?:int} $properties
      */
-    private function notesParagraphXml(array $inlines): string
+    private function notesParagraphXml(array $inlines, array $properties = []): string
     {
-        $runs = $this->noteInlineRuns($inlines, []);
+        $runs = $this->noteInlineRuns($inlines, $this->paragraphRunStyle($properties));
 
-        return '<a:p>' . ($runs === [] ? '' : implode('', $runs)) . '</a:p>';
+        return '<a:p>' . $this->paragraphPropertiesXml($properties) . ($runs === [] ? '' : implode('', $runs)) . '</a:p>';
     }
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, fontSize?:int} $style
      * @return list<string>
      */
     private function noteInlineRuns(array $inlines, array $style): array
