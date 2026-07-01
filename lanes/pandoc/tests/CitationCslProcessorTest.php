@@ -7049,6 +7049,93 @@ XML);
         $t->contains('<dt>Curie 2026</dt><dd>Curie, Ada. Compact Registry Trial. Medical Registry Review. 2026. PMID 34567890. PMCID PMC3456789. JSTOR 10.2307/compact.</dd>', $blocks);
         $t->contains('<dt>Catalog Desk 2025</dt><dd>Catalog Desk. Compact Library Registry. 2025. HDL 20.500/compact. LCCN 2026123987. OCLC 99887766.</dd>', $blocks);
     },
+    'maps underscore pubmed and pmc identifier aliases into csl metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@article{underscore-medical-registry,
+  author       = {Ali, Sam},
+  title        = {Underscore PubMed Registry Trial},
+  journaltitle = {Medical Registry Review},
+  date         = {2025},
+  pubmed_id    = {44332211},
+  pmc_id       = {PMC4433221}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('44332211', $items[0]['PMID'] ?? null);
+        $t->same('PMC4433221', $items[0]['PMCID'] ?? null);
+        $t->same('44332211', $items[0]['rawBibtex']['fields']['pubmed_id'] ?? null);
+        $t->same('PMC4433221', $items[0]['rawBibtex']['fields']['pmc_id'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('underscore-medical-registry');
+        $t->same('44332211', $item['pmid'] ?? null);
+        $t->same('PMC4433221', $item['pmcid'] ?? null);
+        $t->same('Ali, Sam. Underscore PubMed Registry Trial. Medical Registry Review. 2025. PMID 44332211. PMCID PMC4433221.', $processor->renderBibliographyEntry('underscore-medical-registry'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" :: ">
+        <text variable="title"/>
+        <text variable="pubmed_id"/>
+        <text variable="pmc_id"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="pubmed_id"/>
+      <text variable="pmc_id"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('Underscore PubMed Registry Trial :: 44332211 :: PMC4433221', $styled->renderBibliographyEntry('underscore-medical-registry'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-underscore-registry',
+            'title' => 'Direct Underscore Registry',
+            'pmid_id' => '11223344',
+            'pmcid_id' => 'PMC1122334',
+        ]]);
+        $directItem = $direct->item('direct-underscore-registry');
+        $t->same('11223344', $directItem['pmid'] ?? null);
+        $t->same('PMC1122334', $directItem['pmcid'] ?? null);
+        $t->same('pmid_id', array_key_exists('pmid_id', $directItem['raw'] ?? []) ? 'pmid_id' : null);
+        $t->same('pmcid_id', array_key_exists('pmcid_id', $directItem['raw'] ?? []) ? 'pmcid_id' : null);
+
+        $directStyled = $direct->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" :: ">
+        <text variable="title"/>
+        <text variable="pmid_id"/>
+        <text variable="pmcid_id"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="pmid_id"/>
+      <text variable="pmcid_id"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('Direct Underscore Registry :: 11223344 :: PMC1122334', $directStyled->renderBibliographyEntry('direct-underscore-registry'));
+
+        $document = (new MarkdownReader())->read('Registry @underscore-medical-registry keeps underscore identifiers.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Registry Sources'));
+        $t->contains('<dt>Ali 2025</dt><dd>Ali, Sam. Underscore PubMed Registry Trial. Medical Registry Review. 2025. PMID 44332211. PMCID PMC4433221.</dd>', $blocks);
+    },
     'maps bounded biblatex media and report identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @movie{film-source,
