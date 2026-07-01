@@ -14448,6 +14448,13 @@ final class OdfReader
         $transformCount = 0;
         $xpathTransformCount = 0;
         $xpathExpressionCount = 0;
+        $keyInfoSignatureCount = 0;
+        $keyInfoChildElementNameCounts = [];
+        $keyNameCount = 0;
+        $x509DataCount = 0;
+        $x509CertificateCount = 0;
+        $x509SubjectNameCount = 0;
+        $x509IssuerSerialCount = 0;
         $signedParts = [];
 
         foreach ($candidatesByPart as $part => $item) {
@@ -14511,6 +14518,13 @@ final class OdfReader
             $transformCount += (int) ($parsed['transformCount'] ?? 0);
             $xpathTransformCount += (int) ($parsed['xpathTransformCount'] ?? 0);
             $xpathExpressionCount += (int) ($parsed['xpathExpressionCount'] ?? 0);
+            $keyInfoSignatureCount += (int) ($parsed['keyInfoSignatureCount'] ?? 0);
+            self::mergeIntCounts($keyInfoChildElementNameCounts, $parsed['keyInfoChildElementNameCounts'] ?? []);
+            $keyNameCount += (int) ($parsed['keyNameCount'] ?? 0);
+            $x509DataCount += (int) ($parsed['x509DataCount'] ?? 0);
+            $x509CertificateCount += (int) ($parsed['x509CertificateCount'] ?? 0);
+            $x509SubjectNameCount += (int) ($parsed['x509SubjectNameCount'] ?? 0);
+            $x509IssuerSerialCount += (int) ($parsed['x509IssuerSerialCount'] ?? 0);
             foreach ($parsed['signedParts'] ?? [] as $signedPart) {
                 if (is_string($signedPart) && $signedPart !== '') {
                     $signedParts[] = $signedPart;
@@ -14526,6 +14540,7 @@ final class OdfReader
 
         $signedParts = array_values(array_unique($signedParts));
         sort($signedParts);
+        ksort($keyInfoChildElementNameCounts, SORT_STRING);
 
         return [
             'count' => count($parts),
@@ -14547,6 +14562,13 @@ final class OdfReader
             'transformCount' => $transformCount,
             'xpathTransformCount' => $xpathTransformCount,
             'xpathExpressionCount' => $xpathExpressionCount,
+            'keyInfoSignatureCount' => $keyInfoSignatureCount,
+            'keyInfoChildElementNameCounts' => $keyInfoChildElementNameCounts,
+            'keyNameCount' => $keyNameCount,
+            'x509DataCount' => $x509DataCount,
+            'x509CertificateCount' => $x509CertificateCount,
+            'x509SubjectNameCount' => $x509SubjectNameCount,
+            'x509IssuerSerialCount' => $x509IssuerSerialCount,
             'signedPartCount' => count($signedParts),
             'signedParts' => $signedParts,
             'parts' => $parts,
@@ -14602,8 +14624,9 @@ final class OdfReader
         $signedParts = array_values(array_unique($signedParts));
         sort($signedParts);
         $referenceSummary = $this->signatureReferenceSummary($signatures);
+        $keyInfoSummary = self::signatureKeyInfoSummary($signatures);
 
-        return $referenceSummary + [
+        return $referenceSummary + $keyInfoSummary + [
             'signatureCount' => count($signatures),
             'referenceCount' => $referenceCount,
             'signedPartCount' => count($signedParts),
@@ -14634,6 +14657,7 @@ final class OdfReader
                 $references[] = $this->signatureReferenceMetadata($reference, $package, $manifestByPart);
             }
         }
+        $keyInfoMetadata = $keyInfo instanceof \DOMElement ? self::signatureKeyInfoMetadata($keyInfo) : [];
 
         return self::withoutEmpty([
             'id' => self::domAttribute($signature, 'Id') ?: self::domAttribute($signature, 'ID'),
@@ -14643,7 +14667,93 @@ final class OdfReader
             'hasKeyInfo' => $keyInfo instanceof \DOMElement,
             'referenceCount' => count($references),
             'references' => $references,
-        ]);
+        ] + $keyInfoMetadata);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function signatureKeyInfoMetadata(\DOMElement $keyInfo): array
+    {
+        $childElementNames = [];
+        $childElementNameCounts = [];
+        foreach (self::childElements($keyInfo) as $child) {
+            $name = self::signatureQualifiedElementName($child);
+            $childElementNames[] = $name;
+            $childElementNameCounts[$name] = ($childElementNameCounts[$name] ?? 0) + 1;
+        }
+        ksort($childElementNameCounts, SORT_STRING);
+
+        $keyNameLengths = [];
+        $keyNameSha256s = [];
+        foreach (self::childElements($keyInfo, 'KeyName', self::DSIG_NS) as $keyName) {
+            $value = self::normalizedText($keyName);
+            $keyNameLengths[] = strlen($value);
+            $keyNameSha256s[] = hash('sha256', $value);
+        }
+
+        $certificateLengths = [];
+        $certificateSha256s = [];
+        $subjectNameLengths = [];
+        $subjectNameSha256s = [];
+        $issuerNameLengths = [];
+        $issuerNameSha256s = [];
+        $serialNumberLengths = [];
+        $serialNumberSha256s = [];
+        $x509DataCount = 0;
+        $x509IssuerSerialCount = 0;
+        foreach (self::childElements($keyInfo, 'X509Data', self::DSIG_NS) as $x509Data) {
+            ++$x509DataCount;
+            foreach (self::childElements($x509Data, 'X509Certificate', self::DSIG_NS) as $certificate) {
+                $value = preg_replace('/\s+/u', '', $certificate->textContent) ?? trim($certificate->textContent);
+                $certificateLengths[] = strlen($value);
+                $certificateSha256s[] = hash('sha256', $value);
+            }
+            foreach (self::childElements($x509Data, 'X509SubjectName', self::DSIG_NS) as $subjectName) {
+                $value = self::normalizedText($subjectName);
+                $subjectNameLengths[] = strlen($value);
+                $subjectNameSha256s[] = hash('sha256', $value);
+            }
+            foreach (self::childElements($x509Data, 'X509IssuerSerial', self::DSIG_NS) as $issuerSerial) {
+                ++$x509IssuerSerialCount;
+                $issuerName = self::firstChildElement($issuerSerial, 'X509IssuerName', self::DSIG_NS);
+                if ($issuerName instanceof \DOMElement) {
+                    $value = self::normalizedText($issuerName);
+                    $issuerNameLengths[] = strlen($value);
+                    $issuerNameSha256s[] = hash('sha256', $value);
+                }
+                $serialNumber = self::firstChildElement($issuerSerial, 'X509SerialNumber', self::DSIG_NS);
+                if ($serialNumber instanceof \DOMElement) {
+                    $value = self::normalizedText($serialNumber);
+                    $serialNumberLengths[] = strlen($value);
+                    $serialNumberSha256s[] = hash('sha256', $value);
+                }
+            }
+        }
+
+        return [
+            'keyInfoReviewPolicy' => 'xml-signature-key-info-metadata-only',
+            'canExposeKeyInfoValues' => false,
+            'keyInfoValueLength' => strlen(self::normalizedText($keyInfo)),
+            'keyInfoChildElementCount' => count($childElementNames),
+            'keyInfoChildElementNames' => $childElementNames,
+            'keyInfoChildElementNameCounts' => $childElementNameCounts,
+            'keyNameCount' => count($keyNameLengths),
+            'keyNameLengths' => $keyNameLengths,
+            'keyNameSha256s' => $keyNameSha256s,
+            'x509DataCount' => $x509DataCount,
+            'x509CertificateCount' => count($certificateLengths),
+            'x509CertificateLengths' => $certificateLengths,
+            'x509CertificateSha256s' => $certificateSha256s,
+            'x509SubjectNameCount' => count($subjectNameLengths),
+            'x509SubjectNameLengths' => $subjectNameLengths,
+            'x509SubjectNameSha256s' => $subjectNameSha256s,
+            'x509IssuerSerialCount' => $x509IssuerSerialCount,
+            'x509IssuerNameLengths' => $issuerNameLengths,
+            'x509IssuerNameSha256s' => $issuerNameSha256s,
+            'x509SerialNumberLengths' => $serialNumberLengths,
+            'x509SerialNumberSha256s' => $serialNumberSha256s,
+        ];
     }
 
     /**
@@ -14865,6 +14975,45 @@ final class OdfReader
                 $summary['xpathExpressionCount'] += (int) ($reference['xpathExpressionCount'] ?? 0);
             }
         }
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $signatures
+     * @return array<string, mixed>
+     */
+    private static function signatureKeyInfoSummary(array $signatures): array
+    {
+        $summary = [
+            'keyInfoSignatureCount' => 0,
+            'keyInfoChildElementNameCounts' => [],
+            'keyNameCount' => 0,
+            'x509DataCount' => 0,
+            'x509CertificateCount' => 0,
+            'x509SubjectNameCount' => 0,
+            'x509IssuerSerialCount' => 0,
+        ];
+
+        foreach ($signatures as $signature) {
+            if (!is_array($signature)) {
+                continue;
+            }
+            if (($signature['hasKeyInfo'] ?? false) === true) {
+                ++$summary['keyInfoSignatureCount'];
+            }
+            self::mergeIntCounts(
+                $summary['keyInfoChildElementNameCounts'],
+                $signature['keyInfoChildElementNameCounts'] ?? []
+            );
+            $summary['keyNameCount'] += (int) ($signature['keyNameCount'] ?? 0);
+            $summary['x509DataCount'] += (int) ($signature['x509DataCount'] ?? 0);
+            $summary['x509CertificateCount'] += (int) ($signature['x509CertificateCount'] ?? 0);
+            $summary['x509SubjectNameCount'] += (int) ($signature['x509SubjectNameCount'] ?? 0);
+            $summary['x509IssuerSerialCount'] += (int) ($signature['x509IssuerSerialCount'] ?? 0);
+        }
+
+        ksort($summary['keyInfoChildElementNameCounts'], SORT_STRING);
 
         return $summary;
     }
@@ -18536,6 +18685,31 @@ final class OdfReader
         }
 
         return null;
+    }
+
+    private static function signatureQualifiedElementName(\DOMElement $element): string
+    {
+        $prefix = (string) $element->prefix;
+
+        return $prefix === '' ? $element->localName : $prefix . ':' . $element->localName;
+    }
+
+    /**
+     * @param array<string, int> $target
+     * @param mixed $source
+     */
+    private static function mergeIntCounts(array &$target, mixed $source): void
+    {
+        if (!is_array($source)) {
+            return;
+        }
+
+        foreach ($source as $key => $value) {
+            if (!is_string($key) || $key === '') {
+                continue;
+            }
+            $target[$key] = ($target[$key] ?? 0) + (int) $value;
+        }
     }
 
     private static function attr(\DOMElement $element, string $namespace, string $name): string
