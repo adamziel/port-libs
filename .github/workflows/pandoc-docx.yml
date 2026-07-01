@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  statuses: write
 
 jobs:
   focused-docx:
@@ -178,3 +179,29 @@ jobs:
             lanes/pandoc/tests/DocxWriterTest.php \
             lanes/pandoc/tests/ZipPackageTest.php \
             lanes/pandoc/tests/MediaBagTest.php
+
+      - name: Summarize DOCX parity evidence
+        if: always()
+        run: |
+          {
+            echo "## DOCX parity evidence"
+            echo ""
+            echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo "- Runner evidence artifact: pandoc-docx-runner-evidence"
+            echo "- Focused gates: cache manifest, runner plan, native smoke, AST parity, parser audit, writer golden audit, DOCX tests"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish DOCX parity commit status
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STATUS_DESCRIPTION: ${{ job.status == 'success' && 'Focused DOCX parity evidence passed' || 'Focused DOCX parity evidence needs attention' }}
+          STATUS_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          STATUS_STATE: ${{ job.status == 'success' && 'success' || job.status == 'cancelled' && 'error' || 'failure' }}
+          STATUS_TARGET_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh api repos/${{ github.repository }}/statuses/"$STATUS_SHA" \
+            -f state="$STATUS_STATE" \
+            -f context='Pandoc DOCX parity / evidence' \
+            -f target_url="$STATUS_TARGET_URL" \
+            -f description="$STATUS_DESCRIPTION"
