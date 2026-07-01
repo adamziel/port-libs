@@ -515,6 +515,18 @@ final class BibtexCslProcessor
             'date-addon' => 'Date addendum',
             'original-date-addon' => 'Original date addendum',
             'reprint-date-addon' => 'Reprint date addendum',
+            'original-page' => 'Original pages',
+            'original-page-first' => 'Original first page',
+            'original-volume' => 'Original volume',
+            'original-issue' => 'Original issue',
+            'original-number' => 'Original number',
+            'original-edition' => 'Original edition',
+            'reprint-page' => 'Reprint pages',
+            'reprint-page-first' => 'Reprint first page',
+            'reprint-volume' => 'Reprint volume',
+            'reprint-issue' => 'Reprint issue',
+            'reprint-number' => 'Reprint number',
+            'reprint-edition' => 'Reprint edition',
             'event-date-addon' => 'Event date addendum',
             'accessed-date-addon' => 'Accessed date addendum',
             'biblatex-disambiguation-summary' => 'BibLaTeX disambiguation',
@@ -1045,10 +1057,22 @@ final class BibtexCslProcessor
             'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
             'original-subtitle' => ['origsubtitle', 'originalsubtitle', 'original-subtitle'],
             'original-genre' => ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre'],
+            'original-page' => ['origpages', 'orig-pages', 'origpage', 'orig-page', 'originalpages', 'original-pages', 'originalpage', 'original-page'],
+            'original-page-first' => ['origpagefirst', 'orig-page-first', 'originalpagefirst', 'original-page-first'],
+            'original-volume' => ['origvolume', 'orig-volume', 'originalvolume', 'original-volume'],
+            'original-issue' => ['origissue', 'orig-issue', 'originalissue', 'original-issue'],
+            'original-number' => ['orignumber', 'orig-number', 'originalnumber', 'original-number'],
+            'original-edition' => ['origedition', 'orig-edition', 'originaledition', 'original-edition'],
             'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
             'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'reprint-title' => ['reprinttitle', 'reprint-title'],
+            'reprint-page' => ['reprintpages', 'reprint-pages', 'reprintpage', 'reprint-page'],
+            'reprint-page-first' => ['reprintpagefirst', 'reprint-page-first'],
+            'reprint-volume' => ['reprintvolume', 'reprint-volume'],
+            'reprint-issue' => ['reprintissue', 'reprint-issue'],
+            'reprint-number' => ['reprintnumber', 'reprint-number'],
+            'reprint-edition' => ['reprintedition', 'reprint-edition'],
             'abstract' => ['abstract', 'annotation', 'annote'],
             'annotation' => ['annotation', 'annote'],
             'addendum' => ['addendum'],
@@ -1073,13 +1097,25 @@ final class BibtexCslProcessor
             if ($value === null || $value === '') {
                 continue;
             }
-            $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+            $item[$target] = in_array($target, ['page', 'original-page', 'reprint-page'], true) ? str_replace('--', '-', $value) : $value;
         }
 
         if (($item['page-first'] ?? '') === '') {
             $pageFirst = $this->firstPageFromRange((string) ($item['page'] ?? ''));
             if ($pageFirst !== '') {
                 $item['page-first'] = $pageFirst;
+            }
+        }
+        if (($item['original-page-first'] ?? '') === '') {
+            $pageFirst = $this->firstPageFromRange((string) ($item['original-page'] ?? ''));
+            if ($pageFirst !== '') {
+                $item['original-page-first'] = $pageFirst;
+            }
+        }
+        if (($item['reprint-page-first'] ?? '') === '') {
+            $pageFirst = $this->firstPageFromRange((string) ($item['reprint-page'] ?? ''));
+            if ($pageFirst !== '') {
+                $item['reprint-page-first'] = $pageFirst;
             }
         }
 
