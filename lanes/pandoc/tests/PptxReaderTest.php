@@ -216,7 +216,7 @@ XML);
     $zip->addFromString('ppt/slides/slide3.xml', $slideOpen . $titleShape('Table') . <<<'XML'
     <p:graphicFrame>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
-        <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr>
+        <a:tblPr firstRow="1" firstCol="1" lastRow="1" lastCol="1" bandRow="1" bandCol="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr>
         <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
         <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Col1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col2</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col3</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
         <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" anchorCtr="1" vert="vert270" horzOverflow="overflow" marL="120" marR="240" marT="360" marB="480"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB w="12700" cap="flat"><a:solidFill><a:schemeClr val="accent1"><a:lumMod val="60000"/><a:lumOff val="20000"/></a:schemeClr></a:solidFill><a:prstDash val="solid"/><a:round/><a:headEnd type="triangle" w="med" len="lg"/></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
@@ -254,6 +254,11 @@ XML);
       </a:tcStyle>
     </a:wholeTbl>
     <a:firstRow><a:tcTxStyle b="1" i="1" u="sng" strike="sngStrike" sz="1400"/></a:firstRow>
+    <a:band1H><a:tcStyle><a:fill><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:fill></a:tcStyle></a:band1H>
+    <a:band1V><a:tcTxStyle i="1"/></a:band1V>
+    <a:lastRow><a:tcTxStyle u="dbl"/></a:lastRow>
+    <a:lastCol><a:tcStyle><a:fill><a:solidFill><a:schemeClr val="accent2"><a:tint val="60000"/></a:schemeClr></a:solidFill></a:fill></a:tcStyle></a:lastCol>
+    <a:seCell><a:tcTxStyle strike="dblStrike"/><a:tcStyle><a:lnT w="6350"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:lnT></a:tcStyle></a:seCell>
   </a:tblStyle>
 </a:tblStyleLst>
 XML);
@@ -624,7 +629,11 @@ return [
         $t->same(1, count($tables));
         $t->same([
             'firstRow' => true,
+            'firstCol' => true,
+            'lastRow' => true,
+            'lastCol' => true,
             'bandRow' => true,
+            'bandCol' => true,
             'id' => '{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}',
             'name' => 'Medium Style 2 - Accent 1',
             'sourcePart' => 'ppt/tableStyles.xml',
@@ -665,12 +674,52 @@ return [
                         'fontSize' => 1400,
                     ],
                 ],
+                'band1H' => [
+                    'cell' => [
+                        'fillColor' => 'theme:accent1',
+                    ],
+                ],
+                'band1V' => [
+                    'text' => [
+                        'italic' => true,
+                    ],
+                ],
+                'lastRow' => [
+                    'text' => [
+                        'underline' => 'dbl',
+                    ],
+                ],
+                'lastCol' => [
+                    'cell' => [
+                        'fillColor' => 'theme:accent2',
+                        'fillColorTransforms' => [
+                            'tint' => 60000,
+                        ],
+                    ],
+                ],
+                'seCell' => [
+                    'text' => [
+                        'strike' => 'dblStrike',
+                    ],
+                    'cell' => [
+                        'borders' => [
+                            'top' => 'theme:accent1',
+                        ],
+                        'borderStyles' => [
+                            'top' => [
+                                'color' => 'theme:accent1',
+                                'width' => 6350,
+                            ],
+                        ],
+                    ],
+                ],
             ],
             'default' => true,
         ], $tables[0]->attr('pptxTableStyle'));
         $t->same([1828800, 1828800, 1828800], $tables[0]->attr('columnWidths'));
         $t->same(['Col1', 'Col2', 'Col3'], array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $tables[0]->children[0]->children[0]->children));
         $t->same(['wholeTbl', 'firstRow'], $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['appliedParts'] ?? null);
+        $t->same(2, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['appliedPartCount'] ?? null);
         $t->same(true, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['bold'] ?? null);
         $t->same(true, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['italic'] ?? null);
         $t->same('sng', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['underline'] ?? null);
@@ -683,8 +732,16 @@ return [
         $t->same('4472C4', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['resolvedBorders']['bottom'] ?? null);
         $t->same(12700, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['borderStyles']['bottom']['width'] ?? null);
         $t->same('Name', $tables[0]->children[1]->children[0]->children[0]->attr('text'));
-        $t->same(['wholeTbl'], $tables[0]->children[1]->children[0]->children[0]->attr('pptxTableStyleApplied')['appliedParts'] ?? null);
-        $t->same('ED7D31', $tables[0]->children[1]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['resolvedFillColor'] ?? null);
+        $t->same(['wholeTbl', 'band1H'], $tables[0]->children[1]->children[0]->children[0]->attr('pptxTableStyleApplied')['appliedParts'] ?? null);
+        $t->same(2, $tables[0]->children[1]->children[0]->children[0]->attr('pptxTableStyleApplied')['appliedPartCount'] ?? null);
+        $t->same('theme:accent1', $tables[0]->children[1]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['fillColor'] ?? null);
+        $t->same('4472C4', $tables[0]->children[1]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['resolvedFillColor'] ?? null);
+        $t->same(['wholeTbl', 'band1H', 'band1V'], $tables[0]->children[1]->children[0]->children[1]->attr('pptxTableStyleApplied')['appliedParts'] ?? null);
+        $t->same(3, $tables[0]->children[1]->children[0]->children[1]->attr('pptxTableStyleApplied')['appliedPartCount'] ?? null);
+        $t->same(true, $tables[0]->children[1]->children[0]->children[1]->attr('pptxTableStyleApplied')['text']['bold'] ?? null);
+        $t->same(true, $tables[0]->children[1]->children[0]->children[1]->attr('pptxTableStyleApplied')['text']['italic'] ?? null);
+        $t->same('theme:accent1', $tables[0]->children[1]->children[0]->children[1]->attr('pptxTableStyleApplied')['cell']['fillColor'] ?? null);
+        $t->same('4472C4', $tables[0]->children[1]->children[0]->children[1]->attr('pptxTableStyleApplied')['cell']['resolvedFillColor'] ?? null);
         $t->same(2, $tables[0]->children[1]->children[0]->children[0]->attr('colspan'));
         $t->same('D9EAF7', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['fillColor'] ?? null);
         $t->same('ctr', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['verticalAlign'] ?? null);
@@ -712,6 +769,17 @@ return [
         $t->same('5C77A9', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['resolvedColor'] ?? null);
         $t->same(2, $tables[0]->children[1]->children[1]->children[0]->attr('rowspan'));
         $t->same('23', $tables[0]->children[1]->children[1]->children[1]->attr('text'));
+        $t->same(['wholeTbl', 'lastRow', 'lastCol', 'seCell'], $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['appliedParts'] ?? null);
+        $t->same(4, $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['appliedPartCount'] ?? null);
+        $t->same('dbl', $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['text']['underline'] ?? null);
+        $t->same('dblStrike', $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['text']['strike'] ?? null);
+        $t->same('theme:accent2', $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['cell']['fillColor'] ?? null);
+        $t->same(['tint' => 60000], $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['cell']['fillColorTransforms'] ?? null);
+        $t->same('F8CBAD', $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['cell']['resolvedFillColor'] ?? null);
+        $t->same('theme:accent1', $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['cell']['borders']['top'] ?? null);
+        $t->same('4472C4', $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['cell']['resolvedBorders']['top'] ?? null);
+        $t->same(6350, $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['cell']['borderStyles']['top']['width'] ?? null);
+        $t->same('4472C4', $tables[0]->children[1]->children[1]->children[2]->attr('pptxTableStyleApplied')['cell']['borderStyles']['top']['resolvedColor'] ?? null);
         $t->same(1, count($images));
         $t->same('ppt/media/image1.png', $images[0]->attr('url'));
         $t->same('Picture 6', $images[0]->attr('title'));

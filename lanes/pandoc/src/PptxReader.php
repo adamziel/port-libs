@@ -2886,7 +2886,10 @@ final class PptxReader
             return [];
         }
 
-        $style = ['appliedParts' => $appliedParts];
+        $style = [
+            'appliedParts' => $appliedParts,
+            'appliedPartCount' => count($appliedParts),
+        ];
         if ($textStyle !== []) {
             $style['text'] = $textStyle;
         }
