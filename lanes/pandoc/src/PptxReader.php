@@ -1808,9 +1808,12 @@ final class PptxReader
 
     private function integerAttribute(\DOMElement $element, string $name): ?int
     {
-        $value = trim($element->getAttribute($name));
+        return $this->integerText($element->getAttribute($name));
+    }
 
-        return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : null;
+    private function integerText(string $value): ?int
+    {
+        return preg_match('/^\s*(-?[0-9]+)\s*$/u', $value, $matches) === 1 ? (int) $matches[1] : null;
     }
 
     private function xmlBooleanAttribute(\DOMElement $element, string $name): ?bool
@@ -2139,12 +2142,7 @@ final class PptxReader
             return 0;
         }
 
-        $level = trim($properties->getAttribute('lvl'));
-        if (preg_match('/^-?\d+$/', $level) !== 1) {
-            return 0;
-        }
-
-        return (int) $level;
+        return $this->integerText($properties->getAttribute('lvl')) ?? 0;
     }
 
     /**

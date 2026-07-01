@@ -2688,6 +2688,76 @@ XML);
     }
 };
 
+$buildUnicodeWhitespaceBulletLevelPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-unicode-whitespace-bullet-level-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Unicode whitespace level slide</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Unicode whitespace level body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:pPr lvl="&#160;1&#160;"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Unicode level one</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Zero level middle</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="&#160;1&#160;"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Unicode level one again</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildNestedListPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-nested-list-');
     if ($path === false) {
@@ -6626,6 +6696,30 @@ return [
             ['Negative level bullet'],
             ['Zero level bullet', 'Plus level bullet'],
         ], array_map($itemTexts, $topLevelLists));
+    },
+
+    'trims Unicode whitespace in pptx numeric attributes like upstream' => static function (TestRunner $t) use ($buildUnicodeWhitespaceBulletLevelPptxPackage): void {
+        $document = (new PptxReader())->read($buildUnicodeWhitespaceBulletLevelPptxPackage());
+        $topLevelLists = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'bullet_list'
+        ));
+        $itemTexts = static function (AstNode $list): array {
+            return array_map(static function (AstNode $item): string {
+                $inline = $item->children[0]->children[0] ?? null;
+
+                return $inline instanceof AstNode ? (string) $inline->attr('text') : '';
+            }, $list->children);
+        };
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(3, count($topLevelLists));
+        $t->same([
+            ['Unicode level one'],
+            ['Zero level middle'],
+            ['Unicode level one again'],
+        ], array_map($itemTexts, $topLevelLists));
+        $t->same(3, substr_count($native, 'BulletList'));
     },
 
     'splits pptx list levels instead of nesting like upstream' => static function (TestRunner $t) use ($buildNestedListPptxPackage, $nodesOfType): void {
