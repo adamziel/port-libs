@@ -812,6 +812,16 @@ return [
                     'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
                     'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
                     'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
+                    'versionMadeBy' => 0x0314,
+                    'madeByHostSystem' => 3,
+                    'madeByHostSystemName' => 'unix',
+                    'madeByVersion' => 20,
+                    'versionNeededToExtract' => 20,
+                    'creatorVersionMeetsNeeded' => true,
+                    'creatorVersionComparison' => 'equals-needed',
+                    'creatorVersionDelta' => 0,
+                    'creatorHostSystemIsKnown' => true,
+                    'creatorHostSystemIssues' => [],
                     'directoryRoot' => $entry['directoryRoot'],
                     'pathSegments' => $entry['pathSegments'],
                     'pathSegmentCount' => $entry['pathSegmentCount'],
@@ -934,6 +944,26 @@ return [
                 'entryNames' => $expectedCentralOrder,
             ],
         ];
+        $expectedCreatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 3,
+            'above-needed' => 0,
+        ];
+        $expectedCreatorHostSystemSummaries = [
+            [
+                'madeByHostSystem' => 3,
+                'madeByHostSystemName' => 'unix',
+                'isKnown' => true,
+                'entryCount' => 3,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 1,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)) + strlen($mimetype),
+                'uncompressedBytes' => strlen($contentXhtml) + strlen($mimetype),
+                'localRecordBytes' => array_sum(array_column($expectedEntries, 'localRecordBytes')),
+                'creatorVersionBelowNeededEntryCount' => 0,
+                'entryNames' => $expectedCentralOrder,
+            ],
+        ];
         $expectedDirectoryRootSummaries = [
             [
                 'directoryRoot' => '/',
@@ -1052,6 +1082,19 @@ return [
             'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'generalPurposeFlagSummaries' => $expectedGeneralPurposeFlagSummaries,
+            'creatorHostSystemSummaryCount' => 1,
+            'knownCreatorHostSystemEntryCount' => 3,
+            'unknownCreatorHostSystemEntryCount' => 0,
+            'creatorVersionMeetsNeededEntryCount' => 3,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionEqualNeededEntryCount' => 3,
+            'creatorVersionAboveNeededEntryCount' => 0,
+            'creatorVersionBelowNeededKnownHostEntryCount' => 0,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => 0,
+            'creatorHostSystemSummaries' => $expectedCreatorHostSystemSummaries,
+            'creatorVersionComparisonCounts' => $expectedCreatorVersionComparisonCounts,
+            'unknownCreatorHostSystemEntries' => [],
+            'creatorVersionBelowNeededEntries' => [],
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 1,
             'packagePartExtensions' => $expectedPackagePartExtensions,
@@ -1125,6 +1168,21 @@ return [
         $t->same(0, $manifest['generalPurposeDataDescriptorEntryCount']);
         $t->same(0, $manifest['generalPurposeDeflateOptionEntryCount']);
         $t->same($expectedGeneralPurposeFlagSummaries, $manifest['generalPurposeFlagSummaries']);
+        $t->same(1, $manifest['creatorHostSystemSummaryCount']);
+        $t->same(3, $manifest['knownCreatorHostSystemEntryCount']);
+        $t->same(0, $manifest['unknownCreatorHostSystemEntryCount']);
+        $t->same(3, $manifest['creatorVersionMeetsNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededEntryCount']);
+        $t->same(3, $manifest['creatorVersionEqualNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionAboveNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededKnownHostEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededUnknownHostEntryCount']);
+        $t->same(false, $manifest['hasUnknownCreatorHostSystems']);
+        $t->same(false, $manifest['hasCreatorVersionBelowNeededEntries']);
+        $t->same($expectedCreatorVersionComparisonCounts, $manifest['creatorVersionComparisonCounts']);
+        $t->same($expectedCreatorHostSystemSummaries, $manifest['creatorHostSystemSummaries']);
+        $t->same([], $manifest['unknownCreatorHostSystemEntries']);
+        $t->same([], $manifest['creatorVersionBelowNeededEntries']);
         $t->same(2, $manifest['directoryRootCount']);
         $t->same($expectedDirectoryRoots, $manifest['directoryRoots']);
         $t->same($expectedDirectoryRootSummaries, $manifest['directoryRootSummaries']);
@@ -1144,6 +1202,16 @@ return [
                 'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
                 'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
                 'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
+                'versionMadeBy' => $entry['versionMadeBy'],
+                'madeByHostSystem' => $entry['madeByHostSystem'],
+                'madeByHostSystemName' => $entry['madeByHostSystemName'],
+                'madeByVersion' => $entry['madeByVersion'],
+                'versionNeededToExtract' => $entry['versionNeededToExtract'],
+                'creatorVersionMeetsNeeded' => $entry['creatorVersionMeetsNeeded'],
+                'creatorVersionComparison' => $entry['creatorVersionComparison'],
+                'creatorVersionDelta' => $entry['creatorVersionDelta'],
+                'creatorHostSystemIsKnown' => $entry['creatorHostSystemIsKnown'],
+                'creatorHostSystemIssues' => $entry['creatorHostSystemIssues'],
                 'directoryRoot' => $entry['directoryRoot'],
                 'pathSegments' => $entry['pathSegments'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
@@ -1257,6 +1325,165 @@ return [
         $t->same($manifest, $raw['packageManifest']);
         $t->same(false, $raw['isValid']);
         $t->contains('case-insensitive-name-collisions', implode(',', $raw['diagnostics']));
+    },
+
+    'preflights zip package manifest creator host systems for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>manifest creator host metadata</w:p></w:document>',
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x0314,
+            ],
+            [
+                'name' => 'word/media/windows-newer.txt',
+                'data' => "windows creator version newer than needed\n",
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+                'versionMadeBy' => 0x0a14,
+            ],
+            [
+                'name' => 'word/media/unix-legacy.bin',
+                'data' => "legacy creator version below deflate need\n",
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x030a,
+            ],
+            [
+                'name' => 'word/media/unknown.bin',
+                'data' => "unknown host with equal creator version\n",
+                'method' => 0,
+                'versionNeededToExtract' => 20,
+                'versionMadeBy' => 0x3f14,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $creatorHosts = $package->creatorHostSystemPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+
+        $entryNames = static fn (array $entries): array => array_map(
+            static fn (array $entry): string => $entry['name'],
+            $entries
+        );
+        $manifestEntriesByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $manifestEntriesByName[$entry['name']] = $entry;
+        }
+        $expectedUnknownEntry = [
+            'name' => 'word/media/unknown.bin',
+            'versionMadeBy' => 0x3f14,
+            'madeByHostSystem' => 63,
+            'madeByHostSystemName' => 'unknown',
+            'madeByVersion' => 20,
+            'versionNeededToExtract' => 20,
+            'creatorVersionMeetsNeeded' => true,
+            'creatorVersionComparison' => 'equals-needed',
+            'creatorVersionDelta' => 0,
+            'creatorHostSystemIsKnown' => false,
+            'creatorHostSystemIssues' => ['unknown-creator-host-system'],
+        ];
+        $expectedBelowNeededEntry = [
+            'name' => 'word/media/unix-legacy.bin',
+            'versionMadeBy' => 0x030a,
+            'madeByHostSystem' => 3,
+            'madeByHostSystemName' => 'unix',
+            'madeByVersion' => 10,
+            'versionNeededToExtract' => 20,
+            'creatorVersionMeetsNeeded' => false,
+            'creatorVersionComparison' => 'below-needed',
+            'creatorVersionDelta' => -10,
+            'creatorHostSystemIsKnown' => true,
+            'creatorHostSystemIssues' => ['creator-version-below-version-needed'],
+        ];
+        $expectedCreatorVersionComparisonCounts = [
+            'below-needed' => 1,
+            'equals-needed' => 2,
+            'above-needed' => 1,
+        ];
+        $expectedCreatorHostSystemSummaries = [
+            [
+                'madeByHostSystem' => 3,
+                'madeByHostSystemName' => 'unix',
+                'isKnown' => true,
+                'entryCount' => 2,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => $manifestEntriesByName['word/document.xml']['compressedSize']
+                    + $manifestEntriesByName['word/media/unix-legacy.bin']['compressedSize'],
+                'uncompressedBytes' => $manifestEntriesByName['word/document.xml']['uncompressedSize']
+                    + $manifestEntriesByName['word/media/unix-legacy.bin']['uncompressedSize'],
+                'localRecordBytes' => $manifestEntriesByName['word/document.xml']['localRecordBytes']
+                    + $manifestEntriesByName['word/media/unix-legacy.bin']['localRecordBytes'],
+                'creatorVersionBelowNeededEntryCount' => 1,
+                'entryNames' => ['word/document.xml', 'word/media/unix-legacy.bin'],
+            ],
+            [
+                'madeByHostSystem' => 10,
+                'madeByHostSystemName' => 'windows-ntfs',
+                'isKnown' => true,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => $manifestEntriesByName['word/media/windows-newer.txt']['compressedSize'],
+                'uncompressedBytes' => $manifestEntriesByName['word/media/windows-newer.txt']['uncompressedSize'],
+                'localRecordBytes' => $manifestEntriesByName['word/media/windows-newer.txt']['localRecordBytes'],
+                'creatorVersionBelowNeededEntryCount' => 0,
+                'entryNames' => ['word/media/windows-newer.txt'],
+            ],
+            [
+                'madeByHostSystem' => 63,
+                'madeByHostSystemName' => 'unknown',
+                'isKnown' => false,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => $manifestEntriesByName['word/media/unknown.bin']['compressedSize'],
+                'uncompressedBytes' => $manifestEntriesByName['word/media/unknown.bin']['uncompressedSize'],
+                'localRecordBytes' => $manifestEntriesByName['word/media/unknown.bin']['localRecordBytes'],
+                'creatorVersionBelowNeededEntryCount' => 0,
+                'entryNames' => ['word/media/unknown.bin'],
+            ],
+        ];
+
+        $t->same(4, $manifest['entryCount']);
+        $t->same(3, $manifest['creatorHostSystemSummaryCount']);
+        $t->same(3, $manifest['knownCreatorHostSystemEntryCount']);
+        $t->same(1, $manifest['unknownCreatorHostSystemEntryCount']);
+        $t->same(3, $manifest['creatorVersionMeetsNeededEntryCount']);
+        $t->same(1, $manifest['creatorVersionBelowNeededEntryCount']);
+        $t->same(2, $manifest['creatorVersionEqualNeededEntryCount']);
+        $t->same(1, $manifest['creatorVersionAboveNeededEntryCount']);
+        $t->same(1, $manifest['creatorVersionBelowNeededKnownHostEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededUnknownHostEntryCount']);
+        $t->same(true, $manifest['hasUnknownCreatorHostSystems']);
+        $t->same(true, $manifest['hasCreatorVersionBelowNeededEntries']);
+        $t->same($expectedCreatorVersionComparisonCounts, $manifest['creatorVersionComparisonCounts']);
+        $t->same($expectedCreatorHostSystemSummaries, $manifest['creatorHostSystemSummaries']);
+        $t->same([$expectedUnknownEntry], $manifest['unknownCreatorHostSystemEntries']);
+        $t->same([$expectedBelowNeededEntry], $manifest['creatorVersionBelowNeededEntries']);
+
+        $t->same($creatorHosts['creatorVersionComparisonCounts'], $manifest['creatorVersionComparisonCounts']);
+        $t->same($creatorHosts['knownHostSystemEntryCount'], $manifest['knownCreatorHostSystemEntryCount']);
+        $t->same($creatorHosts['unknownHostSystemEntryCount'], $manifest['unknownCreatorHostSystemEntryCount']);
+        $t->same($entryNames($creatorHosts['unknownEntries']), $entryNames($manifest['unknownCreatorHostSystemEntries']));
+        $t->same(
+            $entryNames($creatorHosts['creatorVersionBelowNeededEntries']),
+            $entryNames($manifest['creatorVersionBelowNeededEntries'])
+        );
+        $t->same('equals-needed', $manifestEntriesByName['word/document.xml']['creatorVersionComparison']);
+        $t->same('above-needed', $manifestEntriesByName['word/media/windows-newer.txt']['creatorVersionComparison']);
+        $t->same('below-needed', $manifestEntriesByName['word/media/unix-legacy.bin']['creatorVersionComparison']);
+        $t->same(['creator-version-below-version-needed'], $manifestEntriesByName['word/media/unix-legacy.bin']['creatorHostSystemIssues']);
+        $t->same(['unknown-creator-host-system'], $manifestEntriesByName['word/media/unknown.bin']['creatorHostSystemIssues']);
+
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+        $t->same(false, $raw['isValid']);
+        $t->same(true, $raw['canInstantiate']);
+        $t->contains('unknown-creator-host-systems', implode(',', $raw['diagnostics']));
+        $t->contains('creator-version-below-version-needed', implode(',', $raw['diagnostics']));
     },
 
     'preflights zip package manifest archive source records for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildCentralDirectorySignaturePackage): void {
@@ -1508,6 +1735,16 @@ return [
                 'caseInsensitiveEquivalentEntryNames' => ['word/document.xml'],
                 'hasCaseInsensitiveNameCollision' => false,
                 'caseInsensitiveNameCollisionIssues' => [],
+                'versionMadeBy' => 0x0314,
+                'madeByHostSystem' => 3,
+                'madeByHostSystemName' => 'unix',
+                'madeByVersion' => 20,
+                'versionNeededToExtract' => 20,
+                'creatorVersionMeetsNeeded' => true,
+                'creatorVersionComparison' => 'equals-needed',
+                'creatorVersionDelta' => 0,
+                'creatorHostSystemIsKnown' => true,
+                'creatorHostSystemIssues' => [],
                 'directoryRoot' => 'word/',
                 'pathSegments' => ['word', 'document.xml'],
                 'pathSegmentCount' => 2,
@@ -1556,6 +1793,16 @@ return [
                 'caseInsensitiveEquivalentEntryNames' => ['word/comments.xml'],
                 'hasCaseInsensitiveNameCollision' => false,
                 'caseInsensitiveNameCollisionIssues' => [],
+                'versionMadeBy' => 0x0314,
+                'madeByHostSystem' => 3,
+                'madeByHostSystemName' => 'unix',
+                'madeByVersion' => 20,
+                'versionNeededToExtract' => 20,
+                'creatorVersionMeetsNeeded' => true,
+                'creatorVersionComparison' => 'equals-needed',
+                'creatorVersionDelta' => 0,
+                'creatorHostSystemIsKnown' => true,
+                'creatorHostSystemIssues' => [],
                 'directoryRoot' => 'word/',
                 'pathSegments' => ['word', 'comments.xml'],
                 'pathSegmentCount' => 2,
@@ -1668,6 +1915,26 @@ return [
                 'entryNames' => ['word/comments.xml'],
             ],
         ];
+        $expectedCreatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 2,
+            'above-needed' => 0,
+        ];
+        $expectedCreatorHostSystemSummaries = [
+            [
+                'madeByHostSystem' => 3,
+                'madeByHostSystemName' => 'unix',
+                'isKnown' => true,
+                'entryCount' => 2,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($documentXml) + strlen($commentsCompressed),
+                'uncompressedBytes' => strlen($documentXml) + strlen($commentsXml),
+                'localRecordBytes' => $documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'],
+                'creatorVersionBelowNeededEntryCount' => 0,
+                'entryNames' => ['word/document.xml', 'word/comments.xml'],
+            ],
+        ];
         $expectedDirectoryRootSummaries = [
             [
                 'directoryRoot' => 'word/',
@@ -1747,6 +2014,19 @@ return [
             'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'generalPurposeFlagSummaries' => $expectedGeneralPurposeFlagSummaries,
+            'creatorHostSystemSummaryCount' => 1,
+            'knownCreatorHostSystemEntryCount' => 2,
+            'unknownCreatorHostSystemEntryCount' => 0,
+            'creatorVersionMeetsNeededEntryCount' => 2,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionEqualNeededEntryCount' => 2,
+            'creatorVersionAboveNeededEntryCount' => 0,
+            'creatorVersionBelowNeededKnownHostEntryCount' => 0,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => 0,
+            'creatorHostSystemSummaries' => $expectedCreatorHostSystemSummaries,
+            'creatorVersionComparisonCounts' => $expectedCreatorVersionComparisonCounts,
+            'unknownCreatorHostSystemEntries' => [],
+            'creatorVersionBelowNeededEntries' => [],
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 0,
             'packagePartExtensions' => $expectedPackagePartExtensions,
@@ -1775,6 +2055,21 @@ return [
         $t->same(1, $manifest['generalPurposeDataDescriptorEntryCount']);
         $t->same(0, $manifest['generalPurposeDeflateOptionEntryCount']);
         $t->same($expectedGeneralPurposeFlagSummaries, $manifest['generalPurposeFlagSummaries']);
+        $t->same(1, $manifest['creatorHostSystemSummaryCount']);
+        $t->same(2, $manifest['knownCreatorHostSystemEntryCount']);
+        $t->same(0, $manifest['unknownCreatorHostSystemEntryCount']);
+        $t->same(2, $manifest['creatorVersionMeetsNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededEntryCount']);
+        $t->same(2, $manifest['creatorVersionEqualNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionAboveNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededKnownHostEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededUnknownHostEntryCount']);
+        $t->same(false, $manifest['hasUnknownCreatorHostSystems']);
+        $t->same(false, $manifest['hasCreatorVersionBelowNeededEntries']);
+        $t->same($expectedCreatorVersionComparisonCounts, $manifest['creatorVersionComparisonCounts']);
+        $t->same($expectedCreatorHostSystemSummaries, $manifest['creatorHostSystemSummaries']);
+        $t->same([], $manifest['unknownCreatorHostSystemEntries']);
+        $t->same([], $manifest['creatorVersionBelowNeededEntries']);
         $t->same($expectedHash, $manifest['manifestSha256']);
         $t->same($expectedManifestEntries, array_map(
             static fn (array $entry): array => [
@@ -1784,6 +2079,16 @@ return [
                 'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
                 'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
                 'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
+                'versionMadeBy' => $entry['versionMadeBy'],
+                'madeByHostSystem' => $entry['madeByHostSystem'],
+                'madeByHostSystemName' => $entry['madeByHostSystemName'],
+                'madeByVersion' => $entry['madeByVersion'],
+                'versionNeededToExtract' => $entry['versionNeededToExtract'],
+                'creatorVersionMeetsNeeded' => $entry['creatorVersionMeetsNeeded'],
+                'creatorVersionComparison' => $entry['creatorVersionComparison'],
+                'creatorVersionDelta' => $entry['creatorVersionDelta'],
+                'creatorHostSystemIsKnown' => $entry['creatorHostSystemIsKnown'],
+                'creatorHostSystemIssues' => $entry['creatorHostSystemIssues'],
                 'directoryRoot' => $entry['directoryRoot'],
                 'pathSegments' => $entry['pathSegments'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],

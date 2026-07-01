@@ -13748,6 +13748,16 @@ final class ZipPackage
         $generalPurposeUtf8NameEntryCount = 0;
         $generalPurposeDataDescriptorEntryCount = 0;
         $generalPurposeDeflateOptionEntryCount = 0;
+        $creatorHostSystemSummaries = [];
+        $creatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 0,
+            'above-needed' => 0,
+        ];
+        $unknownCreatorHostSystemEntries = [];
+        $creatorVersionBelowNeededEntries = [];
+        $creatorVersionBelowNeededKnownHostEntryCount = 0;
+        $creatorVersionBelowNeededUnknownHostEntryCount = 0;
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -13761,6 +13771,24 @@ final class ZipPackage
             $caseInsensitiveNameCollisionIssues = $hasCaseInsensitiveNameCollision
                 ? ['case-insensitive-name-collision']
                 : [];
+            $madeByHostSystem = $entry->madeByHostSystem();
+            $madeByHostSystemName = self::creatorHostSystemName($madeByHostSystem);
+            $madeByVersion = $entry->madeByVersion();
+            $versionNeededToExtract = $entry->neededToExtractVersion();
+            $creatorHostSystemIsKnown = self::isKnownCreatorHostSystem($madeByHostSystem);
+            $creatorVersionMeetsNeeded = $madeByVersion >= $versionNeededToExtract;
+            $creatorVersionDelta = $madeByVersion - $versionNeededToExtract;
+            $creatorVersionComparison = $creatorVersionDelta < 0
+                ? 'below-needed'
+                : ($creatorVersionDelta === 0 ? 'equals-needed' : 'above-needed');
+            $creatorVersionComparisonCounts[$creatorVersionComparison]++;
+            $creatorHostSystemIssues = [];
+            if (!$creatorHostSystemIsKnown) {
+                $creatorHostSystemIssues[] = 'unknown-creator-host-system';
+            }
+            if (!$creatorVersionMeetsNeeded) {
+                $creatorHostSystemIssues[] = 'creator-version-below-version-needed';
+            }
             $packagePartExtension = self::zipPackagePartExtension($entry->name, $isDirectory);
             $packagePartExtensionKey = $isDirectory
                 ? '(directory)'
@@ -13944,6 +13972,34 @@ final class ZipPackage
                 $generalPurposeFlagSummaries[$generalPurposeFlagKey]['dataDescriptorBytes'] += $dataDescriptorLength;
             }
             $generalPurposeFlagSummaries[$generalPurposeFlagKey]['entryNames'][] = $entry->name;
+            if (!isset($creatorHostSystemSummaries[$madeByHostSystem])) {
+                $creatorHostSystemSummaries[$madeByHostSystem] = [
+                    'madeByHostSystem' => $madeByHostSystem,
+                    'madeByHostSystemName' => $madeByHostSystemName,
+                    'isKnown' => $creatorHostSystemIsKnown,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'creatorVersionBelowNeededEntryCount' => 0,
+                    'entryNames' => [],
+                ];
+            }
+            ++$creatorHostSystemSummaries[$madeByHostSystem]['entryCount'];
+            if ($isDirectory) {
+                ++$creatorHostSystemSummaries[$madeByHostSystem]['directoryEntryCount'];
+            } else {
+                ++$creatorHostSystemSummaries[$madeByHostSystem]['fileEntryCount'];
+            }
+            $creatorHostSystemSummaries[$madeByHostSystem]['compressedBytes'] += $entry->compressedSize;
+            $creatorHostSystemSummaries[$madeByHostSystem]['uncompressedBytes'] += $entry->uncompressedSize;
+            $creatorHostSystemSummaries[$madeByHostSystem]['localRecordBytes'] += $localRecordLength;
+            if (!$creatorVersionMeetsNeeded) {
+                ++$creatorHostSystemSummaries[$madeByHostSystem]['creatorVersionBelowNeededEntryCount'];
+            }
+            $creatorHostSystemSummaries[$madeByHostSystem]['entryNames'][] = $entry->name;
             $centralDirectoryRecordSha256 = null;
             $entryCentralDirectoryRecordBytes = null;
             if ($entry->centralDirectoryRecordOffset !== null && $entry->centralDirectoryRecordEnd !== null) {
@@ -14020,6 +14076,16 @@ final class ZipPackage
                 'caseInsensitiveEquivalentEntryNames' => $caseInsensitiveEquivalentEntryNames,
                 'hasCaseInsensitiveNameCollision' => $hasCaseInsensitiveNameCollision,
                 'caseInsensitiveNameCollisionIssues' => $caseInsensitiveNameCollisionIssues,
+                'versionMadeBy' => $entry->versionMadeBy,
+                'madeByHostSystem' => $madeByHostSystem,
+                'madeByHostSystemName' => $madeByHostSystemName,
+                'madeByVersion' => $madeByVersion,
+                'versionNeededToExtract' => $versionNeededToExtract,
+                'creatorVersionMeetsNeeded' => $creatorVersionMeetsNeeded,
+                'creatorVersionComparison' => $creatorVersionComparison,
+                'creatorVersionDelta' => $creatorVersionDelta,
+                'creatorHostSystemIsKnown' => $creatorHostSystemIsKnown,
+                'creatorHostSystemIssues' => $creatorHostSystemIssues,
                 'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
                 'pathSegments' => $pathSegments,
                 'pathSegmentCount' => $pathSegmentCount,
@@ -14090,6 +14156,30 @@ final class ZipPackage
                     'caseInsensitiveNameCollisionIssues' => $summary['caseInsensitiveNameCollisionIssues'],
                 ];
             }
+            $creatorHostSystemEntry = [
+                'name' => $summary['name'],
+                'versionMadeBy' => $summary['versionMadeBy'],
+                'madeByHostSystem' => $summary['madeByHostSystem'],
+                'madeByHostSystemName' => $summary['madeByHostSystemName'],
+                'madeByVersion' => $summary['madeByVersion'],
+                'versionNeededToExtract' => $summary['versionNeededToExtract'],
+                'creatorVersionMeetsNeeded' => $summary['creatorVersionMeetsNeeded'],
+                'creatorVersionComparison' => $summary['creatorVersionComparison'],
+                'creatorVersionDelta' => $summary['creatorVersionDelta'],
+                'creatorHostSystemIsKnown' => $summary['creatorHostSystemIsKnown'],
+                'creatorHostSystemIssues' => $summary['creatorHostSystemIssues'],
+            ];
+            if (!$creatorHostSystemIsKnown) {
+                $unknownCreatorHostSystemEntries[] = $creatorHostSystemEntry;
+            }
+            if (!$creatorVersionMeetsNeeded) {
+                $creatorVersionBelowNeededEntries[] = $creatorHostSystemEntry;
+                if ($creatorHostSystemIsKnown) {
+                    ++$creatorVersionBelowNeededKnownHostEntryCount;
+                } else {
+                    ++$creatorVersionBelowNeededUnknownHostEntryCount;
+                }
+            }
             $manifestEntries[] = [
                 'name' => $summary['name'],
                 'isDirectory' => $summary['isDirectory'],
@@ -14097,6 +14187,16 @@ final class ZipPackage
                 'caseInsensitiveEquivalentEntryNames' => $summary['caseInsensitiveEquivalentEntryNames'],
                 'hasCaseInsensitiveNameCollision' => $summary['hasCaseInsensitiveNameCollision'],
                 'caseInsensitiveNameCollisionIssues' => $summary['caseInsensitiveNameCollisionIssues'],
+                'versionMadeBy' => $summary['versionMadeBy'],
+                'madeByHostSystem' => $summary['madeByHostSystem'],
+                'madeByHostSystemName' => $summary['madeByHostSystemName'],
+                'madeByVersion' => $summary['madeByVersion'],
+                'versionNeededToExtract' => $summary['versionNeededToExtract'],
+                'creatorVersionMeetsNeeded' => $summary['creatorVersionMeetsNeeded'],
+                'creatorVersionComparison' => $summary['creatorVersionComparison'],
+                'creatorVersionDelta' => $summary['creatorVersionDelta'],
+                'creatorHostSystemIsKnown' => $summary['creatorHostSystemIsKnown'],
+                'creatorHostSystemIssues' => $summary['creatorHostSystemIssues'],
                 'directoryRoot' => $summary['directoryRoot'],
                 'pathSegments' => $summary['pathSegments'],
                 'pathSegmentCount' => $summary['pathSegmentCount'],
@@ -14146,6 +14246,8 @@ final class ZipPackage
         $compressionMethodSummaries = array_values($compressionMethodSummaries);
         ksort($generalPurposeFlagSummaries, SORT_NUMERIC);
         $generalPurposeFlagSummaries = array_values($generalPurposeFlagSummaries);
+        ksort($creatorHostSystemSummaries, SORT_NUMERIC);
+        $creatorHostSystemSummaries = array_values($creatorHostSystemSummaries);
         $directoryRootSummaries = self::packageManifestDirectoryRootSummaries($entries);
         $directoryRoots = array_map(
             static fn (array $summary): string => (string) $summary['directoryRoot'],
@@ -14210,6 +14312,20 @@ final class ZipPackage
             'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'generalPurposeFlagSummaries' => $generalPurposeFlagSummaries,
+            'creatorHostSystemSummaryCount' => count($creatorHostSystemSummaries),
+            'knownCreatorHostSystemEntryCount' => count($this->entries) - count($unknownCreatorHostSystemEntries),
+            'unknownCreatorHostSystemEntryCount' => count($unknownCreatorHostSystemEntries),
+            'creatorVersionMeetsNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed']
+                + $creatorVersionComparisonCounts['above-needed'],
+            'creatorVersionBelowNeededEntryCount' => count($creatorVersionBelowNeededEntries),
+            'creatorVersionEqualNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed'],
+            'creatorVersionAboveNeededEntryCount' => $creatorVersionComparisonCounts['above-needed'],
+            'creatorVersionBelowNeededKnownHostEntryCount' => $creatorVersionBelowNeededKnownHostEntryCount,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => $creatorVersionBelowNeededUnknownHostEntryCount,
+            'creatorHostSystemSummaries' => $creatorHostSystemSummaries,
+            'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
+            'unknownCreatorHostSystemEntries' => $unknownCreatorHostSystemEntries,
+            'creatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries,
             'directoryRootSummaries' => $directoryRootSummaries,
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensions' => $packagePartExtensions,
@@ -14300,6 +14416,22 @@ final class ZipPackage
             'generalPurposeDataDescriptorEntryCount' => $generalPurposeDataDescriptorEntryCount,
             'generalPurposeDeflateOptionEntryCount' => $generalPurposeDeflateOptionEntryCount,
             'generalPurposeFlagSummaries' => $generalPurposeFlagSummaries,
+            'creatorHostSystemSummaryCount' => count($creatorHostSystemSummaries),
+            'knownCreatorHostSystemEntryCount' => count($this->entries) - count($unknownCreatorHostSystemEntries),
+            'unknownCreatorHostSystemEntryCount' => count($unknownCreatorHostSystemEntries),
+            'creatorVersionMeetsNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed']
+                + $creatorVersionComparisonCounts['above-needed'],
+            'creatorVersionBelowNeededEntryCount' => count($creatorVersionBelowNeededEntries),
+            'creatorVersionEqualNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed'],
+            'creatorVersionAboveNeededEntryCount' => $creatorVersionComparisonCounts['above-needed'],
+            'creatorVersionBelowNeededKnownHostEntryCount' => $creatorVersionBelowNeededKnownHostEntryCount,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => $creatorVersionBelowNeededUnknownHostEntryCount,
+            'hasUnknownCreatorHostSystems' => $unknownCreatorHostSystemEntries !== [],
+            'hasCreatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries !== [],
+            'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
+            'creatorHostSystemSummaries' => $creatorHostSystemSummaries,
+            'unknownCreatorHostSystemEntries' => $unknownCreatorHostSystemEntries,
+            'creatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries,
             'directoryRootCount' => count($directoryRootSummaries),
             'directoryRoots' => $directoryRoots,
             'directoryRootSummaries' => $directoryRootSummaries,
