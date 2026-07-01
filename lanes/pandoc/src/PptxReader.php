@@ -360,7 +360,7 @@ final class PptxReader
             return '';
         }
 
-        foreach ($this->childElements($spTree, 'sp') as $shapeElement) {
+        foreach ($this->childElements($spTree, null) as $shapeElement) {
             if ($this->isTitlePlaceholder($shapeElement)) {
                 return $this->drawingText($shapeElement);
             }
@@ -3286,11 +3286,9 @@ final class PptxReader
 
     private function isTitlePlaceholder(\DOMElement $shapeElement): bool
     {
-        if (!$this->isPresentationElement($shapeElement, 'sp')) {
-            return false;
-        }
-
-        $placeholder = $this->placeholderElement($shapeElement);
+        $nonVisualProperties = $this->firstPresentationChildElement($shapeElement, 'nvSpPr');
+        $placeholderContainer = $nonVisualProperties instanceof \DOMElement ? $this->firstPresentationChildElement($nonVisualProperties, 'nvPr') : null;
+        $placeholder = $placeholderContainer instanceof \DOMElement ? $this->firstPresentationChildElement($placeholderContainer, 'ph') : null;
         if (!$placeholder instanceof \DOMElement) {
             return false;
         }
