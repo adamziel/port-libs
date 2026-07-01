@@ -1860,7 +1860,7 @@ final class PptxReader
     {
         return isset($paragraph['inlines']) && is_array($paragraph['inlines'])
             ? $paragraph['inlines']
-            : $this->textInlines($paragraph['text']);
+            : $this->pptxTextInlines($paragraph['text']);
     }
 
     /**
@@ -2769,7 +2769,7 @@ final class PptxReader
         $text = $cell['text'];
 
         return new AstNode('table_cell', $attrs, [
-            new AstNode('plain', [], $this->textInlines($text)),
+            new AstNode('plain', [], $this->pptxTextInlines($text)),
         ]);
     }
 
@@ -3201,6 +3201,22 @@ final class PptxReader
     private function textInlines(string $text): array
     {
         return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function pptxTextInlines(string $text): array
+    {
+        if ($text !== '') {
+            return $this->textInlines($text);
+        }
+
+        return [
+            new AstNode('text', [
+                'text' => '',
+            ]),
+        ];
     }
 
     private function drawingText(\DOMElement $element): string
