@@ -9378,6 +9378,8 @@ final class MarkdownWriter
 
     private function escapeLinkTitle(string $title): string
     {
+        $title = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $title) ?? $title;
+
         if ($this->opmlNoteMarkdownEnabled()) {
             return str_replace('\\', '\\\\', $title);
         }
