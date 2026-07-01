@@ -1639,6 +1639,97 @@ XML);
         $t->contains('<p>Legacy title family [Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue] keeps imported title metadata visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet</dd>', $blocks);
     },
+    'renders compact biblatex title family variables in csl styles' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@review{compact-title-z,
+  author          = {Zed, Zoe},
+  title           = {Zed Review Packet},
+  reviewtitle     = {Zed Manual},
+  maintitleaddon  = {zeta dossier},
+  shortvolumetitle = {ZV},
+  shortseries     = {ZS},
+  date            = {2026}
+}
+
+@review{compact-title-a,
+  author             = {Ace, Ada},
+  title              = {Ace Review Packet},
+  reviewedtitle      = {Ace Manual},
+  main-title-addon   = {alpha dossier},
+  short-volume-title = {AV},
+  shortcollection    = {AS},
+  date               = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $zed = $items['compact-title-z'];
+        $ace = $items['compact-title-a'];
+
+        $t->same('Zed Manual', $zed['reviewed-title']);
+        $t->same('zeta dossier', $zed['main-title-addon']);
+        $t->same('ZV', $zed['volume-title-short']);
+        $t->same('ZS', $zed['collection-title-short']);
+        $t->same('Ace Manual', $ace['reviewed-title']);
+        $t->same('alpha dossier', $ace['main-title-addon']);
+        $t->same('AV', $ace['volume-title-short']);
+        $t->same('AS', $ace['collection-title-short']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Compact Title Variable Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-compact-title-variable-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="shortseries"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="reviewtitle"/>
+        <text variable="maintitleaddon"/>
+        <text variable="shortvolumetitle"/>
+        <text variable="shortseries"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="maintitleaddon"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="reviewtitle"/>
+      <text variable="maintitleaddon"/>
+      <text variable="shortvolumetitle"/>
+      <text variable="shortcollection"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Compact Title Variable Review', $summary['title'] ?? null);
+        $t->same('shortseries', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('maintitleaddon', $summary['bibliographySort'][0]['variable'] ?? null);
+        $t->same('[Ace | Ace Manual | alpha dossier | AV | AS; Zed | Zed Manual | zeta dossier | ZV | ZS]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'compact-title-z', 'text' => '[@compact-title-z]']),
+            new AstNode('citation', ['id' => 'compact-title-a', 'text' => '[@compact-title-a]']),
+        ]));
+        $t->same('Zed Review Packet :: Zed Manual :: zeta dossier :: ZV :: ZS', $styled->renderBibliographyEntry('compact-title-z'));
+        $t->same('Ace Review Packet :: Ace Manual :: alpha dossier :: AV :: AS', $styled->renderBibliographyEntry('compact-title-a'));
+
+        $document = (new MarkdownReader())->read('Compact title aliases [@compact-title-z; @compact-title-a] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact title aliases [Ace | Ace Manual | alpha dossier | AV | AS; Zed | Zed Manual | zeta dossier | ZV | ZS] remain visible.</p>', $blocks);
+        $t->contains('<dt>Ace 2025</dt><dd>Ace Review Packet :: Ace Manual :: alpha dossier :: AV :: AS</dd>', $blocks);
+        $t->contains('<dt>Zed 2026</dt><dd>Zed Review Packet :: Zed Manual :: zeta dossier :: ZV :: ZS</dd>', $blocks);
+    },
     'carries direct csl title aliases in legacy biblatex handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{direct-csl-title-aliases,
