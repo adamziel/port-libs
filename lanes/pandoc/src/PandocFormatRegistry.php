@@ -205,6 +205,26 @@ final class PandocFormatRegistry
         'wiki' => 'mediawiki',
     ];
 
+    /** @var array<string, array{input:list<string>, output:list<string>}> */
+    private const WIKI_EXTENSION_ALIAS_COLLISION_FORMATS = [
+        'wiki' => [
+            'input' => ['mediawiki', 'vimwiki'],
+            'output' => [],
+        ],
+    ];
+
+    /** @var array<string, array{reasonCode:string, reason:string}> */
+    private const WIKI_UNSUPPORTED_REASON_PAYLOADS = [
+        'input' => [
+            'reasonCode' => 'wiki-reader-not-ported',
+            'reason' => 'Upstream wiki reader token or extension alias is inventoried, but no native PHP wiki reader is registered for this format.',
+        ],
+        'output' => [
+            'reasonCode' => 'wiki-writer-not-ported',
+            'reason' => 'Upstream wiki writer token or extension alias is inventoried, but no native PHP wiki writer is registered for this format.',
+        ],
+    ];
+
     /** @var list<string> */
     private const ROFF_MANUAL_INPUT_FORMATS = [
         'man',
@@ -818,6 +838,125 @@ final class PandocFormatRegistry
             'extensionInference' => self::WIKI_EXTENSION_INFERENCE,
             'directReaderParityClaimed' => $directReaderParityClaimed,
             'directWriterParityClaimed' => $directWriterParityClaimed,
+        ];
+    }
+
+    /**
+     * @return array<string, array{
+     *     alias:string,
+     *     aliasKind:string,
+     *     collisionKind:string,
+     *     canonicalFormat:string|null,
+     *     extensionInferredFormat:string|null,
+     *     formats:list<string>,
+     *     readerTokens:list<string>,
+     *     writerTokens:list<string>,
+     *     extensionVsTokenConflict:bool,
+     *     extensionConflictFormats:list<string>,
+     *     unsupportedReasonPayloads:array<string, array{input:array{status:string, reasonCode:string, reason:string, notes:string}|null, output:array{status:string, reasonCode:string, reason:string, notes:string}|null}>,
+     *     nativeImplementations:array<string, array{inputImplementation:string, outputImplementation:string}>,
+     *     externalToolFree:bool,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool
+     * }>
+     */
+    public static function wikiAliasCollisionDiagnostics(): array
+    {
+        $registry = self::wikiFormatRegistry();
+        $diagnostics = [];
+        $suffixFormats = [];
+
+        foreach (array_keys($registry) as $format) {
+            if (str_ends_with($format, 'wiki')) {
+                $suffixFormats[] = $format;
+            }
+        }
+
+        $diagnostics['wiki-suffix'] = self::wikiAliasCollisionDiagnostic(
+            'wiki',
+            'token-suffix',
+            'wiki-family-token-suffix',
+            null,
+            $suffixFormats,
+            []
+        );
+
+        foreach (self::WIKI_EXTENSION_ALIAS_COLLISION_FORMATS as $extension => $buckets) {
+            $canonicalFormat = self::WIKI_EXTENSION_INFERENCE[$extension] ?? null;
+            $formats = array_values(array_unique(array_merge(
+                $canonicalFormat === null ? [] : [$canonicalFormat],
+                $buckets['input'],
+                $buckets['output']
+            )));
+            $extensionConflictFormats = array_values(array_filter(
+                $formats,
+                static fn (string $format): bool => $canonicalFormat !== null && $format !== $canonicalFormat
+            ));
+
+            if (count($formats) < 2 && $extensionConflictFormats === []) {
+                continue;
+            }
+
+            $diagnostics['.' . $extension] = self::wikiAliasCollisionDiagnostic(
+                '.' . $extension,
+                'file-extension',
+                'wiki-extension-token-collision',
+                $canonicalFormat,
+                $formats,
+                $extensionConflictFormats
+            );
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @return array{
+     *     upstreamManualDate:string,
+     *     upstreamManualUrl:string,
+     *     upstreamSourceCommit:string,
+     *     inputFormats:list<string>,
+     *     outputFormats:list<string>,
+     *     extensionInference:array<string, string>,
+     *     aliasCollisionCount:int,
+     *     multiTokenAliases:list<string>,
+     *     extensionVsTokenConflictAliases:list<string>,
+     *     externalToolFree:bool,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool,
+     *     diagnostics:array<string, array<string, mixed>>
+     * }
+     */
+    public static function wikiAliasCollisionReviewPacket(): array
+    {
+        $diagnostics = self::wikiAliasCollisionDiagnostics();
+        $summary = self::wikiFormatRegistrySummary();
+        $multiTokenAliases = [];
+        $extensionVsTokenConflictAliases = [];
+
+        foreach ($diagnostics as $alias => $diagnostic) {
+            if (count($diagnostic['formats']) > 1) {
+                $multiTokenAliases[] = $alias;
+            }
+            if ($diagnostic['extensionVsTokenConflict']) {
+                $extensionVsTokenConflictAliases[] = $alias;
+            }
+        }
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputFormats' => self::WIKI_INPUT_FORMATS,
+            'outputFormats' => self::WIKI_OUTPUT_FORMATS,
+            'extensionInference' => self::WIKI_EXTENSION_INFERENCE,
+            'aliasCollisionCount' => count($diagnostics),
+            'multiTokenAliases' => $multiTokenAliases,
+            'extensionVsTokenConflictAliases' => $extensionVsTokenConflictAliases,
+            'externalToolFree' => true,
+            'directReaderParitySupported' => $summary['directReaderParityClaimed'],
+            'directWriterParitySupported' => $summary['directWriterParityClaimed'],
+            'diagnostics' => $diagnostics,
         ];
     }
 
@@ -1487,6 +1626,100 @@ final class PandocFormatRegistry
         }
 
         return $extensions;
+    }
+
+    /**
+     * @param list<string> $formats
+     * @param list<string> $extensionConflictFormats
+     * @return array{
+     *     alias:string,
+     *     aliasKind:string,
+     *     collisionKind:string,
+     *     canonicalFormat:string|null,
+     *     extensionInferredFormat:string|null,
+     *     formats:list<string>,
+     *     readerTokens:list<string>,
+     *     writerTokens:list<string>,
+     *     extensionVsTokenConflict:bool,
+     *     extensionConflictFormats:list<string>,
+     *     unsupportedReasonPayloads:array<string, array{input:array{status:string, reasonCode:string, reason:string, notes:string}|null, output:array{status:string, reasonCode:string, reason:string, notes:string}|null}>,
+     *     nativeImplementations:array<string, array{inputImplementation:string, outputImplementation:string}>,
+     *     externalToolFree:bool,
+     *     directReaderParitySupported:bool,
+     *     directWriterParitySupported:bool
+     * }
+     */
+    private static function wikiAliasCollisionDiagnostic(
+        string $alias,
+        string $aliasKind,
+        string $collisionKind,
+        ?string $canonicalFormat,
+        array $formats,
+        array $extensionConflictFormats
+    ): array {
+        $registry = self::wikiFormatRegistry();
+        $summary = self::wikiFormatRegistrySummary();
+        $readerTokens = [];
+        $writerTokens = [];
+        $unsupportedReasonPayloads = [];
+        $nativeImplementations = [];
+
+        foreach ($formats as $format) {
+            $entry = $registry[$format] ?? null;
+            if ($entry === null) {
+                continue;
+            }
+
+            $input = $entry['input']['status'] === 'not-applicable' ? null : $entry['input'];
+            $output = $entry['output']['status'] === 'not-applicable' ? null : $entry['output'];
+
+            if ($input !== null) {
+                $readerTokens[] = $format;
+            }
+            if ($output !== null) {
+                $writerTokens[] = $format;
+            }
+
+            $unsupportedReasonPayloads[$format] = [
+                'input' => $input === null ? null : [
+                    'status' => $input['status'],
+                    'reasonCode' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['input']['reasonCode'],
+                    'reason' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['input']['reason'],
+                    'notes' => $input['notes'],
+                ],
+                'output' => $output === null ? null : [
+                    'status' => $output['status'],
+                    'reasonCode' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['output']['reasonCode'],
+                    'reason' => self::WIKI_UNSUPPORTED_REASON_PAYLOADS['output']['reason'],
+                    'notes' => $output['notes'],
+                ],
+            ];
+            $nativeImplementations[$format] = [
+                'inputImplementation' => $input['implementation'] ?? '',
+                'outputImplementation' => $output['implementation'] ?? '',
+            ];
+        }
+
+        return [
+            'alias' => $alias,
+            'aliasKind' => $aliasKind,
+            'collisionKind' => $collisionKind,
+            'canonicalFormat' => $canonicalFormat,
+            'extensionInferredFormat' => $canonicalFormat,
+            'formats' => array_values(array_filter(
+                $formats,
+                static fn (string $format): bool => array_key_exists($format, $registry)
+            )),
+            'readerTokens' => $readerTokens,
+            'writerTokens' => $writerTokens,
+            'extensionVsTokenConflict' => $extensionConflictFormats !== [],
+            'extensionConflictFormats' => $extensionConflictFormats,
+            'unsupportedReasonPayloads' => $unsupportedReasonPayloads,
+            'nativeImplementations' => $nativeImplementations,
+            'externalToolFree' => true,
+            'directReaderParitySupported' => $summary['directReaderParityClaimed'],
+            'directWriterParitySupported' => $summary['directWriterParityClaimed'],
+        ];
     }
 
     /**

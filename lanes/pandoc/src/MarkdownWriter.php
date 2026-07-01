@@ -2888,7 +2888,6 @@ final class MarkdownWriter
         $id = $entry['id'];
         $itemChildren = [
             new AstNode('link', [
-                'id' => $id === '' ? '' : 'toc-' . $id,
                 'url' => $id === '' ? '' : '#' . $id,
             ], $label),
         ];
