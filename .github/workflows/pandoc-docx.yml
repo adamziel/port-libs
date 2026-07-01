@@ -207,13 +207,13 @@ jobs:
           set -euo pipefail
           target="${PANDOC_DOCX_RUNNER_UPSTREAM_ROOT}"
           export CABAL_DIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-home"
-          export CABAL_CONFIG="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-config/config"
+          export CABAL_CONFIG="$CABAL_DIR/config"
           export XDG_CACHE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cache"
           export XDG_STATE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/state"
           export TMPDIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/tmp"
           mkdir -p "$CABAL_DIR" "$(dirname "$CABAL_CONFIG")" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$TMPDIR"
           if [ ! -f "$CABAL_CONFIG" ]; then
-            cabal user-config init --config-file="$CABAL_CONFIG"
+            cabal user-config init
           fi
           (
             cd "$target"
@@ -254,7 +254,7 @@ jobs:
           artifact_root=.port-libs/pandoc-runner/artifacts/docx-targeted-run
           log_root=.port-libs/pandoc-runner/logs
           export CABAL_DIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-home"
-          export CABAL_CONFIG="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-config/config"
+          export CABAL_CONFIG="$CABAL_DIR/config"
           export XDG_CACHE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cache"
           export XDG_STATE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/state"
           export TMPDIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/tmp"
