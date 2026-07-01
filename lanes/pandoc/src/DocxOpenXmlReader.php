@@ -254,8 +254,16 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['digitalSignatureRelativeReferenceCount'] = $digitalSignatures['relativeReferenceCount'];
         $packageProvenance['summary']['digitalSignatureEmptyReferenceCount'] = $digitalSignatures['emptyReferenceCount'];
         $packageProvenance['summary']['digitalSignatureReferenceTransformCount'] = $digitalSignatures['referenceTransformCount'];
+        $packageProvenance['summary']['digitalSignatureReferenceTransformAlgorithmCount'] = count($digitalSignatures['referenceTransformAlgorithms']);
+        $packageProvenance['summary']['digitalSignatureReferenceTransformAlgorithms'] = $digitalSignatures['referenceTransformAlgorithms'];
         $packageProvenance['summary']['digitalSignatureReferenceDigestValueCount'] = $digitalSignatures['referenceDigestValueCount'];
         $packageProvenance['summary']['digitalSignatureReferenceDigestValueMissingCount'] = $digitalSignatures['referenceDigestValueMissingCount'];
+        $packageProvenance['summary']['digitalSignatureDigestMethodAlgorithmCount'] = count($digitalSignatures['digestMethodAlgorithms']);
+        $packageProvenance['summary']['digitalSignatureDigestMethodAlgorithms'] = $digitalSignatures['digestMethodAlgorithms'];
+        $packageProvenance['summary']['digitalSignatureSignatureMethodAlgorithmCount'] = count($digitalSignatures['signatureMethodAlgorithms']);
+        $packageProvenance['summary']['digitalSignatureSignatureMethodAlgorithms'] = $digitalSignatures['signatureMethodAlgorithms'];
+        $packageProvenance['summary']['digitalSignatureCanonicalizationMethodAlgorithmCount'] = count($digitalSignatures['canonicalizationMethodAlgorithms']);
+        $packageProvenance['summary']['digitalSignatureCanonicalizationMethodAlgorithms'] = $digitalSignatures['canonicalizationMethodAlgorithms'];
         $packageProvenance['summary']['digitalSignatureValuePresentCount'] = $digitalSignatures['signatureValuePresentCount'];
         $packageRootResources = $this->packageRootRelationshipResources($parts, $rootRelationships, $contentTypes);
         $packageProvenance['packageRootRelationshipResources'] = $packageRootResources;
