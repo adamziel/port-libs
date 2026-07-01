@@ -9261,6 +9261,14 @@ return [
         $t->same($validSummary['locatorOffset'], $validSummary['recordEnd']);
         $t->same(true, $validSummary['recordEndsAtLocator']);
         $t->same(0, $validSummary['recordExtensibleDataSize']);
+        $t->same(null, $validSummary['recordExtensibleDataOffset']);
+        $t->same(0, $validSummary['recordExtensibleDataAvailableBytes']);
+        $t->same(0, $validSummary['recordExtensibleDataMissingBytes']);
+        $t->same(null, $validSummary['recordExtensibleDataSha256']);
+        $t->same(null, $validSummary['recordExtensibleDataPreviewHex']);
+        $t->same(0, $validSummary['recordExtensibleDataPreviewByteCount']);
+        $t->same('zip64-end-of-central-directory-extensible-data-metadata-only', $validSummary['recordExtensibleDataByteExposurePolicy']);
+        $t->same(false, $validSummary['recordExtensibleDataCanExposeBytes']);
 
         $tooSmallZip = $rewriteZip64EndOfCentralDirectoryPayloadSize($zip, 40);
         $tooSmallSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($tooSmallZip);
@@ -9289,6 +9297,20 @@ return [
         $t->same($overlapSummary['locatorOffset'] + 16, $overlapSummary['recordEnd']);
         $t->same(false, $overlapSummary['recordEndsAtLocator']);
         $t->same(16, $overlapSummary['recordExtensibleDataSize']);
+        $t->same($overlapSummary['recordOffset'] + 56, $overlapSummary['recordExtensibleDataOffset']);
+        $t->same(16, $overlapSummary['recordExtensibleDataAvailableBytes']);
+        $t->same(0, $overlapSummary['recordExtensibleDataMissingBytes']);
+        $t->same(
+            hash('sha256', substr($overlapZip, $overlapSummary['recordExtensibleDataOffset'], 16)),
+            $overlapSummary['recordExtensibleDataSha256']
+        );
+        $t->same(
+            bin2hex(substr($overlapZip, $overlapSummary['recordExtensibleDataOffset'], 16)),
+            $overlapSummary['recordExtensibleDataPreviewHex']
+        );
+        $t->same(16, $overlapSummary['recordExtensibleDataPreviewByteCount']);
+        $t->same('zip64-end-of-central-directory-extensible-data-metadata-only', $overlapSummary['recordExtensibleDataByteExposurePolicy']);
+        $t->same(false, $overlapSummary['recordExtensibleDataCanExposeBytes']);
         $t->same([
             'zip64-end-of-central-directory',
             'zip64-end-of-central-directory-extensible-data-sector',
@@ -9301,16 +9323,27 @@ return [
         $extensibleData = 'pandoc-zip64-review';
         $extensibleZip = $insertZip64EndOfCentralDirectoryExtensibleData($zip, $extensibleData);
         $extensibleSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($extensibleZip);
+        $extensibleRaw = ZipPackage::rawStrictImportPreflight($extensibleZip, 512, 20.0, 512);
 
         $t->same(44 + strlen($extensibleData), $extensibleSummary['recordPayloadSize']);
         $t->same(56 + strlen($extensibleData), $extensibleSummary['recordSize']);
         $t->same($extensibleSummary['locatorOffset'], $extensibleSummary['recordEnd']);
         $t->same(true, $extensibleSummary['recordEndsAtLocator']);
         $t->same(strlen($extensibleData), $extensibleSummary['recordExtensibleDataSize']);
+        $t->same($extensibleSummary['recordOffset'] + 56, $extensibleSummary['recordExtensibleDataOffset']);
+        $t->same(strlen($extensibleData), $extensibleSummary['recordExtensibleDataAvailableBytes']);
+        $t->same(0, $extensibleSummary['recordExtensibleDataMissingBytes']);
+        $t->same(hash('sha256', $extensibleData), $extensibleSummary['recordExtensibleDataSha256']);
+        $t->same(bin2hex(substr($extensibleData, 0, 16)), $extensibleSummary['recordExtensibleDataPreviewHex']);
+        $t->same(16, $extensibleSummary['recordExtensibleDataPreviewByteCount']);
+        $t->same('zip64-end-of-central-directory-extensible-data-metadata-only', $extensibleSummary['recordExtensibleDataByteExposurePolicy']);
+        $t->same(false, $extensibleSummary['recordExtensibleDataCanExposeBytes']);
         $t->same([
             'zip64-end-of-central-directory',
             'zip64-end-of-central-directory-extensible-data-sector',
         ], $extensibleSummary['issues']);
+        $t->same($extensibleSummary, $extensibleRaw['zip64EndOfCentralDirectory']);
+        $t->contains('zip64-end-of-central-directory-extensible-data-sector', implode(',', $extensibleRaw['diagnostics']));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($extensibleZip));
     },
 

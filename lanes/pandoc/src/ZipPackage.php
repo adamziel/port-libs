@@ -8504,6 +8504,14 @@ final class ZipPackage
      *     zip64EndOfCentralDirectoryRecordEnd:?int,
      *     zip64EndOfCentralDirectoryRecordEndsAtLocator:?bool,
      *     zip64EndOfCentralDirectoryExtensibleDataSize:?int,
+     *     zip64EndOfCentralDirectoryExtensibleDataOffset:?int,
+     *     zip64EndOfCentralDirectoryExtensibleDataAvailableBytes:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataMissingBytes:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataSha256:?string,
+     *     zip64EndOfCentralDirectoryExtensibleDataPreviewHex:?string,
+     *     zip64EndOfCentralDirectoryExtensibleDataPreviewByteCount:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataByteExposurePolicy:string,
+     *     zip64EndOfCentralDirectoryExtensibleDataCanExposeBytes:bool,
      *     zip64LocatorDiskWithEndOfCentralDirectory:?int,
      *     zip64TotalDisks:?int,
      *     zip64VersionMadeBy:?int,
@@ -9043,6 +9051,14 @@ final class ZipPackage
      *     recordEnd:?int,
      *     recordEndsAtLocator:?bool,
      *     recordExtensibleDataSize:?int,
+     *     recordExtensibleDataOffset:?int,
+     *     recordExtensibleDataAvailableBytes:int,
+     *     recordExtensibleDataMissingBytes:int,
+     *     recordExtensibleDataSha256:?string,
+     *     recordExtensibleDataPreviewHex:?string,
+     *     recordExtensibleDataPreviewByteCount:int,
+     *     recordExtensibleDataByteExposurePolicy:string,
+     *     recordExtensibleDataCanExposeBytes:bool,
      *     versionMadeBy:?int,
      *     versionNeededToExtract:?int,
      *     diskNumber:?int,
@@ -9175,6 +9191,14 @@ final class ZipPackage
             'recordEnd' => $zip64['zip64EndOfCentralDirectoryRecordEnd'],
             'recordEndsAtLocator' => $zip64['zip64EndOfCentralDirectoryRecordEndsAtLocator'],
             'recordExtensibleDataSize' => $zip64['zip64EndOfCentralDirectoryExtensibleDataSize'],
+            'recordExtensibleDataOffset' => $zip64['zip64EndOfCentralDirectoryExtensibleDataOffset'],
+            'recordExtensibleDataAvailableBytes' => $zip64['zip64EndOfCentralDirectoryExtensibleDataAvailableBytes'],
+            'recordExtensibleDataMissingBytes' => $zip64['zip64EndOfCentralDirectoryExtensibleDataMissingBytes'],
+            'recordExtensibleDataSha256' => $zip64['zip64EndOfCentralDirectoryExtensibleDataSha256'],
+            'recordExtensibleDataPreviewHex' => $zip64['zip64EndOfCentralDirectoryExtensibleDataPreviewHex'],
+            'recordExtensibleDataPreviewByteCount' => $zip64['zip64EndOfCentralDirectoryExtensibleDataPreviewByteCount'],
+            'recordExtensibleDataByteExposurePolicy' => $zip64['zip64EndOfCentralDirectoryExtensibleDataByteExposurePolicy'],
+            'recordExtensibleDataCanExposeBytes' => $zip64['zip64EndOfCentralDirectoryExtensibleDataCanExposeBytes'],
             'versionMadeBy' => $zip64['zip64VersionMadeBy'],
             'versionNeededToExtract' => $zip64['zip64VersionNeededToExtract'],
             'diskNumber' => $zip64['zip64DiskNumber'],
@@ -11266,6 +11290,14 @@ final class ZipPackage
      *     zip64EndOfCentralDirectoryRecordEnd:?int,
      *     zip64EndOfCentralDirectoryRecordEndsAtLocator:?bool,
      *     zip64EndOfCentralDirectoryExtensibleDataSize:?int,
+     *     zip64EndOfCentralDirectoryExtensibleDataOffset:?int,
+     *     zip64EndOfCentralDirectoryExtensibleDataAvailableBytes:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataMissingBytes:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataSha256:?string,
+     *     zip64EndOfCentralDirectoryExtensibleDataPreviewHex:?string,
+     *     zip64EndOfCentralDirectoryExtensibleDataPreviewByteCount:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataByteExposurePolicy:string,
+     *     zip64EndOfCentralDirectoryExtensibleDataCanExposeBytes:bool,
      *     zip64LocatorDiskWithEndOfCentralDirectory:?int,
      *     zip64TotalDisks:?int,
      *     zip64VersionMadeBy:?int,
@@ -17594,6 +17626,14 @@ final class ZipPackage
      *     zip64EndOfCentralDirectoryRecordEnd:?int,
      *     zip64EndOfCentralDirectoryRecordEndsAtLocator:?bool,
      *     zip64EndOfCentralDirectoryExtensibleDataSize:?int,
+     *     zip64EndOfCentralDirectoryExtensibleDataOffset:?int,
+     *     zip64EndOfCentralDirectoryExtensibleDataAvailableBytes:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataMissingBytes:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataSha256:?string,
+     *     zip64EndOfCentralDirectoryExtensibleDataPreviewHex:?string,
+     *     zip64EndOfCentralDirectoryExtensibleDataPreviewByteCount:int,
+     *     zip64EndOfCentralDirectoryExtensibleDataByteExposurePolicy:string,
+     *     zip64EndOfCentralDirectoryExtensibleDataCanExposeBytes:bool,
      *     zip64LocatorDiskWithEndOfCentralDirectory:?int,
      *     zip64TotalDisks:?int,
      *     zip64VersionMadeBy:?int,
@@ -17625,6 +17665,14 @@ final class ZipPackage
             'zip64EndOfCentralDirectoryRecordEnd' => null,
             'zip64EndOfCentralDirectoryRecordEndsAtLocator' => null,
             'zip64EndOfCentralDirectoryExtensibleDataSize' => null,
+            'zip64EndOfCentralDirectoryExtensibleDataOffset' => null,
+            'zip64EndOfCentralDirectoryExtensibleDataAvailableBytes' => 0,
+            'zip64EndOfCentralDirectoryExtensibleDataMissingBytes' => 0,
+            'zip64EndOfCentralDirectoryExtensibleDataSha256' => null,
+            'zip64EndOfCentralDirectoryExtensibleDataPreviewHex' => null,
+            'zip64EndOfCentralDirectoryExtensibleDataPreviewByteCount' => 0,
+            'zip64EndOfCentralDirectoryExtensibleDataByteExposurePolicy' => 'zip64-end-of-central-directory-extensible-data-metadata-only',
+            'zip64EndOfCentralDirectoryExtensibleDataCanExposeBytes' => false,
             'zip64LocatorDiskWithEndOfCentralDirectory' => null,
             'zip64TotalDisks' => null,
             'zip64VersionMadeBy' => null,
@@ -17682,6 +17730,14 @@ final class ZipPackage
                 'zip64EndOfCentralDirectoryRecordEnd' => null,
                 'zip64EndOfCentralDirectoryRecordEndsAtLocator' => null,
                 'zip64EndOfCentralDirectoryExtensibleDataSize' => null,
+                'zip64EndOfCentralDirectoryExtensibleDataOffset' => null,
+                'zip64EndOfCentralDirectoryExtensibleDataAvailableBytes' => 0,
+                'zip64EndOfCentralDirectoryExtensibleDataMissingBytes' => 0,
+                'zip64EndOfCentralDirectoryExtensibleDataSha256' => null,
+                'zip64EndOfCentralDirectoryExtensibleDataPreviewHex' => null,
+                'zip64EndOfCentralDirectoryExtensibleDataPreviewByteCount' => 0,
+                'zip64EndOfCentralDirectoryExtensibleDataByteExposurePolicy' => 'zip64-end-of-central-directory-extensible-data-metadata-only',
+                'zip64EndOfCentralDirectoryExtensibleDataCanExposeBytes' => false,
                 'zip64LocatorDiskWithEndOfCentralDirectory' => $locatorDiskWithEndOfCentralDirectory,
                 'zip64TotalDisks' => $totalDisks,
                 'zip64VersionMadeBy' => null,
@@ -17713,6 +17769,23 @@ final class ZipPackage
         $recordEnd = $recordOffset + $recordSize;
         $recordEndsAtLocator = $recordEnd === $locatorOffset;
         $extensibleDataSize = max(0, $declaredRecordPayloadSize - 44);
+        $extensibleDataOffset = $extensibleDataSize > 0 ? $recordOffset + 56 : null;
+        $extensibleDataAvailableBytes = 0;
+        $extensibleDataMissingBytes = 0;
+        $extensibleDataSha256 = null;
+        $extensibleDataPreviewHex = null;
+        $extensibleDataPreviewByteCount = 0;
+        if ($extensibleDataOffset !== null) {
+            $availableArchiveBytes = max(0, strlen($bytes) - $extensibleDataOffset);
+            $extensibleDataAvailableBytes = min($extensibleDataSize, $availableArchiveBytes);
+            $extensibleDataMissingBytes = $extensibleDataSize - $extensibleDataAvailableBytes;
+            $extensibleData = substr($bytes, $extensibleDataOffset, $extensibleDataAvailableBytes);
+            $extensibleDataPreviewByteCount = min(16, $extensibleDataAvailableBytes);
+            $extensibleDataPreviewHex = bin2hex(substr($extensibleData, 0, $extensibleDataPreviewByteCount));
+            if ($extensibleDataMissingBytes === 0) {
+                $extensibleDataSha256 = hash('sha256', $extensibleData);
+            }
+        }
         $recordSizeIssues = [];
         if ($declaredRecordPayloadSize < 44) {
             $recordSizeIssues[] = 'zip64-end-of-central-directory-record-too-small';
@@ -17741,6 +17814,14 @@ final class ZipPackage
                 'zip64EndOfCentralDirectoryRecordEnd' => $recordEnd,
                 'zip64EndOfCentralDirectoryRecordEndsAtLocator' => $recordEndsAtLocator,
                 'zip64EndOfCentralDirectoryExtensibleDataSize' => $extensibleDataSize,
+                'zip64EndOfCentralDirectoryExtensibleDataOffset' => $extensibleDataOffset,
+                'zip64EndOfCentralDirectoryExtensibleDataAvailableBytes' => $extensibleDataAvailableBytes,
+                'zip64EndOfCentralDirectoryExtensibleDataMissingBytes' => $extensibleDataMissingBytes,
+                'zip64EndOfCentralDirectoryExtensibleDataSha256' => $extensibleDataSha256,
+                'zip64EndOfCentralDirectoryExtensibleDataPreviewHex' => $extensibleDataPreviewHex,
+                'zip64EndOfCentralDirectoryExtensibleDataPreviewByteCount' => $extensibleDataPreviewByteCount,
+                'zip64EndOfCentralDirectoryExtensibleDataByteExposurePolicy' => 'zip64-end-of-central-directory-extensible-data-metadata-only',
+                'zip64EndOfCentralDirectoryExtensibleDataCanExposeBytes' => false,
                 'zip64LocatorDiskWithEndOfCentralDirectory' => $locatorDiskWithEndOfCentralDirectory,
                 'zip64TotalDisks' => $totalDisks,
                 'zip64VersionMadeBy' => null,
@@ -17810,6 +17891,14 @@ final class ZipPackage
             'zip64EndOfCentralDirectoryRecordEnd' => $recordEnd,
             'zip64EndOfCentralDirectoryRecordEndsAtLocator' => $recordEndsAtLocator,
             'zip64EndOfCentralDirectoryExtensibleDataSize' => $extensibleDataSize,
+            'zip64EndOfCentralDirectoryExtensibleDataOffset' => $extensibleDataOffset,
+            'zip64EndOfCentralDirectoryExtensibleDataAvailableBytes' => $extensibleDataAvailableBytes,
+            'zip64EndOfCentralDirectoryExtensibleDataMissingBytes' => $extensibleDataMissingBytes,
+            'zip64EndOfCentralDirectoryExtensibleDataSha256' => $extensibleDataSha256,
+            'zip64EndOfCentralDirectoryExtensibleDataPreviewHex' => $extensibleDataPreviewHex,
+            'zip64EndOfCentralDirectoryExtensibleDataPreviewByteCount' => $extensibleDataPreviewByteCount,
+            'zip64EndOfCentralDirectoryExtensibleDataByteExposurePolicy' => 'zip64-end-of-central-directory-extensible-data-metadata-only',
+            'zip64EndOfCentralDirectoryExtensibleDataCanExposeBytes' => false,
             'zip64LocatorDiskWithEndOfCentralDirectory' => $locatorDiskWithEndOfCentralDirectory,
             'zip64TotalDisks' => $totalDisks,
             'zip64VersionMadeBy' => $versionMadeBy,
