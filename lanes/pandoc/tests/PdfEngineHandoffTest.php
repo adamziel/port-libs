@@ -7874,6 +7874,20 @@ return [
             'explicitFormat' => 'svg',
             'formatOptions' => ['svg'],
             'issues' => ['explicit-format-not-pdf:svg'],
+            'assetOutput' => [
+                'reviewStatus' => 'ok',
+                'format' => 'svg',
+                'declaredOutputFile' => 'build/format-boundary.pdf',
+                'assetOutputPossible' => true,
+                'pageAssetFormat' => true,
+                'multiFileOutputPossible' => true,
+                'pageTemplatePresent' => false,
+                'pageTemplateTokenCount' => 0,
+                'pageTemplateTokens' => [],
+                'pageTemplateTokenTypes' => [],
+                'zeroPaddedPageTemplate' => false,
+                'issues' => [],
+            ],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -7898,6 +7912,81 @@ return [
         $t->same($expectedPolicy, $result['typstOutputFormatPolicy']);
         $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstOutputFormatPolicy']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-output-format-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
+    },
+
+    'preserves typst page asset output template provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/page-assets-{p}-{0p}.pdf',
+            'source' => '= Typst Page Asset Template Packet',
+            'engineOptions' => ['--format=svg'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst page asset template packet\n%%EOF\n";
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'declaredOutputFile' => 'build/page-assets-{p}-{0p}.pdf',
+            'inferredOutputFormat' => 'pdf',
+            'explicitFormat' => 'svg',
+            'formatOptions' => ['svg'],
+            'issues' => [
+                'explicit-format-not-pdf:svg',
+                'page-asset-output-template-boundary',
+            ],
+            'assetOutput' => [
+                'reviewStatus' => 'review',
+                'format' => 'svg',
+                'declaredOutputFile' => 'build/page-assets-{p}-{0p}.pdf',
+                'assetOutputPossible' => true,
+                'pageAssetFormat' => true,
+                'multiFileOutputPossible' => true,
+                'pageTemplatePresent' => true,
+                'pageTemplateTokenCount' => 2,
+                'pageTemplateTokens' => ['{p}', '{0p}'],
+                'pageTemplateTokenTypes' => ['{0p}', '{p}'],
+                'zeroPaddedPageTemplate' => true,
+                'issues' => ['page-asset-output-template-boundary'],
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/page-assets-{p}-{0p}.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/page-assets-{p}-{0p}.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+        $details = $cases['output-format']['details'];
+
+        $t->same($expectedPolicy, $plan['typstOutputFormatPolicy']);
+        $t->same(['output-format'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $cases['output-format']['reviewStatus']);
+        $t->same(true, $details['assetOutputPresent']);
+        $t->same('svg', $details['assetOutputFormat']);
+        $t->same(true, $details['assetOutputPossible']);
+        $t->same(true, $details['assetPageFormat']);
+        $t->same(true, $details['assetMultiFileOutputPossible']);
+        $t->same(true, $details['assetPageTemplatePresent']);
+        $t->same(2, $details['assetPageTemplateTokenCount']);
+        $t->same(['{p}', '{0p}'], $details['assetPageTemplateTokens']);
+        $t->same(['{0p}', '{p}'], $details['assetPageTemplateTokenTypes']);
+        $t->same(true, $details['assetZeroPaddedPageTemplate']);
+        $t->contains('output-format:page-asset-output-template-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->contains('typst-output-format-asset:svg', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-page-template:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-output-format-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstOutputFormatPolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstOutputFormatPolicy']);
         $t->contains('typst-output-format-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expectedPolicy, $sequence['finalTypstOutputFormatPolicy']);
     },

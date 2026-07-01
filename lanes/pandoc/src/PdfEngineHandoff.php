@@ -294,6 +294,15 @@ final class PdfEngineHandoff
             if ($typstOutputFormatPolicy['explicitFormat'] !== null) {
                 $diagnostics[] = 'typst-output-format-explicit:' . $typstOutputFormatPolicy['explicitFormat'];
             }
+            if (is_array($typstOutputFormatPolicy['assetOutput'] ?? null)) {
+                $assetOutput = $typstOutputFormatPolicy['assetOutput'];
+                if (is_string($assetOutput['format'] ?? null)) {
+                    $diagnostics[] = 'typst-output-format-asset:' . $assetOutput['format'];
+                }
+                if (($assetOutput['pageTemplatePresent'] ?? false) === true && is_int($assetOutput['pageTemplateTokenCount'] ?? null)) {
+                    $diagnostics[] = 'typst-output-format-page-template:' . $assetOutput['pageTemplateTokenCount'];
+                }
+            }
             if (($typstOutputFormatPolicy['formatHistory'] ?? []) !== []) {
                 $diagnostics[] = 'typst-output-format-history:' . count($typstOutputFormatPolicy['formatHistory']);
             }
@@ -6773,7 +6782,7 @@ final class PdfEngineHandoff
 
     /**
      * @param list<string> $engineOptions
-     * @return array{reviewStatus:string, declaredOutputFile:string, inferredOutputFormat:string, explicitFormat:string|null, formatOptions:list<string>, issues:list<string>}|array{}
+     * @return array<string, mixed>
      */
     private function typstOutputFormatPolicyFor(string $engine, string $outputFile, array $engineOptions): array
     {
@@ -6826,6 +6835,12 @@ final class PdfEngineHandoff
         if ($explicitFormat !== null && $explicitFormat !== 'pdf') {
             $issues[] = 'explicit-format-not-pdf:' . $explicitFormat;
         }
+        $assetOutput = $this->typstAssetOutputPolicyFor($explicitFormat, $outputFile);
+        if ($assetOutput !== []) {
+            foreach ($assetOutput['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
 
         $policy = [
             'reviewStatus' => $issues === [] ? 'ok' : 'review',
@@ -6835,6 +6850,9 @@ final class PdfEngineHandoff
             'formatOptions' => $formatOptions,
             'issues' => array_values(array_unique($issues)),
         ];
+        if ($assetOutput !== []) {
+            $policy['assetOutput'] = $assetOutput;
+        }
         if (count($formatValues) > 1 || in_array('', $formatValues, true)) {
             $policy['formatHistory'] = $formatHistory;
         }
@@ -6843,6 +6861,47 @@ final class PdfEngineHandoff
         }
 
         return $policy;
+    }
+
+    /**
+     * @return array{reviewStatus:string, format:string, declaredOutputFile:string, assetOutputPossible:bool, pageAssetFormat:bool, multiFileOutputPossible:bool, pageTemplatePresent:bool, pageTemplateTokenCount:int, pageTemplateTokens:list<string>, pageTemplateTokenTypes:list<string>, zeroPaddedPageTemplate:bool, issues:list<string>}|array{}
+     */
+    private function typstAssetOutputPolicyFor(?string $explicitFormat, string $outputFile): array
+    {
+        if ($explicitFormat === null || !in_array($explicitFormat, ['png', 'svg'], true)) {
+            return [];
+        }
+
+        $pageTemplateTokens = [];
+        if (preg_match_all('/\{0?p\}/', $outputFile, $matches) === false) {
+            $matches = [[]];
+        }
+        foreach ($matches[0] ?? [] as $token) {
+            if (is_string($token) && $token !== '') {
+                $pageTemplateTokens[] = $token;
+            }
+        }
+        $pageTemplateTokenTypes = array_values(array_unique($pageTemplateTokens));
+        sort($pageTemplateTokenTypes);
+        $issues = [];
+        if ($pageTemplateTokens !== []) {
+            $issues[] = 'page-asset-output-template-boundary';
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'format' => $explicitFormat,
+            'declaredOutputFile' => $outputFile,
+            'assetOutputPossible' => true,
+            'pageAssetFormat' => true,
+            'multiFileOutputPossible' => true,
+            'pageTemplatePresent' => $pageTemplateTokens !== [],
+            'pageTemplateTokenCount' => count($pageTemplateTokens),
+            'pageTemplateTokens' => $pageTemplateTokens,
+            'pageTemplateTokenTypes' => $pageTemplateTokenTypes,
+            'zeroPaddedPageTemplate' => in_array('{0p}', $pageTemplateTokens, true),
+            'issues' => $issues,
+        ];
     }
 
     /**
@@ -8389,10 +8448,35 @@ final class PdfEngineHandoff
                 $distinctFormats = array_values(array_unique($formatOptions));
                 sort($distinctFormats);
             }
+            $assetOutput = is_array($formatPolicy['assetOutput'] ?? null) ? $formatPolicy['assetOutput'] : [];
+            $assetOutputIssues = is_array($assetOutput['issues'] ?? null) ? $assetOutput['issues'] : [];
+            $assetPageTemplateTokens = array_values(array_filter(
+                is_array($assetOutput['pageTemplateTokens'] ?? null) ? $assetOutput['pageTemplateTokens'] : [],
+                static fn (mixed $token): bool => is_string($token) && $token !== ''
+            ));
+            $assetPageTemplateTokenTypes = array_values(array_filter(
+                is_array($assetOutput['pageTemplateTokenTypes'] ?? null) ? $assetOutput['pageTemplateTokenTypes'] : [],
+                static fn (mixed $token): bool => is_string($token) && $token !== ''
+            ));
+            if ($assetPageTemplateTokenTypes === [] && $assetPageTemplateTokens !== []) {
+                $assetPageTemplateTokenTypes = array_values(array_unique($assetPageTemplateTokens));
+                sort($assetPageTemplateTokenTypes);
+            }
+            $formatIssues = array_merge($formatIssues, $assetOutputIssues);
             $appendCase('output-format', ($formatPolicy['reviewStatus'] ?? 'ok') === 'ok' && $formatIssues === [] ? 'ok' : 'review', is_int($formatPolicy['formatEntryCount'] ?? null) ? $formatPolicy['formatEntryCount'] : count(is_array($formatPolicy['formatOptions'] ?? null) ? $formatPolicy['formatOptions'] : []), [
                 'inferredOutputFormat' => is_string($formatPolicy['inferredOutputFormat'] ?? null) ? $formatPolicy['inferredOutputFormat'] : null,
                 'explicitFormat' => is_string($formatPolicy['explicitFormat'] ?? null) ? $formatPolicy['explicitFormat'] : null,
                 'distinctFormats' => $distinctFormats,
+                'assetOutputPresent' => $assetOutput !== [],
+                'assetOutputFormat' => is_string($assetOutput['format'] ?? null) ? $assetOutput['format'] : null,
+                'assetOutputPossible' => ($assetOutput['assetOutputPossible'] ?? false) === true,
+                'assetPageFormat' => ($assetOutput['pageAssetFormat'] ?? false) === true,
+                'assetMultiFileOutputPossible' => ($assetOutput['multiFileOutputPossible'] ?? false) === true,
+                'assetPageTemplatePresent' => ($assetOutput['pageTemplatePresent'] ?? false) === true,
+                'assetPageTemplateTokenCount' => is_int($assetOutput['pageTemplateTokenCount'] ?? null) ? $assetOutput['pageTemplateTokenCount'] : count($assetPageTemplateTokens),
+                'assetPageTemplateTokens' => $assetPageTemplateTokens,
+                'assetPageTemplateTokenTypes' => $assetPageTemplateTokenTypes,
+                'assetZeroPaddedPageTemplate' => ($assetOutput['zeroPaddedPageTemplate'] ?? false) === true,
             ], $formatIssues);
         }
 
