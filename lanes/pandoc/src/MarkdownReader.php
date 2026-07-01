@@ -296,6 +296,13 @@ final class MarkdownReader
                 continue;
             }
             if (
+                $paragraph === []
+                && $listStack === []
+                && $this->isPandocListIndentedCodeSeparator($lines, $index, $blocks)
+            ) {
+                continue;
+            }
+            if (
                 $paragraph !== []
                 && $listStack === []
                 && $this->isCommonMarkParagraphInterruptingRawHtmlBlockStart($line)
@@ -1167,6 +1174,31 @@ final class MarkdownReader
         }
 
         return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param list<AstNode> $blocks
+     */
+    private function isPandocListIndentedCodeSeparator(array $lines, int $index, array $blocks): bool
+    {
+        if (trim($lines[$index] ?? '') !== '<!-- -->') {
+            return false;
+        }
+
+        $lastKey = array_key_last($blocks);
+        if ($lastKey === null || !$this->isListBlock($blocks[$lastKey])) {
+            return false;
+        }
+
+        $next = $this->nextNonBlankLineIndex($lines, $index + 1);
+
+        return $next !== null && $this->isIndentedCodeLine($lines[$next]);
+    }
+
+    private function isListBlock(AstNode $node): bool
+    {
+        return $node->type === 'bullet_list' || $node->type === 'ordered_list' || $node->type === 'definition_list';
     }
 
     private function isFootnoteIndentedContinuation(string $line): bool
