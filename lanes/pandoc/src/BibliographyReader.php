@@ -21,6 +21,7 @@ final class BibliographyReader
         $ids = $this->itemIds($items);
         $itemReview = $this->itemReviewSummary($items);
         $processor = CitationCslProcessor::fromItems($items);
+        $metadataItems = $this->metadataItems($items, $ids, $processor);
         $bibliography = $processor->bibliographyDefinitionList($ids);
         $attrs = [
             'sourceFormat' => $this->format,
@@ -47,9 +48,9 @@ final class BibliographyReader
                 'citationAliasCount' => $itemReview['citationAliasCount'],
                 'itemMetadataReviewPolicy' => $itemReview['reviewPolicy'],
             ],
-            'cslItemCount' => count($items),
+            'cslItemCount' => count($metadataItems),
             'cslItemIds' => $ids,
-            'cslItems' => $items,
+            'cslItems' => $metadataItems,
             'cslItemReviewSummary' => $itemReview,
         ];
 
@@ -279,6 +280,30 @@ final class BibliographyReader
     private function metadataString(mixed $value): string
     {
         return is_string($value) || is_int($value) ? trim((string) $value) : '';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $ids
+     * @return list<array<string, mixed>>
+     */
+    private function metadataItems(array $items, array $ids, CitationCslProcessor $processor): array
+    {
+        if ($this->format !== 'csljson') {
+            return $items;
+        }
+
+        $normalized = [];
+        foreach ($ids as $id) {
+            $item = $processor->item($id);
+            if ($item === null) {
+                throw new \InvalidArgumentException('CSL item id disappeared during normalization: ' . $id);
+            }
+
+            $normalized[] = $item;
+        }
+
+        return $normalized;
     }
 
     private function parserName(): string

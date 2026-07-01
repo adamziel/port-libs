@@ -22203,6 +22203,80 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Column Source. Review Ledger. 2026. 12-14. Pagination: column. Book pagination: section.</dd>', $blocks);
         $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Verse Source. Migration Sourcebook. 2025. 4-6. Pagination: verse. Book pagination: page.</dd>', $blocks);
     },
+    'maps compact direct biblatex page label and container author type aliases' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@incollection{compact-container-label,
+  author              = {Ng, Nia},
+  bookauthor          = {Smith, Ada and {{Archive Desk}}},
+  title               = {Compact Container Label Packet},
+  booktitle           = {Migration Sourcebook},
+  date                = {2026},
+  pages               = {12--16},
+  page-label          = {line},
+  containerauthortype = {source volume compiler}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(1, count($items));
+        $t->same('line', $items[0]['pagination'] ?? null);
+        $t->same('source volume compiler', $items[0]['container-author-type'] ?? null);
+        $t->same('line', $items[0]['rawBibtex']['fields']['page-label'] ?? null);
+        $t->same('source volume compiler', $items[0]['rawBibtex']['fields']['containerauthortype'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('compact-container-label');
+        $t->same('12-16', $item['page'] ?? null);
+        $t->same('line', $item['pagination'] ?? null);
+        $t->same('source volume compiler', $item['containerAuthorType'] ?? null);
+        $t->same('Smith', $item['containerAuthors'][0]['family'] ?? null);
+        $t->same('Archive Desk', $item['containerAuthors'][1]['literal'] ?? null);
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'direct-compact-container-type',
+            'title' => 'Direct Compact Container Type Packet',
+            'page' => '4-5',
+            'pageLabel' => 'paragraph',
+            'containerauthortype' => 'manual sourcebook role',
+        ]])->item('direct-compact-container-type');
+        $t->same('paragraph', $direct['pagination'] ?? null);
+        $t->same('manual sourcebook role', $direct['containerAuthorType'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <label variable="page" form="long"/>
+        <text variable="pagination"/>
+        <text variable="containerauthortype"/>
+        <text variable="bookauthortype"/>
+        <names variable="container-author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="page-label"/>
+      <text variable="container-author-type"/>
+      <text variable="containerauthortype"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | lines | line | source volume compiler | source volume compiler | Smith and Archive Desk]', $styled->renderCitationCluster([
+            $citation('compact-container-label', '[@compact-container-label]'),
+        ]));
+        $t->same('Compact Container Label Packet :: line :: source volume compiler :: source volume compiler', $styled->renderBibliographyEntry('compact-container-label'));
+
+        $document = (new MarkdownReader())->read('Compact aliases [@compact-container-label] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Compact aliases [Ng | lines | line | source volume compiler | source volume compiler | Smith and Archive Desk] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Compact Container Label Packet :: line :: source volume compiler :: source volume compiler</dd>', $blocks);
+    },
     'maps bounded biblatex thesis aliases and thesis type metadata into csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @phdthesis{doctoral-import,

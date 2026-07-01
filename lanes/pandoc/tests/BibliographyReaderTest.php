@@ -192,6 +192,33 @@ XML;
         $t->true(!isset($summary['titles']), 'aggregate summary must not expose item titles');
         $t->true(!isset($summary['sourceFilePaths']), 'aggregate summary must not expose source file paths');
     },
+    'normalizes direct csl json aliases in bibliography reader metadata' => static function (TestRunner $t): void {
+        $cslJson = json_encode([
+            [
+                'id' => 'json-alias-source',
+                'type' => 'book',
+                'title' => 'Direct CSL JSON Alias Packet',
+                'author' => [['family' => 'Lane', 'given' => 'Lee']],
+                'issued' => ['date-parts' => [[2026]]],
+                'publisher' => 'Review Press',
+                'publisher-place-list' => ['Portland', 'Remote'],
+                'container-title-short' => 'J. Direct Review',
+                'citation-aliases' => ['json-alias-cite'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $document = PandocConverter::read($cslJson, 'csljson');
+        $item = $document->attr('cslItems')[0] ?? [];
+
+        $t->same('csljson', $document->attr('sourceFormat'));
+        $t->same(1, $document->attr('cslItemCount'));
+        $t->same(['json-alias-source'], $document->attr('cslItemIds'));
+        $t->same('json-alias-source', $item['id'] ?? null);
+        $t->same('Portland; Remote', $item['publisherPlace'] ?? null);
+        $t->same(['Portland', 'Remote'], $item['publisherPlaceList'] ?? null);
+        $t->same('J. Direct Review', $item['containerTitleShort'] ?? null);
+        $t->same(['json-alias-cite'], $item['citationAliases'] ?? null);
+    },
     'rejects malformed bibliography inputs through converter dispatch' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('@book{missing,title={Bad}', 'bibtex');
