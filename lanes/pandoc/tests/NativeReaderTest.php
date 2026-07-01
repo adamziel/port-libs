@@ -100,6 +100,37 @@ return [
         $t->same($native['blocks'], $roundTrip['blocks']);
         $t->same($native, $roundTrip);
     },
+    'reads legacy textual native link and image target constructors' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ Para [ Str "See" , Space , Link [ Str "source" ] ( "https://example.test/source" , "Legacy source" ) , Space , Image [ Str "diagram" ] ( "media/diagram.png" , "Diagram title" ) ] ]
+NATIVE;
+
+        $document = (new NativeReader())->read($native);
+        $paragraph = $document->children[0] ?? new AstNode('missing');
+        $link = $paragraph->children[2] ?? new AstNode('missing');
+        $image = $paragraph->children[4] ?? new AstNode('missing');
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $blocksOnly = (new NativeWriter(['blocksOnly' => true]))->write($document);
+
+        $t->same('paragraph', $paragraph->type);
+        $t->same(['text', 'space', 'link', 'space', 'image'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('https://example.test/source', $link->attr('url'));
+        $t->same('Legacy source', $link->attr('title'));
+        $t->same(['https://example.test/source', 'Legacy source'], $link->attr('targetNative'));
+        $t->same('media/diagram.png', $image->attr('url'));
+        $t->same('Diagram title', $image->attr('title'));
+        $t->same('diagram', $image->attr('alt'));
+        $t->same(['media/diagram.png', 'Diagram title'], $image->attr('targetNative'));
+        $t->same(['', [], []], $jsonPacket['blocks'][0]['c'][2]['c'][0]);
+        $t->same([['t' => 'Str', 'c' => 'source']], $jsonPacket['blocks'][0]['c'][2]['c'][1]);
+        $t->same(['https://example.test/source', 'Legacy source'], $jsonPacket['blocks'][0]['c'][2]['c'][2]);
+        $t->same(['', [], []], $nativePacket['blocks'][0]['c'][4]['c'][0]);
+        $t->same([['t' => 'Str', 'c' => 'diagram']], $nativePacket['blocks'][0]['c'][4]['c'][1]);
+        $t->same(['media/diagram.png', 'Diagram title'], $nativePacket['blocks'][0]['c'][4]['c'][2]);
+        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "source" ] ( "https://example.test/source" , "Legacy source" )', $blocksOnly);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "diagram" ] ( "media/diagram.png" , "Diagram title" )', $blocksOnly);
+    },
     'writes shared metadata values as pandoc native meta constructors' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
