@@ -19529,6 +19529,11 @@ final class DocxOpenXmlReader
             'contentTypeParameterizedDefaultDeclarationCount' => (int) ($contentTypesPart['parameterizedDefaultDeclarationCount'] ?? 0),
             'contentTypeDefaultDeclarationContentTypeBaseCounts' => $contentTypesPart['defaultDeclarationContentTypeBaseCounts'] ?? [],
             'contentTypeDefaultDeclarationContentTypeParameterNameCounts' => $contentTypesPart['defaultDeclarationContentTypeParameterNameCounts'] ?? [],
+            'contentTypeDefaultDeclarationRawExtensionCounts' => $contentTypesPart['defaultDeclarationRawExtensionCounts'] ?? [],
+            'contentTypeDefaultDeclarationDirectoryCounts' => $contentTypesPart['defaultDeclarationDirectoryCounts'] ?? [],
+            'contentTypeDefaultDeclarationTopLevelSegmentCounts' => $contentTypesPart['defaultDeclarationTopLevelSegmentCounts'] ?? [],
+            'contentTypeDefaultDeclarationLargestPart' => $contentTypesPart['defaultDeclarationLargestPart'] ?? null,
+            'contentTypeDefaultDeclarationLargestParts' => $contentTypesPart['defaultDeclarationLargestParts'] ?? [],
             'contentTypeDefaultDeclarationIssueCounts' => $contentTypesPart['defaultDeclarationIssueCounts'] ?? [],
             'contentTypeDefaultDeclarationIssues' => $contentTypesPart['defaultDeclarationIssues'] ?? [],
             'contentTypeDefaultDeclarationMissingParts' => $contentTypesPart['defaultDeclarationMissingParts'] ?? [],
@@ -37752,6 +37757,11 @@ final class DocxOpenXmlReader
             'parameterizedDefaultDeclarationCount' => $defaultDeclarationSummary['parameterizedDeclarationCount'],
             'defaultDeclarationContentTypeBaseCounts' => $defaultDeclarationSummary['contentTypeBaseCounts'],
             'defaultDeclarationContentTypeParameterNameCounts' => $defaultDeclarationSummary['contentTypeParameterNameCounts'],
+            'defaultDeclarationRawExtensionCounts' => $defaultDeclarationSummary['rawExtensionCounts'],
+            'defaultDeclarationDirectoryCounts' => $defaultDeclarationSummary['directoryCounts'],
+            'defaultDeclarationTopLevelSegmentCounts' => $defaultDeclarationSummary['topLevelSegmentCounts'],
+            'defaultDeclarationLargestPart' => $defaultDeclarationSummary['largestPart'],
+            'defaultDeclarationLargestParts' => $defaultDeclarationSummary['largestParts'],
             'defaultDeclarationIssueCounts' => $defaultDeclarationSummary['issueCounts'],
             'defaultDeclarationIssues' => $defaultDeclarationSummary['issues'],
             'defaultDeclarations' => $defaultDeclarationSummary['declarations'],
@@ -37908,7 +37918,7 @@ final class DocxOpenXmlReader
     /**
      * @param array<string, string> $parts
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
-     * @return array{declarationCount:int, usedDeclarationCount:int, unusedDeclarationCount:int, defaultResolvedPartCount:int, overrideResolvedPartCount:int, missingPartCount:int, extensionlessMissingPartCount:int, unusedExtensions:list<string>, missingExtensions:list<string>, issueCounts:array<string, int>, issues:list<string>, declarations:list<array<string, mixed>>, missingParts:list<array<string, mixed>>}
+     * @return array{declarationCount:int, usedDeclarationCount:int, unusedDeclarationCount:int, defaultResolvedPartCount:int, overrideResolvedPartCount:int, missingPartCount:int, extensionlessMissingPartCount:int, unusedExtensions:list<string>, missingExtensions:list<string>, rawExtensionCounts:array<string, int>, directoryCounts:array<string, int>, topLevelSegmentCounts:array<string, int>, largestPart:?array<string, mixed>, largestParts:list<array<string, mixed>>, issueCounts:array<string, int>, issues:list<string>, declarations:list<array<string, mixed>>, missingParts:list<array<string, mixed>>}
      */
     private function contentTypeDefaultDeclarationSummary(array $parts, array $contentTypes): array
     {
@@ -37921,6 +37931,10 @@ final class DocxOpenXmlReader
                 'relationshipPartCount' => 0,
                 'byteLength' => 0,
                 'packageParts' => [],
+                'rawExtensionCounts' => [],
+                'directoryCounts' => [],
+                'topLevelSegmentCounts' => [],
+                'largestPackagePart' => null,
                 'valid' => true,
                 'issues' => [],
             ] + $this->contentTypeReport($contentType);
@@ -37935,6 +37949,9 @@ final class DocxOpenXmlReader
         $contentTypeParameterNameCounts = [];
         $parameterizedDeclarationCount = 0;
         $extensionlessMissingPartCount = 0;
+        $rawExtensionCounts = [];
+        $directoryCounts = [];
+        $topLevelSegmentCounts = [];
         foreach ($declarations as $declaration) {
             $contentTypeBase = is_string($declaration['contentTypeBase'] ?? null) ? $declaration['contentTypeBase'] : '';
             $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
@@ -37967,11 +37984,61 @@ final class DocxOpenXmlReader
                     ? $resolution['defaultExtension']
                     : '';
                 if (isset($declarations[$defaultExtension])) {
+                    $bytes = strlen($contents);
+                    $rawExtension = $this->packagePartRawExtension($partName);
+                    $rawExtensionKey = $rawExtension ?? '(none)';
+                    $directory = $this->packagePartDirectory($partName);
+                    $topLevelSegment = $this->packagePartTopLevelSegment($partName);
+                    $partSummary = [
+                        'partName' => $partName,
+                        'defaultExtension' => $defaultExtension,
+                        'directory' => $directory,
+                        'directoryDepth' => $this->packagePartDirectoryDepth($directory),
+                        'topLevelSegment' => $topLevelSegment,
+                        'baseName' => $this->packagePartBaseName($partName),
+                        'baseNameStem' => $this->packagePartBaseNameStem($partName),
+                        'partExtension' => $this->packagePartExtension($partName),
+                        'rawPartExtension' => $rawExtension,
+                        'relationshipPart' => $this->isRelationshipPartName($partName),
+                        'bytes' => $bytes,
+                        'sha256' => hash('sha256', $contents),
+                        'contentType' => is_string($declarations[$defaultExtension]['contentType'] ?? null)
+                            ? $declarations[$defaultExtension]['contentType']
+                            : '',
+                        'contentTypeBase' => is_string($declarations[$defaultExtension]['contentTypeBase'] ?? null)
+                            ? $declarations[$defaultExtension]['contentTypeBase']
+                            : '',
+                        'contentTypeHasParameters' => (bool) ($declarations[$defaultExtension]['contentTypeHasParameters'] ?? false),
+                        'contentTypeParameterMap' => is_array($declarations[$defaultExtension]['contentTypeParameterMap'] ?? null)
+                            ? $declarations[$defaultExtension]['contentTypeParameterMap']
+                            : [],
+                        'byteExposurePolicy' => 'content-type-default-resolved-part-metadata-only',
+                    ];
                     ++$declarations[$defaultExtension]['packagePartCount'];
-                    $declarations[$defaultExtension]['byteLength'] += strlen($contents);
+                    $declarations[$defaultExtension]['byteLength'] += $bytes;
                     $declarations[$defaultExtension]['packageParts'][] = $partName;
+                    $declarations[$defaultExtension]['rawExtensionCounts'][$rawExtensionKey] =
+                        ($declarations[$defaultExtension]['rawExtensionCounts'][$rawExtensionKey] ?? 0) + 1;
+                    $declarations[$defaultExtension]['directoryCounts'][$directory] =
+                        ($declarations[$defaultExtension]['directoryCounts'][$directory] ?? 0) + 1;
+                    $declarations[$defaultExtension]['topLevelSegmentCounts'][$topLevelSegment] =
+                        ($declarations[$defaultExtension]['topLevelSegmentCounts'][$topLevelSegment] ?? 0) + 1;
+                    $rawExtensionCounts[$rawExtensionKey] = ($rawExtensionCounts[$rawExtensionKey] ?? 0) + 1;
+                    $directoryCounts[$directory] = ($directoryCounts[$directory] ?? 0) + 1;
+                    $topLevelSegmentCounts[$topLevelSegment] = ($topLevelSegmentCounts[$topLevelSegment] ?? 0) + 1;
                     if ($this->isRelationshipPartName($partName)) {
                         ++$declarations[$defaultExtension]['relationshipPartCount'];
+                    }
+                    $largestPackagePart = $declarations[$defaultExtension]['largestPackagePart'];
+                    if (
+                        !is_array($largestPackagePart)
+                        || $bytes > (int) ($largestPackagePart['bytes'] ?? 0)
+                        || (
+                            $bytes === (int) ($largestPackagePart['bytes'] ?? 0)
+                            && strcmp($partName, (string) ($largestPackagePart['partName'] ?? '')) < 0
+                        )
+                    ) {
+                        $declarations[$defaultExtension]['largestPackagePart'] = $partSummary;
                     }
                 }
                 continue;
@@ -38005,10 +38072,17 @@ final class DocxOpenXmlReader
 
         $usedDeclarationCount = 0;
         $unusedExtensions = [];
+        $largestParts = [];
         foreach ($declarations as &$declaration) {
             sort($declaration['packageParts'], SORT_STRING);
+            ksort($declaration['rawExtensionCounts'], SORT_STRING);
+            ksort($declaration['directoryCounts'], SORT_STRING);
+            ksort($declaration['topLevelSegmentCounts'], SORT_STRING);
             if ($declaration['packagePartCount'] > 0) {
                 ++$usedDeclarationCount;
+                if (is_array($declaration['largestPackagePart'])) {
+                    $largestParts[] = $declaration['largestPackagePart'];
+                }
             } else {
                 $unusedExtensions[] = $declaration['extension'];
             }
@@ -38019,7 +38093,20 @@ final class DocxOpenXmlReader
         sort($missingExtensions, SORT_STRING);
         ksort($contentTypeBaseCounts, SORT_STRING);
         ksort($contentTypeParameterNameCounts, SORT_STRING);
+        ksort($rawExtensionCounts, SORT_STRING);
+        ksort($directoryCounts, SORT_STRING);
+        ksort($topLevelSegmentCounts, SORT_STRING);
         ksort($issueCounts, SORT_STRING);
+        usort(
+            $largestParts,
+            static function (array $left, array $right): int {
+                $byteComparison = (int) ($right['bytes'] ?? 0) <=> (int) ($left['bytes'] ?? 0);
+
+                return $byteComparison !== 0
+                    ? $byteComparison
+                    : strcmp((string) ($left['partName'] ?? ''), (string) ($right['partName'] ?? ''));
+            }
+        );
         usort(
             $missingParts,
             static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName'])
@@ -38038,6 +38125,11 @@ final class DocxOpenXmlReader
             'parameterizedDeclarationCount' => $parameterizedDeclarationCount,
             'contentTypeBaseCounts' => $contentTypeBaseCounts,
             'contentTypeParameterNameCounts' => $contentTypeParameterNameCounts,
+            'rawExtensionCounts' => $rawExtensionCounts,
+            'directoryCounts' => $directoryCounts,
+            'topLevelSegmentCounts' => $topLevelSegmentCounts,
+            'largestPart' => $largestParts[0] ?? null,
+            'largestParts' => $largestParts,
             'issueCounts' => $issueCounts,
             'issues' => array_keys($issueCounts),
             'declarations' => array_values($declarations),
