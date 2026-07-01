@@ -15977,6 +15977,89 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
+    'summarizes central directory expansion ratio buckets before package instantiation' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $storedBytes = "stored central directory review\n";
+        $highExpansionBytes = str_repeat('A', 5000);
+        $unknownUncompressedSize = 37;
+        $zip = $buildZipPackage([
+            [
+                'name' => 'empty.bin',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'docProps/core.xml',
+                'data' => $storedBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/high.bin',
+                'data' => $highExpansionBytes,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/unknown.bin',
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $unknownUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $unknownUncompressedSize,
+            ],
+        ]);
+        $highExpansionCompressedSize = strlen(gzdeflate($highExpansionBytes));
+
+        $summary = ZipPackage::centralDirectorySizePreflight($zip, null, 100.0);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, null, 100.0, 8192);
+        $buckets = array_column($summary['expansionRatioBucketSummaries'], null, 'expansionRatioBucket');
+
+        $t->same(4, $summary['expansionRatioBucketSummaryCount']);
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x', 'unknown'], $summary['expansionRatioBuckets']);
+        $t->same('zero-byte', $summary['entries'][0]['expansionRatioBucket']);
+        $t->same('up-to-1x', $summary['entries'][1]['expansionRatioBucket']);
+        $t->same('over-100x', $summary['entries'][2]['expansionRatioBucket']);
+        $t->same('unknown', $summary['entries'][3]['expansionRatioBucket']);
+        $t->same('/', $summary['entries'][0]['directoryRoot']);
+        $t->same('docProps/', $summary['entries'][1]['directoryRoot']);
+        $t->same('word/', $summary['entries'][2]['directoryRoot']);
+        $t->same('word/', $summary['entries'][3]['directoryRoot']);
+
+        $t->same(1, $buckets['zero-byte']['entryCount']);
+        $t->same(0, $buckets['zero-byte']['compressedBytes']);
+        $t->same(0, $buckets['zero-byte']['uncompressedBytes']);
+        $t->same(['empty.bin'], $buckets['zero-byte']['entryNames']);
+        $t->same(['/'], $buckets['zero-byte']['directoryRoots']);
+        $t->same(['stored'], $buckets['zero-byte']['compressionMethodNames']);
+
+        $t->same(1, $buckets['up-to-1x']['entryCount']);
+        $t->same(strlen($storedBytes), $buckets['up-to-1x']['compressedBytes']);
+        $t->same(strlen($storedBytes), $buckets['up-to-1x']['uncompressedBytes']);
+        $t->same(['docProps/core.xml'], $buckets['up-to-1x']['entryNames']);
+        $t->same(['docProps/'], $buckets['up-to-1x']['directoryRoots']);
+        $t->same(['stored'], $buckets['up-to-1x']['compressionMethodNames']);
+
+        $t->same(1, $buckets['over-100x']['entryCount']);
+        $t->same($highExpansionCompressedSize, $buckets['over-100x']['compressedBytes']);
+        $t->same(strlen($highExpansionBytes), $buckets['over-100x']['uncompressedBytes']);
+        $t->same('word/media/high.bin', $buckets['over-100x']['largestExpansionRatioEntryName']);
+        $t->same(strlen($highExpansionBytes) / $highExpansionCompressedSize, $buckets['over-100x']['largestExpansionRatio']);
+        $t->same(['word/media/high.bin'], $buckets['over-100x']['entryNames']);
+        $t->same(['word/'], $buckets['over-100x']['directoryRoots']);
+        $t->same(['deflated'], $buckets['over-100x']['compressionMethodNames']);
+
+        $t->same(1, $buckets['unknown']['entryCount']);
+        $t->same(1, $buckets['unknown']['unknownExpansionRatioEntryCount']);
+        $t->same(0, $buckets['unknown']['compressedBytes']);
+        $t->same($unknownUncompressedSize, $buckets['unknown']['uncompressedBytes']);
+        $t->same(['word/media/unknown.bin'], $buckets['unknown']['entryNames']);
+        $t->same(['word/'], $buckets['unknown']['directoryRoots']);
+        $t->same(['unsupported'], $buckets['unknown']['compressionMethodNames']);
+        $t->same(1, $summary['unknownExpansionRatioEntryCount']);
+        $t->same(['expansion-ratio-unknown'], $summary['issues']);
+        $t->same($summary, $rawStrict['centralDirectorySize']);
+        $t->contains('expansion-ratio-unknown', implode(',', $rawStrict['diagnostics']));
+    },
+
     'preflights zero compressed zip entry expansion provenance before package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>zero compressed review</w:p></w:body></w:document>';
         $zeroName = 'word/media/zero-compressed.bin';
