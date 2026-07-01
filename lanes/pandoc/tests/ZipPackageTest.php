@@ -865,6 +865,10 @@ return [
                 'entryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
             ],
         ];
+        $expectedDirectoryRoots = array_map(
+            static fn (array $summary): string => $summary['directoryRoot'],
+            $expectedDirectoryRootSummaries
+        );
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'archiveBytes' => $manifest['archiveBytes'],
@@ -918,6 +922,7 @@ return [
         $t->same(2, $manifest['compressionMethodSummaryCount']);
         $t->same($expectedCompressionMethodSummaries, $manifest['compressionMethodSummaries']);
         $t->same(2, $manifest['directoryRootCount']);
+        $t->same($expectedDirectoryRoots, $manifest['directoryRoots']);
         $t->same($expectedDirectoryRootSummaries, $manifest['directoryRootSummaries']);
         $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
         $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);

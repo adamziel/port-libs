@@ -13410,6 +13410,10 @@ final class ZipPackage
         ksort($compressionMethodSummaries, SORT_NUMERIC);
         $compressionMethodSummaries = array_values($compressionMethodSummaries);
         $directoryRootSummaries = self::packageManifestDirectoryRootSummaries($entries);
+        $directoryRoots = array_map(
+            static fn (array $summary): string => (string) $summary['directoryRoot'],
+            $directoryRootSummaries
+        );
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'archiveBytes' => $archiveBytes,
@@ -13466,6 +13470,7 @@ final class ZipPackage
             'compressionMethodSummaryCount' => count($compressionMethodSummaries),
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'directoryRootCount' => count($directoryRootSummaries),
+            'directoryRoots' => $directoryRoots,
             'directoryRootSummaries' => $directoryRootSummaries,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
