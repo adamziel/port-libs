@@ -1332,6 +1332,13 @@ return [
             'centralDirectoryRawCommentBytes' => 0,
             'centralDirectoryReviewFieldBytes' => 0,
             'sourceRecordBytes' => array_sum(array_column($expectedEntries, 'sourceRecordBytes')),
+            'sourceRecordPayloadBytes' => $manifest['sourceRecordPayloadBytes'],
+            'sourceRecordStructuralBytes' => $manifest['sourceRecordStructuralBytes'],
+            'sourceRecordReviewFieldBytes' => $manifest['sourceRecordReviewFieldBytes'],
+            'sourceRecordReviewFieldRatio' => $manifest['sourceRecordReviewFieldRatio'],
+            'sourceRecordReviewFieldEntryCount' => $manifest['sourceRecordReviewFieldEntryCount'],
+            'hasSourceRecordReviewFields' => $manifest['hasSourceRecordReviewFields'],
+            'sourceRecordReviewFieldEntries' => $manifest['sourceRecordReviewFieldEntries'],
             'centralExtraFieldEntryCount' => 0,
             'entryCommentCount' => 0,
             'hasEntryComments' => false,
@@ -3383,6 +3390,13 @@ return [
             'centralDirectoryRawCommentBytes' => $manifest['centralDirectoryRawCommentBytes'],
             'centralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'],
             'sourceRecordBytes' => $manifest['sourceRecordBytes'],
+            'sourceRecordPayloadBytes' => $manifest['sourceRecordPayloadBytes'],
+            'sourceRecordStructuralBytes' => $manifest['sourceRecordStructuralBytes'],
+            'sourceRecordReviewFieldBytes' => $manifest['sourceRecordReviewFieldBytes'],
+            'sourceRecordReviewFieldRatio' => $manifest['sourceRecordReviewFieldRatio'],
+            'sourceRecordReviewFieldEntryCount' => $manifest['sourceRecordReviewFieldEntryCount'],
+            'hasSourceRecordReviewFields' => $manifest['hasSourceRecordReviewFields'],
+            'sourceRecordReviewFieldEntries' => $manifest['sourceRecordReviewFieldEntries'],
             'centralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'],
             'entryCommentCount' => $manifest['entryCommentCount'],
             'hasEntryComments' => $manifest['hasEntryComments'],
@@ -16702,6 +16716,125 @@ return [
         $t->same("review media payload remains readable\n", $package->read('/word/media/review.txt'));
         $t->throws(\RuntimeException::class, static fn (): string => $package->read('/word/document.xml'));
         $t->throws(\RuntimeException::class, static fn (): array => $package->assertReadableEntries());
+    },
+
+    'records mapped shared ZIP package source-record review byte case count' => static function (TestRunner $t): void {
+        $manifest = json_decode(
+            file_get_contents(__DIR__ . '/../UPSTREAM_TEST_MANIFEST.json') ?: '',
+            true,
+            flags: JSON_THROW_ON_ERROR
+        );
+
+        $t->same(1, $manifest['mappedSharedZipPackageSourceRecordReviewByteCases']);
+        $t->same(42, $manifest['sharedZipPackageSourceRecordReviewByteAssertions']);
+        $t->same(
+            1,
+            $manifest['benchmarkDenominator']['breakdown']['mappedSharedZipPackageSourceRecordReviewByteCases']
+        );
+        $t->same(
+            42,
+            $manifest['benchmarkDenominator']['breakdown']['sharedZipPackageSourceRecordReviewByteAssertions']
+        );
+        $t->same(
+            1,
+            $manifest['benchmarkDenominator']['inventory']['mappedSharedZipPackageSourceRecordReviewByteCases']
+        );
+        $t->same(
+            42,
+            $manifest['benchmarkDenominator']['inventory']['sharedZipPackageSourceRecordReviewByteAssertions']
+        );
+        $t->same(1, $manifest['inventory']['mappedSharedZipPackageSourceRecordReviewByteCases']);
+        $t->same(42, $manifest['inventory']['sharedZipPackageSourceRecordReviewByteAssertions']);
+    },
+
+    'summarizes zip package source-record review bytes before raw package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $localExtra = pack('vv', 0xcafe, strlen('LOCL')) . 'LOCL';
+        $centralExtra = pack('vv', 0xcafe, strlen('CENT')) . 'CENT';
+        $entryComment = 'central review';
+        $documentXml = '<w:document><w:body><w:p>source record review bytes</w:p></w:body></w:document>';
+        $mediaBytes = "review media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'descriptor' => true,
+                'localExtra' => $localExtra,
+                'centralExtra' => $centralExtra,
+                'comment' => $entryComment,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ], 'review bytes'));
+        $manifest = $package->packageManifestPreflight();
+        $entriesByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+        $documentEntry = $entriesByName['word/document.xml'];
+        $mediaEntry = $entriesByName['word/media/review.txt'];
+        $expectedDocumentReviewBytes = strlen($localExtra) + strlen($centralExtra) + strlen($entryComment) + 16;
+        $expectedReviewBytes = $manifest['localHeaderReviewFieldBytes']
+            + $manifest['centralDirectoryReviewFieldBytes']
+            + $manifest['dataDescriptorBytes'];
+        $expectedStructuralBytes = $manifest['sourceRecordBytes']
+            - $manifest['compressedBytes']
+            - $expectedReviewBytes;
+        $reviewEntry = $manifest['sourceRecordReviewFieldEntries'][0];
+
+        $t->same(strlen($localExtra), $documentEntry['localHeaderReviewFieldBytes']);
+        $t->same(strlen($centralExtra) + strlen($entryComment), $documentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same(16, $documentEntry['dataDescriptorBytes']);
+        $t->same($expectedDocumentReviewBytes, $documentEntry['sourceRecordReviewFieldBytes']);
+        $t->same(true, $documentEntry['hasSourceRecordReviewFields']);
+        $t->same($documentEntry['compressedSize'], $documentEntry['sourceRecordPayloadBytes']);
+        $t->same(
+            $documentEntry['sourceRecordBytes'] - $documentEntry['compressedSize'] - $expectedDocumentReviewBytes,
+            $documentEntry['sourceRecordStructuralBytes']
+        );
+        $t->same(
+            $expectedDocumentReviewBytes / $documentEntry['sourceRecordBytes'],
+            $documentEntry['sourceRecordReviewFieldRatio']
+        );
+
+        $t->same(0, $mediaEntry['sourceRecordReviewFieldBytes']);
+        $t->same(false, $mediaEntry['hasSourceRecordReviewFields']);
+        $t->same($mediaEntry['compressedSize'], $mediaEntry['sourceRecordPayloadBytes']);
+        $t->same(
+            $mediaEntry['sourceRecordBytes'] - $mediaEntry['compressedSize'],
+            $mediaEntry['sourceRecordStructuralBytes']
+        );
+
+        $t->same($manifest['compressedBytes'], $manifest['sourceRecordPayloadBytes']);
+        $t->same($expectedReviewBytes, $manifest['sourceRecordReviewFieldBytes']);
+        $t->same($expectedStructuralBytes, $manifest['sourceRecordStructuralBytes']);
+        $t->same($expectedReviewBytes / $manifest['sourceRecordBytes'], $manifest['sourceRecordReviewFieldRatio']);
+        $t->same(1, $manifest['sourceRecordReviewFieldEntryCount']);
+        $t->same(true, $manifest['hasSourceRecordReviewFields']);
+        $t->same('word/document.xml', $reviewEntry['name']);
+        $t->same('word/', $reviewEntry['directoryRoot']);
+        $t->same('xml', $reviewEntry['packagePartExtensionKey']);
+        $t->same(8, $reviewEntry['compressionMethod']);
+        $t->same('deflated', $reviewEntry['compressionMethodName']);
+        $t->same(strlen($localExtra), $reviewEntry['localHeaderReviewFieldBytes']);
+        $t->same(strlen($centralExtra) + strlen($entryComment), $reviewEntry['centralDirectoryReviewFieldBytes']);
+        $t->same(16, $reviewEntry['dataDescriptorBytes']);
+        $t->same($documentEntry['compressedSize'], $reviewEntry['sourceRecordPayloadBytes']);
+        $t->same($documentEntry['sourceRecordStructuralBytes'], $reviewEntry['sourceRecordStructuralBytes']);
+        $t->same($expectedDocumentReviewBytes, $reviewEntry['sourceRecordReviewFieldBytes']);
+        $t->same($documentEntry['sourceRecordReviewFieldRatio'], $reviewEntry['sourceRecordReviewFieldRatio']);
+        $t->same($documentEntry['sourceRecordBytes'], $reviewEntry['sourceRecordBytes']);
+        $t->same(true, $reviewEntry['usesDataDescriptor']);
+        $t->same(false, array_key_exists('contents', $reviewEntry));
+        $t->same(
+            $manifest['sourceRecordPayloadBytes']
+                + $manifest['sourceRecordStructuralBytes']
+                + $manifest['sourceRecordReviewFieldBytes'],
+            $manifest['sourceRecordBytes']
+        );
     },
 
     'builds and reads bounded gzip streams around package fixture bytes' => static function (TestRunner $t) use ($crc32): void {
