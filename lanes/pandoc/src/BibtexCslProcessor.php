@@ -1072,29 +1072,54 @@ final class BibtexCslProcessor
             $item['issued'] = $date;
         }
 
-        $accessed = $this->dateVariableFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday'])
+        $accessed = $this->dateVariableFromFields(
+            $fields,
+            ['urldate', 'accessed', 'accessdate'],
+            [['urlyear', 'url-year'], ['urlmonth', 'url-month'], ['urlday', 'url-day']],
+            [['urlendyear', 'url-end-year'], ['urlendmonth', 'url-end-month'], ['urlendday', 'url-end-day']]
+        )
             ?? $this->dateVariableFromFields($fields, [], ['accessedyear', 'accessedmonth', 'accessedday'])
             ?? $this->dateVariableFromFields($fields, [], ['accessyear', 'accessmonth', 'accessday']);
         if ($accessed !== null) {
             $item['accessed'] = $accessed;
         }
 
-        $originalDate = $this->dateVariableFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
+        $originalDate = $this->dateVariableFromFields(
+            $fields,
+            ['origdate', 'originaldate', 'original-date'],
+            [['origyear', 'orig-year', 'originalyear', 'original-year'], ['origmonth', 'orig-month', 'originalmonth', 'original-month'], ['origday', 'orig-day', 'originalday', 'original-day']],
+            [['origendyear', 'orig-end-year', 'originalendyear', 'original-end-year'], ['origendmonth', 'orig-end-month', 'originalendmonth', 'original-end-month'], ['origendday', 'orig-end-day', 'originalendday', 'original-end-day']]
+        );
         if ($originalDate !== null) {
             $item['original-date'] = $originalDate;
         }
 
-        $reprintDate = $this->dateVariableFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday']);
+        $reprintDate = $this->dateVariableFromFields(
+            $fields,
+            ['reprintdate', 'reprint-date'],
+            [['reprintyear', 'reprint-year'], ['reprintmonth', 'reprint-month'], ['reprintday', 'reprint-day']],
+            [['reprintendyear', 'reprint-end-year'], ['reprintendmonth', 'reprint-end-month'], ['reprintendday', 'reprint-end-day']]
+        );
         if ($reprintDate !== null) {
             $item['reprint-date'] = $reprintDate;
         }
 
-        $eventDate = $this->dateVariableFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);
+        $eventDate = $this->dateVariableFromFields(
+            $fields,
+            ['eventdate', 'event-date'],
+            [['eventyear', 'event-year'], ['eventmonth', 'event-month'], ['eventday', 'event-day']],
+            [['eventendyear', 'event-end-year'], ['eventendmonth', 'event-end-month'], ['eventendday', 'event-end-day']]
+        );
         if ($eventDate !== null) {
             $item['event-date'] = $eventDate;
         }
 
-        $availableDate = $this->dateVariableFromFields($fields, ['availabledate', 'available-date', 'available'], ['availableyear', 'availablemonth', 'availableday']);
+        $availableDate = $this->dateVariableFromFields(
+            $fields,
+            ['availabledate', 'available-date', 'available'],
+            [['availableyear', 'available-year'], ['availablemonth', 'available-month'], ['availableday', 'available-day']],
+            [['availableendyear', 'available-end-year'], ['availableendmonth', 'available-end-month'], ['availableendday', 'available-end-day']]
+        );
         if ($availableDate !== null) {
             $item['available-date'] = $availableDate;
         }
@@ -1109,12 +1134,22 @@ final class BibtexCslProcessor
             $item['revised-date'] = $revisedDate;
         }
 
-        $submittedDate = $this->dateVariableFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday']);
+        $submittedDate = $this->dateVariableFromFields(
+            $fields,
+            ['submitteddate', 'submitted-date', 'submitted'],
+            [['submittedyear', 'submitted-year'], ['submittedmonth', 'submitted-month'], ['submittedday', 'submitted-day']],
+            [['submittedendyear', 'submitted-end-year'], ['submittedendmonth', 'submitted-end-month'], ['submittedendday', 'submitted-end-day']]
+        );
         if ($submittedDate !== null) {
             $item['submitted'] = $submittedDate;
         }
 
-        $labelDate = $this->dateVariableFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday']);
+        $labelDate = $this->dateVariableFromFields(
+            $fields,
+            ['labeldate', 'label-date'],
+            [['labelyear', 'label-year'], ['labelmonth', 'label-month'], ['labelday', 'label-day']],
+            [['labelendyear', 'label-end-year'], ['labelendmonth', 'label-end-month'], ['labelendday', 'label-end-day']]
+        );
         if ($labelDate !== null) {
             $item['label-date'] = $labelDate;
         }
@@ -2232,16 +2267,22 @@ final class BibtexCslProcessor
      */
     private function dateVariable(array $fields): ?array
     {
-        return $this->dateVariableFromFields($fields, ['date'], ['year', 'month', 'day']);
+        return $this->dateVariableFromFields(
+            $fields,
+            ['date'],
+            [['year'], ['month'], ['day']],
+            [['endyear', 'end-year'], ['endmonth', 'end-month'], ['endday', 'end-day']]
+        );
     }
 
     /**
      * @param array<string, string> $fields
      * @param list<string> $dateFields
-     * @param list<string> $ymdFields
+     * @param list<string|list<string>> $ymdFields
+     * @param list<string|list<string>> $endYmdFields
      * @return array{date-parts:list<list<int>>, raw?:string, open-ended?:string}|null
      */
-    private function dateVariableFromFields(array $fields, array $dateFields, array $ymdFields): ?array
+    private function dateVariableFromFields(array $fields, array $dateFields, array $ymdFields, array $endYmdFields = []): ?array
     {
         $date = '';
         foreach ($dateFields as $field) {
@@ -2262,26 +2303,69 @@ final class BibtexCslProcessor
             return null;
         }
 
-        [$yearField, $monthField, $dayField] = $ymdFields + [null, null, null];
-        if (!is_string($yearField) || ($fields[$yearField] ?? '') === '') {
+        $parts = $this->datePartsFromSplitFields($fields, $ymdFields);
+        if ($parts === null) {
             return null;
         }
 
-        $parts = [(int) $fields[$yearField]];
-        $month = is_string($monthField) ? ($fields[$monthField] ?? '') : '';
-        if ($month !== '' && ctype_digit($month)) {
+        $dateParts = [$parts];
+        if ($endYmdFields !== []) {
+            $endParts = $this->datePartsFromSplitFields($fields, $endYmdFields);
+            if ($endParts !== null) {
+                $dateParts[] = $endParts;
+            }
+        }
+
+        return ['date-parts' => $dateParts];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string|list<string>> $partFields
+     * @return list<int>|null
+     */
+    private function datePartsFromSplitFields(array $fields, array $partFields): ?array
+    {
+        $year = $this->firstField($fields, $this->splitDateFieldNames($partFields, 0));
+        if ($year === null || $year === '') {
+            return null;
+        }
+
+        $parts = [(int) $year];
+        $month = $this->firstField($fields, $this->splitDateFieldNames($partFields, 1));
+        if ($month !== null && $month !== '' && ctype_digit($month)) {
             $parts[] = (int) $month;
         }
 
-        $day = is_string($dayField) ? ($fields[$dayField] ?? '') : '';
-        if ($day !== '' && ctype_digit($day)) {
+        $day = $this->firstField($fields, $this->splitDateFieldNames($partFields, 2));
+        if ($day !== null && $day !== '' && ctype_digit($day)) {
             if (count($parts) === 1) {
                 $parts[] = 1;
             }
             $parts[] = (int) $day;
         }
 
-        return ['date-parts' => [$parts]];
+        return $parts;
+    }
+
+    /**
+     * @param list<string|list<string>> $partFields
+     * @return list<string>
+     */
+    private function splitDateFieldNames(array $partFields, int $index): array
+    {
+        $names = $partFields[$index] ?? [];
+        if (is_string($names)) {
+            return [$names];
+        }
+        if (!is_array($names)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (mixed $name): string => is_scalar($name) ? trim((string) $name) : '', $names),
+            static fn (string $name): bool => $name !== ''
+        ));
     }
 
     /**
