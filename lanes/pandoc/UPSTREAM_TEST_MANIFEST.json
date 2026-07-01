@@ -24,6 +24,8 @@
     "docxRelationshipTargetDirectoryBaseNameStemAssertions": 53,
     "mappedDocxRelationshipTargetCaseFoldTopLevelSegmentCases": 1,
     "docxRelationshipTargetCaseFoldTopLevelSegmentAssertions": 58,
+    "mappedDocxRelationshipSourceCaseFoldTopLevelSegmentCases": 1,
+    "docxRelationshipSourceCaseFoldTopLevelSegmentAssertions": 64,
     "mappedDocxPackageCaseFoldTopLevelSegmentCases": 1,
     "docxPackageCaseFoldTopLevelSegmentAssertions": 50,
     "mappedDocxContentTypeDefaultDeclarationParameterRollupCases": 1,
