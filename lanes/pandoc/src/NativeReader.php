@@ -1056,15 +1056,18 @@ final class NativeReader
     {
         [$format, $formatNative] = $this->parseFormatTuple();
         $text = $this->expectString();
-        $native = ['t' => 'RawBlock', 'c' => [$formatNative, $text]];
+        $preserveFormatNative = $this->preserveTextualNativeRawFormatHelper($format);
+        $native = ['t' => 'RawBlock', 'c' => [$preserveFormatNative ? $formatNative : $format, $text]];
         $attrs = [
             'format' => $format,
             'text' => $text,
             'constructor' => 'RawBlock',
             'native' => $native,
             'formatConstructor' => 'Format',
-            'formatNative' => $formatNative,
         ];
+        if ($preserveFormatNative) {
+            $attrs['formatNative'] = $formatNative;
+        }
 
         if ($this->isHtmlRawFormat($format)) {
             return new AstNode('raw_html', $attrs + ['html' => $text]);
@@ -1374,15 +1377,18 @@ final class NativeReader
     {
         [$format, $formatNative] = $this->parseFormatTuple();
         $text = $this->expectString();
-        $native = ['t' => 'RawInline', 'c' => [$formatNative, $text]];
+        $preserveFormatNative = $this->preserveTextualNativeRawFormatHelper($format);
+        $native = ['t' => 'RawInline', 'c' => [$preserveFormatNative ? $formatNative : $format, $text]];
         $attrs = [
             'format' => $format,
             'text' => $text,
             'constructor' => 'RawInline',
             'native' => $native,
             'formatConstructor' => 'Format',
-            'formatNative' => $formatNative,
         ];
+        if ($preserveFormatNative) {
+            $attrs['formatNative'] = $formatNative;
+        }
 
         if ($this->isHtmlRawFormat($format)) {
             return new AstNode('raw_html_inline', $attrs + ['html' => $text]);
@@ -1427,6 +1433,11 @@ final class NativeReader
             'commonmark_x',
             'gfm',
         ], true);
+    }
+
+    private function preserveTextualNativeRawFormatHelper(string $format): bool
+    {
+        return $this->isMarkdownRawFormat($format) || $this->isTexRawFormat($format);
     }
 
     private function isHtmlRawFormat(string $format): bool

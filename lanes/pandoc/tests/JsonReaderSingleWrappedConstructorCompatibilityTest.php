@@ -124,4 +124,102 @@ return [
         $t->same(1, $decoded['blocks'][4]['c'][4][0]['c'][1]);
         $t->same(2, $decoded['blocks'][4]['c'][4][0]['c'][3][0]['c'][1][0]['c'][2]);
     },
+    'accepts single-wrapped table helper collections in compatibility reader' => static function (TestRunner $t): void {
+        $plain = static fn (string $text): array => ['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => $text]]];
+        $attr = static fn (string $id = '', array $classes = []): array => [$id, $classes, []];
+        $cell = static fn (string $id, string $text, array $alignment, array $rowspan, array $colspan): array => [
+            't' => 'Cell',
+            'c' => [
+                $attr($id),
+                $alignment,
+                $rowspan,
+                $colspan,
+                [[$plain($text)]],
+            ],
+        ];
+        $row = static fn (string $id, array $cells): array => [
+            't' => 'Row',
+            'c' => [
+                $attr($id),
+                [$cells],
+            ],
+        ];
+
+        $headRow = $row('head-row', [
+            $cell('head-left', 'Left head', ['t' => 'AlignLeft'], ['t' => 'RowSpan', 'c' => [1]], ['t' => 'ColSpan', 'c' => [1]]),
+            $cell('head-right', 'Right head', ['t' => 'AlignRight'], ['t' => 'RowSpan', 'c' => [1]], ['t' => 'ColSpan', 'c' => [1]]),
+        ]);
+        $bodyHeadRow = $row('body-head-row', [
+            $cell('body-head-left', 'Body head', ['t' => 'AlignCenter'], ['t' => 'RowSpan', 'c' => [1]], ['t' => 'ColSpan', 'c' => [2]]),
+        ]);
+        $bodyRow = $row('body-row', [
+            $cell('body-left', 'Left body', ['t' => 'AlignLeft'], ['t' => 'RowSpan', 'c' => [2]], ['t' => 'ColSpan', 'c' => [1]]),
+            $cell('body-right', 'Right body', ['t' => 'AlignRight'], ['t' => 'RowSpan', 'c' => [1]], ['t' => 'ColSpan', 'c' => [1]]),
+        ]);
+        $body = [
+            't' => 'TableBody',
+            'c' => [
+                $attr('body'),
+                ['t' => 'RowHeadColumns', 'c' => [1]],
+                [[$bodyHeadRow]],
+                [[$bodyRow]],
+            ],
+        ];
+        $columnSpecs = [
+            [['t' => 'AlignLeft'], ['t' => 'ColWidth', 'c' => [0.4]]],
+            [['t' => 'AlignRight'], ['t' => 'ColWidthDefault']],
+        ];
+        $source = [
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Table', 'c' => [
+                    $attr('wrapped-helper-table', ['grid']),
+                    ['t' => 'Caption', 'c' => [null, []]],
+                    [$columnSpecs],
+                    ['t' => 'TableHead', 'c' => [
+                        $attr('head'),
+                        [[$headRow]],
+                    ]],
+                    [[$body]],
+                    ['t' => 'TableFoot', 'c' => [
+                        $attr('foot'),
+                        [[]],
+                    ]],
+                ]],
+            ],
+        ];
+
+        $document = (new JsonReader())->read(json_encode($source, JSON_THROW_ON_ERROR));
+        $table = $document->children[0];
+        $head = $table->children[0];
+        $parsedBody = $table->children[1];
+        $bodyHeadRows = $parsedBody->attr('headRows');
+        $decoded = json_decode((new JsonWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $decodedTable = $decoded['blocks'][0];
+
+        $t->same('table', $table->type);
+        $t->same(['left', 'right'], $table->attr('alignments'));
+        $t->same([0.4, 0.0], $table->attr('widths'));
+        $t->same('head-row', $head->children[0]->attr('id'));
+        $t->same('head-right', $head->children[0]->children[1]->attr('id'));
+        $t->same('body', $parsedBody->attr('id'));
+        $t->same(1, $parsedBody->attr('rowHeadColumns'));
+        $t->same('body-head-row', $bodyHeadRows[0]->attr('id'));
+        $t->same('body-row', $parsedBody->children[0]->attr('id'));
+        $t->same('body-right', $parsedBody->children[0]->children[1]->attr('id'));
+        $t->same(2, $parsedBody->children[0]->children[0]->attr('rowspan'));
+
+        $t->same('Table', $decodedTable['t']);
+        $t->same('AlignLeft', $decodedTable['c'][2][0][0]['t']);
+        $t->same('ColWidth', $decodedTable['c'][2][0][1]['t']);
+        $t->same('TableHead', $decodedTable['c'][3]['t']);
+        $t->same('Row', $decodedTable['c'][3]['c'][1][0]['t']);
+        $t->same('Cell', $decodedTable['c'][3]['c'][1][0]['c'][1][1]['t']);
+        $t->same('TableBody', $decodedTable['c'][4][0]['t']);
+        $t->same(1, $decodedTable['c'][4][0]['c'][1]);
+        $t->same('Row', $decodedTable['c'][4][0]['c'][2][0]['t']);
+        $t->same('Cell', $decodedTable['c'][4][0]['c'][3][0]['c'][1][1]['t']);
+        $t->same([], $decodedTable['c'][5]['c'][1]);
+    },
 ];

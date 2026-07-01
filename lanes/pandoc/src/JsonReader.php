@@ -255,7 +255,7 @@ final class JsonReader
         }
 
         $children = [$this->parseTableHead($items[3])];
-        array_push($children, ...array_map(fn (mixed $body): AstNode => $this->parseTableBody($body), $this->expectList($items[4], 'Table bodies')));
+        array_push($children, ...$this->parseTableBodies($items[4]));
         $children[] = $this->parseTableFoot($items[5]);
 
         return new AstNode('table', $attrs, $children);
@@ -481,13 +481,59 @@ final class JsonReader
     {
         $alignments = [];
         $widths = [];
-        foreach ($this->expectList($value, 'Table column specs') as $spec) {
+        foreach ($this->parseTableColumnSpecs($value) as $spec) {
             [$alignment, $width] = $this->expectTuple($spec, 2, 'Table column spec');
             $alignments[] = $this->parseAlignment($alignment);
             $widths[] = $this->parseColumnWidth($width);
         }
 
         return [$alignments, $widths];
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function parseTableColumnSpecs(mixed $value): array
+    {
+        $items = $this->expectList($value, 'Table column specs');
+        if (
+            count($items) === 1
+            && is_array($items[0])
+            && $this->isList($items[0])
+            && ($items[0] === [] || $this->allTableColumnSpecs($items[0]))
+        ) {
+            return $items[0];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function allTableColumnSpecs(array $items): bool
+    {
+        foreach ($items as $item) {
+            if (!$this->isTableColumnSpec($item)) {
+                return false;
+            }
+        }
+
+        return $items !== [];
+    }
+
+    private function isTableColumnSpec(mixed $value): bool
+    {
+        if (!is_array($value) || !$this->isList($value)) {
+            return false;
+        }
+
+        $value = $this->singleWrappedTuplePayload($value, 2);
+        if (!is_array($value) || !$this->isList($value) || count($value) !== 2) {
+            return false;
+        }
+
+        return $this->isTaggedMap($value[0]) && $this->isTaggedMap($value[1]);
     }
 
     private function parseTableHead(mixed $value): AstNode
@@ -535,9 +581,17 @@ final class JsonReader
     /**
      * @return list<AstNode>
      */
+    private function parseTableBodies(mixed $value): array
+    {
+        return array_map(fn (mixed $body): AstNode => $this->parseTableBody($body), $this->expectList($this->singleWrappedTaggedListPayload($value), 'Table bodies'));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
     private function parseTableRows(mixed $value): array
     {
-        return array_map(fn (mixed $row): AstNode => $this->parseTableRow($row), $this->expectList($value, 'Table rows'));
+        return array_map(fn (mixed $row): AstNode => $this->parseTableRow($row), $this->expectList($this->singleWrappedTaggedListPayload($value), 'Table rows'));
     }
 
     private function parseTableRow(mixed $value): AstNode
@@ -549,7 +603,7 @@ final class JsonReader
 
         [$attrs, $cells] = $this->expectTuple($payload, 2, 'Row payload');
 
-        return new AstNode('table_row', $this->parseAttr($attrs), array_map(fn (mixed $cell): AstNode => $this->parseTableCell($cell), $this->expectList($cells, 'Row cells')));
+        return new AstNode('table_row', $this->parseAttr($attrs), array_map(fn (mixed $cell): AstNode => $this->parseTableCell($cell), $this->expectList($this->singleWrappedTaggedListPayload($cells), 'Row cells')));
     }
 
     private function parseTableCell(mixed $value): AstNode
