@@ -1054,6 +1054,8 @@ final class OpenDocumentPackage
             $pathSegments = self::packagePathSegments($entry->name);
             $pathSegmentCharacterFlags = self::packagePathSegmentCharacterFlags($pathSegments);
             $directory = self::packagePartDirectory($entry->name);
+            $packagePartExtension = self::packagePartExtension($entry->name);
+            $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
             $byteExposurePolicy = null;
             $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             $generalPurposeFlagProvenance = self::zipGeneralPurposeFlagProvenance($generalPurposeFlagEntriesByName[$entry->name] ?? null);
@@ -1073,6 +1075,11 @@ final class OpenDocumentPackage
                 'directory' => $directory,
                 'directoryDepth' => self::packagePartDirectoryDepth($directory),
                 'baseName' => self::packagePartBaseName($entry->name),
+                'packagePartExtension' => $packagePartExtension,
+                'rawPackagePartExtension' => $rawPackagePartExtension,
+                'packagePartExtensionHasUppercase' => $rawPackagePartExtension !== null && preg_match('/[A-Z]/', $rawPackagePartExtension) === 1,
+                'packagePartExtensionWasNormalized' => $packagePartExtension !== null && $rawPackagePartExtension !== null && $packagePartExtension !== $rawPackagePartExtension,
+                'extensionlessPackagePart' => !$entry->isDirectory() && $packagePartExtension === null,
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'centralDirectoryRecordOffset' => $centralDirectoryRecordOffset,
@@ -1348,6 +1355,7 @@ final class OpenDocumentPackage
         ksort($manifestMediaFamilyCompressedByteLengths, SORT_STRING);
         $directorySummaries = self::packageInventoryDirectorySummaries(array_values($parts));
         $extensionSummaries = self::packageInventoryExtensionSummaries(array_values($parts));
+        $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $pathDepthReview = self::packagePartPathDepthReview($parts, 'path');
         $areaDepthSummary = self::packagePartAreaDepthSummary($parts, 'path');
 
@@ -1381,6 +1389,11 @@ final class OpenDocumentPackage
             'packagePathExtensionCount' => count($extensionSummaries),
             'packagePathExtensions' => array_column($extensionSummaries, 'extension'),
             'packagePathExtensionSummaries' => $extensionSummaries,
+            'extensionlessPackagePartCount' => $packagePartExtensions['extensionlessPackagePartCount'],
+            'packagePartExtensionCounts' => $packagePartExtensions['packagePartExtensionCounts'],
+            'entryNamesByPackagePartExtension' => $packagePartExtensions['entryNamesByPackagePartExtension'],
+            'packagePartExtensionSummaryCount' => count($packagePartExtensions['packagePartExtensionSummaries']),
+            'packagePartExtensionSummaries' => $packagePartExtensions['packagePartExtensionSummaries'],
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
             'corePackagePartCount' => $corePackagePartCount,
@@ -1892,6 +1905,11 @@ final class OpenDocumentPackage
                 'directory' => $part['directory'] ?? null,
                 'directoryDepth' => $part['directoryDepth'] ?? null,
                 'baseName' => $part['baseName'] ?? null,
+                'packagePartExtension' => $part['packagePartExtension'] ?? null,
+                'rawPackagePartExtension' => $part['rawPackagePartExtension'] ?? null,
+                'packagePartExtensionHasUppercase' => ($part['packagePartExtensionHasUppercase'] ?? false) === true,
+                'packagePartExtensionWasNormalized' => ($part['packagePartExtensionWasNormalized'] ?? false) === true,
+                'extensionlessPackagePart' => ($part['extensionlessPackagePart'] ?? false) === true,
                 'roles' => $part['roles'] ?? [],
                 'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
                 'centralDirectoryRecordOffset' => $part['centralDirectoryRecordOffset'] ?? null,
@@ -2127,6 +2145,8 @@ final class OpenDocumentPackage
             'packageRoleSummaryCount' => $packageInventory['packageRoleSummaryCount'] ?? 0,
             'packageRoleSummaries' => $packageInventory['packageRoleSummaries'] ?? [],
             'manifestMediaFamilyCounts' => $packageInventory['manifestMediaFamilyCounts'] ?? [],
+            'extensionlessPackagePartCount' => $packageInventory['extensionlessPackagePartCount'] ?? 0,
+            'packagePartExtensionCounts' => $packageInventory['packagePartExtensionCounts'] ?? [],
             'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
             'roleCounts' => $packageInventory['roleCounts'] ?? [],
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
@@ -2271,6 +2291,20 @@ final class OpenDocumentPackage
         ];
     }
 
+    private static function packagePartExtension(string $path): ?string
+    {
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+
+        return $extension === '' ? null : $extension;
+    }
+
+    private static function packagePartRawExtension(string $path): ?string
+    {
+        $extension = pathinfo($path, PATHINFO_EXTENSION);
+
+        return $extension === '' ? null : $extension;
+    }
+
     /**
      * @param list<array<string, mixed>> $entries
      * @return list<array<string, mixed>>
@@ -2313,6 +2347,150 @@ final class OpenDocumentPackage
         }
 
         return self::normalizePackageInventoryLocationSummaries($extensions);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     extensionlessPackagePartCount:int,
+     *     packagePartExtensionCounts:array<string, int>,
+     *     entryNamesByPackagePartExtension:array<string, list<string>>,
+     *     packagePartExtensionSummaries:list<array<string, mixed>>
+     * }
+     */
+    private static function packagePartExtensionInventory(array $parts): array
+    {
+        $extensionlessPackagePartCount = 0;
+        $extensionCounts = [];
+        $entryNamesByExtension = [];
+        $summaries = [];
+
+        foreach ($parts as $name => $part) {
+            $path = is_string($part['path'] ?? null) ? $part['path'] : (string) $name;
+            $extension = is_string($part['packagePartExtension'] ?? null) ? $part['packagePartExtension'] : null;
+            $extensionKey = $extension ?? '(none)';
+            $isDirectory = ($part['isDirectory'] ?? false) === true;
+            $byteLength = is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0;
+            $compressedByteLength = is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0;
+            $roles = array_values(array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []));
+
+            if (!$isDirectory && $extension === null) {
+                ++$extensionlessPackagePartCount;
+            }
+
+            $extensionCounts[$extensionKey] = ($extensionCounts[$extensionKey] ?? 0) + 1;
+            $entryNamesByExtension[$extensionKey][] = $path;
+
+            if (!isset($summaries[$extensionKey])) {
+                $summaries[$extensionKey] = [
+                    'extensionKey' => $extensionKey,
+                    'packagePartExtension' => $extension,
+                    'partCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'extensionlessPackagePartCount' => 0,
+                    'declaredPartCount' => 0,
+                    'undeclaredPartCount' => 0,
+                    'encryptedPartCount' => 0,
+                    'exposablePartCount' => 0,
+                    'blockedPartCount' => 0,
+                    'byteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'roleCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'manifestMediaFamilyCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$summaries[$extensionKey]['partCount'];
+            $summaries[$extensionKey]['byteLength'] += $byteLength;
+            $summaries[$extensionKey]['compressedByteLength'] += $compressedByteLength;
+            $summaries[$extensionKey]['partNames'][] = $path;
+
+            if ($isDirectory) {
+                ++$summaries[$extensionKey]['directoryEntryCount'];
+            }
+            if (!$isDirectory && $extension === null) {
+                ++$summaries[$extensionKey]['extensionlessPackagePartCount'];
+            }
+            if (($part['declaredInManifest'] ?? false) === true) {
+                ++$summaries[$extensionKey]['declaredPartCount'];
+            }
+            if (($part['undeclared'] ?? false) === true) {
+                ++$summaries[$extensionKey]['undeclaredPartCount'];
+            }
+            if (($part['encrypted'] ?? false) === true) {
+                ++$summaries[$extensionKey]['encryptedPartCount'];
+            }
+            if (($part['canExposeBytes'] ?? false) === true) {
+                ++$summaries[$extensionKey]['exposablePartCount'];
+            } else {
+                ++$summaries[$extensionKey]['blockedPartCount'];
+            }
+
+            foreach ($roles as $role) {
+                $summaries[$extensionKey]['roleCounts'][$role] =
+                    ($summaries[$extensionKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $byteExposurePolicy = is_string($part['byteExposurePolicy'] ?? null) ? $part['byteExposurePolicy'] : '';
+            if ($byteExposurePolicy !== '') {
+                $summaries[$extensionKey]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                    ($summaries[$extensionKey]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            }
+
+            $manifestMediaFamily = is_string($part['manifestMediaFamily'] ?? null) ? $part['manifestMediaFamily'] : '';
+            if ($manifestMediaFamily !== '') {
+                $summaries[$extensionKey]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                    ($summaries[$extensionKey]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'path' => $path,
+                'byteLength' => $byteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'roles' => $roles,
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'undeclared' => ($part['undeclared'] ?? false) === true,
+                'encrypted' => ($part['encrypted'] ?? false) === true,
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => $byteExposurePolicy === '' ? null : $byteExposurePolicy,
+                'manifestMediaTypeBase' => is_string($part['manifestMediaTypeBase'] ?? null) ? $part['manifestMediaTypeBase'] : null,
+                'manifestMediaFamily' => $manifestMediaFamily === '' ? null : $manifestMediaFamily,
+            ];
+            $largestPart = $summaries[$extensionKey]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $byteLength > (int) ($largestPart['byteLength'] ?? 0)
+                || ($byteLength === (int) ($largestPart['byteLength'] ?? 0) && strcmp($path, (string) ($largestPart['path'] ?? '')) < 0)
+            ) {
+                $summaries[$extensionKey]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($extensionCounts, SORT_STRING);
+        ksort($entryNamesByExtension, SORT_STRING);
+        foreach ($entryNamesByExtension as $extensionKey => $names) {
+            sort($names, SORT_STRING);
+            $entryNamesByExtension[$extensionKey] = $names;
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as $extensionKey => $summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            $summaries[$extensionKey] = $summary;
+        }
+
+        return [
+            'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
+            'packagePartExtensionCounts' => $extensionCounts,
+            'entryNamesByPackagePartExtension' => $entryNamesByExtension,
+            'packagePartExtensionSummaries' => array_values($summaries),
+        ];
     }
 
     /**
