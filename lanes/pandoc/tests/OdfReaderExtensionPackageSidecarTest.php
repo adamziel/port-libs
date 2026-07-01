@@ -341,4 +341,68 @@ return [
         $t->same(true, $compactIdentityEntries['Extensions/Audit/icon.png']['extensionPackagePart']);
         $t->same(7, $compactSummary['packageIdentity']['extensionPackagePartCount']);
     },
+    'reports ODT extension package invalid declared sizes as metadata-only diagnostics' => static function (TestRunner $t) use (
+        $buildPackage,
+        $configXml,
+        $configSize,
+        $indexBy
+    ): void {
+        $declaredSizeRaw = $configSize . 'bytes';
+        $package = $buildPackage();
+
+        $result = (new OdfReader())->readPackage($package);
+        $readerExtensions = $result['packageExtensions'];
+        $readerItems = $indexBy($readerExtensions['items'], 'part');
+        $manifestByPart = $indexBy($result['manifest'], 'part');
+        $config = $readerItems['Extensions/Audit/config.xcu'];
+        $manifestConfig = $manifestByPart['Extensions/Audit/config.xcu'];
+
+        $t->same(1, $readerExtensions['invalidDeclaredSizeCount']);
+        $t->same(4, $readerExtensions['issueCount']);
+        $t->same([
+            'odf-extension-package-encrypted-part',
+            'odf-extension-package-invalid-declared-size',
+            'odf-extension-package-missing-part',
+            'odf-extension-package-undeclared-part',
+        ], $readerExtensions['issueCodes']);
+        $t->same(null, $config['declaredSize']);
+        $t->same($declaredSizeRaw, $config['declaredSizeRaw']);
+        $t->same(false, $config['declaredSizeValid']);
+        $t->same(true, $config['declaredSizeInvalid']);
+        $t->same(false, $config['declaredSizeMismatch']);
+        $t->same(['odf-extension-package-invalid-declared-size'], $config['issues']);
+        $t->same(strlen($configXml), $config['byteLength']);
+        $t->same(false, $config['canExposeBytes']);
+        $t->same('extension-package-bytes-blocked', $config['byteExposurePolicy']);
+        $t->same(null, $manifestConfig['declaredSize']);
+        $t->same($declaredSizeRaw, $manifestConfig['declaredSizeRaw']);
+        $t->same(false, $manifestConfig['declaredSizeValid']);
+        $t->same(true, $manifestConfig['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $manifestConfig['diagnostics']);
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactExtensions = $compactSummary['packageExtensions'];
+        $compactItems = $indexBy($compactExtensions['items'], 'packagePath');
+        $reviewByPath = $indexBy($compactSummary['manifestReview']['items'], 'path');
+        $compactConfig = $compactItems['Extensions/Audit/config.xcu'];
+        $compactReview = $reviewByPath['Extensions/Audit/config.xcu'];
+
+        $t->same(1, $compactExtensions['invalidDeclaredSizeCount']);
+        $t->same(4, $compactExtensions['issueCount']);
+        $t->same($readerExtensions['issueCodes'], $compactExtensions['issueCodes']);
+        $t->same(null, $compactConfig['declaredSize']);
+        $t->same($declaredSizeRaw, $compactConfig['declaredSizeRaw']);
+        $t->same(false, $compactConfig['declaredSizeValid']);
+        $t->same(true, $compactConfig['declaredSizeInvalid']);
+        $t->same(false, $compactConfig['declaredSizeMismatch']);
+        $t->same(['odf-extension-package-invalid-declared-size'], $compactConfig['issues']);
+        $t->same(strlen($configXml), $compactConfig['byteLength']);
+        $t->same(false, $compactConfig['canExposeBytes']);
+        $t->same('extension-package-bytes-blocked', $compactConfig['byteExposurePolicy']);
+        $t->same(null, $compactReview['declaredSize']);
+        $t->same($declaredSizeRaw, $compactReview['declaredSizeRaw']);
+        $t->same(false, $compactReview['declaredSizeValid']);
+        $t->same(true, $compactReview['declaredSizeInvalid']);
+        $t->same(['odf-manifest-invalid-declared-size'], $compactReview['diagnostics']);
+    },
 ];
