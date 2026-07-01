@@ -6325,8 +6325,9 @@ final class MarkdownWriter
 
     private function renderPlainLink(AstNode $node): string
     {
-        if ($this->canRenderAutolink($node)) {
-            return $this->autolinkText($node);
+        $autolinkText = $this->autolinkRenderText($node);
+        if ($autolinkText !== null) {
+            return $autolinkText;
         }
 
         return $this->renderPlainInlines($node->children);
@@ -7134,8 +7135,9 @@ final class MarkdownWriter
      */
     private function renderLink(AstNode $node, array $following): string
     {
-        if ($this->canRenderAutolink($node)) {
-            return '<' . $this->autolinkText($node) . '>';
+        $autolinkText = $this->autolinkRenderText($node);
+        if ($autolinkText !== null) {
+            return '<' . $autolinkText . '>';
         }
 
         $wikilink = $this->renderWikiLink($node);
@@ -8410,15 +8412,15 @@ final class MarkdownWriter
             . ($attrs === '' ? '' : ' ' . $attrs);
     }
 
-    private function canRenderAutolink(AstNode $node): bool
+    private function autolinkRenderText(AstNode $node): ?string
     {
         $url = $this->linkUrl($node);
         if (!$this->isUriLike($url)) {
-            return false;
+            return null;
         }
 
-        if ($this->linkTitle($node) !== '' || preg_match('/[\s<>]/u', $this->autolinkText($node)) === 1) {
-            return false;
+        if ($this->linkTitle($node) !== '') {
+            return null;
         }
 
         $attrs = $this->linkAttrTuple($node);
@@ -8428,17 +8430,30 @@ final class MarkdownWriter
             || $attrs['attributes'] !== []
             || ($classes !== [] && $classes !== ['uri'] && $classes !== ['email'])
         ) {
-            return false;
+            return null;
         }
 
         if (count($node->children) !== 1 || $node->children[0]->type !== 'text') {
-            return false;
+            return null;
         }
 
         $label = (string) $node->children[0]->attr('text', '');
-        $suffix = $this->autolinkText($node);
+        $candidates = [$this->autolinkText($node)];
+        if (str_starts_with($url, 'mailto:')) {
+            $candidates[] = $url;
+        }
 
-        return $label === $suffix || $this->escapeUri($label) === $suffix;
+        foreach (array_values(array_unique($candidates)) as $candidate) {
+            if (preg_match('/[\s<>]/u', $candidate) === 1) {
+                continue;
+            }
+
+            if ($label === $candidate || $this->escapeUri($label) === $candidate) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function autolinkText(AstNode $node): string
