@@ -1899,6 +1899,12 @@ XML;
         $unicodeIdentity = OpenDocumentPackage::fromPackage(
             $buildZipPackageWithCentralDirectoryOrder($unicodeParts, array_column($unicodeParts, 'name'))
         )->summarize()['packageIdentity'];
+        $utf8Parts = $parts;
+        $utf8Parts[6]['rawName'] = $decodedName;
+        $utf8Parts[6]['generalPurposeFlags'] = 0x0800;
+        $utf8Identity = OpenDocumentPackage::fromPackage(
+            $buildZipPackageWithCentralDirectoryOrder($utf8Parts, array_column($utf8Parts, 'name'))
+        )->summarize()['packageIdentity'];
 
         $t->same(1, $inventory['rawNameProvenanceEntryCount']);
         $t->same(1, $inventory['legacyEncodedNameEntryCount']);
@@ -1940,6 +1946,8 @@ XML;
         $t->same(1, $unicodeIdentity['unicodePathExtraEntryCount']);
         $t->same(1, $unicodeIdentity['decodedNameDiffersFromRawNameEntryCount']);
         $t->true($identity['identitySha256'] !== $unicodeIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $utf8Identity['identitySha256']);
+        $t->same(0, $utf8Identity['rawNameProvenanceEntryCount']);
     },
     'preserves compact ODT ZIP timestamp provenance in package review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $timestampedBytes = 'TIMESTAMPEDPNG';
