@@ -2109,7 +2109,21 @@ final class BibtexCslProcessor
     private function combinedSourceFileField(array $fields): ?string
     {
         $values = [];
-        foreach (['file', 'pdf'] as $name) {
+        foreach ([
+            'file',
+            'files',
+            'pdf',
+            'attachment',
+            'attachments',
+            'source-file',
+            'sourcefile',
+            'source-files',
+            'sourcefiles',
+            'source-attachment',
+            'sourceattachment',
+            'source-attachments',
+            'sourceattachments',
+        ] as $name) {
             $value = trim($fields[$name] ?? '');
             if ($value !== '') {
                 $values[] = $value;
