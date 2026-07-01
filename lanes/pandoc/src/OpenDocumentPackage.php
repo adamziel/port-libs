@@ -11931,24 +11931,7 @@ final class OpenDocumentPackage
 
     private static function assertTextPackageMimetype(ZipPackage $package): void
     {
-        if (!$package->has('mimetype')) {
-            throw new \RuntimeException('ODT package is missing mimetype entry');
-        }
-
-        $entries = $package->localEntries();
-        $first = $entries[0] ?? null;
-        if (!$first instanceof ZipPackageEntry || $first->name !== 'mimetype' || $first->compressionMethod !== 0) {
-            throw new \RuntimeException('ODT mimetype entry must be first in local-header order and stored without compression');
-        }
-
-        $localMimetype = self::localHeaderPreflightEntry($package, 'mimetype');
-        if (is_array($localMimetype) && ((int) ($localMimetype['localExtraFieldLength'] ?? 0)) > 0) {
-            throw new \RuntimeException('ODT mimetype entry must not contain local header extra fields');
-        }
-
-        if ($package->read('mimetype') !== self::TEXT_MIMETYPE) {
-            throw new \RuntimeException('ODT mimetype entry must be application/vnd.oasis.opendocument.text');
-        }
+        $package->assertStoredFirstEntry('mimetype', self::TEXT_MIMETYPE, 'ODT mimetype entry');
     }
 
     /**
@@ -11957,6 +11940,7 @@ final class OpenDocumentPackage
     private static function mimetypeEntryReview(ZipPackage $package): array
     {
         $entry = $package->entry('mimetype');
+        $storedFirstPreflight = $package->storedFirstEntryPreflight('mimetype', self::TEXT_MIMETYPE);
         $localHeader = self::localHeaderPreflightEntry($package, 'mimetype') ?? [];
         $centralDirectoryIndex = null;
         foreach ($package->entries() as $index => $candidate) {
@@ -11983,8 +11967,12 @@ final class OpenDocumentPackage
             : 0;
 
         return [
+            'entryName' => $storedFirstPreflight['entryName'],
+            'exists' => $storedFirstPreflight['exists'],
             'name' => $entry->name,
             'mediaType' => self::TEXT_MIMETYPE,
+            'firstLocalEntryName' => $storedFirstPreflight['firstLocalEntryName'],
+            'isFirstLocalEntry' => $storedFirstPreflight['isFirstLocalEntry'],
             'firstLocalEntry' => $localHeaderOrder === 0,
             'firstCentralDirectoryEntry' => $centralDirectoryIndex === 0,
             'localHeaderOrder' => $localHeaderOrder,
@@ -12007,12 +11995,19 @@ final class OpenDocumentPackage
             'hasCentralExtraFields' => $centralExtraFields !== [],
             'compressionMethod' => $entry->compressionMethod,
             'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+            'generalPurposeFlags' => $storedFirstPreflight['generalPurposeFlags'],
+            'usesDataDescriptor' => $storedFirstPreflight['usesDataDescriptor'],
+            'isStored' => $storedFirstPreflight['isStored'],
+            'expectedBytes' => $storedFirstPreflight['expectedBytes'],
+            'contentBytes' => $storedFirstPreflight['contentBytes'],
+            'contentsMatch' => $storedFirstPreflight['contentsMatch'],
+            'isValid' => $storedFirstPreflight['isValid'],
             'byteLength' => $entry->uncompressedSize,
             'compressedByteLength' => $entry->compressedSize,
             'crc32' => $entry->crc32Hex(),
             'canExposeBytes' => false,
             'byteExposurePolicy' => 'odf-mimetype-validation-only',
-            'diagnostics' => [],
+            'diagnostics' => $storedFirstPreflight['diagnostics'],
         ];
     }
 
