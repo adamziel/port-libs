@@ -33475,6 +33475,106 @@ XML;
         $t->true(!str_contains((string) $encoded, $documentComment), 'document comment text should not be exposed');
         $t->true(!str_contains((string) $encoded, $mediaComment), 'media comment text should not be exposed');
     },
+    'surfaces docx source zip archive and central directory signature provenance as metadata only' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $signatureData = 'docx central directory signature secret';
+        $sourcePackage = docx_openxml_reader_zip_package_with_central_directory_signature(
+            $parts,
+            $signatureData,
+            'signed docx source package',
+        );
+        $document = (new DocxOpenXmlReader())->readZipPackage($sourcePackage);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $archive = $package['zipPackage']['archive'];
+        $signature = $package['zipPackage']['centralDirectorySignature'];
+        $identity = $package['packageIdentity'];
+        $repeatIdentity = (new DocxOpenXmlReader())->readZipPackage(
+            docx_openxml_reader_zip_package_with_central_directory_signature(
+                $parts,
+                $signatureData,
+                'signed docx source package',
+            )
+        )->attr('docx')['packageProvenance']['packageIdentity'];
+        $changedIdentity = (new DocxOpenXmlReader())->readZipPackage(
+            docx_openxml_reader_zip_package_with_central_directory_signature(
+                $parts,
+                $signatureData . ' changed',
+                'signed docx source package',
+            )
+        )->attr('docx')['packageProvenance']['packageIdentity'];
+
+        $t->same(true, $archive['present']);
+        $t->same(strlen($sourcePackage->bytes()), $archive['archiveLength']);
+        $t->same(count($parts), $archive['entryCount']);
+        $t->same(count($parts), $archive['totalEntryCount']);
+        $t->same(true, $archive['isSingleDisk']);
+        $t->same(false, $archive['requiresZip64']);
+        $t->same(false, $archive['hasZip64EndOfCentralDirectory']);
+        $t->same(true, $archive['hasCentralDirectorySignature']);
+        $t->same($signature['offset'], $archive['centralDirectorySignatureOffset']);
+        $t->same(strlen($signatureData), $archive['centralDirectorySignatureLength']);
+        $t->same(strlen($signatureData) + 6, $archive['centralDirectoryToEocdGapBytes']);
+        $t->same('central-directory-digital-signature', $archive['centralDirectoryToEocdGapSignature']);
+        $t->same(true, $archive['isCentralDirectoryToEocdGapExplainedBySignature']);
+        $t->same([], $archive['issueCodes']);
+        $t->same(0, $archive['issueCount']);
+        $t->same(false, $archive['canExposeBytes']);
+        $t->same('docx-zip-archive-metadata-only', $archive['byteExposurePolicy']);
+        $t->true(!isset($archive['packageComment']), 'archive provenance must not expose package comment text');
+        $t->true(!isset($archive['packageCommentPreviewHex']), 'archive provenance must not expose package comment previews');
+
+        $t->same(true, $signature['present']);
+        $t->same(count($parts), $signature['entryCount']);
+        $t->same($archive['centralDirectoryOffset'], $signature['centralDirectoryOffset']);
+        $t->same($archive['centralDirectoryEnd'], $signature['centralDirectoryEnd']);
+        $t->same($archive['eocdOffset'], $signature['eocdOffset']);
+        $t->same($archive['centralDirectoryEnd'], $signature['offset']);
+        $t->same($signature['offset'] + 6, $signature['dataOffset']);
+        $t->same($archive['eocdOffset'], $signature['endOffset']);
+        $t->same('between-central-directory-and-eocd', $signature['location']);
+        $t->same(strlen($signatureData), $signature['signatureLength']);
+        $t->same(hash('sha256', $signatureData), $signature['signatureSha256']);
+        $t->same('not-performed-native-bounded-reader', $signature['cryptographicVerification']);
+        $t->same(false, $signature['isSupportedByBoundedReader']);
+        $t->same(['central-directory-signature-unverified'], $signature['issueCodes']);
+        $t->same(1, $signature['issueCount']);
+        $t->same(false, $signature['canExposeBytes']);
+        $t->same('docx-zip-central-directory-signature-metadata-only', $signature['byteExposurePolicy']);
+        $t->true(!isset($signature['signatureData']), 'signature bytes must not be exposed in docx provenance');
+        $t->true(!isset($signature['signaturePreviewHex']), 'signature preview bytes must not be exposed in docx provenance');
+
+        $t->same(true, $summary['zipArchivePresent']);
+        $t->same($archive['archiveLength'], $summary['zipArchiveLength']);
+        $t->same($archive['eocdOffset'], $summary['zipEocdOffset']);
+        $t->same($archive['centralDirectoryOffset'], $summary['zipCentralDirectoryOffset']);
+        $t->same($archive['centralDirectoryBytes'], $summary['zipCentralDirectoryBytes']);
+        $t->same($archive['centralDirectoryEnd'], $summary['zipCentralDirectoryEnd']);
+        $t->same($archive['centralDirectoryToEocdGapBytes'], $summary['zipCentralDirectoryToEocdGapBytes']);
+        $t->same($archive['issueCodes'], $summary['zipArchiveIssueCodes']);
+        $t->same(true, $summary['zipCentralDirectorySignaturePresent']);
+        $t->same($signature['offset'], $summary['zipCentralDirectorySignatureOffset']);
+        $t->same($signature['dataOffset'], $summary['zipCentralDirectorySignatureDataOffset']);
+        $t->same($signature['endOffset'], $summary['zipCentralDirectorySignatureEndOffset']);
+        $t->same($signature['signatureLength'], $summary['zipCentralDirectorySignatureLength']);
+        $t->same($signature['signatureSha256'], $summary['zipCentralDirectorySignatureSha256']);
+        $t->same($signature['issueCodes'], $summary['zipCentralDirectorySignatureIssueCodes']);
+
+        $t->same($archive, $identity['zipArchive']);
+        $t->same($signature, $identity['zipCentralDirectorySignature']);
+        $t->same($archive['archiveLength'], $identity['zipArchiveLength']);
+        $t->same($archive['eocdOffset'], $identity['zipEocdOffset']);
+        $t->same($archive['centralDirectoryOffset'], $identity['zipCentralDirectoryOffset']);
+        $t->same($archive['centralDirectoryEnd'], $identity['zipCentralDirectoryEnd']);
+        $t->same(true, $identity['zipCentralDirectorySignaturePresent']);
+        $t->same($signature['signatureSha256'], $identity['zipCentralDirectorySignatureSha256']);
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+
+        $encoded = json_encode($package);
+        $t->true(is_string($encoded), 'package provenance should encode for review');
+        $t->true(!str_contains((string) $encoded, $signatureData), 'central directory signature bytes must not be exposed');
+    },
     'summarizes docx note and comment relationship sidecars without exposing target bytes' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
@@ -34114,6 +34214,25 @@ function docx_openxml_reader_unicode_extra(int $id, string $rawName, string $uni
     $payload = "\x01" . pack('V', (int) sprintf('%u', crc32($rawName))) . $unicodeName;
 
     return pack('vv', $id, strlen($payload)) . $payload;
+}
+
+/**
+ * @param array<string, string> $parts
+ */
+function docx_openxml_reader_zip_package_with_central_directory_signature(
+    array $parts,
+    string $signatureData,
+    string $packageComment = '',
+): ZipPackage {
+    $zip = ZipPackage::fromParts(docx_openxml_reader_zip_parts($parts), $packageComment)->bytes();
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('DOCX fixture ZIP is missing EOCD record');
+    }
+
+    $signatureRecord = pack('Vv', 0x05054b50, strlen($signatureData)) . $signatureData;
+
+    return ZipPackage::fromString(substr($zip, 0, $eocdOffset) . $signatureRecord . substr($zip, $eocdOffset));
 }
 
 /**
