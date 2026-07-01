@@ -1139,6 +1139,7 @@ final class OpenDocumentPackage
         $layoutCachePartCount = 0;
         $metaInfSidecarPackagePartCount = 0;
         $databasePackagePartCount = 0;
+        $templatePackagePartCount = 0;
         $unsupportedCompressionMethodCount = 0;
         $totalByteLength = 0;
         $totalCompressedByteLength = 0;
@@ -1402,6 +1403,7 @@ final class OpenDocumentPackage
                 'layoutCachePackagePart' => self::isLayoutCachePackagePartName($entry->name),
                 'metaInfSidecarPackagePart' => self::isMetaInfSidecarPackagePartName($entry->name),
                 'databasePackagePart' => self::isDatabasePackagePartName($entry->name),
+                'templatePackagePart' => self::isTemplatePackagePartName($entry->name),
                 'encrypted' => is_array($manifestEntry) && ($manifestEntry['encrypted'] ?? false) === true,
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
@@ -1549,6 +1551,9 @@ final class OpenDocumentPackage
             }
             if (in_array('database-package', $roles, true)) {
                 ++$databasePackagePartCount;
+            }
+            if (in_array('template-package', $roles, true)) {
+                ++$templatePackagePartCount;
             }
             if ($rawNameProvenance['hasRawNameProvenance']) {
                 ++$rawNameProvenanceEntryCount;
@@ -1763,6 +1768,7 @@ final class OpenDocumentPackage
             'layoutCachePartCount' => $layoutCachePartCount,
             'metaInfSidecarPackagePartCount' => $metaInfSidecarPackagePartCount,
             'databasePackagePartCount' => $databasePackagePartCount,
+            'templatePackagePartCount' => $templatePackagePartCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
             'totalByteLength' => $totalByteLength,
             'totalCompressedByteLength' => $totalCompressedByteLength,
@@ -2695,6 +2701,7 @@ final class OpenDocumentPackage
                 'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
                 'metaInfSidecarPackagePart' => ($entry['metaInfSidecarPackagePart'] ?? false) === true,
                 'databasePackagePart' => ($entry['databasePackagePart'] ?? false) === true,
+                'templatePackagePart' => ($entry['templatePackagePart'] ?? false) === true,
                 'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
                 'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -2993,6 +3000,7 @@ final class OpenDocumentPackage
                 'layoutCachePackagePart' => ($part['layoutCachePackagePart'] ?? false) === true,
                 'metaInfSidecarPackagePart' => ($part['metaInfSidecarPackagePart'] ?? false) === true,
                 'databasePackagePart' => ($part['databasePackagePart'] ?? false) === true,
+                'templatePackagePart' => ($part['templatePackagePart'] ?? false) === true,
                 'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $part['byteExposurePolicy'] ?? null,
                 'undeclared' => ($part['undeclared'] ?? false) === true,
@@ -3216,6 +3224,7 @@ final class OpenDocumentPackage
             'layoutCachePartCount' => $packageInventory['layoutCachePartCount'] ?? 0,
             'metaInfSidecarPackagePartCount' => $packageInventory['metaInfSidecarPackagePartCount'] ?? 0,
             'databasePackagePartCount' => $packageInventory['databasePackagePartCount'] ?? 0,
+            'templatePackagePartCount' => $packageInventory['templatePackagePartCount'] ?? 0,
             'hasZipExtraFields' => ($packageInventory['hasZipExtraFields'] ?? false) === true,
             'extraFieldEntryCount' => $packageInventory['extraFieldEntryCount'] ?? 0,
             'duplicateExtraFieldEntryCount' => $packageInventory['duplicateExtraFieldEntryCount'] ?? 0,
@@ -8251,6 +8260,9 @@ final class OpenDocumentPackage
         if (self::isDatabasePackagePartName($entry->name)) {
             $roles[] = 'database-package';
         }
+        if (self::isTemplatePackagePartName($entry->name)) {
+            $roles[] = 'template-package';
+        }
         if (is_array($manifestEntry)) {
             $roles[] = 'manifest-declared';
             if (!$entry->isDirectory() && self::isMediaResourceManifestEntry($manifestEntry)) {
@@ -8347,6 +8359,11 @@ final class OpenDocumentPackage
         }
 
         return str_starts_with($normalized, 'database/');
+    }
+
+    private static function isTemplatePackagePartName(string $path): bool
+    {
+        return str_starts_with(strtolower(ltrim($path, '/')), 'templates/');
     }
 
     private static function layoutCacheMediaTypeFromPart(string $path): string
@@ -8511,6 +8528,9 @@ final class OpenDocumentPackage
         if (is_string($packagePath) && self::isDatabasePackagePartName($packagePath)) {
             return false;
         }
+        if (is_string($packagePath) && self::isTemplatePackagePartName($packagePath)) {
+            return false;
+        }
 
         $mediaTypeBase = (string) ($entry['mediaTypeBase'] ?? $entry['mediaType'] ?? '');
         if (
@@ -8554,6 +8574,7 @@ final class OpenDocumentPackage
             $layoutCachePackagePart = is_string($packagePath) && self::isLayoutCachePackagePartName($packagePath);
             $metaInfSidecarPackagePart = is_string($packagePath) && self::isMetaInfSidecarPackagePartName($packagePath);
             $databasePackagePart = is_string($packagePath) && self::isDatabasePackagePartName($packagePath);
+            $templatePackagePart = is_string($packagePath) && self::isTemplatePackagePartName($packagePath);
             $zipEntry = (!$isRoot && is_string($packagePath) && $package->has($packagePath))
                 ? $package->entry($packagePath)
                 : null;
@@ -8581,6 +8602,7 @@ final class OpenDocumentPackage
                 && !$layoutCachePackagePart
                 && !$metaInfSidecarPackagePart
                 && !$databasePackagePart
+                && !$templatePackagePart
                 && !$missingMediaType
                 && $hasSupportedCompression;
             $declaredSize = is_int($entry['size'] ?? null) ? $entry['size'] : null;
@@ -8617,7 +8639,8 @@ final class OpenDocumentPackage
                 $objectReplacementPackagePart,
                 $layoutCachePackagePart,
                 $metaInfSidecarPackagePart,
-                $databasePackagePart
+                $databasePackagePart,
+                $templatePackagePart
             );
 
             $hydrated[] = array_merge($entry, [
@@ -8651,6 +8674,7 @@ final class OpenDocumentPackage
                 'layoutCachePackagePart' => $layoutCachePackagePart,
                 'metaInfSidecarPackagePart' => $metaInfSidecarPackagePart,
                 'databasePackagePart' => $databasePackagePart,
+                'templatePackagePart' => $templatePackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => self::byteExposurePolicy(
                     $isRoot,
@@ -8668,6 +8692,7 @@ final class OpenDocumentPackage
                     $layoutCachePackagePart,
                     $metaInfSidecarPackagePart,
                     $databasePackagePart,
+                    $templatePackagePart,
                     $missingMediaType,
                     $hasSupportedCompression
                 ),
@@ -8694,6 +8719,7 @@ final class OpenDocumentPackage
         bool $layoutCachePackagePart,
         bool $metaInfSidecarPackagePart,
         bool $databasePackagePart,
+        bool $templatePackagePart,
         bool $missingMediaType,
         bool $hasSupportedCompression
     ): string {
@@ -8739,6 +8765,9 @@ final class OpenDocumentPackage
         if ($databasePackagePart) {
             return 'database-package-bytes-blocked';
         }
+        if ($templatePackagePart) {
+            return 'template-package-bytes-blocked';
+        }
         if ($missingMediaType) {
             return 'missing-media-type-bytes-blocked';
         }
@@ -8765,7 +8794,8 @@ final class OpenDocumentPackage
         bool $objectReplacementPackagePart,
         bool $layoutCachePackagePart,
         bool $metaInfSidecarPackagePart,
-        bool $databasePackagePart
+        bool $databasePackagePart,
+        bool $templatePackagePart
     ): string {
         if ($isRoot) {
             return 'opendocument-text-package';
@@ -8803,6 +8833,9 @@ final class OpenDocumentPackage
         }
         if ($databasePackagePart) {
             return 'database';
+        }
+        if ($templatePackagePart) {
+            return 'template';
         }
         if ($fontPackagePart || ($mediaTypeBase !== '' && self::isFontMediaType($mediaTypeBase))) {
             return 'font';
@@ -8886,6 +8919,7 @@ final class OpenDocumentPackage
                 'layoutCachePackagePart' => self::isLayoutCachePackagePartName($path),
                 'metaInfSidecarPackagePart' => self::isMetaInfSidecarPackagePartName($path),
                 'databasePackagePart' => self::isDatabasePackagePartName($path),
+                'templatePackagePart' => self::isTemplatePackagePartName($path),
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => self::undeclaredPackageEntryByteExposurePolicy($path, $embeddedObjectPackage),
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
@@ -8932,6 +8966,9 @@ final class OpenDocumentPackage
         }
         if (self::isDatabasePackagePartName($path)) {
             return 'database-package-bytes-blocked';
+        }
+        if (self::isTemplatePackagePartName($path)) {
+            return 'template-package-bytes-blocked';
         }
 
         return 'undeclared-package-entry-no-bytes';
@@ -11101,6 +11138,8 @@ final class OpenDocumentPackage
             'metaInfSidecarPackageItems' => [],
             'databasePackagePartCount' => 0,
             'databasePackageItems' => [],
+            'templatePackagePartCount' => 0,
+            'templatePackageItems' => [],
             'missingMediaTypeCount' => 0,
             'missingMediaTypeItems' => [],
             'missingManifestDeclaredPartCount' => 0,
@@ -11266,6 +11305,10 @@ final class OpenDocumentPackage
                 ++$summary['databasePackagePartCount'];
                 $summary['databasePackageItems'][] = $item;
             }
+            if (($entry['templatePackagePart'] ?? false) === true) {
+                ++$summary['templatePackagePartCount'];
+                $summary['templatePackageItems'][] = $item;
+            }
             if (($entry['missingMediaType'] ?? false) === true) {
                 ++$summary['missingMediaTypeCount'];
                 $summary['missingMediaTypeItems'][] = $item;
@@ -11416,6 +11459,9 @@ final class OpenDocumentPackage
         }
         if (($entry['databasePackagePart'] ?? false) === true || self::isDatabasePackagePartName($path)) {
             $roles[] = 'database-package';
+        }
+        if (($entry['templatePackagePart'] ?? false) === true || self::isTemplatePackagePartName($path)) {
+            $roles[] = 'template-package';
         }
 
         $embeddedObjectPackagePart = ($entry['embeddedObjectPackagePart'] ?? false) === true;
@@ -11946,6 +11992,7 @@ final class OpenDocumentPackage
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
             'metaInfSidecarPackagePart' => ($entry['metaInfSidecarPackagePart'] ?? false) === true,
             'databasePackagePart' => ($entry['databasePackagePart'] ?? false) === true,
+            'templatePackagePart' => ($entry['templatePackagePart'] ?? false) === true,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
             'byteLength' => $entry['byteLength'] ?? null,
             'storedByteLength' => $entry['storedByteLength'] ?? null,
@@ -12031,6 +12078,7 @@ final class OpenDocumentPackage
             'layoutCachePackagePart' => ($entry['layoutCachePackagePart'] ?? false) === true,
             'metaInfSidecarPackagePart' => ($entry['metaInfSidecarPackagePart'] ?? false) === true,
             'databasePackagePart' => ($entry['databasePackagePart'] ?? false) === true,
+            'templatePackagePart' => ($entry['templatePackagePart'] ?? false) === true,
             'zipModifiedAt' => $entry['zipModifiedAt'] ?? null,
             'zipTimestampSource' => $entry['zipTimestampSource'] ?? null,
             'zipLocalModifiedAt' => $entry['zipLocalModifiedAt'] ?? null,

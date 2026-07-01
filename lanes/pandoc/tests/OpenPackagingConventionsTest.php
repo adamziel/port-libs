@@ -2671,6 +2671,115 @@ XML;
             $centralEntries['customXml/item1.xml']['directoryDepth']
         );
     },
+    'summarizes OPC ZIP manifest package part basenames before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+        $parts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
+            ['name' => 'customXml/document.xml', 'data' => '<audit/>', 'compressionMethod' => 0],
+            ['name' => 'word/media/Logo.PNG', 'data' => 'LOGO', 'compressionMethod' => 0],
+            ['name' => 'thumbnails/logo.png', 'data' => 'logo-preview', 'compressionMethod' => 0],
+            ['name' => 'word/payload.bin', 'data' => 'payload', 'compressionMethod' => 0],
+        ];
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts($parts));
+        $centralSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest(ZipPackage::build($parts));
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $centralEntries = [];
+        foreach ($centralSummary['entries'] as $entry) {
+            $centralEntries[$entry['entryName']] = $entry;
+        }
+
+        foreach ([
+            'packagePartBaseNameCount',
+            'packagePartBaseNameCounts',
+            'entryNamesByPackagePartBaseName',
+            'packagePartBaseNameSummaries',
+            'duplicatePackagePartBaseNameCount',
+            'duplicatePackagePartBaseNameEntryCount',
+            'duplicatePackagePartBaseNames',
+            'duplicatePackagePartBaseNameSummaries',
+            'packagePartCaseFoldBaseNameCount',
+            'packagePartCaseFoldBaseNameCounts',
+            'entryNamesByPackagePartCaseFoldBaseName',
+            'packagePartCaseFoldBaseNameSummaries',
+            'duplicatePackagePartCaseFoldBaseNameCount',
+            'duplicatePackagePartCaseFoldBaseNameEntryCount',
+            'duplicatePackagePartCaseFoldBaseNames',
+            'duplicatePackagePartCaseFoldBaseNameSummaries',
+        ] as $field) {
+            $t->same($summary[$field], $centralSummary[$field], "{$field} raw central manifest parity");
+        }
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $centralSummary['valid']);
+        $t->same(6, $summary['packagePartBaseNameCount']);
+        $t->same([
+            '.rels' => 1,
+            'Logo.PNG' => 1,
+            '[Content_Types].xml' => 1,
+            'document.xml' => 2,
+            'logo.png' => 1,
+            'payload.bin' => 1,
+        ], $summary['packagePartBaseNameCounts']);
+        $t->same([
+            'customXml/document.xml',
+            'word/document.xml',
+        ], $summary['entryNamesByPackagePartBaseName']['document.xml']);
+        $t->same(['word/media/Logo.PNG'], $summary['entryNamesByPackagePartBaseName']['Logo.PNG']);
+
+        $t->same(5, $summary['packagePartCaseFoldBaseNameCount']);
+        $t->same([
+            '.rels' => 1,
+            '[content_types].xml' => 1,
+            'document.xml' => 2,
+            'logo.png' => 2,
+            'payload.bin' => 1,
+        ], $summary['packagePartCaseFoldBaseNameCounts']);
+        $t->same([
+            'thumbnails/logo.png',
+            'word/media/Logo.PNG',
+        ], $summary['entryNamesByPackagePartCaseFoldBaseName']['logo.png']);
+
+        $t->same(1, $summary['duplicatePackagePartBaseNameCount']);
+        $t->same(2, $summary['duplicatePackagePartBaseNameEntryCount']);
+        $t->same(['document.xml'], $summary['duplicatePackagePartBaseNames']);
+        $t->same('document.xml', $summary['duplicatePackagePartBaseNameSummaries'][0]['packagePartBaseName']);
+        $t->same(2, $summary['duplicatePackagePartBaseNameSummaries'][0]['packagePartCount']);
+        $t->same([
+            '/customXml/document.xml',
+            '/word/document.xml',
+        ], $summary['duplicatePackagePartBaseNameSummaries'][0]['partNames']);
+
+        $t->same(2, $summary['duplicatePackagePartCaseFoldBaseNameCount']);
+        $t->same(4, $summary['duplicatePackagePartCaseFoldBaseNameEntryCount']);
+        $t->same(['document.xml', 'logo.png'], $summary['duplicatePackagePartCaseFoldBaseNames']);
+        $t->same('logo.png', $summary['duplicatePackagePartCaseFoldBaseNameSummaries'][1]['packagePartCaseFoldBaseName']);
+        $t->same(2, $summary['duplicatePackagePartCaseFoldBaseNameSummaries'][1]['packagePartCount']);
+        $t->same([
+            '/thumbnails/logo.png',
+            '/word/media/Logo.PNG',
+        ], $summary['duplicatePackagePartCaseFoldBaseNameSummaries'][1]['partNames']);
+
+        $t->same('Logo.PNG', $entries['word/media/Logo.PNG']['packagePartBaseName']);
+        $t->same('logo.png', $entries['word/media/Logo.PNG']['packagePartCaseFoldBaseName']);
+        $t->same($entries['word/media/Logo.PNG']['packagePartBaseName'], $centralEntries['word/media/Logo.PNG']['packagePartBaseName']);
+        $t->same($entries['word/media/Logo.PNG']['packagePartCaseFoldBaseName'], $centralEntries['word/media/Logo.PNG']['packagePartCaseFoldBaseName']);
+        $t->same('document.xml', $entries['customXml/document.xml']['packagePartBaseName']);
+        $t->same('document.xml', $entries['customXml/document.xml']['packagePartCaseFoldBaseName']);
+    },
     'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
