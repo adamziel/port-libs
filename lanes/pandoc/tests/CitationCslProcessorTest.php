@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\BibtexCslProcessor;
 use PortLibs\Pandoc\CitationCslProcessor;
 use PortLibs\Pandoc\MarkdownReader;
 use PortLibs\Pandoc\MarkdownWriter;
@@ -27984,14 +27985,28 @@ XML);
   date         = {2026},
   mathscinet   = {MR246810}
 }
+
+@article{mathscinet-id-review,
+  author        = {Mirzakhani, Maryam},
+  title         = {Identifier Alias Corollary},
+  journaltitle  = {Geometry Review},
+  date          = {2025},
+  mathscinet-id = {MR112233}
+}
 BIB;
 
         $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
         $t->same('MR246810', $items[0]['MRNumber'] ?? null);
         $t->same('MR246810', $items[0]['rawBibtex']['fields']['mathscinet'] ?? null);
+        $t->same('MR112233', $items[1]['MRNumber'] ?? null);
+        $t->same('MR112233', $items[1]['rawBibtex']['fields']['mathscinet-id'] ?? null);
+        $legacyItems = (new BibtexCslProcessor())->cslItems($bibtex);
+        $t->same('MR112233', $legacyItems['mathscinet-id-review']['MRNumber'] ?? null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $t->same('MR246810', $processor->item('mathscinet-review')['mrNumber'] ?? null);
+        $t->same('MR112233', $processor->item('mathscinet-id-review')['mrNumber'] ?? null);
         $styled = $processor->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
@@ -28011,26 +28026,37 @@ XML);
         $t->same('[MR246810]', $styled->renderCitationCluster([
             new AstNode('citation', ['id' => 'mathscinet-review', 'text' => '[@mathscinet-review]']),
         ]));
+        $t->same('[MR112233]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'mathscinet-id-review', 'text' => '[@mathscinet-id-review]']),
+        ]));
         $t->same('Alias Review Lemma :: MR246810', $styled->renderBibliographyEntry('mathscinet-review'));
 
         $direct = CitationCslProcessor::fromItems([[
             'id' => 'direct-mathscinet',
             'title' => 'Direct MathSciNet Packet',
             'mathscinet' => 'MR97531',
+        ], [
+            'id' => 'direct-mathscinet-id',
+            'title' => 'Direct MathSciNet ID Packet',
+            'mathSciNetId' => 'MR97532',
         ]]);
         $t->same('MR97531', $direct->item('direct-mathscinet')['mrNumber'] ?? null);
+        $t->same('MR97532', $direct->item('direct-mathscinet-id')['mrNumber'] ?? null);
         $directStyled = $direct->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
 <style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
   <citation>
     <layout prefix="[" suffix="]">
-      <text variable="mathscinet"/>
+      <text variable="mathscinet-id"/>
     </layout>
   </citation>
 </style>
 XML);
         $t->same('[MR97531]', $directStyled->renderCitationCluster([
             new AstNode('citation', ['id' => 'direct-mathscinet', 'text' => '[@direct-mathscinet]']),
+        ]));
+        $t->same('[MR97532]', $directStyled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-mathscinet-id', 'text' => '[@direct-mathscinet-id]']),
         ]));
 
         $document = (new MarkdownReader())->read('MathSciNet handoff [@mathscinet-review] stays visible.');
