@@ -19722,6 +19722,7 @@ final class DocxOpenXmlReader
             'partXmlProcessingInstructionPartCount' => $partXmlProcessingInstructions['partCount'],
             'partXmlProcessingInstructionCount' => $partXmlProcessingInstructions['instructionCount'],
             'partXmlProcessingInstructionDataByteLength' => $partXmlProcessingInstructions['dataByteLength'],
+            'partXmlProcessingInstructionParentDepthCounts' => $partXmlProcessingInstructions['parentDepthCounts'],
             'partXmlProcessingInstructionTargets' => $partXmlProcessingInstructions['targets'],
             'partXmlProcessingInstructionPartNames' => $partXmlProcessingInstructions['partNames'],
             'partXmlProcessingInstructions' => $partXmlProcessingInstructions['instructions'],
@@ -37590,7 +37591,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{partCount:int, instructionCount:int, dataByteLength:int, targets:list<string>, partNames:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
+     * @return array{partCount:int, instructionCount:int, dataByteLength:int, parentDepthCounts:array<int, int>, targets:list<string>, partNames:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlProcessingInstructionSummary(array $partInventory): array
     {
@@ -37598,6 +37599,7 @@ final class DocxOpenXmlReader
         $instructions = [];
         $instructionCount = 0;
         $dataByteLength = 0;
+        $parentDepthCounts = [];
         $targets = [];
         $truncated = false;
         $summaryLimit = 64;
@@ -37612,6 +37614,14 @@ final class DocxOpenXmlReader
             $instructionCount += $partInstructionCount;
             $dataByteLength += (int) ($part['xmlProcessingInstructionDataByteLength'] ?? 0);
             $this->appendUniqueString($partNames, $partName);
+            foreach (($part['xmlProcessingInstructionParentDepthCounts'] ?? []) as $depth => $count) {
+                if (!is_int($depth) && !(is_string($depth) && ctype_digit($depth))) {
+                    continue;
+                }
+
+                $depth = (int) $depth;
+                $parentDepthCounts[$depth] = ($parentDepthCounts[$depth] ?? 0) + (int) $count;
+            }
             foreach (($part['xmlProcessingInstructionTargets'] ?? []) as $target) {
                 if (is_string($target)) {
                     $this->appendUniqueString($targets, $target);
@@ -37635,12 +37645,14 @@ final class DocxOpenXmlReader
         }
 
         sort($partNames, SORT_STRING);
+        ksort($parentDepthCounts, SORT_NUMERIC);
         sort($targets, SORT_STRING);
 
         return [
             'partCount' => count($partNames),
             'instructionCount' => $instructionCount,
             'dataByteLength' => $dataByteLength,
+            'parentDepthCounts' => $parentDepthCounts,
             'targets' => $targets,
             'partNames' => $partNames,
             'instructions' => $instructions,
@@ -37785,7 +37797,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, dataByteLength:int, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
+     * @return array{count:int, dataByteLength:int, parentDepthCounts:array<int, int>, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlProcessingInstructionMetadata(
         string $xml,
@@ -37796,6 +37808,7 @@ final class DocxOpenXmlReader
         $empty = [
             'count' => 0,
             'dataByteLength' => 0,
+            'parentDepthCounts' => [],
             'targets' => [],
             'instructions' => [],
             'truncated' => false,
@@ -37813,9 +37826,10 @@ final class DocxOpenXmlReader
         $targets = [];
         $count = 0;
         $dataByteLength = 0;
+        $parentDepthCounts = [];
         $truncated = false;
         $itemLimit = 32;
-        $walk = function (\DOMNode $node) use (&$walk, &$instructions, &$targets, &$count, &$dataByteLength, &$truncated, $itemLimit): void {
+        $walk = function (\DOMNode $node) use (&$walk, &$instructions, &$targets, &$count, &$dataByteLength, &$parentDepthCounts, &$truncated, $itemLimit): void {
             if ($node instanceof \DOMProcessingInstruction) {
                 $target = (string) $node->target;
                 if ($target !== '' && strtolower($target) !== 'xml') {
@@ -37824,16 +37838,18 @@ final class DocxOpenXmlReader
                     $dataLength = strlen($data);
                     $dataByteLength += $dataLength;
                     $this->appendUniqueString($targets, $target);
+                    $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+                    $parentPath = $this->domElementPath($parent);
+                    $parentDepth = $this->domElementPathDepth($parentPath);
+                    $parentDepthCounts[$parentDepth] = ($parentDepthCounts[$parentDepth] ?? 0) + 1;
                     if (count($instructions) >= $itemLimit) {
                         $truncated = true;
                     } else {
-                        $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
-                        $parentPath = $this->domElementPath($parent);
                         $instructions[] = [
                             'index' => $count - 1,
                             'target' => $target,
                             'parentPath' => $parentPath,
-                            'parentDepth' => $this->domElementPathDepth($parentPath),
+                            'parentDepth' => $parentDepth,
                             'dataByteLength' => $dataLength,
                             'dataCrc32' => sprintf('%08x', crc32($data)),
                             'dataSha256' => hash('sha256', $data),
@@ -37849,11 +37865,13 @@ final class DocxOpenXmlReader
             }
         };
         $walk($dom);
+        ksort($parentDepthCounts, SORT_NUMERIC);
         sort($targets, SORT_STRING);
 
         return [
             'count' => $count,
             'dataByteLength' => $dataByteLength,
+            'parentDepthCounts' => $parentDepthCounts,
             'targets' => $targets,
             'instructions' => $instructions,
             'truncated' => $truncated,
@@ -44167,6 +44185,7 @@ final class DocxOpenXmlReader
                 'xmlCommentsTruncated' => $xmlComments['truncated'],
                 'xmlProcessingInstructionCount' => $xmlProcessingInstructions['count'],
                 'xmlProcessingInstructionDataByteLength' => $xmlProcessingInstructions['dataByteLength'],
+                'xmlProcessingInstructionParentDepthCounts' => $xmlProcessingInstructions['parentDepthCounts'],
                 'xmlProcessingInstructionTargets' => $xmlProcessingInstructions['targets'],
                 'xmlProcessingInstructions' => $xmlProcessingInstructions['instructions'],
                 'xmlProcessingInstructionsTruncated' => $xmlProcessingInstructions['truncated'],
