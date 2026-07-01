@@ -16560,6 +16560,107 @@ XML;
         $t->same(['mail-merge-recipient-data' => 1, 'relationship-target' => 1], $relationshipType['targetRoleCounts']);
         $t->same('?batch=review#records', $relationshipType['relationships'][0]['targetReferenceSuffix']);
     },
+    'flags duplicate docx mail merge recipient unique tags for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $duplicateTag = 'duplicated-recipient-key';
+        $recipientDataBytes = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<w:recipients xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:recipientData>
+    <w:active w:val="1"/>
+    <w:column w:val="1"/>
+    <w:uniqueTag w:val="{$duplicateTag}"/>
+  </w:recipientData>
+  <w:recipientData>
+    <w:active w:val="1"/>
+    <w:column w:val="2"/>
+    <w:hash>{$duplicateTag}</w:hash>
+  </w:recipientData>
+  <w:recipientData>
+    <w:active w:val="0"/>
+    <w:column w:val="3"/>
+    <w:uniqueTag w:val="unique-recipient-key"/>
+  </w:recipientData>
+</w:recipients>
+XML;
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/recipientData.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.mailMergeRecipientData+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/_rels/settings.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rRecipientData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData" Target="recipientData.xml"/>
+</Relationships>
+XML;
+        $parts['word/settings.xml'] = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <w:mailMerge>
+    <w:mainDocumentType w:val="formLetters"/>
+    <w:odso>
+      <w:recipientData r:id="rRecipientData"/>
+    </w:odso>
+  </w:mailMerge>
+</w:settings>
+XML;
+        $parts['word/recipientData.xml'] = $recipientDataBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $mailMerge = $docx['settings']['mailMerge'];
+        $recipientData = $mailMerge['recipientData'];
+        $records = $recipientData['records'];
+        $summary = $docx['packageProvenance']['summary'];
+
+        $duplicateSha256 = hash('sha256', $duplicateTag);
+        $expectedUniqueTagSha256s = [
+            hash('sha256', 'unique-recipient-key'),
+            $duplicateSha256,
+        ];
+        sort($expectedUniqueTagSha256s, SORT_STRING);
+
+        $t->same(1, $mailMerge['relationshipCount']);
+        $t->same(1, $mailMerge['issueCount']);
+        $t->same(['duplicate-recipient-unique-tag'], $mailMerge['issueCodes']);
+        $t->same(['duplicate-recipient-unique-tag'], $recipientData['issues']);
+        $t->same(3, $recipientData['recordCount']);
+        $t->same(2, $recipientData['uniqueTagCount']);
+        $t->same($expectedUniqueTagSha256s, $recipientData['uniqueTagSha256s']);
+        $t->same(1, $recipientData['duplicateUniqueTagCount']);
+        $t->same(2, $recipientData['duplicateUniqueTagRecordCount']);
+        $t->same([$duplicateSha256], $recipientData['duplicateUniqueTagSha256s']);
+
+        $t->same(true, $records[0]['duplicateUniqueTag']);
+        $t->same(true, $records[1]['duplicateUniqueTag']);
+        $t->same(false, $records[2]['duplicateUniqueTag']);
+        $t->same('uniqueTag', $records[0]['uniqueTagKind']);
+        $t->same('hash', $records[1]['uniqueTagKind']);
+        $t->same($duplicateSha256, $records[0]['uniqueTagSha256']);
+        $t->same($duplicateSha256, $records[1]['uniqueTagSha256']);
+        $t->same(['duplicate-recipient-unique-tag'], $records[0]['issues']);
+        $t->same(['duplicate-recipient-unique-tag'], $records[1]['issues']);
+        $t->same([], $records[2]['issues']);
+        $t->true(!isset($records[0]['uniqueTag']), 'raw duplicate recipient unique tag must not be exposed');
+
+        $t->same(1, $summary['mailMergeRelationshipCount']);
+        $t->same(1, $summary['mailMergeIssueCount']);
+        $t->same(['duplicate-recipient-unique-tag'], $summary['mailMergeIssueCodes']);
+        $t->same(3, $summary['mailMergeRecipientDataRecordCount']);
+        $t->same(2, $summary['mailMergeRecipientDataUniqueTagCount']);
+        $t->same(1, $summary['mailMergeRecipientDataDuplicateUniqueTagCount']);
+        $t->same(2, $summary['mailMergeRecipientDataDuplicateUniqueTagRecordCount']);
+        $t->same(1, $summary['mailMergeRecipientDataIssueCount']);
+        $t->same(['duplicate-recipient-unique-tag'], $summary['mailMergeRecipientDataIssueCodes']);
+    },
     'preserves docx settings review protection hyphenation and save policy metadata' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

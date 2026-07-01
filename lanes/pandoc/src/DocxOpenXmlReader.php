@@ -1074,7 +1074,10 @@ final class DocxOpenXmlReader
                 $packageProvenance['summary']['mailMergeRecipientDataRecordCount'] = (int) ($recipientData['recordCount'] ?? 0);
                 $packageProvenance['summary']['mailMergeRecipientDataExcludedRecordCount'] = (int) ($recipientData['excludedRecordCount'] ?? 0);
                 $packageProvenance['summary']['mailMergeRecipientDataUniqueTagCount'] = (int) ($recipientData['uniqueTagCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataDuplicateUniqueTagCount'] = (int) ($recipientData['duplicateUniqueTagCount'] ?? 0);
+                $packageProvenance['summary']['mailMergeRecipientDataDuplicateUniqueTagRecordCount'] = (int) ($recipientData['duplicateUniqueTagRecordCount'] ?? 0);
                 $packageProvenance['summary']['mailMergeRecipientDataIssueCount'] = count($recipientData['issues'] ?? []);
+                $packageProvenance['summary']['mailMergeRecipientDataIssueCodes'] = $recipientData['issues'] ?? [];
             }
         }
         $themeFontLanguage = $settings['themeFontLanguage'] ?? null;
@@ -28014,8 +28017,11 @@ final class DocxOpenXmlReader
         $item['implicitIncludedRecordCount'] = 0;
         $item['excludedRecordCount'] = 0;
         $item['uniqueTagCount'] = 0;
+        $item['duplicateUniqueTagCount'] = 0;
+        $item['duplicateUniqueTagRecordCount'] = 0;
         $item['columnIndexes'] = [];
         $item['uniqueTagSha256s'] = [];
+        $item['duplicateUniqueTagSha256s'] = [];
         $item['records'] = [];
 
         if (($item['external'] ?? null) === true) {
@@ -28062,6 +28068,7 @@ final class DocxOpenXmlReader
         $records = [];
         $columnIndexes = [];
         $uniqueTagSha256s = [];
+        $uniqueTagRecordIndexesBySha256 = [];
         foreach ($this->elements($xpath, '/*[local-name()="recipients"]/*[local-name()="recipientData"]') as $index => $recipientData) {
             $active = $this->mailMergeRecipientChildBoolean($recipientData, 'active');
             $columnIndex = $this->mailMergeRecipientChildInt($recipientData, 'column');
@@ -28083,6 +28090,7 @@ final class DocxOpenXmlReader
                 $recordIssues[] = 'missing-recipient-unique-tag';
             } elseif ($uniqueTagSha256 !== null) {
                 $uniqueTagSha256s[$uniqueTagSha256] = true;
+                $uniqueTagRecordIndexesBySha256[$uniqueTagSha256][] = count($records);
             }
 
             $records[] = [
@@ -28094,6 +28102,7 @@ final class DocxOpenXmlReader
                 'uniqueTagKind' => $uniqueTagKind,
                 'uniqueTagLength' => $uniqueTagLength,
                 'uniqueTagSha256' => $uniqueTagSha256,
+                'duplicateUniqueTag' => false,
                 'issues' => $recordIssues,
             ];
             foreach ($recordIssues as $issue) {
@@ -28101,10 +28110,32 @@ final class DocxOpenXmlReader
             }
         }
 
+        $duplicateUniqueTagSha256s = [];
+        $duplicateUniqueTagRecordCount = 0;
+        foreach ($uniqueTagRecordIndexesBySha256 as $sha256 => $recordIndexes) {
+            if (count($recordIndexes) < 2) {
+                continue;
+            }
+
+            $duplicateUniqueTagSha256s[] = $sha256;
+            $duplicateUniqueTagRecordCount += count($recordIndexes);
+            $item['issues'][] = 'duplicate-recipient-unique-tag';
+            foreach ($recordIndexes as $recordIndex) {
+                if (!isset($records[$recordIndex])) {
+                    continue;
+                }
+                $records[$recordIndex]['duplicateUniqueTag'] = true;
+                $records[$recordIndex]['issues'][] = 'duplicate-recipient-unique-tag';
+                $records[$recordIndex]['issues'] = array_values(array_unique($records[$recordIndex]['issues']));
+                sort($records[$recordIndex]['issues'], SORT_STRING);
+            }
+        }
+
         $columnIndexValues = array_keys($columnIndexes);
         sort($columnIndexValues, SORT_NUMERIC);
         $uniqueTagSha256Values = array_keys($uniqueTagSha256s);
         sort($uniqueTagSha256Values, SORT_STRING);
+        sort($duplicateUniqueTagSha256s, SORT_STRING);
 
         $item['recordCount'] = count($records);
         $item['includedRecordCount'] = count(array_filter($records, static fn (array $record): bool => $record['included'] === true));
@@ -28112,8 +28143,11 @@ final class DocxOpenXmlReader
         $item['implicitIncludedRecordCount'] = count(array_filter($records, static fn (array $record): bool => $record['active'] === null));
         $item['excludedRecordCount'] = count(array_filter($records, static fn (array $record): bool => $record['active'] === false));
         $item['uniqueTagCount'] = count($uniqueTagSha256Values);
+        $item['duplicateUniqueTagCount'] = count($duplicateUniqueTagSha256s);
+        $item['duplicateUniqueTagRecordCount'] = $duplicateUniqueTagRecordCount;
         $item['columnIndexes'] = $columnIndexValues;
         $item['uniqueTagSha256s'] = $uniqueTagSha256Values;
+        $item['duplicateUniqueTagSha256s'] = $duplicateUniqueTagSha256s;
         $item['records'] = $records;
 
         return $this->finalizeMailMergeRecipientDataPartSummary($item);
