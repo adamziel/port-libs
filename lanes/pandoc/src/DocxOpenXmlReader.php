@@ -1064,7 +1064,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['customXmlPropertiesIssueCount'] = $customXmlParts['propertiesIssueCount'];
         $packageProvenance['summary']['customXmlPropertiesIssueCodes'] = $customXmlParts['propertiesIssueCodes'];
         $packageProvenance['summary']['customXmlRootNames'] = $customXmlParts['rootNames'];
+        $packageProvenance['summary']['customXmlRootNameCounts'] = $customXmlParts['rootNameCounts'];
         $packageProvenance['summary']['customXmlRootNamespaceCounts'] = $customXmlParts['rootNamespaceCounts'];
+        $packageProvenance['summary']['customXmlPartNamesByRootName'] = $customXmlParts['partNamesByRootName'];
+        $packageProvenance['summary']['customXmlPartNamesByRootNamespace'] = $customXmlParts['partNamesByRootNamespace'];
         $packageProvenance['summary']['customXmlTextPreviewCount'] = $customXmlParts['textPreviewCount'];
         $packageProvenance['summary']['customXmlRootAttributeCount'] = $customXmlParts['rootAttributeCount'];
         $packageProvenance['summary']['customXmlRootNamespaceDeclarationCount'] = $customXmlParts['rootNamespaceDeclarationCount'];
@@ -10512,15 +10515,29 @@ final class DocxOpenXmlReader
         $schemaRefs = [];
         $schemaRefCounts = [];
         $rootNames = [];
+        $rootNameCounts = [];
         $rootNamespaceCounts = [];
+        $partNamesByRootName = [];
+        $partNamesByRootNamespace = [];
         $textPreviewCount = 0;
         $rootAttributeCount = 0;
         $rootNamespaceDeclarationCount = 0;
         foreach ($items as $item) {
-            $this->appendUniqueString($rootNames, is_string($item['rootName'] ?? null) ? $item['rootName'] : null);
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : '';
+            $rootName = is_string($item['rootName'] ?? null) ? $item['rootName'] : '';
+            if ($rootName !== '') {
+                $this->appendUniqueString($rootNames, $rootName);
+                $rootNameCounts[$rootName] = ($rootNameCounts[$rootName] ?? 0) + 1;
+                if ($partName !== '') {
+                    $partNamesByRootName[$rootName][$partName] = true;
+                }
+            }
             $rootNamespace = is_string($item['rootNamespace'] ?? null) ? $item['rootNamespace'] : '';
             if ($rootNamespace !== '') {
                 $rootNamespaceCounts[$rootNamespace] = ($rootNamespaceCounts[$rootNamespace] ?? 0) + 1;
+                if ($partName !== '') {
+                    $partNamesByRootNamespace[$rootNamespace][$partName] = true;
+                }
             }
             if (($item['textPreview'] ?? null) !== null) {
                 ++$textPreviewCount;
@@ -10573,8 +10590,11 @@ final class DocxOpenXmlReader
         ksort($propertiesIssueCodes);
         ksort($externalTargetIssueCodes);
         ksort($propertiesExternalTargetIssueCodes);
+        ksort($rootNameCounts);
         ksort($rootNamespaceCounts);
         ksort($schemaRefCounts);
+        $this->sortStringSetMap($partNamesByRootName);
+        $this->sortStringSetMap($partNamesByRootNamespace);
         $duplicateSchemaRefs = [];
         foreach ($schemaRefCounts as $schemaRef => $count) {
             if ($count > 1) {
@@ -10615,7 +10635,10 @@ final class DocxOpenXmlReader
             'duplicateStoreItemIds' => $storeItemSummary['duplicateStoreItemIds'],
             'duplicateStoreItemIdReferences' => $storeItemSummary['duplicateStoreItemIdReferences'],
             'rootNames' => $rootNames,
+            'rootNameCounts' => $rootNameCounts,
             'rootNamespaceCounts' => $rootNamespaceCounts,
+            'partNamesByRootName' => $partNamesByRootName,
+            'partNamesByRootNamespace' => $partNamesByRootNamespace,
             'textPreviewCount' => $textPreviewCount,
             'rootAttributeCount' => $rootAttributeCount,
             'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,

@@ -94,7 +94,7 @@ $duplicatePackage = ZipPackage::fromParts([
     ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
     ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
     ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
-    ['name' => 'Objects/content.xml', 'data' => '<object/>', 'compressionMethod' => 0],
+    ['name' => 'Objects/content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
     ['name' => 'Pictures/review.png', 'data' => 'review', 'compressionMethod' => 0],
     ['name' => 'Pictures/Review.PNG', 'data' => 'review-upper', 'compressionMethod' => 0],
 ], 'odt zip manifest basename aggregate provenance');
@@ -197,6 +197,13 @@ $aggregateFields = [
     'generalPurposeDataDescriptorEntryCount' => 'zipPackageManifestGeneralPurposeDataDescriptorEntryCount',
     'generalPurposeDeflateOptionEntryCount' => 'zipPackageManifestGeneralPurposeDeflateOptionEntryCount',
     'generalPurposeFlagSummaries' => 'zipPackageManifestGeneralPurposeFlagSummaries',
+    'crc32SummaryCount' => 'zipPackageManifestCrc32SummaryCount',
+    'crc32Summaries' => 'zipPackageManifestCrc32Summaries',
+    'duplicateCrc32HexCount' => 'zipPackageManifestDuplicateCrc32HexCount',
+    'duplicateCrc32EntryCount' => 'zipPackageManifestDuplicateCrc32EntryCount',
+    'hasDuplicateCrc32Entries' => 'zipPackageManifestHasDuplicateCrc32Entries',
+    'duplicateCrc32Hexes' => 'zipPackageManifestDuplicateCrc32Hexes',
+    'duplicateCrc32Summaries' => 'zipPackageManifestDuplicateCrc32Summaries',
     'creatorHostSystemSummaryCount' => 'zipPackageManifestCreatorHostSystemSummaryCount',
     'knownCreatorHostSystemEntryCount' => 'zipPackageManifestKnownCreatorHostSystemEntryCount',
     'unknownCreatorHostSystemEntryCount' => 'zipPackageManifestUnknownCreatorHostSystemEntryCount',
@@ -463,6 +470,15 @@ return [
             'duplicatePackagePartCaseFoldBaseNameStems',
             'duplicatePackagePartCaseFoldBaseNameStemSummaries',
         ];
+        $crc32AggregateKeys = [
+            'crc32SummaryCount',
+            'crc32Summaries',
+            'duplicateCrc32HexCount',
+            'duplicateCrc32EntryCount',
+            'hasDuplicateCrc32Entries',
+            'duplicateCrc32Hexes',
+            'duplicateCrc32Summaries',
+        ];
         $surfaces = [
             'compact inventory' => $compactInventory,
             'compact identity' => $compactIdentity,
@@ -472,6 +488,11 @@ return [
 
         foreach ($surfaces as $label => $surface) {
             foreach ($baseNameAggregateKeys as $manifestKey) {
+                $provenanceKey = $aggregateFields[$manifestKey];
+                $t->same($zipManifest[$manifestKey], $surface[$provenanceKey], "{$label} {$provenanceKey}");
+            }
+
+            foreach ($crc32AggregateKeys as $manifestKey) {
                 $provenanceKey = $aggregateFields[$manifestKey];
                 $t->same($zipManifest[$manifestKey], $surface[$provenanceKey], "{$label} {$provenanceKey}");
             }
@@ -488,6 +509,14 @@ return [
             $t->same(2, $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStemCount'], "{$label} duplicate case-fold basename stem count");
             $t->same(true, $surface['zipPackageManifestHasDuplicatePackagePartCaseFoldBaseNameStems'], "{$label} duplicate case-fold basename stem flag");
             $t->same(['content', 'review'], $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStems'], "{$label} duplicate case-fold basename stems");
+            $duplicateCrc32Hex = $zipManifestEntries['content.xml']['crc32Hex'];
+            $duplicateCrc32Summaries = $indexBy($surface['zipPackageManifestDuplicateCrc32Summaries'], 'crc32Hex');
+            $t->same(1, $surface['zipPackageManifestDuplicateCrc32HexCount'], "{$label} duplicate crc32 hex count");
+            $t->same(2, $surface['zipPackageManifestDuplicateCrc32EntryCount'], "{$label} duplicate crc32 entry count");
+            $t->same(true, $surface['zipPackageManifestHasDuplicateCrc32Entries'], "{$label} duplicate crc32 flag");
+            $t->same([$duplicateCrc32Hex], $surface['zipPackageManifestDuplicateCrc32Hexes'], "{$label} duplicate crc32 hexes");
+            $t->same(2, $duplicateCrc32Summaries[$duplicateCrc32Hex]['entryCount'], "{$label} duplicate crc32 summary entry count");
+            $t->same(['Objects/content.xml', 'content.xml'], $duplicateCrc32Summaries[$duplicateCrc32Hex]['entryNames'], "{$label} duplicate crc32 entry names");
         }
 
         $entrySurfaces = [

@@ -1339,6 +1339,12 @@ return [
             'entryCommentSummaryCount' => 0,
             'entryCommentSourceRecordBytes' => 0,
             'entryCommentSummaries' => [],
+            'entryCommentDirectoryRootSummaryCount' => 0,
+            'entryCommentDirectoryRoots' => [],
+            'entryCommentDirectoryRootSummaries' => [],
+            'entryCommentPackagePartExtensionSummaryCount' => 0,
+            'entryCommentPackagePartExtensionKeys' => [],
+            'entryCommentPackagePartExtensionSummaries' => [],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
@@ -2915,6 +2921,115 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'groups zip package manifest entry comments by root and extension for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesComment = 'content types comment';
+        $documentComment = 'document comment';
+        $imageComment = 'image comment';
+        $documentExtra = pack('vva*', 0xcafe, strlen('doc-extra'), 'doc-extra');
+        $contentTypesXml = '<Types/>';
+        $documentXml = '<w:document><w:body><w:p>comment groups</w:p></w:body></w:document>';
+        $imageBytes = 'PNG comment group bytes';
+        $zip = $buildZipPackage([
+            [
+                'name' => '[Content_Types].xml',
+                'data' => $contentTypesXml,
+                'method' => 0,
+                'comment' => $contentTypesComment,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'centralExtra' => $documentExtra,
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => $imageBytes,
+                'method' => 0,
+                'comment' => $imageComment,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'method' => 0,
+            ],
+        ], 'entry comment groups package comment');
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $entries = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entries[$entry['name']] = $entry;
+        }
+
+        $contentTypesEntry = $entries['[Content_Types].xml'];
+        $documentEntry = $entries['word/document.xml'];
+        $imageEntry = $entries['word/media/image.png'];
+        $rootCommentBytes = strlen($contentTypesComment);
+        $wordCommentBytes = strlen($documentComment) + strlen($imageComment);
+        $xmlCommentBytes = strlen($contentTypesComment) + strlen($documentComment);
+
+        $t->same(3, $manifest['entryCommentCount']);
+        $t->same([
+            '[Content_Types].xml',
+            'word/document.xml',
+            'word/media/image.png',
+        ], $manifest['commentedEntryNames']);
+        $t->same(2, $manifest['entryCommentDirectoryRootSummaryCount']);
+        $t->same(['/', 'word/'], $manifest['entryCommentDirectoryRoots']);
+        $t->same([
+            [
+                'directoryRoot' => '/',
+                'entryCommentCount' => 1,
+                'centralDirectoryRawCommentBytes' => $rootCommentBytes,
+                'centralDirectoryRecordBytes' => $contentTypesEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => $rootCommentBytes,
+                'sourceRecordBytes' => $contentTypesEntry['sourceRecordBytes'],
+                'packagePartExtensionKeys' => ['xml'],
+                'entryNames' => ['[Content_Types].xml'],
+            ],
+            [
+                'directoryRoot' => 'word/',
+                'entryCommentCount' => 2,
+                'centralDirectoryRawCommentBytes' => $wordCommentBytes,
+                'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes']
+                    + $imageEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => strlen($documentExtra) + $wordCommentBytes,
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'] + $imageEntry['sourceRecordBytes'],
+                'packagePartExtensionKeys' => ['png', 'xml'],
+                'entryNames' => ['word/document.xml', 'word/media/image.png'],
+            ],
+        ], $manifest['entryCommentDirectoryRootSummaries']);
+        $t->same(2, $manifest['entryCommentPackagePartExtensionSummaryCount']);
+        $t->same(['png', 'xml'], $manifest['entryCommentPackagePartExtensionKeys']);
+        $t->same([
+            [
+                'extensionKey' => 'png',
+                'entryCommentCount' => 1,
+                'centralDirectoryRawCommentBytes' => strlen($imageComment),
+                'centralDirectoryRecordBytes' => $imageEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => strlen($imageComment),
+                'sourceRecordBytes' => $imageEntry['sourceRecordBytes'],
+                'directoryRoots' => ['word/'],
+                'entryNames' => ['word/media/image.png'],
+            ],
+            [
+                'extensionKey' => 'xml',
+                'entryCommentCount' => 2,
+                'centralDirectoryRawCommentBytes' => $xmlCommentBytes,
+                'centralDirectoryRecordBytes' => $contentTypesEntry['centralDirectoryRecordBytes']
+                    + $documentEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => strlen($documentExtra) + $xmlCommentBytes,
+                'sourceRecordBytes' => $contentTypesEntry['sourceRecordBytes'] + $documentEntry['sourceRecordBytes'],
+                'directoryRoots' => ['/', 'word/'],
+                'entryNames' => ['[Content_Types].xml', 'word/document.xml'],
+            ],
+        ], $manifest['entryCommentPackagePartExtensionSummaries']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
         $mediaBytes = "stored image bytes\n";
@@ -3390,6 +3505,12 @@ return [
             'entryCommentSummaryCount' => $manifest['entryCommentSummaryCount'],
             'entryCommentSourceRecordBytes' => $manifest['entryCommentSourceRecordBytes'],
             'entryCommentSummaries' => $manifest['entryCommentSummaries'],
+            'entryCommentDirectoryRootSummaryCount' => $manifest['entryCommentDirectoryRootSummaryCount'],
+            'entryCommentDirectoryRoots' => $manifest['entryCommentDirectoryRoots'],
+            'entryCommentDirectoryRootSummaries' => $manifest['entryCommentDirectoryRootSummaries'],
+            'entryCommentPackagePartExtensionSummaryCount' => $manifest['entryCommentPackagePartExtensionSummaryCount'],
+            'entryCommentPackagePartExtensionKeys' => $manifest['entryCommentPackagePartExtensionKeys'],
+            'entryCommentPackagePartExtensionSummaries' => $manifest['entryCommentPackagePartExtensionSummaries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],

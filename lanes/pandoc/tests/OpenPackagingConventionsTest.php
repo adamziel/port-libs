@@ -720,6 +720,65 @@ XML;
             'centralDirectoryRawCommentSha256',
             'centralDirectoryReviewFieldBytes',
         ];
+        $expectedEntryCommentSummaries = [
+            [
+                'entryName' => 'word/document.xml',
+                'partName' => '/word/document.xml',
+                'role' => 'xml-part',
+                'handoffKind' => 'xml',
+                'directoryRoot' => 'word/',
+                'packagePartExtensionKey' => 'xml',
+                'extension' => 'xml',
+                'centralDirectoryIndex' => 2,
+                'centralDirectoryRawCommentOffset' => $documentEntry['centralDirectoryRawCommentOffset'],
+                'centralDirectoryRawCommentBytes' => strlen($documentComment),
+                'centralDirectoryRawCommentSha256' => hash('sha256', $documentComment),
+                'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => $documentEntry['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'knownSourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'byteCountsAreExact' => true,
+                'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
+                'entryCommentCanExposeBytes' => false,
+            ],
+        ];
+        $expectedEntryCommentDirectoryRootSummaries = [
+            [
+                'directoryRoot' => 'word/',
+                'entryCommentCount' => 1,
+                'byteCountsAreExact' => true,
+                'unknownSourceRecordEntryCount' => 0,
+                'centralDirectoryRawCommentBytes' => strlen($documentComment),
+                'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => $documentEntry['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'knownSourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'packagePartExtensionKeys' => ['xml'],
+                'roles' => ['xml-part'],
+                'handoffKinds' => ['xml'],
+                'entryNames' => ['word/document.xml'],
+                'partNames' => ['/word/document.xml'],
+            ],
+        ];
+        $expectedEntryCommentExtensionSummaries = [
+            [
+                'extensionKey' => 'xml',
+                'extension' => 'xml',
+                'entryCommentCount' => 1,
+                'byteCountsAreExact' => true,
+                'unknownSourceRecordEntryCount' => 0,
+                'centralDirectoryRawCommentBytes' => strlen($documentComment),
+                'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => $documentEntry['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'knownSourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'directoryRoots' => ['word/'],
+                'roles' => ['xml-part'],
+                'handoffKinds' => ['xml'],
+                'entryNames' => ['word/document.xml'],
+                'partNames' => ['/word/document.xml'],
+            ],
+        ];
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
@@ -782,6 +841,24 @@ XML;
             $documentEntry['centralDirectoryReviewFieldBytes']
         );
         $t->same($summary['zipSourceRecordManifest'], $rawSummary['zipSourceRecordManifest']);
+        $t->same(1, $summary['zipEntryCommentCount']);
+        $t->same(true, $summary['zipHasEntryComments']);
+        $t->same(['word/document.xml'], $summary['zipCommentedEntryNames']);
+        $t->same(1, $summary['zipEntryCommentSummaryCount']);
+        $t->same($documentEntry['sourceRecordBytes'], $summary['zipEntryCommentSourceRecordBytes']);
+        $t->same($documentEntry['sourceRecordBytes'], $summary['zipEntryCommentKnownSourceRecordBytes']);
+        $t->same(true, $summary['zipEntryCommentByteCountsAreExact']);
+        $t->same(0, $summary['zipEntryCommentUnknownSourceRecordEntryCount']);
+        $t->same($expectedEntryCommentSummaries, $summary['zipEntryCommentSummaries']);
+        $t->same($summary['zipEntryCommentSummaries'], $rawSummary['zipEntryCommentSummaries']);
+        $t->same(1, $summary['zipEntryCommentDirectoryRootSummaryCount']);
+        $t->same(['word/'], $summary['zipEntryCommentDirectoryRoots']);
+        $t->same($expectedEntryCommentDirectoryRootSummaries, $summary['zipEntryCommentDirectoryRootSummaries']);
+        $t->same($summary['zipEntryCommentDirectoryRootSummaries'], $rawSummary['zipEntryCommentDirectoryRootSummaries']);
+        $t->same(1, $summary['zipEntryCommentPackagePartExtensionSummaryCount']);
+        $t->same(['xml'], $summary['zipEntryCommentPackagePartExtensionKeys']);
+        $t->same($expectedEntryCommentExtensionSummaries, $summary['zipEntryCommentPackagePartExtensionSummaries']);
+        $t->same($summary['zipEntryCommentPackagePartExtensionSummaries'], $rawSummary['zipEntryCommentPackagePartExtensionSummaries']);
         $t->same(true, $summary['zipSourceRecordReviewFieldByteCountsAreExact']);
         $t->same(true, $rawSummary['zipSourceRecordReviewFieldByteCountsAreExact']);
         $t->same($expectedLocalReviewFieldBytes, $summary['zipSourceRecordLocalHeaderReviewFieldBytes']);
