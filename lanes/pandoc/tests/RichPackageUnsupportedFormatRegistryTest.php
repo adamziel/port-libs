@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\RichPackageUnsupportedFormatRegistry;
+use PortLibs\Pandoc\PandocFormatRegistry;
 
 return [
     'reports rich package format denominators and direct support boundaries' => static function (TestRunner $t): void {
@@ -33,6 +34,56 @@ return [
         $t->same(0, count($report['unsupportedDiagnostics']['input']));
         $t->same(9, count($report['unsupportedDiagnostics']['output']));
         $t->same(8, count($report['extensionDiagnostics']));
+    },
+
+    'summarizes rich package unsupported format review buckets' => static function (TestRunner $t): void {
+        $summary = RichPackageUnsupportedFormatRegistry::unsupportedFormatSummary();
+        $packet = RichPackageUnsupportedFormatRegistry::reviewPacket();
+
+        $t->same($summary, PandocFormatRegistry::richPackageUnsupportedFormatSummary());
+        $t->same($packet, PandocFormatRegistry::richPackageFormatReviewPacket());
+        $t->same('0640c4c9859aa5a3ede082c190fcd5883c24ac83', $summary['upstreamCommit']);
+        $t->same(true, $summary['externalToolFree']);
+        $t->same(['docx', 'odt', 'epub', 'ipynb', 'pptx'], $summary['directionBuckets']['input-output']);
+        $t->same(['xlsx'], $summary['directionBuckets']['input-only']);
+        $t->same(['opendocument', 'epub2', 'epub3', 'chunkedhtml', 'icml', 'pdf'], $summary['directionBuckets']['output-only']);
+        $t->same(['epub'], $summary['supportBuckets']['boundedNativeInputOutput']);
+        $t->same(['xlsx'], $summary['supportBuckets']['boundedNativeInputOnly']);
+        $t->same(['epub3'], $summary['supportBuckets']['boundedNativeOutputOnly']);
+        $t->same(['docx', 'odt', 'ipynb', 'pptx'], $summary['supportBuckets']['nativeInputUnsupportedOutput']);
+        $t->same([], $summary['supportBuckets']['unsupportedInputNativeOutput']);
+        $t->same([], $summary['supportBuckets']['unsupportedInputOnly']);
+        $t->same(['opendocument', 'epub2', 'chunkedhtml', 'icml', 'pdf'], $summary['supportBuckets']['unsupportedOutputOnly']);
+        $t->same([], $summary['supportBuckets']['unsupportedInputOutput']);
+        $t->same([], $summary['unsupportedFormats']['input']);
+        $t->same([
+            'docx',
+            'odt',
+            'opendocument',
+            'epub2',
+            'ipynb',
+            'pptx',
+            'chunkedhtml',
+            'icml',
+            'pdf',
+        ], $summary['unsupportedFormats']['output']);
+        $t->same([], $summary['noNativeReaderFormats']);
+        $t->same($summary['unsupportedFormats']['output'], $summary['noNativeWriterFormats']);
+        $t->same(9, $summary['unsupportedDiagnosticCounts']['writer-component-missing']);
+        $t->same(6, $summary['unsupportedDiagnosticCounts']['package-assembly-not-implemented']);
+        $t->same(1, $summary['unsupportedDiagnosticCounts']['external-notebook-tooling-disallowed']);
+        $t->same(1, $summary['unsupportedDiagnosticCounts']['renderer-engine-disallowed']);
+        $t->same(5, $summary['unsupportedGateCounts']['shared-zip-package-core']);
+        $t->same(['doc', 'ods', 'odp', 'zip'], $summary['unsupportedSourceAliasExtensions']);
+        $t->same(['.docx', '.epub', '.fodt', '.icml', '.ipynb', '.odt', '.pdf', '.pptx'], $summary['unsupportedExtensionNames']);
+
+        $t->same('rich-package-unsupported-format', $packet['registry']);
+        $t->same(true, $packet['externalToolFree']);
+        $t->same($summary, $packet['summary']);
+        $t->same([], $packet['unsupportedDiagnostics']['input']);
+        $t->same(9, count($packet['unsupportedDiagnostics']['output']));
+        $t->same(4, count($packet['sourceAliasDiagnostics']));
+        $t->same(8, count($packet['extensionDiagnostics']));
     },
 
     'keeps bounded native rich package readers distinct from unsupported writers' => static function (TestRunner $t): void {

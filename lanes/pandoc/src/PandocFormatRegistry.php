@@ -648,6 +648,22 @@ final class PandocFormatRegistry
         ];
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function richPackageUnsupportedFormatSummary(): array
+    {
+        return RichPackageUnsupportedFormatRegistry::unsupportedFormatSummary();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function richPackageFormatReviewPacket(): array
+    {
+        return RichPackageUnsupportedFormatRegistry::reviewPacket();
+    }
+
     public static function inferTabularDataFormatFromExtension(string $extension): ?string
     {
         $extension = strtolower(ltrim(trim($extension), '.'));

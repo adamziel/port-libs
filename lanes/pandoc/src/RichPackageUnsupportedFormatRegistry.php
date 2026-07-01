@@ -395,6 +395,119 @@ final class RichPackageUnsupportedFormatRegistry
                 'input' => self::unsupportedDiagnostics('input'),
                 'output' => self::unsupportedDiagnostics('output'),
             ],
+            'unsupportedSummary' => self::unsupportedFormatSummary(),
+            'sourceAliasDiagnostics' => self::sourceAliasDiagnostics(),
+            'extensionDiagnostics' => self::extensionDiagnostics(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function unsupportedFormatSummary(): array
+    {
+        $directionBuckets = [
+            'input-output' => [],
+            'input-only' => [],
+            'output-only' => [],
+        ];
+        $supportBuckets = [
+            'boundedNativeInputOutput' => [],
+            'boundedNativeInputOnly' => [],
+            'boundedNativeOutputOnly' => [],
+            'nativeInputUnsupportedOutput' => [],
+            'unsupportedInputNativeOutput' => [],
+            'unsupportedInputOnly' => [],
+            'unsupportedOutputOnly' => [],
+            'unsupportedInputOutput' => [],
+        ];
+        $unsupportedFormats = [
+            'input' => [],
+            'output' => [],
+            'any' => [],
+        ];
+        $unsupportedDiagnosticCounts = [];
+        $unsupportedGateCounts = [];
+
+        foreach (array_keys(self::FORMAT_ROWS) as $format) {
+            $input = self::directionRow($format, 'input');
+            $output = self::directionRow($format, 'output');
+            $hasInput = $input !== null && $input['upstream'] === true;
+            $hasOutput = $output !== null && $output['upstream'] === true;
+            $inputSupported = $hasInput && $input['countsAsDirectSupport'] === true;
+            $outputSupported = $hasOutput && $output['countsAsDirectSupport'] === true;
+            $inputUnsupported = $hasInput && !$inputSupported;
+            $outputUnsupported = $hasOutput && !$outputSupported;
+
+            $directionBuckets[self::formatDirection($hasInput, $hasOutput)][] = $format;
+
+            if ($inputUnsupported) {
+                $unsupportedFormats['input'][] = $format;
+            }
+            if ($outputUnsupported) {
+                $unsupportedFormats['output'][] = $format;
+            }
+            if ($inputUnsupported || $outputUnsupported) {
+                $unsupportedFormats['any'][] = $format;
+            }
+
+            if ($hasInput && $hasOutput) {
+                if ($inputSupported && $outputSupported) {
+                    $supportBuckets['boundedNativeInputOutput'][] = $format;
+                } elseif ($inputSupported && $outputUnsupported) {
+                    $supportBuckets['nativeInputUnsupportedOutput'][] = $format;
+                } elseif ($inputUnsupported && $outputSupported) {
+                    $supportBuckets['unsupportedInputNativeOutput'][] = $format;
+                } else {
+                    $supportBuckets['unsupportedInputOutput'][] = $format;
+                }
+            } elseif ($hasInput) {
+                $supportBuckets[$inputSupported ? 'boundedNativeInputOnly' : 'unsupportedInputOnly'][] = $format;
+            } elseif ($hasOutput) {
+                $supportBuckets[$outputSupported ? 'boundedNativeOutputOnly' : 'unsupportedOutputOnly'][] = $format;
+            }
+        }
+
+        foreach (self::unsupportedDiagnostics() as $diagnostic) {
+            foreach ($diagnostic['diagnostics'] as $code) {
+                $unsupportedDiagnosticCounts[$code] = ($unsupportedDiagnosticCounts[$code] ?? 0) + 1;
+            }
+            foreach ($diagnostic['gates'] as $gate) {
+                $unsupportedGateCounts[$gate] = ($unsupportedGateCounts[$gate] ?? 0) + 1;
+            }
+        }
+        ksort($unsupportedDiagnosticCounts);
+        ksort($unsupportedGateCounts);
+
+        return [
+            'upstreamCommit' => self::UPSTREAM_COMMIT,
+            'externalToolFree' => true,
+            'directionBuckets' => $directionBuckets,
+            'supportBuckets' => $supportBuckets,
+            'unsupportedFormats' => $unsupportedFormats,
+            'noNativeReaderFormats' => $unsupportedFormats['input'],
+            'noNativeWriterFormats' => $unsupportedFormats['output'],
+            'unsupportedDiagnosticCounts' => $unsupportedDiagnosticCounts,
+            'unsupportedGateCounts' => $unsupportedGateCounts,
+            'unsupportedSourceAliasExtensions' => array_column(self::sourceAliasDiagnostics(), 'extension'),
+            'unsupportedExtensionNames' => array_column(self::extensionDiagnostics(), 'extension'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function reviewPacket(): array
+    {
+        return [
+            'registry' => 'rich-package-unsupported-format',
+            'upstreamCommit' => self::UPSTREAM_COMMIT,
+            'externalToolFree' => true,
+            'summary' => self::unsupportedFormatSummary(),
+            'unsupportedDiagnostics' => [
+                'input' => self::unsupportedDiagnostics('input'),
+                'output' => self::unsupportedDiagnostics('output'),
+            ],
             'sourceAliasDiagnostics' => self::sourceAliasDiagnostics(),
             'extensionDiagnostics' => self::extensionDiagnostics(),
         ];
@@ -648,6 +761,22 @@ final class RichPackageUnsupportedFormatRegistry
     }
 
     /**
+     * @return array{
+     *     upstream:bool,
+     *     state:string,
+     *     code:string,
+     *     countsAsDirectSupport:bool,
+     *     component:?string,
+     *     gates:list<string>,
+     *     diagnostics:list<string>
+     * }|null
+     */
+    private static function directionRow(string $format, string $direction): ?array
+    {
+        return self::FORMAT_ROWS[$format]['directions'][$direction] ?? null;
+    }
+
+    /**
      * @param list<array<string, mixed>> $statuses
      * @return array{supported:int, unsupported:int, total:int}
      */
@@ -666,6 +795,19 @@ final class RichPackageUnsupportedFormatRegistry
             'unsupported' => count($statuses) - $supported,
             'total' => count($statuses),
         ];
+    }
+
+    private static function formatDirection(bool $hasInput, bool $hasOutput): string
+    {
+        if ($hasInput && $hasOutput) {
+            return 'input-output';
+        }
+
+        if ($hasInput) {
+            return 'input-only';
+        }
+
+        return 'output-only';
     }
 
     private static function normalizeFormat(string $format): string
