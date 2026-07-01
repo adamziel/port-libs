@@ -142,6 +142,50 @@ $upstreamStartNumberingAtNative = <<<'NATIVE'
  [[Plain [Str "Third"]]]]
 NATIVE;
 
+$upstreamListsNative = <<<'NATIVE'
+[Header 1 ("lists",[],[]) [Str "Lists"]
+,BulletList
+ [[Para [Str "Bulleted",Space,Str "bulleted",Space,Str "lists."]]
+ ,[Para [Str "And",Space,Str "go",Space,Str "to",Space,Str "arbitrary",Space,Str "depth."]
+  ,BulletList
+   [[Para [Str "Like",Space,Str "this"]
+    ,BulletList
+     [[Plain [Str "Or",Space,Str "this"]]]]
+   ,[Para [Str "Back",Space,Str "to",Space,Str "here."]]]]]
+,Header 1 ("lists-continued",[],[]) [Str "Lists",Space,Str "(continued)"]
+,Para [Str "Lists",Space,Str "can",Space,Str "also",Space,Str "be",Space,Str "numbered:"]
+,OrderedList (1,Decimal,Period)
+ [[Para [Str "Tomatoes"]]
+ ,[Para [Str "Potatoes",Space,Str "of",Space,Str "various",Space,Str "sorts"]
+  ,OrderedList (1,LowerAlpha,Period)
+   [[Para [Str "sweet",Space,Str "potatoes"]]
+   ,[Para [Str "russet",Space,Str "potates"]]]]
+ ,[Para [Str "Tornadoes,",Space,Str "for",Space,Str "the",Space,Str "rhyme."]]]]
+NATIVE;
+
+$upstreamListLevelNative = <<<'NATIVE'
+[Header 1 ("slide",[],[]) [Str "Slide"]
+,BulletList
+ [[Para [Str "Top-level"]
+  ,Para [Str "With",Space,Str "continuation",Space,Str "paragraph"]]
+ ,[Para [Str "Then:"]
+  ,BulletList
+   [[Plain [Str "nested"]]
+   ,[Plain [Str "list"]]
+   ,[Plain [Str "items"]]]]]
+,Header 1 ("slide-1",[],[]) [Str "Slide"]
+,Para [Str "Paragraph."]
+,OrderedList (1,Decimal,Period)
+ [[Para [Str "Top-level"]
+  ,Para [Str "Continuation"]
+  ,OrderedList (1,Decimal,Period)
+   [[Para [Str "Sub-list"]
+    ,Para [Str "With",Space,Str "Continuation"]]
+   ,[Para [Str "(still",Space,Str "sub-list)"]]]]
+ ,[Para [Str "(back",Space,Str "to",Space,Str "top-level)"]]]
+,Para [Str "Paragraph."]]
+NATIVE;
+
 $upstreamDocumentPropertiesNative = <<<'NATIVE'
 Pandoc (Meta {unMeta = fromList [("Company",MetaInlines [Str "My",Space,Str "Company"]),("Second Custom Property",MetaInlines [Str "Second",Space,Str "custom",Space,Str "property",Space,Str "value"]),("abstract",MetaBlocks [Plain [Str "Quite",Space,Str "a",Space,Str "long",Space,Str "description",SoftBreak,Str "spanning",Space,Str "several",Space,Str "lines"]]),("author",MetaList [MetaInlines [Str "A.",Space,Str "M."]]),("category",MetaInlines [Str "My",Space,Str "Category"]),("custom1",MetaInlines [Str "First",Space,Str "custom",Space,Str "property",Space,Str "value"]),("custom3",MetaInlines [Str "Escaping",Space,Str "amp",Space,Str "&",Space,Str "."]),("custom4",MetaInlines [Str "Escaping",Space,Str "LT,GT",Space,Str "<",Space,Str "asdf",Space,Str ">",Space,Str "<"]),("custom5",MetaInlines [Str "Escaping",Space,Str "html",Space,RawInline (Format "html") "<i>",Str "asdf",RawInline (Format "html") "</i>"]),("custom6",MetaInlines [Str "Escaping",Space,Emph [Str "MD"],Space,Str "\225",Space,Str "a"]),("custom9",MetaInlines [Str "Extended",Space,Str "chars:",Space,Str "\8364",Space,Str "\225",Space,Str "\233",Space,Str "\237",Space,Str "\243",Space,Str "\250",Space,Str "$"]),("description",MetaBlocks [Para [Str "Long",Space,Str "description",Space,Str "spanning",SoftBreak,Str "several",Space,Str "lines."],Plain [Str "This",Space,Str "is",Space,Str "\225",Space,Str "second",Space,RawInline (Format "html") "<i>",Str "line",RawInline (Format "html") "</i>",Str "."]]),("keywords",MetaList [MetaInlines [Str "keyword",Space,Str "1"],MetaInlines [Str "keyword",Space,Str "2"]]),("lang",MetaInlines [Str "en-US"]),("nested-custom",MetaList [MetaMap (fromList [("custom 7",MetaInlines [Str "Nested",Space,Str "Custom",Space,Str "value",Space,Str "7"])]),MetaMap (fromList [("custom 8",MetaInlines [Str "Nested",Space,Str "Custom",Space,Str "value",Space,Str "8"])])]),("subject",MetaInlines [Str "This",Space,Str "is",Space,Str "the",Space,Str "subject"]),("subtitle",MetaInlines [Str "This",Space,Str "is",Space,Str "a",Space,Str "subtitle"]),("title",MetaInlines [Str "Testing",Space,Str "custom",Space,Str "properties"])]})
 [Para [Str "Testing",Space,Str "document",Space,Str "properties"]]
@@ -514,6 +558,51 @@ return [
         $t->contains('<a:t>This second slide has a third example in (3).</a:t>', $slide2);
         $t->contains('<a:buAutoNum type="arabicParenBoth" startAt="3"/>', $slide2);
         $t->true(!str_contains($slide2, 'arabicPeriod'), 'Started example list must keep two-parentheses numbering');
+        $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream list fixture nested ordered list margins' => static function (TestRunner $t) use ($upstreamListsNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamListsNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected first lists slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected second lists slide');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'Lists fixture should produce exactly two slides');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Bulleted bulleted lists.</a:t>', $slide1);
+        $t->contains('<a:pPr lvl="1"><a:buChar char="&#8226;"/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>Like this</a:t></a:r>', $slide1);
+        $t->contains('<a:pPr lvl="2"><a:buChar char="&#8226;"/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>Or this</a:t></a:r>', $slide1);
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $t->contains('<a:t>Lists can also be numbered:</a:t>', $slide2);
+        $t->same(3, substr_count($slide2, '<a:pPr lvl="0" indent="-342900" marL="342900"><a:buAutoNum type="arabicPeriod"/></a:pPr>'));
+        $t->same(2, substr_count($slide2, '<a:pPr lvl="1" indent="-342900" marL="685800"><a:buAutoNum type="alphaLcPeriod"/></a:pPr>'));
+        $t->true(!str_contains($slide2, 'startAt="1"'), 'Default ordered-list starts should not be forced into list XML');
+        $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream list-level fixture continuation paragraphs' => static function (TestRunner $t) use ($upstreamListLevelNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamListLevelNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected first list-level slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected second list-level slide');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'List-level fixture should produce exactly two slides');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Top-level</a:t>', $slide1);
+        $t->contains('<a:pPr lvl="1" indent="0" marL="342900"><a:buNone/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>With continuation paragraph</a:t></a:r>', $slide1);
+        $t->contains('<a:pPr lvl="1"><a:buChar char="&#8226;"/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>nested</a:t></a:r>', $slide1);
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $t->contains('<a:pPr lvl="0" indent="-342900" marL="342900"><a:buAutoNum type="arabicPeriod"/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>Top-level</a:t></a:r>', $slide2);
+        $t->contains('<a:pPr lvl="1" indent="0" marL="342900"><a:buNone/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>Continuation</a:t></a:r>', $slide2);
+        $t->contains('<a:pPr lvl="1" indent="-342900" marL="685800"><a:buAutoNum type="arabicPeriod"/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>Sub-list</a:t></a:r>', $slide2);
+        $t->contains('<a:pPr lvl="2" indent="0" marL="685800"><a:buNone/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>With Continuation</a:t></a:r>', $slide2);
+        $t->true(!str_contains($slide2, 'startAt="1"'), 'Default nested ordered-list starts should remain implicit');
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
     },
 
