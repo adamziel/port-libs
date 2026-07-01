@@ -695,6 +695,18 @@ final class PdfEngineHandoff
             if ($typstBoundarySummary['fontAccessControlCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-font-access-controls:' . $typstBoundarySummary['fontAccessControlCount'];
             }
+            if (($typstBoundarySummary['certificateBoundaryEntryCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-certificates:' . $typstBoundarySummary['certificateBoundaryEntryCount'];
+            }
+            if (($typstBoundarySummary['unsafeCertificateCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-unsafe-certificates:' . $typstBoundarySummary['unsafeCertificateCount'];
+            }
+            if (($typstBoundarySummary['certificateIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-certificate-issues:' . $typstBoundarySummary['certificateIssueCount'];
+            }
+            if (($typstBoundarySummary['certificateEnvironmentShadowed'] ?? false) === true) {
+                $diagnostics[] = 'typst-boundary-summary-certificate-environment-shadowed';
+            }
             if (($typstBoundarySummary['openOutputSideEffectCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-open-output:' . $typstBoundarySummary['openOutputSideEffectCount'];
             }
@@ -8841,7 +8853,7 @@ final class PdfEngineHandoff
         $certificateEnvironment = is_array($provenance['certificateEnvironment'] ?? null) ? $provenance['certificateEnvironment'] : [];
         $certificateEntries = array_values(array_filter(
             array_merge($certificates, [$certificateEnvironment]),
-            static fn (mixed $entry): bool => is_array($entry)
+            static fn (mixed $entry): bool => is_array($entry) && $entry !== []
         ));
         $cliCertificateCount = 0;
         $environmentCertificateCount = 0;
@@ -10092,6 +10104,64 @@ final class PdfEngineHandoff
         $shadowedEnvironmentVariables = array_values(array_unique($shadowedEnvironmentVariables));
         sort($shadowedEnvironmentVariables);
 
+        $certificates = is_array($provenance['certificates'] ?? null) ? $provenance['certificates'] : [];
+        $certificateEnvironment = is_array($provenance['certificateEnvironment'] ?? null) ? $provenance['certificateEnvironment'] : [];
+        $certificateEntries = array_values(array_filter(
+            array_merge($certificates, [$certificateEnvironment]),
+            static fn (mixed $entry): bool => is_array($entry) && $entry !== []
+        ));
+        $computedSafeCertificateCount = 0;
+        $computedUnsafeCertificateCount = 0;
+        $computedCertificateKindCounts = [
+            'relative' => 0,
+            'workspace' => 0,
+            'absolute' => 0,
+            'uri' => 0,
+            'invalid' => 0,
+        ];
+        $cliCertificateCount = 0;
+        $environmentCertificateCount = 0;
+        $certificateEnvironmentVariables = [];
+        $certificateIssues = [];
+        foreach ($certificateEntries as $certificateEntry) {
+            $kind = is_string($certificateEntry['kind'] ?? null) ? $certificateEntry['kind'] : 'invalid';
+            if (!array_key_exists($kind, $computedCertificateKindCounts)) {
+                $kind = 'invalid';
+            }
+            ++$computedCertificateKindCounts[$kind];
+
+            if (($certificateEntry['safe'] ?? false) === true) {
+                ++$computedSafeCertificateCount;
+            } else {
+                ++$computedUnsafeCertificateCount;
+            }
+
+            if (($certificateEntry['source'] ?? null) === 'environment') {
+                ++$environmentCertificateCount;
+                if (is_string($certificateEntry['environmentVariable'] ?? null) && $certificateEntry['environmentVariable'] !== '') {
+                    $certificateEnvironmentVariables[] = $certificateEntry['environmentVariable'];
+                }
+            } else {
+                ++$cliCertificateCount;
+            }
+
+            foreach (is_array($certificateEntry['issues'] ?? null) ? $certificateEntry['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $certificateIssues[] = $issue;
+                }
+            }
+        }
+        $certificatePolicy = is_array($provenance['certificatePolicy'] ?? null) ? $provenance['certificatePolicy'] : [];
+        foreach (is_array($certificatePolicy['issues'] ?? null) ? $certificatePolicy['issues'] : [] as $issue) {
+            if (is_string($issue) && $issue !== '') {
+                $certificateIssues[] = $issue;
+            }
+        }
+        $certificateIssues = array_values(array_unique($certificateIssues));
+        sort($certificateIssues);
+        $certificateEnvironmentVariables = array_values(array_unique($certificateEnvironmentVariables));
+        sort($certificateEnvironmentVariables);
+
         $issues = array_values(array_filter(
             is_array($provenance['issues'] ?? null) ? $provenance['issues'] : [],
             static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
@@ -10109,7 +10179,23 @@ final class PdfEngineHandoff
             'stdoutPathEntryCount' => $kindCounts['stdout'],
             'invalidPathEntryCount' => $kindCounts['invalid'],
             'fontPathCount' => is_array($provenance['fontPaths'] ?? null) ? count($provenance['fontPaths']) : 0,
-            'certificateCount' => is_array($provenance['certificates'] ?? null) ? count($provenance['certificates']) : 0,
+            'certificateCount' => count($certificates),
+            'certificateBoundaryEntryCount' => is_int($certificatePolicy['certificateCount'] ?? null) ? $certificatePolicy['certificateCount'] : count($certificateEntries),
+            'safeCertificateCount' => is_int($certificatePolicy['safeCertificateCount'] ?? null) ? $certificatePolicy['safeCertificateCount'] : $computedSafeCertificateCount,
+            'unsafeCertificateCount' => is_int($certificatePolicy['unsafeCertificateCount'] ?? null) ? $certificatePolicy['unsafeCertificateCount'] : $computedUnsafeCertificateCount,
+            'relativeCertificateCount' => is_int($certificatePolicy['relativeCertificateCount'] ?? null) ? $certificatePolicy['relativeCertificateCount'] : $computedCertificateKindCounts['relative'],
+            'workspaceCertificateCount' => is_int($certificatePolicy['workspaceCertificateCount'] ?? null) ? $certificatePolicy['workspaceCertificateCount'] : $computedCertificateKindCounts['workspace'],
+            'absoluteCertificateCount' => is_int($certificatePolicy['absoluteCertificateCount'] ?? null) ? $certificatePolicy['absoluteCertificateCount'] : $computedCertificateKindCounts['absolute'],
+            'uriCertificateCount' => is_int($certificatePolicy['uriCertificateCount'] ?? null) ? $certificatePolicy['uriCertificateCount'] : $computedCertificateKindCounts['uri'],
+            'invalidCertificateCount' => is_int($certificatePolicy['invalidCertificateCount'] ?? null) ? $certificatePolicy['invalidCertificateCount'] : $computedCertificateKindCounts['invalid'],
+            'cliCertificateCount' => $cliCertificateCount,
+            'environmentCertificateCount' => $environmentCertificateCount,
+            'certificateEnvironmentVariableCount' => count($certificateEnvironmentVariables),
+            'certificateEnvironmentVariables' => $certificateEnvironmentVariables,
+            'certificateEnvironmentPresent' => $environmentCertificateCount > 0,
+            'certificateEnvironmentShadowed' => in_array('certificate-environment-shadowed', $certificateIssues, true),
+            'certificateIssueCount' => count($certificateIssues),
+            'certificateIssues' => $certificateIssues,
             'packageStorageEntryCount' => is_array($provenance['packageStoragePolicy'] ?? null) && is_int($provenance['packageStoragePolicy']['storageEntryCount'] ?? null)
                 ? $provenance['packageStoragePolicy']['storageEntryCount']
                 : (int) is_array($provenance['packagePath'] ?? null) + (int) is_array($provenance['packageCache'] ?? null),
