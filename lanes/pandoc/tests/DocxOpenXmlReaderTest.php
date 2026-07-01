@@ -68,6 +68,80 @@ return [
         $t->same('Reviewer', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same(2, $table->children[0]->children[0]->children[1]->attr('colspan'));
     },
+    'summarizes docx body revision text provenance without accepting deleted text' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            <<<'XML'
+    <w:p>
+      <w:r><w:t xml:space="preserve">Visible </w:t></w:r>
+      <w:ins w:id="1" w:author="Reviewer" w:date="2026-07-01T10:00:00Z"><w:r><w:t>accepted</w:t></w:r></w:ins>
+      <w:del w:id="2" w:author="Reviewer" w:date="2026-07-01T10:05:00Z"><w:r><w:delText>discarded</w:delText></w:r></w:del>
+      <w:moveFrom w:id="3" w:author="Editor" w:date="2026-07-01T10:10:00Z"><w:r><w:t>old location</w:t></w:r></w:moveFrom>
+      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+      <w:moveTo w:id="4" w:author="Editor" w:date="2026-07-01T10:15:00Z"><w:r><w:t>new location</w:t></w:r></w:moveTo>
+    </w:p>
+  </w:body>
+XML,
+            $parts['word/document.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $revisions = $docx['documentRevisions'];
+        $summary = $docx['packageProvenance']['summary'];
+        $revisionParagraph = $document->children[6];
+        $totalRevisionBytes = strlen('accepted') + strlen('discarded') + strlen('old location') + strlen('new location');
+
+        $t->same('paragraph', $revisionParagraph->type);
+        $t->same('Visible accepted new location', $revisionParagraph->attr('text'));
+        $t->true(!str_contains($revisionParagraph->attr('text'), 'discarded'), 'deleted body text must not be accepted into the paragraph');
+        $t->true(!str_contains($revisionParagraph->attr('text'), 'old location'), 'moved-from body text must not be accepted into the paragraph');
+
+        $t->same('word/document.xml', $revisions['partName']);
+        $t->same(4, $revisions['count']);
+        $t->same(2, $revisions['visibleCount']);
+        $t->same(2, $revisions['reviewOnlyCount']);
+        $t->same(['ins' => 1, 'del' => 1, 'moveFrom' => 1, 'moveTo' => 1], $revisions['kindCounts']);
+        $t->same(['Reviewer', 'Editor'], $revisions['authors']);
+        $t->same(2, $revisions['authorCount']);
+        $t->same(4, $revisions['datedCount']);
+        $t->same(4, $revisions['textRunCount']);
+        $t->same($totalRevisionBytes, $revisions['textBytes']);
+        $t->same(0, $revisions['emptyTextCount']);
+        $t->same('body-revision-text-metadata-only', $revisions['reviewPolicy']);
+
+        $t->same('ins', $revisions['items'][0]['kind']);
+        $t->same(true, $revisions['items'][0]['visibleInBodyText']);
+        $t->same('body-revision-visible', $revisions['items'][0]['reviewPolicy']);
+        $t->same(hash('sha256', 'accepted'), $revisions['items'][0]['textSha256']);
+        $t->same(['t'], $revisions['items'][0]['textElementNames']);
+
+        $t->same('del', $revisions['items'][1]['kind']);
+        $t->same(false, $revisions['items'][1]['visibleInBodyText']);
+        $t->same('body-revision-text-metadata-only', $revisions['items'][1]['reviewPolicy']);
+        $t->same(strlen('discarded'), $revisions['items'][1]['textBytes']);
+        $t->same(hash('sha256', 'discarded'), $revisions['items'][1]['textSha256']);
+        $t->true(!isset($revisions['items'][1]['text']), 'deleted text must stay metadata-only');
+        $t->same(['delText'], $revisions['items'][1]['textElementNames']);
+
+        $t->same('moveFrom', $revisions['items'][2]['kind']);
+        $t->same(false, $revisions['items'][2]['visibleInBodyText']);
+        $t->same(hash('sha256', 'old location'), $revisions['items'][2]['textSha256']);
+        $t->true(!isset($revisions['items'][2]['text']), 'moved-from text must stay metadata-only');
+
+        $t->same('moveTo', $revisions['items'][3]['kind']);
+        $t->same(true, $revisions['items'][3]['visibleInBodyText']);
+        $t->same(hash('sha256', 'new location'), $revisions['items'][3]['textSha256']);
+
+        $t->same(4, $summary['documentRevisionCount']);
+        $t->same(2, $summary['documentRevisionVisibleCount']);
+        $t->same(2, $summary['documentRevisionReviewOnlyCount']);
+        $t->same(['ins' => 1, 'del' => 1, 'moveFrom' => 1, 'moveTo' => 1], $summary['documentRevisionKindCounts']);
+        $t->same(['Reviewer', 'Editor'], $summary['documentRevisionAuthors']);
+        $t->same($totalRevisionBytes, $summary['documentRevisionTextBytes']);
+        $t->same('body-revision-text-metadata-only', $summary['documentRevisionReviewPolicy']);
+    },
     'normalizes docx drawing image target suffixes while preserving package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(

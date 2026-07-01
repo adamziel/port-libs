@@ -1306,6 +1306,19 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectIssueCount'] = $vbaProjects['issueCount'];
         $packageProvenance['summary']['vbaProjectIssueCodes'] = $vbaProjects['issueCodes'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
+        $documentRevisions = $this->readDocumentRevisionSummary($parts[$documentPart], $documentPart);
+        $packageProvenance['documentRevisions'] = $documentRevisions;
+        $packageProvenance['summary']['documentRevisionCount'] = $documentRevisions['count'];
+        $packageProvenance['summary']['documentRevisionVisibleCount'] = $documentRevisions['visibleCount'];
+        $packageProvenance['summary']['documentRevisionReviewOnlyCount'] = $documentRevisions['reviewOnlyCount'];
+        $packageProvenance['summary']['documentRevisionKindCounts'] = $documentRevisions['kindCounts'];
+        $packageProvenance['summary']['documentRevisionAuthorCount'] = $documentRevisions['authorCount'];
+        $packageProvenance['summary']['documentRevisionAuthors'] = $documentRevisions['authors'];
+        $packageProvenance['summary']['documentRevisionDatedCount'] = $documentRevisions['datedCount'];
+        $packageProvenance['summary']['documentRevisionTextRunCount'] = $documentRevisions['textRunCount'];
+        $packageProvenance['summary']['documentRevisionTextBytes'] = $documentRevisions['textBytes'];
+        $packageProvenance['summary']['documentRevisionEmptyTextCount'] = $documentRevisions['emptyTextCount'];
+        $packageProvenance['summary']['documentRevisionReviewPolicy'] = $documentRevisions['reviewPolicy'];
         $packageProvenance['styleReferences'] = $styleReferences;
         $packageProvenance['summary']['styleCount'] = $styleReferences['styleCount'];
         $packageProvenance['summary']['styleReferencedStyleCount'] = $styleReferences['referencedStyleCount'];
@@ -1376,6 +1389,7 @@ final class DocxOpenXmlReader
                 'commentsIds' => $commentsIds['summary'],
                 'peoplePart' => $peoplePart['partName'],
                 'people' => $people,
+                'documentRevisions' => $documentRevisions,
                 'headers' => $headers,
                 'footers' => $footers,
                 'sections' => $sectionProperties,
@@ -31490,6 +31504,134 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function readDocumentRevisionSummary(string $xml, string $partName): array
+    {
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $items = [];
+        $authors = [];
+        $kindCounts = ['ins' => 0, 'del' => 0, 'moveFrom' => 0, 'moveTo' => 0];
+        $visibleCount = 0;
+        $reviewOnlyCount = 0;
+        $datedCount = 0;
+        $textRunCount = 0;
+        $textBytes = 0;
+        $emptyTextCount = 0;
+
+        foreach ($this->elements($xpath, '/w:document/w:body//w:ins | /w:document/w:body//w:del | /w:document/w:body//w:moveFrom | /w:document/w:body//w:moveTo', $dom) as $revision) {
+            $kind = $revision->localName;
+            if (!array_key_exists($kind, $kindCounts)) {
+                continue;
+            }
+
+            $text = $this->revisionElementText($revision);
+            $author = $this->emptyStringToNull($revision->getAttributeNS(self::NS_W, 'author'));
+            $date = $this->emptyStringToNull($revision->getAttributeNS(self::NS_W, 'date'));
+            $visible = in_array($kind, ['ins', 'moveTo'], true);
+            $textElementNames = $this->revisionTextElementNames($revision);
+            $itemTextRunCount = count($textElementNames);
+            $itemTextBytes = strlen($text);
+
+            $kindCounts[$kind]++;
+            $visible ? $visibleCount++ : $reviewOnlyCount++;
+            $textRunCount += $itemTextRunCount;
+            $textBytes += $itemTextBytes;
+            if ($text === '') {
+                $emptyTextCount++;
+            }
+            if ($author !== null) {
+                $this->appendUniqueString($authors, $author);
+            }
+            if ($date !== null) {
+                $datedCount++;
+            }
+
+            $items[] = [
+                'index' => count($items),
+                'kind' => $kind,
+                'id' => $this->emptyStringToNull($revision->getAttributeNS(self::NS_W, 'id')),
+                'author' => $author,
+                'date' => $date,
+                'visibleInBodyText' => $visible,
+                'reviewPolicy' => $visible ? 'body-revision-visible' : 'body-revision-text-metadata-only',
+                'textRunCount' => $itemTextRunCount,
+                'textElementNames' => $textElementNames,
+                'textBytes' => $itemTextBytes,
+                'textSha256' => hash('sha256', $text),
+            ];
+        }
+
+        return [
+            'partName' => $partName,
+            'count' => count($items),
+            'visibleCount' => $visibleCount,
+            'reviewOnlyCount' => $reviewOnlyCount,
+            'kindCounts' => $kindCounts,
+            'authorCount' => count($authors),
+            'authors' => $authors,
+            'datedCount' => $datedCount,
+            'textRunCount' => $textRunCount,
+            'textBytes' => $textBytes,
+            'emptyTextCount' => $emptyTextCount,
+            'items' => $items,
+            'reviewPolicy' => 'body-revision-text-metadata-only',
+        ];
+    }
+
+    private function revisionElementText(\DOMElement $revision): string
+    {
+        $text = '';
+        foreach ($revision->getElementsByTagNameNS(self::NS_W, '*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $text .= match ($element->localName) {
+                't', 'delText', 'instrText', 'delInstrText' => $element->textContent,
+                'tab' => "\t",
+                'br', 'cr' => "\n",
+                'noBreakHyphen' => "\u{2011}",
+                'softHyphen' => "\u{00AD}",
+                'sym' => $this->symbolText($element),
+                default => '',
+            };
+        }
+
+        return $text;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function revisionTextElementNames(\DOMElement $revision): array
+    {
+        $names = [];
+        foreach ($revision->getElementsByTagNameNS(self::NS_W, '*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            if (in_array($element->localName, ['t', 'delText', 'instrText', 'delInstrText', 'tab', 'br', 'cr', 'noBreakHyphen', 'softHyphen', 'sym'], true)) {
+                $names[] = $element->localName;
+            }
+        }
+
+        return $names;
+    }
+
+    private function symbolText(\DOMElement $element): string
+    {
+        $hex = $element->getAttributeNS(self::NS_W, 'char');
+        if ($hex === '' || !ctype_xdigit($hex)) {
+            return '';
+        }
+
+        return html_entity_decode('&#x' . $hex . ';', ENT_QUOTES | ENT_XML1, 'UTF-8');
+    }
+
+    /**
      * @param iterable<\DOMNode> $children
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
@@ -31685,7 +31827,7 @@ final class DocxOpenXmlReader
                 continue;
             }
 
-            if (in_array($child->localName, ['ins', 'smartTag', 'sdt'], true)) {
+            if (in_array($child->localName, ['ins', 'moveTo', 'smartTag', 'sdt'], true)) {
                 foreach ($this->elements($xpath, './/w:r', $child) as $run) {
                     array_push($inlines, ...$this->readRun($run, $xpath, $relationships, $contentTypes, $referencedNotes));
                 }
