@@ -6,6 +6,9 @@ namespace PortLibs\Pandoc;
 
 final class LatexWriter
 {
+    private const UNSUPPORTED_COMMAND_REVIEW_MAX_ITEMS = 8;
+    private const UNSUPPORTED_COMMAND_REVIEW_MAX_BYTES = 240;
+
     private int $orderedListLevel = 0;
 
     /**
@@ -56,6 +59,7 @@ final class LatexWriter
             'figure' => $this->renderFigure($node),
             'raw_tex' => $this->renderRawTexBlock($node),
             'raw_block' => $this->renderRawBlock($node),
+            'raw_html', 'native_block', 'unsupported_command' => $this->renderUnsupportedBlockCommand($node),
             default => [],
         };
     }
@@ -94,9 +98,9 @@ final class LatexWriter
      */
     private function renderRawBlock(AstNode $node): array
     {
-        $format = strtolower((string) $node->attr('format', ''));
+        $format = $this->rawNodeFormat($node);
         if ($format !== 'tex' && $format !== 'latex') {
-            return [];
+            return $this->renderUnsupportedBlockCommand($node);
         }
 
         return $this->rawBlockLines((string) $node->attr('text', ''));
@@ -720,13 +724,14 @@ final class LatexWriter
 
             if (
                 $node->children !== []
-                && !in_array($node->type, ['text', 'softbreak', 'linebreak', 'code', 'math', 'link', 'image', 'note', 'raw_tex', 'raw_tex_inline', 'raw_inline'], true)
+                && !in_array($node->type, ['text', 'space', 'softbreak', 'linebreak', 'code', 'math', 'link', 'image', 'note', 'raw_tex', 'raw_tex_inline', 'raw_inline', 'raw_html_inline', 'native_inline', 'unsupported_command'], true)
             ) {
                 array_push($tokens, ...$this->inlineTokens($node->children, $escapeText, $protectImages, $styles));
                 continue;
             }
 
             $text = match ($node->type) {
+                'space' => ' ',
                 'text' => $escapeText
                     ? $this->escapeText((string) $node->attr('text', ''))
                     : (string) $node->attr('text', ''),
@@ -738,6 +743,7 @@ final class LatexWriter
                 'note' => $this->renderNote($node),
                 'raw_tex', 'raw_tex_inline' => (string) $node->attr('tex', $node->attr('text', '')),
                 'raw_inline' => $this->renderRawInline($node),
+                'raw_html_inline', 'native_inline', 'unsupported_command' => $this->renderUnsupportedInlineCommand($node),
                 default => '',
             };
 
@@ -958,12 +964,271 @@ final class LatexWriter
 
     private function renderRawInline(AstNode $node): string
     {
-        $format = strtolower((string) $node->attr('format', ''));
+        $format = $this->rawNodeFormat($node);
         if ($format !== 'tex' && $format !== 'latex') {
-            return '';
+            return $this->renderUnsupportedInlineCommand($node);
         }
 
         return (string) $node->attr('text', '');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function renderUnsupportedBlockCommand(AstNode $node): array
+    {
+        $lines = [
+            '\begin{quote}',
+            $this->renderUnsupportedCommandLabel($node, 'block'),
+        ];
+        $payload = $this->unsupportedBlockCommandPayloadLines($node);
+        if ($payload !== []) {
+            $lines[] = '';
+            array_push($lines, ...$payload);
+        }
+        $lines[] = '\end{quote}';
+
+        return $lines;
+    }
+
+    private function renderUnsupportedInlineCommand(AstNode $node): string
+    {
+        return $this->renderUnsupportedCommandLabel($node, 'inline');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function unsupportedBlockCommandPayloadLines(AstNode $node): array
+    {
+        $lines = [];
+        $inlineChildren = [];
+        foreach ($node->children as $child) {
+            if ($this->isInlineNode($child)) {
+                $inlineChildren[] = $child;
+                continue;
+            }
+
+            $this->flushUnsupportedInlinePayload($inlineChildren, $lines);
+            $block = $this->renderBlock($child);
+            if ($block === []) {
+                continue;
+            }
+            if ($lines !== []) {
+                $lines[] = '';
+            }
+            array_push($lines, ...$block);
+        }
+
+        $this->flushUnsupportedInlinePayload($inlineChildren, $lines);
+
+        return $lines;
+    }
+
+    /**
+     * @param list<AstNode> $inlineChildren
+     * @param list<string> $lines
+     */
+    private function flushUnsupportedInlinePayload(array &$inlineChildren, array &$lines): void
+    {
+        if ($inlineChildren === []) {
+            return;
+        }
+
+        $text = $this->renderInlines($inlineChildren, true);
+        if ($text !== '') {
+            $lines[] = $text;
+        }
+        $inlineChildren = [];
+    }
+
+    private function renderUnsupportedCommandLabel(AstNode $node, string $context): string
+    {
+        $parts = $this->unsupportedCommandReviewParts($node);
+        $label = '[unsupported ' . $context . ' command: ' . $this->unsupportedCommandName($node);
+        if ($parts !== []) {
+            $label .= ' - ' . implode('; ', $parts);
+        }
+        $label .= ']';
+
+        return '\texttt{' . $this->escapeCodeText($label) . '}';
+    }
+
+    private function unsupportedCommandName(AstNode $node): string
+    {
+        if ($this->isRawCommandNode($node)) {
+            return 'raw ' . $this->rawNodeFormat($node);
+        }
+
+        foreach (['command', 'constructor'] as $attribute) {
+            $value = $node->attr($attribute, null);
+            if (is_string($value) && $value !== '') {
+                return $value;
+            }
+        }
+
+        $native = $node->attr('native', null);
+        if (is_array($native) && !array_is_list($native) && is_string($native['t'] ?? null) && $native['t'] !== '') {
+            return $native['t'];
+        }
+
+        return $node->type;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function unsupportedCommandReviewParts(AstNode $node): array
+    {
+        $parts = [];
+        foreach (['reason', 'message'] as $attribute) {
+            $value = $node->attr($attribute, null);
+            if (is_string($value) && $value !== '') {
+                $parts[] = $this->boundedUnsupportedCommandReviewText($value);
+                break;
+            }
+        }
+
+        $text = $this->unsupportedCommandSourceText($node);
+        if ($text !== null && ($parts === [] || $this->isRawCommandNode($node) || in_array($node->type, ['native_block', 'native_inline'], true))) {
+            $parts[] = $this->boundedUnsupportedCommandReviewText($text);
+        }
+
+        $arguments = $node->attr('arguments', null);
+        if (!is_array($arguments)) {
+            $arguments = $node->attr('args', null);
+        }
+        if (!is_array($arguments)) {
+            $arguments = $node->attr('nativeTextArguments', null);
+        }
+        if (is_array($arguments) && $arguments !== []) {
+            $parts[] = 'arguments: ' . $this->unsupportedCommandValueListSummary($arguments);
+        }
+
+        foreach (['options', 'attributes'] as $attribute) {
+            $value = $node->attr($attribute, null);
+            if (is_array($value) && $value !== []) {
+                $parts[] = $attribute . ': ' . $this->unsupportedCommandMapSummary($value);
+            }
+        }
+
+        return $parts;
+    }
+
+    private function unsupportedCommandSourceText(AstNode $node): ?string
+    {
+        if ($this->isRawCommandNode($node)) {
+            $text = $this->rawNodeText($node);
+
+            return $text === '' ? null : $text;
+        }
+
+        $text = $node->attr('text', null);
+
+        return is_string($text) && $text !== '' ? $text : null;
+    }
+
+    private function rawNodeFormat(AstNode $node): string
+    {
+        $default = match ($node->type) {
+            'raw_html', 'raw_html_inline' => 'html',
+            'raw_tex', 'raw_tex_inline' => 'tex',
+            'raw_markdown' => 'markdown',
+            default => '',
+        };
+        $format = $node->attr('format', $node->attr('formatName', $default));
+        $normalized = strtolower(trim((string) $format));
+
+        return $normalized === '' ? 'unknown' : $normalized;
+    }
+
+    private function rawNodeText(AstNode $node): string
+    {
+        foreach (['text', 'html', 'tex', 'markdown', 'content'] as $attribute) {
+            $value = $node->attr($attribute, null);
+            if (is_string($value)) {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function isRawCommandNode(AstNode $node): bool
+    {
+        return in_array($node->type, ['raw_html', 'raw_html_inline', 'raw_block', 'raw_inline', 'raw_markdown'], true);
+    }
+
+    /**
+     * @param array<mixed> $values
+     */
+    private function unsupportedCommandValueListSummary(array $values): string
+    {
+        $items = [];
+        foreach ($values as $value) {
+            $items[] = $this->unsupportedCommandValueSummary($value);
+            if (count($items) >= self::UNSUPPORTED_COMMAND_REVIEW_MAX_ITEMS) {
+                break;
+            }
+        }
+        if (count($values) > self::UNSUPPORTED_COMMAND_REVIEW_MAX_ITEMS) {
+            $items[] = '...';
+        }
+
+        return implode(', ', $items);
+    }
+
+    /**
+     * @param array<mixed> $values
+     */
+    private function unsupportedCommandMapSummary(array $values): string
+    {
+        $items = [];
+        foreach ($values as $key => $value) {
+            $items[] = (string) $key . '=' . $this->unsupportedCommandValueSummary($value);
+            if (count($items) >= self::UNSUPPORTED_COMMAND_REVIEW_MAX_ITEMS) {
+                break;
+            }
+        }
+        if (count($values) > self::UNSUPPORTED_COMMAND_REVIEW_MAX_ITEMS) {
+            $items[] = '...';
+        }
+
+        return implode(', ', $items);
+    }
+
+    private function unsupportedCommandValueSummary(mixed $value): string
+    {
+        if (is_string($value)) {
+            return $this->boundedUnsupportedCommandReviewText($value);
+        }
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        if ($value === null) {
+            return 'null';
+        }
+        if (is_array($value)) {
+            return array_is_list($value)
+                ? $this->unsupportedCommandValueListSummary($value)
+                : $this->unsupportedCommandMapSummary($value);
+        }
+
+        return get_debug_type($value);
+    }
+
+    private function boundedUnsupportedCommandReviewText(string $text): string
+    {
+        $text = str_replace(["\r\n", "\r", "\n", "\t"], ' ', $text);
+        $text = preg_replace('/ {2,}/', ' ', $text) ?? $text;
+        if (strlen($text) <= self::UNSUPPORTED_COMMAND_REVIEW_MAX_BYTES) {
+            return $text;
+        }
+
+        return substr($text, 0, self::UNSUPPORTED_COMMAND_REVIEW_MAX_BYTES) . '...';
     }
 
     private function renderCode(AstNode $node, bool $insideStrikeout = false): string
@@ -1143,6 +1408,7 @@ final class LatexWriter
     {
         return in_array($node->type, [
             'text',
+            'space',
             'emph',
             'strong',
             'underline',
@@ -1159,6 +1425,9 @@ final class LatexWriter
             'raw_tex',
             'raw_tex_inline',
             'raw_inline',
+            'raw_html_inline',
+            'native_inline',
+            'unsupported_command',
         ], true);
     }
 }
