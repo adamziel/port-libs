@@ -11,11 +11,28 @@ final class LatexWriter
 
     private int $orderedListLevel = 0;
 
+    /** @var array<string, bool> */
+    private array $noteUsedAnchors = [];
+
+    private int $noteNumber = 0;
+
+    /** @var list<string> */
+    private array $noteAnchorDiagnostics = [];
+
+    private bool $renderedGroupedEndnotes = false;
+
     /**
-     * @param array{topLevelDivision?: string, writerTopLevelDivision?: string, highlightMethod?: string|bool, writerHighlightMethod?: string|bool} $options
+     * @var array{topLevelDivision?: string, writerTopLevelDivision?: string, highlightMethod?: string|bool, writerHighlightMethod?: string|bool, groupEndnotes?: bool}
      */
-    public function __construct(private readonly array $options = [])
+    private readonly array $options;
+
+    /**
+     * @param array{topLevelDivision?: string, writerTopLevelDivision?: string, highlightMethod?: string|bool, writerHighlightMethod?: string|bool, groupEndnotes?: bool}|null|object $options
+     * @param array{topLevelDivision?: string, writerTopLevelDivision?: string, highlightMethod?: string|bool, writerHighlightMethod?: string|bool, groupEndnotes?: bool} $legacyOptions
+     */
+    public function __construct(mixed $options = [], array $legacyOptions = [])
     {
+        $this->options = is_array($options) ? $options : $legacyOptions;
     }
 
     public function write(AstNode $document): string
@@ -26,6 +43,10 @@ final class LatexWriter
 
         $previousOrderedListLevel = $this->orderedListLevel;
         $this->orderedListLevel = 0;
+        $this->noteUsedAnchors = [];
+        $this->noteNumber = 0;
+        $this->noteAnchorDiagnostics = [];
+        $this->renderedGroupedEndnotes = false;
 
         try {
             $blocks = [];
@@ -37,6 +58,12 @@ final class LatexWriter
             }
         } finally {
             $this->orderedListLevel = $previousOrderedListLevel;
+        }
+        if ($this->renderedGroupedEndnotes) {
+            $blocks[] = '\theendnotes';
+        }
+        if ($this->noteAnchorDiagnostics !== []) {
+            $blocks[] = implode("\n", $this->noteAnchorDiagnostics);
         }
 
         return implode("\n\n", $blocks);
@@ -907,7 +934,100 @@ final class LatexWriter
             }
         }
 
-        return '\footnote{' . implode("\n\n", $blocks) . '}';
+        [$noteAnchor, $referenceAnchor] = $this->registerNoteAnchors($node);
+        $note = '\protect\hypertarget{' . $noteAnchor . '}{}' . implode("\n\n", $blocks);
+        $command = 'footnote';
+        if ($this->usesGroupedEndnotes($node)) {
+            $command = 'endnote';
+            $this->renderedGroupedEndnotes = true;
+        }
+
+        return '\protect\hypertarget{' . $referenceAnchor . '}{}\\' . $command . '{' . $note . '}';
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private function registerNoteAnchors(AstNode $node): array
+    {
+        $this->noteNumber++;
+        $label = $this->sourceNoteLabel($node);
+        $source = $label === null ? (string) $this->noteNumber : $label;
+        $base = $this->latexAnchorName('fn-' . $source);
+        if ($base === '') {
+            $base = 'fn-' . $this->noteNumber;
+        }
+
+        $candidate = $base;
+        $suffix = 2;
+        while (isset($this->noteUsedAnchors[strtolower($candidate)])) {
+            $candidate = $base . '-' . $suffix;
+            $suffix++;
+        }
+
+        $this->noteUsedAnchors[strtolower($candidate)] = true;
+        if ($candidate !== $base) {
+            $this->noteAnchorDiagnostics[] = '% pandoc-note-anchor duplicate '
+                . 'source=' . ($label === null ? 'generated:' : 'label:') . $this->latexCommentValue($source)
+                . ' original=' . $this->latexCommentValue($base)
+                . ' resolved=' . $this->latexCommentValue($candidate);
+        }
+
+        return [$candidate, $this->noteReferenceAnchorName($candidate)];
+    }
+
+    private function noteReferenceAnchorName(string $noteAnchor): string
+    {
+        if (str_starts_with($noteAnchor, 'fn-')) {
+            return 'fnref-' . substr($noteAnchor, 3);
+        }
+
+        return 'fnref-' . $noteAnchor;
+    }
+
+    private function usesGroupedEndnotes(AstNode $node): bool
+    {
+        if (($this->options['groupEndnotes'] ?? false) !== true) {
+            return false;
+        }
+
+        foreach (['noteClass', 'sourceType', 'noteType', 'cslNoteType'] as $name) {
+            $value = $node->attr($name, null);
+            if (is_scalar($value) && strtolower(trim((string) $value)) === 'endnote') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function sourceNoteLabel(AstNode $node): ?string
+    {
+        foreach (['label', 'noteLabel', 'identifier'] as $attribute) {
+            $label = $node->attr($attribute);
+            if (!is_scalar($label)) {
+                continue;
+            }
+
+            $label = trim((string) $label);
+            if ($label !== '' && strlen($label) <= 999 && preg_match('/^[A-Za-z0-9_.:-]+$/', $label) === 1) {
+                return $label;
+            }
+        }
+
+        return null;
+    }
+
+    private function latexCommentValue(string $value): string
+    {
+        return str_replace(["\r", "\n"], [' ', ' '], $value);
+    }
+
+    private function latexAnchorName(string $identifier): string
+    {
+        $anchor = preg_replace('/[^A-Za-z0-9:._-]+/', '-', trim($identifier)) ?? '';
+
+        return trim($anchor, '-');
     }
 
     private function indentLatexBlock(string $block, string $indent): string
