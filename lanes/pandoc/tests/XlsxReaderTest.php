@@ -324,7 +324,7 @@ XML,
       <protection locked="0" hidden="1"/>
     </xf>
   </cellStyleXfs>
-  <cellXfs count="6">
+  <cellXfs count="8">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
     <xf numFmtId="164" fontId="0" fillId="2" borderId="1" applyFont="1" applyFill="1" applyNumberFormat="1">
       <alignment horizontal="right" vertical="center" wrapText="1" textRotation="45"/>
@@ -334,6 +334,8 @@ XML,
     <xf numFmtId="165" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
     <xf numFmtId="9" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
     <xf xfId="1" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1" applyProtection="1"/>
+    <xf numFmtId="11" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
+    <xf numFmtId="12" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
   </cellXfs>
   <cellStyles count="2">
     <cellStyle name="Normal" xfId="0" builtinId="0"/>
@@ -346,7 +348,7 @@ XML,
             'name' => 'xl/sharedStrings.xml',
             'data' => <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="7" uniqueCount="7">
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="9" uniqueCount="9">
   <si><t>Metric</t></si>
   <si><t>Revenue</t></si>
   <si><t>Date</t></si>
@@ -354,6 +356,8 @@ XML,
   <si><t>Share</t></si>
   <si><t>Commented</t></si>
   <si><t>Meeting</t></si>
+  <si><t>Scientific</t></si>
+  <si><t>Fraction</t></si>
 </sst>
 XML,
         ],
@@ -372,6 +376,8 @@ XML,
       <c r="E1" t="s"><v>4</v></c>
       <c r="F1" t="s"><v>5</v></c>
       <c r="G1" t="s"><v>6</v></c>
+      <c r="H1" t="s"><v>7</v></c>
+      <c r="I1" t="s"><v>8</v></c>
     </row>
     <row r="2">
       <c r="A2" t="s"><v>1</v></c>
@@ -381,6 +387,8 @@ XML,
       <c r="E2" s="4"><v>0.125</v></c>
       <c r="F2" t="inlineStr"><is><t>Has note</t></is></c>
       <c r="G2" s="5"><v>0.645833333333333</v></c>
+      <c r="H2" s="6"><v>12345.678</v></c>
+      <c r="I2" s="7"><v>2.25</v></c>
     </row>
   </sheetData>
   <drawing r:id="rDrawing"/>
@@ -888,6 +896,8 @@ return [
         $elapsedCell = $bodyCells[3];
         $percentCell = $bodyCells[4];
         $timeCell = $bodyCells[6];
+        $scientificCell = $bodyCells[7];
+        $fractionCell = $bodyCells[8];
         $findPart = static function (array $items, string $partName): array {
             foreach ($items as $item) {
                 if (($item['partName'] ?? null) === $partName) {
@@ -989,12 +999,26 @@ return [
         $t->same(true, $timeCell->attr('xlsxShrinkToFit'));
         $t->same(2, $timeCell->attr('xlsxReadingOrder'));
         $t->same(true, $timeCell->attr('xlsxJustifyLastLine'));
+        $t->same('1.23E+04', $scientificCell->attr('text'));
+        $t->same('number', $scientificCell->attr('xlsxValueType'));
+        $t->same('0.00E+00', $scientificCell->attr('xlsxNumberFormatSection'));
+        $t->same('scientific', $scientificCell->attr('xlsxNumberFormatKind'));
+        $t->same(11, $scientificCell->attr('xlsxNumberFormatId'));
+        $t->same(12345.678, $scientificCell->attr('xlsxNumericValue'));
+        $t->same('2 1/4', $fractionCell->attr('text'));
+        $t->same('number', $fractionCell->attr('xlsxValueType'));
+        $t->same('# ?/?', $fractionCell->attr('xlsxNumberFormatSection'));
+        $t->same('fraction', $fractionCell->attr('xlsxNumberFormatKind'));
+        $t->same(12, $fractionCell->attr('xlsxNumberFormatId'));
+        $t->same(2.25, $fractionCell->attr('xlsxNumericValue'));
 
         $t->contains('<td style="text-align:right"><u>($1,234.50)</u></td>', $html);
         $t->contains('<td><del><strong>2024-01-15</strong></del></td>', $html);
         $t->contains('<td><u>36:00:00</u></td>', $html);
         $t->contains('<td><u>13%</u></td>', $html);
         $t->contains('<td style="text-align:center"><del><strong>3:30 PM</strong></del></td>', $html);
+        $t->contains('<td><u>1.23E+04</u></td>', $html);
+        $t->contains('<td><u>2 1/4</u></td>', $html);
 
         $t->same(1, $features['byKind']['comments']['count'] ?? null);
         $comments = $findPart($features['byKind']['comments']['items'], 'xl/comments/comment1.xml');

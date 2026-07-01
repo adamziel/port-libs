@@ -2256,6 +2256,18 @@ final class XlsxReader
             $number *= 100;
         }
 
+        if ($this->isScientificNumberFormat($normalizedSection)) {
+            $text = $this->formatScientificNumber($number, $normalizedSection);
+
+            return $isPercent ? $text . '%' : $text;
+        }
+
+        if ($this->isFractionNumberFormat($normalizedSection)) {
+            $text = $this->formatFractionNumber($number, $normalizedSection);
+
+            return $isPercent ? $text . '%' : $text;
+        }
+
         $decimals = $this->numberFormatDecimalPlaces($normalizedSection);
         $useGrouping = preg_match('/[0#?],[0#?]{3}/', $normalizedSection) === 1;
         $currency = $this->numberFormatCurrencySymbol($formatSection);
@@ -2277,6 +2289,114 @@ final class XlsxReader
         }
 
         return $isPercent ? $text . '%' : $text;
+    }
+
+    private function isScientificNumberFormat(string $formatSection): bool
+    {
+        return preg_match('/e[+-]?[0#]+/i', $formatSection) === 1;
+    }
+
+    private function formatScientificNumber(float $number, string $formatSection): string
+    {
+        $decimals = 0;
+        $exponentDigits = 2;
+        if (preg_match('/\.([0#?]+).*?e[+-]?[0#]+/i', $formatSection, $matches) === 1) {
+            $decimals = strlen($matches[1]);
+        }
+        if (preg_match('/e[+-]?([0#]+)/i', $formatSection, $matches) === 1) {
+            $exponentDigits = max(1, strlen($matches[1]));
+        }
+
+        $formatted = sprintf('%.' . $decimals . 'E', $number);
+        if (preg_match('/^(-?\d+(?:\.\d+)?)E([+-])(\d+)$/', $formatted, $matches) !== 1) {
+            return $formatted;
+        }
+
+        return $matches[1] . 'E' . $matches[2] . str_pad($matches[3], $exponentDigits, '0', STR_PAD_LEFT);
+    }
+
+    private function isFractionNumberFormat(string $formatSection): bool
+    {
+        return preg_match('/[0#?]+\s*\/\s*[0#?]+/', $formatSection) === 1;
+    }
+
+    private function formatFractionNumber(float $number, string $formatSection): string
+    {
+        $negative = $number < 0;
+        $absolute = abs($number);
+        $whole = (int) floor($absolute);
+        $fraction = $absolute - $whole;
+        $denominatorDigits = 1;
+        if (preg_match('/\/\s*([0#?]+)/', $formatSection, $matches) === 1) {
+            $denominatorDigits = max(1, strlen($matches[1]));
+        }
+        $maxDenominator = (10 ** $denominatorDigits) - 1;
+        [$numerator, $denominator] = $this->decimalFraction($fraction, $maxDenominator);
+        if ($numerator === $denominator) {
+            $whole++;
+            $numerator = 0;
+        }
+
+        $prefix = $negative ? '-' : '';
+        if ($numerator === 0) {
+            return $prefix . (string) $whole;
+        }
+
+        $hasWholePlaceholder = preg_match('/[0#?]+\s+[0#?]+\s*\/\s*[0#?]+/', $formatSection) === 1;
+        if ($whole > 0 && $hasWholePlaceholder) {
+            return $prefix . $whole . ' ' . $numerator . '/' . $denominator;
+        }
+        if ($whole > 0) {
+            $numerator += $whole * $denominator;
+        }
+
+        return $prefix . $numerator . '/' . $denominator;
+    }
+
+    /**
+     * @return array{0:int, 1:int}
+     */
+    private function decimalFraction(float $fraction, int $maxDenominator): array
+    {
+        if ($fraction <= 0.0000001) {
+            return [0, 1];
+        }
+
+        $bestNumerator = 1;
+        $bestDenominator = 1;
+        $bestError = PHP_FLOAT_MAX;
+        for ($denominator = 1; $denominator <= max(1, $maxDenominator); $denominator++) {
+            $numerator = (int) round($fraction * $denominator);
+            if ($numerator < 1) {
+                continue;
+            }
+            $error = abs($fraction - ($numerator / $denominator));
+            if ($error < $bestError) {
+                $bestNumerator = $numerator;
+                $bestDenominator = $denominator;
+                $bestError = $error;
+            }
+            if ($error <= 0.0000001) {
+                break;
+            }
+        }
+
+        $divisor = $this->greatestCommonDivisor($bestNumerator, $bestDenominator);
+
+        return [intdiv($bestNumerator, $divisor), intdiv($bestDenominator, $divisor)];
+    }
+
+    private function greatestCommonDivisor(int $left, int $right): int
+    {
+        $left = abs($left);
+        $right = abs($right);
+        while ($right !== 0) {
+            $next = $left % $right;
+            $left = $right;
+            $right = $next;
+        }
+
+        return max(1, $left);
     }
 
     /**
