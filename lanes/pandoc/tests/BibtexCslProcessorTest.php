@@ -1855,6 +1855,12 @@ BIB;
         $t->same(['source packet', 'inheritance'], $paper['keyword']);
         $t->same([2026], $paper['issued']['date-parts'][0]);
         $t->same('12-18', $paper['page']);
+        $t->same(['shared-review-source'], $paper['xdataKeys']);
+        $t->same('shared-review-source', $paper['xdataSummary']);
+        $t->same(['review-proceedings'], $paper['crossrefKeys']);
+        $t->same('Source Review Proceedings: Package Track', $paper['crossrefItems'][0]['title'] ?? null);
+        $t->same([2026], $paper['crossrefItems'][0]['issued']['date-parts'][0] ?? null);
+        $t->same('Source Review Proceedings: Package Track (2026)', $paper['crossrefSummary']);
         $t->same('review-proceedings', $paper['rawBibtex']['fields']['crossref']);
         $t->same('Source Review Proceedings', $paper['rawBibtex']['fields']['booktitle']);
         $t->same('Package Track', $paper['rawBibtex']['fields']['booksubtitle']);
@@ -1865,11 +1871,11 @@ BIB;
         $t->same('Internal review only', $xdataChild['rights']);
         $t->same('shared-review-source', $xdataChild['rawBibtex']['fields']['xdata']);
         $t->same(
-            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only.',
+            'Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX crossref parent: Source Review Proceedings: Package Track (2026). BibLaTeX xdata packets: shared-review-source.',
             $processor->renderBibliographyText($paper)
         );
         $t->same(
-            'Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. https://example.test/source-packet.',
+            'Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source. https://example.test/source-packet.',
             $processor->renderBibliographyText($xdataChild)
         );
 
@@ -1882,8 +1888,84 @@ BIB;
         $t->same([], $handoff['missingKeys']);
         $t->same('Source Review Proceedings: Package Track', $handoff['items'][0]['container-title']);
         $t->same('Review Press', $handoff['items'][1]['publisher']);
-        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only.</dd>', $blocks);
-        $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. https://example.test/source-packet.</dd>', $blocks);
+        $t->contains('<dt>crossref-paper</dt><dd>Nia Ng. Packet Audit Trails. Source Review Proceedings: Package Track. 2026. 12-18. Rights: Internal review only. BibLaTeX crossref parent: Source Review Proceedings: Package Track (2026). BibLaTeX xdata packets: shared-review-source.</dd>', $blocks);
+        $t->contains('<dt>xdata-child</dt><dd>Archive Desk. Inherited Source Packet. Review Press. Rights: Internal review only. BibLaTeX xdata packets: shared-review-source. https://example.test/source-packet.</dd>', $blocks);
+    },
+    'carries biblatex xdata and entryset provenance in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@xdata{review-policy,
+  title = {Shared Review Policy},
+  date  = {2026-06-05},
+  note  = {metadata only}
+}
+
+@inproceedings{audit-paper,
+  author    = {Ng, Nia},
+  title     = {Packet Audit Trails},
+  booktitle = {Migration Futures Conference},
+  date      = {2026},
+  options   = {dataonly}
+}
+
+@online{archived-site,
+  author = {{Archive Team}},
+  title  = {Archive Site},
+  date   = {2026-05-31},
+  url    = {https://example.test/archive}
+}
+
+@set{review-set,
+  title    = {Review Source Set},
+  date     = {2026},
+  entryset = {audit-paper, archived-site, missing-source}
+}
+
+@online{xdata-provenance,
+  author = {Roe, Pat},
+  title  = {Xdata Source Packet},
+  date   = {2026-06-07},
+  url    = {https://example.test/xdata},
+  xdata  = {review-policy, missing-policy}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $set = $items['review-set'];
+        $xdata = $items['xdata-provenance'];
+
+        $t->same('entry', $set['type']);
+        $t->same(['audit-paper', 'archived-site', 'missing-source'], $set['entrySet']);
+        $t->same('audit-paper', $set['entrySetItems'][0]['id'] ?? null);
+        $t->same(true, $set['entrySetItems'][0]['dataOnly'] ?? null);
+        $t->same('Archive', $set['entrySetItems'][1]['author'][0]['given'] ?? null);
+        $t->same('Team', $set['entrySetItems'][1]['author'][0]['family'] ?? null);
+        $t->same(['missing-source'], $set['missingEntrySetKeys']);
+        $t->same('Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $set['entrySetSummary']);
+        $t->same(['review-policy', 'missing-policy'], $xdata['xdataKeys']);
+        $t->same('Shared Review Policy', $xdata['xdataItems'][0]['title'] ?? null);
+        $t->same(true, $xdata['xdataItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-policy'], $xdata['missingXdataKeys']);
+        $t->same('Shared Review Policy (2026-06-05); missing: missing-policy', $xdata['xdataSummary']);
+        $t->same('review-policy, missing-policy', $xdata['rawBibtex']['fields']['xdata']);
+        $t->same(
+            'Review Source Set. 2026. BibLaTeX entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source.',
+            $processor->renderBibliographyText($set)
+        );
+        $t->same(
+            'Pat Roe. Xdata Source Packet. 2026. BibLaTeX xdata packets: Shared Review Policy (2026-06-05); missing: missing-policy. https://example.test/xdata.',
+            $processor->renderBibliographyText($xdata)
+        );
+
+        $document = (new MarkdownReader())->read('Set review cites @review-set and [@xdata-provenance].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['review-set', 'xdata-provenance'], $handoff['citedKeys']);
+        $t->same('Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $handoff['items'][0]['entrySetSummary'] ?? null);
+        $t->same('Shared Review Policy (2026-06-05); missing: missing-policy', $handoff['items'][1]['xdataSummary'] ?? null);
+        $t->contains('BibLaTeX entry set: Packet Audit Trails (2026); Archive Site (2026-05-31); missing: missing-source', $blocks);
+        $t->contains('BibLaTeX xdata packets: Shared Review Policy (2026-06-05); missing: missing-policy', $blocks);
     },
     'carries biblatex citation aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
