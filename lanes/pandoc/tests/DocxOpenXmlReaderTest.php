@@ -1270,6 +1270,21 @@ XML,
             'generalPurposeDataDescriptorEntryCount' => 'packageManifestGeneralPurposeDataDescriptorEntryCount',
             'generalPurposeDeflateOptionEntryCount' => 'packageManifestGeneralPurposeDeflateOptionEntryCount',
             'generalPurposeFlagSummaries' => 'packageManifestGeneralPurposeFlagSummaries',
+            'creatorHostSystemSummaryCount' => 'packageManifestCreatorHostSystemSummaryCount',
+            'knownCreatorHostSystemEntryCount' => 'packageManifestKnownCreatorHostSystemEntryCount',
+            'unknownCreatorHostSystemEntryCount' => 'packageManifestUnknownCreatorHostSystemEntryCount',
+            'creatorVersionMeetsNeededEntryCount' => 'packageManifestCreatorVersionMeetsNeededEntryCount',
+            'creatorVersionBelowNeededEntryCount' => 'packageManifestCreatorVersionBelowNeededEntryCount',
+            'creatorVersionEqualNeededEntryCount' => 'packageManifestCreatorVersionEqualNeededEntryCount',
+            'creatorVersionAboveNeededEntryCount' => 'packageManifestCreatorVersionAboveNeededEntryCount',
+            'creatorVersionBelowNeededKnownHostEntryCount' => 'packageManifestCreatorVersionBelowNeededKnownHostEntryCount',
+            'creatorVersionBelowNeededUnknownHostEntryCount' => 'packageManifestCreatorVersionBelowNeededUnknownHostEntryCount',
+            'hasUnknownCreatorHostSystems' => 'packageManifestHasUnknownCreatorHostSystems',
+            'hasCreatorVersionBelowNeededEntries' => 'packageManifestHasCreatorVersionBelowNeededEntries',
+            'creatorVersionComparisonCounts' => 'packageManifestCreatorVersionComparisonCounts',
+            'creatorHostSystemSummaries' => 'packageManifestCreatorHostSystemSummaries',
+            'unknownCreatorHostSystemEntries' => 'packageManifestUnknownCreatorHostSystemEntries',
+            'creatorVersionBelowNeededEntries' => 'packageManifestCreatorVersionBelowNeededEntries',
             'directoryRootCount' => 'packageManifestDirectoryRootCount',
             'directoryRoots' => 'packageManifestDirectoryRoots',
             'directoryRootSummaries' => 'packageManifestDirectoryRootSummaries',
@@ -1405,6 +1420,26 @@ XML,
         $t->same(['case-insensitive-name-collision'], $summary['zipPackageManifestCaseInsensitiveNameCollisionEntries'][1]['caseInsensitiveNameCollisionIssues']);
         $t->same($manifest['compressionMethodSummaryCount'], $summary['zipPackageManifestCompressionMethodSummaryCount']);
         $t->same($manifest['compressionMethodSummaries'], $summary['zipPackageManifestCompressionMethodSummaries']);
+        $t->same($manifest['generalPurposeFlagSummaryCount'], $summary['zipPackageManifestGeneralPurposeFlagSummaryCount']);
+        $t->same($manifest['generalPurposeUtf8NameEntryCount'], $summary['zipPackageManifestGeneralPurposeUtf8NameEntryCount']);
+        $t->same($manifest['generalPurposeDataDescriptorEntryCount'], $summary['zipPackageManifestGeneralPurposeDataDescriptorEntryCount']);
+        $t->same($manifest['generalPurposeDeflateOptionEntryCount'], $summary['zipPackageManifestGeneralPurposeDeflateOptionEntryCount']);
+        $t->same($manifest['generalPurposeFlagSummaries'], $summary['zipPackageManifestGeneralPurposeFlagSummaries']);
+        $t->same($manifest['creatorHostSystemSummaryCount'], $summary['zipPackageManifestCreatorHostSystemSummaryCount']);
+        $t->same($manifest['knownCreatorHostSystemEntryCount'], $summary['zipPackageManifestKnownCreatorHostSystemEntryCount']);
+        $t->same($manifest['unknownCreatorHostSystemEntryCount'], $summary['zipPackageManifestUnknownCreatorHostSystemEntryCount']);
+        $t->same($manifest['creatorVersionMeetsNeededEntryCount'], $summary['zipPackageManifestCreatorVersionMeetsNeededEntryCount']);
+        $t->same($manifest['creatorVersionBelowNeededEntryCount'], $summary['zipPackageManifestCreatorVersionBelowNeededEntryCount']);
+        $t->same($manifest['creatorVersionEqualNeededEntryCount'], $summary['zipPackageManifestCreatorVersionEqualNeededEntryCount']);
+        $t->same($manifest['creatorVersionAboveNeededEntryCount'], $summary['zipPackageManifestCreatorVersionAboveNeededEntryCount']);
+        $t->same($manifest['creatorVersionBelowNeededKnownHostEntryCount'], $summary['zipPackageManifestCreatorVersionBelowNeededKnownHostEntryCount']);
+        $t->same($manifest['creatorVersionBelowNeededUnknownHostEntryCount'], $summary['zipPackageManifestCreatorVersionBelowNeededUnknownHostEntryCount']);
+        $t->same($manifest['hasUnknownCreatorHostSystems'], $summary['zipPackageManifestHasUnknownCreatorHostSystems']);
+        $t->same($manifest['hasCreatorVersionBelowNeededEntries'], $summary['zipPackageManifestHasCreatorVersionBelowNeededEntries']);
+        $t->same($manifest['creatorVersionComparisonCounts'], $summary['zipPackageManifestCreatorVersionComparisonCounts']);
+        $t->same($manifest['creatorHostSystemSummaries'], $summary['zipPackageManifestCreatorHostSystemSummaries']);
+        $t->same($manifest['unknownCreatorHostSystemEntries'], $summary['zipPackageManifestUnknownCreatorHostSystemEntries']);
+        $t->same($manifest['creatorVersionBelowNeededEntries'], $summary['zipPackageManifestCreatorVersionBelowNeededEntries']);
         $t->same($manifest['directoryRootCount'], $summary['zipPackageManifestDirectoryRootCount']);
         $t->same($manifest['directoryRoots'], $summary['zipPackageManifestDirectoryRoots']);
         $t->same($manifest['directoryRootSummaries'], $summary['zipPackageManifestDirectoryRootSummaries']);
@@ -1419,6 +1454,26 @@ XML,
 
         $t->same(4, $summary['zipPackageManifestDirectoryRootCount']);
         $t->same(['/', '_rels/', 'docProps/', 'word/'], $summary['zipPackageManifestDirectoryRoots']);
+        $t->same(1, $summary['zipPackageManifestGeneralPurposeFlagSummaryCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestGeneralPurposeUtf8NameEntryCount']);
+        $t->same(0, $summary['zipPackageManifestGeneralPurposeDataDescriptorEntryCount']);
+        $t->same(0, $summary['zipPackageManifestGeneralPurposeDeflateOptionEntryCount']);
+        $t->same(['utf-8-names'], $summary['zipPackageManifestGeneralPurposeFlagSummaries'][0]['flagNames']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestGeneralPurposeFlagSummaries'][0]['entryCount']);
+        $t->same(1, $summary['zipPackageManifestCreatorHostSystemSummaryCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestKnownCreatorHostSystemEntryCount']);
+        $t->same(0, $summary['zipPackageManifestUnknownCreatorHostSystemEntryCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCreatorVersionMeetsNeededEntryCount']);
+        $t->same(0, $summary['zipPackageManifestCreatorVersionBelowNeededEntryCount']);
+        $t->same([
+            'below-needed' => 0,
+            'equals-needed' => $manifest['entryCount'],
+            'above-needed' => 0,
+        ], $summary['zipPackageManifestCreatorVersionComparisonCounts']);
+        $t->same('unix', $summary['zipPackageManifestCreatorHostSystemSummaries'][0]['madeByHostSystemName']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCreatorHostSystemSummaries'][0]['entryCount']);
+        $t->same([], $summary['zipPackageManifestUnknownCreatorHostSystemEntries']);
+        $t->same([], $summary['zipPackageManifestCreatorVersionBelowNeededEntries']);
         $t->same(0, $summary['zipPackageManifestExtensionlessPackagePartCount']);
         $t->same(false, $summary['zipPackageManifestHasExtensionlessPackageParts']);
         $t->same(3, $summary['zipPackageManifestPackagePartExtensionSummaryCount']);

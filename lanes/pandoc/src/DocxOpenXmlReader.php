@@ -12313,6 +12313,33 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestGeneralPurposeFlagSummaries'] = is_array($zipPackageManifest['generalPurposeFlagSummaries'] ?? null)
             ? $zipPackageManifest['generalPurposeFlagSummaries']
             : [];
+        $summary['zipPackageManifestCreatorHostSystemSummaryCount'] = (int) ($zipPackageManifest['creatorHostSystemSummaryCount'] ?? 0);
+        $summary['zipPackageManifestKnownCreatorHostSystemEntryCount'] = (int) ($zipPackageManifest['knownCreatorHostSystemEntryCount'] ?? 0);
+        $summary['zipPackageManifestUnknownCreatorHostSystemEntryCount'] = (int) ($zipPackageManifest['unknownCreatorHostSystemEntryCount'] ?? 0);
+        $summary['zipPackageManifestCreatorVersionMeetsNeededEntryCount'] = (int) ($zipPackageManifest['creatorVersionMeetsNeededEntryCount'] ?? 0);
+        $summary['zipPackageManifestCreatorVersionBelowNeededEntryCount'] = (int) ($zipPackageManifest['creatorVersionBelowNeededEntryCount'] ?? 0);
+        $summary['zipPackageManifestCreatorVersionEqualNeededEntryCount'] = (int) ($zipPackageManifest['creatorVersionEqualNeededEntryCount'] ?? 0);
+        $summary['zipPackageManifestCreatorVersionAboveNeededEntryCount'] = (int) ($zipPackageManifest['creatorVersionAboveNeededEntryCount'] ?? 0);
+        $summary['zipPackageManifestCreatorVersionBelowNeededKnownHostEntryCount'] = (int) ($zipPackageManifest['creatorVersionBelowNeededKnownHostEntryCount'] ?? 0);
+        $summary['zipPackageManifestCreatorVersionBelowNeededUnknownHostEntryCount'] = (int) ($zipPackageManifest['creatorVersionBelowNeededUnknownHostEntryCount'] ?? 0);
+        $summary['zipPackageManifestHasUnknownCreatorHostSystems'] = ($zipPackageManifest['hasUnknownCreatorHostSystems'] ?? false) === true;
+        $summary['zipPackageManifestHasCreatorVersionBelowNeededEntries'] = ($zipPackageManifest['hasCreatorVersionBelowNeededEntries'] ?? false) === true;
+        $summary['zipPackageManifestCreatorVersionComparisonCounts'] = is_array($zipPackageManifest['creatorVersionComparisonCounts'] ?? null)
+            ? $zipPackageManifest['creatorVersionComparisonCounts']
+            : [
+                'below-needed' => 0,
+                'equals-needed' => 0,
+                'above-needed' => 0,
+            ];
+        $summary['zipPackageManifestCreatorHostSystemSummaries'] = is_array($zipPackageManifest['creatorHostSystemSummaries'] ?? null)
+            ? $zipPackageManifest['creatorHostSystemSummaries']
+            : [];
+        $summary['zipPackageManifestUnknownCreatorHostSystemEntries'] = is_array($zipPackageManifest['unknownCreatorHostSystemEntries'] ?? null)
+            ? $zipPackageManifest['unknownCreatorHostSystemEntries']
+            : [];
+        $summary['zipPackageManifestCreatorVersionBelowNeededEntries'] = is_array($zipPackageManifest['creatorVersionBelowNeededEntries'] ?? null)
+            ? $zipPackageManifest['creatorVersionBelowNeededEntries']
+            : [];
         $summary['zipPackageManifestDirectoryRootCount'] = (int) ($zipPackageManifest['directoryRootCount'] ?? 0);
         $summary['zipPackageManifestDirectoryRoots'] = is_array($zipPackageManifest['directoryRoots'] ?? null)
             ? $zipPackageManifest['directoryRoots']
@@ -13351,6 +13378,30 @@ final class DocxOpenXmlReader
             'directoryRootCount' => 0,
             'directoryRoots' => [],
             'directoryRootSummaries' => [],
+            'generalPurposeFlagSummaryCount' => 0,
+            'generalPurposeUtf8NameEntryCount' => 0,
+            'generalPurposeDataDescriptorEntryCount' => 0,
+            'generalPurposeDeflateOptionEntryCount' => 0,
+            'generalPurposeFlagSummaries' => [],
+            'creatorHostSystemSummaryCount' => 0,
+            'knownCreatorHostSystemEntryCount' => 0,
+            'unknownCreatorHostSystemEntryCount' => 0,
+            'creatorVersionMeetsNeededEntryCount' => 0,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionEqualNeededEntryCount' => 0,
+            'creatorVersionAboveNeededEntryCount' => 0,
+            'creatorVersionBelowNeededKnownHostEntryCount' => 0,
+            'creatorVersionBelowNeededUnknownHostEntryCount' => 0,
+            'hasUnknownCreatorHostSystems' => false,
+            'hasCreatorVersionBelowNeededEntries' => false,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 0,
+                'equals-needed' => 0,
+                'above-needed' => 0,
+            ],
+            'creatorHostSystemSummaries' => [],
+            'unknownCreatorHostSystemEntries' => [],
+            'creatorVersionBelowNeededEntries' => [],
             'extensionlessPackagePartCount' => 0,
             'hasExtensionlessPackageParts' => false,
             'packagePartExtensionSummaryCount' => 0,
@@ -13572,6 +13623,33 @@ final class DocxOpenXmlReader
             'packageManifestGeneralPurposeDeflateOptionEntryCount' => (int) ($packageManifest['generalPurposeDeflateOptionEntryCount'] ?? 0),
             'packageManifestGeneralPurposeFlagSummaries' => is_array($packageManifest['generalPurposeFlagSummaries'] ?? null)
                 ? $packageManifest['generalPurposeFlagSummaries']
+                : [],
+            'packageManifestCreatorHostSystemSummaryCount' => (int) ($packageManifest['creatorHostSystemSummaryCount'] ?? 0),
+            'packageManifestKnownCreatorHostSystemEntryCount' => (int) ($packageManifest['knownCreatorHostSystemEntryCount'] ?? 0),
+            'packageManifestUnknownCreatorHostSystemEntryCount' => (int) ($packageManifest['unknownCreatorHostSystemEntryCount'] ?? 0),
+            'packageManifestCreatorVersionMeetsNeededEntryCount' => (int) ($packageManifest['creatorVersionMeetsNeededEntryCount'] ?? 0),
+            'packageManifestCreatorVersionBelowNeededEntryCount' => (int) ($packageManifest['creatorVersionBelowNeededEntryCount'] ?? 0),
+            'packageManifestCreatorVersionEqualNeededEntryCount' => (int) ($packageManifest['creatorVersionEqualNeededEntryCount'] ?? 0),
+            'packageManifestCreatorVersionAboveNeededEntryCount' => (int) ($packageManifest['creatorVersionAboveNeededEntryCount'] ?? 0),
+            'packageManifestCreatorVersionBelowNeededKnownHostEntryCount' => (int) ($packageManifest['creatorVersionBelowNeededKnownHostEntryCount'] ?? 0),
+            'packageManifestCreatorVersionBelowNeededUnknownHostEntryCount' => (int) ($packageManifest['creatorVersionBelowNeededUnknownHostEntryCount'] ?? 0),
+            'packageManifestHasUnknownCreatorHostSystems' => ($packageManifest['hasUnknownCreatorHostSystems'] ?? false) === true,
+            'packageManifestHasCreatorVersionBelowNeededEntries' => ($packageManifest['hasCreatorVersionBelowNeededEntries'] ?? false) === true,
+            'packageManifestCreatorVersionComparisonCounts' => is_array($packageManifest['creatorVersionComparisonCounts'] ?? null)
+                ? $packageManifest['creatorVersionComparisonCounts']
+                : [
+                    'below-needed' => 0,
+                    'equals-needed' => 0,
+                    'above-needed' => 0,
+                ],
+            'packageManifestCreatorHostSystemSummaries' => is_array($packageManifest['creatorHostSystemSummaries'] ?? null)
+                ? $packageManifest['creatorHostSystemSummaries']
+                : [],
+            'packageManifestUnknownCreatorHostSystemEntries' => is_array($packageManifest['unknownCreatorHostSystemEntries'] ?? null)
+                ? $packageManifest['unknownCreatorHostSystemEntries']
+                : [],
+            'packageManifestCreatorVersionBelowNeededEntries' => is_array($packageManifest['creatorVersionBelowNeededEntries'] ?? null)
+                ? $packageManifest['creatorVersionBelowNeededEntries']
                 : [],
             'packageManifestDirectoryRootCount' => (int) ($packageManifest['directoryRootCount'] ?? 0),
             'packageManifestDirectoryRoots' => is_array($packageManifest['directoryRoots'] ?? null)
