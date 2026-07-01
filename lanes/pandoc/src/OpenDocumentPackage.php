@@ -40,6 +40,44 @@ final class OpenDocumentPackage
         'presentation-slide-show' => true,
         'read-only' => true,
     ];
+    private const CORE_PACKAGE_PARTS = [
+        'mimetype' => [
+            'role' => 'odf-mimetype',
+            'required' => true,
+            'manifestDeclarationExpected' => false,
+            'expectedManifestMediaType' => null,
+        ],
+        'META-INF/manifest.xml' => [
+            'role' => 'odf-manifest',
+            'required' => true,
+            'manifestDeclarationExpected' => false,
+            'expectedManifestMediaType' => null,
+        ],
+        'content.xml' => [
+            'role' => 'odf-content',
+            'required' => true,
+            'manifestDeclarationExpected' => true,
+            'expectedManifestMediaType' => 'text/xml',
+        ],
+        'styles.xml' => [
+            'role' => 'odf-styles',
+            'required' => false,
+            'manifestDeclarationExpected' => true,
+            'expectedManifestMediaType' => 'text/xml',
+        ],
+        'meta.xml' => [
+            'role' => 'odf-meta',
+            'required' => false,
+            'manifestDeclarationExpected' => true,
+            'expectedManifestMediaType' => 'text/xml',
+        ],
+        'settings.xml' => [
+            'role' => 'odf-settings',
+            'required' => false,
+            'manifestDeclarationExpected' => true,
+            'expectedManifestMediaType' => 'text/xml',
+        ],
+    ];
     private const MANIFEST_DECLARED_SIZE_LARGEST_ITEM_LIMIT = 5;
 
     /** @var array<string, array<string, mixed>> */
@@ -294,6 +332,7 @@ final class OpenDocumentPackage
      *     packageLayoutCaches:array<string, mixed>,
      *     documentParts:array<string, mixed>,
      *     packageStyles:array<string, mixed>,
+     *     packageCoreParts:array<string, mixed>,
      *     comments:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     metadata:array<string, mixed>,
@@ -320,6 +359,7 @@ final class OpenDocumentPackage
         $packageLayoutCaches = self::packageLayoutCacheMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $documentParts = $this->documentPartPackageProvenance($packageInventory);
         $packageStyles = $this->packageStyleProvenance($packageInventory);
+        $packageCoreParts = $this->packageCorePartProvenance($packageInventory);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
@@ -416,6 +456,7 @@ final class OpenDocumentPackage
             'packageLayoutCaches' => $packageLayoutCaches,
             'documentParts' => $documentParts,
             'packageStyles' => $packageStyles,
+            'packageCoreParts' => $packageCoreParts,
             'rdfMetadata' => $this->rdfMetadata,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'manifestReview' => self::manifestReview(
@@ -425,11 +466,148 @@ final class OpenDocumentPackage
                 $this->manifestRootExtensionElements
             ),
             'packageInventory' => $packageInventory,
-            'packageIdentity' => $this->packageIdentity($packageInventory),
+            'packageIdentity' => $this->packageIdentity($packageInventory, $packageCoreParts),
             'metadata' => $this->metadata,
             'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageInventory
+     * @return array<string, mixed>
+     */
+    private function packageCorePartProvenance(array $packageInventory): array
+    {
+        $packageParts = is_array($packageInventory['parts'] ?? null) ? $packageInventory['parts'] : [];
+        $items = [];
+        $issueItems = [];
+        $issueCodeCounts = [];
+        $presentCount = 0;
+        $requiredCount = 0;
+        $missingRequiredCount = 0;
+        $manifestDeclaredCount = 0;
+        $declarationExpectedCount = 0;
+        $undeclaredExistingCount = 0;
+        $missingDeclaredCount = 0;
+        $mediaTypeMismatchCount = 0;
+        $byteLength = 0;
+        $compressedByteLength = 0;
+
+        foreach (self::CORE_PACKAGE_PARTS as $part => $definition) {
+            $packagePart = is_array($packageParts[$part] ?? null) ? $packageParts[$part] : null;
+            $manifestEntry = is_array($this->manifestEntriesByPath[$part] ?? null) ? $this->manifestEntriesByPath[$part] : null;
+            $required = ($definition['required'] ?? false) === true;
+            $manifestDeclarationExpected = ($definition['manifestDeclarationExpected'] ?? false) === true;
+            $expectedManifestMediaType = is_string($definition['expectedManifestMediaType'] ?? null)
+                ? $definition['expectedManifestMediaType']
+                : null;
+            $exists = is_array($packagePart);
+            $declaredInManifest = is_array($manifestEntry);
+            $manifestMediaTypeBase = is_array($manifestEntry) ? ($manifestEntry['mediaTypeBase'] ?? null) : null;
+            $manifestMediaTypeMatchesExpected = $expectedManifestMediaType === null
+                || !$declaredInManifest
+                || $manifestMediaTypeBase === $expectedManifestMediaType;
+            $issues = [];
+
+            if ($required) {
+                ++$requiredCount;
+            }
+            if ($manifestDeclarationExpected) {
+                ++$declarationExpectedCount;
+            }
+            if ($exists) {
+                ++$presentCount;
+            }
+            if ($declaredInManifest) {
+                ++$manifestDeclaredCount;
+            }
+            if ($required && !$exists) {
+                $issues[] = 'odf-core-package-missing-required-part';
+                ++$missingRequiredCount;
+            }
+            if ($manifestDeclarationExpected && $exists && !$declaredInManifest) {
+                $issues[] = 'odf-core-package-undeclared-part';
+                ++$undeclaredExistingCount;
+            }
+            if ($manifestDeclarationExpected && $declaredInManifest && !$exists) {
+                $issues[] = 'odf-core-package-missing-declared-part';
+                ++$missingDeclaredCount;
+            }
+            if ($declaredInManifest && $expectedManifestMediaType !== null && !$manifestMediaTypeMatchesExpected) {
+                $issues[] = 'odf-core-package-media-type-mismatch';
+                ++$mediaTypeMismatchCount;
+            }
+            if (is_int($packagePart['byteLength'] ?? null)) {
+                $byteLength += $packagePart['byteLength'];
+            }
+            if (is_int($packagePart['compressedByteLength'] ?? null)) {
+                $compressedByteLength += $packagePart['compressedByteLength'];
+            }
+            foreach ($issues as $issue) {
+                $issueCodeCounts[$issue] = ($issueCodeCounts[$issue] ?? 0) + 1;
+            }
+
+            $item = [
+                'part' => $part,
+                'path' => $part,
+                'role' => $definition['role'],
+                'required' => $required,
+                'manifestDeclarationExpected' => $manifestDeclarationExpected,
+                'declaredInManifest' => $declaredInManifest,
+                'exists' => $exists,
+                'manifestIndex' => is_array($manifestEntry) ? ($manifestEntry['manifestIndex'] ?? null) : null,
+                'manifestPath' => is_array($manifestEntry) ? ($manifestEntry['path'] ?? null) : null,
+                'manifestFullPath' => is_array($manifestEntry) ? ($manifestEntry['path'] ?? null) : null,
+                'manifestPathReference' => is_array($manifestEntry) ? ($manifestEntry['pathReference'] ?? null) : null,
+                'manifestPathSuffix' => is_array($manifestEntry) ? ($manifestEntry['pathSuffix'] ?? null) : null,
+                'manifestPathQuery' => is_array($manifestEntry) ? ($manifestEntry['pathQuery'] ?? null) : null,
+                'manifestPathFragment' => is_array($manifestEntry) ? ($manifestEntry['pathFragment'] ?? null) : null,
+                'manifestMediaType' => is_array($manifestEntry) ? ($manifestEntry['mediaType'] ?? null) : null,
+                'manifestMediaTypeBase' => $manifestMediaTypeBase,
+                'expectedManifestMediaType' => $expectedManifestMediaType,
+                'manifestMediaTypeMatchesExpected' => $manifestMediaTypeMatchesExpected,
+                'byteLength' => is_array($packagePart) ? ($packagePart['byteLength'] ?? null) : null,
+                'compressedByteLength' => is_array($packagePart) ? ($packagePart['compressedByteLength'] ?? null) : null,
+                'compressionMethod' => is_array($packagePart) ? ($packagePart['compressionMethod'] ?? null) : null,
+                'compressionMethodName' => is_array($packagePart) ? ($packagePart['compressionMethodName'] ?? null) : null,
+                'crc32' => is_array($packagePart) ? ($packagePart['crc32'] ?? null) : null,
+                'packagePartByteExposurePolicy' => is_array($packagePart) ? ($packagePart['byteExposurePolicy'] ?? null) : null,
+                'packagePartCanExposeBytes' => is_array($packagePart) && ($packagePart['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => 'odf-core-package-provenance-metadata-only',
+                'canExposeBytes' => false,
+                'issues' => $issues,
+            ];
+            $items[] = $item;
+            if ($issues !== []) {
+                $issueItems[] = $item;
+            }
+        }
+        ksort($issueCodeCounts, SORT_STRING);
+
+        return [
+            'expectedCount' => count(self::CORE_PACKAGE_PARTS),
+            'itemCount' => count($items),
+            'presentCount' => $presentCount,
+            'absentCount' => count($items) - $presentCount,
+            'requiredCount' => $requiredCount,
+            'missingRequiredCount' => $missingRequiredCount,
+            'declarationExpectedCount' => $declarationExpectedCount,
+            'manifestDeclaredCount' => $manifestDeclaredCount,
+            'undeclaredExistingCount' => $undeclaredExistingCount,
+            'missingDeclaredCount' => $missingDeclaredCount,
+            'mediaTypeMismatchCount' => $mediaTypeMismatchCount,
+            'issueCount' => array_sum($issueCodeCounts),
+            'issueItemCount' => count($issueItems),
+            'issueCodes' => array_keys($issueCodeCounts),
+            'issueCodeCounts' => $issueCodeCounts,
+            'byteLength' => $byteLength,
+            'compressedByteLength' => $compressedByteLength,
+            'byteExposurePolicy' => 'odf-core-package-provenance-metadata-only',
+            'canExposeBytes' => false,
+            'issueItems' => $issueItems,
+            'items' => $items,
         ];
     }
 
@@ -1183,9 +1361,10 @@ final class OpenDocumentPackage
 
     /**
      * @param array<string, mixed> $packageInventory
+     * @param array<string, mixed> $packageCoreParts
      * @return array<string, mixed>
      */
-    private function packageIdentity(array $packageInventory): array
+    private function packageIdentity(array $packageInventory, array $packageCoreParts): array
     {
         $manifestEntries = [];
         foreach ($this->manifestEntries as $entry) {
@@ -1384,9 +1563,12 @@ final class OpenDocumentPackage
             'maxPackagePathDepth' => $packageInventory['maxPackagePathDepth'] ?? 0,
             'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
             'roleCounts' => $packageInventory['roleCounts'] ?? [],
+            'packageCoreParts' => $packageCoreParts,
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'encryptedCount' => count($this->encryptedManifestEntries()),
+            'corePackageIssueCount' => $packageCoreParts['issueCount'] ?? 0,
+            'corePackageIssueCodes' => $packageCoreParts['issueCodes'] ?? [],
             'hasZipExtraFields' => ($packageInventory['hasZipExtraFields'] ?? false) === true,
             'extraFieldEntryCount' => $packageInventory['extraFieldEntryCount'] ?? 0,
             'duplicateExtraFieldEntryCount' => $packageInventory['duplicateExtraFieldEntryCount'] ?? 0,

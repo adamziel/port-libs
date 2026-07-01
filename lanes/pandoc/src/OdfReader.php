@@ -50,6 +50,44 @@ final class OdfReader
         'presentation-slide-show' => true,
         'read-only' => true,
     ];
+    private const CORE_PACKAGE_PARTS = [
+        'mimetype' => [
+            'role' => 'odf-mimetype',
+            'required' => true,
+            'manifestDeclarationExpected' => false,
+            'expectedManifestMediaType' => null,
+        ],
+        'META-INF/manifest.xml' => [
+            'role' => 'odf-manifest',
+            'required' => true,
+            'manifestDeclarationExpected' => false,
+            'expectedManifestMediaType' => null,
+        ],
+        'content.xml' => [
+            'role' => 'odf-content',
+            'required' => true,
+            'manifestDeclarationExpected' => true,
+            'expectedManifestMediaType' => 'text/xml',
+        ],
+        'styles.xml' => [
+            'role' => 'odf-styles',
+            'required' => false,
+            'manifestDeclarationExpected' => true,
+            'expectedManifestMediaType' => 'text/xml',
+        ],
+        'meta.xml' => [
+            'role' => 'odf-meta',
+            'required' => false,
+            'manifestDeclarationExpected' => true,
+            'expectedManifestMediaType' => 'text/xml',
+        ],
+        'settings.xml' => [
+            'role' => 'odf-settings',
+            'required' => false,
+            'manifestDeclarationExpected' => true,
+            'expectedManifestMediaType' => 'text/xml',
+        ],
+    ];
 
     /** @var array<string, array<string, mixed>> */
     private array $trackedChanges = [];
@@ -1903,6 +1941,7 @@ final class OdfReader
         $packageAreaSummaries = self::finalizePackageAreaSummaries($packageAreaSummaries);
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
         $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
+        $packageCoreParts = $this->packageCorePartProvenance($manifestByPart, $parts);
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         sort($manifestCustomAttributeNames, SORT_STRING);
         sort($manifestCustomChildElementNames, SORT_STRING);
@@ -1978,6 +2017,7 @@ final class OdfReader
             'packagePartByteExposurePolicyItemCount' => count($packagePartByteExposurePolicyItems),
             'packagePartByteExposurePolicyItems' => $packagePartByteExposurePolicyItems,
             'corePackagePartCount' => $corePackagePartCount,
+            'packageCoreParts' => $packageCoreParts,
             'mediaResourcePartCount' => $mediaResourcePartCount,
             'packageThumbnailPartCount' => $packageThumbnailPartCount,
             'packageSignaturePartCount' => $packageSignaturePartCount,
@@ -2062,6 +2102,141 @@ final class OdfReader
         $provenance['packageIdentity'] = $this->packageIdentityProvenance($provenance);
 
         return $provenance;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param array<string, array<string, mixed>> $packageParts
+     * @return array<string, mixed>
+     */
+    private function packageCorePartProvenance(array $manifestByPart, array $packageParts): array
+    {
+        $items = [];
+        $issueItems = [];
+        $issueCodeCounts = [];
+        $presentCount = 0;
+        $requiredCount = 0;
+        $missingRequiredCount = 0;
+        $manifestDeclaredCount = 0;
+        $declarationExpectedCount = 0;
+        $undeclaredExistingCount = 0;
+        $missingDeclaredCount = 0;
+        $mediaTypeMismatchCount = 0;
+        $byteLength = 0;
+        $compressedByteLength = 0;
+
+        foreach (self::CORE_PACKAGE_PARTS as $part => $definition) {
+            $packagePart = is_array($packageParts[$part] ?? null) ? $packageParts[$part] : null;
+            $manifestItem = is_array($manifestByPart[$part] ?? null) ? $manifestByPart[$part] : null;
+            $required = ($definition['required'] ?? false) === true;
+            $manifestDeclarationExpected = ($definition['manifestDeclarationExpected'] ?? false) === true;
+            $expectedManifestMediaType = is_string($definition['expectedManifestMediaType'] ?? null)
+                ? $definition['expectedManifestMediaType']
+                : null;
+            $exists = is_array($packagePart);
+            $declaredInManifest = is_array($manifestItem);
+            $manifestMediaTypeBase = is_array($manifestItem) ? ($manifestItem['mediaTypeBase'] ?? null) : null;
+            $manifestMediaTypeMatchesExpected = $expectedManifestMediaType === null
+                || !$declaredInManifest
+                || $manifestMediaTypeBase === $expectedManifestMediaType;
+            $issues = [];
+
+            if ($required) {
+                ++$requiredCount;
+            }
+            if ($manifestDeclarationExpected) {
+                ++$declarationExpectedCount;
+            }
+            if ($exists) {
+                ++$presentCount;
+            }
+            if ($declaredInManifest) {
+                ++$manifestDeclaredCount;
+            }
+            if ($required && !$exists) {
+                $issues[] = 'odf-core-package-missing-required-part';
+                ++$missingRequiredCount;
+            }
+            if ($manifestDeclarationExpected && $exists && !$declaredInManifest) {
+                $issues[] = 'odf-core-package-undeclared-part';
+                ++$undeclaredExistingCount;
+            }
+            if ($manifestDeclarationExpected && $declaredInManifest && !$exists) {
+                $issues[] = 'odf-core-package-missing-declared-part';
+                ++$missingDeclaredCount;
+            }
+            if ($declaredInManifest && $expectedManifestMediaType !== null && !$manifestMediaTypeMatchesExpected) {
+                $issues[] = 'odf-core-package-media-type-mismatch';
+                ++$mediaTypeMismatchCount;
+            }
+            if (is_int($packagePart['byteLength'] ?? null)) {
+                $byteLength += $packagePart['byteLength'];
+            }
+            if (is_int($packagePart['compressedByteLength'] ?? null)) {
+                $compressedByteLength += $packagePart['compressedByteLength'];
+            }
+            foreach ($issues as $issue) {
+                $issueCodeCounts[$issue] = ($issueCodeCounts[$issue] ?? 0) + 1;
+            }
+
+            $item = [
+                'part' => $part,
+                'role' => $definition['role'],
+                'required' => $required,
+                'manifestDeclarationExpected' => $manifestDeclarationExpected,
+                'declaredInManifest' => $declaredInManifest,
+                'exists' => $exists,
+                'manifestIndex' => is_array($manifestItem) ? ($manifestItem['manifestIndex'] ?? null) : null,
+                'manifestFullPath' => is_array($manifestItem) ? ($manifestItem['fullPath'] ?? null) : null,
+                'manifestPartReference' => is_array($manifestItem) ? ($manifestItem['partReference'] ?? null) : null,
+                'manifestPartSuffix' => is_array($manifestItem) ? ($manifestItem['partSuffix'] ?? null) : null,
+                'manifestPartQuery' => is_array($manifestItem) ? ($manifestItem['partQuery'] ?? null) : null,
+                'manifestPartFragment' => is_array($manifestItem) ? ($manifestItem['partFragment'] ?? null) : null,
+                'manifestMediaType' => is_array($manifestItem) ? ($manifestItem['mediaType'] ?? null) : null,
+                'manifestMediaTypeBase' => $manifestMediaTypeBase,
+                'expectedManifestMediaType' => $expectedManifestMediaType,
+                'manifestMediaTypeMatchesExpected' => $manifestMediaTypeMatchesExpected,
+                'byteLength' => is_array($packagePart) ? ($packagePart['byteLength'] ?? null) : null,
+                'compressedByteLength' => is_array($packagePart) ? ($packagePart['compressedByteLength'] ?? null) : null,
+                'compressionMethod' => is_array($packagePart) ? ($packagePart['compressionMethod'] ?? null) : null,
+                'compressionMethodName' => is_array($packagePart) ? ($packagePart['compressionMethodName'] ?? null) : null,
+                'crc32' => is_array($packagePart) ? ($packagePart['crc32'] ?? null) : null,
+                'packagePartByteExposurePolicy' => is_array($packagePart) ? ($packagePart['byteExposurePolicy'] ?? null) : null,
+                'packagePartCanExposeBytes' => is_array($packagePart) && ($packagePart['canExposeBytes'] ?? false) === true,
+                'byteExposurePolicy' => 'odf-core-package-provenance-metadata-only',
+                'canExposeBytes' => false,
+                'issues' => $issues,
+            ];
+            $items[] = $item;
+            if ($issues !== []) {
+                $issueItems[] = $item;
+            }
+        }
+        ksort($issueCodeCounts, SORT_STRING);
+
+        return [
+            'expectedCount' => count(self::CORE_PACKAGE_PARTS),
+            'itemCount' => count($items),
+            'presentCount' => $presentCount,
+            'absentCount' => count($items) - $presentCount,
+            'requiredCount' => $requiredCount,
+            'missingRequiredCount' => $missingRequiredCount,
+            'declarationExpectedCount' => $declarationExpectedCount,
+            'manifestDeclaredCount' => $manifestDeclaredCount,
+            'undeclaredExistingCount' => $undeclaredExistingCount,
+            'missingDeclaredCount' => $missingDeclaredCount,
+            'mediaTypeMismatchCount' => $mediaTypeMismatchCount,
+            'issueCount' => array_sum($issueCodeCounts),
+            'issueItemCount' => count($issueItems),
+            'issueCodes' => array_keys($issueCodeCounts),
+            'issueCodeCounts' => $issueCodeCounts,
+            'byteLength' => $byteLength,
+            'compressedByteLength' => $compressedByteLength,
+            'byteExposurePolicy' => 'odf-core-package-provenance-metadata-only',
+            'canExposeBytes' => false,
+            'issueItems' => $issueItems,
+            'items' => $items,
+        ];
     }
 
     /**
@@ -2277,6 +2452,7 @@ final class OdfReader
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
             'manifestCustomAttributeNames' => $provenance['manifestCustomAttributeNames'] ?? [],
             'rawNameProvenanceEntries' => $provenance['rawNameProvenanceEntries'] ?? [],
+            'packageCoreParts' => $provenance['packageCoreParts'] ?? [],
             'hasZipExtraFields' => ($provenance['hasZipExtraFields'] ?? false) === true,
             'extraFieldEntryCount' => $provenance['extraFieldEntryCount'] ?? 0,
             'duplicateExtraFieldEntryCount' => $provenance['duplicateExtraFieldEntryCount'] ?? 0,
@@ -2316,6 +2492,12 @@ final class OdfReader
             'fileEntryCount' => $provenance['fileEntryCount'] ?? 0,
             'directoryEntryCount' => $provenance['directoryEntryCount'] ?? 0,
             'undeclaredEntryCount' => $provenance['undeclaredEntryCount'] ?? 0,
+            'corePackageIssueCount' => is_array($provenance['packageCoreParts'] ?? null)
+                ? ($provenance['packageCoreParts']['issueCount'] ?? 0)
+                : 0,
+            'corePackageIssueCodes' => is_array($provenance['packageCoreParts'] ?? null)
+                ? ($provenance['packageCoreParts']['issueCodes'] ?? [])
+                : [],
             'embeddedObjectPackageCount' => $provenance['embeddedObjectPackageCount'] ?? 0,
             'scriptPackagePartCount' => $provenance['scriptPackagePartCount'] ?? 0,
             'configurationPackagePartCount' => $provenance['configurationPackagePartCount'] ?? 0,
@@ -2352,6 +2534,13 @@ final class OdfReader
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
+            'corePackageIssueCount' => is_array($provenance['packageCoreParts'] ?? null)
+                ? ($provenance['packageCoreParts']['issueCount'] ?? 0)
+                : 0,
+            'corePackageIssueCodes' => is_array($provenance['packageCoreParts'] ?? null)
+                ? ($provenance['packageCoreParts']['issueCodes'] ?? [])
+                : [],
+            'packageCoreParts' => $provenance['packageCoreParts'] ?? [],
             'hasZipExtraFields' => ($provenance['hasZipExtraFields'] ?? false) === true,
             'extraFieldEntryCount' => $provenance['extraFieldEntryCount'] ?? 0,
             'duplicateExtraFieldEntryCount' => $provenance['duplicateExtraFieldEntryCount'] ?? 0,
