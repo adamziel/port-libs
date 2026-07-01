@@ -516,6 +516,77 @@ return [
             'delimited-text-control-characters',
         ], $codes);
     },
+    'records stable csv and tsv input prefix diagnostic rollups' => static function (TestRunner $t): void {
+        $reader = new DelimitedTextReader();
+        $csvDocument = $reader->readCsv("\xEF\xBB\xBF \nname,value\nA\x00,10\nB\x1F,20\n", [
+            'extension' => '.csv',
+            'sourcePath' => 'imports/prefix.tsv',
+        ]);
+        $tsvDocument = $reader->readTsv("\t\r\nkey\tvalue\nA\tB\x07\n", [
+            'sourcePath' => 'imports/prefix.tsv',
+        ]);
+        $csvTable = $csvDocument->children[0];
+        $tsvTable = $tsvDocument->children[0];
+        $csvPacket = $csvTable->attr('delimitedText');
+        $tsvPacket = $tsvTable->attr('delimitedText');
+        $csvSummary = $csvPacket['inputPrefixDiagnosticSummary'] ?? [];
+        $tsvSummary = $tsvPacket['inputPrefixDiagnosticSummary'] ?? [];
+
+        $t->same('csv', $csvPacket['format'] ?? null);
+        $t->same(['name', 'value'], $csvPacket['columnNames'] ?? null);
+        $t->same("A\x00", $csvTable->children[1]->children[0]->children[0]->attr('text'));
+        $t->same("B\x1F", $csvTable->children[1]->children[1]->children[0]->attr('text'));
+        $t->same(4, $csvPacket['inputPrefixDiagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-input-prefix-utf8-bom',
+            'delimited-text-input-prefix-leading-whitespace',
+            'delimited-text-input-prefix-null-byte',
+            'delimited-text-input-prefix-control-character',
+        ], $csvPacket['inputPrefixDiagnosticCodes'] ?? null);
+        $t->same('bounded-input-prefix-diagnostic-summary', $csvSummary['policy'] ?? null);
+        $t->same(true, $csvSummary['hasDiagnostics'] ?? null);
+        $t->same(['info' => 2, 'warning' => 2, 'error' => 0], $csvSummary['severityCounts'] ?? null);
+        $t->same(['utf8-bom', 'leading-whitespace', 'null-byte', 'control-character'], $csvSummary['issueFlags'] ?? null);
+        $t->same(true, $csvSummary['hasUtf8Bom'] ?? null);
+        $t->same(true, $csvSummary['leadingWhitespaceSkipped'] ?? null);
+        $t->same(1, $csvSummary['nullByteCount'] ?? null);
+        $t->same(1, $csvSummary['controlCharacterCount'] ?? null);
+        $t->same(5, $csvSummary['firstContentOffset'] ?? null);
+        $t->same(2, $csvSummary['firstContentLine'] ?? null);
+        $t->same('csv', $csvSummary['requestedFormat'] ?? null);
+        $t->same('csv', $csvSummary['selectedFormat'] ?? null);
+        $t->same('imports/prefix.tsv', $csvSummary['sourcePath'] ?? null);
+        $t->same('tsv', $csvSummary['sourcePathExtension'] ?? null);
+        $t->same('tsv', $csvSummary['sourcePathFormat'] ?? null);
+        $t->same('.csv', $csvSummary['extension'] ?? null);
+        $t->same('csv', $csvSummary['extensionFormat'] ?? null);
+        $t->same(false, $csvSummary['formatMatchesContext'] ?? null);
+        $t->same(true, $csvSummary['contextConflict'] ?? null);
+
+        $t->same('tsv', $tsvPacket['format'] ?? null);
+        $t->same(['key', 'value'], $tsvPacket['columnNames'] ?? null);
+        $t->same('B' . "\x07", $tsvTable->children[1]->children[0]->children[1]->attr('text'));
+        $t->same(2, $tsvPacket['inputPrefixDiagnosticCount'] ?? null);
+        $t->same([
+            'delimited-text-input-prefix-leading-whitespace',
+            'delimited-text-input-prefix-control-character',
+        ], $tsvPacket['inputPrefixDiagnosticCodes'] ?? null);
+        $t->same(['info' => 1, 'warning' => 1, 'error' => 0], $tsvSummary['severityCounts'] ?? null);
+        $t->same(['leading-whitespace', 'control-character'], $tsvSummary['issueFlags'] ?? null);
+        $t->same(false, $tsvSummary['hasUtf8Bom'] ?? null);
+        $t->same(true, $tsvSummary['leadingWhitespaceSkipped'] ?? null);
+        $t->same(0, $tsvSummary['nullByteCount'] ?? null);
+        $t->same(1, $tsvSummary['controlCharacterCount'] ?? null);
+        $t->same(3, $tsvSummary['firstContentOffset'] ?? null);
+        $t->same(2, $tsvSummary['firstContentLine'] ?? null);
+        $t->same('tsv', $tsvSummary['requestedFormat'] ?? null);
+        $t->same('tsv', $tsvSummary['selectedFormat'] ?? null);
+        $t->same('imports/prefix.tsv', $tsvSummary['sourcePath'] ?? null);
+        $t->same('tsv', $tsvSummary['sourcePathExtension'] ?? null);
+        $t->same('tsv', $tsvSummary['sourcePathFormat'] ?? null);
+        $t->same(true, $tsvSummary['formatMatchesContext'] ?? null);
+        $t->same(false, $tsvSummary['contextConflict'] ?? null);
+    },
     'records csv quote and escape diagnostics while preserving partial records' => static function (TestRunner $t): void {
         $document = (new DelimitedTextReader())->readCsv(implode("\n", [
             'id,title,note',
