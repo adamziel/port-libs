@@ -17834,6 +17834,35 @@ final class DocxOpenXmlReader
             unset($targetTopLevelSegmentSummary['_seenExistingTargetParts']);
         }
         unset($targetTopLevelSegmentSummary);
+        $relationshipTargetCaseFoldTopLevelSegments =
+            $this->relationshipTargetCaseFoldTopLevelSegmentSummary($relationshipTargets);
+        $relationshipTargetCaseFoldTopLevelSegmentCounts = [];
+        $relationshipTargetExistingCaseFoldTopLevelSegmentCounts = [];
+        $relationshipTargetMissingCaseFoldTopLevelSegmentCounts = [];
+        $duplicateRelationshipTargetCaseFoldTopLevelSegments = [];
+        $duplicateRelationshipTargetCaseFoldTopLevelSegmentRelationshipCount = 0;
+        $duplicateRelationshipTargetCaseFoldTopLevelSegmentTargetCount = 0;
+        foreach ($relationshipTargetCaseFoldTopLevelSegments as $caseFoldTopLevelSegmentSummary) {
+            $caseFoldTopLevelSegment = (string) ($caseFoldTopLevelSegmentSummary['caseFoldTopLevelSegment'] ?? '');
+            $targetRelationshipCount = (int) ($caseFoldTopLevelSegmentSummary['relationshipCount'] ?? 0);
+            $relationshipTargetCaseFoldTopLevelSegmentCounts[$caseFoldTopLevelSegment] = $targetRelationshipCount;
+            if ((int) ($caseFoldTopLevelSegmentSummary['existingTargetCount'] ?? 0) > 0) {
+                $relationshipTargetExistingCaseFoldTopLevelSegmentCounts[$caseFoldTopLevelSegment] =
+                    (int) ($caseFoldTopLevelSegmentSummary['existingTargetCount'] ?? 0);
+            }
+            if ((int) ($caseFoldTopLevelSegmentSummary['missingTargetCount'] ?? 0) > 0) {
+                $relationshipTargetMissingCaseFoldTopLevelSegmentCounts[$caseFoldTopLevelSegment] =
+                    (int) ($caseFoldTopLevelSegmentSummary['missingTargetCount'] ?? 0);
+            }
+            if ((int) ($caseFoldTopLevelSegmentSummary['topLevelSegmentVariantCount'] ?? 0) > 1) {
+                $duplicateRelationshipTargetCaseFoldTopLevelSegments[] = $caseFoldTopLevelSegment;
+                $duplicateRelationshipTargetCaseFoldTopLevelSegmentRelationshipCount += $targetRelationshipCount;
+                $duplicateRelationshipTargetCaseFoldTopLevelSegmentTargetCount += $targetRelationshipCount;
+            }
+        }
+        ksort($relationshipTargetCaseFoldTopLevelSegmentCounts, SORT_STRING);
+        ksort($relationshipTargetExistingCaseFoldTopLevelSegmentCounts, SORT_STRING);
+        ksort($relationshipTargetMissingCaseFoldTopLevelSegmentCounts, SORT_STRING);
         ksort($relationshipTargetDirectoryCounts);
         ksort($relationshipTargetExistingDirectoryCounts);
         ksort($relationshipTargetMissingDirectoryCounts);
@@ -19159,6 +19188,15 @@ final class DocxOpenXmlReader
             'relationshipTargetExistingTopLevelSegmentCounts' => $relationshipTargetExistingTopLevelSegmentCounts,
             'relationshipTargetMissingTopLevelSegmentCounts' => $relationshipTargetMissingTopLevelSegmentCounts,
             'relationshipTargetTopLevelSegments' => array_values($relationshipTargetTopLevelSegments),
+            'relationshipTargetCaseFoldTopLevelSegmentCount' => count($relationshipTargetCaseFoldTopLevelSegments),
+            'relationshipTargetCaseFoldTopLevelSegmentCounts' => $relationshipTargetCaseFoldTopLevelSegmentCounts,
+            'relationshipTargetExistingCaseFoldTopLevelSegmentCounts' => $relationshipTargetExistingCaseFoldTopLevelSegmentCounts,
+            'relationshipTargetMissingCaseFoldTopLevelSegmentCounts' => $relationshipTargetMissingCaseFoldTopLevelSegmentCounts,
+            'duplicateRelationshipTargetCaseFoldTopLevelSegmentCount' => count($duplicateRelationshipTargetCaseFoldTopLevelSegments),
+            'duplicateRelationshipTargetCaseFoldTopLevelSegmentRelationshipCount' => $duplicateRelationshipTargetCaseFoldTopLevelSegmentRelationshipCount,
+            'duplicateRelationshipTargetCaseFoldTopLevelSegmentTargetCount' => $duplicateRelationshipTargetCaseFoldTopLevelSegmentTargetCount,
+            'duplicateRelationshipTargetCaseFoldTopLevelSegments' => $duplicateRelationshipTargetCaseFoldTopLevelSegments,
+            'relationshipTargetCaseFoldTopLevelSegments' => $relationshipTargetCaseFoldTopLevelSegments,
             'relationshipTargetDirectoryCount' => count($relationshipTargetDirectories),
             'relationshipTargetDirectoryCounts' => $relationshipTargetDirectoryCounts,
             'relationshipTargetExistingDirectoryCounts' => $relationshipTargetExistingDirectoryCounts,
@@ -24982,6 +25020,231 @@ final class DocxOpenXmlReader
         }
 
         return array_values($positions);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipTargets
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipTargetCaseFoldTopLevelSegmentSummary(array $relationshipTargets): array
+    {
+        $segments = [];
+        foreach ($relationshipTargets as $target) {
+            $targetPart = is_string($target['targetPart'] ?? null) ? $target['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $pathSegments = $this->packagePartPathSegments($targetPart);
+            $topLevelSegment = $pathSegments[0] ?? '';
+            $caseFoldTopLevelSegment = $topLevelSegment === ''
+                ? ''
+                : $this->packagePartCaseFoldKey($topLevelSegment);
+            if (!isset($segments[$caseFoldTopLevelSegment])) {
+                $segments[$caseFoldTopLevelSegment] = [
+                    'caseFoldTopLevelSegment' => $caseFoldTopLevelSegment,
+                    'topLevelSegmentVariantCount' => 0,
+                    'relationshipCount' => 0,
+                    'existingTargetCount' => 0,
+                    'missingTargetCount' => 0,
+                    'missingContentTypeTargetCount' => 0,
+                    'parameterizedTargetCount' => 0,
+                    'existingTargetByteLength' => 0,
+                    'topLevelSegmentCounts' => [],
+                    'targetPathDepthCounts' => [],
+                    'targetDirectoryCounts' => [],
+                    'targetBaseNameCounts' => [],
+                    'targetPartExtensionCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'relationshipTypeCounts' => [],
+                    'roleCounts' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'relationshipIds' => [],
+                    'relationshipTypes' => [],
+                    'contentTypes' => [],
+                    'targetParts' => [],
+                    'existingTargetParts' => [],
+                    'missingTargetParts' => [],
+                    'largestExistingTargetPart' => null,
+                    '_seenExistingTargetParts' => [],
+                ];
+            }
+
+            ++$segments[$caseFoldTopLevelSegment]['relationshipCount'];
+            $topLevelSegmentKey = $topLevelSegment === '' ? '(none)' : $topLevelSegment;
+            $segments[$caseFoldTopLevelSegment]['topLevelSegmentCounts'][$topLevelSegmentKey] =
+                ($segments[$caseFoldTopLevelSegment]['topLevelSegmentCounts'][$topLevelSegmentKey] ?? 0) + 1;
+
+            $targetPathDepth = is_int($target['targetPathDepth'] ?? null)
+                ? (int) $target['targetPathDepth']
+                : count($pathSegments);
+            $segments[$caseFoldTopLevelSegment]['targetPathDepthCounts'][$targetPathDepth] =
+                ($segments[$caseFoldTopLevelSegment]['targetPathDepthCounts'][$targetPathDepth] ?? 0) + 1;
+
+            $targetDirectory = is_string($target['targetDirectory'] ?? null)
+                ? $target['targetDirectory']
+                : $this->packagePartDirectory($targetPart);
+            $targetDirectoryKey = $targetDirectory === '' ? '/' : $targetDirectory;
+            $segments[$caseFoldTopLevelSegment]['targetDirectoryCounts'][$targetDirectoryKey] =
+                ($segments[$caseFoldTopLevelSegment]['targetDirectoryCounts'][$targetDirectoryKey] ?? 0) + 1;
+
+            $targetBaseName = is_string($target['targetBaseName'] ?? null)
+                ? $target['targetBaseName']
+                : $this->packagePartBaseName($targetPart);
+            $targetBaseNameKey = $targetBaseName === '' ? '(none)' : $targetBaseName;
+            $segments[$caseFoldTopLevelSegment]['targetBaseNameCounts'][$targetBaseNameKey] =
+                ($segments[$caseFoldTopLevelSegment]['targetBaseNameCounts'][$targetBaseNameKey] ?? 0) + 1;
+
+            $targetPartExtension = is_string($target['targetPartExtension'] ?? null)
+                ? $target['targetPartExtension']
+                : $this->packagePartExtension($targetPart);
+            $targetPartExtensionKey = $targetPartExtension ?? '(none)';
+            $segments[$caseFoldTopLevelSegment]['targetPartExtensionCounts'][$targetPartExtensionKey] =
+                ($segments[$caseFoldTopLevelSegment]['targetPartExtensionCounts'][$targetPartExtensionKey] ?? 0) + 1;
+
+            $targetExists = ($target['targetExists'] ?? false) === true;
+            if ($targetExists) {
+                ++$segments[$caseFoldTopLevelSegment]['existingTargetCount'];
+                $this->appendUniqueString($segments[$caseFoldTopLevelSegment]['existingTargetParts'], $targetPart);
+            } else {
+                ++$segments[$caseFoldTopLevelSegment]['missingTargetCount'];
+                $this->appendUniqueString($segments[$caseFoldTopLevelSegment]['missingTargetParts'], $targetPart);
+            }
+
+            $targetContentTypeSource = is_string($target['targetContentTypeSource'] ?? null)
+                ? $target['targetContentTypeSource']
+                : 'missing';
+            if ($targetContentTypeSource === '') {
+                $targetContentTypeSource = 'missing';
+            }
+            $segments[$caseFoldTopLevelSegment]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                ($segments[$caseFoldTopLevelSegment]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+            if ($targetContentTypeSource === 'missing') {
+                ++$segments[$caseFoldTopLevelSegment]['missingContentTypeTargetCount'];
+            }
+
+            $targetContentTypeBase = is_string($target['targetContentTypeBase'] ?? null)
+                ? $target['targetContentTypeBase']
+                : '';
+            $targetContentTypeBaseKey = $targetContentTypeBase === '' ? '(missing)' : $targetContentTypeBase;
+            $segments[$caseFoldTopLevelSegment]['contentTypeBaseCounts'][$targetContentTypeBaseKey] =
+                ($segments[$caseFoldTopLevelSegment]['contentTypeBaseCounts'][$targetContentTypeBaseKey] ?? 0) + 1;
+
+            if (($target['targetContentTypeHasParameters'] ?? false) === true) {
+                ++$segments[$caseFoldTopLevelSegment]['parameterizedTargetCount'];
+            }
+
+            $relationshipType = is_string($target['relationshipType'] ?? null) ? $target['relationshipType'] : '';
+            $relationshipTypeKey = is_string($target['relationshipTypeKey'] ?? null)
+                ? $target['relationshipTypeKey']
+                : ($relationshipType === '' ? '(missing-type)' : $relationshipType);
+            $segments[$caseFoldTopLevelSegment]['relationshipTypeCounts'][$relationshipTypeKey] =
+                ($segments[$caseFoldTopLevelSegment]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+
+            $targetRoles = is_array($target['targetRoles'] ?? null)
+                ? array_values(array_filter(
+                    array_map('strval', $target['targetRoles']),
+                    static fn (string $role): bool => $role !== '',
+                ))
+                : [];
+            foreach ($targetRoles as $targetRole) {
+                $segments[$caseFoldTopLevelSegment]['roleCounts'][$targetRole] =
+                    ($segments[$caseFoldTopLevelSegment]['roleCounts'][$targetRole] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString(
+                $segments[$caseFoldTopLevelSegment]['sourceParts'],
+                is_string($target['sourcePart'] ?? null) ? $target['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $segments[$caseFoldTopLevelSegment]['relationshipParts'],
+                is_string($target['relationshipsPart'] ?? null) ? $target['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString(
+                $segments[$caseFoldTopLevelSegment]['relationshipIds'],
+                is_string($target['relationshipId'] ?? null) ? $target['relationshipId'] : null,
+            );
+            $this->appendUniqueString($segments[$caseFoldTopLevelSegment]['relationshipTypes'], $relationshipType);
+            $this->appendUniqueString(
+                $segments[$caseFoldTopLevelSegment]['contentTypes'],
+                is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : null,
+            );
+            $this->appendUniqueString($segments[$caseFoldTopLevelSegment]['targetParts'], $targetPart);
+
+            $targetBytes = is_int($target['targetBytes'] ?? null) ? (int) $target['targetBytes'] : null;
+            if (
+                !$targetExists
+                || $targetBytes === null
+                || isset($segments[$caseFoldTopLevelSegment]['_seenExistingTargetParts'][$targetPart])
+            ) {
+                continue;
+            }
+
+            $segments[$caseFoldTopLevelSegment]['_seenExistingTargetParts'][$targetPart] = true;
+            $targetSummary = [
+                'partName' => $targetPart,
+                'targetPart' => $targetPart,
+                'targetTopLevelSegment' => $topLevelSegment === '' ? null : $topLevelSegment,
+                'targetCaseFoldTopLevelSegment' => $caseFoldTopLevelSegment === '' ? null : $caseFoldTopLevelSegment,
+                'targetPathSegments' => $pathSegments,
+                'caseFoldPathSegments' => array_map(
+                    fn (string $segment): string => $this->packagePartCaseFoldKey($segment),
+                    $pathSegments,
+                ),
+                'directory' => $targetDirectory,
+                'baseName' => $targetBaseName,
+                'targetPathDepth' => $targetPathDepth,
+                'partExtension' => $targetPartExtension,
+                'bytes' => $targetBytes,
+                'targetBytes' => $targetBytes,
+                'crc32' => is_string($target['targetCrc32'] ?? null) ? $target['targetCrc32'] : null,
+                'sha256' => is_string($target['targetSha256'] ?? null) ? $target['targetSha256'] : null,
+                'contentType' => is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : '',
+                'contentTypeBase' => $targetContentTypeBase,
+                'contentTypeSource' => $targetContentTypeSource,
+                'roles' => $targetRoles,
+            ];
+            $segments[$caseFoldTopLevelSegment]['existingTargetByteLength'] += $targetBytes;
+            $largestTarget = $segments[$caseFoldTopLevelSegment]['largestExistingTargetPart'];
+            if (
+                !is_array($largestTarget)
+                || $targetBytes > (int) ($largestTarget['bytes'] ?? 0)
+                || (
+                    $targetBytes === (int) ($largestTarget['bytes'] ?? 0)
+                    && strcmp($targetPart, (string) ($largestTarget['partName'] ?? '')) < 0
+                )
+            ) {
+                $segments[$caseFoldTopLevelSegment]['largestExistingTargetPart'] = $targetSummary;
+            }
+        }
+
+        ksort($segments, SORT_STRING);
+        foreach ($segments as $caseFoldTopLevelSegment => $summary) {
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
+            ksort($summary['targetPathDepthCounts'], SORT_NUMERIC);
+            ksort($summary['targetDirectoryCounts'], SORT_STRING);
+            ksort($summary['targetBaseNameCounts'], SORT_STRING);
+            ksort($summary['targetPartExtensionCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['relationshipTypeCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['relationshipIds'], SORT_STRING);
+            sort($summary['relationshipTypes'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['targetParts'], SORT_STRING);
+            sort($summary['existingTargetParts'], SORT_STRING);
+            sort($summary['missingTargetParts'], SORT_STRING);
+            $summary['topLevelSegmentVariantCount'] = count($summary['topLevelSegmentCounts']);
+            unset($summary['_seenExistingTargetParts']);
+            $segments[$caseFoldTopLevelSegment] = $summary;
+        }
+
+        return array_values($segments);
     }
 
     /**
