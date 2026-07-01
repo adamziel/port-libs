@@ -1249,6 +1249,10 @@ return [
             'endOfCentralDirectoryOffset' => $manifest['endOfCentralDirectoryOffset'],
             'endOfCentralDirectoryBytes' => $manifest['endOfCentralDirectoryBytes'],
             'endOfCentralDirectorySha256' => $manifest['endOfCentralDirectorySha256'],
+            'endOfCentralDirectoryFixedFields' => $manifest['endOfCentralDirectoryFixedFields'],
+            'endOfCentralDirectoryFixedFieldIssueCount' => $manifest['endOfCentralDirectoryFixedFieldIssueCount'],
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $manifest['hasEndOfCentralDirectoryFixedFieldIssues'],
+            'endOfCentralDirectoryFixedFieldIssues' => $manifest['endOfCentralDirectoryFixedFieldIssues'],
             'packageCommentOffset' => $manifest['packageCommentOffset'],
             'packageCommentBytes' => $manifest['packageCommentBytes'],
             'packageCommentEnd' => $manifest['packageCommentEnd'],
@@ -2636,6 +2640,58 @@ return [
         $t->same($signedManifest, $signedRaw['strictImport']['packageManifest']);
     },
 
+    'preflights zip package manifest eocd fixed fields for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $comment = 'package manifest eocd fixed field comment';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>manifest eocd fixed fields</w:p></w:document>',
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/styles.xml',
+                'data' => '<w:styles/>',
+                'method' => 0,
+            ],
+        ], $comment);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $fixedFields = ZipPackage::endOfCentralDirectoryFixedFieldsPreflight($zip);
+        $expectedManifestFixedFields = $fixedFields;
+        unset($expectedManifestFixedFields['packageComment'], $expectedManifestFixedFields['packageCommentHex']);
+        $expectedManifestFixedFields['packageCommentByteExposurePolicy'] = 'zip-package-comment-source-metadata-only';
+        $expectedManifestFixedFields['canExposePackageCommentBytes'] = false;
+
+        $t->same($expectedManifestFixedFields, $manifest['endOfCentralDirectoryFixedFields']);
+        $t->same($expectedManifestFixedFields, $manifest['packageSource']['endOfCentralDirectoryFixedFields']);
+        $t->same(0, $manifest['endOfCentralDirectoryFixedFieldIssueCount']);
+        $t->same(false, $manifest['hasEndOfCentralDirectoryFixedFieldIssues']);
+        $t->same([], $manifest['endOfCentralDirectoryFixedFieldIssues']);
+        $t->same($manifest['endOfCentralDirectoryFixedFieldIssueCount'], $manifest['packageSource']['endOfCentralDirectoryFixedFieldIssueCount']);
+        $t->same($manifest['hasEndOfCentralDirectoryFixedFieldIssues'], $manifest['packageSource']['hasEndOfCentralDirectoryFixedFieldIssues']);
+        $t->same($manifest['endOfCentralDirectoryFixedFieldIssues'], $manifest['packageSource']['endOfCentralDirectoryFixedFieldIssues']);
+        $t->same(false, array_key_exists('packageComment', $manifest['endOfCentralDirectoryFixedFields']));
+        $t->same(false, array_key_exists('packageCommentHex', $manifest['endOfCentralDirectoryFixedFields']));
+        $t->same($comment, $fixedFields['packageComment']);
+        $t->same(bin2hex($comment), $fixedFields['packageCommentHex']);
+        $t->same(bin2hex(substr($comment, 0, 16)), $manifest['endOfCentralDirectoryFixedFields']['packageCommentPreviewHex']);
+        $t->same(strlen($comment), $manifest['endOfCentralDirectoryFixedFields']['packageCommentLength']);
+        $t->same($manifest['endOfCentralDirectoryOffset'], $manifest['endOfCentralDirectoryFixedFields']['eocdOffset']);
+        $t->same($manifest['endOfCentralDirectoryOffset'], $manifest['endOfCentralDirectoryFixedFields']['fixedHeaderOffset']);
+        $t->same($manifest['endOfCentralDirectoryOffset'] + 22, $manifest['endOfCentralDirectoryFixedFields']['fixedHeaderEnd']);
+        $t->same($manifest['entryCount'], $manifest['endOfCentralDirectoryFixedFields']['totalEntryCount']);
+        $t->same($manifest['entryCount'], $manifest['endOfCentralDirectoryFixedFields']['diskEntryCount']);
+        $t->same($manifest['centralDirectoryOffset'], $manifest['endOfCentralDirectoryFixedFields']['centralDirectoryOffset']);
+        $t->same($manifest['centralDirectoryBytes'], $manifest['endOfCentralDirectoryFixedFields']['centralDirectorySize']);
+        $t->same($manifest['centralDirectoryEnd'], $manifest['endOfCentralDirectoryFixedFields']['centralDirectoryEnd']);
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($fixedFields, $raw['endOfCentralDirectoryFixedFields']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip package manifest central directory review field byte totals for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest central review fields</w:p></w:body></w:document>';
         $mediaBytes = "manifest central review media\n";
@@ -3136,6 +3192,10 @@ return [
             'endOfCentralDirectoryOffset' => $manifest['endOfCentralDirectoryOffset'],
             'endOfCentralDirectoryBytes' => $manifest['endOfCentralDirectoryBytes'],
             'endOfCentralDirectorySha256' => $manifest['endOfCentralDirectorySha256'],
+            'endOfCentralDirectoryFixedFields' => $manifest['endOfCentralDirectoryFixedFields'],
+            'endOfCentralDirectoryFixedFieldIssueCount' => $manifest['endOfCentralDirectoryFixedFieldIssueCount'],
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $manifest['hasEndOfCentralDirectoryFixedFieldIssues'],
+            'endOfCentralDirectoryFixedFieldIssues' => $manifest['endOfCentralDirectoryFixedFieldIssues'],
             'packageCommentOffset' => $manifest['packageCommentOffset'],
             'packageCommentBytes' => $manifest['packageCommentBytes'],
             'packageCommentEnd' => $manifest['packageCommentEnd'],

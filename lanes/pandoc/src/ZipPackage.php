@@ -14666,6 +14666,11 @@ final class ZipPackage
             : '';
         $packageCommentByteExposurePolicy = 'zip-package-comment-source-metadata-only';
         $canExposePackageCommentBytes = false;
+        $endOfCentralDirectoryFixedFields = self::endOfCentralDirectoryFixedFieldsPreflight($this->bytes);
+        unset($endOfCentralDirectoryFixedFields['packageComment'], $endOfCentralDirectoryFixedFields['packageCommentHex']);
+        $endOfCentralDirectoryFixedFields['packageCommentByteExposurePolicy'] = $packageCommentByteExposurePolicy;
+        $endOfCentralDirectoryFixedFields['canExposePackageCommentBytes'] = $canExposePackageCommentBytes;
+        $endOfCentralDirectoryFixedFieldIssues = $endOfCentralDirectoryFixedFields['issues'];
         $centralDirectoryToEocdGapBytes = max(0, $endOfCentralDirectoryOffset - $centralDirectoryEnd);
         $centralDirectoryToEocdGapOffset = $centralDirectoryToEocdGapBytes > 0
             ? $centralDirectoryEnd
@@ -14724,6 +14729,10 @@ final class ZipPackage
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'endOfCentralDirectoryFixedFields' => $endOfCentralDirectoryFixedFields,
+            'endOfCentralDirectoryFixedFieldIssueCount' => count($endOfCentralDirectoryFixedFieldIssues),
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues !== [],
+            'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentEnd' => $packageCommentEnd,
@@ -15706,6 +15715,10 @@ final class ZipPackage
             'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'endOfCentralDirectoryFixedFields' => $endOfCentralDirectoryFixedFields,
+            'endOfCentralDirectoryFixedFieldIssueCount' => count($endOfCentralDirectoryFixedFieldIssues),
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues !== [],
+            'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentEnd' => $packageCommentEnd,
@@ -15920,6 +15933,10 @@ final class ZipPackage
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'endOfCentralDirectoryFixedFields' => $endOfCentralDirectoryFixedFields,
+            'endOfCentralDirectoryFixedFieldIssueCount' => count($endOfCentralDirectoryFixedFieldIssues),
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues !== [],
+            'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentEnd' => $packageCommentEnd,
