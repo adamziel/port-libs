@@ -9913,7 +9913,9 @@ XML,
         $parts['customXml/medium-byte-target.bin'] = $mediumPayload;
         $parts['customXml/large-byte-target.bin'] = $largePayload;
 
-        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $buckets = [];
         foreach ($summary['relationshipTargetByteLengthBuckets'] as $bucket) {
             $buckets[$bucket['targetByteLengthBucket']] = $bucket;
@@ -9922,6 +9924,20 @@ XML,
         $t->same(4, $summary['relationshipTargetByteLengthBucketCount']);
         $t->same(['empty' => 1, 'small' => 3, 'medium' => 2, 'large' => 2], $summary['relationshipTargetByteLengthBucketCounts']);
         $t->same(['empty' => 1, 'small' => 2, 'medium' => 2, 'large' => 2], $summary['relationshipTargetByteLengthBucketUniqueTargetCounts']);
+        $t->same([
+            'empty' => 0,
+            'small' => strlen($parts['word/media/review.png']) + strlen($smallPng),
+            'medium' => strlen($parts['docProps/core.xml']) + strlen($mediumPayload),
+            'large' => strlen($parts['word/document.xml']) + strlen($largePayload),
+        ], $summary['relationshipTargetByteLengthBucketByteLengths']);
+        $t->same($summary['relationshipTargetByteLengthBucketCount'], $identity['relationshipTargetByteLengthBucketCount']);
+        $t->same($summary['relationshipTargetByteLengthBucketCounts'], $identity['relationshipTargetByteLengthBucketCounts']);
+        $t->same($summary['relationshipTargetByteLengthBucketUniqueTargetCounts'], $identity['relationshipTargetByteLengthBucketUniqueTargetCounts']);
+        $t->same($summary['relationshipTargetByteLengthBucketByteLengths'], $identity['relationshipTargetByteLengthBucketByteLengths']);
+        $t->same($identity['relationshipTargetByteLengthBucketCount'], $summary['packageIdentityRelationshipTargetByteLengthBucketCount']);
+        $t->same($identity['relationshipTargetByteLengthBucketCounts'], $summary['packageIdentityRelationshipTargetByteLengthBucketCounts']);
+        $t->same($identity['relationshipTargetByteLengthBucketUniqueTargetCounts'], $summary['packageIdentityRelationshipTargetByteLengthBucketUniqueTargetCounts']);
+        $t->same($identity['relationshipTargetByteLengthBucketByteLengths'], $summary['packageIdentityRelationshipTargetByteLengthBucketByteLengths']);
         $t->same(['empty', 'small', 'medium', 'large'], array_column($summary['relationshipTargetByteLengthBuckets'], 'targetByteLengthBucket'));
 
         $empty = $buckets['empty'];
@@ -9974,6 +9990,9 @@ XML,
         $encoded = json_encode($summary['relationshipTargetByteLengthBuckets']);
         $t->true(is_string($encoded), 'byte length bucket metadata should encode for review');
         $t->true(!str_contains((string) $encoded, $largePayload), 'byte length buckets must not expose relationship target bytes');
+        $identityEncoded = json_encode($identity);
+        $t->true(is_string($identityEncoded), 'identity byte length metadata should encode for review');
+        $t->true(!str_contains((string) $identityEncoded, $largePayload), 'package identity must not expose relationship target bytes');
     },
     'summarizes docx relationship target directories for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();

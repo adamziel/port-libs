@@ -13682,6 +13682,14 @@ final class DocxOpenXmlReader
             $packageIdentity['partByteLengthBucketRelationshipPartCounts'];
         $summary['packageIdentityPartByteLengthBucketMissingContentTypeCounts'] =
             $packageIdentity['partByteLengthBucketMissingContentTypeCounts'];
+        $summary['packageIdentityRelationshipTargetByteLengthBucketCount'] =
+            $packageIdentity['relationshipTargetByteLengthBucketCount'];
+        $summary['packageIdentityRelationshipTargetByteLengthBucketCounts'] =
+            $packageIdentity['relationshipTargetByteLengthBucketCounts'];
+        $summary['packageIdentityRelationshipTargetByteLengthBucketUniqueTargetCounts'] =
+            $packageIdentity['relationshipTargetByteLengthBucketUniqueTargetCounts'];
+        $summary['packageIdentityRelationshipTargetByteLengthBucketByteLengths'] =
+            $packageIdentity['relationshipTargetByteLengthBucketByteLengths'];
         $summary['packageIdentityByteExposurePolicy'] = $packageIdentity['byteExposurePolicy'];
 
         return [
@@ -13941,6 +13949,20 @@ final class DocxOpenXmlReader
             'externalRelationshipCount' => (int) ($summary['externalRelationshipCount'] ?? 0),
             'existingRelationshipTargetCount' => (int) ($summary['existingRelationshipTargetCount'] ?? 0),
             'missingRelationshipTargetCount' => (int) ($summary['missingRelationshipTargetCount'] ?? 0),
+            'relationshipTargetByteLengthBucketCount' =>
+                (int) ($summary['relationshipTargetByteLengthBucketCount'] ?? 0),
+            'relationshipTargetByteLengthBucketCounts' =>
+                is_array($summary['relationshipTargetByteLengthBucketCounts'] ?? null)
+                    ? $summary['relationshipTargetByteLengthBucketCounts']
+                    : [],
+            'relationshipTargetByteLengthBucketUniqueTargetCounts' =>
+                is_array($summary['relationshipTargetByteLengthBucketUniqueTargetCounts'] ?? null)
+                    ? $summary['relationshipTargetByteLengthBucketUniqueTargetCounts']
+                    : [],
+            'relationshipTargetByteLengthBucketByteLengths' =>
+                is_array($summary['relationshipTargetByteLengthBucketByteLengths'] ?? null)
+                    ? $summary['relationshipTargetByteLengthBucketByteLengths']
+                    : [],
             'roleCounts' => is_array($summary['roleCounts'] ?? null) ? $summary['roleCounts'] : [],
             'contentTypeBaseCounts' => is_array($summary['contentTypeBaseCounts'] ?? null)
                 ? $summary['contentTypeBaseCounts']
@@ -18977,12 +18999,15 @@ final class DocxOpenXmlReader
         $relationshipTargetByteLengthBuckets = $this->relationshipTargetByteLengthBucketSummary($relationshipTargets);
         $relationshipTargetByteLengthBucketCounts = [];
         $relationshipTargetByteLengthBucketUniqueTargetCounts = [];
+        $relationshipTargetByteLengthBucketByteLengths = [];
         foreach ($relationshipTargetByteLengthBuckets as $byteLengthBucketSummary) {
             $bucketKey = (string) ($byteLengthBucketSummary['targetByteLengthBucket'] ?? '');
             $relationshipTargetByteLengthBucketCounts[$bucketKey] =
                 (int) ($byteLengthBucketSummary['relationshipCount'] ?? 0);
             $relationshipTargetByteLengthBucketUniqueTargetCounts[$bucketKey] =
                 (int) ($byteLengthBucketSummary['uniqueTargetPartCount'] ?? 0);
+            $relationshipTargetByteLengthBucketByteLengths[$bucketKey] =
+                (int) ($byteLengthBucketSummary['existingTargetPartByteLength'] ?? 0);
         }
         $relationshipTargetPathSegments = $this->relationshipTargetPathSegmentSummary($relationshipTargets);
         $relationshipTargetPathSegmentOccurrenceCount = 0;
@@ -20189,6 +20214,7 @@ final class DocxOpenXmlReader
             'relationshipTargetByteLengthBucketCount' => count($relationshipTargetByteLengthBuckets),
             'relationshipTargetByteLengthBucketCounts' => $relationshipTargetByteLengthBucketCounts,
             'relationshipTargetByteLengthBucketUniqueTargetCounts' => $relationshipTargetByteLengthBucketUniqueTargetCounts,
+            'relationshipTargetByteLengthBucketByteLengths' => $relationshipTargetByteLengthBucketByteLengths,
             'relationshipTargetByteLengthBuckets' => $relationshipTargetByteLengthBuckets,
             'relationshipTargetContentTypes' => array_values($relationshipTargetContentTypes),
             'relationshipTargetContentTypeMediaTypeCount' => count($relationshipTargetContentTypeMediaTypes),
