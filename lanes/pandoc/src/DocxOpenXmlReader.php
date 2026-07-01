@@ -14652,6 +14652,29 @@ final class DocxOpenXmlReader
         foreach ($partPathSegments as $partPathSegment) {
             $partPathSegmentOccurrenceCount += (int) ($partPathSegment['occurrenceCount'] ?? 0);
         }
+        $partPathSegmentPositions = $this->packagePartPathSegmentPositionSummary($partInventory);
+        $partPathSegmentPositionOccurrenceCount = 0;
+        $partPathSegmentPositionCounts = [];
+        $partPathSegmentPositionPartCounts = [];
+        $parameterizedPartPathSegmentPositionCount = 0;
+        $parameterizedPartPathSegmentPositionBucketCount = 0;
+        $missingContentTypePartPathSegmentPositionCount = 0;
+        foreach ($partPathSegmentPositions as $positionSummary) {
+            $position = (string) ($positionSummary['position'] ?? '');
+            $partPathSegmentPositionCounts[$position] = (int) ($positionSummary['occurrenceCount'] ?? 0);
+            $partPathSegmentPositionPartCounts[$position] = (int) ($positionSummary['partCount'] ?? 0);
+            $partPathSegmentPositionOccurrenceCount += (int) ($positionSummary['occurrenceCount'] ?? 0);
+            $parameterizedPartCount = (int) ($positionSummary['parameterizedPartCount'] ?? 0);
+            if ($parameterizedPartCount > 0) {
+                $parameterizedPartPathSegmentPositionBucketCount++;
+                $parameterizedPartPathSegmentPositionCount += $parameterizedPartCount;
+            }
+            if ((int) ($positionSummary['missingContentTypePartCount'] ?? 0) > 0) {
+                $missingContentTypePartPathSegmentPositionCount++;
+            }
+        }
+        ksort($partPathSegmentPositionCounts, SORT_STRING);
+        ksort($partPathSegmentPositionPartCounts, SORT_STRING);
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $parameterizedPartPathDepthCount = 0;
         $parameterizedPartPathDepthBucketCount = 0;
@@ -17405,6 +17428,13 @@ final class DocxOpenXmlReader
             'partTopLevelSegmentCount' => count($partTopLevelSegments),
             'partPathSegmentCount' => count($partPathSegments),
             'partPathSegmentOccurrenceCount' => $partPathSegmentOccurrenceCount,
+            'partPathSegmentPositionBucketCount' => count($partPathSegmentPositions),
+            'partPathSegmentPositionOccurrenceCount' => $partPathSegmentPositionOccurrenceCount,
+            'partPathSegmentPositionCounts' => $partPathSegmentPositionCounts,
+            'partPathSegmentPositionPartCounts' => $partPathSegmentPositionPartCounts,
+            'partPathSegmentPositionParameterizedBucketCount' => $parameterizedPartPathSegmentPositionBucketCount,
+            'partPathSegmentPositionParameterizedPartCount' => $parameterizedPartPathSegmentPositionCount,
+            'partPathSegmentPositionMissingContentTypeBucketCount' => $missingContentTypePartPathSegmentPositionCount,
             'partPathDepthCount' => count($partPathDepths),
             'partPathDepthParameterizedBucketCount' => $parameterizedPartPathDepthBucketCount,
             'partPathDepthParameterizedPartCount' => $parameterizedPartPathDepthCount,
@@ -17882,6 +17912,7 @@ final class DocxOpenXmlReader
             'partDirectoryDepths' => $partDirectoryDepths,
             'partTopLevelSegments' => $partTopLevelSegments,
             'partPathSegments' => $partPathSegments,
+            'partPathSegmentPositions' => $partPathSegmentPositions,
             'partPathDepths' => $partPathDepths,
             'deepestParts' => $deepestParts,
             'partExtensions' => $partExtensions,
@@ -22522,6 +22553,176 @@ final class DocxOpenXmlReader
         }
 
         return array_values($segments);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartPathSegmentPositionSummary(array $partInventory): array
+    {
+        $positions = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $pathSegments = is_array($part['pathSegments'] ?? null)
+                ? array_values(array_filter(
+                    array_map(
+                        static fn (mixed $segment): string => is_scalar($segment) ? (string) $segment : '',
+                        $part['pathSegments'],
+                    ),
+                    static fn (string $segment): bool => $segment !== '',
+                ))
+                : $this->packagePartPathSegments($partName);
+            $reviews = is_array($part['pathSegmentPositionReviews'] ?? null)
+                ? array_values(array_filter(
+                    $part['pathSegmentPositionReviews'],
+                    static fn (mixed $review): bool => is_array($review),
+                ))
+                : $this->packagePartPathSegmentPositionReviews($pathSegments);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
+                ? (int) $part['pathSegmentCount']
+                : count($pathSegments);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $contentType = is_string($part['contentType'] ?? null)
+                ? $part['contentType']
+                : '';
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'baseName' => $baseName,
+                'pathSegmentCount' => $pathSegmentCount,
+                'pathSegments' => $pathSegments,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+
+            $positionsSeenInPart = [];
+            foreach ($reviews as $review) {
+                $position = is_string($review['position'] ?? null) ? $review['position'] : '';
+                $segment = is_string($review['segment'] ?? null) ? $review['segment'] : '';
+                if ($position === '' || $segment === '') {
+                    continue;
+                }
+
+                $pathSegmentIndex = (int) ($review['pathSegmentIndex'] ?? 0);
+                if (!isset($positions[$position])) {
+                    $positions[$position] = [
+                        'position' => $position,
+                        'occurrenceCount' => 0,
+                        'partCount' => 0,
+                        'byteLength' => 0,
+                        'relationshipPartCount' => 0,
+                        'missingContentTypePartCount' => 0,
+                        'parameterizedPartCount' => 0,
+                        'uniqueSegmentCount' => 0,
+                        'segmentCounts' => [],
+                        'segments' => [],
+                        'pathSegmentIndexCounts' => [],
+                        'directoryCount' => 0,
+                        'directoryCounts' => [],
+                        'directories' => [],
+                        'contentTypeSourceCounts' => [],
+                        'contentTypeBaseCounts' => [],
+                        'roleCounts' => [],
+                        'partNames' => [],
+                        'largestPart' => null,
+                    ];
+                }
+
+                ++$positions[$position]['occurrenceCount'];
+                $positions[$position]['segmentCounts'][$segment] =
+                    ($positions[$position]['segmentCounts'][$segment] ?? 0) + 1;
+                $this->appendUniqueString($positions[$position]['segments'], $segment);
+                $positions[$position]['pathSegmentIndexCounts'][$pathSegmentIndex] =
+                    ($positions[$position]['pathSegmentIndexCounts'][$pathSegmentIndex] ?? 0) + 1;
+
+                if (isset($positionsSeenInPart[$position])) {
+                    continue;
+                }
+
+                $positionsSeenInPart[$position] = true;
+                ++$positions[$position]['partCount'];
+                $positions[$position]['byteLength'] += $bytes;
+                $positions[$position]['directoryCounts'][$directory] =
+                    ($positions[$position]['directoryCounts'][$directory] ?? 0) + 1;
+                $this->appendUniqueString($positions[$position]['directories'], $directory);
+                $positions[$position]['partNames'][] = $partName;
+                if (($part['isRelationshipPart'] ?? false) === true) {
+                    ++$positions[$position]['relationshipPartCount'];
+                }
+                if ($contentTypeSource === 'missing') {
+                    ++$positions[$position]['missingContentTypePartCount'];
+                }
+                if (($part['contentTypeHasParameters'] ?? false) === true) {
+                    ++$positions[$position]['parameterizedPartCount'];
+                }
+                $positions[$position]['contentTypeSourceCounts'][$contentTypeSource] =
+                    ($positions[$position]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+                $positions[$position]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                    ($positions[$position]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+                foreach (($part['roles'] ?? []) as $role) {
+                    $role = (string) $role;
+                    if ($role === '') {
+                        continue;
+                    }
+                    $positions[$position]['roleCounts'][$role] =
+                        ($positions[$position]['roleCounts'][$role] ?? 0) + 1;
+                }
+
+                $largestPart = $positions[$position]['largestPart'];
+                if (
+                    !is_array($largestPart)
+                    || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                    || (
+                        $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                        && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $positions[$position]['largestPart'] = $partSummary;
+                }
+            }
+        }
+
+        ksort($positions, SORT_STRING);
+        foreach ($positions as $position => $summary) {
+            sort($summary['segments'], SORT_STRING);
+            sort($summary['directories'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['segmentCounts'], SORT_STRING);
+            ksort($summary['pathSegmentIndexCounts'], SORT_NUMERIC);
+            ksort($summary['directoryCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['uniqueSegmentCount'] = count($summary['segments']);
+            $summary['directoryCount'] = count($summary['directories']);
+            $positions[$position] = $summary;
+        }
+
+        return array_values($positions);
     }
 
     /**
