@@ -5,6 +5,8 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\WordPressBlockWriter;
 
 return [
     'coalesces native definition term text while preserving following code constructors' => static function (TestRunner $t): void {
@@ -69,5 +71,44 @@ return [
         $t->same('Generated term', $term->attr('text'));
         $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $term->children));
         $t->same(['Str', 'Space', 'Str'], $term->children[0]->attr('nativeInlineConstructors'));
+    },
+    'renders json native definition term nodes through html and native writers' => static function (TestRunner $t): void {
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [[
+                't' => 'DefinitionList',
+                'c' => [[
+                    [
+                        ['t' => 'Str', 'c' => 'Cello'],
+                        ['t' => 'LineBreak'],
+                        ['t' => 'Str', 'c' => 'Violoncello'],
+                    ],
+                    [[
+                        ['t' => 'Para', 'c' => [
+                            ['t' => 'Str', 'c' => 'Low-voiced'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'instrument.'],
+                        ]],
+                    ]],
+                ]],
+            ]],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $term = $document->children[0]->children[0]->children[0];
+            $wordpress = (new WordPressBlockWriter())->write($document);
+            $nativeText = (new NativeWriter(['blocksOnly' => true]))->write($document);
+
+            $t->same('definition_term', $term->type, "{$source} term node");
+            $t->same(['text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $term->children), "{$source} term inline nodes");
+            $t->contains('<dl><dt>Cello<br/>Violoncello</dt><dd>Low-voiced instrument.</dd></dl>', $wordpress, "{$source} wordpress definition term");
+            $t->contains('[ Str "Cello" , LineBreak , Str "Violoncello" ]', $nativeText, "{$source} native definition term");
+        }
     },
 ];

@@ -1029,7 +1029,7 @@ final class NativeWriter
             $term = null;
             $definitions = [];
             foreach ($item->children as $child) {
-                if ($child->type === 'term') {
+                if (in_array($child->type, ['term', 'definition_term'], true)) {
                     $term = $child;
                 } elseif ($child->type === 'definition') {
                     $definitions[] = $this->renderBlockList($child->children, 0);

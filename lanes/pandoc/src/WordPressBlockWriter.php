@@ -823,7 +823,7 @@ final class WordPressBlockWriter
 
             $children = $item->children;
             $term = array_shift($children);
-            if (!$term instanceof AstNode || $term->type !== 'term') {
+            if (!$term instanceof AstNode || !in_array($term->type, ['term', 'definition_term'], true)) {
                 $term = new AstNode('term', ['text' => (string) $item->attr('term', '')]);
             }
             $html .= '<dt>' . $this->renderInlines($term) . '</dt>';
