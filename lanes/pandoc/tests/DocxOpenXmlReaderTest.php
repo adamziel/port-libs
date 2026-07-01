@@ -22643,8 +22643,43 @@ XML;
         $chartContentType = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
         $chartXml = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
-<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <c:chart><c:title/><c:plotArea/></c:chart>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:chart>
+    <c:title/>
+    <c:plotArea>
+      <c:barChart>
+        <c:barDir val="col"/>
+        <c:ser>
+          <c:idx val="0"/><c:order val="0"/>
+          <c:invertIfNegative val="1"/>
+          <c:dPt>
+            <c:idx val="1"/>
+            <c:invertIfNegative val="0"/>
+            <c:marker><c:symbol val="diamond"/><c:size val="7"/></c:marker>
+            <c:spPr>
+              <a:solidFill><a:srgbClr val="C00000"/></a:solidFill>
+              <a:ln w="9525"><a:solidFill><a:schemeClr val="accent2"/></a:solidFill><a:prstDash val="dash"/></a:ln>
+            </c:spPr>
+          </c:dPt>
+          <c:tx><c:strRef><c:f>Sheet1!$B$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>North</c:v></c:pt></c:strCache></c:strRef></c:tx>
+          <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
+          <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
+        </c:ser>
+      </c:barChart>
+      <c:lineChart>
+        <c:ser>
+          <c:idx val="1"/><c:order val="1"/>
+          <c:marker><c:symbol val="circle"/><c:size val="6"/></c:marker>
+          <c:smooth val="1"/>
+          <c:tx><c:strRef><c:f>Sheet1!$C$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>South</c:v></c:pt></c:strCache></c:strRef></c:tx>
+          <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
+          <c:val><c:numRef><c:f>Sheet1!$C$2:$C$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>9</c:v></c:pt><c:pt idx="1"><c:v>13</c:v></c:pt></c:numCache></c:numRef></c:val>
+        </c:ser>
+      </c:lineChart>
+    </c:plotArea>
+  </c:chart>
 </c:chartSpace>
 XML;
         $badChartXml = '<review-chart/>';
@@ -22719,6 +22754,8 @@ XML;
         $t->same(0, $charts['missingContentTypeCount']);
         $t->same(1, $charts['unexpectedContentTypeCount']);
         $t->same(5, $charts['issueCount']);
+        $t->same(2, $charts['seriesCount']);
+        $t->same(1, $charts['dataPointCount']);
         $t->same([
             'external-chart-part',
             'missing-chart-part',
@@ -22756,6 +22793,48 @@ XML;
         $t->same(true, $chart['validRoot']);
         $t->same('http://schemas.openxmlformats.org/drawingml/2006/chart', $chart['rootNamespace']);
         $t->same('chartSpace', $chart['rootLocalName']);
+        $t->same(2, $chart['chartMetadata']['chartTypeCount']);
+        $t->same(['bar', 'line'], $chart['chartMetadata']['chartTypes']);
+        $t->same(2, $chart['chartMetadata']['seriesCount']);
+        $t->same(1, $chart['chartMetadata']['dataPointCount']);
+        $t->same('bar', $chart['chartMetadata']['series'][0]['plotType']);
+        $t->same('North', $chart['chartMetadata']['series'][0]['name']);
+        $t->same(['Q1', 'Q2'], $chart['chartMetadata']['series'][0]['categories']);
+        $t->same(['12', '18'], $chart['chartMetadata']['series'][0]['values']);
+        $t->same('Sheet1!$B$1', $chart['chartMetadata']['series'][0]['nameFormula']);
+        $t->same(1, $chart['chartMetadata']['series'][0]['namePointCount']);
+        $t->same(['0'], $chart['chartMetadata']['series'][0]['namePointIndexes']);
+        $t->same('Sheet1!$A$2:$A$3', $chart['chartMetadata']['series'][0]['categoryFormula']);
+        $t->same(2, $chart['chartMetadata']['series'][0]['categoryPointCount']);
+        $t->same(['0', '1'], $chart['chartMetadata']['series'][0]['categoryPointIndexes']);
+        $t->same('Sheet1!$B$2:$B$3', $chart['chartMetadata']['series'][0]['valueFormula']);
+        $t->same(2, $chart['chartMetadata']['series'][0]['valuePointCount']);
+        $t->same(['0', '1'], $chart['chartMetadata']['series'][0]['valuePointIndexes']);
+        $t->same(true, $chart['chartMetadata']['series'][0]['invertIfNegative']);
+        $t->same(1, $chart['chartMetadata']['series'][0]['dataPointCount']);
+        $t->same([
+            'pointIndex' => 1,
+            'invertIfNegative' => false,
+            'marker' => [
+                'symbol' => 'diamond',
+                'size' => 7,
+            ],
+            'shape' => [
+                'fillColor' => 'C00000',
+                'line' => [
+                    'color' => 'theme:accent2',
+                    'width' => 9525,
+                    'dash' => 'dash',
+                ],
+            ],
+        ], $chart['chartMetadata']['series'][0]['dataPoints'][0]);
+        $t->same('line', $chart['chartMetadata']['series'][1]['plotType']);
+        $t->same('South', $chart['chartMetadata']['series'][1]['name']);
+        $t->same(['9', '13'], $chart['chartMetadata']['series'][1]['values']);
+        $t->same('Sheet1!$C$1', $chart['chartMetadata']['series'][1]['nameFormula']);
+        $t->same('Sheet1!$C$2:$C$3', $chart['chartMetadata']['series'][1]['valueFormula']);
+        $t->same(['symbol' => 'circle', 'size' => 6], $chart['chartMetadata']['series'][1]['marker']);
+        $t->same(true, $chart['chartMetadata']['series'][1]['smooth']);
         $t->same([], $chart['issues']);
         $t->same(true, $chart['valid']);
 
@@ -22781,6 +22860,8 @@ XML;
         $t->same(1, $summary['chartPartExternalCount']);
         $t->same(['document' => 7], $summary['chartPartSourceTypeCounts']);
         $t->same(5, $summary['chartPartIssueCount']);
+        $t->same(2, $summary['chartPartSeriesCount']);
+        $t->same(1, $summary['chartPartDataPointCount']);
         $t->same($charts['issueCodes'], $summary['chartPartIssueCodes']);
         $t->same('chart', $relationshipTypes[$chartRel]['label']);
         $t->same(5, $relationshipTypes[$chartRel]['count']);

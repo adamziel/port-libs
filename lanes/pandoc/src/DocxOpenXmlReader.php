@@ -1235,6 +1235,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['chartPartSourceTypeCounts'] = $chartParts['sourceTypeCounts'];
         $packageProvenance['summary']['chartPartIssueCount'] = $chartParts['issueCount'];
         $packageProvenance['summary']['chartPartIssueCodes'] = $chartParts['issueCodes'];
+        $packageProvenance['summary']['chartPartSeriesCount'] = $chartParts['seriesCount'];
+        $packageProvenance['summary']['chartPartDataPointCount'] = $chartParts['dataPointCount'];
         $packageProvenance['summary']['chartEmbeddedPackageCount'] = $chartParts['embeddedPackageCount'];
         $packageProvenance['summary']['chartEmbeddedPackageExistingCount'] = $chartParts['embeddedPackageExistingCount'];
         $packageProvenance['summary']['chartEmbeddedPackageMissingCount'] = $chartParts['embeddedPackageMissingCount'];
@@ -6476,9 +6478,15 @@ final class DocxOpenXmlReader
         $embeddedPackageMissingCount = 0;
         $embeddedPackageExternalCount = 0;
         $embeddedPackageIssueCount = 0;
+        $chartSeriesCount = 0;
+        $chartDataPointCount = 0;
         foreach ($items as $item) {
             if (($item['relationshipType'] ?? null) === self::CHART_REL) {
                 $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            }
+            if (is_array($item['chartMetadata'] ?? null)) {
+                $chartSeriesCount += (int) ($item['chartMetadata']['seriesCount'] ?? 0);
+                $chartDataPointCount += (int) ($item['chartMetadata']['dataPointCount'] ?? 0);
             }
             $itemSourceType = is_string($item['sourceType'] ?? null) ? $item['sourceType'] : '';
             if ($itemSourceType !== '') {
@@ -6541,6 +6549,8 @@ final class DocxOpenXmlReader
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-chart-content-type', $item['issues'], true))),
             'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-chart-content-type', $item['issues'], true))),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'seriesCount' => $chartSeriesCount,
+            'dataPointCount' => $chartDataPointCount,
             'relationshipIds' => $relationshipIds,
             'relationshipKeys' => $relationshipKeys,
             'referencedRelationshipIds' => $referencedRelationshipIds,
@@ -6621,6 +6631,7 @@ final class DocxOpenXmlReader
             'chartRelationshipCount' => 0,
             'externalDataRelationshipIds' => [],
             'embeddedPackages' => $this->emptyChartEmbeddedPackageParts(),
+            'chartMetadata' => $this->emptyChartMetadata(),
             'validXml' => null,
             'xmlParseError' => null,
             'rootNamespace' => null,
@@ -6710,6 +6721,7 @@ final class DocxOpenXmlReader
                 $item['issues'][] = 'unexpected-chart-root';
             } else {
                 $item['externalDataRelationshipIds'] = $this->chartExternalDataRelationshipIds($parts[$targetPart], $targetPart);
+                $item['chartMetadata'] = $this->chartMetadata($parts[$targetPart], $targetPart);
             }
         }
 
@@ -6756,6 +6768,604 @@ final class DocxOpenXmlReader
         }
 
         return trim($externalData->getAttribute('id'));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyChartMetadata(): array
+    {
+        return [
+            'chartTypeCount' => 0,
+            'chartTypes' => [],
+            'seriesCount' => 0,
+            'dataPointCount' => 0,
+            'series' => [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartMetadata(string $xml, string $partName): array
+    {
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return $this->emptyChartMetadata();
+        }
+
+        $xpath = $this->xpath($dom);
+        $plotArea = $this->firstElement($xpath, '/c:chartSpace/c:chart/c:plotArea', $dom->documentElement);
+        if (!$plotArea instanceof \DOMElement) {
+            return $this->emptyChartMetadata();
+        }
+
+        $chartTypes = [];
+        $series = [];
+        $dataPointCount = 0;
+        foreach ($this->chartChildElements($plotArea, null) as $chartTypeElement) {
+            if (!str_ends_with($chartTypeElement->localName, 'Chart')) {
+                continue;
+            }
+
+            $chartType = $this->chartTypeName($chartTypeElement);
+            $this->appendUniqueString($chartTypes, $chartType);
+            foreach ($this->chartChildElements($chartTypeElement, 'ser') as $seriesElement) {
+                $seriesItem = $this->chartSeriesMetadata($seriesElement, $chartType);
+                $dataPointCount += (int) ($seriesItem['dataPointCount'] ?? 0);
+                $series[] = $seriesItem;
+            }
+        }
+
+        return [
+            'chartTypeCount' => count($chartTypes),
+            'chartTypes' => $chartTypes,
+            'seriesCount' => count($series),
+            'dataPointCount' => $dataPointCount,
+            'series' => $series,
+        ];
+    }
+
+    private function chartTypeName(\DOMElement $chartTypeElement): string
+    {
+        $type = preg_replace('/Chart$/', '', $chartTypeElement->localName) ?? $chartTypeElement->localName;
+
+        return strtolower($type);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartSeriesMetadata(\DOMElement $seriesElement, string $plotType): array
+    {
+        $categoryCache = $this->chartCacheSummaryFor($seriesElement, ['cat', 'xVal']);
+        $valueCache = $this->chartCacheSummaryFor($seriesElement, ['val', 'yVal']);
+        $series = [
+            'name' => '',
+            'categories' => $categoryCache['values'],
+            'values' => $valueCache['values'],
+            'plotType' => $plotType,
+        ];
+        $this->addChartCacheMetadata($series, 'category', $categoryCache);
+        $this->addChartCacheMetadata($series, 'value', $valueCache);
+
+        $index = $this->chartFirstChildElement($seriesElement, 'idx');
+        if ($index instanceof \DOMElement && $index->getAttribute('val') !== '') {
+            $series['index'] = $index->getAttribute('val');
+        }
+
+        $order = $this->chartFirstChildElement($seriesElement, 'order');
+        if ($order instanceof \DOMElement && $order->getAttribute('val') !== '') {
+            $series['order'] = $order->getAttribute('val');
+        }
+
+        $text = $this->chartFirstChildElement($seriesElement, 'tx');
+        if ($text instanceof \DOMElement) {
+            $series['name'] = $this->chartElementText($text);
+            $this->addChartCacheMetadata($series, 'name', $this->chartCacheSummary($text));
+        }
+
+        foreach ([
+            'invertIfNegative' => 'invertIfNegative',
+            'smooth' => 'smooth',
+        ] as $source => $target) {
+            $value = $this->chartBooleanChildValue($seriesElement, $source);
+            if ($value !== null) {
+                $series[$target] = $value;
+            }
+        }
+
+        $explosion = $this->chartIntChildValue($seriesElement, 'explosion');
+        if ($explosion !== null) {
+            $series['explosion'] = $explosion;
+        }
+
+        $marker = $this->chartMarkerMetadata($seriesElement);
+        if ($marker !== []) {
+            $series['marker'] = $marker;
+        }
+
+        $dataPoints = $this->chartDataPoints($seriesElement);
+        if ($dataPoints !== []) {
+            $series['dataPoints'] = $dataPoints;
+            $series['dataPointCount'] = count($dataPoints);
+        }
+
+        return $series;
+    }
+
+    private function chartBooleanChildValue(\DOMElement $parent, string $localName): ?bool
+    {
+        $child = $this->chartFirstChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        return $child->hasAttribute('val') ? $this->xmlBooleanValue($child->getAttribute('val')) : true;
+    }
+
+    private function chartIntChildValue(\DOMElement $parent, string $localName): ?int
+    {
+        $child = $this->chartFirstChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->integerAttribute($child, 'val');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartMarkerMetadata(\DOMElement $container): array
+    {
+        $marker = $this->chartFirstChildElement($container, 'marker');
+        if (!$marker instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $symbol = $this->chartFirstChildElement($marker, 'symbol');
+        if ($symbol instanceof \DOMElement && trim($symbol->getAttribute('val')) !== '') {
+            $metadata['symbol'] = trim($symbol->getAttribute('val'));
+        }
+
+        $size = $this->chartIntChildValue($marker, 'size');
+        if ($size !== null) {
+            $metadata['size'] = $size;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function chartDataPoints(\DOMElement $seriesElement): array
+    {
+        $points = [];
+        foreach ($this->chartChildElements($seriesElement, 'dPt') as $dataPoint) {
+            $point = [];
+            $index = $this->chartIntChildValue($dataPoint, 'idx');
+            if ($index !== null) {
+                $point['pointIndex'] = $index;
+            }
+
+            foreach ([
+                'invertIfNegative' => 'invertIfNegative',
+                'bubble3D' => 'bubble3D',
+            ] as $source => $target) {
+                $value = $this->chartBooleanChildValue($dataPoint, $source);
+                if ($value !== null) {
+                    $point[$target] = $value;
+                }
+            }
+
+            $explosion = $this->chartIntChildValue($dataPoint, 'explosion');
+            if ($explosion !== null) {
+                $point['explosion'] = $explosion;
+            }
+
+            $marker = $this->chartMarkerMetadata($dataPoint);
+            if ($marker !== []) {
+                $point['marker'] = $marker;
+            }
+
+            $shapeProperties = $this->chartFirstChildElement($dataPoint, 'spPr');
+            if ($shapeProperties instanceof \DOMElement) {
+                $shape = $this->chartShapePropertiesMetadata($shapeProperties);
+                if ($shape !== []) {
+                    $point['shape'] = $shape;
+                }
+            }
+
+            if ($point !== []) {
+                $points[] = $point;
+            }
+        }
+
+        return $points;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartShapePropertiesMetadata(\DOMElement $shapeProperties): array
+    {
+        $metadata = [];
+        $fill = $this->drawingFillMetadata($shapeProperties);
+        if (is_string($fill['color'] ?? null) && $fill['color'] !== '') {
+            $metadata['fillColor'] = $fill['color'];
+            if (is_array($fill['transforms'] ?? null) && $fill['transforms'] !== []) {
+                $metadata['fillColorTransforms'] = $fill['transforms'];
+            }
+        }
+
+        $line = $this->drawingFirstChildElement($shapeProperties, 'ln');
+        if ($line instanceof \DOMElement) {
+            $lineStyle = $this->drawingLineStyleMetadata($line);
+            if ($lineStyle !== []) {
+                $metadata['line'] = $lineStyle;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @param list<string> $containers
+     * @return array{values:list<string>, pointIndexes:list<string>, pointCount?:int, formula?:string}
+     */
+    private function chartCacheSummaryFor(\DOMElement $seriesElement, array $containers): array
+    {
+        foreach ($this->chartChildElements($seriesElement, null) as $child) {
+            if (in_array($child->localName, $containers, true)) {
+                return $this->chartCacheSummary($child);
+            }
+        }
+
+        return [
+            'values' => [],
+            'pointIndexes' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $series
+     * @param array{values:list<string>, pointIndexes:list<string>, pointCount?:int, formula?:string} $cache
+     */
+    private function addChartCacheMetadata(array &$series, string $prefix, array $cache): void
+    {
+        if (is_string($cache['formula'] ?? null) && $cache['formula'] !== '') {
+            $series[$prefix . 'Formula'] = $cache['formula'];
+        }
+        if (is_int($cache['pointCount'] ?? null)) {
+            $series[$prefix . 'PointCount'] = $cache['pointCount'];
+        }
+        if ($cache['pointIndexes'] !== []) {
+            $series[$prefix . 'PointIndexes'] = $cache['pointIndexes'];
+        }
+    }
+
+    /**
+     * @return array{values:list<string>, pointIndexes:list<string>, pointCount?:int, formula?:string}
+     */
+    private function chartCacheSummary(\DOMElement $container): array
+    {
+        $summary = [
+            'values' => [],
+            'pointIndexes' => [],
+        ];
+        $formula = $this->chartFirstDescendantElement($container, 'f');
+        if ($formula instanceof \DOMElement) {
+            $text = trim($formula->textContent);
+            if ($text !== '') {
+                $summary['formula'] = $text;
+            }
+        }
+
+        $pointCount = $this->chartFirstDescendantElement($container, 'ptCount');
+        if ($pointCount instanceof \DOMElement) {
+            $count = $this->integerAttribute($pointCount, 'val');
+            if ($count !== null) {
+                $summary['pointCount'] = $count;
+            }
+        }
+
+        $values = [];
+        $pointIndexes = [];
+        foreach ($this->chartDescendantElements($container, 'pt') as $point) {
+            $pointIndex = trim($point->getAttribute('idx'));
+            if ($pointIndex !== '') {
+                $pointIndexes[] = $pointIndex;
+            }
+
+            $value = $this->chartFirstChildElement($point, 'v');
+            if ($value instanceof \DOMElement) {
+                $text = $this->chartElementText($value);
+                if ($text !== '') {
+                    $values[] = $text;
+                }
+            }
+        }
+        if ($values !== []) {
+            $summary['values'] = $values;
+            $summary['pointIndexes'] = array_values(array_unique($pointIndexes));
+
+            return $summary;
+        }
+
+        foreach ($this->chartDescendantElements($container, 'v') as $value) {
+            $text = $this->chartElementText($value);
+            if ($text !== '') {
+                $values[] = $text;
+            }
+        }
+
+        $summary['values'] = $values;
+
+        return $summary;
+    }
+
+    private function chartElementText(\DOMElement $element): string
+    {
+        $texts = [];
+        if (in_array($element->localName, ['t', 'v'], true)) {
+            $text = trim($element->textContent);
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        foreach ($element->getElementsByTagName('*') as $child) {
+            if (!$child instanceof \DOMElement || !in_array($child->localName, ['t', 'v'], true)) {
+                continue;
+            }
+
+            $text = trim($child->textContent);
+            if ($text !== '') {
+                $texts[] = $text;
+            }
+        }
+
+        return trim(implode(' ', $texts));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawingFillMetadata(\DOMElement $properties): array
+    {
+        foreach ($this->drawingChildElements($properties, null) as $child) {
+            if (!in_array($child->localName, ['solidFill', 'fill', 'fillRef'], true)) {
+                continue;
+            }
+
+            $metadata = $this->drawingColorMetadata($child);
+            if (is_string($metadata['color'] ?? null) && $metadata['color'] !== '') {
+                return $metadata;
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawingLineStyleMetadata(\DOMElement $line): array
+    {
+        $style = [];
+        $color = $this->drawingColorMetadata($line);
+        if (is_string($color['color'] ?? null) && $color['color'] !== '') {
+            $style['color'] = $color['color'];
+            if (is_array($color['transforms'] ?? null) && $color['transforms'] !== []) {
+                $style['colorTransforms'] = $color['transforms'];
+            }
+        }
+
+        $width = $this->integerAttribute($line, 'w');
+        if ($width !== null) {
+            $style['width'] = $width;
+        }
+
+        foreach (['cap', 'cmpd', 'algn'] as $attribute) {
+            $value = trim($line->getAttribute($attribute));
+            if ($value !== '') {
+                $style[$attribute] = $value;
+            }
+        }
+
+        $dash = $this->drawingFirstChildElement($line, 'prstDash');
+        if ($dash instanceof \DOMElement && $dash->getAttribute('val') !== '') {
+            $style['dash'] = $dash->getAttribute('val');
+        }
+
+        return $style;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawingColorMetadata(\DOMElement $container): array
+    {
+        $value = $this->drawingColorValueFromElement($container);
+        if ($value !== '') {
+            return $this->drawingColorMetadataFromValue($container, $value);
+        }
+
+        foreach ($container->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->namespaceURI !== self::NS_A) {
+                continue;
+            }
+
+            $value = $this->drawingColorValueFromElement($element);
+            if ($value !== '') {
+                return $this->drawingColorMetadataFromValue($element, $value);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawingColorMetadataFromValue(\DOMElement $element, string $value): array
+    {
+        $metadata = ['color' => $value];
+        $transforms = $this->drawingColorTransforms($element);
+        if ($transforms !== []) {
+            $metadata['transforms'] = $transforms;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function drawingColorTransforms(\DOMElement $colorElement): array
+    {
+        $transforms = [];
+        foreach ($this->drawingChildElements($colorElement, null) as $child) {
+            if (!in_array($child->localName, ['lumMod', 'lumOff', 'shade', 'tint'], true)) {
+                continue;
+            }
+
+            $value = $this->integerAttribute($child, 'val');
+            if ($value !== null) {
+                $transforms[$child->localName] = $value;
+            }
+        }
+
+        return $transforms;
+    }
+
+    private function drawingColorValueFromElement(\DOMElement $element): string
+    {
+        if ($element->localName === 'srgbClr') {
+            $value = strtoupper(trim($element->getAttribute('val')));
+
+            return preg_match('/^[0-9A-F]{6}$/', $value) === 1 ? $value : '';
+        }
+
+        if ($element->localName === 'sysClr') {
+            $value = strtoupper(trim($element->getAttribute('lastClr')));
+            if (preg_match('/^[0-9A-F]{6}$/', $value) === 1) {
+                return $value;
+            }
+
+            $system = trim($element->getAttribute('val'));
+
+            return $system !== '' ? 'system:' . $system : '';
+        }
+
+        if ($element->localName === 'schemeClr') {
+            $value = trim($element->getAttribute('val'));
+
+            return $value !== '' ? 'theme:' . $value : '';
+        }
+
+        if ($element->localName === 'prstClr') {
+            $value = trim($element->getAttribute('val'));
+
+            return $value !== '' ? 'preset:' . $value : '';
+        }
+
+        return '';
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function chartChildElements(\DOMElement $parent, ?string $localName): array
+    {
+        return $this->namespaceChildElements($parent, self::NS_C, $localName);
+    }
+
+    private function chartFirstChildElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        return $this->namespaceFirstChildElement($parent, self::NS_C, $localName);
+    }
+
+    private function chartFirstDescendantElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        foreach ($parent->getElementsByTagName('*') as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_C && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function chartDescendantElements(\DOMElement $parent, string $localName): array
+    {
+        $elements = [];
+        foreach ($parent->getElementsByTagName('*') as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === self::NS_C && $child->localName === $localName) {
+                $elements[] = $child;
+            }
+        }
+
+        return $elements;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function drawingChildElements(\DOMElement $parent, ?string $localName): array
+    {
+        return $this->namespaceChildElements($parent, self::NS_A, $localName);
+    }
+
+    private function drawingFirstChildElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        return $this->namespaceFirstChildElement($parent, self::NS_A, $localName);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function namespaceChildElements(\DOMElement $parent, string $namespaceUri, ?string $localName): array
+    {
+        $children = [];
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === $namespaceUri && ($localName === null || $child->localName === $localName)) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
+    }
+
+    private function namespaceFirstChildElement(\DOMElement $parent, string $namespaceUri, string $localName): ?\DOMElement
+    {
+        foreach ($parent->childNodes as $child) {
+            if ($child instanceof \DOMElement && $child->namespaceURI === $namespaceUri && $child->localName === $localName) {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    private function integerAttribute(\DOMElement $element, string $name): ?int
+    {
+        $value = $element->getAttribute($name);
+
+        return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : null;
+    }
+
+    private function xmlBooleanValue(string $value): bool
+    {
+        $value = strtolower(trim($value));
+
+        return in_array($value, ['1', 'true', 'on'], true);
     }
 
     /**
