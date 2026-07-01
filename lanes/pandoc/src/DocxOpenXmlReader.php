@@ -305,6 +305,14 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipIssueCodes'] = $packageRootResources['targetRelationshipIssueCodes'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCount'] = $packageRootResources['issueCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCodes'] = $packageRootResources['issueCodes'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetDirectoryCounts'] = $packageRootResources['targetDirectoryCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetBaseNameCounts'] = $packageRootResources['targetBaseNameCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetCaseFoldBaseNameCounts'] = $packageRootResources['targetCaseFoldBaseNameCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetPartsByCaseFoldBaseName'] = $packageRootResources['targetPartsByCaseFoldBaseName'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetDirectoryCounts'] = $packageRootResources['targetRelationshipTargetDirectoryCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetBaseNameCounts'] = $packageRootResources['targetRelationshipTargetBaseNameCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetCaseFoldBaseNameCounts'] = $packageRootResources['targetRelationshipTargetCaseFoldBaseNameCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPartsByCaseFoldBaseName'] = $packageRootResources['targetRelationshipTargetPartsByCaseFoldBaseName'];
         $customUiParts = $this->packageCustomUiProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['customUiParts'] = $customUiParts;
         $packageProvenance['summary']['customUiPartCount'] = $customUiParts['count'];
@@ -31162,6 +31170,7 @@ final class DocxOpenXmlReader
                 'valid' => $issues === [],
                 'issues' => $issues,
             ];
+            $item = array_merge($item, $this->packageRootRelationshipTargetPathFields($targetPart));
 
             $items[] = $item;
             $byRelationshipId[(string) $item['id']] = $item;
@@ -31206,6 +31215,16 @@ final class DocxOpenXmlReader
 
         ksort($issueCodes, SORT_STRING);
         ksort($targetRelationshipIssueCodes, SORT_STRING);
+        $targetLookup = $this->packageRootRelationshipTargetLookupMaps($items);
+        $targetRelationshipItems = [];
+        foreach ($items as $item) {
+            foreach (is_array($item['targetRelationships'] ?? null) ? $item['targetRelationships'] : [] as $targetRelationshipItem) {
+                if (is_array($targetRelationshipItem)) {
+                    $targetRelationshipItems[] = $targetRelationshipItem;
+                }
+            }
+        }
+        $targetRelationshipLookup = $this->packageRootRelationshipTargetLookupMaps($targetRelationshipItems);
 
         return [
             'present' => $items !== [],
@@ -31232,10 +31251,44 @@ final class DocxOpenXmlReader
             'relationshipIds' => $relationshipIds,
             'relationshipTypes' => $relationshipTypes,
             'targetParts' => $targetParts,
+            'targetDirectoryCounts' => $targetLookup['targetDirectoryCounts'],
+            'targetDirectoryBaseNameCounts' => $targetLookup['targetDirectoryBaseNameCounts'],
+            'targetBaseNameCounts' => $targetLookup['targetBaseNameCounts'],
+            'targetBaseNameStemCounts' => $targetLookup['targetBaseNameStemCounts'],
+            'targetCaseFoldBaseNameCounts' => $targetLookup['targetCaseFoldBaseNameCounts'],
+            'targetCaseFoldBaseNameStemCounts' => $targetLookup['targetCaseFoldBaseNameStemCounts'],
+            'targetPartExtensionCounts' => $targetLookup['targetPartExtensionCounts'],
+            'targetExistingBaseNameCounts' => $targetLookup['targetExistingBaseNameCounts'],
+            'targetMissingBaseNameCounts' => $targetLookup['targetMissingBaseNameCounts'],
+            'targetExistingCaseFoldBaseNameCounts' => $targetLookup['targetExistingCaseFoldBaseNameCounts'],
+            'targetMissingCaseFoldBaseNameCounts' => $targetLookup['targetMissingCaseFoldBaseNameCounts'],
+            'targetPartsByDirectory' => $targetLookup['targetPartsByDirectory'],
+            'targetPartsByDirectoryBaseName' => $targetLookup['targetPartsByDirectoryBaseName'],
+            'targetPartsByBaseName' => $targetLookup['targetPartsByBaseName'],
+            'targetPartsByBaseNameStem' => $targetLookup['targetPartsByBaseNameStem'],
+            'targetPartsByCaseFoldBaseName' => $targetLookup['targetPartsByCaseFoldBaseName'],
+            'targetPartsByCaseFoldBaseNameStem' => $targetLookup['targetPartsByCaseFoldBaseNameStem'],
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'targetRelationshipTypes' => $targetRelationshipTypes,
             'targetRelationshipTargetParts' => $targetRelationshipTargetParts,
+            'targetRelationshipTargetDirectoryCounts' => $targetRelationshipLookup['targetDirectoryCounts'],
+            'targetRelationshipTargetDirectoryBaseNameCounts' => $targetRelationshipLookup['targetDirectoryBaseNameCounts'],
+            'targetRelationshipTargetBaseNameCounts' => $targetRelationshipLookup['targetBaseNameCounts'],
+            'targetRelationshipTargetBaseNameStemCounts' => $targetRelationshipLookup['targetBaseNameStemCounts'],
+            'targetRelationshipTargetCaseFoldBaseNameCounts' => $targetRelationshipLookup['targetCaseFoldBaseNameCounts'],
+            'targetRelationshipTargetCaseFoldBaseNameStemCounts' => $targetRelationshipLookup['targetCaseFoldBaseNameStemCounts'],
+            'targetRelationshipTargetPartExtensionCounts' => $targetRelationshipLookup['targetPartExtensionCounts'],
+            'targetRelationshipTargetExistingBaseNameCounts' => $targetRelationshipLookup['targetExistingBaseNameCounts'],
+            'targetRelationshipTargetMissingBaseNameCounts' => $targetRelationshipLookup['targetMissingBaseNameCounts'],
+            'targetRelationshipTargetExistingCaseFoldBaseNameCounts' => $targetRelationshipLookup['targetExistingCaseFoldBaseNameCounts'],
+            'targetRelationshipTargetMissingCaseFoldBaseNameCounts' => $targetRelationshipLookup['targetMissingCaseFoldBaseNameCounts'],
+            'targetRelationshipTargetPartsByDirectory' => $targetRelationshipLookup['targetPartsByDirectory'],
+            'targetRelationshipTargetPartsByDirectoryBaseName' => $targetRelationshipLookup['targetPartsByDirectoryBaseName'],
+            'targetRelationshipTargetPartsByBaseName' => $targetRelationshipLookup['targetPartsByBaseName'],
+            'targetRelationshipTargetPartsByBaseNameStem' => $targetRelationshipLookup['targetPartsByBaseNameStem'],
+            'targetRelationshipTargetPartsByCaseFoldBaseName' => $targetRelationshipLookup['targetPartsByCaseFoldBaseName'],
+            'targetRelationshipTargetPartsByCaseFoldBaseNameStem' => $targetRelationshipLookup['targetPartsByCaseFoldBaseNameStem'],
             'targetRelationshipExternalTargets' => $targetRelationshipExternalTargets,
             'targetRelationshipExistingTargetParts' => $targetRelationshipExistingTargetParts,
             'targetRelationshipMissingTargetParts' => $targetRelationshipMissingTargetParts,
@@ -31289,7 +31342,153 @@ final class DocxOpenXmlReader
         $item['valid'] = $issues === [];
         $item['issues'] = array_values(array_unique($issues));
 
-        return $item;
+        return array_merge($item, $this->packageRootRelationshipTargetPathFields(
+            is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null
+        ));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function packageRootRelationshipTargetPathFields(?string $targetPart): array
+    {
+        if ($targetPart === null || $targetPart === '') {
+            return [
+                'targetDirectory' => null,
+                'targetDirectoryBaseName' => null,
+                'targetDirectoryBaseNameStem' => null,
+                'targetCaseFoldDirectoryBaseName' => null,
+                'targetCaseFoldDirectoryBaseNameStem' => null,
+                'targetBaseName' => null,
+                'targetBaseNameStem' => null,
+                'targetCaseFoldBaseName' => null,
+                'targetCaseFoldBaseNameStem' => null,
+                'targetPartExtension' => null,
+                'targetRawPartExtension' => null,
+                'targetTopLevelSegment' => null,
+                'targetPathSegmentCount' => 0,
+                'targetPathSegments' => [],
+            ];
+        }
+
+        $directory = $this->packagePartDirectory($targetPart);
+        $directoryBaseName = $this->packagePartDirectoryBaseName($directory);
+        $directoryBaseNameStem = $this->packagePartDirectoryBaseNameStem($directory);
+        $baseName = $this->packagePartBaseName($targetPart);
+        $baseNameStem = $this->packagePartBaseNameStem($targetPart);
+        $pathSegments = $this->packagePartPathSegments($targetPart);
+
+        return [
+            'targetDirectory' => $directory,
+            'targetDirectoryBaseName' => $directoryBaseName,
+            'targetDirectoryBaseNameStem' => $directoryBaseNameStem,
+            'targetCaseFoldDirectoryBaseName' => $this->packagePartCaseFoldKey($directoryBaseName),
+            'targetCaseFoldDirectoryBaseNameStem' => $this->packagePartCaseFoldKey($directoryBaseNameStem),
+            'targetBaseName' => $baseName,
+            'targetBaseNameStem' => $baseNameStem,
+            'targetCaseFoldBaseName' => $this->packagePartCaseFoldKey($baseName),
+            'targetCaseFoldBaseNameStem' => $this->packagePartCaseFoldKey($baseNameStem),
+            'targetPartExtension' => $this->packagePartExtension($targetPart),
+            'targetRawPartExtension' => $this->packagePartRawExtension($targetPart),
+            'targetTopLevelSegment' => $pathSegments[0] ?? '',
+            'targetPathSegmentCount' => count($pathSegments),
+            'targetPathSegments' => $pathSegments,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array<string, array<string, int>|array<string, list<string>>>
+     */
+    private function packageRootRelationshipTargetLookupMaps(array $items): array
+    {
+        $counts = [
+            'targetDirectoryCounts' => [],
+            'targetDirectoryBaseNameCounts' => [],
+            'targetBaseNameCounts' => [],
+            'targetBaseNameStemCounts' => [],
+            'targetCaseFoldBaseNameCounts' => [],
+            'targetCaseFoldBaseNameStemCounts' => [],
+            'targetPartExtensionCounts' => [],
+            'targetExistingBaseNameCounts' => [],
+            'targetMissingBaseNameCounts' => [],
+            'targetExistingCaseFoldBaseNameCounts' => [],
+            'targetMissingCaseFoldBaseNameCounts' => [],
+        ];
+        $maps = [
+            'targetPartsByDirectory' => [],
+            'targetPartsByDirectoryBaseName' => [],
+            'targetPartsByBaseName' => [],
+            'targetPartsByBaseNameStem' => [],
+            'targetPartsByCaseFoldBaseName' => [],
+            'targetPartsByCaseFoldBaseNameStem' => [],
+        ];
+
+        foreach ($items as $item) {
+            $targetPart = is_string($item['targetPart'] ?? null) ? $item['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $fields = $this->packageRootRelationshipTargetPathFields($targetPart);
+            $directory = (string) $fields['targetDirectory'];
+            $directoryBaseName = (string) $fields['targetDirectoryBaseName'];
+            $baseName = (string) $fields['targetBaseName'];
+            $baseNameStem = (string) $fields['targetBaseNameStem'];
+            $caseFoldBaseName = (string) $fields['targetCaseFoldBaseName'];
+            $caseFoldBaseNameStem = (string) $fields['targetCaseFoldBaseNameStem'];
+            $extension = $fields['targetPartExtension'];
+            $extensionKey = is_string($extension) && $extension !== '' ? $extension : '(none)';
+            $exists = ($item['exists'] ?? false) === true;
+
+            $counts['targetDirectoryCounts'][$directory] = ($counts['targetDirectoryCounts'][$directory] ?? 0) + 1;
+            $counts['targetDirectoryBaseNameCounts'][$directoryBaseName] =
+                ($counts['targetDirectoryBaseNameCounts'][$directoryBaseName] ?? 0) + 1;
+            $counts['targetBaseNameCounts'][$baseName] = ($counts['targetBaseNameCounts'][$baseName] ?? 0) + 1;
+            $counts['targetBaseNameStemCounts'][$baseNameStem] =
+                ($counts['targetBaseNameStemCounts'][$baseNameStem] ?? 0) + 1;
+            $counts['targetCaseFoldBaseNameCounts'][$caseFoldBaseName] =
+                ($counts['targetCaseFoldBaseNameCounts'][$caseFoldBaseName] ?? 0) + 1;
+            $counts['targetCaseFoldBaseNameStemCounts'][$caseFoldBaseNameStem] =
+                ($counts['targetCaseFoldBaseNameStemCounts'][$caseFoldBaseNameStem] ?? 0) + 1;
+            $counts['targetPartExtensionCounts'][$extensionKey] =
+                ($counts['targetPartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            if ($exists) {
+                $counts['targetExistingBaseNameCounts'][$baseName] =
+                    ($counts['targetExistingBaseNameCounts'][$baseName] ?? 0) + 1;
+                $counts['targetExistingCaseFoldBaseNameCounts'][$caseFoldBaseName] =
+                    ($counts['targetExistingCaseFoldBaseNameCounts'][$caseFoldBaseName] ?? 0) + 1;
+            } else {
+                $counts['targetMissingBaseNameCounts'][$baseName] =
+                    ($counts['targetMissingBaseNameCounts'][$baseName] ?? 0) + 1;
+                $counts['targetMissingCaseFoldBaseNameCounts'][$caseFoldBaseName] =
+                    ($counts['targetMissingCaseFoldBaseNameCounts'][$caseFoldBaseName] ?? 0) + 1;
+            }
+
+            $maps['targetPartsByDirectory'][$directory][] = $targetPart;
+            $maps['targetPartsByDirectoryBaseName'][$directoryBaseName][] = $targetPart;
+            $maps['targetPartsByBaseName'][$baseName][] = $targetPart;
+            $maps['targetPartsByBaseNameStem'][$baseNameStem][] = $targetPart;
+            $maps['targetPartsByCaseFoldBaseName'][$caseFoldBaseName][] = $targetPart;
+            $maps['targetPartsByCaseFoldBaseNameStem'][$caseFoldBaseNameStem][] = $targetPart;
+        }
+
+        foreach ($counts as &$countMap) {
+            ksort($countMap, SORT_STRING);
+        }
+        unset($countMap);
+        foreach ($maps as &$map) {
+            ksort($map, SORT_STRING);
+            foreach ($map as &$targetParts) {
+                $targetParts = array_values(array_unique(array_map('strval', $targetParts)));
+                sort($targetParts, SORT_STRING);
+            }
+            unset($targetParts);
+        }
+        unset($map);
+
+        return $counts + $maps;
     }
 
     /**
