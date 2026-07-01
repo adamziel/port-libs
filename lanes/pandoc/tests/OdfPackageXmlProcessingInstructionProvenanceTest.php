@@ -110,12 +110,14 @@ XML;
             $t->same(3, $inventory['packagePartXmlProcessingInstructionPartCount'], "{$label} PI part count");
             $t->same(4, $inventory['packagePartXmlProcessingInstructionCount'], "{$label} PI count");
             $t->same($expectedDataByteLength, $inventory['packagePartXmlProcessingInstructionDataByteLength'], "{$label} PI data byte length");
+            $t->same([0 => 1, 1 => 1, 2 => 2], $inventory['packagePartXmlProcessingInstructionParentDepthCounts'], "{$label} PI parent depth counts");
             $t->same($expectedTargets, $inventory['packagePartXmlProcessingInstructionTargets'], "{$label} PI targets");
             $t->same($expectedPartNames, $inventory['packagePartXmlProcessingInstructionPartNames'], "{$label} PI part names");
             $t->same(false, $inventory['packagePartXmlProcessingInstructionsTruncated'], "{$label} PI summary not truncated");
 
             $t->same(2, $reviewPart['xmlProcessingInstructionCount'], "{$label} review PI count");
             $t->same(strlen($reviewPacketData) + strlen($reviewInnerData), $reviewPart['xmlProcessingInstructionDataByteLength'], "{$label} review PI data byte length");
+            $t->same([0 => 1, 2 => 1], $reviewPart['xmlProcessingInstructionParentDepthCounts'], "{$label} review PI parent depth counts");
             $t->same(['review-inner', 'review-packet'], $reviewPart['xmlProcessingInstructionTargets'], "{$label} review PI targets");
             $t->same(false, $reviewPart['xmlProcessingInstructionsTruncated'], "{$label} review PI not truncated");
             $t->same('review-packet', $reviewPart['xmlProcessingInstructions'][0]['target'], "{$label} review packet target");
@@ -130,12 +132,14 @@ XML;
             $t->same(hash('sha256', $reviewInnerData), $reviewPart['xmlProcessingInstructions'][1]['dataSha256'], "{$label} review inner sha256");
 
             $t->same(1, $auditPart['xmlProcessingInstructionCount'], "{$label} audit PI count");
+            $t->same([1 => 1], $auditPart['xmlProcessingInstructionParentDepthCounts'], "{$label} audit PI parent depth counts");
             $t->same(['audit-state'], $auditPart['xmlProcessingInstructionTargets'], "{$label} audit PI target");
             $t->same('/audit:state', $auditPart['xmlProcessingInstructions'][0]['parentPath'], "{$label} audit parent path");
             $t->same(1, $auditPart['xmlProcessingInstructions'][0]['parentDepth'], "{$label} audit parent depth");
             $t->same(hash('sha256', $auditData), $auditPart['xmlProcessingInstructions'][0]['dataSha256'], "{$label} audit sha256");
 
             $t->same(1, $loosePart['xmlProcessingInstructionCount'], "{$label} loose PI count");
+            $t->same([2 => 1], $loosePart['xmlProcessingInstructionParentDepthCounts'], "{$label} loose PI parent depth counts");
             $t->same(['loose-state'], $loosePart['xmlProcessingInstructionTargets'], "{$label} loose PI target");
             $t->same('/loose:packet/loose:value', $loosePart['xmlProcessingInstructions'][0]['parentPath'], "{$label} loose parent path");
             $t->same(2, $loosePart['xmlProcessingInstructions'][0]['parentDepth'], "{$label} loose parent depth");
