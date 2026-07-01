@@ -1186,6 +1186,79 @@ XML);
     }
 };
 
+$buildExternalModeEmbeddedImagePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-external-mode-embedded-image-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>External mode embedded image</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="External Mode Picture" descr="External mode alt"/></p:nvPicPr>
+      <p:blipFill><a:blip r:embed="rIdImage"/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/external-mode.png" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/external-mode.png', 'external-mode-image-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildInternalLinkedImagePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-internal-linked-image-');
     if ($path === false) {
@@ -3771,6 +3844,21 @@ return [
         $t->same('missing-picture-nonvisual-properties', $review['slides'][0]['imageIssues'][0]['issue'] ?? null);
         $t->true(!str_contains($native, 'Image'), 'Malformed PPTX picture should not emit a native Image inline');
         $t->true(!str_contains($native, 'ppt/media/picture.png'), 'Malformed PPTX picture media target should not leak into visible native content');
+    },
+
+    'ignores pptx embedded image TargetMode like upstream' => static function (TestRunner $t) use ($buildExternalModeEmbeddedImagePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildExternalModeEmbeddedImagePptxPackage());
+        $review = $document->attr('pptx');
+        $images = $nodesOfType($document, 'image');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($images));
+        $t->same('ppt/media/external-mode.png', $images[0]->attr('url'));
+        $t->same('External Mode Picture', $images[0]->attr('title'));
+        $t->same('External mode alt', $images[0]->attr('alt'));
+        $t->same('embed', $images[0]->attr('relationshipAttribute'));
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->contains('Image ( "" , [  ] , [  ] ) [ Str "External" , Space , Str "mode" , Space , Str "alt" ] ( "ppt/media/external-mode.png" , "External Mode Picture" )', $native);
     },
 
     'records external linked pptx images without fetching target' => static function (TestRunner $t) use ($buildExternalLinkedImagePptxPackage, $nodesOfType): void {

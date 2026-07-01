@@ -1771,18 +1771,6 @@ final class PptxReader
             return null;
         }
 
-        if ($relationship->isExternal()) {
-            $imageIssues[] = [
-                'issue' => 'external-image-target',
-                'relationshipId' => $relationshipId,
-                'relationshipAttribute' => $relationshipAttribute,
-                'target' => $relationship->target,
-                'externalTargetPolicy' => $relationship->externalTargetPreflight(),
-            ];
-
-            return null;
-        }
-
         $mediaPart = $this->upstreamPictureMediaPart($relationship->target);
         if (!in_array($mediaPart, $package->names(), true)) {
             $imageIssues[] = [
