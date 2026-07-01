@@ -3150,8 +3150,8 @@ final class PptxReader
 
     private function diagramLayoutType(\DOMElement $layoutRoot, ?string $diagramNamespace): string
     {
-        $uniqueId = $layoutRoot->getAttribute('uniqueId');
-        if ($uniqueId !== '') {
+        if ($layoutRoot->hasAttribute('uniqueId')) {
+            $uniqueId = $layoutRoot->getAttribute('uniqueId');
             $position = strrpos($uniqueId, '/');
 
             return $position === false ? $uniqueId : substr($uniqueId, $position + 1);
