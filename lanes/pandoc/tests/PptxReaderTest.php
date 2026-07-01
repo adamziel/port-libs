@@ -188,6 +188,21 @@ XML);
       <a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont>
       <a:minorFont><a:latin typeface="Aptos"/></a:minorFont>
     </a:fontScheme>
+    <a:fmtScheme name="Office">
+      <a:fillStyleLst>
+        <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>
+        <a:gradFill/>
+      </a:fillStyleLst>
+      <a:lnStyleLst>
+        <a:ln w="6350" cap="flat"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:prstDash val="solid"/></a:ln>
+      </a:lnStyleLst>
+      <a:effectStyleLst>
+        <a:effectStyle><a:effectLst/></a:effectStyle>
+      </a:effectStyleLst>
+      <a:bgFillStyleLst>
+        <a:solidFill><a:schemeClr val="bg1"/></a:solidFill>
+      </a:bgFillStyleLst>
+    </a:fmtScheme>
   </a:themeElements>
 </a:theme>
 XML);
@@ -198,7 +213,7 @@ XML);
         <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr>
         <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
         <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Col1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col2</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col3</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
-        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" marL="120"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB w="12700" cap="flat"><a:solidFill><a:schemeClr val="accent1"><a:lumMod val="60000"/><a:lumOff val="20000"/></a:schemeClr></a:solidFill><a:prstDash val="solid"/></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" marL="120"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB w="12700" cap="flat"><a:solidFill><a:schemeClr val="accent1"><a:lumMod val="60000"/><a:lumOff val="20000"/></a:schemeClr></a:solidFill><a:prstDash val="solid"/><a:round/><a:headEnd type="triangle" w="med" len="lg"/></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
         <a:tr><a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>Age</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>23</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>years</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
       </a:tbl></a:graphicData></a:graphic>
     </p:graphicFrame>
@@ -241,6 +256,8 @@ XML);
 <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
               xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
               xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <c:style val="10"/>
+  <c:roundedCorners val="1"/>
   <c:chart>
     <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Quarterly Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>
     <c:plotArea>
@@ -276,6 +293,10 @@ XML);
         <c:crossAx val="10"/>
       </c:valAx>
     </c:plotArea>
+    <c:legend><c:legendPos val="r"/><c:overlay val="0"/></c:legend>
+    <c:plotVisOnly val="1"/>
+    <c:dispBlanksAs val="gap"/>
+    <c:showDLblsOverMax val="0"/>
   </c:chart>
   <c:externalData r:id="rIdWorkbook"/>
 </c:chartSpace>
@@ -497,6 +518,16 @@ return [
         $t->same('4472C4', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent1'] ?? null);
         $t->same('ED7D31', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent2'] ?? null);
         $t->same('Aptos', $review['slides'][1]['context']['theme']['fontScheme']['minorLatin'] ?? null);
+        $t->same('Office', $review['slides'][1]['context']['theme']['formatScheme']['name'] ?? null);
+        $t->same(2, $review['slides'][1]['context']['theme']['formatScheme']['fillStyleCount'] ?? null);
+        $t->same('theme:phClr', $review['slides'][1]['context']['theme']['formatScheme']['fillStyles'][0]['color'] ?? null);
+        $t->same(1, $review['slides'][1]['context']['theme']['formatScheme']['lineStyleCount'] ?? null);
+        $t->same('theme:accent1', $review['slides'][1]['context']['theme']['formatScheme']['lineStyles'][0]['color'] ?? null);
+        $t->same(6350, $review['slides'][1]['context']['theme']['formatScheme']['lineStyles'][0]['width'] ?? null);
+        $t->same(1, $review['slides'][1]['context']['theme']['formatScheme']['effectStyleCount'] ?? null);
+        $t->same(true, $review['slides'][1]['context']['theme']['formatScheme']['effectStyles'][0]['effectLstPresent'] ?? null);
+        $t->same(1, $review['slides'][1]['context']['theme']['formatScheme']['backgroundFillStyleCount'] ?? null);
+        $t->same('theme:bg1', $review['slides'][1]['context']['theme']['formatScheme']['backgroundFillStyles'][0]['color'] ?? null);
         $t->same(1, count($layoutInheritedParagraphs));
         $t->same([
             'source' => 'layout',
@@ -592,6 +623,12 @@ return [
         $t->same('5C77A9', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['resolvedBorders']['bottom'] ?? null);
         $t->same(12700, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['width'] ?? null);
         $t->same('solid', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['dash'] ?? null);
+        $t->same('round', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['join'] ?? null);
+        $t->same([
+            'type' => 'triangle',
+            'w' => 'med',
+            'len' => 'lg',
+        ], $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['headEnd'] ?? null);
         $t->same([
             'lumMod' => 60000,
             'lumOff' => 20000,
@@ -612,6 +649,12 @@ return [
         $t->same('bar', $chartDivs[0]->attr('pptxChart')['chartType'] ?? null);
         $t->same(['bar', 'line'], $chartDivs[0]->attr('pptxChart')['chartTypes'] ?? null);
         $t->same(2, $chartDivs[0]->attr('pptxChart')['chartTypeCount'] ?? null);
+        $t->same('10', $chartDivs[0]->attr('pptxChart')['style'] ?? null);
+        $t->same(true, $chartDivs[0]->attr('pptxChart')['roundedCorners'] ?? null);
+        $t->same(['position' => 'r', 'overlay' => false], $chartDivs[0]->attr('pptxChart')['legend'] ?? null);
+        $t->same(true, $chartDivs[0]->attr('pptxChart')['plotVisibleOnly'] ?? null);
+        $t->same('gap', $chartDivs[0]->attr('pptxChart')['displayBlanksAs'] ?? null);
+        $t->same(false, $chartDivs[0]->attr('pptxChart')['showDataLabelsOverMaximum'] ?? null);
         $t->same('col', $chartDivs[0]->attr('pptxChart')['plots'][0]['barDirection'] ?? null);
         $t->same(['10', '20'], $chartDivs[0]->attr('pptxChart')['plots'][0]['axisIds'] ?? null);
         $t->same('line', $chartDivs[0]->attr('pptxChart')['plots'][1]['type'] ?? null);

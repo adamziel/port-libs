@@ -508,6 +508,11 @@ final class PptxReader
             $theme['fontScheme'] = $fontScheme;
         }
 
+        $formatScheme = $this->themeFormatScheme($themeRoot);
+        if ($formatScheme !== []) {
+            $theme['formatScheme'] = $formatScheme;
+        }
+
         return $theme;
     }
 
@@ -582,6 +587,112 @@ final class PptxReader
         }
 
         return $fonts;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function themeFormatScheme(\DOMElement $themeRoot): array
+    {
+        $formatScheme = $this->firstDescendantElement($themeRoot, 'fmtScheme');
+        if (!$formatScheme instanceof \DOMElement) {
+            return [];
+        }
+
+        $scheme = [];
+        $name = trim($formatScheme->getAttribute('name'));
+        if ($name !== '') {
+            $scheme['name'] = $name;
+        }
+
+        $fillStyles = $this->themeFillStyles($this->firstChildElement($formatScheme, 'fillStyleLst'));
+        if ($fillStyles !== []) {
+            $scheme['fillStyleCount'] = count($fillStyles);
+            $scheme['fillStyles'] = $fillStyles;
+        }
+
+        $lineStyles = $this->themeLineStyles($this->firstChildElement($formatScheme, 'lnStyleLst'));
+        if ($lineStyles !== []) {
+            $scheme['lineStyleCount'] = count($lineStyles);
+            $scheme['lineStyles'] = $lineStyles;
+        }
+
+        $effectStyles = $this->themeEffectStyles($this->firstChildElement($formatScheme, 'effectStyleLst'));
+        if ($effectStyles !== []) {
+            $scheme['effectStyleCount'] = count($effectStyles);
+            $scheme['effectStyles'] = $effectStyles;
+        }
+
+        $backgroundFillStyles = $this->themeFillStyles($this->firstChildElement($formatScheme, 'bgFillStyleLst'));
+        if ($backgroundFillStyles !== []) {
+            $scheme['backgroundFillStyleCount'] = count($backgroundFillStyles);
+            $scheme['backgroundFillStyles'] = $backgroundFillStyles;
+        }
+
+        return $scheme;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function themeFillStyles(?\DOMElement $styleList): array
+    {
+        if (!$styleList instanceof \DOMElement) {
+            return [];
+        }
+
+        $styles = [];
+        foreach ($this->childElements($styleList, null) as $styleElement) {
+            $style = ['type' => $styleElement->localName];
+            $color = $this->drawingColorMetadata($styleElement);
+            if (is_string($color['color'] ?? null) && $color['color'] !== '') {
+                $style['color'] = $color['color'];
+                if (is_array($color['transforms'] ?? null) && $color['transforms'] !== []) {
+                    $style['colorTransforms'] = $color['transforms'];
+                }
+            }
+            $styles[] = $style;
+        }
+
+        return $styles;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function themeLineStyles(?\DOMElement $styleList): array
+    {
+        if (!$styleList instanceof \DOMElement) {
+            return [];
+        }
+
+        $styles = [];
+        foreach ($this->childElements($styleList, 'ln') as $lineElement) {
+            $styles[] = $this->tableLineStyleMetadata($lineElement);
+        }
+
+        return $styles;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function themeEffectStyles(?\DOMElement $styleList): array
+    {
+        if (!$styleList instanceof \DOMElement) {
+            return [];
+        }
+
+        $styles = [];
+        foreach ($this->childElements($styleList, 'effectStyle') as $styleElement) {
+            $style = [];
+            foreach ($this->childElements($styleElement, null) as $child) {
+                $style[$child->localName . 'Present'] = true;
+            }
+            $styles[] = $style;
+        }
+
+        return $styles;
     }
 
     private function optionalPackageXml(ZipPackage $package, string $partName, string $label): ?\DOMDocument
@@ -1664,6 +1775,16 @@ final class PptxReader
         }
 
         $summary = [];
+        $styleElement = $this->firstChildElement($chartSpace, 'style');
+        if ($styleElement instanceof \DOMElement && trim($styleElement->getAttribute('val')) !== '') {
+            $summary['style'] = trim($styleElement->getAttribute('val'));
+        }
+
+        $roundedCorners = $this->firstChildElement($chartSpace, 'roundedCorners');
+        if ($roundedCorners instanceof \DOMElement && $roundedCorners->hasAttribute('val')) {
+            $summary['roundedCorners'] = $this->xmlBooleanValue($roundedCorners->getAttribute('val'));
+        }
+
         $titleElement = $this->firstDescendantElement($chartElement, 'title');
         if ($titleElement instanceof \DOMElement) {
             $title = $this->chartElementText($titleElement);
@@ -1701,6 +1822,26 @@ final class PptxReader
             $summary['axes'] = $axes;
         }
 
+        $legend = $this->chartLegend($chartElement);
+        if ($legend !== []) {
+            $summary['legend'] = $legend;
+        }
+
+        $plotVisibleOnly = $this->firstChildElement($chartElement, 'plotVisOnly');
+        if ($plotVisibleOnly instanceof \DOMElement && $plotVisibleOnly->hasAttribute('val')) {
+            $summary['plotVisibleOnly'] = $this->xmlBooleanValue($plotVisibleOnly->getAttribute('val'));
+        }
+
+        $displayBlanksAs = $this->firstChildElement($chartElement, 'dispBlanksAs');
+        if ($displayBlanksAs instanceof \DOMElement && trim($displayBlanksAs->getAttribute('val')) !== '') {
+            $summary['displayBlanksAs'] = trim($displayBlanksAs->getAttribute('val'));
+        }
+
+        $showDataLabelsOverMaximum = $this->firstChildElement($chartElement, 'showDLblsOverMax');
+        if ($showDataLabelsOverMaximum instanceof \DOMElement && $showDataLabelsOverMaximum->hasAttribute('val')) {
+            $summary['showDataLabelsOverMaximum'] = $this->xmlBooleanValue($showDataLabelsOverMaximum->getAttribute('val'));
+        }
+
         $externalDataRelationshipIds = [];
         $externalDataRelationships = [];
         foreach ($chartSpace->getElementsByTagName('*') as $element) {
@@ -1725,6 +1866,30 @@ final class PptxReader
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartLegend(\DOMElement $chartElement): array
+    {
+        $legend = $this->firstChildElement($chartElement, 'legend');
+        if (!$legend instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $position = $this->firstChildElement($legend, 'legendPos');
+        if ($position instanceof \DOMElement && trim($position->getAttribute('val')) !== '') {
+            $metadata['position'] = trim($position->getAttribute('val'));
+        }
+
+        $overlay = $this->firstChildElement($legend, 'overlay');
+        if ($overlay instanceof \DOMElement && $overlay->hasAttribute('val')) {
+            $metadata['overlay'] = $this->xmlBooleanValue($overlay->getAttribute('val'));
+        }
+
+        return $metadata;
     }
 
     /**
@@ -2493,7 +2658,47 @@ final class PptxReader
             $style['dash'] = $dash->getAttribute('val');
         }
 
+        foreach (['round', 'bevel', 'miter'] as $joinName) {
+            $join = $this->firstChildElement($line, $joinName);
+            if (!$join instanceof \DOMElement) {
+                continue;
+            }
+
+            $style['join'] = $joinName;
+            $miterLimit = $this->integerAttribute($join, 'lim');
+            if ($miterLimit !== null) {
+                $style['miterLimit'] = $miterLimit;
+            }
+            break;
+        }
+
+        foreach (['headEnd', 'tailEnd'] as $endName) {
+            $lineEnd = $this->firstChildElement($line, $endName);
+            if ($lineEnd instanceof \DOMElement) {
+                $metadata = $this->lineEndMetadata($lineEnd);
+                if ($metadata !== []) {
+                    $style[$endName] = $metadata;
+                }
+            }
+        }
+
         return $style;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function lineEndMetadata(\DOMElement $lineEnd): array
+    {
+        $metadata = [];
+        foreach (['type', 'w', 'len'] as $attribute) {
+            $value = trim($lineEnd->getAttribute($attribute));
+            if ($value !== '') {
+                $metadata[$attribute] = $value;
+            }
+        }
+
+        return $metadata;
     }
 
     /**
