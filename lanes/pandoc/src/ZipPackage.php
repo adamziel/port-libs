@@ -14935,6 +14935,8 @@ final class ZipPackage
                 ? '(directory)'
                 : ($packagePartExtension ?? '(none)');
             $extensionlessPackagePart = !$isDirectory && $packagePartExtension === null;
+            $entryNameBytes = strlen($entry->name);
+            $entryNameLengthBucket = self::packageManifestNameLengthBucket($entryNameBytes);
             if ($pathSegmentCount > $maxPathSegmentCount) {
                 $maxPathSegmentCount = $pathSegmentCount;
             }
@@ -15336,6 +15338,8 @@ final class ZipPackage
                 'creatorHostSystemIsKnown' => $creatorHostSystemIsKnown,
                 'creatorHostSystemIssues' => $creatorHostSystemIssues,
                 'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
+                'entryNameBytes' => $entryNameBytes,
+                'entryNameLengthBucket' => $entryNameLengthBucket['nameLengthBucket'],
                 'pathSegments' => $pathSegments,
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews,
                 'pathSegmentCount' => $pathSegmentCount,
@@ -15488,6 +15492,8 @@ final class ZipPackage
                 'creatorHostSystemIsKnown' => $summary['creatorHostSystemIsKnown'],
                 'creatorHostSystemIssues' => $summary['creatorHostSystemIssues'],
                 'directoryRoot' => $summary['directoryRoot'],
+                'entryNameBytes' => $summary['entryNameBytes'],
+                'entryNameLengthBucket' => $summary['entryNameLengthBucket'],
                 'pathSegments' => $summary['pathSegments'],
                 'pathSegmentPositionReviews' => $summary['pathSegmentPositionReviews'],
                 'pathSegmentCount' => $summary['pathSegmentCount'],
@@ -15693,6 +15699,11 @@ final class ZipPackage
             static fn (array $summary): int => (int) $summary['sourceRecordBytes'],
             $entryCommentSummaries
         ));
+        $nameLengthBucketSummaries = self::packageManifestNameLengthBucketSummaries($entries);
+        $nameLengthBuckets = array_map(
+            static fn (array $summary): string => (string) $summary['nameLengthBucket'],
+            $nameLengthBucketSummaries
+        );
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15772,6 +15783,9 @@ final class ZipPackage
             'expansionRatioBucketSummaryCount' => count($expansionRatioBucketSummaries),
             'expansionRatioBuckets' => $expansionRatioBuckets,
             'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
+            'nameLengthBucketSummaryCount' => count($nameLengthBucketSummaries),
+            'nameLengthBuckets' => $nameLengthBuckets,
+            'nameLengthBucketSummaries' => $nameLengthBucketSummaries,
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
             'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
@@ -15902,6 +15916,9 @@ final class ZipPackage
             'expansionRatioBucketSummaryCount' => count($expansionRatioBucketSummaries),
             'expansionRatioBuckets' => $expansionRatioBuckets,
             'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
+            'nameLengthBucketSummaryCount' => count($nameLengthBucketSummaries),
+            'nameLengthBuckets' => $nameLengthBuckets,
+            'nameLengthBucketSummaries' => $nameLengthBucketSummaries,
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
             'localHeaderFixedFieldEntryCount' => count($localHeaderFixedFieldEntries),
@@ -16201,6 +16218,140 @@ final class ZipPackage
             'issueCount' => count($issues),
             'issues' => $issues,
             'entries' => $entrySummaries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestNameLengthBucketSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $entryNameBytes = is_int($entry['entryNameBytes'] ?? null)
+                ? (int) $entry['entryNameBytes']
+                : strlen($name);
+            $bucket = self::packageManifestNameLengthBucket($entryNameBytes);
+            $bucketKey = $bucket['nameLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'nameLengthBucket' => $bucketKey,
+                    'minNameBytes' => $bucket['minNameBytes'],
+                    'maxNameBytes' => $bucket['maxNameBytes'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'entryNameBytes' => 0,
+                    'localHeaderRawNameBytes' => 0,
+                    'centralDirectoryRawNameBytes' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'directoryRoots' => [],
+                    'packagePartExtensionKeys' => [],
+                    'entryNames' => [],
+                    'minEntryNameBytes' => null,
+                    'maxEntryNameBytes' => null,
+                    'longestEntryNames' => [],
+                ];
+            }
+
+            ++$summaries[$bucketKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+
+            $summaries[$bucketKey]['entryNameBytes'] += $entryNameBytes;
+            $summaries[$bucketKey]['localHeaderRawNameBytes'] += (int) ($entry['localHeaderRawNameBytes'] ?? 0);
+            $summaries[$bucketKey]['centralDirectoryRawNameBytes'] += (int) ($entry['centralDirectoryRawNameBytes'] ?? 0);
+            $summaries[$bucketKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$bucketKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$bucketKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$bucketKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $summaries[$bucketKey]['entryNames'][] = $name;
+
+            foreach ([
+                'directoryRoots' => (string) ($entry['directoryRoot'] ?? ''),
+                'packagePartExtensionKeys' => (string) ($entry['packagePartExtensionKey'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$bucketKey][$field], true)) {
+                    $summaries[$bucketKey][$field][] = $value;
+                }
+            }
+
+            $minEntryNameBytes = $summaries[$bucketKey]['minEntryNameBytes'];
+            if (!is_int($minEntryNameBytes) || $entryNameBytes < $minEntryNameBytes) {
+                $summaries[$bucketKey]['minEntryNameBytes'] = $entryNameBytes;
+            }
+
+            $maxEntryNameBytes = $summaries[$bucketKey]['maxEntryNameBytes'];
+            if (!is_int($maxEntryNameBytes) || $entryNameBytes > $maxEntryNameBytes) {
+                $summaries[$bucketKey]['maxEntryNameBytes'] = $entryNameBytes;
+                $summaries[$bucketKey]['longestEntryNames'] = [$name];
+            } elseif ($entryNameBytes === $maxEntryNameBytes) {
+                $summaries[$bucketKey]['longestEntryNames'][] = $name;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['longestEntryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['up-to-15-bytes', '16-to-63-bytes', '64-to-127-bytes', '128-plus-bytes'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return array{nameLengthBucket:string,minNameBytes:int,maxNameBytes:?int}
+     */
+    private static function packageManifestNameLengthBucket(int $entryNameBytes): array
+    {
+        if ($entryNameBytes <= 15) {
+            return [
+                'nameLengthBucket' => 'up-to-15-bytes',
+                'minNameBytes' => 0,
+                'maxNameBytes' => 15,
+            ];
+        }
+
+        if ($entryNameBytes <= 63) {
+            return [
+                'nameLengthBucket' => '16-to-63-bytes',
+                'minNameBytes' => 16,
+                'maxNameBytes' => 63,
+            ];
+        }
+
+        if ($entryNameBytes <= 127) {
+            return [
+                'nameLengthBucket' => '64-to-127-bytes',
+                'minNameBytes' => 64,
+                'maxNameBytes' => 127,
+            ];
+        }
+
+        return [
+            'nameLengthBucket' => '128-plus-bytes',
+            'minNameBytes' => 128,
+            'maxNameBytes' => null,
         ];
     }
 
