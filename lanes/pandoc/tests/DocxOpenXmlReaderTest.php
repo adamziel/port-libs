@@ -221,6 +221,112 @@ XML,
         $t->same($totalRevisionBytes, $summary['documentRevisionTextBytes']);
         $t->same('body-revision-text-metadata-only', $summary['documentRevisionReviewPolicy']);
     },
+    'summarizes docx body range marker provenance without exposing marker names' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            <<<'XML'
+    <w:p>
+      <w:bookmarkStart w:id="7" w:name="Review Anchor"/>
+      <w:r><w:t>Bookmarked</w:t></w:r>
+      <w:bookmarkEnd w:id="7"/>
+      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+      <w:commentRangeStart w:id="12"/>
+      <w:r><w:t>commented</w:t></w:r>
+      <w:commentRangeEnd w:id="12"/>
+      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+      <w:proofErr w:type="spellStart"/>
+      <w:r><w:t>typo</w:t></w:r>
+      <w:proofErr w:type="spellEnd"/>
+      <w:r><w:t xml:space="preserve"> </w:t></w:r>
+      <w:permStart w:id="9" w:edGrp="everyone" w:colFirst="1" w:colLast="2"/>
+      <w:r><w:t>protected</w:t></w:r>
+      <w:permEnd w:id="9"/>
+      <w:moveFromRangeStart w:id="21"/>
+      <w:moveFromRangeEnd w:id="21"/>
+      <w:moveToRangeStart w:id="22"/>
+      <w:moveToRangeEnd w:id="22"/>
+    </w:p>
+  </w:body>
+XML,
+            $parts['word/document.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $markers = $docx['documentRangeMarkers'];
+        $summary = $docx['packageProvenance']['summary'];
+        $markerParagraph = $document->children[6];
+        $expectedKindCounts = [
+            'bookmark' => 2,
+            'comment' => 2,
+            'proofError' => 2,
+            'permission' => 2,
+            'moveFrom' => 2,
+            'moveTo' => 2,
+            'customXmlInsert' => 0,
+            'customXmlDelete' => 0,
+            'customXmlMoveFrom' => 0,
+            'customXmlMoveTo' => 0,
+        ];
+        $expectedElementCounts = [
+            'bookmarkStart' => 1,
+            'bookmarkEnd' => 1,
+            'commentRangeStart' => 1,
+            'commentRangeEnd' => 1,
+            'proofErr' => 2,
+            'permStart' => 1,
+            'permEnd' => 1,
+            'moveFromRangeStart' => 1,
+            'moveFromRangeEnd' => 1,
+            'moveToRangeStart' => 1,
+            'moveToRangeEnd' => 1,
+        ];
+
+        $t->same('paragraph', $markerParagraph->type);
+        $t->same('Bookmarked commented typo protected', $markerParagraph->attr('text'));
+        $t->same('word/document.xml', $markers['partName']);
+        $t->same(12, $markers['count']);
+        $t->same($expectedKindCounts, $markers['kindCounts']);
+        $t->same($expectedElementCounts, $markers['elementCounts']);
+        $t->same(['start' => 5, 'end' => 5, 'point' => 2], $markers['positionCounts']);
+        $t->same(5, $markers['startCount']);
+        $t->same(5, $markers['endCount']);
+        $t->same(2, $markers['pointCount']);
+        $t->same(0, $markers['emptyIdCount']);
+        $t->same(1, $markers['namedBookmarkCount']);
+        $t->same(1, $markers['nameHashCount']);
+        $t->same(2, $markers['typedProofErrorCount']);
+        $t->same(1, $markers['permissionEditorGroupCount']);
+        $t->same(1, $markers['permissionColumnBoundCount']);
+        $t->same('body-range-marker-metadata-only', $markers['reviewPolicy']);
+
+        $t->same('bookmarkStart', $markers['items'][0]['element']);
+        $t->same('bookmark', $markers['items'][0]['kind']);
+        $t->same('start', $markers['items'][0]['position']);
+        $t->same('7', $markers['items'][0]['id']);
+        $t->same(strlen('Review Anchor'), $markers['items'][0]['nameBytes']);
+        $t->same(hash('sha256', 'Review Anchor'), $markers['items'][0]['nameSha256']);
+        $t->true(!isset($markers['items'][0]['name']), 'bookmark names must stay hashed metadata');
+        $t->true(!str_contains(json_encode($markers, JSON_THROW_ON_ERROR), 'Review Anchor'), 'raw marker names must not appear in provenance');
+
+        $t->same('proofErr', $markers['items'][4]['element']);
+        $t->same('spellStart', $markers['items'][4]['proofErrorType']);
+        $t->same('spellEnd', $markers['items'][5]['proofErrorType']);
+        $t->same('permStart', $markers['items'][6]['element']);
+        $t->same('everyone', $markers['items'][6]['editorGroup']);
+        $t->same(1, $markers['items'][6]['columnFirst']);
+        $t->same(2, $markers['items'][6]['columnLast']);
+        $t->same('moveFromRangeStart', $markers['items'][8]['element']);
+        $t->same('moveToRangeEnd', $markers['items'][11]['element']);
+
+        $t->same(12, $summary['documentRangeMarkerCount']);
+        $t->same($expectedKindCounts, $summary['documentRangeMarkerKindCounts']);
+        $t->same($expectedElementCounts, $summary['documentRangeMarkerElementCounts']);
+        $t->same(1, $summary['documentRangeMarkerNamedBookmarkCount']);
+        $t->same(2, $summary['documentRangeMarkerTypedProofErrorCount']);
+        $t->same('body-range-marker-metadata-only', $summary['documentRangeMarkerReviewPolicy']);
+    },
     'normalizes docx drawing image target suffixes while preserving package provenance' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(

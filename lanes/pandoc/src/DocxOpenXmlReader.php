@@ -1307,6 +1307,7 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectIssueCodes'] = $vbaProjects['issueCodes'];
         $blocks = $this->readDocumentBlocks($parts[$documentPart], $documentRelationships, $contentTypes, $styles, $numbering, $referencedNotes);
         $documentRevisions = $this->readDocumentRevisionSummary($parts[$documentPart], $documentPart);
+        $documentRangeMarkers = $this->readDocumentRangeMarkerSummary($parts[$documentPart], $documentPart);
         $packageProvenance['documentRevisions'] = $documentRevisions;
         $packageProvenance['summary']['documentRevisionCount'] = $documentRevisions['count'];
         $packageProvenance['summary']['documentRevisionVisibleCount'] = $documentRevisions['visibleCount'];
@@ -1319,6 +1320,20 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['documentRevisionTextBytes'] = $documentRevisions['textBytes'];
         $packageProvenance['summary']['documentRevisionEmptyTextCount'] = $documentRevisions['emptyTextCount'];
         $packageProvenance['summary']['documentRevisionReviewPolicy'] = $documentRevisions['reviewPolicy'];
+        $packageProvenance['documentRangeMarkers'] = $documentRangeMarkers;
+        $packageProvenance['summary']['documentRangeMarkerCount'] = $documentRangeMarkers['count'];
+        $packageProvenance['summary']['documentRangeMarkerKindCounts'] = $documentRangeMarkers['kindCounts'];
+        $packageProvenance['summary']['documentRangeMarkerElementCounts'] = $documentRangeMarkers['elementCounts'];
+        $packageProvenance['summary']['documentRangeMarkerStartCount'] = $documentRangeMarkers['startCount'];
+        $packageProvenance['summary']['documentRangeMarkerEndCount'] = $documentRangeMarkers['endCount'];
+        $packageProvenance['summary']['documentRangeMarkerPointCount'] = $documentRangeMarkers['pointCount'];
+        $packageProvenance['summary']['documentRangeMarkerEmptyIdCount'] = $documentRangeMarkers['emptyIdCount'];
+        $packageProvenance['summary']['documentRangeMarkerNamedBookmarkCount'] = $documentRangeMarkers['namedBookmarkCount'];
+        $packageProvenance['summary']['documentRangeMarkerNameHashCount'] = $documentRangeMarkers['nameHashCount'];
+        $packageProvenance['summary']['documentRangeMarkerTypedProofErrorCount'] = $documentRangeMarkers['typedProofErrorCount'];
+        $packageProvenance['summary']['documentRangeMarkerPermissionEditorGroupCount'] = $documentRangeMarkers['permissionEditorGroupCount'];
+        $packageProvenance['summary']['documentRangeMarkerPermissionColumnBoundCount'] = $documentRangeMarkers['permissionColumnBoundCount'];
+        $packageProvenance['summary']['documentRangeMarkerReviewPolicy'] = $documentRangeMarkers['reviewPolicy'];
         $packageProvenance['styleReferences'] = $styleReferences;
         $packageProvenance['summary']['styleCount'] = $styleReferences['styleCount'];
         $packageProvenance['summary']['styleReferencedStyleCount'] = $styleReferences['referencedStyleCount'];
@@ -1390,6 +1405,7 @@ final class DocxOpenXmlReader
                 'peoplePart' => $peoplePart['partName'],
                 'people' => $people,
                 'documentRevisions' => $documentRevisions,
+                'documentRangeMarkers' => $documentRangeMarkers,
                 'headers' => $headers,
                 'footers' => $footers,
                 'sections' => $sectionProperties,
@@ -31778,6 +31794,166 @@ final class DocxOpenXmlReader
             'items' => $items,
             'reviewPolicy' => 'body-revision-text-metadata-only',
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function readDocumentRangeMarkerSummary(string $xml, string $partName): array
+    {
+        $dom = $this->loadXml($xml, $partName);
+        $xpath = $this->xpath($dom);
+        $markerElementNames = [
+            'bookmarkStart',
+            'bookmarkEnd',
+            'commentRangeStart',
+            'commentRangeEnd',
+            'proofErr',
+            'permStart',
+            'permEnd',
+            'moveFromRangeStart',
+            'moveFromRangeEnd',
+            'moveToRangeStart',
+            'moveToRangeEnd',
+            'customXmlInsRangeStart',
+            'customXmlInsRangeEnd',
+            'customXmlDelRangeStart',
+            'customXmlDelRangeEnd',
+            'customXmlMoveFromRangeStart',
+            'customXmlMoveFromRangeEnd',
+            'customXmlMoveToRangeStart',
+            'customXmlMoveToRangeEnd',
+        ];
+        $markerQueries = array_map(
+            static fn (string $elementName): string => '/w:document/w:body//w:' . $elementName,
+            $markerElementNames,
+        );
+        $kindCounts = [
+            'bookmark' => 0,
+            'comment' => 0,
+            'proofError' => 0,
+            'permission' => 0,
+            'moveFrom' => 0,
+            'moveTo' => 0,
+            'customXmlInsert' => 0,
+            'customXmlDelete' => 0,
+            'customXmlMoveFrom' => 0,
+            'customXmlMoveTo' => 0,
+        ];
+        $elementCounts = [];
+        $positionCounts = ['start' => 0, 'end' => 0, 'point' => 0];
+        $items = [];
+        $emptyIdCount = 0;
+        $namedBookmarkCount = 0;
+        $nameHashCount = 0;
+        $typedProofErrorCount = 0;
+        $permissionEditorGroupCount = 0;
+        $permissionColumnBoundCount = 0;
+
+        foreach ($this->elements($xpath, implode(' | ', $markerQueries), $dom) as $marker) {
+            $classification = $this->documentRangeMarkerClassification($marker->localName);
+            if ($classification === null) {
+                continue;
+            }
+
+            [$kind, $position] = $classification;
+            $id = $this->emptyStringToNull($marker->getAttributeNS(self::NS_W, 'id'));
+            $name = $this->emptyStringToNull($marker->getAttributeNS(self::NS_W, 'name'));
+            $proofErrorType = $this->emptyStringToNull($marker->getAttributeNS(self::NS_W, 'type'));
+            $editorGroup = $this->emptyStringToNull($marker->getAttributeNS(self::NS_W, 'edGrp'));
+            $columnFirst = $this->wordOptionalIntAttr($marker, 'colFirst');
+            $columnLast = $this->wordOptionalIntAttr($marker, 'colLast');
+            $displacedByCustomXml = $this->emptyStringToNull($marker->getAttributeNS(self::NS_W, 'displacedByCustomXml'));
+            $item = [
+                'index' => count($items),
+                'kind' => $kind,
+                'element' => $marker->localName,
+                'position' => $position,
+                'id' => $id,
+                'reviewPolicy' => 'body-range-marker-metadata-only',
+            ];
+
+            $kindCounts[$kind]++;
+            $elementCounts[$marker->localName] = ($elementCounts[$marker->localName] ?? 0) + 1;
+            $positionCounts[$position]++;
+            if ($position !== 'point' && $id === null) {
+                $emptyIdCount++;
+            }
+            if ($kind === 'bookmark' && $marker->localName === 'bookmarkStart' && $name !== null) {
+                $namedBookmarkCount++;
+            }
+            if ($name !== null) {
+                $nameHashCount++;
+                $item['nameBytes'] = strlen($name);
+                $item['nameSha256'] = hash('sha256', $name);
+            }
+            if ($proofErrorType !== null) {
+                $typedProofErrorCount++;
+                $item['proofErrorType'] = $proofErrorType;
+            }
+            if ($editorGroup !== null) {
+                $permissionEditorGroupCount++;
+                $item['editorGroup'] = $editorGroup;
+            }
+            if ($columnFirst !== null || $columnLast !== null) {
+                $permissionColumnBoundCount++;
+                $item['columnFirst'] = $columnFirst;
+                $item['columnLast'] = $columnLast;
+            }
+            if ($displacedByCustomXml !== null) {
+                $item['displacedByCustomXml'] = $displacedByCustomXml;
+            }
+
+            $items[] = $item;
+        }
+
+        return [
+            'partName' => $partName,
+            'count' => count($items),
+            'kindCounts' => $kindCounts,
+            'elementCounts' => $elementCounts,
+            'positionCounts' => $positionCounts,
+            'startCount' => $positionCounts['start'],
+            'endCount' => $positionCounts['end'],
+            'pointCount' => $positionCounts['point'],
+            'emptyIdCount' => $emptyIdCount,
+            'namedBookmarkCount' => $namedBookmarkCount,
+            'nameHashCount' => $nameHashCount,
+            'typedProofErrorCount' => $typedProofErrorCount,
+            'permissionEditorGroupCount' => $permissionEditorGroupCount,
+            'permissionColumnBoundCount' => $permissionColumnBoundCount,
+            'items' => $items,
+            'reviewPolicy' => 'body-range-marker-metadata-only',
+        ];
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private function documentRangeMarkerClassification(string $elementName): ?array
+    {
+        return match ($elementName) {
+            'bookmarkStart' => ['bookmark', 'start'],
+            'bookmarkEnd' => ['bookmark', 'end'],
+            'commentRangeStart' => ['comment', 'start'],
+            'commentRangeEnd' => ['comment', 'end'],
+            'proofErr' => ['proofError', 'point'],
+            'permStart' => ['permission', 'start'],
+            'permEnd' => ['permission', 'end'],
+            'moveFromRangeStart' => ['moveFrom', 'start'],
+            'moveFromRangeEnd' => ['moveFrom', 'end'],
+            'moveToRangeStart' => ['moveTo', 'start'],
+            'moveToRangeEnd' => ['moveTo', 'end'],
+            'customXmlInsRangeStart' => ['customXmlInsert', 'start'],
+            'customXmlInsRangeEnd' => ['customXmlInsert', 'end'],
+            'customXmlDelRangeStart' => ['customXmlDelete', 'start'],
+            'customXmlDelRangeEnd' => ['customXmlDelete', 'end'],
+            'customXmlMoveFromRangeStart' => ['customXmlMoveFrom', 'start'],
+            'customXmlMoveFromRangeEnd' => ['customXmlMoveFrom', 'end'],
+            'customXmlMoveToRangeStart' => ['customXmlMoveTo', 'start'],
+            'customXmlMoveToRangeEnd' => ['customXmlMoveTo', 'end'],
+            default => null,
+        };
     }
 
     private function revisionElementText(\DOMElement $revision): string
