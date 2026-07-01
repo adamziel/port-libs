@@ -14796,6 +14796,9 @@ final class XmlHtmlDom
             if ($inputType['inputType'] === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
                 $summary += self::fileInputReviewSummary($node, $inputType['inputType']);
             }
+            if ($inputType === 'color') {
+                $summary += self::colorInputReviewSummary($node);
+            }
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -22992,6 +22995,48 @@ final class XmlHtmlDom
             'inputTypeMissingDefaulted' => $missing,
             'inputTypeInvalidValueDefaulted' => !$missing && !$known,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function colorInputReviewSummary(\DOMElement $input): array
+    {
+        $valueRaw = self::attributeOrNull($input, 'value');
+        $missing = $valueRaw === null;
+        $valid = $valueRaw !== null && self::isValidHtmlSimpleColor($valueRaw);
+        $defaulted = !$valid;
+        $value = $valid ? strtolower((string) $valueRaw) : '#000000';
+        $red = (int) hexdec(substr($value, 1, 2));
+        $green = (int) hexdec(substr($value, 3, 2));
+        $blue = (int) hexdec(substr($value, 5, 2));
+        $issues = [];
+
+        if (!$missing && !$valid) {
+            $issues[] = 'invalid-color-input-value';
+        }
+
+        return [
+            'colorInputReviewPolicy' => 'html-color-input-value-review',
+            'colorInput' => true,
+            'colorValueRaw' => $valueRaw,
+            'colorValue' => $value,
+            'colorValueState' => $missing ? 'missing' : ($valid ? 'valid-simple-color' : 'invalid-simple-color'),
+            'colorValueValid' => $missing || $valid,
+            'colorValueDefaulted' => $defaulted,
+            'colorValueDefaultReason' => $defaulted ? ($missing ? 'missing-value-default' : 'invalid-value-default') : null,
+            'colorValueRgb' => [$red, $green, $blue],
+            'colorValueRed' => $red,
+            'colorValueGreen' => $green,
+            'colorValueBlue' => $blue,
+            'colorInputIssueCodes' => $issues,
+            'colorInputValid' => $issues === [],
+        ];
+    }
+
+    private static function isValidHtmlSimpleColor(string $value): bool
+    {
+        return preg_match('/^#[0-9A-Fa-f]{6}$/', $value) === 1;
     }
 
     /**
