@@ -396,6 +396,77 @@ return [
         }
     },
 
+    'cli writes targeted runner result artifact from captured transcripts' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture, $markSelectedInventoryPinned, $writeValidRunnerTranscripts): void {
+        $repoRoot = $makeTempRoot();
+        try {
+            $upstreamRoot = $repoRoot . '/cache/pandoc-current';
+            $hydrateRunnerPlanFixture($upstreamRoot);
+            $tool = dirname(__DIR__, 3) . '/tools/pandoc-docx-upstream-runner-plan.php';
+            $artifactRoot = 'artifacts/docx-targeted-run';
+            $logRoot = 'logs';
+            $selectedInventoryPath = $artifactRoot . '/selected-test-inventory.json';
+            $resultPath = $artifactRoot . '/result.json';
+
+            $writeInventoryCommand = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($tool)
+                . ' --repo-root '
+                . escapeshellarg($repoRoot)
+                . ' --upstream-root cache/pandoc-current --write-selected-inventory '
+                . escapeshellarg($selectedInventoryPath)
+                . ' --json 2>&1';
+            $writeOutput = [];
+            $writeExitCode = 0;
+            exec($writeInventoryCommand, $writeOutput, $writeExitCode);
+            $t->same(0, $writeExitCode, implode("\n", $writeOutput));
+            $markSelectedInventoryPinned($repoRoot . '/' . $selectedInventoryPath);
+            $writeValidRunnerTranscripts($repoRoot, 'cache/pandoc-current', $logRoot);
+
+            $writeResultCommand = escapeshellarg(PHP_BINARY)
+                . ' '
+                . escapeshellarg($tool)
+                . ' --repo-root '
+                . escapeshellarg($repoRoot)
+                . ' --upstream-root cache/pandoc-current --artifact-root '
+                . escapeshellarg($artifactRoot)
+                . ' --log-root '
+                . escapeshellarg($logRoot)
+                . ' --write-result-artifact '
+                . escapeshellarg($resultPath)
+                . ' --result-started-at-utc 2026-06-30T00:00:00Z'
+                . ' --result-finished-at-utc 2026-06-30T00:00:01Z'
+                . ' --validate-result-artifacts'
+                . ' --json 2>&1';
+            $resultOutput = [];
+            $resultExitCode = 0;
+            exec($writeResultCommand, $resultOutput, $resultExitCode);
+            $t->same(0, $resultExitCode, implode("\n", $resultOutput));
+
+            $decoded = json_decode(implode("\n", $resultOutput), true, 512, JSON_THROW_ON_ERROR);
+            $t->same(true, $decoded['resultArtifact']['written']);
+            $t->same($resultPath, $decoded['resultArtifact']['path']);
+            $t->same(DocxUpstreamRunnerPlan::RESULT_ARTIFACT_EVIDENCE_KIND, $decoded['resultArtifact']['evidenceKind']);
+            $t->same(2, $decoded['resultArtifact']['selectedTestCount']);
+            $t->same(2, $decoded['resultArtifact']['passedCount']);
+            $t->same(0, $decoded['resultArtifact']['failedCount']);
+            $t->same(0, $decoded['resultArtifact']['skippedCount']);
+            $t->same(DocxUpstreamRunnerPlan::RESULT_ARTIFACT_GATE_STATUS_ADMISSIBLE, $decoded['resultArtifactGate']['status']);
+            $t->same(true, $decoded['resultArtifactGate']['admissionReady']);
+
+            $result = json_decode((string) file_get_contents($repoRoot . '/' . $resultPath), true, 512, JSON_THROW_ON_ERROR);
+            $t->same(true, $result['runnerExecuted']);
+            $t->same(DocxUpstreamRunnerPlan::PINNED_UPSTREAM_COMMIT, $result['upstreamCommit']);
+            $t->same(DocxUpstreamRunnerPlan::RUNNER_TARGET, $result['runnerTarget']);
+            $t->same(DocxUpstreamRunnerPlan::TASTY_PATTERN, $result['tastyPattern']);
+            $t->same(hash_file('sha256', $repoRoot . '/' . $selectedInventoryPath), $result['selectedTestInventorySha256']);
+            $t->same(hash_file('sha256', $repoRoot . '/' . $logRoot . '/runner-test-dependencies.txt'), $result['dependencyDryRunTranscriptSha256']);
+            $t->same(hash_file('sha256', $repoRoot . '/' . $logRoot . '/docx-targeted-list-tests.txt'), $result['listTestsTranscriptSha256']);
+            $t->same(hash_file('sha256', $repoRoot . '/' . $logRoot . '/docx-targeted-run.txt'), $result['targetedRunTranscriptSha256']);
+        } finally {
+            $removeTree($repoRoot);
+        }
+    },
+
     'rejects self consistent runner result without real cabal tasty transcript evidence' => static function (TestRunner $t) use ($makeTempRoot, $removeTree, $hydrateRunnerPlanFixture, $writeFile, $markSelectedInventoryPinned): void {
         $repoRoot = $makeTempRoot();
         try {

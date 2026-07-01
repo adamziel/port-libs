@@ -272,6 +272,17 @@
                 ],
                 "executionPolicy": "artifact-shape, transcript-evidence, and hash-binding validation only; this PHP gate does not execute Cabal/Tasty, independently prove transcript authenticity, record a runner result, or claim DOCX/OpenXML parity"
             },
+            "manualWorkflow": {
+                "workflow": ".github/workflows/pandoc-docx.yml",
+                "trigger": "workflow_dispatch",
+                "input": "run_upstream_docx_tasty=true",
+                "upstreamRoot": ".upstream-cache/pandoc-docx-runner-pinned",
+                "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",
+                "runnerTarget": "test:test-pandoc",
+                "tastyPattern": "($2 == \"Readers\" || $2 == \"Writers\") && $3 == \"Docx\"",
+                "resultWriterCommand": "tools/pandoc-docx-upstream-runner-plan.php --json --upstream-root .upstream-cache/pandoc-docx-runner-pinned --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs --write-result-artifact .port-libs/pandoc-runner/artifacts/docx-targeted-run/result.json --result-started-at-utc <started> --result-finished-at-utc <finished>",
+                "gatePolicy": "Manual workflow must re-run the result artifact gate and require admissible-targeted-runner-result-artifacts-no-parity-claim before treating artifacts as admissible; this static audit still records no runner result."
+            },
             "resultRecorded": false,
             "runnerExecuted": false,
             "upstreamCommit": "0640c4c9859aa5a3ede082c190fcd5883c24ac83",

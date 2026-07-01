@@ -18,6 +18,7 @@ final class DocxUpstreamRunnerPlan
     public const RESULT_ARTIFACT_GATE_STATUS_MISSING = 'blocked-missing-targeted-runner-result-artifacts';
     public const RESULT_ARTIFACT_GATE_STATUS_INVALID = 'blocked-invalid-targeted-runner-result-artifacts';
     public const RESULT_ARTIFACT_GATE_STATUS_ADMISSIBLE = 'admissible-targeted-runner-result-artifacts-no-parity-claim';
+    public const RESULT_ARTIFACT_EVIDENCE_KIND = 'targeted-docx-runner-result-artifact-from-transcripts';
     public const DEFAULT_RELATIVE_ARTIFACT_ROOT = '.port-libs/pandoc-runner/artifacts/docx-targeted-run';
     public const DEFAULT_RELATIVE_LOG_ROOT = '.port-libs/pandoc-runner/logs';
     public const LOCAL_READINESS_STATUS_READY = 'ready-for-targeted-docx-runner-execution';
@@ -755,6 +756,169 @@ final class DocxUpstreamRunnerPlan
     }
 
     /**
+     * Build a runner result artifact from existing transcript files.
+     *
+     * This method intentionally does not execute Cabal/Tasty. It requires the
+     * workflow wrapper to have captured the exact planned commands first, then
+     * binds result.json to those files by SHA-256 for resultArtifactGate().
+     *
+     * @return array<string, mixed>
+     */
+    public function resultArtifactFromTranscripts(
+        string $artifactRoot = self::DEFAULT_RELATIVE_ARTIFACT_ROOT,
+        string $logRoot = self::DEFAULT_RELATIVE_LOG_ROOT,
+        string $startedAtUtc = '',
+        string $finishedAtUtc = ''
+    ): array {
+        if ($artifactRoot === '') {
+            throw new \InvalidArgumentException('Runner artifact root must not be empty');
+        }
+        if ($logRoot === '') {
+            throw new \InvalidArgumentException('Runner log root must not be empty');
+        }
+        if (!self::validUtcTimestamp($startedAtUtc)) {
+            throw new \InvalidArgumentException('Result startedAtUtc must be an ISO-8601 UTC timestamp');
+        }
+        if (!self::validUtcTimestamp($finishedAtUtc)) {
+            throw new \InvalidArgumentException('Result finishedAtUtc must be an ISO-8601 UTC timestamp');
+        }
+        $started = self::parseUtcTimestamp($startedAtUtc);
+        $finished = self::parseUtcTimestamp($finishedAtUtc);
+        if ($started !== null && $finished !== null && $finished < $started) {
+            throw new \InvalidArgumentException('Result finishedAtUtc must not be earlier than startedAtUtc');
+        }
+
+        $artifactRootAbsolute = $this->absolutePath($artifactRoot);
+        $logRootAbsolute = $this->absolutePath($logRoot);
+        $artifacts = [
+            'dependencyDryRunTranscript' => $this->artifactFileRow(
+                $logRootAbsolute . DIRECTORY_SEPARATOR . 'runner-test-dependencies.txt'
+            ),
+            'listTestsTranscript' => $this->artifactFileRow(
+                $logRootAbsolute . DIRECTORY_SEPARATOR . 'docx-targeted-list-tests.txt'
+            ),
+            'targetedRunTranscript' => $this->artifactFileRow(
+                $logRootAbsolute . DIRECTORY_SEPARATOR . 'docx-targeted-run.txt'
+            ),
+            'selectedTestInventory' => $this->artifactFileRow(
+                $artifactRootAbsolute . DIRECTORY_SEPARATOR . 'selected-test-inventory.json'
+            ),
+        ];
+
+        $problems = [];
+        foreach ($artifacts as $name => $row) {
+            if (($row['present'] ?? false) !== true) {
+                $problems[] = "Missing required artifact: {$name}";
+                continue;
+            }
+            if (($row['readable'] ?? false) !== true) {
+                $problems[] = "Required artifact is not readable: {$name}";
+                continue;
+            }
+            if ((int) ($row['bytes'] ?? 0) <= 0) {
+                $problems[] = "Required artifact is empty: {$name}";
+            }
+        }
+
+        $selectedInventory = $this->decodeJsonArtifact(
+            $artifacts['selectedTestInventory']['absolutePath'],
+            'selectedTestInventory',
+            $problems
+        );
+        if (is_array($selectedInventory)) {
+            $this->validateSelectedInventoryArtifact($selectedInventory, $problems);
+        }
+
+        $commands = $this->commands();
+        $dependencyTranscript = $this->artifactContents($artifacts['dependencyDryRunTranscript']['absolutePath'] ?? null);
+        $listTestsTranscript = $this->artifactContents($artifacts['listTestsTranscript']['absolutePath'] ?? null);
+        $targetedRunTranscript = $this->artifactContents($artifacts['targetedRunTranscript']['absolutePath'] ?? null);
+
+        $this->requireTranscriptContains(
+            $dependencyTranscript,
+            $commands['dependencyDryRun']['commandLine'],
+            'dependency dry-run transcript',
+            'the exact Cabal dry-run command line',
+            $problems
+        );
+        $this->requireTranscriptExitCode(
+            $dependencyTranscript,
+            0,
+            'dependency dry-run transcript',
+            'the expected successful dependency dry-run exitCode marker',
+            $problems
+        );
+        $this->requireTranscriptContains(
+            $listTestsTranscript,
+            $commands['listDocxTests']['commandLine'],
+            'list-tests transcript',
+            'the exact Cabal/Tasty --list-tests command line',
+            $problems
+        );
+        $this->requireTranscriptExitCode(
+            $listTestsTranscript,
+            0,
+            'list-tests transcript',
+            'the expected successful --list-tests exitCode marker',
+            $problems
+        );
+        $this->requireTranscriptContains(
+            $targetedRunTranscript,
+            $commands['targetedDocxRun']['commandLine'],
+            'targeted-run transcript',
+            'the exact targeted Cabal/Tasty command line',
+            $problems
+        );
+
+        $targetedExitCode = self::transcriptExitCode($targetedRunTranscript);
+        if ($targetedExitCode === null || $targetedExitCode < 0) {
+            $problems[] = 'targeted-run transcript must include a non-negative exitCode marker';
+            $targetedExitCode = 0;
+        }
+
+        $selectedTestCount = $this->countDocxListTestLines($listTestsTranscript);
+        if ($selectedTestCount === 0) {
+            $problems[] = 'list-tests transcript must contain DOCX Tasty test labels before writing result.json';
+        }
+        $counts = $this->tastyResultOutcomeCounts($targetedRunTranscript, $selectedTestCount);
+        $observedResultCount = $counts['passedCount'] + $counts['failedCount'] + $counts['skippedCount'];
+        if ($observedResultCount === 0) {
+            $problems[] = 'targeted-run transcript must contain Tasty DOCX outcome lines before writing result.json';
+        } elseif ($selectedTestCount > 0 && $observedResultCount !== $selectedTestCount) {
+            $problems[] = 'targeted-run transcript outcome count must match the DOCX --list-tests count before writing result.json';
+        }
+        if ($targetedExitCode === 0 && $counts['failedCount'] > 0) {
+            $problems[] = 'targeted-run transcript records failures but exitCode is 0';
+        }
+
+        if ($problems !== []) {
+            throw new \RuntimeException('Cannot write targeted DOCX runner result artifact: ' . implode('; ', $problems));
+        }
+
+        return [
+            'schemaVersion' => 1,
+            'evidenceKind' => self::RESULT_ARTIFACT_EVIDENCE_KIND,
+            'runnerExecuted' => true,
+            'upstreamCommit' => self::PINNED_UPSTREAM_COMMIT,
+            'commandLine' => $commands['targetedDocxRun']['commandLine'],
+            'exitCode' => $targetedExitCode,
+            'runnerTarget' => self::RUNNER_TARGET,
+            'tastyPattern' => self::TASTY_PATTERN,
+            'selectedTestCount' => $selectedTestCount,
+            'passedCount' => $counts['passedCount'],
+            'failedCount' => $counts['failedCount'],
+            'skippedCount' => $counts['skippedCount'],
+            'startedAtUtc' => $startedAtUtc,
+            'finishedAtUtc' => $finishedAtUtc,
+            'selectedTestInventorySha256' => $artifacts['selectedTestInventory']['sha256'],
+            'dependencyDryRunTranscriptSha256' => $artifacts['dependencyDryRunTranscript']['sha256'],
+            'listTestsTranscriptSha256' => $artifacts['listTestsTranscript']['sha256'],
+            'targetedRunTranscriptSha256' => $artifacts['targetedRunTranscript']['sha256'],
+            'claim' => 'Result artifact assembled from captured targeted Cabal/Tasty DOCX transcripts; this PHP tool did not execute Cabal/Tasty.',
+        ];
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function artifactFileRow(string $absolutePath): array
@@ -1082,6 +1246,49 @@ final class DocxUpstreamRunnerPlan
         }
 
         return preg_match('/(?:^|\R)\s*(?:[^\r\n:]+:\s*)?(?:OK|FAIL|SKIP|All \d+ tests? passed)\b/', $contents) === 1;
+    }
+
+    /**
+     * @return array{passedCount:int, failedCount:int, skippedCount:int}
+     */
+    private function tastyResultOutcomeCounts(?string $contents, int $selectedTestCount): array
+    {
+        $counts = [
+            'passedCount' => 0,
+            'failedCount' => 0,
+            'skippedCount' => 0,
+        ];
+        if ($contents === null) {
+            return $counts;
+        }
+
+        foreach (preg_split('/\R/', $contents) ?: [] as $line) {
+            $trimmed = trim($line);
+            if ($trimmed === '') {
+                continue;
+            }
+            if (preg_match('/:\s*OK\b/', $trimmed) === 1) {
+                ++$counts['passedCount'];
+                continue;
+            }
+            if (preg_match('/:\s*FAIL\b/', $trimmed) === 1) {
+                ++$counts['failedCount'];
+                continue;
+            }
+            if (preg_match('/:\s*SKIP(?:PED)?\b/', $trimmed) === 1) {
+                ++$counts['skippedCount'];
+            }
+        }
+
+        $observed = $counts['passedCount'] + $counts['failedCount'] + $counts['skippedCount'];
+        if ($observed === 0 && preg_match('/\bAll\s+(\d+)\s+tests?\s+passed\b/', $contents, $matches) === 1) {
+            $summaryCount = (int) $matches[1];
+            $counts['passedCount'] = $selectedTestCount > 0 && $summaryCount !== $selectedTestCount
+                ? $summaryCount
+                : $selectedTestCount;
+        }
+
+        return $counts;
     }
 
     private static function transcriptExitCode(?string $contents): ?int
@@ -1557,5 +1764,11 @@ final class DocxUpstreamRunnerPlan
         }
 
         return $timestamp === false ? null : $timestamp;
+    }
+
+    private static function validUtcTimestamp(string $value): bool
+    {
+        return preg_match('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/', $value) === 1
+            && self::parseUtcTimestamp($value) !== null;
     }
 }

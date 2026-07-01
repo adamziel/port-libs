@@ -16,10 +16,23 @@ on:
       - 'lanes/pandoc/**'
       - 'tools/**'
   workflow_dispatch:
+    inputs:
+      run_upstream_docx_tasty:
+        description: Run the pinned upstream DOCX Cabal/Tasty pattern and gate result artifacts.
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 permissions:
   contents: read
   statuses: write
+
+env:
+  PANDOC_DOCX_RUNNER_PINNED_COMMIT: 0640c4c9859aa5a3ede082c190fcd5883c24ac83
+  PANDOC_DOCX_RUNNER_UPSTREAM_ROOT: .upstream-cache/pandoc-docx-runner-pinned
 
 jobs:
   focused-docx:
@@ -138,6 +151,170 @@ jobs:
             --log-root .port-libs/pandoc-runner/logs \
             > .port-libs/pandoc-runner/artifacts/docx-targeted-run/result-artifact-gate.json
 
+      - name: Hydrate pinned Pandoc DOCX runner checkout
+        if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
+        run: |
+          set -euo pipefail
+          target="${PANDOC_DOCX_RUNNER_UPSTREAM_ROOT}"
+          mkdir -p "$(dirname "$target")"
+          if [ ! -d "$target/.git" ]; then
+            git init "$target"
+            git -C "$target" remote add origin https://github.com/jgm/pandoc.git
+          fi
+          git -C "$target" fetch --depth=1 origin "$PANDOC_DOCX_RUNNER_PINNED_COMMIT"
+          git -C "$target" switch --detach FETCH_HEAD
+          test "$(git -C "$target" rev-parse HEAD)" = "$PANDOC_DOCX_RUNNER_PINNED_COMMIT"
+          test -f "$target/cabal.project"
+          test -f "$target/pandoc.cabal"
+          test -f "$target/test/test-pandoc.hs"
+          test -f "$target/test/Tests/Readers/Docx.hs"
+          test -f "$target/test/Tests/Writers/Docx.hs"
+          test -d "$target/test/docx"
+          test -d "$target/test/docx/golden"
+
+      - name: Set up Haskell for targeted DOCX runner
+        if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
+        uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.10.3'
+          cabal-version: '3.12.1.0'
+
+      - name: Restore targeted DOCX runner Cabal cache
+        if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            .port-libs/pandoc-runner/cabal-home
+            .port-libs/pandoc-runner/cache
+            .port-libs/pandoc-runner/state
+          key: pandoc-docx-runner-cabal-${{ runner.os }}-ghc-9.10.3-cabal-3.12.1.0-${{ env.PANDOC_DOCX_RUNNER_PINNED_COMMIT }}
+
+      - name: Prime targeted DOCX runner Cabal store
+        if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
+        run: |
+          set -euo pipefail
+          target="${PANDOC_DOCX_RUNNER_UPSTREAM_ROOT}"
+          export CABAL_DIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-home"
+          export CABAL_CONFIG="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-config/config"
+          export XDG_CACHE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cache"
+          export XDG_STATE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/state"
+          export TMPDIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/tmp"
+          mkdir -p "$CABAL_DIR" "$(dirname "$CABAL_CONFIG")" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$TMPDIR"
+          if [ ! -f "$CABAL_CONFIG" ]; then
+            cabal user-config init --config-file="$CABAL_CONFIG"
+          fi
+          (
+            cd "$target"
+            cabal v2-update
+            cabal v2-build \
+              --project-dir=. \
+              --builddir=.port-libs/pandoc-runner/cabal-build/docx-targeted-run \
+              --only-dependencies \
+              --enable-tests \
+              --disable-benchmarks \
+              test:test-pandoc \
+              test:test-pandoc-lua-engine
+          )
+
+      - name: Generate pinned DOCX selected inventory for targeted runner
+        if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
+        run: |
+          set -euo pipefail
+          artifact_root=.port-libs/pandoc-runner/artifacts/docx-targeted-run
+          mkdir -p "$artifact_root" .port-libs/pandoc-runner/logs
+          php tools/pandoc-docx-upstream-runner-plan.php \
+            --json \
+            --upstream-root "$PANDOC_DOCX_RUNNER_UPSTREAM_ROOT" \
+            --write-selected-inventory "$artifact_root/selected-test-inventory.json" \
+            > "$artifact_root/preflight-plan.json"
+          jq -e '
+            .selectedTestInventory.skipped == false
+            and .selectedTestInventory.upstream.sourceCommitMatchesPinned == true
+            and .localExecutionReadiness.checks.sourceCommitMatchesPinned == true
+          ' "$artifact_root/preflight-plan.json"
+
+      - name: Run targeted upstream DOCX Cabal/Tasty pattern
+        id: targeted-docx-tasty
+        if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
+        run: |
+          set -euo pipefail
+          target="${PANDOC_DOCX_RUNNER_UPSTREAM_ROOT}"
+          artifact_root=.port-libs/pandoc-runner/artifacts/docx-targeted-run
+          log_root=.port-libs/pandoc-runner/logs
+          export CABAL_DIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-home"
+          export CABAL_CONFIG="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cabal-config/config"
+          export XDG_CACHE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/cache"
+          export XDG_STATE_HOME="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/state"
+          export TMPDIR="$GITHUB_WORKSPACE/.port-libs/pandoc-runner/tmp"
+
+          run_plan_command() {
+            local command_line="$1"
+            local log_file="$2"
+            set +e
+            (
+              cd "$target"
+              printf '$ %s\n' "$command_line"
+              bash -o pipefail -c "$command_line"
+              command_exit=$?
+              printf 'exitCode: %d\n' "$command_exit"
+              exit "$command_exit"
+            ) 2>&1 | tee "$log_file"
+            local status="${PIPESTATUS[0]}"
+            return "$status"
+          }
+
+          dependency_cmd="$(jq -r '.commands.dependencyDryRun.commandLine' "$artifact_root/preflight-plan.json")"
+          list_cmd="$(jq -r '.commands.listDocxTests.commandLine' "$artifact_root/preflight-plan.json")"
+          targeted_cmd="$(jq -r '.commands.targetedDocxRun.commandLine' "$artifact_root/preflight-plan.json")"
+
+          run_plan_command "$dependency_cmd" "$log_root/runner-test-dependencies.txt"
+          dependency_exit=$?
+          set -e
+          if [ "$dependency_exit" -ne 0 ]; then
+            exit "$dependency_exit"
+          fi
+          run_plan_command "$list_cmd" "$log_root/docx-targeted-list-tests.txt"
+          list_exit=$?
+          set -e
+          if [ "$list_exit" -ne 0 ]; then
+            exit "$list_exit"
+          fi
+
+          started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          set +e
+          run_plan_command "$targeted_cmd" "$log_root/docx-targeted-run.txt"
+          targeted_exit=$?
+          set -e
+          finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          php tools/pandoc-docx-upstream-runner-plan.php \
+            --json \
+            --upstream-root "$PANDOC_DOCX_RUNNER_UPSTREAM_ROOT" \
+            --artifact-root "$artifact_root" \
+            --log-root "$log_root" \
+            --write-result-artifact "$artifact_root/result.json" \
+            --result-started-at-utc "$started_at" \
+            --result-finished-at-utc "$finished_at" \
+            > "$artifact_root/result-writer.json"
+          echo "targeted_exit=$targeted_exit" >> "$GITHUB_OUTPUT"
+
+      - name: Require targeted upstream DOCX runner artifact gate
+        if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
+        run: |
+          set -euo pipefail
+          artifact_root=.port-libs/pandoc-runner/artifacts/docx-targeted-run
+          php tools/pandoc-docx-upstream-runner-plan.php \
+            --json \
+            --upstream-root "$PANDOC_DOCX_RUNNER_UPSTREAM_ROOT" \
+            --validate-result-artifacts \
+            --artifact-root "$artifact_root" \
+            --log-root .port-libs/pandoc-runner/logs \
+            > "$artifact_root/result-artifact-gate.json"
+          jq -e '
+            .resultArtifactGate.status == "admissible-targeted-runner-result-artifacts-no-parity-claim"
+            and .resultArtifactGate.admissionReady == true
+          ' "$artifact_root/result-artifact-gate.json"
+
       - name: Upload optional upstream DOCX runner evidence artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -147,6 +324,10 @@ jobs:
             .port-libs/pandoc-runner/artifacts/docx-targeted-run/*.json
             .port-libs/pandoc-runner/logs/*.txt
           if-no-files-found: warn
+
+      - name: Require targeted upstream DOCX Tasty pass
+        if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
+        run: test "${{ steps.targeted-docx-tasty.outputs.targeted_exit }}" = "0"
 
       - name: Run optional upstream DOCX/native smoke
         run: php tools/pandoc-docx-native-smoke.php --limit=12

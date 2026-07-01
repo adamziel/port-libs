@@ -19,6 +19,16 @@ Options:
   --write-selected-inventory PATH
                         Write the static selected DOCX test inventory JSON
                         artifact, relative to repo root unless absolute.
+  --write-result-artifact PATH
+                        Write result.json from existing selected inventory and
+                        captured Cabal/Tasty transcripts. Does not execute
+                        Cabal/Tasty.
+  --result-started-at-utc TIMESTAMP
+                        UTC start timestamp for --write-result-artifact,
+                        formatted as YYYY-MM-DDTHH:MM:SSZ.
+  --result-finished-at-utc TIMESTAMP
+                        UTC finish timestamp for --write-result-artifact,
+                        formatted as YYYY-MM-DDTHH:MM:SSZ.
   --validate-result-artifacts
                         Validate targeted-runner result artifacts without
                         executing Cabal/Tasty or recording a result.
@@ -61,6 +71,9 @@ try {
     $repoRoot = dirname(__DIR__);
     $upstreamRoot = DocxUpstreamRunnerPlan::DEFAULT_RELATIVE_UPSTREAM_ROOT;
     $selectedInventoryOutput = null;
+    $resultArtifactOutput = null;
+    $resultStartedAtUtc = null;
+    $resultFinishedAtUtc = null;
     $validateResultArtifacts = false;
     $artifactRoot = DocxUpstreamRunnerPlan::DEFAULT_RELATIVE_ARTIFACT_ROOT;
     $logRoot = DocxUpstreamRunnerPlan::DEFAULT_RELATIVE_LOG_ROOT;
@@ -109,6 +122,30 @@ try {
         }
         if (str_starts_with($arg, '--write-selected-inventory=')) {
             $selectedInventoryOutput = substr($arg, strlen('--write-selected-inventory='));
+            continue;
+        }
+        if ($arg === '--write-result-artifact') {
+            $resultArtifactOutput = $nextValue('--write-result-artifact');
+            continue;
+        }
+        if (str_starts_with($arg, '--write-result-artifact=')) {
+            $resultArtifactOutput = substr($arg, strlen('--write-result-artifact='));
+            continue;
+        }
+        if ($arg === '--result-started-at-utc') {
+            $resultStartedAtUtc = $nextValue('--result-started-at-utc');
+            continue;
+        }
+        if (str_starts_with($arg, '--result-started-at-utc=')) {
+            $resultStartedAtUtc = substr($arg, strlen('--result-started-at-utc='));
+            continue;
+        }
+        if ($arg === '--result-finished-at-utc') {
+            $resultFinishedAtUtc = $nextValue('--result-finished-at-utc');
+            continue;
+        }
+        if (str_starts_with($arg, '--result-finished-at-utc=')) {
+            $resultFinishedAtUtc = substr($arg, strlen('--result-finished-at-utc='));
             continue;
         }
         if ($arg === '--validate-result-artifacts') {
@@ -164,6 +201,53 @@ try {
             'sha256' => hash('sha256', $payload),
             'evidenceKind' => DocxUpstreamRunnerPlan::SELECTED_TEST_INVENTORY_EVIDENCE_KIND,
             'claim' => 'Static selected DOCX source and fixture inventory artifact only; no Cabal command, upstream runner, or DOCX package comparison was executed.',
+        ];
+    }
+
+    if ($resultArtifactOutput !== null) {
+        if ($resultArtifactOutput === '') {
+            throw new InvalidArgumentException('Result artifact path must not be empty');
+        }
+        if (!is_string($resultStartedAtUtc) || $resultStartedAtUtc === '') {
+            throw new InvalidArgumentException('--result-started-at-utc is required with --write-result-artifact');
+        }
+        if (!is_string($resultFinishedAtUtc) || $resultFinishedAtUtc === '') {
+            throw new InvalidArgumentException('--result-finished-at-utc is required with --write-result-artifact');
+        }
+
+        $resultArtifact = $plan->resultArtifactFromTranscripts(
+            $artifactRoot,
+            $logRoot,
+            $resultStartedAtUtc,
+            $resultFinishedAtUtc
+        );
+        $absoluteOutput = $absolutePath($resultArtifactOutput, $repoRoot);
+        $outputDirectory = dirname($absoluteOutput);
+        if (!is_dir($outputDirectory) && !mkdir($outputDirectory, 0777, true) && !is_dir($outputDirectory)) {
+            throw new RuntimeException("Unable to create result artifact directory: {$outputDirectory}");
+        }
+
+        $payload = json_encode(
+            $resultArtifact,
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR
+        ) . PHP_EOL;
+        if (file_put_contents($absoluteOutput, $payload) === false) {
+            throw new RuntimeException("Unable to write result artifact: {$absoluteOutput}");
+        }
+
+        $report['resultArtifact'] = [
+            'written' => true,
+            'path' => $displayPath($absoluteOutput, $repoRoot),
+            'bytes' => strlen($payload),
+            'sha256' => hash('sha256', $payload),
+            'evidenceKind' => DocxUpstreamRunnerPlan::RESULT_ARTIFACT_EVIDENCE_KIND,
+            'runnerExecuted' => $resultArtifact['runnerExecuted'],
+            'exitCode' => $resultArtifact['exitCode'],
+            'selectedTestCount' => $resultArtifact['selectedTestCount'],
+            'passedCount' => $resultArtifact['passedCount'],
+            'failedCount' => $resultArtifact['failedCount'],
+            'skippedCount' => $resultArtifact['skippedCount'],
+            'claim' => 'Result artifact assembled from existing transcripts only; this tool did not execute Cabal/Tasty.',
         ];
     }
 
