@@ -19421,13 +19421,31 @@ final class XmlHtmlDom
     private static function dataElementSummary(\DOMElement $element): array
     {
         $value = self::attributeOrNull($element, 'value');
+        $text = self::normalizedText($element);
+        $normalizedValue = $value === null ? null : trim($value);
+        $issues = [];
+        if ($value === null) {
+            $issues[] = ['code' => 'missing-data-element-value'];
+        } elseif ($normalizedValue === '') {
+            $issues[] = ['code' => 'empty-data-element-value'];
+        }
 
         return [
             'dataElement' => 'data',
-            'dataText' => self::normalizedText($element),
+            'dataText' => $text,
             'dataValueRaw' => $value,
-            'dataValue' => $value === null ? null : trim($value),
+            'dataValue' => $normalizedValue,
             'dataValueSource' => $value === null ? 'missing' : 'value-attribute',
+            'dataValueReviewPolicy' => 'html-data-element-value-review',
+            'dataValuePresent' => $value !== null,
+            'dataValueEmpty' => $value !== null && $normalizedValue === '',
+            'dataValueTextMatches' => $normalizedValue !== null && $normalizedValue !== '' && $normalizedValue === $text,
+            'dataValueUsable' => $issues === [],
+            'dataValueIssueCodes' => array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            ),
+            'dataValueIssues' => $issues,
         ];
     }
 
