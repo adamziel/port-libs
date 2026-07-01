@@ -10617,6 +10617,9 @@ final class MarkdownReader
         if ($following === '(' || $following === '[') {
             return null;
         }
+        if ($following === '{' && $this->tryParseInlineAttributeSpec($text, $next) !== null) {
+            return null;
+        }
 
         if (isset($this->referenceLinks[$this->normalizeReferenceLabel($label['text'])])) {
             return null;

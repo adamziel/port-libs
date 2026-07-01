@@ -1065,6 +1065,8 @@
         "mappedMarkdownReaderSmartPunctuationCases": 7,
         "mappedMarkdownReaderUnclosedSmartQuoteCases": 1,
         "mappedMarkdownReaderInlineNoteQuoteCases": 2,
+        "markdownReaderCitationSpanBoundaryFixtureLines": 5,
+        "mappedMarkdownReaderCitationSpanBoundaryCases": 3,
         "mappedTestsuiteLatexCases": 13,
         "mappedTestsuiteSpecialCharactersCases": 4,
         "mappedTestsuiteLinksCases": 25,
