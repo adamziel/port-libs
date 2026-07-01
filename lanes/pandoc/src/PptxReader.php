@@ -224,9 +224,6 @@ final class PptxReader
 
         $title = $this->slideTitle($root);
         if ($title === '') {
-            $title = (string) ($slideContext['layoutTitle'] ?? $slideContext['masterTitle'] ?? '');
-        }
-        if ($title === '') {
             $title = 'Slide ' . $slideIndex;
         }
 
