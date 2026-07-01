@@ -2476,6 +2476,12 @@ final class OdfReader
             'centralOnlyExtraFieldIdCount' => $extraFields['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $extraFields['localOnlyExtraFieldIdCount'],
             'extraFieldIdUsage' => $extraFields['extraFieldIdUsage'],
+            'extraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields),
+            'centralExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsInCentral'),
+            'localExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsInLocal'),
+            'sharedExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsInBoth'),
+            'centralOnlyExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsOnlyInCentral'),
+            'localOnlyExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsOnlyInLocal'),
             'unixOwners' => $unixOwners,
             'hasUnixOwnerMetadata' => $unixOwners['ownerMetadataEntryCount'] > 0,
             'hasMismatchedUnixOwnerMetadata' => $unixOwners['mismatchedOwnerMetadataEntryCount'] > 0,
@@ -3273,16 +3279,24 @@ final class OdfReader
                 'zipEntryCommentEncoding' => $item['zipEntryCommentEncoding'] ?? null,
                 'zipEntryHasComment' => ($item['zipEntryHasComment'] ?? false) === true,
                 'zipExtraFieldIds' => $item['zipExtraFieldIds'] ?? [],
+                'zipExtraFieldIdHexes' => $item['zipExtraFieldIdHexes'] ?? [],
                 'extraFieldIdCount' => $item['extraFieldIdCount'] ?? 0,
                 'centralExtraFieldIds' => $item['centralExtraFieldIds'] ?? [],
+                'centralExtraFieldIdHexes' => $item['centralExtraFieldIdHexes'] ?? [],
                 'localExtraFieldIds' => $item['localExtraFieldIds'] ?? [],
+                'localExtraFieldIdHexes' => $item['localExtraFieldIdHexes'] ?? [],
                 'centralExtraFieldRecordCount' => $item['centralExtraFieldRecordCount'] ?? 0,
                 'localExtraFieldRecordCount' => $item['localExtraFieldRecordCount'] ?? 0,
                 'duplicateCentralExtraFieldIds' => $item['duplicateCentralExtraFieldIds'] ?? [],
+                'duplicateCentralExtraFieldIdHexes' => $item['duplicateCentralExtraFieldIdHexes'] ?? [],
                 'duplicateLocalExtraFieldIds' => $item['duplicateLocalExtraFieldIds'] ?? [],
+                'duplicateLocalExtraFieldIdHexes' => $item['duplicateLocalExtraFieldIdHexes'] ?? [],
                 'centralOnlyExtraFieldIds' => $item['centralOnlyExtraFieldIds'] ?? [],
+                'centralOnlyExtraFieldIdHexes' => $item['centralOnlyExtraFieldIdHexes'] ?? [],
                 'localOnlyExtraFieldIds' => $item['localOnlyExtraFieldIds'] ?? [],
+                'localOnlyExtraFieldIdHexes' => $item['localOnlyExtraFieldIdHexes'] ?? [],
                 'mismatchedExtraFieldValueIds' => $item['mismatchedExtraFieldValueIds'] ?? [],
+                'mismatchedExtraFieldValueIdHexes' => $item['mismatchedExtraFieldValueIdHexes'] ?? [],
                 'centralLocalExtraFieldIdsMatch' => ($item['centralLocalExtraFieldIdsMatch'] ?? false) === true,
                 'centralLocalExtraFieldValuesMatch' => ($item['centralLocalExtraFieldValuesMatch'] ?? false) === true,
                 'hasCentralExtraFields' => ($item['hasCentralExtraFields'] ?? false) === true,
@@ -3527,6 +3541,12 @@ final class OdfReader
             'centralOnlyExtraFieldIdCount' => $provenance['centralOnlyExtraFieldIdCount'] ?? 0,
             'localOnlyExtraFieldIdCount' => $provenance['localOnlyExtraFieldIdCount'] ?? 0,
             'extraFieldIdUsage' => $provenance['extraFieldIdUsage'] ?? [],
+            'extraFieldIdHexes' => $provenance['extraFieldIdHexes'] ?? [],
+            'centralExtraFieldIdHexes' => $provenance['centralExtraFieldIdHexes'] ?? [],
+            'localExtraFieldIdHexes' => $provenance['localExtraFieldIdHexes'] ?? [],
+            'sharedExtraFieldIdHexes' => $provenance['sharedExtraFieldIdHexes'] ?? [],
+            'centralOnlyExtraFieldIdHexes' => $provenance['centralOnlyExtraFieldIdHexes'] ?? [],
+            'localOnlyExtraFieldIdHexes' => $provenance['localOnlyExtraFieldIdHexes'] ?? [],
             'hasUnixOwnerMetadata' => ($provenance['hasUnixOwnerMetadata'] ?? false) === true,
             'hasMismatchedUnixOwnerMetadata' => ($provenance['hasMismatchedUnixOwnerMetadata'] ?? false) === true,
             'unixOwnerMetadataEntryCount' => $provenance['unixOwnerMetadataEntryCount'] ?? 0,
@@ -3811,6 +3831,12 @@ final class OdfReader
             'centralOnlyExtraFieldIdCount' => $provenance['centralOnlyExtraFieldIdCount'] ?? 0,
             'localOnlyExtraFieldIdCount' => $provenance['localOnlyExtraFieldIdCount'] ?? 0,
             'extraFieldIdUsage' => $provenance['extraFieldIdUsage'] ?? [],
+            'extraFieldIdHexes' => $provenance['extraFieldIdHexes'] ?? [],
+            'centralExtraFieldIdHexes' => $provenance['centralExtraFieldIdHexes'] ?? [],
+            'localExtraFieldIdHexes' => $provenance['localExtraFieldIdHexes'] ?? [],
+            'sharedExtraFieldIdHexes' => $provenance['sharedExtraFieldIdHexes'] ?? [],
+            'centralOnlyExtraFieldIdHexes' => $provenance['centralOnlyExtraFieldIdHexes'] ?? [],
+            'localOnlyExtraFieldIdHexes' => $provenance['localOnlyExtraFieldIdHexes'] ?? [],
             'hasUnixOwnerMetadata' => ($provenance['hasUnixOwnerMetadata'] ?? false) === true,
             'hasMismatchedUnixOwnerMetadata' => ($provenance['hasMismatchedUnixOwnerMetadata'] ?? false) === true,
             'unixOwnerMetadataEntryCount' => $provenance['unixOwnerMetadataEntryCount'] ?? 0,
@@ -7297,6 +7323,50 @@ final class OdfReader
     }
 
     /**
+     * @param list<int> $ids
+     * @return list<string>
+     */
+    private static function zipExtraFieldIdHexes(array $ids): array
+    {
+        $hexes = [];
+        foreach ($ids as $id) {
+            $hexes[] = sprintf('0x%04x', $id);
+        }
+
+        return $hexes;
+    }
+
+    /**
+     * @param array<string, mixed> $extraFields
+     * @return list<string>
+     */
+    private static function zipExtraFieldUsageIdHexes(array $extraFields, ?string $presenceKey = null): array
+    {
+        if (!is_array($extraFields['extraFieldIdUsage'] ?? null)) {
+            return [];
+        }
+
+        $hexes = [];
+        foreach ($extraFields['extraFieldIdUsage'] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if ($presenceKey !== null && ($row[$presenceKey] ?? false) !== true) {
+                continue;
+            }
+            if (is_string($row['idHex'] ?? null) && $row['idHex'] !== '') {
+                $hexes[] = $row['idHex'];
+                continue;
+            }
+            if (is_int($row['id'] ?? null)) {
+                $hexes[] = sprintf('0x%04x', $row['id']);
+            }
+        }
+
+        return $hexes;
+    }
+
+    /**
      * @param array<string, mixed>|null $entry
      * @return array<string, mixed>
      */
@@ -7341,20 +7411,30 @@ final class OdfReader
         sort($zipExtraFieldIds, SORT_NUMERIC);
         $centralOnlyExtraFieldIds = self::zipPreflightIntegerList($entry, 'centralOnlyExtraFieldIds');
         $localOnlyExtraFieldIds = self::zipPreflightIntegerList($entry, 'localOnlyExtraFieldIds');
+        $duplicateCentralExtraFieldIds = self::zipPreflightIntegerList($entry, 'duplicateCentralExtraFieldIds');
+        $duplicateLocalExtraFieldIds = self::zipPreflightIntegerList($entry, 'duplicateLocalExtraFieldIds');
         $mismatchedExtraFieldValueIds = self::zipPreflightIntegerList($entry, 'mismatchedExtraFieldValueIds');
 
         return [
             'zipExtraFieldIds' => $zipExtraFieldIds,
+            'zipExtraFieldIdHexes' => self::zipExtraFieldIdHexes($zipExtraFieldIds),
             'extraFieldIdCount' => count($zipExtraFieldIds),
             'centralExtraFieldIds' => $centralExtraFieldIds,
+            'centralExtraFieldIdHexes' => self::zipExtraFieldIdHexes($centralExtraFieldIds),
             'localExtraFieldIds' => $localExtraFieldIds,
+            'localExtraFieldIdHexes' => self::zipExtraFieldIdHexes($localExtraFieldIds),
             'centralExtraFieldRecordCount' => count($centralExtraFieldIds),
             'localExtraFieldRecordCount' => count($localExtraFieldIds),
-            'duplicateCentralExtraFieldIds' => self::zipPreflightIntegerList($entry, 'duplicateCentralExtraFieldIds'),
-            'duplicateLocalExtraFieldIds' => self::zipPreflightIntegerList($entry, 'duplicateLocalExtraFieldIds'),
+            'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+            'duplicateCentralExtraFieldIdHexes' => self::zipExtraFieldIdHexes($duplicateCentralExtraFieldIds),
+            'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+            'duplicateLocalExtraFieldIdHexes' => self::zipExtraFieldIdHexes($duplicateLocalExtraFieldIds),
             'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+            'centralOnlyExtraFieldIdHexes' => self::zipExtraFieldIdHexes($centralOnlyExtraFieldIds),
             'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+            'localOnlyExtraFieldIdHexes' => self::zipExtraFieldIdHexes($localOnlyExtraFieldIds),
             'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+            'mismatchedExtraFieldValueIdHexes' => self::zipExtraFieldIdHexes($mismatchedExtraFieldValueIds),
             'centralLocalExtraFieldIdsMatch' => $centralOnlyExtraFieldIds === [] && $localOnlyExtraFieldIds === [],
             'centralLocalExtraFieldValuesMatch' => $mismatchedExtraFieldValueIds === [],
             'hasCentralExtraFields' => $centralExtraFieldIds !== [],

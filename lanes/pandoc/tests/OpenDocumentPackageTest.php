@@ -5074,18 +5074,32 @@ XML;
         $t->same(1, $inventory['centralExtraFieldIdCount']);
         $t->same(1, $inventory['localExtraFieldIdCount']);
         $t->same(1, $inventory['sharedExtraFieldIdCount']);
+        $t->same(['0xcafe'], $inventory['extraFieldIdHexes']);
+        $t->same(['0xcafe'], $inventory['centralExtraFieldIdHexes']);
+        $t->same(['0xcafe'], $inventory['localExtraFieldIdHexes']);
+        $t->same(['0xcafe'], $inventory['sharedExtraFieldIdHexes']);
+        $t->same([], $inventory['centralOnlyExtraFieldIdHexes']);
+        $t->same([], $inventory['localOnlyExtraFieldIdHexes']);
 
         $t->same([0xcafe], $review['zipExtraFieldIds']);
+        $t->same(['0xcafe'], $review['zipExtraFieldIdHexes']);
         $t->same([0xcafe], $review['centralExtraFieldIds']);
+        $t->same(['0xcafe'], $review['centralExtraFieldIdHexes']);
         $t->same([0xcafe], $review['localExtraFieldIds']);
+        $t->same(['0xcafe'], $review['localExtraFieldIdHexes']);
         $t->same(1, $review['extraFieldIdCount']);
         $t->same(1, $review['centralExtraFieldRecordCount']);
         $t->same(1, $review['localExtraFieldRecordCount']);
         $t->same([], $review['duplicateCentralExtraFieldIds']);
+        $t->same([], $review['duplicateCentralExtraFieldIdHexes']);
         $t->same([], $review['duplicateLocalExtraFieldIds']);
+        $t->same([], $review['duplicateLocalExtraFieldIdHexes']);
         $t->same([], $review['centralOnlyExtraFieldIds']);
+        $t->same([], $review['centralOnlyExtraFieldIdHexes']);
         $t->same([], $review['localOnlyExtraFieldIds']);
+        $t->same([], $review['localOnlyExtraFieldIdHexes']);
         $t->same([], $review['mismatchedExtraFieldValueIds']);
+        $t->same([], $review['mismatchedExtraFieldValueIdHexes']);
         $t->same(true, $review['centralLocalExtraFieldIdsMatch']);
         $t->same(true, $review['centralLocalExtraFieldValuesMatch']);
         $t->same(true, $review['hasCentralExtraFields']);
@@ -5095,7 +5109,10 @@ XML;
         $t->same(false, $review['hasMismatchedExtraFieldIds']);
         $t->same(false, $review['hasMismatchedExtraFieldValues']);
         $t->same([0xcafe], $identityParts['Pictures/review.png']['zipExtraFieldIds']);
+        $t->same(['0xcafe'], $identityParts['Pictures/review.png']['zipExtraFieldIdHexes']);
         $t->same(true, $summary['packageIdentity']['hasZipExtraFields']);
+        $t->same(['0xcafe'], $summary['packageIdentity']['extraFieldIdHexes']);
+        $t->same(['0xcafe'], $summary['packageIdentity']['sharedExtraFieldIdHexes']);
     },
     'surfaces compact ODT ZIP platform attributes as metadata-only provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithPlatformParts = str_replace(

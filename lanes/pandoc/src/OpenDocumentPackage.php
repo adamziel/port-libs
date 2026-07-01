@@ -1488,6 +1488,12 @@ final class OpenDocumentPackage
             'centralOnlyExtraFieldIdCount' => $extraFields['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $extraFields['localOnlyExtraFieldIdCount'],
             'extraFieldIdUsage' => $extraFields['extraFieldIdUsage'],
+            'extraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields),
+            'centralExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsInCentral'),
+            'localExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsInLocal'),
+            'sharedExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsInBoth'),
+            'centralOnlyExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsOnlyInCentral'),
+            'localOnlyExtraFieldIdHexes' => self::zipExtraFieldUsageIdHexes($extraFields, 'appearsOnlyInLocal'),
             'unixOwners' => $unixOwners,
             'hasUnixOwnerMetadata' => $unixOwners['ownerMetadataEntryCount'] > 0,
             'hasMismatchedUnixOwnerMetadata' => $unixOwners['mismatchedOwnerMetadataEntryCount'] > 0,
@@ -2277,16 +2283,24 @@ final class OpenDocumentPackage
                 'zipEntryHasComment' => ($part['zipEntryHasComment'] ?? false) === true,
                 'zipEntryCommentIssues' => $part['zipEntryCommentIssues'] ?? [],
                 'zipExtraFieldIds' => $part['zipExtraFieldIds'] ?? [],
+                'zipExtraFieldIdHexes' => $part['zipExtraFieldIdHexes'] ?? [],
                 'extraFieldIdCount' => $part['extraFieldIdCount'] ?? 0,
                 'centralExtraFieldIds' => $part['centralExtraFieldIds'] ?? [],
+                'centralExtraFieldIdHexes' => $part['centralExtraFieldIdHexes'] ?? [],
                 'localExtraFieldIds' => $part['localExtraFieldIds'] ?? [],
+                'localExtraFieldIdHexes' => $part['localExtraFieldIdHexes'] ?? [],
                 'centralExtraFieldRecordCount' => $part['centralExtraFieldRecordCount'] ?? 0,
                 'localExtraFieldRecordCount' => $part['localExtraFieldRecordCount'] ?? 0,
                 'duplicateCentralExtraFieldIds' => $part['duplicateCentralExtraFieldIds'] ?? [],
+                'duplicateCentralExtraFieldIdHexes' => $part['duplicateCentralExtraFieldIdHexes'] ?? [],
                 'duplicateLocalExtraFieldIds' => $part['duplicateLocalExtraFieldIds'] ?? [],
+                'duplicateLocalExtraFieldIdHexes' => $part['duplicateLocalExtraFieldIdHexes'] ?? [],
                 'centralOnlyExtraFieldIds' => $part['centralOnlyExtraFieldIds'] ?? [],
+                'centralOnlyExtraFieldIdHexes' => $part['centralOnlyExtraFieldIdHexes'] ?? [],
                 'localOnlyExtraFieldIds' => $part['localOnlyExtraFieldIds'] ?? [],
+                'localOnlyExtraFieldIdHexes' => $part['localOnlyExtraFieldIdHexes'] ?? [],
                 'mismatchedExtraFieldValueIds' => $part['mismatchedExtraFieldValueIds'] ?? [],
+                'mismatchedExtraFieldValueIdHexes' => $part['mismatchedExtraFieldValueIdHexes'] ?? [],
                 'centralLocalExtraFieldIdsMatch' => ($part['centralLocalExtraFieldIdsMatch'] ?? false) === true,
                 'centralLocalExtraFieldValuesMatch' => ($part['centralLocalExtraFieldValuesMatch'] ?? false) === true,
                 'hasCentralExtraFields' => ($part['hasCentralExtraFields'] ?? false) === true,
@@ -2529,6 +2543,12 @@ final class OpenDocumentPackage
             'centralOnlyExtraFieldIdCount' => $packageInventory['centralOnlyExtraFieldIdCount'] ?? 0,
             'localOnlyExtraFieldIdCount' => $packageInventory['localOnlyExtraFieldIdCount'] ?? 0,
             'extraFieldIdUsage' => $packageInventory['extraFieldIdUsage'] ?? [],
+            'extraFieldIdHexes' => $packageInventory['extraFieldIdHexes'] ?? [],
+            'centralExtraFieldIdHexes' => $packageInventory['centralExtraFieldIdHexes'] ?? [],
+            'localExtraFieldIdHexes' => $packageInventory['localExtraFieldIdHexes'] ?? [],
+            'sharedExtraFieldIdHexes' => $packageInventory['sharedExtraFieldIdHexes'] ?? [],
+            'centralOnlyExtraFieldIdHexes' => $packageInventory['centralOnlyExtraFieldIdHexes'] ?? [],
+            'localOnlyExtraFieldIdHexes' => $packageInventory['localOnlyExtraFieldIdHexes'] ?? [],
             'hasUnixOwnerMetadata' => ($packageInventory['hasUnixOwnerMetadata'] ?? false) === true,
             'hasMismatchedUnixOwnerMetadata' => ($packageInventory['hasMismatchedUnixOwnerMetadata'] ?? false) === true,
             'unixOwnerMetadataEntryCount' => $packageInventory['unixOwnerMetadataEntryCount'] ?? 0,
@@ -5733,6 +5753,50 @@ final class OpenDocumentPackage
     }
 
     /**
+     * @param list<int> $ids
+     * @return list<string>
+     */
+    private static function zipExtraFieldIdHexes(array $ids): array
+    {
+        $hexes = [];
+        foreach ($ids as $id) {
+            $hexes[] = sprintf('0x%04x', $id);
+        }
+
+        return $hexes;
+    }
+
+    /**
+     * @param array<string, mixed> $extraFields
+     * @return list<string>
+     */
+    private static function zipExtraFieldUsageIdHexes(array $extraFields, ?string $presenceKey = null): array
+    {
+        if (!is_array($extraFields['extraFieldIdUsage'] ?? null)) {
+            return [];
+        }
+
+        $hexes = [];
+        foreach ($extraFields['extraFieldIdUsage'] as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            if ($presenceKey !== null && ($row[$presenceKey] ?? false) !== true) {
+                continue;
+            }
+            if (is_string($row['idHex'] ?? null) && $row['idHex'] !== '') {
+                $hexes[] = $row['idHex'];
+                continue;
+            }
+            if (is_int($row['id'] ?? null)) {
+                $hexes[] = sprintf('0x%04x', $row['id']);
+            }
+        }
+
+        return $hexes;
+    }
+
+    /**
      * @param array<string, mixed>|null $entry
      * @return array<string, mixed>
      */
@@ -5777,20 +5841,30 @@ final class OpenDocumentPackage
         sort($zipExtraFieldIds, SORT_NUMERIC);
         $centralOnlyExtraFieldIds = self::zipPreflightIntegerList($entry, 'centralOnlyExtraFieldIds');
         $localOnlyExtraFieldIds = self::zipPreflightIntegerList($entry, 'localOnlyExtraFieldIds');
+        $duplicateCentralExtraFieldIds = self::zipPreflightIntegerList($entry, 'duplicateCentralExtraFieldIds');
+        $duplicateLocalExtraFieldIds = self::zipPreflightIntegerList($entry, 'duplicateLocalExtraFieldIds');
         $mismatchedExtraFieldValueIds = self::zipPreflightIntegerList($entry, 'mismatchedExtraFieldValueIds');
 
         return [
             'zipExtraFieldIds' => $zipExtraFieldIds,
+            'zipExtraFieldIdHexes' => self::zipExtraFieldIdHexes($zipExtraFieldIds),
             'extraFieldIdCount' => count($zipExtraFieldIds),
             'centralExtraFieldIds' => $centralExtraFieldIds,
+            'centralExtraFieldIdHexes' => self::zipExtraFieldIdHexes($centralExtraFieldIds),
             'localExtraFieldIds' => $localExtraFieldIds,
+            'localExtraFieldIdHexes' => self::zipExtraFieldIdHexes($localExtraFieldIds),
             'centralExtraFieldRecordCount' => count($centralExtraFieldIds),
             'localExtraFieldRecordCount' => count($localExtraFieldIds),
-            'duplicateCentralExtraFieldIds' => self::zipPreflightIntegerList($entry, 'duplicateCentralExtraFieldIds'),
-            'duplicateLocalExtraFieldIds' => self::zipPreflightIntegerList($entry, 'duplicateLocalExtraFieldIds'),
+            'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+            'duplicateCentralExtraFieldIdHexes' => self::zipExtraFieldIdHexes($duplicateCentralExtraFieldIds),
+            'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+            'duplicateLocalExtraFieldIdHexes' => self::zipExtraFieldIdHexes($duplicateLocalExtraFieldIds),
             'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+            'centralOnlyExtraFieldIdHexes' => self::zipExtraFieldIdHexes($centralOnlyExtraFieldIds),
             'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+            'localOnlyExtraFieldIdHexes' => self::zipExtraFieldIdHexes($localOnlyExtraFieldIds),
             'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+            'mismatchedExtraFieldValueIdHexes' => self::zipExtraFieldIdHexes($mismatchedExtraFieldValueIds),
             'centralLocalExtraFieldIdsMatch' => $centralOnlyExtraFieldIds === [] && $localOnlyExtraFieldIds === [],
             'centralLocalExtraFieldValuesMatch' => $mismatchedExtraFieldValueIds === [],
             'hasCentralExtraFields' => $centralExtraFieldIds !== [],
