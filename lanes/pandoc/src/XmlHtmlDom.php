@@ -14866,6 +14866,9 @@ final class XmlHtmlDom
         if ($name === 'option') {
             $summary += self::optionSummary($node);
         }
+        if ($name === 'selectedcontent') {
+            $summary += self::selectedContentSummary($node);
+        }
         if ($name === 'fieldset') {
             $summary += self::fieldsetSummary($node);
         }
@@ -28165,6 +28168,20 @@ final class XmlHtmlDom
         return $parent instanceof \DOMElement && self::htmlElementName($parent) === $name ? $parent : null;
     }
 
+    private static function ancestorHtmlElement(\DOMElement $element, string $name): ?\DOMElement
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (self::htmlElementName($parent) === $name) {
+                return $parent;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
     private static function tableHeaderScope(\DOMElement $header): ?string
     {
         $scope = strtolower(trim($header->getAttribute('scope')));
@@ -28392,6 +28409,93 @@ final class XmlHtmlDom
             'effectiveDisabled' => $record['disabled'],
             'optionGroupLabel' => $record['group'] ?? null,
             'optionGroupDisabled' => $record['groupDisabled'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function selectedContentSummary(\DOMElement $selectedContent): array
+    {
+        $select = self::ancestorHtmlElement($selectedContent, 'select');
+        $button = self::ancestorHtmlElement($selectedContent, 'button');
+        $options = $select instanceof \DOMElement ? self::selectOptionSummaries($select) : [];
+        $selectedOptions = array_values(array_filter(
+            $options,
+            static fn (array $option): bool => (bool) ($option['selected'] ?? false)
+        ));
+        $selectedContents = $select instanceof \DOMElement
+            ? self::descendantHtmlElements($select, 'selectedcontent')
+            : [];
+        $elementIndex = null;
+        foreach ($selectedContents as $index => $candidate) {
+            if ($candidate->isSameNode($selectedContent)) {
+                $elementIndex = $index + 1;
+                break;
+            }
+        }
+
+        $selectedValues = array_values(array_map(
+            static fn (array $option): string => (string) ($option['value'] ?? ''),
+            $selectedOptions
+        ));
+        $selectedLabels = array_values(array_map(
+            static fn (array $option): string => (string) ($option['label'] ?? ''),
+            $selectedOptions
+        ));
+        $selectedTexts = array_values(array_map(
+            static fn (array $option): string => (string) ($option['text'] ?? ''),
+            $selectedOptions
+        ));
+        $issues = [];
+
+        if (!$select instanceof \DOMElement) {
+            $issues[] = ['code' => 'selectedcontent-missing-select-ancestor'];
+        }
+        if (!$select instanceof \DOMElement || !$button instanceof \DOMElement || !self::isDescendantOrSame($button, $select)) {
+            $issues[] = ['code' => 'selectedcontent-outside-select-button'];
+        }
+        if ($select instanceof \DOMElement && count($selectedContents) > 1) {
+            $issues[] = [
+                'code' => 'duplicate-selectedcontent-element',
+                'count' => count($selectedContents),
+            ];
+        }
+        if ($select instanceof \DOMElement && $selectedOptions === []) {
+            $issues[] = ['code' => 'selectedcontent-missing-selected-option'];
+        }
+        if ($select instanceof \DOMElement && !$select->hasAttribute('multiple') && count($selectedOptions) > 1) {
+            $issues[] = [
+                'code' => 'multiple-selected-options-for-single-select',
+                'count' => count($selectedOptions),
+            ];
+        }
+
+        return [
+            'selectedContent' => 'selectedcontent',
+            'selectedContentReviewPolicy' => 'html-select-selectedcontent-review',
+            'selectedContentStaticText' => self::normalizedText($selectedContent),
+            'selectedContentInSelect' => $select instanceof \DOMElement,
+            'selectedContentSelectId' => $select instanceof \DOMElement ? self::attributeOrNull($select, 'id') : null,
+            'selectedContentSelectName' => $select instanceof \DOMElement ? self::attributeOrNull($select, 'name') : null,
+            'selectedContentSelectMultiple' => $select instanceof \DOMElement ? $select->hasAttribute('multiple') : null,
+            'selectedContentInButton' => $button instanceof \DOMElement,
+            'selectedContentButtonText' => $button instanceof \DOMElement ? self::normalizedText($button) : null,
+            'selectedContentElementIndex' => $elementIndex,
+            'selectedContentCount' => count($selectedContents),
+            'selectedContentOptionCount' => count($options),
+            'selectedContentSelectedOptionCount' => count($selectedOptions),
+            'selectedContentSelectedValues' => $selectedValues,
+            'selectedContentSelectedLabels' => $selectedLabels,
+            'selectedContentSelectedTexts' => $selectedTexts,
+            'selectedContentSelectedOptions' => $selectedOptions,
+            'selectedContentEffectiveText' => $selectedTexts === [] ? null : implode(' ', $selectedTexts),
+            'selectedContentIssues' => $issues,
+            'selectedContentIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'selectedContentValid' => $issues === [],
         ];
     }
 
