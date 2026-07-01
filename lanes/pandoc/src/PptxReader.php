@@ -989,6 +989,10 @@ final class PptxReader
      */
     private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder, array &$imageIssues): array
     {
+        if ($shapeElement->localName === 'grpSp') {
+            return $this->groupShapeBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder, $imageIssues);
+        }
+
         if ($shapeElement->localName === 'sp') {
             $textBody = $this->firstChildElement($shapeElement, 'txBody');
             if (!$textBody instanceof \DOMElement) {
@@ -1051,6 +1055,29 @@ final class PptxReader
         }
 
         return $this->withShapeMetadata([$this->paragraph('[Graphic: other: ' . $uri . ']')], $shapeElement, $zOrder);
+    }
+
+    /**
+     * @param array<string, mixed> $slideContext
+     * @param array<string, mixed> $tableStyles
+     * @param list<array<string, mixed>> $imageIssues
+     * @return list<AstNode>
+     */
+    private function groupShapeBlocks(ZipPackage $package, \DOMElement $groupElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder, array &$imageIssues): array
+    {
+        $blocks = [];
+        $childZOrder = $zOrder * 1000;
+        foreach ($this->childElements($groupElement, null) as $childElement) {
+            if (!$this->isDrawableShapeElement($childElement)) {
+                continue;
+            }
+            $childZOrder++;
+            foreach ($this->shapeToBlocks($package, $childElement, $slideRelationships, $slideContext, $tableStyles, $childZOrder, $imageIssues) as $block) {
+                $blocks[] = $block;
+            }
+        }
+
+        return $blocks;
     }
 
     private function isDrawableShapeElement(\DOMElement $element): bool
