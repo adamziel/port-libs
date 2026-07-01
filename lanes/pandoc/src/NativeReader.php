@@ -763,13 +763,13 @@ final class NativeReader
         $type = $this->expectAnyIdentifier();
 
         return match ($type) {
-            'Plain' => new AstNode('plain', ['text' => $this->plainInlineText($inlines = $this->parseInlineList())], $inlines),
-            'Para' => new AstNode('paragraph', ['text' => $this->plainInlineText($inlines = $this->parseInlineList())], $inlines),
+            'Plain' => $this->parseInlineBlock('plain', 'Plain'),
+            'Para' => $this->parseInlineBlock('paragraph', 'Para'),
             'Header' => $this->parseHeader(),
             'HorizontalRule' => $this->parseNullaryBlock('horizontal_rule', 'HorizontalRule'),
             'Null' => $this->parseNullaryBlock('null_block', 'Null'),
             'CodeBlock' => $this->parseCodeBlock(),
-            'BlockQuote' => new AstNode('blockquote', [], $this->parseBlockList()),
+            'BlockQuote' => $this->parseBlockContainer('blockquote', 'BlockQuote'),
             'BulletList' => $this->parseBulletList(),
             'OrderedList' => $this->parseOrderedList(),
             'DefinitionList' => $this->parseDefinitionList(),
@@ -777,26 +777,47 @@ final class NativeReader
             'Figure' => $this->parseFigure(),
             'Table' => $this->parseTable(),
             'RawBlock' => $this->parseRawBlock(),
-            'Div' => new AstNode('div', $this->parseAttrTuple(), $this->parseBlockList()),
+            'Div' => $this->parseDivBlock(),
             default => throw new \InvalidArgumentException("Unsupported Native block '{$type}'"),
         };
+    }
+
+    private function parseInlineBlock(string $type, string $constructor): AstNode
+    {
+        $inlines = $this->parseInlineList();
+        $attrs = ['text' => $this->plainInlineText($inlines)];
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = $constructor;
+            $attrs['native'] = ['t' => $constructor, 'c' => $inlineNative];
+        }
+
+        return new AstNode($type, $attrs, $inlines);
     }
 
     private function parseHeader(): AstNode
     {
         $level = max(1, min(6, (int) $this->expectNumber()));
-        $attrs = $this->parseAttrTuple();
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
         $inlines = $this->parseInlineList();
         $attrs['level'] = $level;
         $attrs['text'] = $this->plainInlineText($inlines);
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = 'Header';
+            $attrs['native'] = ['t' => 'Header', 'c' => [$level, $attrNative, $inlineNative]];
+        }
 
         return new AstNode('heading', $attrs, $inlines);
     }
 
     private function parseCodeBlock(): AstNode
     {
-        $attrs = $this->parseAttrTuple();
-        $attrs['text'] = $this->expectString();
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        $text = $this->expectString();
+        $attrs['text'] = $text;
+        $attrs['constructor'] = 'CodeBlock';
+        $attrs['native'] = ['t' => 'CodeBlock', 'c' => [$attrNative, $text]];
 
         return new AstNode('code_block', $attrs);
     }
@@ -809,39 +830,72 @@ final class NativeReader
         ]);
     }
 
+    private function parseBlockContainer(string $type, string $constructor): AstNode
+    {
+        $blocks = $this->parseBlockList();
+        $attrs = [];
+        $blockNative = $this->nativeBlockListPayload($blocks);
+        if ($blockNative !== null) {
+            $attrs['constructor'] = $constructor;
+            $attrs['native'] = ['t' => $constructor, 'c' => $blockNative];
+        }
+
+        return new AstNode($type, $attrs, $blocks);
+    }
+
     private function parseBulletList(): AstNode
     {
         $items = $this->parseList(fn (): AstNode => new AstNode('list_item', [], $this->parseBlockList()));
+        $attrs = [];
+        $itemsNative = $this->nativeListItemPayloads($items);
+        if ($itemsNative !== null) {
+            $attrs['constructor'] = 'BulletList';
+            $attrs['native'] = ['t' => 'BulletList', 'c' => $itemsNative];
+        }
 
-        return new AstNode('bullet_list', [], $items);
+        return new AstNode('bullet_list', $attrs, $items);
     }
 
     private function parseOrderedList(): AstNode
     {
-        $attrs = $this->parseOrderedListAttrs();
+        [$attrs, $listAttributesNative] = $this->parseOrderedListAttrs();
         $items = $this->parseList(fn (): AstNode => new AstNode('list_item', [], $this->parseBlockList()));
+        $itemsNative = $this->nativeListItemPayloads($items);
+        if ($itemsNative !== null) {
+            $attrs['constructor'] = 'OrderedList';
+            $attrs['native'] = ['t' => 'OrderedList', 'c' => [$listAttributesNative, $itemsNative]];
+        }
 
         return new AstNode('ordered_list', $attrs, $items);
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{0:array<string, mixed>, 1:array{0:int, 1:array{t:string}, 2:array{t:string}}}
      */
     private function parseOrderedListAttrs(): array
     {
         $this->expectSymbol('(');
         $start = (int) $this->expectNumber();
         $this->expectSymbol(',');
-        $style = $this->parseOrderedListStyle($this->expectAnyIdentifier());
+        $styleConstructor = $this->expectAnyIdentifier();
+        $style = $this->parseOrderedListStyle($styleConstructor);
         $this->expectSymbol(',');
-        $delimiter = $this->parseOrderedListDelimiter($this->expectAnyIdentifier());
+        $delimiterConstructor = $this->expectAnyIdentifier();
+        $delimiter = $this->parseOrderedListDelimiter($delimiterConstructor);
         $this->expectSymbol(')');
 
-        return [
+        $styleNative = ['t' => $styleConstructor];
+        $delimiterNative = ['t' => $delimiterConstructor];
+
+        return [[
             'start' => $start,
             'style' => $style,
             'delimiter' => $delimiter,
-        ];
+            'listStyleConstructor' => $styleConstructor,
+            'listStyleNative' => $styleNative,
+            'listDelimiterConstructor' => $delimiterConstructor,
+            'listDelimiterNative' => $delimiterNative,
+        ], [$start, $styleNative, $delimiterNative]];
     }
 
     private function parseDefinitionList(): AstNode
@@ -857,8 +911,40 @@ final class NativeReader
                 new AstNode('term', ['text' => $this->plainInlineText($termInlines)], $termInlines),
             ], $definitions));
         });
+        $attrs = [];
+        $nativeItems = [];
+        foreach ($items as $item) {
+            $term = $item->children[0] ?? null;
+            if (!$term instanceof AstNode) {
+                $nativeItems = null;
+                break;
+            }
+            $termNative = $this->nativeInlineListPayload($term->children);
+            if ($termNative === null) {
+                $nativeItems = null;
+                break;
+            }
+            $definitionPayloads = [];
+            foreach (array_slice($item->children, 1) as $definition) {
+                if (!$definition instanceof AstNode || $definition->type !== 'definition') {
+                    $nativeItems = null;
+                    break 2;
+                }
+                $definitionNative = $this->nativeBlockListPayload($definition->children);
+                if ($definitionNative === null) {
+                    $nativeItems = null;
+                    break 2;
+                }
+                $definitionPayloads[] = $definitionNative;
+            }
+            $nativeItems[] = [$termNative, $definitionPayloads];
+        }
+        if (is_array($nativeItems)) {
+            $attrs['constructor'] = 'DefinitionList';
+            $attrs['native'] = ['t' => 'DefinitionList', 'c' => $nativeItems];
+        }
 
-        return new AstNode('definition_list', [], $items);
+        return new AstNode('definition_list', $attrs, $items);
     }
 
     private function parseLineBlock(): AstNode
@@ -868,8 +954,35 @@ final class NativeReader
 
             return new AstNode('line', ['text' => $this->plainInlineText($inlines)], $inlines);
         });
+        $lineNative = [];
+        foreach ($lines as $line) {
+            $native = $this->nativeInlineListPayload($line->children);
+            if ($native === null) {
+                $lineNative = null;
+                break;
+            }
+            $lineNative[] = $native;
+        }
+        $attrs = [];
+        if (is_array($lineNative)) {
+            $attrs['constructor'] = 'LineBlock';
+            $attrs['native'] = ['t' => 'LineBlock', 'c' => $lineNative];
+        }
 
-        return new AstNode('line_block', [], $lines);
+        return new AstNode('line_block', $attrs, $lines);
+    }
+
+    private function parseDivBlock(): AstNode
+    {
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        $blocks = $this->parseBlockList();
+        $blockNative = $this->nativeBlockListPayload($blocks);
+        if ($blockNative !== null) {
+            $attrs['constructor'] = 'Div';
+            $attrs['native'] = ['t' => 'Div', 'c' => [$attrNative, $blockNative]];
+        }
+
+        return new AstNode('div', $attrs, $blocks);
     }
 
     private function parseFigure(): AstNode
@@ -945,17 +1058,17 @@ final class NativeReader
             'Space' => $this->parseSpaceInline(),
             'SoftBreak' => $this->parseNullaryInline('softbreak', 'SoftBreak'),
             'LineBreak' => $this->parseNullaryInline('linebreak', 'LineBreak'),
-            'Emph' => new AstNode('emph', [], $this->parseInlineList()),
-            'Strong' => new AstNode('strong', [], $this->parseInlineList()),
-            'Strikeout' => new AstNode('strikeout', [], $this->parseInlineList()),
-            'Superscript' => new AstNode('superscript', [], $this->parseInlineList()),
-            'Subscript' => new AstNode('subscript', [], $this->parseInlineList()),
-            'Underline' => new AstNode('underline', [], $this->parseInlineList()),
-            'SmallCaps' => new AstNode('small_caps', [], $this->parseInlineList()),
+            'Emph' => $this->parseInlineContainer('emph', 'Emph'),
+            'Strong' => $this->parseInlineContainer('strong', 'Strong'),
+            'Strikeout' => $this->parseInlineContainer('strikeout', 'Strikeout'),
+            'Superscript' => $this->parseInlineContainer('superscript', 'Superscript'),
+            'Subscript' => $this->parseInlineContainer('subscript', 'Subscript'),
+            'Underline' => $this->parseInlineContainer('underline', 'Underline'),
+            'SmallCaps' => $this->parseInlineContainer('small_caps', 'SmallCaps'),
             'Code' => $this->parseCodeInline(),
             'Link' => $this->parseLinkInline(),
             'Image' => $this->parseImageInline(),
-            'Note' => new AstNode('note', [], $this->parseBlockList()),
+            'Note' => $this->parseNoteInline(),
             'Quoted' => $this->parseQuotedInline(),
             'Math' => $this->parseMathInline(),
             'Cite' => $this->parseCitationInline(),
@@ -963,6 +1076,19 @@ final class NativeReader
             'Span' => $this->parseSpanInline(),
             default => throw new \InvalidArgumentException("Unsupported Native inline '{$type}'"),
         };
+    }
+
+    private function parseInlineContainer(string $type, string $constructor): AstNode
+    {
+        $inlines = $this->parseInlineList();
+        $attrs = [];
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = $constructor;
+            $attrs['native'] = ['t' => $constructor, 'c' => $inlineNative];
+        }
+
+        return new AstNode($type, $attrs, $inlines);
     }
 
     private function parseStrInline(): AstNode
@@ -1048,25 +1174,48 @@ final class NativeReader
     {
         $constructor = $this->expectAnyIdentifier();
         $kind = $constructor === 'SingleQuote' ? 'single' : 'double';
-
-        return new AstNode('quoted', [
+        $inlines = $this->parseInlineList();
+        $attrs = [
             'kind' => $kind,
             'quoteTypeConstructor' => $constructor,
             'quoteTypeNative' => ['t' => $constructor],
-        ], $this->parseInlineList());
+        ];
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = 'Quoted';
+            $attrs['native'] = ['t' => 'Quoted', 'c' => [['t' => $constructor], $inlineNative]];
+        }
+
+        return new AstNode('quoted', $attrs, $inlines);
     }
 
     private function parseMathInline(): AstNode
     {
         $constructor = $this->expectAnyIdentifier();
         $display = $constructor === 'DisplayMath';
+        $text = $this->expectString();
 
         return new AstNode('math', [
             'display' => $display,
             'mathTypeConstructor' => $constructor,
             'mathTypeNative' => ['t' => $constructor],
-            'text' => $this->expectString(),
+            'text' => $text,
+            'constructor' => 'Math',
+            'native' => ['t' => 'Math', 'c' => [['t' => $constructor], $text]],
         ]);
+    }
+
+    private function parseNoteInline(): AstNode
+    {
+        $blocks = $this->parseBlockList();
+        $attrs = [];
+        $blockNative = $this->nativeBlockListPayload($blocks);
+        if ($blockNative !== null) {
+            $attrs['constructor'] = 'Note';
+            $attrs['native'] = ['t' => 'Note', 'c' => $blockNative];
+        }
+
+        return new AstNode('note', $attrs, $blocks);
     }
 
     private function parseCitationInline(): AstNode
@@ -1558,6 +1707,45 @@ final class NativeReader
         $this->expectSymbol(')');
 
         return [$url, $title, [$url, $title]];
+    }
+
+    /**
+     * @param list<AstNode> $items
+     * @return list<list<array<string, mixed>>>|null
+     */
+    private function nativeListItemPayloads(array $items): ?array
+    {
+        $payload = [];
+        foreach ($items as $item) {
+            if ($item->type !== 'list_item') {
+                return null;
+            }
+            $blocks = $this->nativeBlockListPayload($item->children);
+            if ($blocks === null) {
+                return null;
+            }
+            $payload[] = $blocks;
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<array<string, mixed>>|null
+     */
+    private function nativeBlockListPayload(array $blocks): ?array
+    {
+        $payload = [];
+        foreach ($blocks as $block) {
+            $native = $block->attr('native');
+            if (!is_array($native) || array_is_list($native) || !is_string($native['t'] ?? null)) {
+                return null;
+            }
+            $payload[] = $native;
+        }
+
+        return $payload;
     }
 
     /**

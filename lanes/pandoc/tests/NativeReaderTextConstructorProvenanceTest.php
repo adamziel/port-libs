@@ -290,4 +290,183 @@ NATIVE;
             $t->same(['t' => 'Span', 'c' => [['edited-span', ['mark'], [['data-span', 'yes']]], [$spanCodeNative]]], $editedPacket['blocks'][0]['c'][2], "{$writer} regenerates edited span attr");
         }
     },
+    'preserves textual native block and style container constructor provenance' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ Plain [ Str "Plain", Space, Strong [ Str "payload" ] ]
+, Para [ Emph [ Str "Para" ], Space, Underline [ Str "payload" ] ]
+, Header 3 ( "native-heading" , [ "json-native" ] , [ ( "data-kind" , "header" ) ] ) [ Str "Head" ]
+, CodeBlock ( "code" , [ "php" ] , [  ] ) "echo 1;"
+, BlockQuote [ Para [ Str "Quote" ] ]
+, BulletList [ [ Plain [ Str "Bullet" ] ] ]
+, OrderedList ( 2 , LowerRoman , OneParen ) [ [ Plain [ Str "Order" ] ] ]
+, DefinitionList [ ( [ Str "Term" ] , [ [ Plain [ Str "Definition" ] ] ] ) ]
+, LineBlock [ [ Str "Line", Space, Strong [ Str "one" ] ] ]
+, Div ( "div-id" , [ "wrap" ] , [ ( "data-kind" , "div" ) ] ) [ Para [ Str "Wrapped" ] ]
+, Para [ Note [ Para [ Str "Note" ] ], Space, Quoted DoubleQuote [ Strong [ Str "quoted" ] ], Space, Math DisplayMath "z" ]
+]
+NATIVE;
+        $plainNative = ['t' => 'Plain', 'c' => [
+            ['t' => 'Str', 'c' => 'Plain'],
+            ['t' => 'Space'],
+            ['t' => 'Strong', 'c' => [
+                ['t' => 'Str', 'c' => 'payload'],
+            ]],
+        ]];
+        $paraNative = ['t' => 'Para', 'c' => [
+            ['t' => 'Emph', 'c' => [
+                ['t' => 'Str', 'c' => 'Para'],
+            ]],
+            ['t' => 'Space'],
+            ['t' => 'Underline', 'c' => [
+                ['t' => 'Str', 'c' => 'payload'],
+            ]],
+        ]];
+        $headerAttr = ['native-heading', ['json-native'], [['data-kind', 'header']]];
+        $headerNative = ['t' => 'Header', 'c' => [
+            3,
+            $headerAttr,
+            [['t' => 'Str', 'c' => 'Head']],
+        ]];
+        $codeNative = ['t' => 'CodeBlock', 'c' => [
+            ['code', ['php'], []],
+            'echo 1;',
+        ]];
+        $quoteNative = ['t' => 'BlockQuote', 'c' => [
+            ['t' => 'Para', 'c' => [
+                ['t' => 'Str', 'c' => 'Quote'],
+            ]],
+        ]];
+        $bulletNative = ['t' => 'BulletList', 'c' => [[[
+            't' => 'Plain',
+            'c' => [['t' => 'Str', 'c' => 'Bullet']],
+        ]]]];
+        $orderedNative = ['t' => 'OrderedList', 'c' => [
+            [2, ['t' => 'LowerRoman'], ['t' => 'OneParen']],
+            [[[
+                't' => 'Plain',
+                'c' => [['t' => 'Str', 'c' => 'Order']],
+            ]]],
+        ]];
+        $definitionNative = ['t' => 'DefinitionList', 'c' => [[
+            [['t' => 'Str', 'c' => 'Term']],
+            [[['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Definition']]]]],
+        ]]];
+        $lineNative = ['t' => 'LineBlock', 'c' => [[
+            ['t' => 'Str', 'c' => 'Line'],
+            ['t' => 'Space'],
+            ['t' => 'Strong', 'c' => [
+                ['t' => 'Str', 'c' => 'one'],
+            ]],
+        ]]];
+        $divNative = ['t' => 'Div', 'c' => [
+            ['div-id', ['wrap'], [['data-kind', 'div']]],
+            [['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'Wrapped']]]],
+        ]];
+        $noteNative = ['t' => 'Note', 'c' => [
+            ['t' => 'Para', 'c' => [['t' => 'Str', 'c' => 'Note']]],
+        ]];
+        $quotedNative = ['t' => 'Quoted', 'c' => [
+            ['t' => 'DoubleQuote'],
+            [['t' => 'Strong', 'c' => [['t' => 'Str', 'c' => 'quoted']]]],
+        ]];
+        $mathNative = ['t' => 'Math', 'c' => [
+            ['t' => 'DisplayMath'],
+            'z',
+        ]];
+        $trailingParaNative = ['t' => 'Para', 'c' => [
+            $noteNative,
+            ['t' => 'Space'],
+            $quotedNative,
+            ['t' => 'Space'],
+            $mathNative,
+        ]];
+        $expectedBlocks = [
+            $plainNative,
+            $paraNative,
+            $headerNative,
+            $codeNative,
+            $quoteNative,
+            $bulletNative,
+            $orderedNative,
+            $definitionNative,
+            $lineNative,
+            $divNative,
+            $trailingParaNative,
+        ];
+
+        $nativeDocument = (new NativeReader())->read($native);
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+        $plain = $nativeDocument->children[0];
+        $paragraph = $nativeDocument->children[1];
+        $heading = $nativeDocument->children[2];
+        $code = $nativeDocument->children[3];
+        $blockquote = $nativeDocument->children[4];
+        $bullet = $nativeDocument->children[5];
+        $ordered = $nativeDocument->children[6];
+        $definition = $nativeDocument->children[7];
+        $lineBlock = $nativeDocument->children[8];
+        $div = $nativeDocument->children[9];
+        $trailing = $nativeDocument->children[10];
+        $note = $trailing->children[0];
+        $quoted = $trailing->children[2];
+        $math = $trailing->children[4];
+
+        $t->same('Plain', $plain->attr('constructor'));
+        $t->same($plainNative, $plain->attr('native'));
+        $t->same('Strong', $plain->children[2]->attr('constructor'));
+        $t->same('Para', $paragraph->attr('constructor'));
+        $t->same($paraNative, $paragraph->attr('native'));
+        $t->same('Emph', $paragraph->children[0]->attr('constructor'));
+        $t->same('Underline', $paragraph->children[2]->attr('constructor'));
+        $t->same('Header', $heading->attr('constructor'));
+        $t->same($headerAttr, $heading->attr('attrNative'));
+        $t->same($headerNative, $heading->attr('native'));
+        $t->same('CodeBlock', $code->attr('constructor'));
+        $t->same($codeNative, $code->attr('native'));
+        $t->same('BlockQuote', $blockquote->attr('constructor'));
+        $t->same($quoteNative, $blockquote->attr('native'));
+        $t->same('BulletList', $bullet->attr('constructor'));
+        $t->same($bulletNative, $bullet->attr('native'));
+        $t->same('OrderedList', $ordered->attr('constructor'));
+        $t->same('LowerRoman', $ordered->attr('listStyleConstructor'));
+        $t->same('OneParen', $ordered->attr('listDelimiterConstructor'));
+        $t->same($orderedNative, $ordered->attr('native'));
+        $t->same('DefinitionList', $definition->attr('constructor'));
+        $t->same($definitionNative, $definition->attr('native'));
+        $t->same('LineBlock', $lineBlock->attr('constructor'));
+        $t->same($lineNative, $lineBlock->attr('native'));
+        $t->same('Div', $div->attr('constructor'));
+        $t->same($divNative, $div->attr('native'));
+        $t->same('Para', $trailing->attr('constructor'));
+        $t->same($trailingParaNative, $trailing->attr('native'));
+        $t->same('Note', $note->attr('constructor'));
+        $t->same($noteNative, $note->attr('native'));
+        $t->same('Quoted', $quoted->attr('constructor'));
+        $t->same($quotedNative, $quoted->attr('native'));
+        $t->same('Math', $math->attr('constructor'));
+        $t->same($mathNative, $math->attr('native'));
+        $t->same($expectedBlocks, $jsonPacket['blocks']);
+        $t->same($expectedBlocks, $nativePacket['blocks']);
+
+        $edited = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [
+            new AstNode('heading', array_replace($heading->attrs, ['level' => 4]), $heading->children),
+            new AstNode('ordered_list', array_replace($ordered->attrs, ['start' => 5]), $ordered->children),
+        ]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($edited),
+            'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $editedPacket) {
+            $t->same(4, $editedPacket['blocks'][0]['c'][0], "{$writer} regenerates edited textual header");
+            $t->same(5, $editedPacket['blocks'][1]['c'][0][0], "{$writer} regenerates edited textual ordered-list start");
+        }
+    },
 ];
