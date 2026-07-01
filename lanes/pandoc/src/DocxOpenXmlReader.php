@@ -11085,6 +11085,13 @@ final class DocxOpenXmlReader
         $summary['zipHasEntryComments'] = ($zipComments['hasEntryComments'] ?? false) === true;
         $summary['zipHasComments'] = ($zipComments['hasComments'] ?? false) === true;
         $summary['zipPackageCommentLength'] = (int) ($zipComments['packageCommentLength'] ?? 0);
+        $summary['zipPackageCommentSourceAvailable'] = ($zipComments['packageCommentSourceAvailable'] ?? false) === true;
+        $summary['zipPackageCommentOffset'] = $zipComments['packageCommentOffset'] ?? null;
+        $summary['zipPackageCommentBytes'] = (int) ($zipComments['packageCommentBytes'] ?? 0);
+        $summary['zipPackageCommentEnd'] = $zipComments['packageCommentEnd'] ?? null;
+        $summary['zipPackageCommentSha256'] = is_string($zipComments['packageCommentSha256'] ?? null)
+            ? $zipComments['packageCommentSha256']
+            : null;
         $summary['zipPackageCommentIssues'] = is_array($zipComments['packageCommentIssues'] ?? null)
             ? $zipComments['packageCommentIssues']
             : [];
@@ -11411,6 +11418,11 @@ final class DocxOpenXmlReader
             'packageCommentUnicodeFormatControlNames' => [],
             'packageCommentBidiControlNames' => [],
             'packageCommentIssues' => [],
+            'packageCommentSourceAvailable' => false,
+            'packageCommentOffset' => null,
+            'packageCommentBytes' => 0,
+            'packageCommentEnd' => null,
+            'packageCommentSha256' => null,
             'hasPackageComment' => false,
             'hasEntryComments' => false,
             'hasComments' => false,
