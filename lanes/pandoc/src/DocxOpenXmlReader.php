@@ -13657,6 +13657,19 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPayloadByteLength'] = $packageIdentity['identityPayloadByteLength'];
         $summary['packageIdentityEntryCount'] = $packageIdentity['packageEntryCount'];
         $summary['packageIdentityRelationshipPartCount'] = $packageIdentity['relationshipPartCount'];
+        $summary['packageIdentityPartTopLevelSegmentCount'] = $packageIdentity['partTopLevelSegmentCount'];
+        $summary['packageIdentityPartDirectoryDepthCounts'] = $packageIdentity['partDirectoryDepthCounts'];
+        $summary['packageIdentityPartPathShapeFlagCounts'] = $packageIdentity['partPathShapeFlagCounts'];
+        $summary['packageIdentityPartPathSegmentPositionCounts'] = $packageIdentity['partPathSegmentPositionCounts'];
+        $summary['packageIdentityPartPathSegmentLengthBucketCount'] = $packageIdentity['partPathSegmentLengthBucketCount'];
+        $summary['packageIdentityPartPathSegmentMaxByteLength'] = $packageIdentity['partPathSegmentMaxByteLength'];
+        $summary['packageIdentityPartExtensionCount'] = $packageIdentity['partExtensionCount'];
+        $summary['packageIdentityPartBaseNameCount'] = $packageIdentity['partBaseNameCount'];
+        $summary['packageIdentityDuplicatePartBaseNameCount'] = $packageIdentity['duplicatePartBaseNameCount'];
+        $summary['packageIdentityDuplicatePartBaseNames'] = $packageIdentity['duplicatePartBaseNames'];
+        $summary['packageIdentityPartCaseFoldBaseNameCount'] = $packageIdentity['partCaseFoldBaseNameCount'];
+        $summary['packageIdentityDuplicatePartCaseFoldBaseNameCount'] = $packageIdentity['duplicatePartCaseFoldBaseNameCount'];
+        $summary['packageIdentityDuplicatePartCaseFoldBaseNames'] = $packageIdentity['duplicatePartCaseFoldBaseNames'];
         $summary['packageIdentityByteExposurePolicy'] = $packageIdentity['byteExposurePolicy'];
 
         return [
@@ -13699,8 +13712,34 @@ final class DocxOpenXmlReader
             $packageEntries[] = [
                 'partName' => $partName,
                 'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : '',
+                'directoryBaseName' => is_string($part['directoryBaseName'] ?? null) ? $part['directoryBaseName'] : '',
+                'directoryDepth' => (int) ($part['directoryDepth'] ?? 0),
                 'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : '',
+                'baseNameStem' => is_string($part['baseNameStem'] ?? null) ? $part['baseNameStem'] : '',
+                'caseFoldBaseName' => is_string($part['caseFoldBaseName'] ?? null) ? $part['caseFoldBaseName'] : '',
+                'caseFoldBaseNameStem' => is_string($part['caseFoldBaseNameStem'] ?? null) ? $part['caseFoldBaseNameStem'] : '',
                 'partExtension' => is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null,
+                'rawPartExtension' => is_string($part['rawPartExtension'] ?? null) ? $part['rawPartExtension'] : null,
+                'caseFoldRawPartExtension' => is_string($part['caseFoldRawPartExtension'] ?? null)
+                    ? $part['caseFoldRawPartExtension']
+                    : null,
+                'partExtensionDefaultDeclared' => (bool) ($part['partExtensionDefaultDeclared'] ?? false),
+                'topLevelSegment' => is_string($part['topLevelSegment'] ?? null) ? $part['topLevelSegment'] : '',
+                'pathSegments' => is_array($part['pathSegments'] ?? null)
+                    ? array_values(array_map('strval', $part['pathSegments']))
+                    : [],
+                'pathSegmentCount' => (int) ($part['pathSegmentCount'] ?? 0),
+                'pathSegmentPositionCounts' => is_array($part['pathSegmentPositionCounts'] ?? null)
+                    ? $part['pathSegmentPositionCounts']
+                    : [],
+                'pathSegmentLengthBuckets' => is_array($part['pathSegmentLengthBuckets'] ?? null)
+                    ? $part['pathSegmentLengthBuckets']
+                    : [],
+                'pathSegmentMaxByteLength' => (int) ($part['pathSegmentMaxByteLength'] ?? 0),
+                'byteLengthBucket' => is_string($part['byteLengthBucket'] ?? null) ? $part['byteLengthBucket'] : null,
+                'partPathShapeFlags' => is_array($part['partPathShapeFlags'] ?? null)
+                    ? array_values(array_map('strval', $part['partPathShapeFlags']))
+                    : [],
                 'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
                 'bytes' => (int) ($part['bytes'] ?? 0),
                 'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
@@ -13834,6 +13873,41 @@ final class DocxOpenXmlReader
             'packageEntryCount' => count($packageEntries),
             'packageParts' => $packageParts,
             'packageByteLength' => (int) ($summary['packageByteLength'] ?? 0),
+            'partTopLevelSegmentCount' => (int) ($summary['partTopLevelSegmentCount'] ?? 0),
+            'partDirectoryDepthCounts' => is_array($summary['partDirectoryDepthCounts'] ?? null)
+                ? $summary['partDirectoryDepthCounts']
+                : [],
+            'maxPartPathSegmentCount' => (int) ($summary['maxPartPathSegmentCount'] ?? 0),
+            'maxPartDirectoryDepth' => (int) ($summary['maxPartDirectoryDepth'] ?? 0),
+            'deepestPartNames' => is_array($summary['deepestPartNames'] ?? null)
+                ? $summary['deepestPartNames']
+                : [],
+            'partPathShapeFlagCounts' => is_array($summary['partPathShapeFlagCounts'] ?? null)
+                ? $summary['partPathShapeFlagCounts']
+                : [],
+            'partPathSegmentPositionCounts' => is_array($summary['partPathSegmentPositionCounts'] ?? null)
+                ? $summary['partPathSegmentPositionCounts']
+                : [],
+            'partPathSegmentLengthBucketCount' => (int) ($summary['partPathSegmentLengthBucketCount'] ?? 0),
+            'partPathSegmentMaxByteLength' => (int) ($summary['partPathSegmentMaxByteLength'] ?? 0),
+            'partExtensionCount' => (int) ($summary['partExtensionCount'] ?? 0),
+            'partExtensionCaseVariantCount' => (int) ($summary['partExtensionCaseVariantCount'] ?? 0),
+            'partExtensionDefaultDeclaredCount' => (int) ($summary['partExtensionDefaultDeclaredCount'] ?? 0),
+            'partBaseNameCount' => (int) ($summary['partBaseNameCount'] ?? 0),
+            'duplicatePartBaseNameCount' => (int) ($summary['duplicatePartBaseNameCount'] ?? 0),
+            'duplicatePartBaseNames' => is_array($summary['duplicatePartBaseNames'] ?? null)
+                ? $summary['duplicatePartBaseNames']
+                : [],
+            'partBaseNameStemCount' => (int) ($summary['partBaseNameStemCount'] ?? 0),
+            'duplicatePartBaseNameStemCount' => (int) ($summary['duplicatePartBaseNameStemCount'] ?? 0),
+            'duplicatePartBaseNameStems' => is_array($summary['duplicatePartBaseNameStems'] ?? null)
+                ? $summary['duplicatePartBaseNameStems']
+                : [],
+            'partCaseFoldBaseNameCount' => (int) ($summary['partCaseFoldBaseNameCount'] ?? 0),
+            'duplicatePartCaseFoldBaseNameCount' => (int) ($summary['duplicatePartCaseFoldBaseNameCount'] ?? 0),
+            'duplicatePartCaseFoldBaseNames' => is_array($summary['duplicatePartCaseFoldBaseNames'] ?? null)
+                ? $summary['duplicatePartCaseFoldBaseNames']
+                : [],
             'relationshipPartCount' => count($relationshipPartEntries),
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'internalRelationshipCount' => (int) ($summary['internalRelationshipCount'] ?? 0),
