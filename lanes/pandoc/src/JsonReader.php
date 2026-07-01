@@ -338,7 +338,10 @@ final class JsonReader
      */
     private function parseCitationRecord(mixed $value): array
     {
-        $record = $this->expectMap($value, 'Citation');
+        $record = $this->expectMap(
+            $this->singleWrappedObject($this->constructorPayload($value, 'Citation', 'Citation')),
+            'Citation'
+        );
 
         return [
             'id' => $this->expectString($record['citationId'] ?? '', 'citationId'),
@@ -419,7 +422,8 @@ final class JsonReader
      */
     private function parseAttr(mixed $value): array
     {
-        [$idValue, $classesValue, $attributesValue] = $this->expectTuple($value, 3, 'Attr');
+        $payload = $this->singleWrappedTuplePayload($this->constructorPayload($value, 'Attr', 'Attr'), 3);
+        [$idValue, $classesValue, $attributesValue] = $this->expectTuple($payload, 3, 'Attr');
         $id = $this->expectString($idValue, 'Attr identifier');
         $classes = array_map(fn (mixed $class): string => $this->expectString($class, 'Attr class'), $this->expectList($classesValue, 'Attr classes'));
         $pairs = [];
@@ -447,15 +451,12 @@ final class JsonReader
      */
     private function parseCaptionAttrs(mixed $value): array
     {
-        [$type, $payload] = $this->tagged($value, 'Caption');
-        if ($type !== 'Caption') {
-            throw new \InvalidArgumentException("Expected Caption, got '{$type}'");
-        }
-
+        $payload = $this->constructorPayload($value, 'Caption', 'Caption');
+        $payload = $this->singleWrappedTuplePayload($payload, 2);
         [$shortValue, $blocksValue] = $this->expectTuple($payload, 2, 'Caption payload');
         $attrs = [];
-        if ($shortValue !== null) {
-            $short = $this->parseInlineList($shortValue);
+        $short = $this->parseShortCaptionInlines($shortValue);
+        if ($short !== []) {
             $attrs['shortCaptionInlines'] = $short;
             $attrs['shortCaption'] = $this->plainInlineText($short);
         }
@@ -510,7 +511,7 @@ final class JsonReader
 
         [$attrsValue, $rowHeadColumnsValue, $headRowsValue, $bodyRowsValue] = $this->expectTuple($payload, 4, 'TableBody payload');
         $attrs = $this->parseAttr($attrsValue);
-        $attrs['rowHeadColumns'] = (int) $rowHeadColumnsValue;
+        $attrs['rowHeadColumns'] = $this->parseIntegerHelper($rowHeadColumnsValue, 'RowHeadColumns', 'TableBody rowHeadColumns');
         $headRows = $this->parseTableRows($headRowsValue);
         if ($headRows !== []) {
             $attrs['headRows'] = $headRows;
@@ -564,11 +565,11 @@ final class JsonReader
         if ($alignment !== 'default') {
             $attrs['align'] = $alignment;
         }
-        $rowspan = (int) $rowspanValue;
+        $rowspan = $this->parseIntegerHelper($rowspanValue, 'RowSpan', 'Cell rowspan');
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
-        $colspan = (int) $colspanValue;
+        $colspan = $this->parseIntegerHelper($colspanValue, 'ColSpan', 'Cell colspan');
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
@@ -581,7 +582,8 @@ final class JsonReader
      */
     private function parseTarget(mixed $value): array
     {
-        [$url, $title] = $this->expectTuple($value, 2, 'Target');
+        $payload = $this->singleWrappedTuplePayload($this->constructorPayload($value, 'Target', 'Target'), 2);
+        [$url, $title] = $this->expectTuple($payload, 2, 'Target');
 
         return [
             $this->expectString($url, 'Target URL'),
@@ -594,10 +596,11 @@ final class JsonReader
      */
     private function parseListAttributes(mixed $value): array
     {
-        [$start, $style, $delimiter] = $this->expectTuple($value, 3, 'ListAttributes');
+        $payload = $this->singleWrappedTuplePayload($this->constructorPayload($value, 'ListAttributes', 'ListAttributes'), 3);
+        [$start, $style, $delimiter] = $this->expectTuple($payload, 3, 'ListAttributes');
 
         return [
-            'start' => (int) $start,
+            'start' => $this->parseIntegerScalar($start, 'ListAttributes start'),
             'style' => $this->parseOrderedListStyle($style),
             'delimiter' => $this->parseOrderedListDelimiter($delimiter),
         ];
@@ -653,6 +656,11 @@ final class JsonReader
             throw new \InvalidArgumentException("Unsupported column width '{$type}'");
         }
 
+        $payload = $this->singleWrappedScalar($payload);
+        if (!is_int($payload) && !is_float($payload)) {
+            throw new \InvalidArgumentException('ColWidth payload must be numeric');
+        }
+
         return (float) $payload;
     }
 
@@ -679,6 +687,136 @@ final class JsonReader
         }
 
         return strtolower($this->expectString($this->singleWrappedScalar($payload), 'Format'));
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseShortCaptionInlines(mixed $value): array
+    {
+        if ($value === null || $value === []) {
+            return [];
+        }
+
+        if ($this->isTaggedMap($value)) {
+            [$type, $payload] = $this->tagged($value, 'short caption');
+            if ($type === 'Nothing') {
+                return [];
+            }
+            if ($type === 'Just') {
+                return $this->parseShortCaptionInlines($this->singleWrappedMaybePayload($payload));
+            }
+            if ($type === 'ShortCaption') {
+                return $this->parseInlineList($this->singleWrappedInlineListPayload($payload));
+            }
+
+            throw new \InvalidArgumentException("Unsupported short caption constructor '{$type}'");
+        }
+
+        return $this->parseInlineList($this->singleWrappedInlineListPayload($value));
+    }
+
+    private function parseIntegerHelper(mixed $value, string $constructor, string $context): int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_array($value) && $this->isList($value) && count($value) === 1 && is_int($value[0])) {
+            return $value[0];
+        }
+
+        $payload = $this->singleWrappedScalar($this->constructorPayload($value, $constructor, $context));
+
+        return $this->parseIntegerScalar($payload, $context);
+    }
+
+    private function parseIntegerScalar(mixed $value, string $context): int
+    {
+        if (!is_int($value)) {
+            throw new \InvalidArgumentException("{$context} must be an integer");
+        }
+
+        return $value;
+    }
+
+    private function constructorPayload(mixed $value, string $constructor, string $context): mixed
+    {
+        if (!$this->isTaggedMap($value)) {
+            return $value;
+        }
+
+        [$type, $payload] = $this->tagged($value, $context);
+        if ($type !== $constructor) {
+            throw new \InvalidArgumentException("Expected {$constructor}, got '{$type}'");
+        }
+
+        return $payload;
+    }
+
+    private function isTaggedMap(mixed $value): bool
+    {
+        return is_array($value)
+            && !$this->isList($value)
+            && isset($value['t'])
+            && is_string($value['t'])
+            && $value['t'] !== '';
+    }
+
+    private function singleWrappedTuplePayload(mixed $value, int $length): mixed
+    {
+        if (
+            is_array($value)
+            && $this->isList($value)
+            && count($value) === 1
+            && is_array($value[0])
+            && $this->isList($value[0])
+            && count($value[0]) === $length
+        ) {
+            return $value[0];
+        }
+
+        return $value;
+    }
+
+    private function singleWrappedObject(mixed $value): mixed
+    {
+        if (
+            is_array($value)
+            && $this->isList($value)
+            && count($value) === 1
+            && is_array($value[0])
+            && !$this->isList($value[0])
+        ) {
+            return $value[0];
+        }
+
+        return $value;
+    }
+
+    private function singleWrappedMaybePayload(mixed $value): mixed
+    {
+        if (is_array($value) && $this->isList($value) && count($value) === 1) {
+            return $value[0];
+        }
+
+        return $value;
+    }
+
+    private function singleWrappedInlineListPayload(mixed $value): mixed
+    {
+        if (
+            is_array($value)
+            && $this->isList($value)
+            && count($value) === 1
+            && is_array($value[0])
+            && $this->isList($value[0])
+            && ($value[0] === [] || $this->isTaggedMap($value[0][0]))
+        ) {
+            return $value[0];
+        }
+
+        return $value;
     }
 
     private function singleWrappedScalar(mixed $value): mixed
