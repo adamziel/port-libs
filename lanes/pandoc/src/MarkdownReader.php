@@ -863,11 +863,11 @@ final class MarkdownReader
 
         foreach ($matches[1] as $token) {
             if ($token[0] === '#') {
-                $id = substr($token, 1);
+                $id = $this->decodeHtmlEntities($this->unescapeLinkComponent(substr($token, 1)));
                 continue;
             }
             if ($token[0] === '.') {
-                $classes[] = substr($token, 1);
+                $classes[] = $this->decodeHtmlEntities($this->unescapeLinkComponent(substr($token, 1)));
                 continue;
             }
 
@@ -11088,8 +11088,9 @@ final class MarkdownReader
                 $text .= (string) $node->attr('text', '');
                 continue;
             }
-            if ($node->type === 'raw_tex') {
-                $text .= (string) $node->attr('tex', '');
+            $rawText = $this->rawInlinePlainText($node);
+            if ($rawText !== null) {
+                $text .= $rawText;
                 continue;
             }
             if ($node->type === 'softbreak') {
@@ -11118,8 +11119,9 @@ final class MarkdownReader
                 $text .= (string) $node->attr('text', '');
                 continue;
             }
-            if ($node->type === 'raw_tex') {
-                $text .= (string) $node->attr('tex', '');
+            $rawText = $this->rawInlinePlainText($node);
+            if ($rawText !== null) {
+                $text .= $rawText;
                 continue;
             }
             if ($node->type === 'softbreak') {
@@ -11135,6 +11137,17 @@ final class MarkdownReader
         }
 
         return $text;
+    }
+
+    private function rawInlinePlainText(AstNode $node): ?string
+    {
+        return match ($node->type) {
+            'raw_html_inline' => (string) $node->attr('text', $node->attr('html', '')),
+            'raw_tex', 'raw_tex_inline' => (string) $node->attr('text', $node->attr('tex', '')),
+            'raw_markdown' => (string) $node->attr('text', $node->attr('markdown', '')),
+            'raw_inline' => (string) $node->attr('text', ''),
+            default => null,
+        };
     }
 
     /**
@@ -11346,10 +11359,75 @@ final class MarkdownReader
 
     private function rawInlineNode(string $format, string $text): AstNode
     {
+        if ($this->isHtmlRawFormat($format)) {
+            return new AstNode('raw_html_inline', [
+                'format' => $format,
+                'html' => $text,
+                'text' => $text,
+            ]);
+        }
+
+        if ($this->isTexRawFormat($format)) {
+            return new AstNode('raw_tex_inline', [
+                'format' => $format,
+                'tex' => $text,
+                'text' => $text,
+            ]);
+        }
+
+        if ($this->isMarkdownRawFormat($format)) {
+            return new AstNode('raw_markdown', [
+                'format' => $format,
+                'markdown' => $text,
+                'text' => $text,
+            ]);
+        }
+
         return new AstNode('raw_inline', [
             'format' => $format,
             'text' => $text,
         ]);
+    }
+
+    private function isMarkdownRawFormat(string $format): bool
+    {
+        $baseFormat = $this->rawFormatBase($format);
+
+        return in_array($baseFormat, [
+            'markdown',
+            'markdown_strict',
+            'markdown_phpextra',
+            'markdown_github',
+            'markdown_mmd',
+            'pandoc',
+            'commonmark',
+            'commonmark_x',
+            'gfm',
+        ], true);
+    }
+
+    private function isHtmlRawFormat(string $format): bool
+    {
+        $normalized = strtolower(str_replace('-', '+', $format));
+        $baseFormat = $this->rawFormatBase($format);
+
+        return in_array($normalized, ['html', 'html4', 'html5', 'xhtml'], true)
+            || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
+    }
+
+    private function isTexRawFormat(string $format): bool
+    {
+        $baseFormat = $this->rawFormatBase($format);
+
+        return in_array($baseFormat, ['tex', 'latex', 'context'], true);
+    }
+
+    private function rawFormatBase(string $format): string
+    {
+        $format = strtolower($format);
+        $format = str_replace('-', '+', $format);
+
+        return explode('+', $format, 2)[0];
     }
 
     private function rawBlockNode(string $format, string $text): AstNode
@@ -11932,6 +12010,28 @@ final class MarkdownReader
             if ($text[$cursor] === '\\') {
                 $cursor++;
                 continue;
+            }
+
+            if ($text[$cursor] === '`') {
+                $tickCount = $this->countBackticks($text, $cursor);
+                $end = $this->findMatchingBacktickRun($text, $cursor + $tickCount, $tickCount);
+                if ($end !== null) {
+                    $afterCode = $end + $tickCount;
+                    $attributeStart = $afterCode;
+                    if (preg_match('/\G[ \t]*\{/', $text, $space, 0, $afterCode) === 1) {
+                        $attributeStart = $afterCode + strlen($space[0]) - 1;
+                    }
+                    if (($text[$attributeStart] ?? '') === '{') {
+                        $attributeEnd = $this->findUnescapedCharacter($text, '}', $attributeStart + 1);
+                        if ($attributeEnd !== null) {
+                            $cursor = $attributeEnd;
+                            continue;
+                        }
+                    }
+
+                    $cursor = $afterCode - 1;
+                    continue;
+                }
             }
 
             if ($text[$cursor] === '[') {

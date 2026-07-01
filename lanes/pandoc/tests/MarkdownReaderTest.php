@@ -1095,9 +1095,10 @@ return [
         $blocks = (new WordPressBlockWriter())->write($document);
 
         $t->same('emph', $latexEmph->type);
-        $t->same(['text', 'raw_inline'], array_map(static fn (AstNode $node): string => $node->type, $latexEmph->children));
+        $t->same(['text', 'raw_tex_inline'], array_map(static fn (AstNode $node): string => $node->type, $latexEmph->children));
         $t->same('Hi ', $latexEmph->children[0]->attr('text'));
         $t->same('latex', $latexEmph->children[1]->attr('format'));
+        $t->same('\foo{there}', $latexEmph->children[1]->attr('tex'));
         $t->same('\foo{there}', $latexEmph->children[1]->attr('text'));
         $t->same('emph', $htmlEmph->type);
         $t->same(['text', 'raw_html_inline', 'text', 'raw_html_inline'], array_map(static fn (AstNode $node): string => $node->type, $htmlEmph->children));
