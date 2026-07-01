@@ -995,19 +995,41 @@ final class NativeReader
 
     private function parseTable(): AstNode
     {
-        $attrs = $this->parseAttrTuple();
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
         $attrs = array_replace($attrs, $this->parseCaptionAttrs());
-        [$alignments, $widths] = $this->parseTableColSpecs();
-        if ($alignments !== []) {
-            $attrs['alignments'] = $alignments;
-        }
-        if ($widths !== []) {
-            $attrs['widths'] = $widths;
-        }
+        [$colSpecAttrs, $colSpecNative] = $this->parseTableColSpecs();
+        $attrs = array_replace($attrs, $colSpecAttrs);
 
-        $children = [$this->parseTableHead()];
-        array_push($children, ...$this->parseTableBodies());
-        $children[] = $this->parseTableFoot();
+        $head = $this->parseTableHead();
+        [$bodies, $bodyNative] = $this->parseTableBodies();
+        $foot = $this->parseTableFoot();
+        $children = [$head, ...$bodies, $foot];
+
+        $attrs['constructor'] = 'Table';
+        $captionNative = $attrs['captionNative'] ?? null;
+        $headNative = $head->attr('native');
+        $footNative = $foot->attr('native');
+        if (
+            is_array($captionNative)
+            && !array_is_list($captionNative)
+            && is_array($headNative)
+            && !array_is_list($headNative)
+            && is_array($bodyNative)
+            && is_array($footNative)
+            && !array_is_list($footNative)
+        ) {
+            $attrs['native'] = [
+                't' => 'Table',
+                'c' => [
+                    $attrNative,
+                    $captionNative,
+                    $colSpecNative,
+                    $headNative,
+                    $bodyNative,
+                    $footNative,
+                ],
+            ];
+        }
 
         return new AstNode('table', $attrs, $children);
     }
@@ -1539,41 +1561,74 @@ final class NativeReader
     }
 
     /**
-     * @return array{0:list<string>, 1:list<float>}
+     * @return array{0:array<string, mixed>, 1:list<array{0:array{t:string}, 1:array<string, mixed>}>}
      */
     private function parseTableColSpecs(): array
     {
         $specs = $this->parseList(function (): array {
             $this->expectSymbol('(');
-            $alignment = $this->parseAlignment($this->expectAnyIdentifier());
+            $alignmentConstructor = $this->expectAnyIdentifier();
+            $alignment = $this->parseAlignment($alignmentConstructor);
+            $alignmentNative = ['t' => $alignmentConstructor];
             $this->expectSymbol(',');
-            $width = $this->parseColumnWidth();
+            [$width, $widthConstructor, $widthNative] = $this->parseColumnWidthPayload();
             $this->expectSymbol(')');
 
-            return [$alignment, $width];
+            return [$alignment, $width, $alignmentConstructor, $alignmentNative, $widthConstructor, $widthNative, [$alignmentNative, $widthNative]];
         });
 
         $alignments = [];
         $widths = [];
-        foreach ($specs as [$alignment, $width]) {
+        $alignmentConstructors = [];
+        $alignmentNatives = [];
+        $columnWidthConstructors = [];
+        $columnWidthNatives = [];
+        $columnSpecNatives = [];
+        foreach ($specs as [$alignment, $width, $alignmentConstructor, $alignmentNative, $widthConstructor, $widthNative, $specNative]) {
             $alignments[] = $alignment;
             $widths[] = $width;
+            $alignmentConstructors[] = $alignmentConstructor;
+            $alignmentNatives[] = $alignmentNative;
+            $columnWidthConstructors[] = $widthConstructor;
+            $columnWidthNatives[] = $widthNative;
+            $columnSpecNatives[] = $specNative;
         }
 
-        return [$alignments, $widths];
+        $attrs = [];
+        if ($alignments !== []) {
+            $attrs['alignments'] = $alignments;
+            $attrs['alignmentConstructors'] = $alignmentConstructors;
+            $attrs['alignmentNatives'] = $alignmentNatives;
+            $attrs['widths'] = $widths;
+            $attrs['columnWidthConstructors'] = $columnWidthConstructors;
+            $attrs['columnWidthNatives'] = $columnWidthNatives;
+            $attrs['columnSpecNatives'] = $columnSpecNatives;
+        }
+
+        return [$attrs, $columnSpecNatives];
     }
 
     private function parseColumnWidth(): float
     {
+        return $this->parseColumnWidthPayload()[0];
+    }
+
+    /**
+     * @return array{0:float, 1:string, 2:array<string, mixed>}
+     */
+    private function parseColumnWidthPayload(): array
+    {
         $type = $this->expectAnyIdentifier();
         if ($type === 'ColWidthDefault') {
-            return 0.0;
+            return [0.0, $type, ['t' => $type]];
         }
         if ($type !== 'ColWidth') {
             throw new \InvalidArgumentException("Unsupported Native column width '{$type}'");
         }
 
-        return (float) $this->expectNumber();
+        $width = (float) $this->expectNumber();
+
+        return [$width, $type, ['t' => $type, 'c' => $width]];
     }
 
     private function parseTableHead(): AstNode
@@ -1581,7 +1636,15 @@ final class NativeReader
         $wrapped = $this->acceptSymbol('(');
         $this->expectIdentifier('TableHead');
 
-        $head = new AstNode('table_head', $this->parseAttrTuple(), $this->parseTableRows());
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        [$rows, $rowsNative] = $this->parseTableRowsPayload();
+        $attrs['constructor'] = 'TableHead';
+        $attrs['native'] = ['t' => 'TableHead', 'c' => [$attrNative, $rowsNative]];
+        if ($rowsNative !== []) {
+            $attrs['tableRowsNative'] = $rowsNative;
+        }
+
+        $head = new AstNode('table_head', $attrs, $rows);
         if ($wrapped) {
             $this->expectSymbol(')');
         }
@@ -1590,30 +1653,52 @@ final class NativeReader
     }
 
     /**
-     * @return list<AstNode>
+     * @return array{0:list<AstNode>, 1:list<array<string, mixed>>}
      */
     private function parseTableBodies(): array
     {
-        return $this->parseList(function (): AstNode {
+        $bodies = $this->parseList(function (): AstNode {
             $wrapped = $this->acceptSymbol('(');
             $this->expectIdentifier('TableBody');
-            $attrs = $this->parseAttrTuple();
+            [$attrs, $attrNative] = $this->parseAttrTuplePayload();
             $this->expectSymbol('(');
             $this->expectIdentifier('RowHeadColumns');
-            $attrs['rowHeadColumns'] = (int) $this->expectNumber();
+            $rowHeadColumns = (int) $this->expectNumber();
+            $attrs['rowHeadColumns'] = $rowHeadColumns;
+            $rowHeadColumnsNative = ['t' => 'RowHeadColumns', 'c' => $rowHeadColumns];
+            $attrs['rowHeadColumnsConstructor'] = 'RowHeadColumns';
+            $attrs['rowHeadColumnsNative'] = $rowHeadColumnsNative;
             $this->expectSymbol(')');
-            $headRows = $this->parseTableRows();
+            [$headRows, $headRowsNative] = $this->parseTableRowsPayload();
             if ($headRows !== []) {
                 $attrs['headRows'] = $headRows;
+                $attrs['headRowsNative'] = $headRowsNative;
             }
 
-            $body = new AstNode('table_body', $attrs, $this->parseTableRows());
+            [$bodyRows, $bodyRowsNative] = $this->parseTableRowsPayload();
+            $attrs['constructor'] = 'TableBody';
+            $attrs['native'] = ['t' => 'TableBody', 'c' => [$attrNative, $rowHeadColumnsNative, $headRowsNative, $bodyRowsNative]];
+            if ($bodyRowsNative !== []) {
+                $attrs['tableRowsNative'] = $bodyRowsNative;
+            }
+            $body = new AstNode('table_body', $attrs, $bodyRows);
             if ($wrapped) {
                 $this->expectSymbol(')');
             }
 
             return $body;
         });
+
+        $native = [];
+        foreach ($bodies as $body) {
+            $bodyNative = $body->attr('native');
+            if (!is_array($bodyNative) || array_is_list($bodyNative) || !is_string($bodyNative['t'] ?? null)) {
+                return [$bodies, []];
+            }
+            $native[] = $bodyNative;
+        }
+
+        return [$bodies, $native];
     }
 
     private function parseTableFoot(): AstNode
@@ -1621,7 +1706,15 @@ final class NativeReader
         $wrapped = $this->acceptSymbol('(');
         $this->expectIdentifier('TableFoot');
 
-        $foot = new AstNode('table_foot', $this->parseAttrTuple(), $this->parseTableRows());
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        [$rows, $rowsNative] = $this->parseTableRowsPayload();
+        $attrs['constructor'] = 'TableFoot';
+        $attrs['native'] = ['t' => 'TableFoot', 'c' => [$attrNative, $rowsNative]];
+        if ($rowsNative !== []) {
+            $attrs['tableRowsNative'] = $rowsNative;
+        }
+
+        $foot = new AstNode('table_foot', $attrs, $rows);
         if ($wrapped) {
             $this->expectSymbol(')');
         }
@@ -1634,30 +1727,78 @@ final class NativeReader
      */
     private function parseTableRows(): array
     {
-        return $this->parseList(fn (): AstNode => $this->parseTableRow());
+        return $this->parseTableRowsPayload()[0];
+    }
+
+    /**
+     * @return array{0:list<AstNode>, 1:list<array<string, mixed>>}
+     */
+    private function parseTableRowsPayload(): array
+    {
+        $rows = $this->parseList(fn (): AstNode => $this->parseTableRow());
+        $native = [];
+        foreach ($rows as $row) {
+            $rowNative = $row->attr('native');
+            if (!is_array($rowNative) || array_is_list($rowNative) || !is_string($rowNative['t'] ?? null)) {
+                return [$rows, []];
+            }
+            $native[] = $rowNative;
+        }
+
+        return [$rows, $native];
     }
 
     private function parseTableRow(): AstNode
     {
         $this->expectIdentifier('Row');
-        $attrs = $this->parseAttrTuple();
-        $cells = $this->parseList(fn (): AstNode => $this->parseTableCell());
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        [$cells, $cellsNative] = $this->parseTableCellsPayload();
+        if ($cellsNative !== []) {
+            $attrs['tableCellsNative'] = $cellsNative;
+        }
+        $attrs['constructor'] = 'Row';
+        $attrs['native'] = ['t' => 'Row', 'c' => [$attrNative, $cellsNative]];
 
         return new AstNode('table_row', $attrs, $cells);
+    }
+
+    /**
+     * @return array{0:list<AstNode>, 1:list<array<string, mixed>>}
+     */
+    private function parseTableCellsPayload(): array
+    {
+        $cells = $this->parseList(fn (): AstNode => $this->parseTableCell());
+        $native = [];
+        foreach ($cells as $cell) {
+            $cellNative = $cell->attr('native');
+            if (!is_array($cellNative) || array_is_list($cellNative) || !is_string($cellNative['t'] ?? null)) {
+                return [$cells, []];
+            }
+            $native[] = $cellNative;
+        }
+
+        return [$cells, $native];
     }
 
     private function parseTableCell(): AstNode
     {
         $this->expectIdentifier('Cell');
-        $attrs = $this->parseAttrTuple();
-        $alignment = $this->parseAlignment($this->expectAnyIdentifier());
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        $alignmentConstructor = $this->expectAnyIdentifier();
+        $alignment = $this->parseAlignment($alignmentConstructor);
+        $alignmentNative = ['t' => $alignmentConstructor];
         if ($alignment !== 'default') {
             $attrs['align'] = $alignment;
         }
+        $attrs['alignmentConstructor'] = $alignmentConstructor;
+        $attrs['alignmentNative'] = $alignmentNative;
         $this->expectSymbol('(');
         $this->expectIdentifier('RowSpan');
         $rowspan = (int) $this->expectNumber();
         $this->expectSymbol(')');
+        $rowSpanNative = ['t' => 'RowSpan', 'c' => $rowspan];
+        $attrs['rowSpanConstructor'] = 'RowSpan';
+        $attrs['rowSpanNative'] = $rowSpanNative;
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
@@ -1665,11 +1806,22 @@ final class NativeReader
         $this->expectIdentifier('ColSpan');
         $colspan = (int) $this->expectNumber();
         $this->expectSymbol(')');
+        $colSpanNative = ['t' => 'ColSpan', 'c' => $colspan];
+        $attrs['colSpanConstructor'] = 'ColSpan';
+        $attrs['colSpanNative'] = $colSpanNative;
         if ($colspan > 1) {
             $attrs['colspan'] = $colspan;
         }
 
-        return new AstNode('table_cell', $attrs, $this->parseBlockList());
+        $blocks = $this->parseBlockList();
+        $blocksNative = $this->nativeBlockListPayload($blocks);
+        if ($blocksNative !== null) {
+            $attrs['legacyTableCellBlocksNative'] = $blocksNative;
+            $attrs['constructor'] = 'Cell';
+            $attrs['native'] = ['t' => 'Cell', 'c' => [$attrNative, $alignmentNative, $rowSpanNative, $colSpanNative, $blocksNative]];
+        }
+
+        return new AstNode('table_cell', $attrs, $blocks);
     }
 
     /**
