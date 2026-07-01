@@ -62,6 +62,8 @@ final class BibtexCslProcessor
         'reviser',
         'script-writer',
         'scriptwriter',
+        'series-creator',
+        'seriescreator',
         'series-editor',
         'serieseditor',
         'shortauthor',
@@ -310,6 +312,10 @@ final class BibtexCslProcessor
         }
         if (($item['title'] ?? '') !== '') {
             $parts[] = (string) $item['title'];
+        }
+        $seriesCreators = $this->renderNames($item['series-creator'] ?? []);
+        if ($seriesCreators !== '') {
+            $parts[] = 'Series creator: ' . $seriesCreators;
         }
         $citationAliases = $item['citation-aliases'] ?? [];
         if (is_array($citationAliases) && $citationAliases !== []) {
@@ -1036,6 +1042,7 @@ final class BibtexCslProcessor
             'continuator' => ['continuator'],
             'reviser' => ['reviser'],
             'collaborator' => ['collaborator'],
+            'series-creator' => ['seriescreator', 'series-creator'],
             'introduction' => ['introduction'],
             'foreword' => ['foreword'],
             'afterword' => ['afterword'],

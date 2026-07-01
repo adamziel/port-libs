@@ -792,6 +792,104 @@ BIB;
         $t->same('Series', $item['collection-editor'][0]['family']);
         $t->same('Will Writer. Role Handoff Chapter. Role Review Sourcebook. 2026.', $bibliography);
     },
+    'carries biblatex series creator names in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-series-creator,
+  author        = {Writer, Wendy},
+  seriescreator = {Board, Review and Desk, Curator},
+  title         = {Series Creator Legacy Packet},
+  date          = {2026},
+  series        = {Review Series}
+}
+
+@book{legacy-hyphen-series-creator,
+  author         = {Alias, Ari},
+  series-creator = {Hyphen, Harper},
+  title          = {Hyphen Series Creator Legacy Packet},
+  date           = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $series = $items['legacy-series-creator'];
+        $hyphen = $items['legacy-hyphen-series-creator'];
+
+        $t->same('Board', $series['series-creator'][0]['family']);
+        $t->same('Review', $series['series-creator'][0]['given']);
+        $t->same('Desk', $series['series-creator'][1]['family']);
+        $t->same('Curator', $series['series-creator'][1]['given']);
+        $t->same('Hyphen', $hyphen['series-creator'][0]['family']);
+        $t->same('Harper', $hyphen['series-creator'][0]['given']);
+        $t->same('Board, Review and Desk, Curator', $series['rawBibtex']['fields']['seriescreator']);
+        $t->same('Hyphen, Harper', $hyphen['rawBibtex']['fields']['series-creator']);
+        $t->contains('Series creator: Review Board and Curator Desk', $processor->renderBibliographyText($series));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Series Creator Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-series-creator-review</id>
+    <updated>2026-07-01T15:35:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <names variable="series-creator" delimiter="; ">
+          <name initialize="false" name-as-sort-order="all"/>
+        </names>
+        <text variable="collection-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="series-creator" delimiter="; ">
+        <name initialize="false" name-as-sort-order="all"/>
+      </names>
+      <text variable="collection-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-series-creator');
+        $t->same('Board', $styledItem['seriesCreators'][0]['family'] ?? null);
+        $t->same('Curator', $styledItem['seriesCreators'][1]['given'] ?? null);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Series Creator Review', $summary['title'] ?? null);
+        $t->same('series-creator', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('series-creator', $summary['bibliographyRendering'][1]['variable'] ?? null);
+        $t->same(
+            '[Series Creator Legacy Packet | Board, Review and Desk, Curator | Review Series; Hyphen Series Creator Legacy Packet | Hyphen, Harper]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'legacy-series-creator', 'text' => '[@legacy-series-creator]']),
+                new AstNode('citation', ['id' => 'legacy-hyphen-series-creator', 'text' => '[@legacy-hyphen-series-creator]']),
+            ])
+        );
+        $t->same(
+            'Series Creator Legacy Packet :: Board, Review; Desk, Curator :: Review Series',
+            $styled->renderBibliographyEntry('legacy-series-creator')
+        );
+        $t->same(
+            'Hyphen Series Creator Legacy Packet :: Hyphen, Harper',
+            $styled->renderBibliographyEntry('legacy-hyphen-series-creator')
+        );
+
+        $document = (new MarkdownReader())->read('Series creator legacy [@legacy-series-creator; @legacy-hyphen-series-creator] remains visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-series-creator', 'legacy-hyphen-series-creator'], $handoff['citedKeys']);
+        $t->same('Board', $handoff['items'][0]['series-creator'][0]['family'] ?? null);
+        $t->same('Hyphen', $handoff['bibliography']->children[1]->attr('cslItem')['series-creator'][0]['family'] ?? null);
+        $t->contains('<p>Series creator legacy [Series Creator Legacy Packet | Board, Review and Desk, Curator | Review Series; Hyphen Series Creator Legacy Packet | Hyphen, Harper] remains visible.</p>', $blocks);
+        $t->contains('<dt>Writer 2026</dt><dd>Series Creator Legacy Packet :: Board, Review; Desk, Curator :: Review Series</dd>', $blocks);
+    },
     'carries biblatex auxiliary editorial roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @collection{editorial-role-packet,
