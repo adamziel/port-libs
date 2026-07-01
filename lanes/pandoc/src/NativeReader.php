@@ -1190,7 +1190,7 @@ final class NativeReader
         } else {
             $this->expectSymbol('(');
             $this->expectIdentifier('Just');
-            $attrs['shortCaptionInlines'] = $this->parseInlineList();
+            $attrs['shortCaptionInlines'] = $this->parseShortCaptionInlines();
             $this->expectSymbol(')');
             $attrs['shortCaption'] = $this->plainInlineText($attrs['shortCaptionInlines']);
         }
@@ -1207,6 +1207,22 @@ final class NativeReader
         $this->expectSymbol(')');
 
         return $attrs;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function parseShortCaptionInlines(): array
+    {
+        if ($this->acceptSymbol('(')) {
+            $this->expectIdentifier('ShortCaption');
+            $inlines = $this->parseInlineList();
+            $this->expectSymbol(')');
+
+            return $inlines;
+        }
+
+        return $this->parseInlineList();
     }
 
     /**
