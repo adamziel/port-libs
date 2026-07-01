@@ -13113,6 +13113,12 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPackageAreaByteLengths'] = $packageIdentity['packageAreaByteLengths'];
         $summary['packageIdentityPackageAreaCompressedByteLengths'] =
             $packageIdentity['packageAreaCompressedByteLengths'];
+        $summary['packageIdentityPartExtensionCaseVariantCount'] =
+            $packageIdentity['partExtensionCaseVariantCount'];
+        $summary['packageIdentityPartExtensionCaseVariantExtensions'] =
+            $packageIdentity['partExtensionCaseVariantExtensions'];
+        $summary['packageIdentityPartExtensionUppercasePartCount'] =
+            $packageIdentity['partExtensionUppercasePartCount'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -44948,6 +44954,11 @@ final class DocxOpenXmlReader
             )
                 ? array_values($summary['partZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStems'])
                 : [],
+            'partExtensionCaseVariantCount' => (int) ($summary['partExtensionCaseVariantCount'] ?? 0),
+            'partExtensionCaseVariantExtensions' => self::packageIdentityStringList(
+                $summary['partExtensionCaseVariantExtensions'] ?? []
+            ),
+            'partExtensionUppercasePartCount' => (int) ($summary['partExtensionUppercasePartCount'] ?? 0),
             'partRawExtensionCount' => (int) ($summary['partRawExtensionCount'] ?? 0),
             'partRawExtensionCounts' => $this->packageIdentityCountMap(
                 $summary['partRawExtensionCounts'] ?? []
