@@ -952,7 +952,7 @@ final class NativeReader
             'Math' => $this->parseMathInline(),
             'Cite' => $this->parseCitationInline(),
             'RawInline' => $this->parseRawInline(),
-            'Span' => new AstNode('span', $this->parseAttrTuple(), $this->parseInlineList()),
+            'Span' => $this->parseSpanInline(),
             default => throw new \InvalidArgumentException("Unsupported Native inline '{$type}'"),
         };
     }
@@ -992,31 +992,46 @@ final class NativeReader
 
     private function parseCodeInline(): AstNode
     {
-        $attrs = $this->parseAttrTuple();
-        $attrs['text'] = $this->expectString();
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        $text = $this->expectString();
+        $attrs['text'] = $text;
+        $attrs['constructor'] = 'Code';
+        $attrs['native'] = ['t' => 'Code', 'c' => [$attrNative, $text]];
 
         return new AstNode('code', $attrs);
     }
 
     private function parseLinkInline(): AstNode
     {
-        $attrs = $this->parseAttrTuple();
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
         $inlines = $this->parseInlineList();
-        [$url, $title] = $this->parseTargetTuple();
+        [$url, $title, $targetNative] = $this->parseTargetTuplePayload();
         $attrs['url'] = $url;
         $attrs['title'] = $title;
+        $attrs['targetNative'] = $targetNative;
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = 'Link';
+            $attrs['native'] = ['t' => 'Link', 'c' => [$attrNative, $inlineNative, $targetNative]];
+        }
 
         return new AstNode('link', $attrs, $inlines);
     }
 
     private function parseImageInline(): AstNode
     {
-        $attrs = $this->parseAttrTuple();
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
         $inlines = $this->parseInlineList();
-        [$url, $title] = $this->parseTargetTuple();
+        [$url, $title, $targetNative] = $this->parseTargetTuplePayload();
         $attrs['url'] = $url;
         $attrs['title'] = $title;
+        $attrs['targetNative'] = $targetNative;
         $attrs['alt'] = $this->plainInlineText($inlines);
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = 'Image';
+            $attrs['native'] = ['t' => 'Image', 'c' => [$attrNative, $inlineNative, $targetNative]];
+        }
 
         return new AstNode('image', $attrs, $inlines);
     }
@@ -1176,6 +1191,19 @@ final class NativeReader
         return new AstNode('raw_inline', $attrs);
     }
 
+    private function parseSpanInline(): AstNode
+    {
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        $inlines = $this->parseInlineList();
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative !== null) {
+            $attrs['constructor'] = 'Span';
+            $attrs['native'] = ['t' => 'Span', 'c' => [$attrNative, $inlineNative]];
+        }
+
+        return new AstNode('span', $attrs, $inlines);
+    }
+
     private function isMarkdownRawFormat(string $format): bool
     {
         $normalized = $this->rawFormatBase($format);
@@ -1222,15 +1250,30 @@ final class NativeReader
      */
     private function parseAttrTuple(): array
     {
+        $attrs = $this->parseAttrTuplePayload()[0];
+        unset($attrs['attrConstructor'], $attrs['attrNative']);
+
+        return $attrs;
+    }
+
+    /**
+     * @return array{0:array<string, mixed>, 1:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}}
+     */
+    private function parseAttrTuplePayload(): array
+    {
         $this->expectSymbol('(');
         $id = $this->expectString();
         $this->expectSymbol(',');
         $classes = $this->parseList(fn (): string => $this->expectString());
         $this->expectSymbol(',');
-        $attributes = $this->parsePairList(fn (): string => $this->expectString());
+        [$attributes, $attributePairs] = $this->parseAttrPairList();
         $this->expectSymbol(')');
 
-        $attrs = [];
+        $native = [$id, $classes, $attributePairs];
+        $attrs = [
+            'attrConstructor' => 'Attr',
+            'attrNative' => $native,
+        ];
         if ($id !== '') {
             $attrs['id'] = $id;
         }
@@ -1241,7 +1284,34 @@ final class NativeReader
             $attrs['attributes'] = $attributes;
         }
 
-        return $attrs;
+        return [$attrs, $native];
+    }
+
+    /**
+     * @return array{0:array<string, string>, 1:list<array{0:string, 1:string}>}
+     */
+    private function parseAttrPairList(): array
+    {
+        $this->expectSymbol('[');
+        $attributes = [];
+        $pairs = [];
+        if ($this->acceptSymbol(']')) {
+            return [$attributes, $pairs];
+        }
+
+        do {
+            $this->expectSymbol('(');
+            $key = $this->expectString();
+            $this->expectSymbol(',');
+            $value = $this->expectString();
+            $this->expectSymbol(')');
+            $attributes[$key] = $value;
+            $pairs[] = [$key, $value];
+        } while ($this->acceptSymbol(','));
+
+        $this->expectSymbol(']');
+
+        return [$attributes, $pairs];
     }
 
     /**
@@ -1463,13 +1533,70 @@ final class NativeReader
      */
     private function parseTargetTuple(): array
     {
+        $payload = $this->parseTargetTuplePayload();
+
+        return [$payload[0], $payload[1]];
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:array{0:string, 1:string}}
+     */
+    private function parseTargetTuplePayload(): array
+    {
         $this->expectSymbol('(');
         $url = $this->expectString();
         $this->expectSymbol(',');
         $title = $this->expectString();
         $this->expectSymbol(')');
 
-        return [$url, $title];
+        return [$url, $title, [$url, $title]];
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return list<array<string, mixed>>|null
+     */
+    private function nativeInlineListPayload(array $inlines): ?array
+    {
+        $payload = [];
+        foreach ($inlines as $inline) {
+            $parts = $this->nativeInlinePayloads($inline);
+            if ($parts === null) {
+                return null;
+            }
+            array_push($payload, ...$parts);
+        }
+
+        return $payload;
+    }
+
+    /**
+     * @return list<array<string, mixed>>|null
+     */
+    private function nativeInlinePayloads(AstNode $inline): ?array
+    {
+        $parts = $inline->attr('nativeInlineParts', []);
+        if (is_array($parts) && array_is_list($parts) && $parts !== []) {
+            foreach ($parts as $part) {
+                if (!is_array($part) || array_is_list($part) || !is_string($part['t'] ?? null)) {
+                    return null;
+                }
+            }
+
+            return $parts;
+        }
+
+        $native = $inline->attr('native');
+        if (is_array($native) && !array_is_list($native) && is_string($native['t'] ?? null)) {
+            return [$native];
+        }
+
+        return match ($inline->type) {
+            'space' => [['t' => 'Space']],
+            'softbreak' => [['t' => 'SoftBreak']],
+            'linebreak' => [['t' => 'LineBreak']],
+            default => null,
+        };
     }
 
     private function parseBool(): bool
