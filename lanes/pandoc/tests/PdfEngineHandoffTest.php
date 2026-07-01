@@ -506,6 +506,7 @@ return [
         $t->contains('typst-boundary-summary-unsafe-paths:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-sidecars:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-font-access-controls:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-pdf-export-controls:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-execution-jobs:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-issues:4', implode(',', $plan['diagnostics']));
         $t->contains('pdf-engine-artifacts:2', implode(',', $plan['diagnostics']));

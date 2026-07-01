@@ -713,6 +713,19 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['outputFormatEntryCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-output-formats:' . $typstBoundarySummary['outputFormatEntryCount'];
             }
+            if (($typstBoundarySummary['pdfExportControlCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-export-controls:' . $typstBoundarySummary['pdfExportControlCount'];
+            }
+            $invalidPdfExportControlCount =
+                (int) ($typstBoundarySummary['pdfExportInvalidPageSelectionCount'] ?? 0)
+                + (int) ($typstBoundarySummary['pdfExportInvalidPpiCount'] ?? 0)
+                + (int) ($typstBoundarySummary['pdfExportInvalidPdfStandardCount'] ?? 0);
+            if ($invalidPdfExportControlCount > 0) {
+                $diagnostics[] = 'typst-boundary-summary-invalid-pdf-export-controls:' . $invalidPdfExportControlCount;
+            }
+            if (($typstBoundarySummary['pdfExportIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-pdf-export-issues:' . $typstBoundarySummary['pdfExportIssueCount'];
+            }
             if (($typstBoundarySummary['inputVariableCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-inputs:' . $typstBoundarySummary['inputVariableCount'];
             }
