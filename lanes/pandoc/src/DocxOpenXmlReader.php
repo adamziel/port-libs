@@ -14661,6 +14661,7 @@ final class DocxOpenXmlReader
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
         $partCaseFoldBaseNameStems = $this->packagePartCaseFoldBaseNameStemSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
+        $partBaseNameCharacters = $this->packagePartBaseNameCharacterSummary($partInventory);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
         $partContentTypeStructuredSyntaxPartCount = 0;
@@ -17428,6 +17429,14 @@ final class DocxOpenXmlReader
             'partNameNonAsciiPartCount' => count($partNameCharacters['flagPartNames']['non-ascii'] ?? []),
             'partNameCharacterFlagCounts' => $partNameCharacters['flagCounts'],
             'partNameCharacterFlagPartNames' => $partNameCharacters['flagPartNames'],
+            'partBaseNameCharacterReviewPartCount' => $partBaseNameCharacters['partCount'],
+            'partBaseNameUppercasePartCount' => count($partBaseNameCharacters['flagPartNames']['uppercase'] ?? []),
+            'partBaseNameWhitespacePartCount' => count($partBaseNameCharacters['flagPartNames']['whitespace'] ?? []),
+            'partBaseNamePercentEncodedOctetPartCount' => count($partBaseNameCharacters['flagPartNames']['percent-encoded-octet'] ?? []),
+            'partBaseNameNonAsciiPartCount' => count($partBaseNameCharacters['flagPartNames']['non-ascii'] ?? []),
+            'partBaseNameCharacterFlagCounts' => $partBaseNameCharacters['flagCounts'],
+            'partBaseNameCharacterFlagPartNames' => $partBaseNameCharacters['flagPartNames'],
+            'partBaseNameCharacterFlagBaseNames' => $partBaseNameCharacters['flagBaseNames'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
@@ -17842,6 +17851,7 @@ final class DocxOpenXmlReader
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
             'partCaseFoldBaseNameStems' => $partCaseFoldBaseNameStems,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
+            'partBaseNameCharacterReviewParts' => $partBaseNameCharacters['parts'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
             'partContentTypes' => $partContentTypes,
@@ -25161,6 +25171,83 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{partCount:int, flagCounts:array<string, int>, flagPartNames:array<string, list<string>>, flagBaseNames:array<string, list<string>>, parts:list<array<string, mixed>>}
+     */
+    private function packagePartBaseNameCharacterSummary(array $partInventory): array
+    {
+        $flagCounts = [];
+        $flagPartNames = [];
+        $flagBaseNames = [];
+        $items = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $flags = is_array($part['baseNameCharacterFlags'] ?? null)
+                ? array_values(array_map('strval', $part['baseNameCharacterFlags']))
+                : $this->packagePartNameCharacterFlags($baseName);
+            $flags = array_values(array_filter($flags, static fn (string $flag): bool => $flag !== ''));
+            if ($flags === []) {
+                continue;
+            }
+
+            foreach ($flags as $flag) {
+                $flagCounts[$flag] = ($flagCounts[$flag] ?? 0) + 1;
+                $flagPartNames[$flag] ??= [];
+                $flagBaseNames[$flag] ??= [];
+                $this->appendUniqueString($flagPartNames[$flag], $partName);
+                $this->appendUniqueString($flagBaseNames[$flag], $baseName);
+            }
+
+            $items[] = [
+                'partName' => $partName,
+                'directory' => is_string($part['directory'] ?? null)
+                    ? $part['directory']
+                    : $this->packagePartDirectory($partName),
+                'baseName' => $baseName,
+                'caseFoldBaseName' => $this->packagePartCaseFoldKey($baseName),
+                'partExtension' => is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null,
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null)
+                    ? $part['contentTypeSource']
+                    : 'missing',
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null)
+                    ? $part['contentTypeBase']
+                    : '',
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+                'flags' => $flags,
+            ];
+        }
+
+        ksort($flagCounts, SORT_STRING);
+        ksort($flagPartNames, SORT_STRING);
+        foreach ($flagPartNames as &$partNames) {
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+        ksort($flagBaseNames, SORT_STRING);
+        foreach ($flagBaseNames as &$baseNames) {
+            sort($baseNames, SORT_STRING);
+        }
+        unset($baseNames);
+
+        usort(
+            $items,
+            static fn (array $left, array $right): int => strcmp((string) $left['partName'], (string) $right['partName']),
+        );
+
+        return [
+            'partCount' => count($items),
+            'flagCounts' => $flagCounts,
+            'flagPartNames' => $flagPartNames,
+            'flagBaseNames' => $flagBaseNames,
+            'parts' => $items,
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $relationshipSources
      * @return array{sourceCount:int, relationshipCount:int, relationshipRecordCount:int, sourceParts:list<string>, flagSourceCounts:array<string, int>, flagSourceParts:array<string, list<string>>, sources:list<array<string, mixed>>}
      */
@@ -29490,6 +29577,7 @@ final class DocxOpenXmlReader
                 $roles = ['package-part'];
             }
             $partNameCharacterFlags = $this->packagePartNameCharacterFlags($partName);
+            $baseNameCharacterFlags = $this->packagePartNameCharacterFlags($baseName);
 
             $entry = [
                 'partName' => $partName,
@@ -29531,6 +29619,11 @@ final class DocxOpenXmlReader
                 'partNameHasWhitespace' => in_array('whitespace', $partNameCharacterFlags, true),
                 'partNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $partNameCharacterFlags, true),
                 'partNameHasNonAscii' => in_array('non-ascii', $partNameCharacterFlags, true),
+                'baseNameCharacterFlags' => $baseNameCharacterFlags,
+                'baseNameHasUppercase' => in_array('uppercase', $baseNameCharacterFlags, true),
+                'baseNameHasWhitespace' => in_array('whitespace', $baseNameCharacterFlags, true),
+                'baseNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $baseNameCharacterFlags, true),
+                'baseNameHasNonAscii' => in_array('non-ascii', $baseNameCharacterFlags, true),
             ];
             if ($entry['isRelationshipPart']) {
                 $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
