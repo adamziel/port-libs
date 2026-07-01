@@ -1539,6 +1539,15 @@ final class OdfReader
             'sections' => [],
             'truncated' => false,
         ];
+        $packagePartXmlProcessingInstructions = [
+            'partCount' => 0,
+            'instructionCount' => 0,
+            'dataByteLength' => 0,
+            'targets' => [],
+            'partNames' => [],
+            'instructions' => [],
+            'truncated' => false,
+        ];
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
@@ -1795,6 +1804,11 @@ final class OdfReader
                 $entry,
                 is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : ''
             );
+            $xmlProcessingInstructions = self::packagePartXmlProcessingInstructionMetadata(
+                $package,
+                $entry,
+                is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : ''
+            );
             $totalByteLength += $entry->uncompressedSize;
             $totalCompressedByteLength += $entry->compressedSize;
             if ($entry->isDirectory()) {
@@ -1840,6 +1854,11 @@ final class OdfReader
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
                 'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
+                'xmlProcessingInstructionCount' => $xmlProcessingInstructions['count'],
+                'xmlProcessingInstructionDataByteLength' => $xmlProcessingInstructions['dataByteLength'],
+                'xmlProcessingInstructionTargets' => $xmlProcessingInstructions['targets'],
+                'xmlProcessingInstructions' => $xmlProcessingInstructions['instructions'],
+                'xmlProcessingInstructionsTruncated' => $xmlProcessingInstructions['truncated'],
                 'zipEntryComment' => $entry->comment,
                 'zipEntryCommentLength' => strlen($entry->rawComment),
                 'zipEntryCommentEncoding' => $entry->commentEncoding,
@@ -2037,6 +2056,11 @@ final class OdfReader
                 ++$decodedNameDiffersFromRawNameEntryCount;
             }
             self::recordPackagePartXmlCdataSectionSummary($packagePartXmlCdataSections, $entry->name, $xmlCdataSections);
+            self::recordPackagePartXmlProcessingInstructionSummary(
+                $packagePartXmlProcessingInstructions,
+                $entry->name,
+                $xmlProcessingInstructions
+            );
         }
         ksort($roleCounts, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
@@ -2260,6 +2284,13 @@ final class OdfReader
             'packagePartXmlCdataSectionPartNames' => $packagePartXmlCdataSections['partNames'],
             'packagePartXmlCdataSections' => $packagePartXmlCdataSections['sections'],
             'packagePartXmlCdataSectionsTruncated' => $packagePartXmlCdataSections['truncated'],
+            'packagePartXmlProcessingInstructionPartCount' => $packagePartXmlProcessingInstructions['partCount'],
+            'packagePartXmlProcessingInstructionCount' => $packagePartXmlProcessingInstructions['instructionCount'],
+            'packagePartXmlProcessingInstructionDataByteLength' => $packagePartXmlProcessingInstructions['dataByteLength'],
+            'packagePartXmlProcessingInstructionTargets' => $packagePartXmlProcessingInstructions['targets'],
+            'packagePartXmlProcessingInstructionPartNames' => $packagePartXmlProcessingInstructions['partNames'],
+            'packagePartXmlProcessingInstructions' => $packagePartXmlProcessingInstructions['instructions'],
+            'packagePartXmlProcessingInstructionsTruncated' => $packagePartXmlProcessingInstructions['truncated'],
             'namePolicy' => $namePolicy,
             'zipNamePolicyValid' => ($namePolicy['valid'] ?? false) === true,
             'zipNamePolicyIssueCount' => $namePolicy['issueCount'] ?? 0,
@@ -2559,6 +2590,132 @@ final class OdfReader
             'count' => $count,
             'byteLength' => $byteLength,
             'sections' => $sections,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @param array{partCount:int, instructionCount:int, dataByteLength:int, targets:list<string>, partNames:list<string>, instructions:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{count:int, dataByteLength:int, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool} $metadata
+     */
+    private static function recordPackagePartXmlProcessingInstructionSummary(array &$summary, string $partName, array $metadata): void
+    {
+        $instructionCount = (int) ($metadata['count'] ?? 0);
+        if ($instructionCount <= 0) {
+            return;
+        }
+
+        ++$summary['partCount'];
+        $summary['instructionCount'] += $instructionCount;
+        $summary['dataByteLength'] += (int) ($metadata['dataByteLength'] ?? 0);
+        $summary['partNames'][] = $partName;
+        foreach (($metadata['targets'] ?? []) as $target) {
+            if (is_string($target) && $target !== '' && !in_array($target, $summary['targets'], true)) {
+                $summary['targets'][] = $target;
+            }
+        }
+        if (($metadata['truncated'] ?? false) === true) {
+            $summary['truncated'] = true;
+        }
+
+        $summaryLimit = 64;
+        foreach (($metadata['instructions'] ?? []) as $instruction) {
+            if (!is_array($instruction)) {
+                continue;
+            }
+            if (count($summary['instructions']) >= $summaryLimit) {
+                $summary['truncated'] = true;
+                continue;
+            }
+
+            $summary['instructions'][] = ['partName' => $partName] + $instruction;
+        }
+
+        sort($summary['partNames'], SORT_STRING);
+        sort($summary['targets'], SORT_STRING);
+    }
+
+    /**
+     * @return array{count:int, dataByteLength:int, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function packagePartXmlProcessingInstructionMetadata(
+        ZipPackage $package,
+        ZipPackageEntry $entry,
+        string $mediaTypeBase
+    ): array {
+        $empty = [
+            'count' => 0,
+            'dataByteLength' => 0,
+            'targets' => [],
+            'instructions' => [],
+            'truncated' => false,
+        ];
+        if (
+            $entry->isDirectory()
+            || !in_array($entry->compressionMethod, [0, 8], true)
+            || !self::isXmlPackagePart($entry->name, $mediaTypeBase, self::packagePartExtension($entry->name))
+        ) {
+            return $empty;
+        }
+
+        try {
+            $dom = self::loadXmlForPackageProvenance($package->read($entry->name));
+        } catch (\Throwable) {
+            return $empty;
+        }
+        if (!$dom instanceof \DOMDocument) {
+            return $empty;
+        }
+
+        $instructions = [];
+        $targets = [];
+        $count = 0;
+        $dataByteLength = 0;
+        $truncated = false;
+        $itemLimit = 32;
+        $walk = static function (\DOMNode $node) use (&$walk, &$instructions, &$targets, &$count, &$dataByteLength, &$truncated, $itemLimit): void {
+            if ($node instanceof \DOMProcessingInstruction) {
+                $target = (string) $node->target;
+                if ($target !== '' && strtolower($target) !== 'xml') {
+                    ++$count;
+                    $data = (string) $node->data;
+                    $dataLength = strlen($data);
+                    $dataByteLength += $dataLength;
+                    if (!in_array($target, $targets, true)) {
+                        $targets[] = $target;
+                    }
+                    if (count($instructions) >= $itemLimit) {
+                        $truncated = true;
+                    } else {
+                        $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+                        $parentPath = self::domElementPath($parent);
+                        $instructions[] = [
+                            'index' => $count - 1,
+                            'target' => $target,
+                            'parentPath' => $parentPath,
+                            'parentDepth' => self::domElementPathDepth($parentPath),
+                            'dataByteLength' => $dataLength,
+                            'dataCrc32' => sprintf('%08x', crc32($data)),
+                            'dataSha256' => hash('sha256', $data),
+                        ];
+                    }
+                }
+            }
+
+            foreach ($node->childNodes as $child) {
+                if ($child instanceof \DOMNode) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($dom);
+        sort($targets, SORT_STRING);
+
+        return [
+            'count' => $count,
+            'dataByteLength' => $dataByteLength,
+            'targets' => $targets,
+            'instructions' => $instructions,
             'truncated' => $truncated,
         ];
     }
