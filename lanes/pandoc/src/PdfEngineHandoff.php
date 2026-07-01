@@ -680,6 +680,18 @@ final class PdfEngineHandoff
             if ($typstBoundarySummary['sidecarOutputCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-sidecars:' . $typstBoundarySummary['sidecarOutputCount'];
             }
+            if (($typstBoundarySummary['dependencyFormat'] ?? null) !== null) {
+                $diagnostics[] = 'typst-boundary-summary-dependency-format:' . $typstBoundarySummary['dependencyFormat'];
+            }
+            if (($typstBoundarySummary['sidecarOutputOverrideCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-sidecar-overrides:' . $typstBoundarySummary['sidecarOutputOverrideCount'];
+            }
+            if (($typstBoundarySummary['invalidSidecarOutputCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-invalid-sidecars:' . $typstBoundarySummary['invalidSidecarOutputCount'];
+            }
+            if (($typstBoundarySummary['sidecarOutputIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-sidecar-issues:' . $typstBoundarySummary['sidecarOutputIssueCount'];
+            }
             if ($typstBoundarySummary['fontAccessControlCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-font-access-controls:' . $typstBoundarySummary['fontAccessControlCount'];
             }
@@ -9526,8 +9538,80 @@ final class PdfEngineHandoff
         $overriddenInputVariables = array_values(array_unique($overriddenInputVariables));
         sort($overriddenInputVariables);
 
-        $dependencyOutputPresent = is_array($provenance['dependencyOutput']['file'] ?? null);
-        $timingsOutputPresent = is_array($provenance['timingsOutput'] ?? null);
+        $dependencyOutput = is_array($provenance['dependencyOutput'] ?? null) ? $provenance['dependencyOutput'] : [];
+        $dependencyOutputFile = is_array($dependencyOutput['file'] ?? null) ? $dependencyOutput['file'] : [];
+        $dependencyOutputFormat = is_array($dependencyOutput['format'] ?? null) ? $dependencyOutput['format'] : [];
+        $timingsOutput = is_array($provenance['timingsOutput'] ?? null) ? $provenance['timingsOutput'] : [];
+        $dependencyOutputPresent = $dependencyOutputFile !== [];
+        $timingsOutputPresent = $timingsOutput !== [];
+        $dependencyOutputHistory = is_array($provenance['dependencyOutputHistory'] ?? null) ? $provenance['dependencyOutputHistory'] : [];
+        $dependencyFormatHistory = is_array($provenance['dependencyFormatHistory'] ?? null) ? $provenance['dependencyFormatHistory'] : [];
+        $timingsOutputHistory = is_array($provenance['timingsOutputHistory'] ?? null) ? $provenance['timingsOutputHistory'] : [];
+        $sidecarOutputOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry)
+                && in_array($entry['option'] ?? null, ['dependencyOutput', 'dependencyFormat', 'timingsOutput'], true)
+        ));
+        $dependencyOutputOverrides = array_values(array_filter(
+            $sidecarOutputOverrides,
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'dependencyOutput'
+        ));
+        $dependencyFormatOverrides = array_values(array_filter(
+            $sidecarOutputOverrides,
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'dependencyFormat'
+        ));
+        $timingsOutputOverrides = array_values(array_filter(
+            $sidecarOutputOverrides,
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'timingsOutput'
+        ));
+        $countUnsafeSidecarEntries = static function (array $entries, array $selected): int {
+            if ($entries === [] && $selected !== []) {
+                $entries = [$selected];
+            }
+
+            $count = 0;
+            foreach ($entries as $entry) {
+                if (!is_array($entry) || ($entry['safe'] ?? false) !== true) {
+                    ++$count;
+                }
+            }
+
+            return $count;
+        };
+        $sidecarOutputIssues = [];
+        foreach ([$dependencyOutputFile, $dependencyOutputFormat, $timingsOutput] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $sidecarOutputIssues[] = $issue;
+                }
+            }
+        }
+        foreach ([$dependencyOutputHistory, $dependencyFormatHistory, $timingsOutputHistory] as $history) {
+            foreach ($history as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $sidecarOutputIssues[] = $issue;
+                    }
+                }
+            }
+        }
+        foreach ($sidecarOutputOverrides as $override) {
+            if (is_array($override) && is_string($override['issue'] ?? null) && $override['issue'] !== '') {
+                $sidecarOutputIssues[] = $override['issue'];
+            }
+        }
+        $sidecarOutputIssues = array_values(array_unique($sidecarOutputIssues));
+        sort($sidecarOutputIssues);
+        $invalidDependencyOutputCount = $countUnsafeSidecarEntries($dependencyOutputHistory, $dependencyOutputFile);
+        $invalidDependencyFormatCount = $countUnsafeSidecarEntries($dependencyFormatHistory, $dependencyOutputFormat);
+        $invalidTimingsOutputCount = $countUnsafeSidecarEntries($timingsOutputHistory, $timingsOutput);
+        $invalidSidecarOutputCount = $invalidDependencyOutputCount + $invalidDependencyFormatCount + $invalidTimingsOutputCount;
         $diagnosticOutput = is_array($provenance['diagnosticOutput'] ?? null) ? $provenance['diagnosticOutput'] : [];
         $diagnosticFormat = is_array($diagnosticOutput['format'] ?? null) ? $diagnosticOutput['format'] : [];
         $diagnosticColor = is_array($diagnosticOutput['color'] ?? null) ? $diagnosticOutput['color'] : [];
@@ -9783,7 +9867,28 @@ final class PdfEngineHandoff
             'overriddenInputVariables' => $overriddenInputVariables,
             'sidecarOutputCount' => (int) $dependencyOutputPresent + (int) $timingsOutputPresent,
             'dependencyOutputPresent' => $dependencyOutputPresent,
+            'dependencyOutputPath' => is_string($dependencyOutputFile['path'] ?? null) ? $dependencyOutputFile['path'] : null,
+            'dependencyOutputKind' => is_string($dependencyOutputFile['kind'] ?? null) ? $dependencyOutputFile['kind'] : null,
+            'dependencyOutputSafe' => ($dependencyOutputFile['safe'] ?? false) === true,
+            'dependencyOutputHistoryCount' => count($dependencyOutputHistory),
+            'dependencyOutputOverrideCount' => count($dependencyOutputOverrides),
+            'dependencyFormat' => is_string($dependencyOutputFormat['format'] ?? null) ? $dependencyOutputFormat['format'] : null,
+            'dependencyFormatMakeCompatible' => ($dependencyOutputFormat['makeCompatible'] ?? false) === true,
+            'dependencyFormatMachineReadable' => ($dependencyOutputFormat['machineReadable'] ?? false) === true,
+            'dependencyFormatHistoryCount' => count($dependencyFormatHistory),
+            'dependencyFormatOverrideCount' => count($dependencyFormatOverrides),
             'timingsOutputPresent' => $timingsOutputPresent,
+            'timingsOutputPath' => is_string($timingsOutput['path'] ?? null) ? $timingsOutput['path'] : null,
+            'timingsOutputKind' => is_string($timingsOutput['kind'] ?? null) ? $timingsOutput['kind'] : null,
+            'timingsOutputSafe' => ($timingsOutput['safe'] ?? false) === true,
+            'timingsOutputHistoryCount' => count($timingsOutputHistory),
+            'timingsOutputOverrideCount' => count($timingsOutputOverrides),
+            'sidecarOutputOverrideCount' => count($sidecarOutputOverrides),
+            'invalidDependencyOutputCount' => $invalidDependencyOutputCount,
+            'invalidDependencyFormatCount' => $invalidDependencyFormatCount,
+            'invalidTimingsOutputCount' => $invalidTimingsOutputCount,
+            'invalidSidecarOutputCount' => $invalidSidecarOutputCount,
+            'sidecarOutputIssueCount' => count($sidecarOutputIssues),
             'diagnosticOutputPresent' => $diagnosticOutput !== [],
             'diagnosticOutputControlCount' => (int) ($diagnosticFormat !== []) + (int) ($diagnosticColor !== []),
             'diagnosticFormatHistoryCount' => count($diagnosticFormatHistory),
