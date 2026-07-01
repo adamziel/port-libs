@@ -12801,6 +12801,23 @@ XML;
         $encodedUnsafeManifest = str_replace('Pictures/hero.png', 'Pictures/%2e%2e/secret.png', $manifestXml);
         $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $encodedUnsafeManifest)));
 
+        $absoluteManifest = str_replace('Pictures/hero.png', '/Pictures/hero.png', $manifestXml);
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $absoluteManifest)));
+
+        $dotSegmentManifest = str_replace('Pictures/hero.png', './Pictures/hero.png', $manifestXml);
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $dotSegmentManifest)));
+
+        $malformedPercentManifest = str_replace('Pictures/hero.png', 'Pictures/%GGsecret.png', $manifestXml);
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $malformedPercentManifest)));
+
+        foreach (['%1F', '%7F'] as $encodedControl) {
+            $encodedControlManifest = str_replace('Pictures/hero.png', 'Pictures/' . $encodedControl . 'secret.png', $manifestXml);
+            $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $encodedControlManifest)));
+        }
+
+        $schemeManifest = str_replace('Pictures/hero.png', 'vnd.sun.star.Package:Pictures/hero.png', $manifestXml);
+        $t->throws(\InvalidArgumentException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $schemeManifest)));
+
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildZipPackageWithCentralDirectoryOrder([
             ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],

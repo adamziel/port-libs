@@ -26,6 +26,43 @@ return [
         $t->same('br', $nodes[0]['children'][0]['children'][1]['name']);
         $t->same(['libxml-repair'], $fragment->diagnosticCodes());
     },
+    'records fragment source provenance for raw html ast handoff' => static function (TestRunner $t): void {
+        $source = "<article>\n"
+            . '<p onclick="drop()">One<br>Two<script>alert(1)</script></p>'
+            . "\n</article>";
+        $fragment = Html5DomFragment::fromHtml($source, 'https://source.example.test/import/post.html');
+        $html = $fragment->serialize();
+        $provenance = $fragment->provenance();
+        $ast = $fragment->toRawHtmlAst(['part' => '/migration/html-fragment-provenance.html']);
+
+        $t->same('html', $provenance['sourceFormat']);
+        $t->same(strlen($source), $provenance['sourceBytes']);
+        $t->same(hash('sha256', $source), $provenance['sourceSha256']);
+        $t->same(strlen($html), $provenance['serializedBytes']);
+        $t->same(hash('sha256', $html), $provenance['serializedSha256']);
+        $t->same(true, $provenance['serializedChanged']);
+        $t->same(count($fragment->diagnostics()), $provenance['diagnosticCount']);
+        $t->same($fragment->diagnosticCodes(), $provenance['diagnosticCodes']);
+        $t->same('https://source.example.test/import/post.html', $provenance['baseUrl']);
+        $t->same($html, $ast->attr('html'));
+        $t->same($provenance, $ast->attr('fragmentProvenance'));
+        $t->same('/migration/html-fragment-provenance.html', $ast->attr('part'));
+
+        $xml = '<review><item xml:lang="en">Ready</item></review>';
+        $xmlFragment = Html5DomFragment::fromXml($xml);
+        $xmlHtml = $xmlFragment->serialize();
+        $xmlProvenance = $xmlFragment->provenance();
+        $xmlAst = $xmlFragment->toRawHtmlAst(['part' => '/migration/xml-fragment-provenance.xml']);
+
+        $t->same('xml', $xmlProvenance['sourceFormat']);
+        $t->same(strlen($xml), $xmlProvenance['sourceBytes']);
+        $t->same(hash('sha256', $xml), $xmlProvenance['sourceSha256']);
+        $t->same(strlen($xmlHtml), $xmlProvenance['serializedBytes']);
+        $t->same(hash('sha256', $xmlHtml), $xmlProvenance['serializedSha256']);
+        $t->same($xmlProvenance, $xmlAst->attr('fragmentProvenance'));
+        $t->same('/migration/xml-fragment-provenance.xml', $xmlAst->attr('part'));
+        $t->same('xml', $xmlAst->attr('format'));
+    },
     'decodes bounded html5 named character references before sanitized handoff' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<article data-source="entities">'

@@ -14782,10 +14782,10 @@ final class XmlHtmlDom
             ));
         }
         if ($name === 'input') {
-            $inputType = self::inputType($node);
+            $inputType = self::inputTypeSummary($node);
             $summary['formControl'] = 'input';
             $summary += self::formOwnerSummary($node);
-            $summary['inputType'] = $inputType;
+            $summary += $inputType;
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['checked'] = $node->hasAttribute('checked');
@@ -14793,8 +14793,11 @@ final class XmlHtmlDom
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
-            if ($inputType === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
-                $summary += self::fileInputReviewSummary($node, $inputType);
+            if ($inputType['inputType'] === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
+                $summary += self::fileInputReviewSummary($node, $inputType['inputType']);
+            }
+            if ($inputType === 'color') {
+                $summary += self::colorInputReviewSummary($node);
             }
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
@@ -14803,11 +14806,11 @@ final class XmlHtmlDom
                 $summary['list'] = $node->getAttribute('list');
                 $summary += self::datalistAssociationSummary($node, $node->getAttribute('list'));
             }
-            if (self::isInputSubmitterType($inputType)) {
+            if (self::isInputSubmitterType($inputType['inputType'])) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
                 $summary += self::formSubmitterActionReviewSummary($node);
             }
-            if ($inputType === 'reset') {
+            if ($inputType['inputType'] === 'reset') {
                 $summary += self::formResetControlSummary($node);
             }
         }
@@ -14865,6 +14868,9 @@ final class XmlHtmlDom
         }
         if ($name === 'option') {
             $summary += self::optionSummary($node);
+        }
+        if ($name === 'selectedcontent') {
+            $summary += self::selectedContentSummary($node);
         }
         if ($name === 'fieldset') {
             $summary += self::fieldsetSummary($node);
@@ -14944,7 +14950,7 @@ final class XmlHtmlDom
         if (in_array($name, ['ruby', 'rb', 'rt', 'rp', 'rtc'], true)) {
             $summary += self::rubySummary($node, $name);
         }
-        if (in_array($name, ['abbr', 'b', 'bdi', 'bdo', 'code', 'dfn', 'em', 'i', 'kbd', 'mark', 's', 'samp', 'small', 'strong', 'sub', 'sup', 'u', 'var'], true)) {
+        if (in_array($name, ['abbr', 'b', 'bdi', 'bdo', 'cite', 'code', 'dfn', 'em', 'i', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'strong', 'sub', 'sup', 'u', 'var'], true)) {
             $summary += self::textSemanticSummary($node, $name);
         }
         if (in_array($name, ['br', 'hr', 'wbr'], true)) {
@@ -16839,15 +16845,21 @@ final class XmlHtmlDom
         return [
             'scriptLoadingReviewPolicy' => 'script-loading-metadata-review',
             'scriptLoadingMode' => $loadingMode,
+            'scriptCrossoriginRaw' => $crossoriginRaw,
             'scriptCrossoriginState' => $crossorigin,
             'scriptCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'scriptReferrerPolicyRaw' => $referrerPolicyRaw,
             'scriptReferrerPolicy' => $referrerPolicy,
             'scriptReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'scriptFetchPriorityRaw' => $fetchPriorityRaw,
             'scriptFetchPriority' => $fetchPriority,
             'scriptFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
+            'scriptBlockingAttributePresent' => $script->hasAttribute('blocking'),
+            'scriptBlockingTokens' => $script->hasAttribute('blocking') ? self::spaceSeparatedTokens($script->getAttribute('blocking')) : [],
             'scriptBlockingTokenCounts' => $blocking['tokenCounts'],
             'duplicateScriptBlockingTokens' => $blocking['duplicates'],
             'invalidScriptBlockingTokens' => $blocking['invalid'],
+            'scriptRenderBlockingTokenPresent' => isset($blocking['tokenCounts']['render']),
             'scriptBlockingAllTokensValid' => $blocking['invalid'] === [],
             'scriptLoadingIssues' => $issues,
             'scriptLoadingIssueCodes' => array_values(array_unique(array_map(
@@ -17600,12 +17612,14 @@ final class XmlHtmlDom
                 'b' => 'bring-attention',
                 'bdi' => 'bidirectional-isolate',
                 'bdo' => 'bidirectional-override',
+                'cite' => 'cited-work',
                 'code' => 'code',
                 'dfn' => 'definition',
                 'em' => 'stress-emphasis',
                 'i' => 'idiomatic-offset',
                 'kbd' => 'keyboard-input',
                 'mark' => 'mark',
+                'q' => 'inline-quotation',
                 's' => 'struck-text',
                 'samp' => 'sample-output',
                 'small' => 'side-comment',
@@ -18874,6 +18888,7 @@ final class XmlHtmlDom
                 $summary['ariaReferences'] = $ariaReferences;
                 $summary['ariaReferenceAttributes'] = array_keys($ariaReferences);
                 $summary['ariaReferenceCount'] = count($ariaReferences);
+                $summary += self::ariaReferenceAggregateSummary($ariaReferences);
             }
         }
 
@@ -22505,7 +22520,7 @@ final class XmlHtmlDom
      */
     private static function ariaReferenceSummary(\DOMElement $element, array $ariaAttributes): array
     {
-        $knownIds = self::htmlDocumentElementIds($element);
+        $knownIds = self::htmlDocumentElementsById($element);
         $references = [];
         foreach (self::ARIA_ID_REFERENCE_ATTRIBUTES as $attribute => $multiple) {
             if (!array_key_exists($attribute, $ariaAttributes)) {
@@ -22516,9 +22531,37 @@ final class XmlHtmlDom
             $ids = [];
             $duplicates = [];
             $invalid = [];
-            foreach ($tokens as $token) {
+            $present = [];
+            $missing = [];
+            $duplicateTargets = [];
+            $targetSummaries = [];
+            $referenceRecords = [];
+            $issues = [];
+            $seen = [];
+
+            foreach ($tokens as $index => $token) {
+                $record = [
+                    'index' => $index,
+                    'token' => $token,
+                    'state' => 'unresolved',
+                ];
+                $firstIndex = $seen[$token] ?? null;
+                if ($firstIndex === null) {
+                    $seen[$token] = $index;
+                } else {
+                    $record['duplicateToken'] = true;
+                    $record['firstIndex'] = $firstIndex;
+                }
+
                 if (!self::isHtmlReferenceToken($token)) {
                     $invalid[] = $token;
+                    $record['state'] = 'invalid-token';
+                    $issues[] = [
+                        'code' => 'invalid-aria-reference-token',
+                        'token' => $token,
+                        'index' => $index,
+                    ];
+                    $referenceRecords[] = $record;
                     continue;
                 }
 
@@ -22526,20 +22569,94 @@ final class XmlHtmlDom
                     if (!in_array($token, $duplicates, true)) {
                         $duplicates[] = $token;
                     }
+                    $issues[] = [
+                        'code' => 'duplicate-aria-reference-token',
+                        'token' => $token,
+                        'index' => $index,
+                        'firstIndex' => $firstIndex,
+                    ];
+                } else {
+                    $ids[] = $token;
+                }
+
+                $targets = $knownIds[$token] ?? [];
+                if ($targets === []) {
+                    if (!in_array($token, $missing, true)) {
+                        $missing[] = $token;
+                    }
+                    $record = array_merge($record, [
+                        'state' => 'missing-target',
+                        'targetState' => 'missing',
+                        'targetCount' => 0,
+                        'targets' => [],
+                    ]);
+                    $issues[] = [
+                        'code' => 'missing-aria-reference-target',
+                        'token' => $token,
+                        'index' => $index,
+                    ];
+                    $referenceRecords[] = $record;
                     continue;
                 }
 
-                $ids[] = $token;
+                if (!in_array($token, $present, true)) {
+                    $present[] = $token;
+                }
+                $targets = array_map(
+                    static fn (\DOMElement $target): array => self::ariaReferenceTargetSummary($target),
+                    $targets
+                );
+                foreach ($targets as $target) {
+                    $targetSummaries[] = [
+                        'referenceIndex' => $index,
+                        'token' => $token,
+                    ] + $target;
+                }
+                if (count($targets) > 1) {
+                    if (!in_array($token, $duplicateTargets, true)) {
+                        $duplicateTargets[] = $token;
+                    }
+                    $issues[] = [
+                        'code' => 'duplicate-aria-reference-target-id',
+                        'token' => $token,
+                        'index' => $index,
+                        'targetCount' => count($targets),
+                        'targetTexts' => array_map(
+                            static fn (array $target): string => (string) ($target['text'] ?? ''),
+                            $targets
+                        ),
+                    ];
+                }
+
+                $record = array_merge($record, [
+                    'state' => count($targets) > 1 ? 'duplicate-target-id' : 'resolved',
+                    'targetState' => count($targets) > 1 ? 'duplicate-target-id' : 'resolved',
+                    'targetCount' => count($targets),
+                    'targets' => $targets,
+                    'targetTexts' => array_map(
+                        static fn (array $target): string => (string) ($target['text'] ?? ''),
+                        $targets
+                    ),
+                    'targetElementNames' => array_values(array_unique(array_map(
+                        static fn (array $target): string => (string) ($target['tag'] ?? ''),
+                        $targets
+                    ))),
+                ]);
+                if (count($targets) === 1) {
+                    $record['targetId'] = $targets[0]['id'];
+                    $record['targetElementName'] = $targets[0]['tag'];
+                    $record['targetText'] = $targets[0]['text'];
+                }
+                $referenceRecords[] = $record;
             }
 
-            $present = [];
-            $missing = [];
-            foreach ($ids as $id) {
-                if (isset($knownIds[$id])) {
-                    $present[] = $id;
-                } else {
-                    $missing[] = $id;
-                }
+            if (!$multiple && count($ids) > 1) {
+                $issues[] = [
+                    'code' => 'multiple-aria-reference-tokens',
+                    'attribute' => $attribute,
+                    'idCount' => count($ids),
+                    'ids' => $ids,
+                ];
             }
 
             $valid = $tokens !== []
@@ -22554,13 +22671,120 @@ final class XmlHtmlDom
                 'invalidTokens' => $invalid,
                 'presentIds' => $present,
                 'missingIds' => $missing,
+                'duplicateTargetIds' => $duplicateTargets,
+                'targets' => $targetSummaries,
+                'targetCount' => count($targetSummaries),
+                'references' => $referenceRecords,
+                'issues' => $issues,
+                'issueCodes' => array_values(array_unique(array_map(
+                    static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                    $issues
+                ))),
                 'valid' => $valid,
-                'resolved' => $valid && $missing === [],
+                'resolved' => $valid && $issues === [],
             ];
         }
         ksort($references);
 
         return $references;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $ariaReferences
+     * @return array<string, mixed>
+     */
+    private static function ariaReferenceAggregateSummary(array $ariaReferences): array
+    {
+        $issues = [];
+        $targetIds = [];
+        $missingIds = [];
+        $invalidTokens = [];
+        $duplicateIds = [];
+        $duplicateTargetIds = [];
+
+        foreach ($ariaReferences as $attribute => $reference) {
+            foreach ($reference['presentIds'] ?? [] as $id) {
+                self::appendUniqueString($targetIds, (string) $id);
+            }
+            foreach ($reference['missingIds'] ?? [] as $id) {
+                self::appendUniqueString($missingIds, (string) $id);
+            }
+            foreach ($reference['invalidTokens'] ?? [] as $token) {
+                self::appendUniqueString($invalidTokens, (string) $token);
+            }
+            foreach ($reference['duplicateIds'] ?? [] as $id) {
+                self::appendUniqueString($duplicateIds, (string) $id);
+            }
+            foreach ($reference['duplicateTargetIds'] ?? [] as $id) {
+                self::appendUniqueString($duplicateTargetIds, (string) $id);
+            }
+            foreach ($reference['issues'] ?? [] as $issue) {
+                $issues[] = ['attribute' => $attribute] + $issue;
+            }
+        }
+
+        return [
+            'ariaReferenceTargetIds' => $targetIds,
+            'ariaReferenceMissingIds' => $missingIds,
+            'ariaReferenceInvalidTokens' => $invalidTokens,
+            'ariaReferenceDuplicateIds' => $duplicateIds,
+            'ariaReferenceDuplicateTargetIds' => $duplicateTargetIds,
+            'ariaReferenceIssues' => $issues,
+            'ariaReferenceIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'ariaReferencesResolved' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, list<\DOMElement>>
+     */
+    private static function htmlDocumentElementsById(\DOMElement $element): array
+    {
+        $document = $element->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $ids = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || !$candidate->hasAttribute('id')) {
+                continue;
+            }
+
+            $id = trim($candidate->getAttribute('id'));
+            if ($id !== '' && self::isHtmlReferenceToken($id)) {
+                $ids[$id][] = $candidate;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ariaReferenceTargetSummary(\DOMElement $target): array
+    {
+        $summary = [
+            'tag' => self::htmlElementName($target),
+            'id' => self::attributeOrNull($target, 'id'),
+            'text' => self::normalizedText($target),
+        ];
+
+        $role = self::attributeOrNull($target, 'role');
+        if ($role !== null) {
+            $summary['role'] = $role;
+        }
+
+        $label = self::attributeOrNull($target, 'aria-label');
+        if ($label !== null) {
+            $summary['ariaLabel'] = $label;
+        }
+
+        return $summary;
     }
 
     /**
@@ -22713,9 +22937,106 @@ final class XmlHtmlDom
 
     private static function inputType(\DOMElement $input): string
     {
-        $type = strtolower(trim($input->getAttribute('type')));
+        return self::inputTypeSummary($input)['inputType'];
+    }
 
-        return $type === '' ? 'text' : $type;
+    /**
+     * @return array{
+     *     inputTypeRaw:?string,
+     *     inputType:string,
+     *     inputTypeState:string,
+     *     inputTypeValid:bool,
+     *     inputTypeKnown:bool,
+     *     inputTypeDefaulted:bool,
+     *     inputTypeMissingDefaulted:bool,
+     *     inputTypeInvalidValueDefaulted:bool
+     * }
+     */
+    private static function inputTypeSummary(\DOMElement $input): array
+    {
+        $raw = self::attributeOrNull($input, 'type');
+        $token = $raw === null ? null : strtolower(trim($raw));
+        $knownTypes = [
+            'hidden' => true,
+            'text' => true,
+            'search' => true,
+            'tel' => true,
+            'url' => true,
+            'email' => true,
+            'password' => true,
+            'date' => true,
+            'month' => true,
+            'week' => true,
+            'time' => true,
+            'datetime-local' => true,
+            'number' => true,
+            'range' => true,
+            'color' => true,
+            'checkbox' => true,
+            'radio' => true,
+            'file' => true,
+            'submit' => true,
+            'image' => true,
+            'reset' => true,
+            'button' => true,
+        ];
+        $known = is_string($token) && isset($knownTypes[$token]);
+        $missing = $raw === null;
+        $empty = $raw !== null && $token === '';
+        $type = $known ? (string) $token : 'text';
+
+        return [
+            'inputTypeRaw' => $raw,
+            'inputType' => $type,
+            'inputTypeState' => $missing ? 'missing' : ($empty ? 'empty' : ($known ? $type : 'invalid')),
+            'inputTypeValid' => $missing || $known,
+            'inputTypeKnown' => $known,
+            'inputTypeDefaulted' => !$known,
+            'inputTypeMissingDefaulted' => $missing,
+            'inputTypeInvalidValueDefaulted' => !$missing && !$known,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function colorInputReviewSummary(\DOMElement $input): array
+    {
+        $valueRaw = self::attributeOrNull($input, 'value');
+        $missing = $valueRaw === null;
+        $valid = $valueRaw !== null && self::isValidHtmlSimpleColor($valueRaw);
+        $defaulted = !$valid;
+        $value = $valid ? strtolower((string) $valueRaw) : '#000000';
+        $red = (int) hexdec(substr($value, 1, 2));
+        $green = (int) hexdec(substr($value, 3, 2));
+        $blue = (int) hexdec(substr($value, 5, 2));
+        $issues = [];
+
+        if (!$missing && !$valid) {
+            $issues[] = 'invalid-color-input-value';
+        }
+
+        return [
+            'colorInputReviewPolicy' => 'html-color-input-value-review',
+            'colorInput' => true,
+            'colorValueRaw' => $valueRaw,
+            'colorValue' => $value,
+            'colorValueState' => $missing ? 'missing' : ($valid ? 'valid-simple-color' : 'invalid-simple-color'),
+            'colorValueValid' => $missing || $valid,
+            'colorValueDefaulted' => $defaulted,
+            'colorValueDefaultReason' => $defaulted ? ($missing ? 'missing-value-default' : 'invalid-value-default') : null,
+            'colorValueRgb' => [$red, $green, $blue],
+            'colorValueRed' => $red,
+            'colorValueGreen' => $green,
+            'colorValueBlue' => $blue,
+            'colorInputIssueCodes' => $issues,
+            'colorInputValid' => $issues === [],
+        ];
+    }
+
+    private static function isValidHtmlSimpleColor(string $value): bool
+    {
+        return preg_match('/^#[0-9A-Fa-f]{6}$/', $value) === 1;
     }
 
     /**
@@ -26195,6 +26516,7 @@ final class XmlHtmlDom
             ),
             'tracks' => self::mediaTrackSummaries($element),
         ];
+        $summary += self::mediaLoadingPolicyReviewSummary($element);
         $summary += self::mediaTextTrackReviewSummary($element);
         $summary += self::mediaPolicyReviewSummary($element);
         $summary += self::mediaPreloadReviewSummary($element);
@@ -26209,6 +26531,60 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaLoadingPolicyReviewSummary(\DOMElement $element): array
+    {
+        $preloadRaw = self::attributeOrNull($element, 'preload');
+        $preload = $preloadRaw === null ? null : self::mediaPreloadState($preloadRaw);
+        $crossoriginRaw = self::attributeOrNull($element, 'crossorigin');
+        $crossorigin = $crossoriginRaw === null
+            ? null
+            : self::htmlCorsSettingsAttributeState(self::htmlMetadataAttributeValue($crossoriginRaw));
+        $widthRaw = self::attributeOrNull($element, 'width');
+        $width = $widthRaw === null ? null : self::mediaDimensionState($widthRaw);
+        $heightRaw = self::attributeOrNull($element, 'height');
+        $height = $heightRaw === null ? null : self::mediaDimensionState($heightRaw);
+        $issues = [];
+
+        if ($preloadRaw !== null && $preload === null) {
+            $issues[] = ['code' => 'invalid-media-preload', 'value' => $preloadRaw];
+        }
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $issues[] = ['code' => 'invalid-media-crossorigin', 'value' => $crossoriginRaw];
+        }
+        if ($widthRaw !== null && $width === null) {
+            $issues[] = ['code' => 'invalid-media-width', 'value' => $widthRaw];
+        }
+        if ($heightRaw !== null && $height === null) {
+            $issues[] = ['code' => 'invalid-media-height', 'value' => $heightRaw];
+        }
+
+        return [
+            'mediaLoadingPolicyReview' => 'media-loading-policy-metadata-review',
+            'mediaPreloadRaw' => $preloadRaw,
+            'mediaPreloadState' => $preload,
+            'mediaPreloadValid' => $preloadRaw === null ? null : $preload !== null,
+            'mediaCrossoriginRaw' => $crossoriginRaw,
+            'mediaCrossoriginState' => $crossorigin,
+            'mediaCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'mediaWidthRaw' => $widthRaw,
+            'mediaWidth' => $width,
+            'mediaWidthValid' => $widthRaw === null ? null : $width !== null,
+            'mediaHeightRaw' => $heightRaw,
+            'mediaHeight' => $height,
+            'mediaHeightValid' => $heightRaw === null ? null : $height !== null,
+            'mediaLoadingIssues' => $issues,
+            'mediaLoadingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'mediaLoadingIssueCount' => count($issues),
+            'mediaLoadingPolicyValid' => $issues === [],
+        ];
     }
 
     /**
@@ -27363,11 +27739,41 @@ final class XmlHtmlDom
         return $normalized === '' ? null : $normalized;
     }
 
+    private static function htmlMetadataAttributeValue(string $value): string
+    {
+        $value = str_replace("\0", '', $value);
+        $value = preg_replace('/[\t\r\n\f ]+/u', ' ', $value) ?? $value;
+
+        return trim($value);
+    }
+
     private static function mediaPreload(\DOMElement $media): string
     {
-        $preload = strtolower(trim($media->getAttribute('preload')));
+        $preload = self::mediaPreloadState($media->getAttribute('preload'));
 
-        return in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : 'auto';
+        return $preload ?? 'auto';
+    }
+
+    private static function mediaPreloadState(string $value): ?string
+    {
+        $preload = strtolower(self::htmlMetadataAttributeValue($value));
+        if ($preload === '') {
+            return 'auto';
+        }
+
+        return in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : null;
+    }
+
+    private static function mediaDimensionState(string $value): ?string
+    {
+        $dimension = self::htmlMetadataAttributeValue($value);
+        if ($dimension === '' || preg_match('/^[0-9]+$/', $dimension) !== 1) {
+            return null;
+        }
+
+        $dimension = ltrim($dimension, '0');
+
+        return $dimension === '' ? '0' : $dimension;
     }
 
     /**
@@ -28165,6 +28571,20 @@ final class XmlHtmlDom
         return $parent instanceof \DOMElement && self::htmlElementName($parent) === $name ? $parent : null;
     }
 
+    private static function ancestorHtmlElement(\DOMElement $element, string $name): ?\DOMElement
+    {
+        $parent = $element->parentNode;
+        while ($parent instanceof \DOMElement) {
+            if (self::htmlElementName($parent) === $name) {
+                return $parent;
+            }
+
+            $parent = $parent->parentNode;
+        }
+
+        return null;
+    }
+
     private static function tableHeaderScope(\DOMElement $header): ?string
     {
         $scope = strtolower(trim($header->getAttribute('scope')));
@@ -28392,6 +28812,93 @@ final class XmlHtmlDom
             'effectiveDisabled' => $record['disabled'],
             'optionGroupLabel' => $record['group'] ?? null,
             'optionGroupDisabled' => $record['groupDisabled'] ?? null,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function selectedContentSummary(\DOMElement $selectedContent): array
+    {
+        $select = self::ancestorHtmlElement($selectedContent, 'select');
+        $button = self::ancestorHtmlElement($selectedContent, 'button');
+        $options = $select instanceof \DOMElement ? self::selectOptionSummaries($select) : [];
+        $selectedOptions = array_values(array_filter(
+            $options,
+            static fn (array $option): bool => (bool) ($option['selected'] ?? false)
+        ));
+        $selectedContents = $select instanceof \DOMElement
+            ? self::descendantHtmlElements($select, 'selectedcontent')
+            : [];
+        $elementIndex = null;
+        foreach ($selectedContents as $index => $candidate) {
+            if ($candidate->isSameNode($selectedContent)) {
+                $elementIndex = $index + 1;
+                break;
+            }
+        }
+
+        $selectedValues = array_values(array_map(
+            static fn (array $option): string => (string) ($option['value'] ?? ''),
+            $selectedOptions
+        ));
+        $selectedLabels = array_values(array_map(
+            static fn (array $option): string => (string) ($option['label'] ?? ''),
+            $selectedOptions
+        ));
+        $selectedTexts = array_values(array_map(
+            static fn (array $option): string => (string) ($option['text'] ?? ''),
+            $selectedOptions
+        ));
+        $issues = [];
+
+        if (!$select instanceof \DOMElement) {
+            $issues[] = ['code' => 'selectedcontent-missing-select-ancestor'];
+        }
+        if (!$select instanceof \DOMElement || !$button instanceof \DOMElement || !self::isDescendantOrSame($button, $select)) {
+            $issues[] = ['code' => 'selectedcontent-outside-select-button'];
+        }
+        if ($select instanceof \DOMElement && count($selectedContents) > 1) {
+            $issues[] = [
+                'code' => 'duplicate-selectedcontent-element',
+                'count' => count($selectedContents),
+            ];
+        }
+        if ($select instanceof \DOMElement && $selectedOptions === []) {
+            $issues[] = ['code' => 'selectedcontent-missing-selected-option'];
+        }
+        if ($select instanceof \DOMElement && !$select->hasAttribute('multiple') && count($selectedOptions) > 1) {
+            $issues[] = [
+                'code' => 'multiple-selected-options-for-single-select',
+                'count' => count($selectedOptions),
+            ];
+        }
+
+        return [
+            'selectedContent' => 'selectedcontent',
+            'selectedContentReviewPolicy' => 'html-select-selectedcontent-review',
+            'selectedContentStaticText' => self::normalizedText($selectedContent),
+            'selectedContentInSelect' => $select instanceof \DOMElement,
+            'selectedContentSelectId' => $select instanceof \DOMElement ? self::attributeOrNull($select, 'id') : null,
+            'selectedContentSelectName' => $select instanceof \DOMElement ? self::attributeOrNull($select, 'name') : null,
+            'selectedContentSelectMultiple' => $select instanceof \DOMElement ? $select->hasAttribute('multiple') : null,
+            'selectedContentInButton' => $button instanceof \DOMElement,
+            'selectedContentButtonText' => $button instanceof \DOMElement ? self::normalizedText($button) : null,
+            'selectedContentElementIndex' => $elementIndex,
+            'selectedContentCount' => count($selectedContents),
+            'selectedContentOptionCount' => count($options),
+            'selectedContentSelectedOptionCount' => count($selectedOptions),
+            'selectedContentSelectedValues' => $selectedValues,
+            'selectedContentSelectedLabels' => $selectedLabels,
+            'selectedContentSelectedTexts' => $selectedTexts,
+            'selectedContentSelectedOptions' => $selectedOptions,
+            'selectedContentEffectiveText' => $selectedTexts === [] ? null : implode(' ', $selectedTexts),
+            'selectedContentIssues' => $issues,
+            'selectedContentIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'selectedContentValid' => $issues === [],
         ];
     }
 

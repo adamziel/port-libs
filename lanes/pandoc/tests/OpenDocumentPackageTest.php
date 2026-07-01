@@ -4176,6 +4176,127 @@ XML;
         $t->same('Heading', $styles['Heading_20_2']['parent']);
         $t->same('Heading 2', $styles['Heading_20_2']['displayName']);
     },
+    'summarizes compact ODT XML document part package provenance without exposing bytes' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $manifest = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.text" manifest:full-path="/" manifest:version="1.3"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="styles.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="meta.xml"/>
+  <manifest:file-entry manifest:media-type="text/xml" manifest:full-path="settings.xml"/>
+</manifest:manifest>
+XML;
+        $content = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:wp="urn:wordpress:review:odf"
+  office:version="1.3"
+  wp:review-state="triaged"
+  xml:lang="en-US">
+  <office:body><office:text><text:p>Document part provenance.</text:p></office:text></office:body>
+</office:document-content>
+XML;
+        $styles = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  office:version="1.3">
+  <office:styles><style:style style:name="ReviewBody" style:family="paragraph"/></office:styles>
+</office:document-styles>
+XML;
+        $meta = <<<'XML'
+<office:document-meta
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0">
+  <office:meta/>
+</office:document-meta>
+XML;
+        $settings = <<<'XML'
+<office:document-settings
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0"
+  xmlns:wp="urn:wordpress:review:settings"
+  office:version="1.2"
+  wp:package-origin="template-import">
+  <office:settings>
+    <config:config-item-set config:name="ooo:view-settings"/>
+  </office:settings>
+</office:document-settings>
+XML;
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            content: $content,
+            styles: $styles,
+            meta: $meta,
+            extraParts: [
+                ['name' => 'settings.xml', 'data' => $settings, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $report = $summary['documentParts'];
+        $itemsByPart = [];
+        foreach ($report['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+        $contentAttributes = [];
+        foreach ($itemsByPart['content.xml']['rootAttributes'] as $attribute) {
+            $contentAttributes[$attribute['name']] = $attribute;
+        }
+        $settingsCustomItems = [];
+        foreach ($report['rootCustomAttributeItems'] as $item) {
+            $settingsCustomItems[$item['part']] = $item;
+        }
+
+        $t->same(4, $report['count']);
+        $t->same(4, $report['declaredCount']);
+        $t->same(4, $report['packagePartCount']);
+        $t->same(0, $report['missingPackagePartCount']);
+        $t->same(0, $report['undeclaredPackagePartCount']);
+        $t->same(3, $report['versionedCount']);
+        $t->same(1, $report['missingVersionCount']);
+        $t->same(['meta.xml'], $report['missingVersionParts']);
+        $t->same(1, $report['versionMismatchCount']);
+        $t->same([
+            [
+                'part' => 'settings.xml',
+                'officeVersion' => '1.2',
+                'manifestVersion' => '1.3',
+            ],
+        ], $report['versionMismatches']);
+        $t->same(['1.2' => 1, '1.3' => 2], $report['versionCounts']);
+        $t->same(2, $report['rootCustomAttributePartCount']);
+        $t->same(3, $report['rootCustomAttributeCount']);
+        $t->same(['wp:package-origin', 'wp:review-state', 'xml:lang'], $report['rootCustomAttributeNames']);
+        $t->same(2, $report['diagnosticCount']);
+        $t->same([
+            'odf-document-part-missing-office-version' => 1,
+            'odf-document-part-version-mismatch' => 1,
+        ], $report['diagnosticCodeCounts']);
+        $t->same('odf-document-part-package-provenance-metadata-only', $report['byteExposurePolicy']);
+        $t->same(false, $report['canExposeBytes']);
+
+        $t->same('document-content', $itemsByPart['content.xml']['rootName']);
+        $t->same(true, $itemsByPart['content.xml']['validRoot']);
+        $t->same(['office:version', 'wp:review-state', 'xml:lang'], $itemsByPart['content.xml']['rootAttributeNames']);
+        $t->same(true, $contentAttributes['office:version']['structural']);
+        $t->same(false, $contentAttributes['wp:review-state']['structural']);
+        $t->same('urn:wordpress:review:odf', $contentAttributes['wp:review-state']['namespaceUri']);
+        $t->same([
+            'wp:review-state' => 'triaged',
+            'xml:lang' => 'en-US',
+        ], $itemsByPart['content.xml']['rootCustomAttributeMap']);
+        $t->same('package-bytes-exposable', $itemsByPart['content.xml']['packageByteExposurePolicy']);
+        $t->same('odf-document-part-package-provenance-metadata-only', $itemsByPart['content.xml']['byteExposurePolicy']);
+        $t->same(false, $itemsByPart['content.xml']['canExposeBytes']);
+
+        $t->same(['odf-document-part-missing-office-version'], $itemsByPart['meta.xml']['diagnostics']);
+        $t->same(['odf-document-part-version-mismatch'], $itemsByPart['settings.xml']['diagnostics']);
+        $t->same(strlen($settings), $itemsByPart['settings.xml']['storedByteLength']);
+        $t->same('stored', $itemsByPart['settings.xml']['compressionMethodName']);
+        $t->same(['wp:package-origin' => 'template-import'], $itemsByPart['settings.xml']['rootCustomAttributeMap']);
+        $t->same('template-import', $settingsCustomItems['settings.xml']['rootCustomAttributeMap']['wp:package-origin']);
+        $t->same('urn:wordpress:review:settings', $settingsCustomItems['settings.xml']['rootNamespaceDeclarationMap']['xmlns:wp']);
+    },
     'preserves ODT meta link policy metadata and repeated keywords' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $meta = <<<'XML'
 <office:document-meta

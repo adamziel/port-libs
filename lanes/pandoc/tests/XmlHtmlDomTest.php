@@ -5453,8 +5453,8 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
     },
     'summarizes html aria reference attributes for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
-            '<section id="region" role="region" aria-labelledby="title missing title" aria-describedby="desc help" aria-controls="panel,ghost" aria-owns="row1 row1 row2" aria-details="details">'
-                . '<h2 id="title">Title</h2><p id="desc">Description</p><p id="help">Help</p><div id="panel"></div><aside id="details"></aside><span id="row1"></span></section>'
+            '<section id="region" role="region" aria-labelledby="title missing title" aria-describedby="desc help dup" aria-controls="panel,ghost" aria-owns="row1 row1 row2" aria-details="details">'
+                . '<h2 id="title">Title</h2><p id="desc">Description</p><p id="help">Help</p><p id="dup">First duplicate</p><p id="dup">Second duplicate</p><div id="panel"></div><aside id="details"></aside><span id="row1"></span></section>'
                 . '<button id="active" aria-activedescendant="item-1 item-2" aria-errormessage="error" aria-flowto="next-step missing-flow">Next</button><span id="item-1"></span><p id="next-step"></p>',
             'ARIA reference review fragment'
         );
@@ -5472,32 +5472,47 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['region'], $region['roles']);
         $t->same([
             'aria-controls' => 'panel,ghost',
-            'aria-describedby' => 'desc help',
+            'aria-describedby' => 'desc help dup',
             'aria-details' => 'details',
             'aria-labelledby' => 'title missing title',
             'aria-owns' => 'row1 row1 row2',
         ], $region['ariaAttributes']);
         $t->same(['aria-controls', 'aria-describedby', 'aria-details', 'aria-labelledby', 'aria-owns'], $region['ariaReferenceAttributes']);
         $t->same(5, $region['ariaReferenceCount']);
+        $t->same(false, $region['ariaReferencesResolved']);
         $t->same([
-            'raw' => 'title missing title',
-            'multiple' => true,
-            'tokens' => ['title', 'missing', 'title'],
-            'ids' => ['title', 'missing'],
-            'duplicateIds' => ['title'],
-            'invalidTokens' => [],
-            'presentIds' => ['title'],
-            'missingIds' => ['missing'],
-            'valid' => true,
-            'resolved' => false,
-        ], $region['ariaReferences']['aria-labelledby']);
-        $t->same(['desc', 'help'], $region['ariaReferences']['aria-describedby']['presentIds']);
+            'invalid-aria-reference-token',
+            'duplicate-aria-reference-target-id',
+            'missing-aria-reference-target',
+            'duplicate-aria-reference-token',
+        ], $region['ariaReferenceIssueCodes']);
+        $t->same(['title', 'missing'], $region['ariaReferences']['aria-labelledby']['ids']);
+        $t->same(['title'], $region['ariaReferences']['aria-labelledby']['duplicateIds']);
+        $t->same(['title'], $region['ariaReferences']['aria-labelledby']['presentIds']);
+        $t->same(['missing'], $region['ariaReferences']['aria-labelledby']['missingIds']);
+        $t->same(['Title', 'Title'], array_map(
+            static fn (array $target): string => $target['text'],
+            $region['ariaReferences']['aria-labelledby']['targets']
+        ));
+        $t->same('missing-target', $region['ariaReferences']['aria-labelledby']['references'][1]['state']);
+        $t->same(true, $region['ariaReferences']['aria-labelledby']['references'][2]['duplicateToken']);
+        $t->same(['missing-aria-reference-target', 'duplicate-aria-reference-token'], $region['ariaReferences']['aria-labelledby']['issueCodes']);
+        $t->same(['desc', 'help', 'dup'], $region['ariaReferences']['aria-describedby']['presentIds']);
         $t->same([], $region['ariaReferences']['aria-describedby']['missingIds']);
-        $t->same(true, $region['ariaReferences']['aria-describedby']['resolved']);
+        $t->same(['dup'], $region['ariaReferences']['aria-describedby']['duplicateTargetIds']);
+        $t->same(['Description', 'Help', 'First duplicate', 'Second duplicate'], array_map(
+            static fn (array $target): string => $target['text'],
+            $region['ariaReferences']['aria-describedby']['targets']
+        ));
+        $t->same('duplicate-target-id', $region['ariaReferences']['aria-describedby']['references'][2]['targetState']);
+        $t->same(['duplicate-aria-reference-target-id'], $region['ariaReferences']['aria-describedby']['issueCodes']);
+        $t->same(false, $region['ariaReferences']['aria-describedby']['resolved']);
         $t->same(['panel,ghost'], $region['ariaReferences']['aria-controls']['invalidTokens']);
         $t->same([], $region['ariaReferences']['aria-controls']['ids']);
         $t->same(false, $region['ariaReferences']['aria-controls']['valid']);
         $t->same(['details'], $region['ariaReferences']['aria-details']['presentIds']);
+        $t->same('aside', $region['ariaReferences']['aria-details']['references'][0]['targetElementName']);
+        $t->same('details', $region['ariaReferences']['aria-details']['references'][0]['targetId']);
         $t->same(true, $region['ariaReferences']['aria-details']['resolved']);
         $t->same(['row1', 'row2'], $region['ariaReferences']['aria-owns']['ids']);
         $t->same(['row1'], $region['ariaReferences']['aria-owns']['duplicateIds']);
@@ -5510,13 +5525,17 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(['item-2'], $button['ariaReferences']['aria-activedescendant']['missingIds']);
         $t->same(false, $button['ariaReferences']['aria-activedescendant']['valid']);
         $t->same(false, $button['ariaReferences']['aria-activedescendant']['resolved']);
+        $t->same(['missing-aria-reference-target', 'multiple-aria-reference-tokens'], $button['ariaReferences']['aria-activedescendant']['issueCodes']);
         $t->same(['error'], $button['ariaReferences']['aria-errormessage']['missingIds']);
         $t->same(true, $button['ariaReferences']['aria-errormessage']['valid']);
         $t->same(['next-step'], $button['ariaReferences']['aria-flowto']['presentIds']);
         $t->same(['missing-flow'], $button['ariaReferences']['aria-flowto']['missingIds']);
         $t->same(false, $button['ariaReferences']['aria-flowto']['resolved']);
+        $t->same(false, $button['ariaReferencesResolved']);
+        $t->same(['item-1', 'next-step'], $button['ariaReferenceTargetIds']);
+        $t->same(['item-2', 'error', 'missing-flow'], $button['ariaReferenceMissingIds']);
 
-        $t->same('<section aria-controls="panel,ghost" aria-describedby="desc help" aria-details="details" aria-labelledby="title missing title" aria-owns="row1 row1 row2" id="region" role="region"><h2 id="title">Title</h2><p id="desc">Description</p><p id="help">Help</p><div id="panel"></div><aside id="details"></aside><span id="row1"></span></section><button aria-activedescendant="item-1 item-2" aria-errormessage="error" aria-flowto="next-step missing-flow" id="active">Next</button><span id="item-1"></span><p id="next-step"></p>', $html);
+        $t->same('<section aria-controls="panel,ghost" aria-describedby="desc help dup" aria-details="details" aria-labelledby="title missing title" aria-owns="row1 row1 row2" id="region" role="region"><h2 id="title">Title</h2><p id="desc">Description</p><p id="help">Help</p><p id="dup">First duplicate</p><p id="dup">Second duplicate</p><div id="panel"></div><aside id="details"></aside><span id="row1"></span></section><button aria-activedescendant="item-1 item-2" aria-errormessage="error" aria-flowto="next-step missing-flow" id="active">Next</button><span id="item-1"></span><p id="next-step"></p>', $html);
         $t->contains($html, $blocks);
         $t->same('/migration/aria-reference-review.html', $document->children[0]->attr('part'));
     },

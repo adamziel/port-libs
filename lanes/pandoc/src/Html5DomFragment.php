@@ -138,6 +138,8 @@ final class Html5DomFragment
         private readonly string $mode,
         array $nodes,
         array $diagnostics,
+        private readonly int $sourceBytes,
+        private readonly string $sourceSha256,
         private readonly ?string $baseUrl = null,
     ) {
         $this->nodes = $nodes;
@@ -169,6 +171,8 @@ final class Html5DomFragment
             'html',
             $nodes,
             $diagnostics,
+            strlen($html),
+            hash('sha256', $html),
             $resolvedBaseUrl
         );
     }
@@ -184,7 +188,13 @@ final class Html5DomFragment
             throw new \InvalidArgumentException('Unable to parse XML fragment wrapper');
         }
 
-        return new self('xml', self::normalizeChildren($wrapper, 'xml', $diagnostics), $diagnostics);
+        return new self(
+            'xml',
+            self::normalizeChildren($wrapper, 'xml', $diagnostics),
+            $diagnostics,
+            strlen($xml),
+            hash('sha256', $xml)
+        );
     }
 
     public function serialize(): string
@@ -194,10 +204,12 @@ final class Html5DomFragment
 
     public function toRawHtmlAst(array $attrs = []): AstNode
     {
+        $html = $this->serialize();
         $rawAttrs = array_merge($attrs, [
             'format' => $this->mode === 'xml' ? 'xml' : 'html',
-            'html' => $this->serialize(),
+            'html' => $html,
             'diagnostics' => $this->diagnostics,
+            'fragmentProvenance' => $this->provenanceForSerialized($html),
         ]);
         if ($this->baseUrl !== null) {
             $rawAttrs['baseUrl'] = $this->baseUrl;
@@ -230,6 +242,24 @@ final class Html5DomFragment
     public function baseUrl(): ?string
     {
         return $this->baseUrl;
+    }
+
+    /**
+     * @return array{
+     *     sourceFormat:string,
+     *     sourceBytes:int,
+     *     sourceSha256:string,
+     *     serializedBytes:int,
+     *     serializedSha256:string,
+     *     serializedChanged:bool,
+     *     diagnosticCount:int,
+     *     diagnosticCodes:list<string>,
+     *     baseUrl:string|null
+     * }
+     */
+    public function provenance(): array
+    {
+        return $this->provenanceForSerialized($this->serialize());
     }
 
     /**
@@ -296,6 +326,37 @@ final class Html5DomFragment
             'elementNames' => $elementNames,
             'blockedTags' => $blockedTags,
             'filteredAttributes' => $filteredAttributes,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     sourceFormat:string,
+     *     sourceBytes:int,
+     *     sourceSha256:string,
+     *     serializedBytes:int,
+     *     serializedSha256:string,
+     *     serializedChanged:bool,
+     *     diagnosticCount:int,
+     *     diagnosticCodes:list<string>,
+     *     baseUrl:string|null
+     * }
+     */
+    private function provenanceForSerialized(string $serialized): array
+    {
+        $serializedBytes = strlen($serialized);
+        $serializedSha256 = hash('sha256', $serialized);
+
+        return [
+            'sourceFormat' => $this->mode === 'xml' ? 'xml' : 'html',
+            'sourceBytes' => $this->sourceBytes,
+            'sourceSha256' => $this->sourceSha256,
+            'serializedBytes' => $serializedBytes,
+            'serializedSha256' => $serializedSha256,
+            'serializedChanged' => $this->sourceBytes !== $serializedBytes || $this->sourceSha256 !== $serializedSha256,
+            'diagnosticCount' => count($this->diagnostics),
+            'diagnosticCodes' => $this->diagnosticCodes(),
+            'baseUrl' => $this->baseUrl,
         ];
     }
 

@@ -13201,6 +13201,7 @@ final class ZipPackage
         $localRecordBytes = 0;
         $dataDescriptorEntryCount = 0;
         $dataDescriptorBytes = 0;
+        $compressionMethodSummaries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -13263,6 +13264,34 @@ final class ZipPackage
                 'sha256',
                 substr($this->bytes, $entry->localHeaderOffset, $localRecordLength)
             );
+            $compressionMethodKey = (string) $entry->compressionMethod;
+            if (!isset($compressionMethodSummaries[$compressionMethodKey])) {
+                $compressionMethodSummaries[$compressionMethodKey] = [
+                    'compressionMethod' => $entry->compressionMethod,
+                    'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                ];
+            }
+            ++$compressionMethodSummaries[$compressionMethodKey]['entryCount'];
+            if ($isDirectory) {
+                ++$compressionMethodSummaries[$compressionMethodKey]['directoryEntryCount'];
+            } else {
+                ++$compressionMethodSummaries[$compressionMethodKey]['fileEntryCount'];
+            }
+            $compressionMethodSummaries[$compressionMethodKey]['compressedBytes'] += $entry->compressedSize;
+            $compressionMethodSummaries[$compressionMethodKey]['uncompressedBytes'] += $entry->uncompressedSize;
+            $compressionMethodSummaries[$compressionMethodKey]['localRecordBytes'] += $localRecordLength;
+            if ($usesDataDescriptor) {
+                ++$compressionMethodSummaries[$compressionMethodKey]['dataDescriptorEntryCount'];
+                $compressionMethodSummaries[$compressionMethodKey]['dataDescriptorBytes'] += $dataDescriptorLength;
+            }
             $centralDirectoryRecordSha256 = null;
             if ($entry->centralDirectoryRecordOffset !== null && $entry->centralDirectoryRecordEnd !== null) {
                 $centralDirectoryRecordBytes = $entry->centralDirectoryRecordEnd - $entry->centralDirectoryRecordOffset;
@@ -13326,6 +13355,8 @@ final class ZipPackage
 
         $centralDirectoryOrderNames = $this->names();
         $localHeaderOrderNames = $this->localNames();
+        ksort($compressionMethodSummaries, SORT_NUMERIC);
+        $compressionMethodSummaries = array_values($compressionMethodSummaries);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'archiveBytes' => $archiveBytes,
@@ -13341,6 +13372,7 @@ final class ZipPackage
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
+            'compressionMethodSummaries' => $compressionMethodSummaries,
             'entries' => $manifestEntries,
         ];
         $manifestJson = json_encode(
@@ -13377,6 +13409,8 @@ final class ZipPackage
             'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
             'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
+            'compressionMethodSummaryCount' => count($compressionMethodSummaries),
+            'compressionMethodSummaries' => $compressionMethodSummaries,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,

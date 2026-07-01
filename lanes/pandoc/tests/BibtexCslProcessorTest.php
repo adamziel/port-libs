@@ -1793,6 +1793,143 @@ XML);
         $t->contains('<p>Review hierarchy [Critic | Source Manual: Field Appendix | migration handbook | Collected Review Set: Legacy Volume | archive set | Volume Packet: Review Notes | Vol. Pkt. | Part Source: Chapter Notes | Special Issue: Audit Week | guest-edited dossier] stays visible.</p>', $blocks);
         $t->contains('<dt>Critic 2026</dt><dd>Legacy Review Packet :: Source Manual: Field Appendix :: migration handbook :: Collected Review Set: Legacy Volume :: archive set :: Volume Packet: Review Notes :: Vol. Pkt. :: Part Source: Chapter Notes :: Special Issue: Audit Week :: guest-edited dossier</dd>', $blocks);
     },
+    'carries biblatex publication detail aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@inbook{legacy-publication-details,
+  author         = {Ng, Nia},
+  title          = {Publication Detail Packet},
+  booktitle      = {Source Review Handbook},
+  date           = {2026},
+  pages          = {101--118},
+  pagination     = {section},
+  bookpagination = {chapter},
+  part           = {B},
+  printingnumber = {3},
+  references     = {Legacy Packet A; Legacy Packet B},
+  dimensions     = {21 cm},
+  division       = {Part II},
+  scale          = {1:24000},
+  type           = {review catalog},
+  entrysubtype   = {migration appendix}
+}
+
+@book{legacy-hyphen-publication-details,
+  title           = {Hyphenated Publication Detail Packet},
+  date            = {2025},
+  book-pagination = {folio},
+  part-number     = {7},
+  printing-number = {2},
+  dimension       = {folded map},
+  subdivision     = {Appendix}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-publication-details'];
+        $hyphen = $items['legacy-hyphen-publication-details'];
+
+        $t->same(['legacy-publication-details', 'legacy-hyphen-publication-details'], array_keys($items));
+        $t->same('section', $item['pagination']);
+        $t->same('chapter', $item['book-pagination']);
+        $t->same('B', $item['part']);
+        $t->same('3', $item['printing-number']);
+        $t->same('Legacy Packet A; Legacy Packet B', $item['references']);
+        $t->same('21 cm', $item['dimensions']);
+        $t->same('Part II', $item['division']);
+        $t->same('1:24000', $item['scale']);
+        $t->same('review catalog', $item['genre']);
+        $t->same('migration appendix', $item['entry-subtype']);
+        $t->same('chapter', $item['rawBibtex']['fields']['bookpagination']);
+        $t->same('3', $item['rawBibtex']['fields']['printingnumber']);
+        $t->same('folio', $hyphen['book-pagination']);
+        $t->same('7', $hyphen['part']);
+        $t->same('2', $hyphen['printing-number']);
+        $t->same('folded map', $hyphen['dimensions']);
+        $t->same('Appendix', $hyphen['division']);
+        $t->same('folio', $hyphen['rawBibtex']['fields']['book-pagination']);
+        $t->same('Appendix', $hyphen['rawBibtex']['fields']['subdivision']);
+        $t->same(
+            'Nia Ng. Publication Detail Packet. Source Review Handbook. 2026. 101-118. Pagination: section. Book pagination: chapter. Part: B. Printing number: 3. References: Legacy Packet A; Legacy Packet B. Dimensions: 21 cm. Division: Part II. Scale: 1:24000. Entry subtype: migration appendix.',
+            $processor->renderBibliographyText($item)
+        );
+        $t->same(
+            'Hyphenated Publication Detail Packet. 2025. Book pagination: folio. Part: 7. Printing number: 2. Dimensions: folded map. Division: Appendix.',
+            $processor->renderBibliographyText($hyphen)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Publication Detail Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-publication-detail-review</id>
+    <updated>2026-06-30T23:30:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="pagination"/>
+        <text variable="book-pagination"/>
+        <text variable="part"/>
+        <text variable="printing-number"/>
+        <text variable="references"/>
+        <text variable="dimensions"/>
+        <text variable="division"/>
+        <text variable="scale"/>
+        <text variable="entry-subtype"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="pagination"/>
+      <text variable="book-pagination"/>
+      <text variable="part"/>
+      <text variable="printing-number"/>
+      <text variable="references"/>
+      <text variable="dimensions"/>
+      <text variable="division"/>
+      <text variable="scale"/>
+      <text variable="entry-subtype"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('legacy-publication-details');
+        $t->same('Bounded Legacy BibLaTeX Publication Detail Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('section', $normalized['pagination'] ?? null);
+        $t->same('chapter', $normalized['bookPagination'] ?? null);
+        $t->same('B', $normalized['part'] ?? null);
+        $t->same('3', $normalized['printingNumber'] ?? null);
+        $t->same('Legacy Packet A; Legacy Packet B', $normalized['references'] ?? null);
+        $t->same('21 cm', $normalized['dimensions'] ?? null);
+        $t->same('Part II', $normalized['division'] ?? null);
+        $t->same('1:24000', $normalized['scale'] ?? null);
+        $t->same('migration appendix', $normalized['entrySubtype'] ?? null);
+        $t->same('[Publication Detail Packet | section | chapter | B | 3 | Legacy Packet A; Legacy Packet B | 21 cm | Part II | 1:24000 | migration appendix; Hyphenated Publication Detail Packet | folio | 7 | 2 | folded map | Appendix]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-publication-details', 'text' => '[@legacy-publication-details]']),
+            new AstNode('citation', ['id' => 'legacy-hyphen-publication-details', 'text' => '[@legacy-hyphen-publication-details]']),
+        ]));
+        $t->same('Publication Detail Packet :: section :: chapter :: B :: 3 :: Legacy Packet A; Legacy Packet B :: 21 cm :: Part II :: 1:24000 :: migration appendix', $styled->renderBibliographyEntry('legacy-publication-details'));
+        $t->same('Hyphenated Publication Detail Packet :: folio :: 7 :: 2 :: folded map :: Appendix', $styled->renderBibliographyEntry('legacy-hyphen-publication-details'));
+
+        $document = (new MarkdownReader())->read('Legacy publication details [@legacy-publication-details; @legacy-hyphen-publication-details] stay visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $directBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+        $styledBlocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-publication-details', 'legacy-hyphen-publication-details'], $handoff['citedKeys']);
+        $t->same('chapter', $handoff['bibliography']->children[0]->attr('cslItem')['book-pagination'] ?? null);
+        $t->contains('Pagination: section. Book pagination: chapter. Part: B. Printing number: 3.', $directBlocks);
+        $t->contains('References: Legacy Packet A; Legacy Packet B. Dimensions: 21 cm. Division: Part II. Scale: 1:24000.', $directBlocks);
+        $t->contains('<p>Legacy publication details [Publication Detail Packet | section | chapter | B | 3 | Legacy Packet A; Legacy Packet B | 21 cm | Part II | 1:24000 | migration appendix; Hyphenated Publication Detail Packet | folio | 7 | 2 | folded map | Appendix] stay visible.</p>', $styledBlocks);
+        $t->contains('<dd>Publication Detail Packet :: section :: chapter :: B :: 3 :: Legacy Packet A; Legacy Packet B :: 21 cm :: Part II :: 1:24000 :: migration appendix</dd>', $styledBlocks);
+        $t->contains('<dd>Hyphenated Publication Detail Packet :: folio :: 7 :: 2 :: folded map :: Appendix</dd>', $styledBlocks);
+    },
     'inherits legacy biblatex crossref and xdata metadata into csl items' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @xdata{shared-review-source,
