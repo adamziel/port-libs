@@ -19086,10 +19086,7 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('tabindex', $attributes)) {
-            $summary['tabIndexRaw'] = $attributes['tabindex'];
-            $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
-            $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
-            $summary['tabIndexIssueCodes'] = $summary['tabIndexValid'] ? [] : ['invalid-tabindex-token'];
+            $summary += self::tabIndexReviewSummary($element, $attributes['tabindex']);
         }
 
         $summary += self::focusNavigationReviewSummary($summary, $attributes);
@@ -20274,6 +20271,82 @@ final class XmlHtmlDom
             'true', 'false', 'auto' => $value,
             default => null,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tabIndexReviewSummary(\DOMElement $element, string $raw): array
+    {
+        $trimmed = trim($raw);
+        $valid = $trimmed !== '' && preg_match('/^[+-]?[0-9]+$/', $trimmed) === 1;
+        $tabIndex = $valid ? filter_var($trimmed, FILTER_VALIDATE_INT) : null;
+        if (!is_int($tabIndex)) {
+            $tabIndex = null;
+            $valid = false;
+        }
+
+        $disabledFormControl = self::isFormControlElement($element) && self::isEffectivelyDisabledFormControl($element);
+        $nativeFocusable = self::isNativelyFocusableHtmlElement($element);
+        $focusable = !$disabledFormControl && ($valid || $nativeFocusable);
+        $sequentialFocusable = !$disabledFormControl && ($valid ? $tabIndex >= 0 : $nativeFocusable);
+        $issues = [];
+        if (!$valid) {
+            $issues[] = [
+                'code' => $trimmed === '' ? 'empty-tabindex' : 'invalid-tabindex-integer',
+                'tabIndexRaw' => $raw,
+            ];
+        } elseif ($tabIndex > 0) {
+            $issues[] = [
+                'code' => 'positive-tabindex-focus-order',
+                'tabIndex' => $tabIndex,
+            ];
+        }
+
+        return [
+            'tabIndexReviewPolicy' => 'html-tabindex-focus-order-review',
+            'tabIndexRaw' => $raw,
+            'tabIndex' => $tabIndex,
+            'tabIndexValid' => $valid,
+            'tabIndexNativeFocusable' => $nativeFocusable,
+            'tabIndexDisabledFormControl' => $disabledFormControl,
+            'tabIndexFocusable' => $focusable,
+            'tabIndexSequentialFocusable' => $sequentialFocusable,
+            'tabIndexProgrammaticOnly' => $valid && $tabIndex < 0,
+            'tabIndexPositiveOrder' => $valid && $tabIndex > 0,
+            'tabIndexDocumentOrder' => $valid && $tabIndex === 0,
+            'tabIndexOrderBucket' => $valid
+                ? ($tabIndex < 0 ? 'programmatic-only' : ($tabIndex === 0 ? 'document-order' : 'positive-order'))
+                : 'invalid',
+            'tabIndexIssues' => $issues,
+            'tabIndexIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            )),
+        ];
+    }
+
+    private static function isNativelyFocusableHtmlElement(\DOMElement $element): bool
+    {
+        $name = self::htmlElementName($element);
+        if (($name === 'a' || $name === 'area') && self::attributeOrNull($element, 'href') !== null) {
+            return true;
+        }
+        if (in_array($name, ['button', 'input', 'select', 'textarea'], true)) {
+            return !self::isEffectivelyDisabledFormControl($element);
+        }
+        if (in_array($name, ['iframe', 'object', 'embed'], true)) {
+            return true;
+        }
+        if (($name === 'audio' || $name === 'video') && $element->hasAttribute('controls')) {
+            return true;
+        }
+        $parent = $element->parentNode;
+        if ($name === 'summary' && $parent instanceof \DOMElement && self::htmlElementName($parent) === 'details') {
+            return true;
+        }
+
+        return false;
     }
 
     /**

@@ -34,7 +34,7 @@ return [
 
         $t->same('html-focus-navigation-review', $button['focusNavigationReviewPolicy']);
         $t->same(['accesskey', 'autofocus', 'tabindex'], $button['focusNavigationAttributes']);
-        $t->same(['duplicate-accesskey-token', 'document-accesskey-conflict', 'multiple-autofocus-candidates'], $button['focusNavigationIssueCodes']);
+        $t->same(['duplicate-accesskey-token', 'document-accesskey-conflict', 'positive-tabindex-focus-order', 'multiple-autofocus-candidates'], $button['focusNavigationIssueCodes']);
         $t->same('s s', $button['accessKeyRaw']);
         $t->same(['s', 's'], $button['accessKeyTokens']);
         $t->same(['s'], $button['accessKeys']);
@@ -52,6 +52,7 @@ return [
         $t->same(['save', 'search'], $button['accessKeyCollisions'][0]['candidateIds']);
         $t->same(1, $button['tabIndex']);
         $t->same(true, $button['tabIndexValid']);
+        $t->same(['positive-tabindex-focus-order'], $button['tabIndexIssueCodes']);
         $t->same('document-autofocus-candidate-review', $button['autofocusReviewPolicy']);
         $t->same(3, $button['autofocusCandidateCount']);
         $t->same(0, $button['autofocusIndex']);
@@ -87,9 +88,10 @@ return [
         $t->same('search', $input['autofocusPreviousCandidate']['id']);
 
         $t->same(['tabindex'], $panel['focusNavigationAttributes']);
-        $t->same([], $panel['focusNavigationIssueCodes']);
+        $t->same(['positive-tabindex-focus-order'], $panel['focusNavigationIssueCodes']);
         $t->same(40000, $panel['tabIndex']);
         $t->same(true, $panel['tabIndexValid']);
+        $t->same(['positive-tabindex-focus-order'], $panel['tabIndexIssueCodes']);
 
         $t->same(
             '<section id="shell"><button accesskey="s s" autofocus id="save" tabindex="1">Save</button><a accesskey="s f" autofocus href="/find" id="search" tabindex="-1">Search</a><input accesskey="long {bad}" autofocus id="name" name="customer" value="Ada"><div id="panel" tabindex="40000">Panel</div></section>',
