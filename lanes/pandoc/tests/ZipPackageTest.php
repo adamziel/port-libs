@@ -11363,6 +11363,7 @@ return [
     'summarizes selected zip data descriptor review issues before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $commentsXml = '<w:comments><w:comment>descriptor issue rollup</w:comment></w:comments>';
         $footnotesXml = '<w:footnotes><w:footnote>descriptor issue rollup</w:footnote></w:footnotes>';
+        $commentsCompressedSize = strlen(gzdeflate($commentsXml));
         $package = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
@@ -11396,11 +11397,94 @@ return [
         $t->same(0, $summary['selectedDataDescriptorIssueEntryCount']);
         $t->same([], $summary['selectedDataDescriptorIssues']);
         $t->same([], $summary['selectedDataDescriptorIssueEntries']);
+        $t->same(3, $summary['selectedDataDescriptorReviewIssueCount']);
+        $t->same([
+            'data-descriptor-entry',
+            'signed-data-descriptor-entry',
+            'unsigned-data-descriptor-entry',
+        ], $summary['selectedDataDescriptorReviewIssues']);
+        $t->same([
+            'data-descriptor-entry' => ['word/comments.xml', 'word/footnotes.xml'],
+            'signed-data-descriptor-entry' => ['word/comments.xml'],
+            'unsigned-data-descriptor-entry' => ['word/footnotes.xml'],
+        ], $summary['selectedDataDescriptorEntryNamesByReviewIssue']);
+        $t->same(3, $summary['selectedDataDescriptorReviewIssueSummaryCount']);
 
         $commentsEntry = $summary['entries'][1];
         $footnotesEntry = $summary['entries'][2];
         $documentEntry = $summary['entries'][0];
         $missingEntry = $summary['entries'][3];
+        $reviewIssueSummaries = array_column(
+            $summary['selectedDataDescriptorReviewIssueSummaries'],
+            null,
+            'issue'
+        );
+        $t->same([
+            'issue' => 'data-descriptor-entry',
+            'entryCount' => 2,
+            'entryNames' => ['word/comments.xml', 'word/footnotes.xml'],
+            'signedEntryCount' => 1,
+            'unsignedEntryCount' => 1,
+            'zip64SizedEntryCount' => 0,
+            'zeroLocalHeaderPlaceholderEntryCount' => 2,
+            'centralValueMatchEntryCount' => 2,
+            'descriptorBytes' => 28,
+            'descriptorSpanBytes' => 28,
+            'surplusDescriptorBytes' => 0,
+            'truncatedDescriptorBytes' => 0,
+            'compressedBytes' => $commentsCompressedSize + strlen($footnotesXml),
+            'uncompressedBytes' => strlen($commentsXml) + strlen($footnotesXml),
+            'descriptorOffsets' => [
+                $commentsEntry['dataDescriptorOffset'],
+                $footnotesEntry['dataDescriptorOffset'],
+            ],
+            'descriptorValueOffsets' => [
+                $commentsEntry['dataDescriptorValueOffset'],
+                $footnotesEntry['dataDescriptorValueOffset'],
+            ],
+            'descriptorEnds' => [
+                $commentsEntry['dataDescriptorEnd'],
+                $footnotesEntry['dataDescriptorEnd'],
+            ],
+        ], $reviewIssueSummaries['data-descriptor-entry']);
+        $t->same([
+            'issue' => 'signed-data-descriptor-entry',
+            'entryCount' => 1,
+            'entryNames' => ['word/comments.xml'],
+            'signedEntryCount' => 1,
+            'unsignedEntryCount' => 0,
+            'zip64SizedEntryCount' => 0,
+            'zeroLocalHeaderPlaceholderEntryCount' => 1,
+            'centralValueMatchEntryCount' => 1,
+            'descriptorBytes' => 16,
+            'descriptorSpanBytes' => 16,
+            'surplusDescriptorBytes' => 0,
+            'truncatedDescriptorBytes' => 0,
+            'compressedBytes' => $commentsCompressedSize,
+            'uncompressedBytes' => strlen($commentsXml),
+            'descriptorOffsets' => [$commentsEntry['dataDescriptorOffset']],
+            'descriptorValueOffsets' => [$commentsEntry['dataDescriptorValueOffset']],
+            'descriptorEnds' => [$commentsEntry['dataDescriptorEnd']],
+        ], $reviewIssueSummaries['signed-data-descriptor-entry']);
+        $t->same([
+            'issue' => 'unsigned-data-descriptor-entry',
+            'entryCount' => 1,
+            'entryNames' => ['word/footnotes.xml'],
+            'signedEntryCount' => 0,
+            'unsignedEntryCount' => 1,
+            'zip64SizedEntryCount' => 0,
+            'zeroLocalHeaderPlaceholderEntryCount' => 1,
+            'centralValueMatchEntryCount' => 1,
+            'descriptorBytes' => 12,
+            'descriptorSpanBytes' => 12,
+            'surplusDescriptorBytes' => 0,
+            'truncatedDescriptorBytes' => 0,
+            'compressedBytes' => strlen($footnotesXml),
+            'uncompressedBytes' => strlen($footnotesXml),
+            'descriptorOffsets' => [$footnotesEntry['dataDescriptorOffset']],
+            'descriptorValueOffsets' => [$footnotesEntry['dataDescriptorValueOffset']],
+            'descriptorEnds' => [$footnotesEntry['dataDescriptorEnd']],
+        ], $reviewIssueSummaries['unsigned-data-descriptor-entry']);
 
         $t->same(null, $documentEntry['dataDescriptorValuesMatchCentral']);
         $t->same([], $documentEntry['dataDescriptorIssues']);

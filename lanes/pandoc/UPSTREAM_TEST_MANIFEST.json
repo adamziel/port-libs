@@ -2,6 +2,8 @@
     "schemaVersion": 1,
     "lane": "pandoc",
     "priority": 6,
+    "mappedZipSelectedDataDescriptorReviewIssueCases": 1,
+    "zipSelectedDataDescriptorReviewIssueAssertions": 7,
     "upstream": {
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",
