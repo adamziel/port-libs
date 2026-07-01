@@ -337,6 +337,18 @@ final class PptxWriter
             return $shapes;
         }
 
+        if ($block->type === 'raw_block' && $this->isOpenXmlRaw($block)) {
+            $xml = $this->rawOpenXml($block);
+            if ($xml === '') {
+                return [];
+            }
+
+            $this->advanceShapeIdPastRawOpenXml($xml, $shapeId);
+            $slot++;
+
+            return [$this->indentRawOpenXml($xml, 4)];
+        }
+
         if ($block->type === 'table') {
             return [$this->tableShapeXml($block, $shapeId++, $slot++)];
         }
@@ -422,6 +434,43 @@ final class PptxWriter
             . '    </p:sp>';
     }
 
+    private function isOpenXmlRaw(AstNode $node): bool
+    {
+        return $this->rawFormatBase((string) $node->attr('format', '')) === 'openxml';
+    }
+
+    private function rawOpenXml(AstNode $node): string
+    {
+        return trim((string) $node->attr('text', ''));
+    }
+
+    private function rawFormatBase(string $format): string
+    {
+        $format = strtolower(trim($format));
+        $format = str_replace('-', '+', $format);
+
+        return explode('+', $format, 2)[0];
+    }
+
+    private function indentRawOpenXml(string $xml, int $spaces): string
+    {
+        $prefix = str_repeat(' ', $spaces);
+
+        return $prefix . str_replace("\n", "\n" . $prefix, trim($xml));
+    }
+
+    private function advanceShapeIdPastRawOpenXml(string $xml, int &$shapeId): void
+    {
+        $nextId = $shapeId + 1;
+        if (preg_match_all('/<(?:\w+:)?cNvPr\b[^>]*\bid\s*=\s*(["\'])(\d+)\1/', $xml, $matches) !== false) {
+            foreach ($matches[2] ?? [] as $id) {
+                $nextId = max($nextId, ((int) $id) + 1);
+            }
+        }
+
+        $shapeId = $nextId;
+    }
+
     /**
      * @param list<AstNode> $inlines
      * @param array{bullet?:bool, ordered?:bool, level?:int, start?:int} $properties
@@ -490,6 +539,19 @@ final class PptxWriter
                     $code = (string) $inline->attr('text', '');
                     if ($code !== '') {
                         $runs[] = $this->runXml($code, $style);
+                    }
+                    break;
+                case 'raw_inline':
+                    if ($this->isOpenXmlRaw($inline)) {
+                        $xml = $this->rawOpenXml($inline);
+                        if ($xml !== '') {
+                            $runs[] = $xml;
+                        }
+                        break;
+                    }
+                    $text = $this->inlineText([$inline]);
+                    if ($text !== '') {
+                        $runs[] = $this->runXml($text, $style);
                     }
                     break;
                 case 'span':

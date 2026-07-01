@@ -92,6 +92,12 @@ Pandoc (Meta {unMeta = fromList [("author",MetaInlines [Str "Jesse",Space,Str "R
 ,Para [Str "And",Space,Str "a",Space,Str "new",Space,Str "slide."]]
 NATIVE;
 
+$upstreamRawOpenXmlNative = <<<'NATIVE'
+[Para [Str "Here",Space,Str "is",Space,Str "some",Space,Str "text,",Space,Str "written",Space,Str "as",Space,Str "a",Space,Str "raw",Space,Str "inline:",Space,RawInline (Format "openxml") "<a:r><a:rPr /><a:t>Here are examples of </a:t></a:r><a:r><a:rPr i=\"1\" /><a:t>italics</a:t></a:r><a:r><a:rPr /><a:t>, </a:t></a:r><a:r><a:rPr b=\"1\" /><a:t>bold</a:t></a:r>"]
+,HorizontalRule
+,RawBlock (Format "openxml") "<p:sp>\n        <p:nvSpPr>\n          <p:cNvPr id=\"3\" name=\"Content Placeholder 2\" />\n          <p:cNvSpPr>\n            <a:spLocks noGrp=\"1\" />\n          </p:cNvSpPr>\n          <p:nvPr>\n            <p:ph idx=\"1\" />\n          </p:nvPr>\n        </p:nvSpPr>\n        <p:spPr />\n        <p:txBody>\n          <a:bodyPr />\n          <a:lstStyle />\n          <a:p>\n            <a:pPr lvl=\"1\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Bulleted bulleted lists.</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"1\" />\n            <a:r>\n              <a:rPr />\n              <a:t>And go to arbitrary depth.</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"2\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Like this</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"3\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Or this</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"2\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Back to here.</a:t>\n            </a:r>\n          </a:p>\n        </p:txBody>\n      </p:sp>"]
+NATIVE;
+
 $collectText = static function (AstNode $node) use (&$collectText): string {
     $text = '';
     if (isset($node->attrs['text']) && is_scalar($node->attrs['text'])) {
@@ -284,6 +290,34 @@ return [
         $t->contains('metadata.', $notes);
         $t->contains('relationships/notesSlide', $package->read('ppt/slides/_rels/slide1.xml.rels'));
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'passes upstream raw OpenXML fixture through generated slide XML' => static function (TestRunner $t) use ($upstreamRawOpenXmlNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamRawOpenXmlNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected first raw OpenXML slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected horizontal-rule split slide');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'Raw OpenXML fixture should produce exactly two slides');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Here are examples of </a:t>', $slide1);
+        $t->contains('<a:rPr i="1" />', $slide1);
+        $t->contains('<a:t>italics</a:t>', $slide1);
+        $t->contains('<a:rPr b="1" />', $slide1);
+        $t->contains('<a:t>bold</a:t>', $slide1);
+        $t->true(!str_contains($slide1, '&lt;a:r'), 'Raw inline OpenXML must not be XML-escaped');
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $t->contains('<p:sp>', $slide2);
+        $t->contains('<a:t>Bulleted bulleted lists.</a:t>', $slide2);
+        $t->contains('<a:t>And go to arbitrary depth.</a:t>', $slide2);
+        $t->contains('<a:t>Like this</a:t>', $slide2);
+        $t->contains('<a:t>Or this</a:t>', $slide2);
+        $t->contains('<a:t>Back to here.</a:t>', $slide2);
+        $t->true(!str_contains($slide2, '&lt;p:sp'), 'Raw block OpenXML must not be XML-escaped');
+        $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
     },
 
     'rejects non-document roots' => static function (TestRunner $t): void {
