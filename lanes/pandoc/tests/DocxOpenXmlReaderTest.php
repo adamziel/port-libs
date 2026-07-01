@@ -4574,6 +4574,14 @@ XML;
         $t->same(2, $contentTypesPart['unusedOverrideDeclarationCount']);
         $t->same(4, $contentTypesPart['invalidOverrideDeclarationCount']);
         $t->same(['word/_rels/missing-preview.xml.rels', 'word/missing-preview.xml'], $contentTypesPart['unusedOverridePartNames']);
+        $t->same(2, $contentTypesPart['parameterizedOverrideDeclarationCount']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 2,
+            'application/xml' => 3,
+        ], $contentTypesPart['overrideDeclarationContentTypeBaseCounts']);
+        $t->same(['profile' => 2], $contentTypesPart['overrideDeclarationContentTypeParameterNameCounts']);
         $t->same([
             'content-types-override-target' => 1,
             'override-target-missing-part' => 2,
@@ -4592,6 +4600,9 @@ XML;
         $t->same(2, $summary['contentTypeUnusedOverrideDeclarationCount']);
         $t->same(4, $summary['contentTypeInvalidOverrideDeclarationCount']);
         $t->same($contentTypesPart['unusedOverridePartNames'], $summary['contentTypeUnusedOverridePartNames']);
+        $t->same($contentTypesPart['parameterizedOverrideDeclarationCount'], $summary['contentTypeParameterizedOverrideDeclarationCount']);
+        $t->same($contentTypesPart['overrideDeclarationContentTypeBaseCounts'], $summary['contentTypeOverrideDeclarationContentTypeBaseCounts']);
+        $t->same($contentTypesPart['overrideDeclarationContentTypeParameterNameCounts'], $summary['contentTypeOverrideDeclarationContentTypeParameterNameCounts']);
         $t->same($contentTypesPart['overrideDeclarationIssueCounts'], $summary['contentTypeOverrideDeclarationIssueCounts']);
         $t->same(2, $contentTypesPart['missingOverrideCount']);
         $t->same($contentTypesPart['unusedOverridePartNames'], $contentTypesPart['missingOverrideParts']);
