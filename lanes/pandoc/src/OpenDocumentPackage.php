@@ -6498,6 +6498,9 @@ final class OpenDocumentPackage
                 'encrypted' => false,
                 'declared' => false,
                 'declaredSize' => null,
+                'declaredSizeRaw' => null,
+                'declaredSizeValid' => false,
+                'declaredSizeInvalid' => false,
                 'declaredSizeMismatch' => false,
                 'byteExposurePolicy' => 'layout-cache-package-bytes-blocked',
             ];
@@ -6529,6 +6532,9 @@ final class OpenDocumentPackage
             }
             if ($encrypted) {
                 $issues[] = 'odf-layout-cache-encrypted-package-part';
+            }
+            if (($entry['declaredSizeInvalid'] ?? false) === true) {
+                $issues[] = 'odf-layout-cache-invalid-declared-size';
             }
             if (!$mediaTypeValid) {
                 $issues[] = 'odf-layout-cache-invalid-media-type';
@@ -6566,6 +6572,9 @@ final class OpenDocumentPackage
                 'storedByteLength' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null,
                 'storedCrc32' => $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null,
                 'declaredSize' => $entry['declaredSize'] ?? $entry['size'] ?? null,
+                'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+                'declaredSizeValid' => ($entry['declaredSizeValid'] ?? false) === true,
+                'declaredSizeInvalid' => ($entry['declaredSizeInvalid'] ?? false) === true,
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'canExposeAsDocumentMedia' => false,
                 'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'layout-cache-package-bytes-blocked',
@@ -6586,6 +6595,7 @@ final class OpenDocumentPackage
             'undeclaredCount' => count(array_filter($items, static fn (array $item): bool => $item['undeclared'] === true)),
             'missingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] !== true)),
             'encryptedCount' => count(array_filter($items, static fn (array $item): bool => $item['encrypted'] === true)),
+            'invalidDeclaredSizeCount' => count(array_filter($items, static fn (array $item): bool => $item['declaredSizeInvalid'] === true)),
             'invalidMediaTypeCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => $item['mediaType'] !== null
