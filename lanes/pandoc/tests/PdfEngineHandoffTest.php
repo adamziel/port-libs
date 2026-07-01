@@ -10696,6 +10696,71 @@ MARKDOWN);
         $t->same(['Migration packet', 'Final page'], $sequence['finalPdfOutlineTitles']);
     },
 
+    'fake runner reports pdf page tree count provenance mismatches from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/page-tree.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 3 /Kids [3 0 R 4 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '4 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/page-tree.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/page-tree.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'rootObject' => '2 0 R',
+            'declaredCount' => 3,
+            'maxDeclaredCount' => 3,
+            'reachablePageCount' => 2,
+            'pageObjectCount' => 2,
+            'treeNodeCount' => 1,
+            'maxDepth' => 1,
+            'unresolvedKidReferences' => [],
+            'cyclicReferences' => [],
+            'nonPageKidReferences' => [],
+            'depthLimitedReferences' => [],
+            'orphanPageObjects' => [],
+            'missingCountReferences' => [],
+            'issues' => ['page-count-mismatch'],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same(3, $result['pdfPageCount']);
+        $t->same($expectedPolicy, $result['pdfPageTreePolicy']);
+        $t->contains('pdf-byte-page-tree-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-tree-declared-count:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-tree-reachable-pages:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-page-tree-policy-issue:page-count-mismatch', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedPolicy, $sequence['finalPdfPageTreePolicy']);
+    },
+
     'fake runner extracts bounded pdf outline tree metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/outlines.pdf']);

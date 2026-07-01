@@ -825,6 +825,7 @@ final class PdfEngineHandoff
      *     pdfObjectStreamMembers: list<array{objectStream:string, objectNumber:int, memberIndex:int, declaredOffset:int, streamOffset:int, memberBytes:int|null, memberSha256:string|null, valueKind:string|null, dictionaryKeys:list<string>, type:string|null, subtype:string|null, title:string|null}>,
      *     pdfObjectStreamFilters: array<string, int>,
      *     pdfPageCount: int|null,
+     *     pdfPageTreePolicy: array<string, mixed>,
      *     pdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pdfPageRotations: array<int, int>,
      *     pdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
@@ -1597,6 +1598,7 @@ final class PdfEngineHandoff
         $pdfObjectStreamMembers = [];
         $pdfObjectStreamFilters = [];
         $pdfPageCount = null;
+        $pdfPageTreePolicy = [];
         $pdfPageBoxes = [];
         $pdfPageRotations = [];
         $pdfPageProductionMetadata = [];
@@ -1752,6 +1754,7 @@ final class PdfEngineHandoff
                 $pdfObjectStreamMembers = $pdfInspection['objectStreamMembers'];
                 $pdfObjectStreamFilters = $pdfInspection['objectStreamFilters'];
                 $pdfPageCount = $pdfInspection['pageCount'];
+                $pdfPageTreePolicy = $pdfInspection['pageTreePolicy'];
                 $pdfPageBoxes = $pdfInspection['pageBoxes'];
                 $pdfPageRotations = $pdfInspection['pageRotations'];
                 $pdfPageProductionMetadata = $pdfInspection['pageProductionMetadata'];
@@ -1916,6 +1919,41 @@ final class PdfEngineHandoff
                 }
                 if ($pdfPageCount !== null) {
                     $diagnostics[] = 'pdf-byte-page-count:' . $pdfPageCount;
+                }
+                if ($pdfPageTreePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-page-tree-policy:' . $pdfPageTreePolicy['reviewStatus'];
+                    foreach ([
+                        'declaredCount' => 'declared-count',
+                        'maxDeclaredCount' => 'max-declared-count',
+                        'reachablePageCount' => 'reachable-pages',
+                        'pageObjectCount' => 'page-objects',
+                        'treeNodeCount' => 'nodes',
+                        'maxDepth' => 'max-depth',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageTreePolicy[$policyKey]) && is_int($pdfPageTreePolicy[$policyKey])) {
+                            $diagnostics[] = 'pdf-byte-page-tree-' . $diagnosticName . ':' . $pdfPageTreePolicy[$policyKey];
+                        }
+                    }
+                    foreach ([
+                        'unresolvedKidReferences' => 'unresolved-kids',
+                        'cyclicReferences' => 'cycles',
+                        'nonPageKidReferences' => 'non-page-kids',
+                        'depthLimitedReferences' => 'depth-limited',
+                        'orphanPageObjects' => 'orphan-pages',
+                        'missingCountReferences' => 'missing-counts',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfPageTreePolicy[$policyKey]) && is_array($pdfPageTreePolicy[$policyKey]) && $pdfPageTreePolicy[$policyKey] !== []) {
+                            $diagnostics[] = 'pdf-byte-page-tree-' . $diagnosticName . ':' . count($pdfPageTreePolicy[$policyKey]);
+                        }
+                    }
+                    if (isset($pdfPageTreePolicy['issues']) && is_array($pdfPageTreePolicy['issues']) && $pdfPageTreePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-page-tree-policy-issues:' . count($pdfPageTreePolicy['issues']);
+                        foreach ($pdfPageTreePolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-page-tree-policy-issue:' . $issue;
+                            }
+                        }
+                    }
                 }
                 if ($pdfPageBoxes !== []) {
                     $diagnostics[] = 'pdf-byte-page-boxes:' . count($pdfPageBoxes);
@@ -5382,6 +5420,7 @@ final class PdfEngineHandoff
             'pdfObjectStreamMembers' => $pdfObjectStreamMembers,
             'pdfObjectStreamFilters' => $pdfObjectStreamFilters,
             'pdfPageCount' => $pdfPageCount,
+            'pdfPageTreePolicy' => $pdfPageTreePolicy,
             'pdfPageBoxes' => $pdfPageBoxes,
             'pdfPageRotations' => $pdfPageRotations,
             'pdfPageProductionMetadata' => $pdfPageProductionMetadata,
@@ -5548,6 +5587,7 @@ final class PdfEngineHandoff
      *     finalPdfLinearization: array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
      *     finalPdfExtensionMetadata: list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>,
      *     finalPdfPageCount: int|null,
+     *     finalPdfPageTreePolicy: array<string, mixed>,
      *     finalPdfPageBoxes: list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     finalPdfPageRotations: array<int, int>,
      *     finalPdfPageProductionMetadata: list<array{page:int, pageObject:string|null, boxColorInfoObject:string|null, boxColorInfo:list<array{box:string, color:list<float>|null, width:float|null, style:string|null}>, separationInfoObject:string|null, separationPages:list<string>, separationDeviceColorant:string|null, separationColorSpace:string|null, presStepsObject:string|null, presStepsSubtype:string|null, presStepsNext:list<string>}>,
@@ -5881,6 +5921,7 @@ final class PdfEngineHandoff
             'finalPdfLinearization' => is_array($finalRun) && is_array($finalRun['pdfLinearization'] ?? null) ? $finalRun['pdfLinearization'] : [],
             'finalPdfExtensionMetadata' => is_array($finalRun) && is_array($finalRun['pdfExtensionMetadata'] ?? null) ? $finalRun['pdfExtensionMetadata'] : [],
             'finalPdfPageCount' => is_array($finalRun) && is_int($finalRun['pdfPageCount'] ?? null) ? $finalRun['pdfPageCount'] : null,
+            'finalPdfPageTreePolicy' => is_array($finalRun) && is_array($finalRun['pdfPageTreePolicy'] ?? null) ? $finalRun['pdfPageTreePolicy'] : [],
             'finalPdfPageBoxes' => is_array($finalRun) && is_array($finalRun['pdfPageBoxes'] ?? null) ? $finalRun['pdfPageBoxes'] : [],
             'finalPdfPageRotations' => is_array($finalRun) && is_array($finalRun['pdfPageRotations'] ?? null) ? $finalRun['pdfPageRotations'] : [],
             'finalPdfPageProductionMetadata' => is_array($finalRun) && is_array($finalRun['pdfPageProductionMetadata'] ?? null) ? $finalRun['pdfPageProductionMetadata'] : [],
@@ -13291,6 +13332,7 @@ final class PdfEngineHandoff
      *     objectStreamMembers:list<array{objectStream:string, objectNumber:int, memberIndex:int, declaredOffset:int, streamOffset:int, memberBytes:int|null, memberSha256:string|null, valueKind:string|null, dictionaryKeys:list<string>, type:string|null, subtype:string|null, title:string|null}>,
      *     objectStreamFilters:array<string, int>,
      *     pageCount:int|null,
+     *     pageTreePolicy:array<string, mixed>,
      *     pageBoxes:list<array{page:int, pageObject:string|null, mediaBox:list<float>|null, cropBox:list<float>|null, bleedBox:list<float>|null, trimBox:list<float>|null, artBox:list<float>|null, rotation:int|null, inherited:list<string>}>,
      *     pageRotations:array<int, int>,
      *     pageDisplayMetadata:list<array{page:int, pageObject:string|null, language:string|null, userUnit:float|null, tabOrder:string|null, groupSubtype:string|null, groupColorSpace:string|null, groupIsolated:bool|null, groupKnockout:bool|null, thumbnailObject:string|null, lastModified:string|null}>,
@@ -13516,6 +13558,8 @@ final class PdfEngineHandoff
         }
         $embeddedFileNames = array_values(array_unique($embeddedFileNames));
         sort($embeddedFileNames);
+        $pageCount = $this->extractPdfPageCount($pdfBytes);
+        $pageTreePolicy = $this->extractPdfPageTreePolicy($pdfBytes, $catalog);
 
         return [
             'trailerCount' => count($trailerRevisions),
@@ -13528,20 +13572,21 @@ final class PdfEngineHandoff
             'objectStreams' => $objectStreams,
             'objectStreamMembers' => $objectStreamMembers,
             'objectStreamFilters' => $this->summarizePdfStructuralStreamFilters($objectStreams),
-            'pageCount' => $this->extractPdfPageCount($pdfBytes),
+            'pageCount' => $pageCount,
+            'pageTreePolicy' => $pageTreePolicy,
             'pageBoxes' => $pageBoxes,
             'pageRotations' => $this->summarizePdfPageRotations($pageBoxes),
             'pageProductionMetadata' => $pageProductionMetadata,
             'pageProductionPolicy' => $this->summarizePdfPageProductionPolicy($pageProductionMetadata, $pdfBytes),
             'pageDisplayMetadata' => $pageDisplayMetadata,
             'pageThumbnails' => $pageThumbnails,
-            'pageThumbnailPolicy' => $this->summarizePdfPageThumbnailPolicy($pageThumbnails, $this->extractPdfPageCount($pdfBytes)),
+            'pageThumbnailPolicy' => $this->summarizePdfPageThumbnailPolicy($pageThumbnails, $pageCount),
             'pageLabels' => $this->extractPdfPageLabels($pdfBytes, $catalog),
             'pageLabelPolicy' => $this->extractPdfPageLabelPolicy($pdfBytes, $catalog),
             'pageTimings' => $pageTimings,
-            'pageTimingPolicy' => $this->summarizePdfPageTimingPolicy($pageTimings, $this->extractPdfPageCount($pdfBytes)),
+            'pageTimingPolicy' => $this->summarizePdfPageTimingPolicy($pageTimings, $pageCount),
             'pageActions' => $pageActions,
-            'pageActionPolicy' => $this->summarizePdfPageActionPolicy($pageActions, $this->extractPdfPageCount($pdfBytes)),
+            'pageActionPolicy' => $this->summarizePdfPageActionPolicy($pageActions, $pageCount),
             'pageViewports' => $pageViewports,
             'pageContentStreams' => $pageContentStreams,
             'pageContentResourceUsage' => $this->summarizePdfPageContentResourceUsage($pageContentStreams),
@@ -27208,6 +27253,249 @@ final class PdfEngineHandoff
         }
 
         return $pageObjects > 0 ? $pageObjects : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function extractPdfPageTreePolicy(string $pdfBytes, ?string $catalog): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        if ($objects === []) {
+            return [];
+        }
+
+        $pageObjects = [];
+        foreach ($objects as $reference => $body) {
+            if (preg_match('/\/Type\s*\/Page\b/s', $body) === 1) {
+                $pageObjects[$reference . ' R'] = true;
+            }
+        }
+
+        $rootReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Pages');
+        if ($rootReference === null) {
+            if ($pageObjects === []) {
+                return [];
+            }
+
+            return [
+                'reviewStatus' => 'review',
+                'rootObject' => null,
+                'declaredCount' => null,
+                'maxDeclaredCount' => null,
+                'reachablePageCount' => 0,
+                'pageObjectCount' => count($pageObjects),
+                'treeNodeCount' => 0,
+                'maxDepth' => 0,
+                'unresolvedKidReferences' => [],
+                'cyclicReferences' => [],
+                'nonPageKidReferences' => [],
+                'depthLimitedReferences' => [],
+                'orphanPageObjects' => $this->sortedPdfReferenceKeys($pageObjects),
+                'missingCountReferences' => [],
+                'issues' => ['missing-page-tree-root', 'orphan-page-object'],
+            ];
+        }
+
+        $rootKey = $this->pdfReferenceKey($rootReference);
+        $visited = [];
+        $active = [];
+        $reachablePageObjects = [];
+        $declaredCounts = [];
+        $missingCountReferences = [];
+        $unresolvedKidReferences = [];
+        $cyclicReferences = [];
+        $nonPageKidReferences = [];
+        $depthLimitedReferences = [];
+        $treeNodeCount = 0;
+        $maxDepth = 0;
+
+        $this->collectPdfPageTreePolicyNode(
+            $objects,
+            $rootKey,
+            $visited,
+            $active,
+            $reachablePageObjects,
+            $declaredCounts,
+            $missingCountReferences,
+            $unresolvedKidReferences,
+            $cyclicReferences,
+            $nonPageKidReferences,
+            $depthLimitedReferences,
+            $treeNodeCount,
+            $maxDepth,
+            0
+        );
+
+        $rootBody = $objects[$rootKey] ?? null;
+        $rootDeclaredCount = $rootBody === null ? null : $this->extractPdfIntegerToken($rootBody, 'Count');
+        $maxDeclaredCount = $declaredCounts === [] ? null : max($declaredCounts);
+        $reachablePageCount = count($reachablePageObjects);
+        $orphanPageObjects = [];
+        foreach ($pageObjects as $reference => $_present) {
+            if (!isset($reachablePageObjects[$reference])) {
+                $orphanPageObjects[$reference] = true;
+            }
+        }
+
+        $issues = [];
+        if ($rootBody === null) {
+            $issues[] = 'unresolved-page-tree-root';
+        }
+        if ($missingCountReferences !== []) {
+            $issues[] = 'missing-page-tree-count';
+        }
+        foreach ($declaredCounts as $declaredCount) {
+            if ($declaredCount < 0) {
+                $issues[] = 'negative-page-tree-count';
+                break;
+            }
+        }
+        if ($rootDeclaredCount !== null && $rootDeclaredCount !== $reachablePageCount) {
+            $issues[] = 'page-count-mismatch';
+        }
+        if (
+            $maxDeclaredCount !== null
+            && $maxDeclaredCount !== $reachablePageCount
+            && $maxDeclaredCount !== $rootDeclaredCount
+        ) {
+            $issues[] = 'nested-page-count-mismatch';
+        }
+        if ($unresolvedKidReferences !== []) {
+            $issues[] = 'unresolved-page-tree-kid';
+        }
+        if ($cyclicReferences !== []) {
+            $issues[] = 'cyclic-page-tree';
+        }
+        if ($nonPageKidReferences !== []) {
+            $issues[] = 'non-page-tree-kid';
+        }
+        if ($depthLimitedReferences !== []) {
+            $issues[] = 'page-tree-depth-limit';
+        }
+        if ($orphanPageObjects !== []) {
+            $issues[] = 'orphan-page-object';
+        }
+        if ($rootBody !== null && $reachablePageCount === 0) {
+            $issues[] = 'empty-page-tree';
+        }
+        $issues = $this->uniqueStrings($issues);
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'rootObject' => $rootReference,
+            'declaredCount' => $rootDeclaredCount,
+            'maxDeclaredCount' => $maxDeclaredCount,
+            'reachablePageCount' => $reachablePageCount,
+            'pageObjectCount' => count($pageObjects),
+            'treeNodeCount' => $treeNodeCount,
+            'maxDepth' => $maxDepth,
+            'unresolvedKidReferences' => $this->sortedPdfReferenceKeys($unresolvedKidReferences),
+            'cyclicReferences' => $this->sortedPdfReferenceKeys($cyclicReferences),
+            'nonPageKidReferences' => $this->sortedPdfReferenceKeys($nonPageKidReferences),
+            'depthLimitedReferences' => $this->sortedPdfReferenceKeys($depthLimitedReferences),
+            'orphanPageObjects' => $this->sortedPdfReferenceKeys($orphanPageObjects),
+            'missingCountReferences' => $this->sortedPdfReferenceKeys($missingCountReferences),
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $objects
+     * @param array<string, bool> $visited
+     * @param array<string, bool> $active
+     * @param array<string, bool> $reachablePageObjects
+     * @param list<int> $declaredCounts
+     * @param array<string, bool> $missingCountReferences
+     * @param array<string, bool> $unresolvedKidReferences
+     * @param array<string, bool> $cyclicReferences
+     * @param array<string, bool> $nonPageKidReferences
+     * @param array<string, bool> $depthLimitedReferences
+     */
+    private function collectPdfPageTreePolicyNode(
+        array $objects,
+        string $reference,
+        array &$visited,
+        array &$active,
+        array &$reachablePageObjects,
+        array &$declaredCounts,
+        array &$missingCountReferences,
+        array &$unresolvedKidReferences,
+        array &$cyclicReferences,
+        array &$nonPageKidReferences,
+        array &$depthLimitedReferences,
+        int &$treeNodeCount,
+        int &$maxDepth,
+        int $depth
+    ): void {
+        if ($depth > 32) {
+            $depthLimitedReferences[$reference . ' R'] = true;
+            return;
+        }
+        if (isset($active[$reference])) {
+            $cyclicReferences[$reference . ' R'] = true;
+            return;
+        }
+        if (isset($visited[$reference])) {
+            return;
+        }
+        if (!isset($objects[$reference])) {
+            $unresolvedKidReferences[$reference . ' R'] = true;
+            return;
+        }
+
+        $visited[$reference] = true;
+        $active[$reference] = true;
+        $maxDepth = max($maxDepth, $depth);
+
+        $body = $objects[$reference];
+        $type = $this->extractPdfNameToken($body, 'Type');
+        if ($type === 'Page') {
+            $reachablePageObjects[$reference . ' R'] = true;
+            unset($active[$reference]);
+            return;
+        }
+
+        $kids = $this->extractPdfReferenceArray($body, 'Kids');
+        if ($type !== 'Pages' && $kids === []) {
+            $nonPageKidReferences[$reference . ' R'] = true;
+            unset($active[$reference]);
+            return;
+        }
+
+        $treeNodeCount++;
+        $count = $this->extractPdfIntegerToken($body, 'Count');
+        if ($count === null) {
+            $missingCountReferences[$reference . ' R'] = true;
+        } else {
+            $declaredCounts[] = $count;
+        }
+        if ($kids === []) {
+            unset($active[$reference]);
+            return;
+        }
+
+        foreach ($kids as $kidReference) {
+            $this->collectPdfPageTreePolicyNode(
+                $objects,
+                $kidReference,
+                $visited,
+                $active,
+                $reachablePageObjects,
+                $declaredCounts,
+                $missingCountReferences,
+                $unresolvedKidReferences,
+                $cyclicReferences,
+                $nonPageKidReferences,
+                $depthLimitedReferences,
+                $treeNodeCount,
+                $maxDepth,
+                $depth + 1
+            );
+        }
+
+        unset($active[$reference]);
     }
 
     /**
