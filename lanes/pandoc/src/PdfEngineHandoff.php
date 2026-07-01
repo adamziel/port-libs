@@ -667,6 +667,15 @@ final class PdfEngineHandoff
             if ($typstBoundarySummary['fontAccessControlCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-font-access-controls:' . $typstBoundarySummary['fontAccessControlCount'];
             }
+            if (($typstBoundarySummary['openOutputSideEffectCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-open-output:' . $typstBoundarySummary['openOutputSideEffectCount'];
+            }
+            if (($typstBoundarySummary['openOutputViewerCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-open-output-viewers:' . $typstBoundarySummary['openOutputViewerCount'];
+            }
+            if (($typstBoundarySummary['openOutputViewerIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-open-output-viewer-issues:' . $typstBoundarySummary['openOutputViewerIssueCount'];
+            }
             if (($typstBoundarySummary['environmentVariableCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-environment:' . $typstBoundarySummary['environmentVariableCount'];
             }
@@ -9336,6 +9345,37 @@ final class PdfEngineHandoff
                 ++$pdfExportControlCount;
             }
         }
+        $openOutput = is_array($provenance['openOutput'] ?? null) ? $provenance['openOutput'] : [];
+        $openOutputViewers = is_array($openOutput['viewers'] ?? null) ? $openOutput['viewers'] : [];
+        $openOutputDefaultViewerCount = 0;
+        $openOutputSpecificViewerCount = 0;
+        $openOutputViewerIssueCount = 0;
+        $openOutputViewerNames = [];
+        foreach ($openOutputViewers as $viewer) {
+            if (!is_array($viewer)) {
+                continue;
+            }
+            if (($viewer['mode'] ?? null) === 'default-viewer') {
+                ++$openOutputDefaultViewerCount;
+            } elseif (($viewer['mode'] ?? null) === 'specific-viewer') {
+                ++$openOutputSpecificViewerCount;
+            }
+            if (is_array($viewer['issues'] ?? null) && $viewer['issues'] !== []) {
+                ++$openOutputViewerIssueCount;
+            }
+            if (is_string($viewer['viewer'] ?? null) && $viewer['viewer'] !== '') {
+                $openOutputViewerNames[] = $viewer['viewer'];
+            }
+        }
+        $openOutputViewerNames = array_values(array_unique($openOutputViewerNames));
+        $selectedOpenOutputViewer = null;
+        if (
+            is_array($openOutput['viewer'] ?? null)
+            && is_string($openOutput['viewer']['viewer'] ?? null)
+            && $openOutput['viewer']['viewer'] !== ''
+        ) {
+            $selectedOpenOutputViewer = $openOutput['viewer']['viewer'];
+        }
 
         $historyEntryCount = 0;
         foreach ($provenance as $key => $value) {
@@ -9436,7 +9476,13 @@ final class PdfEngineHandoff
             'pdfExportControlCount' => $pdfExportControlCount,
             'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
             'executionPolicyPresent' => is_array($provenance['executionPolicy'] ?? null),
-            'openOutputSideEffectCount' => is_array($provenance['openOutput'] ?? null) && is_int($provenance['openOutput']['flagCount'] ?? null) ? $provenance['openOutput']['flagCount'] : 0,
+            'openOutputSideEffectCount' => is_int($openOutput['flagCount'] ?? null) ? $openOutput['flagCount'] : 0,
+            'openOutputViewerCount' => count($openOutputViewers),
+            'openOutputDefaultViewerCount' => $openOutputDefaultViewerCount,
+            'openOutputSpecificViewerCount' => $openOutputSpecificViewerCount,
+            'openOutputViewerIssueCount' => $openOutputViewerIssueCount,
+            'selectedOpenOutputViewer' => $selectedOpenOutputViewer,
+            'openOutputViewerNames' => $openOutputViewerNames,
             'overrideCount' => is_array($provenance['overrides'] ?? null) ? count($provenance['overrides']) : 0,
             'historyEntryCount' => $historyEntryCount,
             'issueCount' => count($issues),

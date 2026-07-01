@@ -392,6 +392,12 @@ return [
             'featureGateCount' => 2,
             'executionPolicyPresent' => true,
             'openOutputSideEffectCount' => 1,
+            'openOutputViewerCount' => 1,
+            'openOutputDefaultViewerCount' => 0,
+            'openOutputSpecificViewerCount' => 1,
+            'openOutputViewerIssueCount' => 0,
+            'selectedOpenOutputViewer' => 'xdg-open',
+            'openOutputViewerNames' => ['xdg-open'],
             'overrideCount' => 0,
             'historyEntryCount' => 0,
             'issueCount' => 4,
@@ -2441,13 +2447,25 @@ return [
         $t->contains('typst-open-output-flags:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-open-output-viewer:tools/review-viewer', implode(',', $plan['diagnostics']));
         $t->contains('typst-open-output-viewers:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-open-output:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-open-output-viewers:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(2, $plan['typstBoundarySummary']['openOutputSideEffectCount']);
+        $t->same(2, $plan['typstBoundarySummary']['openOutputViewerCount']);
+        $t->same(0, $plan['typstBoundarySummary']['openOutputDefaultViewerCount']);
+        $t->same(2, $plan['typstBoundarySummary']['openOutputSpecificViewerCount']);
+        $t->same(0, $plan['typstBoundarySummary']['openOutputViewerIssueCount']);
+        $t->same('tools/review-viewer', $plan['typstBoundarySummary']['selectedOpenOutputViewer']);
+        $t->same(['xdg-open', 'tools/review-viewer'], $plan['typstBoundarySummary']['openOutputViewerNames']);
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same($plan['typstBoundarySummary'], $result['typstBoundarySummary']);
+        $t->same($plan['typstBoundarySummary'], $result['artifactProvenanceReview']['typstBoundarySummary']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+        $t->same($plan['typstBoundarySummary'], $sequence['finalTypstBoundarySummary']);
     },
 
     'maps typst open output viewer details into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
@@ -2482,6 +2500,7 @@ return [
             $cases[$case['case']] = $case;
         }
         $openCase = $cases['open-output'];
+        $summary = $plan['typstBoundarySummary'];
 
         $t->same(['output-format', 'open-output'], array_column($matrix['cases'], 'case'));
         $t->same('review', $matrix['reviewStatus']);
@@ -2497,13 +2516,26 @@ return [
         $t->same('tools/review-viewer', $openCase['details']['viewer']);
         $t->same(['xdg-open', 'tools/review-viewer'], $openCase['details']['viewerNames']);
         $t->same(['xdg-open', '', 'tools/review-viewer'], $openCase['details']['rawViewerValues']);
+        $t->same(3, $summary['openOutputSideEffectCount']);
+        $t->same(3, $summary['openOutputViewerCount']);
+        $t->same(0, $summary['openOutputDefaultViewerCount']);
+        $t->same(3, $summary['openOutputSpecificViewerCount']);
+        $t->same(1, $summary['openOutputViewerIssueCount']);
+        $t->same('tools/review-viewer', $summary['selectedOpenOutputViewer']);
+        $t->same(['xdg-open', 'tools/review-viewer'], $summary['openOutputViewerNames']);
         $t->same(['open-output-side-effect-boundary', 'open-output-viewer-empty-boundary'], $openCase['issues']);
         $t->contains('open-output:open-output-viewer-empty-boundary', implode(',', $matrix['issues']));
         $t->contains('typst-boundary-matrix-review-cases:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-open-output:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-open-output-viewers:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-open-output-viewer-issues:1', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($matrix, $result['typstBoundaryMatrix']);
         $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($summary, $result['typstBoundarySummary']);
+        $t->same($summary, $result['artifactProvenanceReview']['typstBoundarySummary']);
         $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+        $t->same($summary, $sequence['finalTypstBoundarySummary']);
     },
 
     'plans typst pdf standard boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
