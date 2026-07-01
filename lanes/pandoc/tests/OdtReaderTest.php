@@ -121,6 +121,77 @@ XML);
         $t->contains('Pictures/image.png', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
     },
+    'preserves odt manifest package metadata through the converter-facing reader' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('mimetype', 'application/vnd.oasis.opendocument.text');
+        $zip->addFromString('META-INF/manifest.xml', <<<'XML'
+<?xml version="1.0"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:version="1.3"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml" manifest:size="386"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="7"/>
+  <manifest:file-entry manifest:full-path="Pictures/secret.png" manifest:media-type="image/png" manifest:size="6">
+    <manifest:encryption-data/>
+  </manifest:file-entry>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
+</manifest:manifest>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <office:body>
+    <office:text>
+      <text:p>Manifest packet <draw:frame><draw:image xlink:href="Pictures/hero.png"/></draw:frame></text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->addFromString('Pictures/hero.png', 'PNGDATA');
+        $zip->addFromString('Pictures/secret.png', 'SECRET');
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+            $meta = $document->attr('meta');
+        } finally {
+            @unlink($path);
+        }
+
+        $manifestEntries = [];
+        foreach ($meta['odtManifestEntries'] as $entry) {
+            $manifestEntries[$entry['fullPath']] = $entry;
+        }
+
+        $t->same('1.3', $meta['odtManifestVersion']);
+        $t->same(5, $meta['odtManifestEntryCount']);
+        $t->same([
+            'application/vnd.oasis.opendocument.text' => 1,
+            'image/png' => 3,
+            'text/xml' => 1,
+        ], $meta['odtManifestMediaTypes']);
+        $t->same(['Pictures/missing.png'], $meta['odtManifestMissingEntries']);
+        $t->same(['Pictures/secret.png'], $meta['odtManifestEncryptedEntries']);
+        $t->same(['Pictures/hero.png', 'Pictures/secret.png', 'Pictures/missing.png'], $meta['odtManifestImageResources']);
+        $t->same(['Pictures/hero.png'], $meta['odtReferencedResources']);
+        $t->same(['Pictures/hero.png', 'Pictures/secret.png'], $meta['odtImageResources']);
+        $t->same(true, $manifestEntries['content.xml']['exists']);
+        $t->same(386, $manifestEntries['content.xml']['declaredSize']);
+        $t->same(false, $manifestEntries['Pictures/missing.png']['exists']);
+        $t->same(true, $manifestEntries['Pictures/secret.png']['encrypted']);
+        $t->same('Manifest packet', $document->children[0]->attr('text'));
+    },
     'reads odt bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {

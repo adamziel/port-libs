@@ -6,11 +6,13 @@ namespace PortLibs\Pandoc;
 
 final class OdtReader
 {
+    private const ODT_MIMETYPE = 'application/vnd.oasis.opendocument.text';
     private const TEXT_NS = 'urn:oasis:names:tc:opendocument:xmlns:text:1.0';
     private const TABLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:table:1.0';
     private const STYLE_NS = 'urn:oasis:names:tc:opendocument:xmlns:style:1.0';
     private const FO_NS = 'urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0';
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
+    private const MANIFEST_NS = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
 
     /** @var array<string, array{strong?: bool, emph?: bool}> */
     private array $textStyles = [];
@@ -57,6 +59,11 @@ final class OdtReader
             }
             $styles_xml = $zip->getFromName('styles.xml');
             $meta_xml = $zip->getFromName('meta.xml');
+            $manifest_xml = $zip->getFromName('META-INF/manifest.xml');
+            $mimetype = $zip->getFromName('mimetype');
+            if (is_string($mimetype) && trim($mimetype) !== self::ODT_MIMETYPE) {
+                throw new \RuntimeException('ODT mimetype entry must declare application/vnd.oasis.opendocument.text.');
+            }
             $entries = [];
             $image_resources = [];
             for ($i = 0; $i < $zip->numFiles; $i++) {
@@ -70,6 +77,7 @@ final class OdtReader
                     $image_resources[] = $this->normalizePackagePath($name);
                 }
             }
+            $manifest = is_string($manifest_xml) ? $this->manifestMetadata($manifest_xml, $entries) : [];
         } finally {
             $zip->close();
         }
@@ -80,14 +88,23 @@ final class OdtReader
             is_string($meta_xml) ? $meta_xml : '',
             $entries,
             array_values(array_unique($image_resources)),
+            $manifest,
         );
     }
 
     /**
      * @param list<string> $entries
      * @param list<string> $image_resources
+     * @param array<string, mixed> $manifest
      */
-    private function readPackage(string $content_xml, string $styles_xml = '', string $meta_xml = '', array $entries = [], array $image_resources = []): AstNode
+    private function readPackage(
+        string $content_xml,
+        string $styles_xml = '',
+        string $meta_xml = '',
+        array $entries = [],
+        array $image_resources = [],
+        array $manifest = [],
+    ): AstNode
     {
         $content = $this->loadXml($content_xml, 'ODT content.xml');
         $this->textStyles = array_replace(
@@ -122,8 +139,114 @@ final class OdtReader
         $metadata['odtImageResources'] = $image_resources !== []
             ? $image_resources
             : array_values(array_filter($referenced_resources, fn (string $path): bool => $this->pathLooksLikeImage($path)));
+        if ($manifest !== []) {
+            $metadata['odtManifestVersion'] = $manifest['version'];
+            $metadata['odtManifestEntryCount'] = $manifest['entryCount'];
+            $metadata['odtManifestEntries'] = $manifest['entries'];
+            $metadata['odtManifestMediaTypes'] = $manifest['mediaTypes'];
+            $metadata['odtManifestMissingEntries'] = $manifest['missingEntries'];
+            $metadata['odtManifestEncryptedEntries'] = $manifest['encryptedEntries'];
+            $metadata['odtManifestImageResources'] = $manifest['imageResources'];
+        }
 
         return new AstNode('document', ['meta' => $metadata], $children);
+    }
+
+    /**
+     * @param list<string> $packageEntries
+     * @return array{
+     *     version:?string,
+     *     entryCount:int,
+     *     entries:list<array<string, mixed>>,
+     *     mediaTypes:array<string, int>,
+     *     missingEntries:list<string>,
+     *     encryptedEntries:list<string>,
+     *     imageResources:list<string>
+     * }
+     */
+    private function manifestMetadata(string $manifest_xml, array $packageEntries): array
+    {
+        $dom = $this->loadXml($manifest_xml, 'ODT META-INF/manifest.xml');
+        $root = $dom->documentElement;
+        if (!$root instanceof \DOMElement || $root->localName !== 'manifest' || $root->namespaceURI !== self::MANIFEST_NS) {
+            throw new \InvalidArgumentException('ODT manifest XML must use manifest:manifest as its root element.');
+        }
+
+        $packageEntryLookup = array_fill_keys($packageEntries, true);
+        $version = $this->attr($root, self::MANIFEST_NS, 'version');
+        $items = [];
+        $mediaTypes = [];
+        $missingEntries = [];
+        $encryptedEntries = [];
+        $imageResources = [];
+        $rootMediaType = null;
+        $hasContentXml = false;
+
+        foreach ($root->childNodes as $child) {
+            if (!$child instanceof \DOMElement || $child->localName !== 'file-entry' || $child->namespaceURI !== self::MANIFEST_NS) {
+                continue;
+            }
+
+            $fullPath = $this->attr($child, self::MANIFEST_NS, 'full-path');
+            if ($fullPath === '') {
+                continue;
+            }
+
+            $mediaType = $this->attr($child, self::MANIFEST_NS, 'media-type');
+            $entryVersion = $this->attr($child, self::MANIFEST_NS, 'version');
+            $declaredSize = $this->manifestDeclaredSize($this->attr($child, self::MANIFEST_NS, 'size'));
+            $packagePath = $fullPath === '/' ? '' : $this->normalizePackagePath($fullPath);
+            $exists = $fullPath === '/' || ($packagePath !== '' && isset($packageEntryLookup[$packagePath]));
+            $encrypted = $this->firstChildElementByLocalName($child, 'encryption-data') instanceof \DOMElement;
+
+            if ($fullPath === '/') {
+                $rootMediaType = $mediaType;
+            }
+            if ($fullPath === 'content.xml') {
+                $hasContentXml = true;
+            }
+            if ($mediaType !== '') {
+                $mediaTypes[$mediaType] = ($mediaTypes[$mediaType] ?? 0) + 1;
+            }
+            if (!$exists && $fullPath !== '/') {
+                $missingEntries[] = $fullPath;
+            }
+            if ($encrypted && $fullPath !== '/') {
+                $encryptedEntries[] = $fullPath;
+            }
+            if ($this->pathLooksLikeImage($fullPath)) {
+                $imageResources[] = $packagePath === '' ? $fullPath : $packagePath;
+            }
+
+            $items[] = [
+                'fullPath' => $fullPath,
+                'packagePath' => $packagePath === '' ? null : $packagePath,
+                'mediaType' => $mediaType,
+                'version' => $entryVersion === '' ? null : $entryVersion,
+                'declaredSize' => $declaredSize,
+                'exists' => $exists,
+                'encrypted' => $encrypted,
+            ];
+        }
+
+        if ($rootMediaType !== self::ODT_MIMETYPE) {
+            throw new \RuntimeException('ODT manifest root must identify an OpenDocument text package.');
+        }
+        if (!$hasContentXml) {
+            throw new \RuntimeException('ODT manifest is missing content.xml.');
+        }
+
+        ksort($mediaTypes, SORT_STRING);
+
+        return [
+            'version' => $version === '' ? null : $version,
+            'entryCount' => count($items),
+            'entries' => $items,
+            'mediaTypes' => $mediaTypes,
+            'missingEntries' => array_values(array_unique($missingEntries)),
+            'encryptedEntries' => array_values(array_unique($encryptedEntries)),
+            'imageResources' => array_values(array_unique($imageResources)),
+        ];
     }
 
     /**
@@ -715,6 +838,15 @@ final class OdtReader
     private function pathLooksLikeImage(string $path): bool
     {
         return (bool) preg_match('/\.(?:apng|avif|bmp|gif|ico|jpe?g|png|svgz?|tiff?|webp)$/i', $path);
+    }
+
+    private function manifestDeclaredSize(string $value): ?int
+    {
+        if ($value === '' || !ctype_digit($value)) {
+            return null;
+        }
+
+        return (int) $value;
     }
 
     /**
