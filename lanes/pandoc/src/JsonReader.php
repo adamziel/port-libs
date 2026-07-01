@@ -669,7 +669,25 @@ final class JsonReader
 
     private function parseFormat(mixed $value): string
     {
-        return strtolower($this->expectString($value, 'Format'));
+        if (is_string($value)) {
+            return strtolower($value);
+        }
+
+        [$type, $payload] = $this->tagged($value, 'Format');
+        if ($type !== 'Format') {
+            throw new \InvalidArgumentException("Expected Format, got '{$type}'");
+        }
+
+        return strtolower($this->expectString($this->singleWrappedScalar($payload), 'Format'));
+    }
+
+    private function singleWrappedScalar(mixed $value): mixed
+    {
+        while (is_array($value) && $this->isList($value) && count($value) === 1) {
+            $value = $value[0];
+        }
+
+        return $value;
     }
 
     /**
