@@ -1489,9 +1489,12 @@ final class PptxWriter
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['smallCaps' => true], $relationships));
                     break;
                 case 'span':
-                case 'quoted':
                     $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style, $relationships));
+                    break;
+                case 'quoted':
+                    $flushText();
+                    $runs = array_merge($runs, $this->inlineRuns($this->quotedInlines($inline), $style, $relationships));
                     break;
                 case 'superscript':
                     $flushText();
@@ -2608,9 +2611,12 @@ final class PptxWriter
                 case 'span':
                 case 'superscript':
                 case 'subscript':
-                case 'quoted':
                     $flushText();
                     $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style));
+                    break;
+                case 'quoted':
+                    $flushText();
+                    $runs = array_merge($runs, $this->noteInlineRuns($this->quotedInlines($inline), $style));
                     break;
                 case 'code':
                     $code = (string) $inline->attr('text', '');
@@ -2949,6 +2955,30 @@ final class PptxWriter
     }
 
     /**
+     * @return list<AstNode>
+     */
+    private function quotedInlines(AstNode $quoted): array
+    {
+        [$open, $close] = $this->quoteMarks($quoted);
+
+        return array_merge(
+            $this->textInlines($open),
+            $quoted->children,
+            $this->textInlines($close)
+        );
+    }
+
+    /**
+     * @return array{0:string,1:string}
+     */
+    private function quoteMarks(AstNode $quoted): array
+    {
+        return $quoted->attr('kind') === 'single'
+            ? ["\u{2018}", "\u{2019}"]
+            : ["\u{201C}", "\u{201D}"];
+    }
+
+    /**
      * @param list<AstNode> $blocks
      */
     private function blockListText(array $blocks): string
@@ -2980,6 +3010,9 @@ final class PptxWriter
         }
         if ($node->type === 'line_block') {
             return $this->inlineText($this->lineBlockInlines($node));
+        }
+        if ($node->type === 'quoted') {
+            return $this->inlineText($this->quotedInlines($node));
         }
         if ($node->type === 'image') {
             return $this->imageFallbackText($node);

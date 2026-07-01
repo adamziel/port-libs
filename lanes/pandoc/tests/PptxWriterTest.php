@@ -212,6 +212,12 @@ $upstreamLineBlocksNative = <<<'NATIVE'
  [LineBlock [[Str "Note",Space,Str "one"],[Str "Note",Space,Str "two"]]]]
 NATIVE;
 
+$upstreamQuotedInlineNative = <<<'NATIVE'
+[Para [Str "He",Space,Str "said",Space,Quoted DoubleQuote [Str "hello",Space,Emph [Str "there"]],Str ".",Space,Quoted SingleQuote [Strong [Str "yes"]]]
+,Div ("",["notes"],[])
+ [Para [Str "Speaker",Space,Quoted SingleQuote [Str "aside"]]]]
+NATIVE;
+
 $upstreamStartNumberingAtNative = <<<'NATIVE'
 [Header 2 ("example-numbering-mwe",[],[]) [Str "Example",Space,Str "numbering",Space,Str "MWE"]
 ,Para [Str "This",Space,Str "is",Space,Str "a",Space,Str "slide",Space,Str "with",Space,Str "examples",Space,Str "in",Space,Str "(1)",Space,Str "and",Space,Str "(2)"]
@@ -817,6 +823,28 @@ return [
         $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
         $t->contains('<a:t>Note one</a:t></a:r><a:br/><a:r><a:rPr lang="en-US"/><a:t>Note two</a:t>', $notes);
         $t->same(1, substr_count($notes, '<a:br/>'));
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream quoted inlines to curly quote runs' => static function (TestRunner $t) use ($upstreamQuotedInlineNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamQuotedInlineNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $slideText = trim(preg_replace('/\s+/u', ' ', strip_tags($slide)) ?? '');
+        $notesText = trim(preg_replace('/\s+/u', ' ', strip_tags($notes)) ?? '');
+
+        $t->contains("He said \u{201C}hello there\u{201D}. \u{2018}yes\u{2019}", $slideText);
+        $t->contains("\u{201C}hello ", $slide);
+        $t->contains("<a:t>\u{201D}</a:t>", $slide);
+        $t->contains("<a:t>\u{2018}</a:t>", $slide);
+        $t->contains("<a:t>\u{2019}</a:t>", $slide);
+        $t->contains('i="1"', $slide);
+        $t->contains('b="1"', $slide);
+        $t->true(!str_contains($slide, 'DoubleQuote'), 'Quoted constructor names must not leak into slide XML');
+        $t->true(!str_contains($slide, 'SingleQuote'), 'Quoted constructor names must not leak into slide XML');
+
+        $t->contains("Speaker \u{2018}aside\u{2019}", $notesText);
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 
