@@ -4565,11 +4565,15 @@ final class MarkdownWriter
     private function renderTableCaptionMarkdown(AstNode $table): string
     {
         $inlines = $this->tableCaptionInlines($table);
-        if ($inlines === []) {
+        $shortCaption = $this->tableShortCaptionInlines($table);
+        if ($inlines === [] && $shortCaption === []) {
             return '';
         }
 
-        $caption = $this->renderBlockInlines($inlines);
+        $caption = $inlines === [] ? '' : $this->renderBlockInlines($inlines);
+        if ($shortCaption !== []) {
+            $caption = '[' . $this->renderBlockInlines($shortCaption) . ']' . ($caption === '' ? '' : ' ' . $caption);
+        }
         $attrs = $this->renderAttributesTuple($this->linkAttrTuple($table));
 
         return $caption . ($attrs === '' ? '' : ' ' . $attrs);
@@ -4978,6 +4982,42 @@ final class MarkdownWriter
         }
 
         $caption = (string) $table->attr('caption', '');
+
+        return $caption === '' ? [] : [new AstNode('text', ['text' => $caption])];
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function tableShortCaptionInlines(AstNode $table): array
+    {
+        $captionInlines = $table->attr('shortCaptionInlines', []);
+        if (is_array($captionInlines)) {
+            $nodes = [];
+            foreach ($captionInlines as $inline) {
+                if ($inline instanceof AstNode) {
+                    $nodes[] = $inline;
+                }
+            }
+            if ($nodes !== []) {
+                return $nodes;
+            }
+        }
+
+        $captionBlocks = $table->attr('shortCaptionBlocks', []);
+        if (is_array($captionBlocks)) {
+            $nodes = [];
+            foreach ($captionBlocks as $block) {
+                if ($block instanceof AstNode && in_array($block->type, ['plain', 'paragraph'], true)) {
+                    array_push($nodes, ...$block->children);
+                }
+            }
+            if ($nodes !== []) {
+                return $nodes;
+            }
+        }
+
+        $caption = (string) $table->attr('shortCaption', '');
 
         return $caption === '' ? [] : [new AstNode('text', ['text' => $caption])];
     }
