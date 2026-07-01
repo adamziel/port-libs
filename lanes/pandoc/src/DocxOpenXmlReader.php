@@ -985,6 +985,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlTextNodeLineBreakCount'] = $selectedXmlParts['xmlTextNodeLineBreakCount'];
         $packageProvenance['summary']['selectedXmlPartXmlTextNodeLineBreakNodeCount'] = $selectedXmlParts['xmlTextNodeLineBreakNodeCount'];
         $packageProvenance['summary']['selectedXmlPartXmlTextNodePartNames'] = $selectedXmlParts['xmlTextNodePartNames'];
+        $packageProvenance['summary']['selectedXmlPartXmlTextNodeByteLengthBucketCount'] = $selectedXmlParts['xmlTextNodeByteLengthBucketCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlTextNodeByteLengthBucketCounts'] = $selectedXmlParts['xmlTextNodeByteLengthBucketCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlTextNodeByteLengthBuckets'] = $selectedXmlParts['xmlTextNodeByteLengthBuckets'];
+        $packageProvenance['summary']['selectedXmlPartXmlTextNodeByteLengthBucketPartNames'] = $selectedXmlParts['xmlTextNodeByteLengthBucketPartNames'];
         $packageProvenance['summary']['selectedXmlPartXmlTextNodeParentPathCount'] = $selectedXmlParts['xmlTextNodeParentPathCount'];
         $packageProvenance['summary']['selectedXmlPartXmlTextNodeParentPathCounts'] = $selectedXmlParts['xmlTextNodeParentPathCounts'];
         $packageProvenance['summary']['selectedXmlPartXmlTextNodeParentPaths'] = $selectedXmlParts['xmlTextNodeParentPaths'];
@@ -19884,6 +19888,10 @@ final class DocxOpenXmlReader
             'partXmlTextNodeLineBreakCount' => $partXmlRoots['xmlTextNodeLineBreakCount'],
             'partXmlTextNodeLineBreakNodeCount' => $partXmlRoots['xmlTextNodeLineBreakNodeCount'],
             'partXmlTextNodePartNames' => $partXmlRoots['xmlTextNodePartNames'],
+            'partXmlTextNodeByteLengthBucketCount' => $partXmlRoots['xmlTextNodeByteLengthBucketCount'],
+            'partXmlTextNodeByteLengthBucketCounts' => $partXmlRoots['xmlTextNodeByteLengthBucketCounts'],
+            'partXmlTextNodeByteLengthBuckets' => $partXmlRoots['xmlTextNodeByteLengthBuckets'],
+            'partXmlTextNodeByteLengthBucketPartNames' => $partXmlRoots['xmlTextNodeByteLengthBucketPartNames'],
             'partXmlTextNodeParentPathCount' => $partXmlRoots['xmlTextNodeParentPathCount'],
             'partXmlTextNodeParentPathCounts' => $partXmlRoots['xmlTextNodeParentPathCounts'],
             'partXmlTextNodeParentPaths' => $partXmlRoots['xmlTextNodeParentPaths'],
@@ -28144,6 +28152,9 @@ final class DocxOpenXmlReader
         $xmlTextNodeTrailingWhitespaceByteLength = 0;
         $xmlTextNodeLineBreakCount = 0;
         $xmlTextNodeLineBreakNodeCount = 0;
+        $xmlTextNodeByteLengthBucketCounts = [];
+        $xmlTextNodeByteLengthBuckets = [];
+        $xmlTextNodeByteLengthBucketPartNames = [];
         $xmlLeafTextElementPartCount = 0;
         $xmlLeafTextElementCount = 0;
         $xmlLeafTextElementByteLength = 0;
@@ -28893,6 +28904,17 @@ final class DocxOpenXmlReader
                 $xmlTextNodeLineBreakNodeCount += (int) ($part['xmlTextNodeLineBreakNodeCount'] ?? 0);
                 $xmlTextNodePartNames[] = $partName;
             }
+            foreach (($part['xmlTextNodeByteLengthBucketCounts'] ?? []) as $bucket => $count) {
+                if (!is_string($bucket) || $bucket === '') {
+                    continue;
+                }
+
+                $xmlTextNodeByteLengthBucketCounts[$bucket] =
+                    ($xmlTextNodeByteLengthBucketCounts[$bucket] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlTextNodeByteLengthBuckets, $bucket);
+                $xmlTextNodeByteLengthBucketPartNames[$bucket] ??= [];
+                $this->appendUniqueString($xmlTextNodeByteLengthBucketPartNames[$bucket], $partName);
+            }
             foreach (($part['xmlTextNodeParentPathCounts'] ?? []) as $parentPath => $count) {
                 if (!is_string($parentPath) || $parentPath === '') {
                     continue;
@@ -28949,6 +28971,9 @@ final class DocxOpenXmlReader
                     'parentLocalName' => is_string($node['parentLocalName'] ?? null) ? $node['parentLocalName'] : null,
                     'parentQualifiedName' => is_string($node['parentQualifiedName'] ?? null) ? $node['parentQualifiedName'] : null,
                     'byteLength' => (int) ($node['byteLength'] ?? 0),
+                    'byteLengthBucket' => is_string($node['byteLengthBucket'] ?? null)
+                        ? $node['byteLengthBucket']
+                        : $this->xmlTextByteLengthBucket((int) ($node['byteLength'] ?? 0)),
                     'isWhitespaceOnly' => (bool) ($node['isWhitespaceOnly'] ?? false),
                     'leadingWhitespaceByteLength' => (int) ($node['leadingWhitespaceByteLength'] ?? 0),
                     'trailingWhitespaceByteLength' => (int) ($node['trailingWhitespaceByteLength'] ?? 0),
@@ -32138,6 +32163,12 @@ final class DocxOpenXmlReader
             sort($xmlCdataBucketPartNames, SORT_STRING);
         }
         unset($xmlCdataBucketPartNames);
+        ksort($xmlTextNodeByteLengthBucketCounts, SORT_STRING);
+        ksort($xmlTextNodeByteLengthBucketPartNames, SORT_STRING);
+        foreach ($xmlTextNodeByteLengthBucketPartNames as &$xmlTextNodeBucketPartNames) {
+            sort($xmlTextNodeBucketPartNames, SORT_STRING);
+        }
+        unset($xmlTextNodeBucketPartNames);
         sort($xmlCommentPartNames, SORT_STRING);
         sort($xmlCommentByteLengthBuckets, SORT_STRING);
         sort($xmlCommentParentPaths, SORT_STRING);
@@ -32145,6 +32176,7 @@ final class DocxOpenXmlReader
         sort($xmlCdataSectionByteLengthBuckets, SORT_STRING);
         sort($xmlCdataSectionParentPaths, SORT_STRING);
         sort($xmlTextNodePartNames, SORT_STRING);
+        sort($xmlTextNodeByteLengthBuckets, SORT_STRING);
         sort($xmlTextNodeParentPaths, SORT_STRING);
         sort($xmlLeafTextElementPartNames, SORT_STRING);
         sort($xmlLeafTextElementPaths, SORT_STRING);
@@ -32474,6 +32506,10 @@ final class DocxOpenXmlReader
             'xmlTextNodeLineBreakCount' => $xmlTextNodeLineBreakCount,
             'xmlTextNodeLineBreakNodeCount' => $xmlTextNodeLineBreakNodeCount,
             'xmlTextNodePartNames' => $xmlTextNodePartNames,
+            'xmlTextNodeByteLengthBucketCount' => count($xmlTextNodeByteLengthBucketCounts),
+            'xmlTextNodeByteLengthBucketCounts' => $xmlTextNodeByteLengthBucketCounts,
+            'xmlTextNodeByteLengthBuckets' => $xmlTextNodeByteLengthBuckets,
+            'xmlTextNodeByteLengthBucketPartNames' => $xmlTextNodeByteLengthBucketPartNames,
             'xmlTextNodeParentPathCount' => count($xmlTextNodeParentPathCounts),
             'xmlTextNodeParentPathCounts' => $xmlTextNodeParentPathCounts,
             'xmlTextNodeParentPaths' => $xmlTextNodeParentPaths,
@@ -34913,6 +34949,9 @@ final class DocxOpenXmlReader
         $xmlTextNodeLineBreakCount = 0;
         $xmlTextNodeLineBreakNodeCount = 0;
         $xmlTextNodePartNames = [];
+        $xmlTextNodeByteLengthBucketCounts = [];
+        $xmlTextNodeByteLengthBuckets = [];
+        $xmlTextNodeByteLengthBucketPartNames = [];
         $xmlTextNodeParentPathCounts = [];
         $xmlTextNodeParentPaths = [];
         $xmlTextNodeParentNamespaceCounts = [];
@@ -35610,6 +35649,20 @@ final class DocxOpenXmlReader
                     is_string($item['partName'] ?? null) ? $item['partName'] : null,
                 );
             }
+            foreach (($item['xmlTextNodeByteLengthBucketCounts'] ?? []) as $bucket => $count) {
+                if (!is_string($bucket) || $bucket === '') {
+                    continue;
+                }
+
+                $xmlTextNodeByteLengthBucketCounts[$bucket] =
+                    ($xmlTextNodeByteLengthBucketCounts[$bucket] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlTextNodeByteLengthBuckets, $bucket);
+                $xmlTextNodeByteLengthBucketPartNames[$bucket] ??= [];
+                $this->appendUniqueString(
+                    $xmlTextNodeByteLengthBucketPartNames[$bucket],
+                    is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                );
+            }
             foreach (($item['xmlTextNodeParentPathCounts'] ?? []) as $parentPath => $count) {
                 if (!is_string($parentPath) || $parentPath === '') {
                     continue;
@@ -35658,6 +35711,9 @@ final class DocxOpenXmlReader
                     'parentLocalName' => is_string($textNode['parentLocalName'] ?? null) ? $textNode['parentLocalName'] : null,
                     'parentQualifiedName' => is_string($textNode['parentQualifiedName'] ?? null) ? $textNode['parentQualifiedName'] : null,
                     'byteLength' => (int) ($textNode['byteLength'] ?? 0),
+                    'byteLengthBucket' => is_string($textNode['byteLengthBucket'] ?? null)
+                        ? $textNode['byteLengthBucket']
+                        : $this->xmlTextByteLengthBucket((int) ($textNode['byteLength'] ?? 0)),
                     'isWhitespaceOnly' => ($textNode['isWhitespaceOnly'] ?? false) === true,
                     'leadingWhitespaceByteLength' => (int) ($textNode['leadingWhitespaceByteLength'] ?? 0),
                     'trailingWhitespaceByteLength' => (int) ($textNode['trailingWhitespaceByteLength'] ?? 0),
@@ -35735,6 +35791,12 @@ final class DocxOpenXmlReader
         ksort($xmlCdataSectionParentNamespaceCounts, SORT_STRING);
         ksort($xmlCdataSectionParentLocalNameCounts, SORT_STRING);
         ksort($xmlCdataSectionParentQualifiedNameCounts, SORT_STRING);
+        ksort($xmlTextNodeByteLengthBucketCounts, SORT_STRING);
+        ksort($xmlTextNodeByteLengthBucketPartNames, SORT_STRING);
+        foreach ($xmlTextNodeByteLengthBucketPartNames as &$xmlTextNodeBucketPartNames) {
+            sort($xmlTextNodeBucketPartNames, SORT_STRING);
+        }
+        unset($xmlTextNodeBucketPartNames);
         ksort($xmlTextNodeParentPathCounts, SORT_STRING);
         ksort($xmlTextNodeParentNamespaceCounts, SORT_STRING);
         ksort($xmlTextNodeParentLocalNameCounts, SORT_STRING);
@@ -35769,6 +35831,7 @@ final class DocxOpenXmlReader
         sort($xmlCdataSectionByteLengthBuckets, SORT_STRING);
         sort($xmlCdataSectionParentPaths, SORT_STRING);
         sort($xmlTextNodePartNames, SORT_STRING);
+        sort($xmlTextNodeByteLengthBuckets, SORT_STRING);
         sort($xmlTextNodeParentPaths, SORT_STRING);
 
         return [
@@ -35950,6 +36013,10 @@ final class DocxOpenXmlReader
             'xmlTextNodeLineBreakCount' => $xmlTextNodeLineBreakCount,
             'xmlTextNodeLineBreakNodeCount' => $xmlTextNodeLineBreakNodeCount,
             'xmlTextNodePartNames' => $xmlTextNodePartNames,
+            'xmlTextNodeByteLengthBucketCount' => count($xmlTextNodeByteLengthBucketCounts),
+            'xmlTextNodeByteLengthBucketCounts' => $xmlTextNodeByteLengthBucketCounts,
+            'xmlTextNodeByteLengthBuckets' => $xmlTextNodeByteLengthBuckets,
+            'xmlTextNodeByteLengthBucketPartNames' => $xmlTextNodeByteLengthBucketPartNames,
             'xmlTextNodeParentPathCount' => count($xmlTextNodeParentPathCounts),
             'xmlTextNodeParentPathCounts' => $xmlTextNodeParentPathCounts,
             'xmlTextNodeParentPaths' => $xmlTextNodeParentPaths,
@@ -36121,6 +36188,8 @@ final class DocxOpenXmlReader
             'xmlTextNodeTrailingWhitespaceByteLength' => 0,
             'xmlTextNodeLineBreakCount' => 0,
             'xmlTextNodeLineBreakNodeCount' => 0,
+            'xmlTextNodeByteLengthBucketCounts' => [],
+            'xmlTextNodeByteLengthBuckets' => [],
             'xmlTextNodeParentPathCounts' => [],
             'xmlTextNodeParentPaths' => [],
             'xmlTextNodeParentNamespaceCounts' => [],
@@ -36299,6 +36368,8 @@ final class DocxOpenXmlReader
         $item['xmlTextNodeTrailingWhitespaceByteLength'] = $textNodes['trailingWhitespaceByteLength'];
         $item['xmlTextNodeLineBreakCount'] = $textNodes['lineBreakCount'];
         $item['xmlTextNodeLineBreakNodeCount'] = $textNodes['lineBreakNodeCount'];
+        $item['xmlTextNodeByteLengthBucketCounts'] = $textNodes['byteLengthBucketCounts'];
+        $item['xmlTextNodeByteLengthBuckets'] = $textNodes['byteLengthBuckets'];
         $item['xmlTextNodeParentPathCounts'] = $textNodes['parentPathCounts'];
         $item['xmlTextNodeParentPaths'] = $textNodes['parentPaths'];
         $item['xmlTextNodeParentNamespaceCounts'] = $textNodes['parentNamespaceCounts'];
@@ -36849,7 +36920,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, nonWhitespaceByteLength:int, leadingWhitespaceCount:int, trailingWhitespaceCount:int, leadingWhitespaceByteLength:int, trailingWhitespaceByteLength:int, lineBreakCount:int, lineBreakNodeCount:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     * @return array{count:int, byteLength:int, whitespaceCount:int, nonWhitespaceCount:int, nonWhitespaceByteLength:int, leadingWhitespaceCount:int, trailingWhitespaceCount:int, leadingWhitespaceByteLength:int, trailingWhitespaceByteLength:int, lineBreakCount:int, lineBreakNodeCount:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlTextNodeProvenance(string $xml, string $partName): array
     {
@@ -36867,6 +36938,8 @@ final class DocxOpenXmlReader
                 'trailingWhitespaceByteLength' => 0,
                 'lineBreakCount' => 0,
                 'lineBreakNodeCount' => 0,
+                'byteLengthBucketCounts' => [],
+                'byteLengthBuckets' => [],
                 'parentPathCounts' => [],
                 'parentPaths' => [],
                 'parentNamespaceCounts' => [],
@@ -36882,6 +36955,8 @@ final class DocxOpenXmlReader
         $parentNamespaceCounts = [];
         $parentLocalNameCounts = [];
         $parentQualifiedNameCounts = [];
+        $byteLengthBucketCounts = [];
+        $byteLengthBuckets = [];
         $ordinal = 0;
         $byteLength = 0;
         $whitespaceCount = 0;
@@ -36901,6 +36976,8 @@ final class DocxOpenXmlReader
             &$parentNamespaceCounts,
             &$parentLocalNameCounts,
             &$parentQualifiedNameCounts,
+            &$byteLengthBucketCounts,
+            &$byteLengthBuckets,
             &$ordinal,
             &$byteLength,
             &$whitespaceCount,
@@ -36932,6 +37009,7 @@ final class DocxOpenXmlReader
                     $parentLocalNameKey = $parentLocalName ?? '(none)';
                     $parentQualifiedNameKey = $parentQualifiedName ?? '(none)';
                     $textByteLength = strlen($data);
+                    $textByteLengthBucket = $this->xmlTextByteLengthBucket($textByteLength);
                     $isWhitespaceOnly = preg_match('/[^\x20\x09\x0D\x0A]/', $data) !== 1;
                     $leadingWhitespace = '';
                     if (preg_match('/^[\x20\x09\x0D\x0A]+/', $data, $match) === 1) {
@@ -36952,6 +37030,8 @@ final class DocxOpenXmlReader
                     $parentNamespaceCounts[$parentNamespaceKey] = ($parentNamespaceCounts[$parentNamespaceKey] ?? 0) + 1;
                     $parentLocalNameCounts[$parentLocalNameKey] = ($parentLocalNameCounts[$parentLocalNameKey] ?? 0) + 1;
                     $parentQualifiedNameCounts[$parentQualifiedNameKey] = ($parentQualifiedNameCounts[$parentQualifiedNameKey] ?? 0) + 1;
+                    $byteLengthBucketCounts[$textByteLengthBucket] = ($byteLengthBucketCounts[$textByteLengthBucket] ?? 0) + 1;
+                    $this->appendUniqueString($byteLengthBuckets, $textByteLengthBucket);
                     if ($isWhitespaceOnly) {
                         ++$whitespaceCount;
                     } else {
@@ -36978,6 +37058,7 @@ final class DocxOpenXmlReader
                         'parentLocalName' => $parentLocalName,
                         'parentQualifiedName' => $parentQualifiedName,
                         'byteLength' => $textByteLength,
+                        'byteLengthBucket' => $textByteLengthBucket,
                         'isWhitespaceOnly' => $isWhitespaceOnly,
                         'leadingWhitespaceByteLength' => $nodeLeadingWhitespaceByteLength,
                         'trailingWhitespaceByteLength' => $nodeTrailingWhitespaceByteLength,
@@ -37001,7 +37082,9 @@ final class DocxOpenXmlReader
         ksort($parentNamespaceCounts, SORT_STRING);
         ksort($parentLocalNameCounts, SORT_STRING);
         ksort($parentQualifiedNameCounts, SORT_STRING);
+        ksort($byteLengthBucketCounts, SORT_STRING);
         sort($parentPaths, SORT_STRING);
+        sort($byteLengthBuckets, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -37015,6 +37098,8 @@ final class DocxOpenXmlReader
             'trailingWhitespaceByteLength' => $trailingWhitespaceByteLength,
             'lineBreakCount' => $lineBreakCount,
             'lineBreakNodeCount' => $lineBreakNodeCount,
+            'byteLengthBucketCounts' => $byteLengthBucketCounts,
+            'byteLengthBuckets' => $byteLengthBuckets,
             'parentPathCounts' => $parentPathCounts,
             'parentPaths' => $parentPaths,
             'parentNamespaceCounts' => $parentNamespaceCounts,
@@ -44358,6 +44443,8 @@ final class DocxOpenXmlReader
                 'xmlTextNodeTrailingWhitespaceByteLength' => 0,
                 'xmlTextNodeLineBreakCount' => 0,
                 'xmlTextNodeLineBreakNodeCount' => 0,
+                'xmlTextNodeByteLengthBucketCounts' => [],
+                'xmlTextNodeByteLengthBuckets' => [],
                 'xmlTextNodeParentPathCounts' => [],
                 'xmlTextNodeParentPaths' => [],
                 'xmlTextNodeParentNamespaceCounts' => [],
@@ -44881,6 +44968,8 @@ final class DocxOpenXmlReader
             'xmlTextNodeTrailingWhitespaceByteLength' => $textNodes['trailingWhitespaceByteLength'],
             'xmlTextNodeLineBreakCount' => $textNodes['lineBreakCount'],
             'xmlTextNodeLineBreakNodeCount' => $textNodes['lineBreakNodeCount'],
+            'xmlTextNodeByteLengthBucketCounts' => $textNodes['byteLengthBucketCounts'],
+            'xmlTextNodeByteLengthBuckets' => $textNodes['byteLengthBuckets'],
             'xmlTextNodeParentPathCounts' => $textNodes['parentPathCounts'],
             'xmlTextNodeParentPaths' => $textNodes['parentPaths'],
             'xmlTextNodeParentNamespaceCounts' => $textNodes['parentNamespaceCounts'],
