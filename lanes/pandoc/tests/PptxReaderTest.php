@@ -265,6 +265,16 @@ XML);
         <c:barDir val="col"/>
         <c:ser>
           <c:idx val="0"/><c:order val="0"/>
+          <c:invertIfNegative val="1"/>
+          <c:dPt>
+            <c:idx val="1"/>
+            <c:invertIfNegative val="0"/>
+            <c:marker><c:symbol val="diamond"/><c:size val="7"/></c:marker>
+            <c:spPr>
+              <a:solidFill><a:srgbClr val="C00000"/></a:solidFill>
+              <a:ln w="9525"><a:solidFill><a:schemeClr val="accent2"/></a:solidFill><a:prstDash val="dash"/></a:ln>
+            </c:spPr>
+          </c:dPt>
           <c:tx><c:strRef><c:f>Sheet1!$B$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>North</c:v></c:pt></c:strCache></c:strRef></c:tx>
           <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
           <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
@@ -288,6 +298,8 @@ XML);
         <c:grouping val="standard"/>
         <c:ser>
           <c:idx val="1"/><c:order val="1"/>
+          <c:marker><c:symbol val="circle"/><c:size val="6"/></c:marker>
+          <c:smooth val="1"/>
           <c:tx><c:strRef><c:f>Sheet1!$C$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>South</c:v></c:pt></c:strCache></c:strRef></c:tx>
           <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
           <c:val><c:numRef><c:f>Sheet1!$C$2:$C$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>9</c:v></c:pt><c:pt idx="1"><c:v>13</c:v></c:pt></c:numCache></c:numRef></c:val>
@@ -713,10 +725,30 @@ return [
         $t->same('Sheet1!$B$2:$B$3', $chartDivs[0]->attr('pptxChart')['series'][0]['valueFormula'] ?? null);
         $t->same(2, $chartDivs[0]->attr('pptxChart')['series'][0]['valuePointCount'] ?? null);
         $t->same(['0', '1'], $chartDivs[0]->attr('pptxChart')['series'][0]['valuePointIndexes'] ?? null);
+        $t->same(true, $chartDivs[0]->attr('pptxChart')['series'][0]['invertIfNegative'] ?? null);
+        $t->same(1, $chartDivs[0]->attr('pptxChart')['series'][0]['dataPointCount'] ?? null);
+        $t->same([
+            'pointIndex' => 1,
+            'invertIfNegative' => false,
+            'marker' => [
+                'symbol' => 'diamond',
+                'size' => 7,
+            ],
+            'shape' => [
+                'fillColor' => 'C00000',
+                'line' => [
+                    'color' => 'theme:accent2',
+                    'width' => 9525,
+                    'dash' => 'dash',
+                ],
+            ],
+        ], $chartDivs[0]->attr('pptxChart')['series'][0]['dataPoints'][0] ?? null);
         $t->same('line', $chartDivs[0]->attr('pptxChart')['series'][1]['plotType'] ?? null);
         $t->same(['9', '13'], $chartDivs[0]->attr('pptxChart')['series'][1]['values'] ?? null);
         $t->same('Sheet1!$C$1', $chartDivs[0]->attr('pptxChart')['series'][1]['nameFormula'] ?? null);
         $t->same('Sheet1!$C$2:$C$3', $chartDivs[0]->attr('pptxChart')['series'][1]['valueFormula'] ?? null);
+        $t->same(['symbol' => 'circle', 'size' => 6], $chartDivs[0]->attr('pptxChart')['series'][1]['marker'] ?? null);
+        $t->same(true, $chartDivs[0]->attr('pptxChart')['series'][1]['smooth'] ?? null);
         $t->same('r', $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['position'] ?? null);
         $t->same(false, $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['showValue'] ?? null);
         $t->same(true, $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['showCategoryName'] ?? null);

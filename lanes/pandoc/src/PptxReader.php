@@ -2109,7 +2109,151 @@ final class PptxReader
             $series['dataLabels'] = $dataLabels;
         }
 
+        foreach ([
+            'invertIfNegative' => 'invertIfNegative',
+            'smooth' => 'smooth',
+        ] as $source => $target) {
+            $value = $this->chartBooleanChildValue($seriesElement, $source);
+            if ($value !== null) {
+                $series[$target] = $value;
+            }
+        }
+
+        $explosion = $this->chartIntChildValue($seriesElement, 'explosion');
+        if ($explosion !== null) {
+            $series['explosion'] = $explosion;
+        }
+
+        $marker = $this->chartMarkerMetadata($seriesElement);
+        if ($marker !== []) {
+            $series['marker'] = $marker;
+        }
+
+        $dataPoints = $this->chartDataPoints($seriesElement);
+        if ($dataPoints !== []) {
+            $series['dataPoints'] = $dataPoints;
+            $series['dataPointCount'] = count($dataPoints);
+        }
+
         return $series;
+    }
+
+    private function chartBooleanChildValue(\DOMElement $parent, string $localName): ?bool
+    {
+        $child = $this->firstChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        return $child->hasAttribute('val') ? $this->xmlBooleanValue($child->getAttribute('val')) : true;
+    }
+
+    private function chartIntChildValue(\DOMElement $parent, string $localName): ?int
+    {
+        $child = $this->firstChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        return $this->integerAttribute($child, 'val');
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartMarkerMetadata(\DOMElement $container): array
+    {
+        $marker = $this->firstChildElement($container, 'marker');
+        if (!$marker instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $symbol = $this->firstChildElement($marker, 'symbol');
+        if ($symbol instanceof \DOMElement && trim($symbol->getAttribute('val')) !== '') {
+            $metadata['symbol'] = trim($symbol->getAttribute('val'));
+        }
+
+        $size = $this->chartIntChildValue($marker, 'size');
+        if ($size !== null) {
+            $metadata['size'] = $size;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function chartDataPoints(\DOMElement $seriesElement): array
+    {
+        $points = [];
+        foreach ($this->childElements($seriesElement, 'dPt') as $dataPoint) {
+            $point = [];
+            $index = $this->chartIntChildValue($dataPoint, 'idx');
+            if ($index !== null) {
+                $point['pointIndex'] = $index;
+            }
+
+            foreach ([
+                'invertIfNegative' => 'invertIfNegative',
+                'bubble3D' => 'bubble3D',
+            ] as $source => $target) {
+                $value = $this->chartBooleanChildValue($dataPoint, $source);
+                if ($value !== null) {
+                    $point[$target] = $value;
+                }
+            }
+
+            $explosion = $this->chartIntChildValue($dataPoint, 'explosion');
+            if ($explosion !== null) {
+                $point['explosion'] = $explosion;
+            }
+
+            $marker = $this->chartMarkerMetadata($dataPoint);
+            if ($marker !== []) {
+                $point['marker'] = $marker;
+            }
+
+            $shapeProperties = $this->firstChildElement($dataPoint, 'spPr');
+            if ($shapeProperties instanceof \DOMElement) {
+                $shape = $this->chartShapePropertiesMetadata($shapeProperties);
+                if ($shape !== []) {
+                    $point['shape'] = $shape;
+                }
+            }
+
+            if ($point !== []) {
+                $points[] = $point;
+            }
+        }
+
+        return $points;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartShapePropertiesMetadata(\DOMElement $shapeProperties): array
+    {
+        $metadata = [];
+        $fill = $this->tableFillMetadata($shapeProperties);
+        if (is_string($fill['color'] ?? null) && $fill['color'] !== '') {
+            $metadata['fillColor'] = $fill['color'];
+            if (is_array($fill['transforms'] ?? null) && $fill['transforms'] !== []) {
+                $metadata['fillColorTransforms'] = $fill['transforms'];
+            }
+        }
+
+        $line = $this->firstChildElement($shapeProperties, 'ln');
+        if ($line instanceof \DOMElement) {
+            $lineStyle = $this->tableLineStyleMetadata($line);
+            if ($lineStyle !== []) {
+                $metadata['line'] = $lineStyle;
+            }
+        }
+
+        return $metadata;
     }
 
     /**
