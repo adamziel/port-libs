@@ -1616,6 +1616,87 @@ XML;
         $t->same('deflated', $summary['largestPayloadEntry']['compressionMethodName']);
         $t->same($summary['largestPayloadEntry'], $centralSummary['largestPayloadEntry']);
     },
+    'summarizes OPC ZIP source record manifest before XML package handoff' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+</Types>
+XML;
+        $documentXml = str_repeat('<w:p/>', 9);
+        $imageBytes = str_repeat('PNG', 32);
+        $zipBytes = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>'],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8],
+            [
+                'name' => 'word/media/review.png',
+                'data' => $imageBytes,
+                'descriptor' => true,
+                'descriptorSignature' => true,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zipBytes);
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $centralSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zipBytes);
+        $packageManifest = $package->packageManifestPreflight();
+        $manifest = $summary['zipSourceRecordManifest'];
+        $centralManifest = $centralSummary['zipSourceRecordManifest'];
+        $manifestEntries = [];
+        foreach ($manifest['entries'] as $entry) {
+            $manifestEntries[$entry['entryName']] = $entry;
+        }
+
+        $payload = $manifest;
+        unset($payload['manifestSha256']);
+        $expectedHash = hash('sha256', json_encode(
+            $payload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        ));
+        $expectedLocalRecordBytes = array_sum(array_column($manifest['entries'], 'localRecordBytes'));
+        $expectedCentralDirectoryRecordBytes = array_sum(array_column($manifest['entries'], 'centralDirectoryRecordBytes'));
+        $expectedSourceRecordBytes = array_sum(array_column($manifest['entries'], 'sourceRecordBytes'));
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $centralSummary['valid']);
+        $t->same($packageManifest['manifestSha256'], $summary['zipPackageManifestSha256']);
+        $t->same('zip-opc-source-record-manifest-v1', $summary['zipSourceRecordManifestVersion']);
+        $t->same('zip-opc-source-record-manifest-v1', $manifest['manifestVersion']);
+        $t->same($expectedHash, $summary['zipSourceRecordManifestSha256']);
+        $t->same($expectedHash, $manifest['manifestSha256']);
+        $t->same($manifest, $centralManifest);
+        $t->same($summary['zipSourceRecordManifestSha256'], $centralSummary['zipSourceRecordManifestSha256']);
+        $t->same(true, $summary['zipSourceRecordByteCountsAreExact']);
+        $t->same(true, $centralSummary['zipSourceRecordByteCountsAreExact']);
+        $t->same(4, $summary['zipSourceRecordEntryCount']);
+        $t->same(0, $summary['zipSourceRecordUnknownEntryCount']);
+        $t->same($expectedLocalRecordBytes, $summary['zipSourceRecordLocalRecordBytes']);
+        $t->same($expectedLocalRecordBytes, $summary['zipSourceRecordKnownLocalRecordBytes']);
+        $t->same($expectedCentralDirectoryRecordBytes, $summary['zipSourceRecordCentralDirectoryRecordBytes']);
+        $t->same($expectedCentralDirectoryRecordBytes, $summary['zipSourceRecordKnownCentralDirectoryRecordBytes']);
+        $t->same($expectedSourceRecordBytes, $summary['zipSourceRecordBytes']);
+        $t->same($expectedSourceRecordBytes, $summary['zipSourceRecordKnownBytes']);
+        $t->same($summary['zipSourceRecordBytes'], $summary['zipSourceRecordLocalRecordBytes'] + $summary['zipSourceRecordCentralDirectoryRecordBytes']);
+        $t->same(16, $summary['zipSourceRecordDataDescriptorBytes']);
+        $t->same(1, $summary['zipSourceRecordDataDescriptorEntryCount']);
+        $t->same($summary['zipSourceRecordManifest'], $centralSummary['zipSourceRecordManifest']);
+
+        $documentEntry = $manifestEntries['word/document.xml'];
+        $imageEntry = $manifestEntries['word/media/review.png'];
+        $t->same('xml-part', $documentEntry['role']);
+        $t->same('media', $imageEntry['role']);
+        $t->same(false, $documentEntry['usesDataDescriptor']);
+        $t->same(true, $imageEntry['usesDataDescriptor']);
+        $t->same(16, $imageEntry['dataDescriptorBytes']);
+        $t->same($imageEntry['localRecordBytes'] + $imageEntry['centralDirectoryRecordBytes'], $imageEntry['sourceRecordBytes']);
+        $t->same(hash('sha256', substr($zipBytes, $documentEntry['localRecordOffset'], $documentEntry['localRecordBytes'])), $documentEntry['localRecordSha256']);
+        $t->same(hash('sha256', substr($zipBytes, $imageEntry['dataDescriptorOffset'], $imageEntry['dataDescriptorBytes'])), $imageEntry['dataDescriptorSha256']);
+        $t->same(hash('sha256', substr($zipBytes, $imageEntry['centralDirectoryRecordOffset'], $imageEntry['centralDirectoryRecordBytes'])), $imageEntry['centralDirectoryRecordSha256']);
+        $t->same([], $documentEntry['sourceRecordIssues']);
+        $t->same([], $imageEntry['sourceRecordIssues']);
+    },
     'summarizes OPC ZIP manifest general purpose flag provenance before XML package handoff' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

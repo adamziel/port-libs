@@ -632,6 +632,7 @@ final class OpcRelationshipGraph
                 'compressedDataSha256' => $manifestEntry['compressedDataSha256'] ?? null,
                 'dataDescriptorOffset' => $manifestEntry['dataDescriptorOffset'] ?? null,
                 'dataDescriptorBytes' => $manifestEntry['dataDescriptorBytes'] ?? 0,
+                'usesDataDescriptor' => $manifestEntry['usesDataDescriptor'] ?? (($entry->generalPurposeFlags & 0x0008) !== 0),
                 'dataDescriptorEnd' => $manifestEntry['dataDescriptorEnd'] ?? null,
                 'dataDescriptorSha256' => $manifestEntry['dataDescriptorSha256'] ?? null,
                 'sourceRecordBytes' => $manifestEntry['sourceRecordBytes'] ?? null,
@@ -646,6 +647,7 @@ final class OpcRelationshipGraph
                 ...self::zipGeneralPurposeFlagManifestEntry($entry->generalPurposeFlags),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
+                'byteCountsAreExact' => true,
                 'crc32Hex' => $entry->crc32Hex(),
                 'role' => $isDirectory ? 'directory' : 'package-part',
                 'handoffKind' => $isDirectory ? 'directory' : 'binary',
@@ -1296,11 +1298,13 @@ final class OpcRelationshipGraph
             $payloadEntries,
             self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
         );
+        $zipSourceRecordManifest = self::zipEntrySourceRecordManifest($entries);
 
         return [
             'valid' => $issues === [],
             'isSupportedByBoundedReader' => $issues === [],
             'packageSource' => $packageManifest['packageSource'],
+            'zipPackageManifestSha256' => $packageManifest['manifestSha256'],
             'archiveLength' => $packageManifest['archiveLength'],
             'archiveSha256' => $packageManifest['archiveSha256'],
             'centralDirectoryOffset' => $packageManifest['centralDirectoryOffset'],
@@ -1341,6 +1345,22 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'zipSourceRecordManifestVersion' => $zipSourceRecordManifest['manifestVersion'],
+            'zipSourceRecordManifestSha256' => $zipSourceRecordManifest['manifestSha256'],
+            'zipSourceRecordByteCountsAreExact' => $zipSourceRecordManifest['byteCountsAreExact'],
+            'zipSourceRecordEntryCount' => $zipSourceRecordManifest['entryCount'],
+            'zipSourceRecordUnknownEntryCount' => $zipSourceRecordManifest['unknownSourceRecordEntryCount'],
+            'zipSourceRecordLocalRecordBytes' => $zipSourceRecordManifest['localRecordBytes'],
+            'zipSourceRecordKnownLocalRecordBytes' => $zipSourceRecordManifest['knownLocalRecordBytes'],
+            'zipSourceRecordLocalHeaderBytes' => $zipSourceRecordManifest['localHeaderBytes'],
+            'zipSourceRecordCompressedDataBytes' => $zipSourceRecordManifest['compressedDataBytes'],
+            'zipSourceRecordDataDescriptorBytes' => $zipSourceRecordManifest['dataDescriptorBytes'],
+            'zipSourceRecordDataDescriptorEntryCount' => $zipSourceRecordManifest['dataDescriptorEntryCount'],
+            'zipSourceRecordCentralDirectoryRecordBytes' => $zipSourceRecordManifest['centralDirectoryRecordBytes'],
+            'zipSourceRecordKnownCentralDirectoryRecordBytes' => $zipSourceRecordManifest['knownCentralDirectoryRecordBytes'],
+            'zipSourceRecordBytes' => $zipSourceRecordManifest['sourceRecordBytes'],
+            'zipSourceRecordKnownBytes' => $zipSourceRecordManifest['knownSourceRecordBytes'],
+            'zipSourceRecordManifest' => $zipSourceRecordManifest,
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
             'entryNamesByDirectoryRoot' => $entryNamesByDirectoryRoot,
@@ -2242,6 +2262,7 @@ final class OpcRelationshipGraph
             $payloadEntries,
             self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT
         );
+        $zipSourceRecordManifest = self::zipEntrySourceRecordManifest($entries);
 
         return [
             'valid' => $issues === [],
@@ -2314,6 +2335,22 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'zipSourceRecordManifestVersion' => $zipSourceRecordManifest['manifestVersion'],
+            'zipSourceRecordManifestSha256' => $zipSourceRecordManifest['manifestSha256'],
+            'zipSourceRecordByteCountsAreExact' => $zipSourceRecordManifest['byteCountsAreExact'],
+            'zipSourceRecordEntryCount' => $zipSourceRecordManifest['entryCount'],
+            'zipSourceRecordUnknownEntryCount' => $zipSourceRecordManifest['unknownSourceRecordEntryCount'],
+            'zipSourceRecordLocalRecordBytes' => $zipSourceRecordManifest['localRecordBytes'],
+            'zipSourceRecordKnownLocalRecordBytes' => $zipSourceRecordManifest['knownLocalRecordBytes'],
+            'zipSourceRecordLocalHeaderBytes' => $zipSourceRecordManifest['localHeaderBytes'],
+            'zipSourceRecordCompressedDataBytes' => $zipSourceRecordManifest['compressedDataBytes'],
+            'zipSourceRecordDataDescriptorBytes' => $zipSourceRecordManifest['dataDescriptorBytes'],
+            'zipSourceRecordDataDescriptorEntryCount' => $zipSourceRecordManifest['dataDescriptorEntryCount'],
+            'zipSourceRecordCentralDirectoryRecordBytes' => $zipSourceRecordManifest['centralDirectoryRecordBytes'],
+            'zipSourceRecordKnownCentralDirectoryRecordBytes' => $zipSourceRecordManifest['knownCentralDirectoryRecordBytes'],
+            'zipSourceRecordBytes' => $zipSourceRecordManifest['sourceRecordBytes'],
+            'zipSourceRecordKnownBytes' => $zipSourceRecordManifest['knownSourceRecordBytes'],
+            'zipSourceRecordManifest' => $zipSourceRecordManifest,
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
             'entryNamesByDirectoryRoot' => $entryNamesByDirectoryRoot,
@@ -9181,6 +9218,144 @@ final class OpcRelationshipGraph
         }
 
         return substr($entryName, 0, $separator + 1);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private static function zipEntrySourceRecordManifest(array $entries): array
+    {
+        $manifestVersion = 'zip-opc-source-record-manifest-v1';
+        $manifestEntries = [];
+        $localRecordBytes = 0;
+        $localHeaderBytes = 0;
+        $compressedDataBytes = 0;
+        $dataDescriptorBytes = 0;
+        $centralDirectoryRecordBytes = 0;
+        $sourceRecordBytes = 0;
+        $dataDescriptorEntryCount = 0;
+        $unknownSourceRecordEntryCount = 0;
+        $byteCountsAreExact = true;
+
+        foreach ($entries as $entry) {
+            $entryName = is_string($entry['entryName'] ?? null) ? $entry['entryName'] : '';
+            $partName = is_string($entry['partName'] ?? null) ? $entry['partName'] : null;
+            $role = is_string($entry['role'] ?? null) ? $entry['role'] : 'unknown';
+            $handoffKind = is_string($entry['handoffKind'] ?? null) ? $entry['handoffKind'] : 'unknown';
+            $entryLocalRecordBytes = is_int($entry['localRecordBytes'] ?? null)
+                ? $entry['localRecordBytes']
+                : null;
+            $entryLocalHeaderBytes = is_int($entry['localHeaderLength'] ?? null)
+                ? $entry['localHeaderLength']
+                : null;
+            $entryCompressedDataBytes = (($entry['byteCountsAreExact'] ?? true) === true)
+                && is_int($entry['compressedSize'] ?? null)
+                    ? $entry['compressedSize']
+                    : null;
+            $entryDataDescriptorBytes = is_int($entry['dataDescriptorBytes'] ?? null)
+                ? $entry['dataDescriptorBytes']
+                : 0;
+            $entryCentralDirectoryRecordBytes = is_int($entry['centralDirectoryRecordBytes'] ?? null)
+                ? $entry['centralDirectoryRecordBytes']
+                : null;
+            $entryByteCountsAreExact = ($entry['byteCountsAreExact'] ?? true) === true
+                && $entryLocalRecordBytes !== null
+                && $entryLocalHeaderBytes !== null
+                && $entryCompressedDataBytes !== null
+                && $entryCentralDirectoryRecordBytes !== null;
+            $entrySourceRecordBytes = $entryLocalRecordBytes !== null && $entryCentralDirectoryRecordBytes !== null
+                ? $entryLocalRecordBytes + $entryCentralDirectoryRecordBytes
+                : null;
+            $sourceRecordIssues = [];
+            if (!$entryByteCountsAreExact) {
+                $sourceRecordIssues[] = 'source-record-byte-count-not-exact';
+            }
+            if ($entryLocalRecordBytes === null) {
+                $sourceRecordIssues[] = 'local-record-byte-count-unavailable';
+            }
+            if ($entryCentralDirectoryRecordBytes === null) {
+                $sourceRecordIssues[] = 'central-directory-record-byte-count-unavailable';
+            }
+
+            if ($entryByteCountsAreExact) {
+                $localRecordBytes += $entryLocalRecordBytes;
+                $localHeaderBytes += $entryLocalHeaderBytes;
+                $compressedDataBytes += $entryCompressedDataBytes;
+                $sourceRecordBytes += $entrySourceRecordBytes ?? 0;
+            } else {
+                $byteCountsAreExact = false;
+                ++$unknownSourceRecordEntryCount;
+                $localRecordBytes += $entryLocalRecordBytes ?? 0;
+                $localHeaderBytes += $entryLocalHeaderBytes ?? 0;
+                $compressedDataBytes += $entryCompressedDataBytes ?? 0;
+                $sourceRecordBytes += $entrySourceRecordBytes ?? 0;
+            }
+            $dataDescriptorBytes += $entryDataDescriptorBytes;
+            if ($entryDataDescriptorBytes > 0) {
+                ++$dataDescriptorEntryCount;
+            }
+            $centralDirectoryRecordBytes += $entryCentralDirectoryRecordBytes ?? 0;
+
+            $manifestEntries[] = [
+                'entryIndex' => $entry['entryIndex'] ?? null,
+                'entryName' => $entryName,
+                'partName' => $partName,
+                'role' => $role,
+                'handoffKind' => $handoffKind,
+                'byteCountsAreExact' => $entryByteCountsAreExact,
+                'localRecordOffset' => $entry['localRecordOffset'] ?? null,
+                'localRecordBytes' => $entryLocalRecordBytes,
+                'localRecordEnd' => $entry['localRecordEnd'] ?? null,
+                'localRecordSha256' => $entry['localRecordSha256'] ?? null,
+                'localHeaderBytes' => $entryLocalHeaderBytes,
+                'localHeaderSha256' => $entry['localHeaderSha256'] ?? null,
+                'compressedDataOffset' => $entry['compressedDataOffset'] ?? null,
+                'compressedDataBytes' => $entryCompressedDataBytes,
+                'compressedDataEnd' => $entry['compressedDataEnd'] ?? null,
+                'compressedDataSha256' => $entry['compressedDataSha256'] ?? null,
+                'usesDataDescriptor' => ($entry['usesDataDescriptor'] ?? $entry['zipUsesDataDescriptorFlag'] ?? false) === true,
+                'dataDescriptorOffset' => $entry['dataDescriptorOffset'] ?? null,
+                'dataDescriptorBytes' => $entryDataDescriptorBytes,
+                'dataDescriptorEnd' => $entry['dataDescriptorEnd'] ?? null,
+                'dataDescriptorSha256' => $entry['dataDescriptorSha256'] ?? null,
+                'centralDirectoryRecordOffset' => $entry['centralDirectoryRecordOffset'] ?? null,
+                'centralDirectoryRecordBytes' => $entryCentralDirectoryRecordBytes,
+                'centralDirectoryRecordEnd' => $entry['centralDirectoryRecordEnd'] ?? null,
+                'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
+                'sourceRecordBytes' => $entrySourceRecordBytes,
+                'sourceRecordIssues' => $sourceRecordIssues,
+            ];
+        }
+
+        $payload = [
+            'manifestVersion' => $manifestVersion,
+            'entryCount' => count($manifestEntries),
+            'byteCountsAreExact' => $byteCountsAreExact,
+            'unknownSourceRecordEntryCount' => $unknownSourceRecordEntryCount,
+            'localRecordBytes' => $byteCountsAreExact ? $localRecordBytes : null,
+            'knownLocalRecordBytes' => $localRecordBytes,
+            'localHeaderBytes' => $byteCountsAreExact ? $localHeaderBytes : null,
+            'knownLocalHeaderBytes' => $localHeaderBytes,
+            'compressedDataBytes' => $byteCountsAreExact ? $compressedDataBytes : null,
+            'knownCompressedDataBytes' => $compressedDataBytes,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
+            'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'knownCentralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'sourceRecordBytes' => $byteCountsAreExact ? $sourceRecordBytes : null,
+            'knownSourceRecordBytes' => $sourceRecordBytes,
+            'entries' => $manifestEntries,
+        ];
+        $manifestJson = json_encode(
+            $payload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return [
+            ...$payload,
+            'manifestSha256' => hash('sha256', $manifestJson),
+        ];
     }
 
     private static function recordZipEntryManifestDirectoryRootSummary(
