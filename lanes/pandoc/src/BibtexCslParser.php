@@ -752,7 +752,7 @@ final class BibtexCslParser
         }
         $archive = self::firstField($fields, ['archiveprefix', 'eprinttype', 'archive']);
         $archiveCollection = self::firstField($fields, ['archivecollection', 'archive-collection', 'archive_collection']);
-        $archivePlace = self::firstField($fields, ['eprintclass', 'archiveplace', 'archive-place']);
+        $archivePlace = self::firstField($fields, ['eprintclass', 'primaryclass', 'primary-class', 'archiveplace', 'archive-place']);
         $archiveLocation = self::firstField($fields, ['eprint', 'archive_location', 'archive-location', 'archivelocation']);
         $patentType = self::patentType($type, $fields);
         $originalPage = self::normalizePages(self::firstField($fields, ['origpages', 'orig-pages', 'origpage', 'orig-page', 'originalpages', 'original-pages', 'originalpage', 'original-page']));

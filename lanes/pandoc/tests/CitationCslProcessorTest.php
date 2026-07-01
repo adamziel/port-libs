@@ -6677,19 +6677,47 @@ XML);
   archive = {HAL},
   eprint  = {hal-041234}
 }
+
+@online{primaryclass-source,
+  author        = {Ng, Nia},
+  title         = {Primary Class Archive Packet},
+  date          = {2026},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  eprint        = {2601.00001}
+}
+
+@online{hyphen-primary-class-source,
+  author        = {Roe, Pat},
+  title         = {Hyphen Primary Class Archive Packet},
+  date          = {2025},
+  archiveprefix = {arXiv},
+  primary-class = {math.AG},
+  eprint        = {2601.00002}
+}
 BIB;
 
         $items = CitationCslProcessor::bibtexItems($bibtex);
-        $t->same(2, count($items));
+        $t->same(4, count($items));
         $t->same('arXiv:2401.01234 [cs.DL]', $items[0]['archive-summary'] ?? null);
         $t->same('HAL:hal-041234', $items[1]['archive-summary'] ?? null);
+        $t->same('cs.CL', $items[2]['archive-place'] ?? null);
+        $t->same('math.AG', $items[3]['archive-place'] ?? null);
         $t->same('arXiv', $items[0]['rawBibtex']['fields']['eprinttype'] ?? null);
+        $t->same('cs.CL', $items[2]['rawBibtex']['fields']['primaryclass'] ?? null);
+        $t->same('math.AG', $items[3]['rawBibtex']['fields']['primary-class'] ?? null);
 
         $processor = CitationCslProcessor::fromBibtex($bibtex);
         $source = $processor->item('eprint-source');
         $archiveOnly = $processor->item('archive-only-source');
+        $primaryClass = $processor->item('primaryclass-source');
+        $hyphenPrimaryClass = $processor->item('hyphen-primary-class-source');
         $t->same('arXiv:2401.01234 [cs.DL]', $source['archiveSummary'] ?? null);
         $t->same('HAL:hal-041234', $archiveOnly['archiveSummary'] ?? null);
+        $t->same('cs.CL', $primaryClass['archivePlace'] ?? null);
+        $t->same('math.AG', $hyphenPrimaryClass['archivePlace'] ?? null);
+        $t->same('arXiv:2601.00001 [cs.CL]', $primaryClass['archiveSummary'] ?? null);
+        $t->same('arXiv:2601.00002 [math.AG]', $hyphenPrimaryClass['archiveSummary'] ?? null);
         $t->same(
             'Doe, Jane. Eprint Archive Packet. 2026. Archive: arXiv cs.DL 2401.01234.',
             $processor->renderBibliographyEntry('eprint-source')
@@ -6719,6 +6747,12 @@ XML);
             $citation('archive-only-source', '[@archive-only-source]'),
         ]));
         $t->same('Eprint Archive Packet :: arXiv:2401.01234 [cs.DL]', $styled->renderBibliographyEntry('eprint-source'));
+        $t->same('[Ng | arXiv:2601.00001 [cs.CL]; Roe | arXiv:2601.00002 [math.AG]]', $styled->renderCitationCluster([
+            $citation('primaryclass-source', '[@primaryclass-source]'),
+            $citation('hyphen-primary-class-source', '[@hyphen-primary-class-source]'),
+        ]));
+        $t->same('Primary Class Archive Packet :: arXiv:2601.00001 [cs.CL]', $styled->renderBibliographyEntry('primaryclass-source'));
+        $t->same('Hyphen Primary Class Archive Packet :: arXiv:2601.00002 [math.AG]', $styled->renderBibliographyEntry('hyphen-primary-class-source'));
 
         $direct = CitationCslProcessor::fromItems([[
             'id' => 'manual-eprint',
