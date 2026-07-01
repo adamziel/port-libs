@@ -15500,6 +15500,24 @@ final class DocxOpenXmlReader
         }
         ksort($partZipSourceRecordRoleCounts, SORT_STRING);
         ksort($partZipSourceRecordRoleBytes, SORT_STRING);
+        $partZipSourceRecordContentTypes = $this->packagePartZipSourceRecordContentTypeSummary($partInventory);
+        $partZipSourceRecordContentTypeCounts = [];
+        $partZipSourceRecordContentTypeBytes = [];
+        $partZipSourceRecordContentTypeDataDescriptorPartCount = 0;
+        $partZipSourceRecordContentTypeIssuePartCount = 0;
+        foreach ($partZipSourceRecordContentTypes as $sourceRecordContentType) {
+            $contentTypeKey = (string) ($sourceRecordContentType['contentTypeKey'] ?? '');
+            $partZipSourceRecordContentTypeCounts[$contentTypeKey] =
+                (int) ($sourceRecordContentType['partCount'] ?? 0);
+            $partZipSourceRecordContentTypeBytes[$contentTypeKey] =
+                (int) ($sourceRecordContentType['sourceRecordBytes'] ?? 0);
+            $partZipSourceRecordContentTypeDataDescriptorPartCount +=
+                (int) ($sourceRecordContentType['dataDescriptorPartCount'] ?? 0);
+            $partZipSourceRecordContentTypeIssuePartCount +=
+                (int) ($sourceRecordContentType['sourceByteSpanIssuePartCount'] ?? 0);
+        }
+        ksort($partZipSourceRecordContentTypeCounts, SORT_STRING);
+        ksort($partZipSourceRecordContentTypeBytes, SORT_STRING);
         $zeroByteParts = $this->zeroBytePackagePartSummary($partInventory);
         $zeroByteRelationshipPartCount = 0;
         $zeroByteMissingContentTypePartCount = 0;
@@ -18166,6 +18184,11 @@ final class DocxOpenXmlReader
             'partZipSourceRecordRoleOccurrenceCount' => $partZipSourceRecordRoleOccurrenceCount,
             'partZipSourceRecordRoleDataDescriptorOccurrenceCount' => $partZipSourceRecordRoleDataDescriptorOccurrenceCount,
             'partZipSourceRecordRoleIssueOccurrenceCount' => $partZipSourceRecordRoleIssueOccurrenceCount,
+            'partZipSourceRecordContentTypeCount' => count($partZipSourceRecordContentTypes),
+            'partZipSourceRecordContentTypeCounts' => $partZipSourceRecordContentTypeCounts,
+            'partZipSourceRecordContentTypeBytes' => $partZipSourceRecordContentTypeBytes,
+            'partZipSourceRecordContentTypeDataDescriptorPartCount' => $partZipSourceRecordContentTypeDataDescriptorPartCount,
+            'partZipSourceRecordContentTypeIssuePartCount' => $partZipSourceRecordContentTypeIssuePartCount,
             'zeroBytePartCount' => count($zeroByteParts),
             'zeroBytePartNames' => array_values(array_map(
                 static fn (array $part): string => (string) $part['partName'],
@@ -18557,6 +18580,7 @@ final class DocxOpenXmlReader
             'partZipCompressionMethods' => $partZipCompressionMethods,
             'partZipSourceRecordDirectoryRoots' => $partZipSourceRecordDirectoryRoots,
             'partZipSourceRecordRoles' => $partZipSourceRecordRoles,
+            'partZipSourceRecordContentTypes' => $partZipSourceRecordContentTypes,
             'zeroByteParts' => $zeroByteParts,
             'relationshipPartsWithMissingTargets' => array_keys($relationshipPartsWithMissingTargets),
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
@@ -19772,6 +19796,206 @@ final class DocxOpenXmlReader
         }
 
         return array_values($roles);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartZipSourceRecordContentTypeSummary(array $partInventory): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+
+        $contentTypes = [];
+        foreach ($partInventory as $partName => $part) {
+            if (($part['zipEntryPresent'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            if (!isset($contentTypes[$contentTypeKey])) {
+                $contentTypes[$contentTypeKey] = [
+                    'contentTypeKey' => $contentTypeKey,
+                    'contentTypeBase' => $contentTypeBase,
+                    'contentTypes' => [],
+                    'partCount' => 0,
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'localHeaderBytes' => 0,
+                    'localHeaderFixedHeaderBytes' => 0,
+                    'localHeaderVariableFieldBytes' => 0,
+                    'localHeaderRawNameBytes' => 0,
+                    'localHeaderExtraFieldBytes' => 0,
+                    'localHeaderReviewFieldBytes' => 0,
+                    'compressedDataBytes' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'dataDescriptorPartCount' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'centralDirectoryFixedHeaderBytes' => 0,
+                    'centralDirectoryVariableFieldBytes' => 0,
+                    'centralDirectoryRawNameBytes' => 0,
+                    'centralDirectoryExtraFieldBytes' => 0,
+                    'centralDirectoryRawCommentBytes' => 0,
+                    'centralDirectoryReviewFieldBytes' => 0,
+                    'sourceByteSpanIssuePartCount' => 0,
+                    'sourceByteSpanIssueCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'directoryRootCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'largestSourceRecordPart' => null,
+                ];
+            }
+
+            $directoryRoot = is_string($part['zipDirectoryRoot'] ?? null)
+                ? $part['zipDirectoryRoot']
+                : $this->packagePartTopLevelSegment($partName);
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+
+            $sourceRecordBytes = $intField($part, 'sourceRecordBytes');
+            $localRecordBytes = $intField($part, 'localRecordBytes');
+            $localHeaderBytes = $intField($part, 'localHeaderBytes');
+            $localHeaderFixedHeaderBytes = $intField($part, 'localHeaderFixedHeaderBytes');
+            $localHeaderVariableFieldBytes = $intField($part, 'localHeaderVariableFieldBytes');
+            $localHeaderRawNameBytes = $intField($part, 'localHeaderRawNameBytes');
+            $localHeaderExtraFieldBytes = $intField($part, 'localHeaderExtraFieldBytes');
+            $localHeaderReviewFieldBytes = $intField($part, 'localHeaderReviewFieldBytes');
+            $compressedDataBytes = $intField($part, 'compressedDataBytes');
+            $dataDescriptorBytes = $intField($part, 'dataDescriptorBytes');
+            $centralDirectoryRecordBytes = $intField($part, 'centralDirectoryRecordBytes');
+            $centralDirectoryFixedHeaderBytes = $intField($part, 'centralDirectoryFixedHeaderBytes');
+            $centralDirectoryVariableFieldBytes = $intField($part, 'centralDirectoryVariableFieldBytes');
+            $centralDirectoryRawNameBytes = $intField($part, 'centralDirectoryRawNameBytes');
+            $centralDirectoryExtraFieldBytes = $intField($part, 'centralDirectoryExtraFieldBytes');
+            $centralDirectoryRawCommentBytes = $intField($part, 'centralDirectoryRawCommentBytes');
+            $centralDirectoryReviewFieldBytes = $intField($part, 'centralDirectoryReviewFieldBytes');
+            $sourceByteSpanIssues = is_array($part['sourceByteSpanIssues'] ?? null)
+                ? array_values(array_filter($part['sourceByteSpanIssues'], static fn (mixed $issue): bool => is_string($issue)))
+                : [];
+            $sourceByteSpanIssueCount = count($sourceByteSpanIssues);
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $compressionMethod = is_int($part['compressionMethod'] ?? null) ? (string) $part['compressionMethod'] : '(missing)';
+            $partRoles = array_values(array_unique(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            )));
+            if ($partRoles === []) {
+                $partRoles = ['package-part'];
+            }
+
+            ++$contentTypes[$contentTypeKey]['partCount'];
+            $contentTypes[$contentTypeKey]['sourceRecordBytes'] += $sourceRecordBytes;
+            $contentTypes[$contentTypeKey]['localRecordBytes'] += $localRecordBytes;
+            $contentTypes[$contentTypeKey]['localHeaderBytes'] += $localHeaderBytes;
+            $contentTypes[$contentTypeKey]['localHeaderFixedHeaderBytes'] += $localHeaderFixedHeaderBytes;
+            $contentTypes[$contentTypeKey]['localHeaderVariableFieldBytes'] += $localHeaderVariableFieldBytes;
+            $contentTypes[$contentTypeKey]['localHeaderRawNameBytes'] += $localHeaderRawNameBytes;
+            $contentTypes[$contentTypeKey]['localHeaderExtraFieldBytes'] += $localHeaderExtraFieldBytes;
+            $contentTypes[$contentTypeKey]['localHeaderReviewFieldBytes'] += $localHeaderReviewFieldBytes;
+            $contentTypes[$contentTypeKey]['compressedDataBytes'] += $compressedDataBytes;
+            $contentTypes[$contentTypeKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            $contentTypes[$contentTypeKey]['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes;
+            $contentTypes[$contentTypeKey]['centralDirectoryFixedHeaderBytes'] += $centralDirectoryFixedHeaderBytes;
+            $contentTypes[$contentTypeKey]['centralDirectoryVariableFieldBytes'] += $centralDirectoryVariableFieldBytes;
+            $contentTypes[$contentTypeKey]['centralDirectoryRawNameBytes'] += $centralDirectoryRawNameBytes;
+            $contentTypes[$contentTypeKey]['centralDirectoryExtraFieldBytes'] += $centralDirectoryExtraFieldBytes;
+            $contentTypes[$contentTypeKey]['centralDirectoryRawCommentBytes'] += $centralDirectoryRawCommentBytes;
+            $contentTypes[$contentTypeKey]['centralDirectoryReviewFieldBytes'] += $centralDirectoryReviewFieldBytes;
+            $contentTypes[$contentTypeKey]['sourceByteSpanIssueCount'] += $sourceByteSpanIssueCount;
+            $contentTypes[$contentTypeKey]['partNames'][] = $partName;
+            $this->appendUniqueString(
+                $contentTypes[$contentTypeKey]['contentTypes'],
+                is_string($part['contentType'] ?? null) ? $part['contentType'] : null,
+            );
+            $contentTypes[$contentTypeKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($contentTypes[$contentTypeKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $contentTypes[$contentTypeKey]['directoryRootCounts'][$directoryRoot] =
+                ($contentTypes[$contentTypeKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $contentTypes[$contentTypeKey]['compressionMethodCounts'][$compressionMethod] =
+                ($contentTypes[$contentTypeKey]['compressionMethodCounts'][$compressionMethod] ?? 0) + 1;
+            if ($dataDescriptorBytes > 0 || ($part['usesDataDescriptor'] ?? false) === true) {
+                ++$contentTypes[$contentTypeKey]['dataDescriptorPartCount'];
+            }
+            if ($sourceByteSpanIssueCount > 0) {
+                ++$contentTypes[$contentTypeKey]['sourceByteSpanIssuePartCount'];
+            }
+
+            foreach ($partRoles as $role) {
+                $contentTypes[$contentTypeKey]['roleCounts'][$role] =
+                    ($contentTypes[$contentTypeKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'contentTypeKey' => $contentTypeKey,
+                'contentTypeBase' => $contentTypeBase,
+                'directoryRoot' => $directoryRoot,
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'compressedByteLength' => $intField($part, 'compressedByteLength'),
+                'compressionMethod' => is_int($part['compressionMethod'] ?? null) ? (int) $part['compressionMethod'] : null,
+                'compressionMethodName' => is_string($part['compressionMethodName'] ?? null) ? $part['compressionMethodName'] : null,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'localHeaderBytes' => $localHeaderBytes,
+                'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+                'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+                'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
+                'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+                'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+                'compressedDataBytes' => $compressedDataBytes,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'sourceByteSpanIssueCount' => $sourceByteSpanIssueCount,
+                'sourceByteSpanIssues' => $sourceByteSpanIssues,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => $partRoles,
+            ];
+            $largestPart = $contentTypes[$contentTypeKey]['largestSourceRecordPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['sourceRecordBytes'] > (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                || (
+                    $partSummary['sourceRecordBytes'] === (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $contentTypes[$contentTypeKey]['largestSourceRecordPart'] = $partSummary;
+            }
+        }
+
+        ksort($contentTypes, SORT_STRING);
+        foreach ($contentTypes as $contentTypeKey => $summary) {
+            sort($summary['contentTypes'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $contentTypes[$contentTypeKey] = $summary;
+        }
+
+        return array_values($contentTypes);
     }
 
     /**
