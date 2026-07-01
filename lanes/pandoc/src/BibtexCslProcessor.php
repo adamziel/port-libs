@@ -966,7 +966,7 @@ final class BibtexCslProcessor
             'ISWC' => ['iswc'],
             'PMID' => ['pmid', 'pubmed', 'pubmedid', 'pubmed-id'],
             'PMCID' => ['pmcid', 'pmc', 'pmc-id', 'pmcid-id'],
-            'MRNumber' => ['mrnumber', 'mr-number', 'mr', 'mathscinet'],
+            'MRNumber' => ['mrnumber', 'mr-number', 'mr', 'mathscinet', 'mathscinetid', 'mathscinet-id'],
             'MRClass' => ['mrclass', 'mr-class'],
             'Zbl' => ['zbl', 'zbmath'],
             'JSTOR' => ['jstor', 'jstorid', 'jstor-id'],
