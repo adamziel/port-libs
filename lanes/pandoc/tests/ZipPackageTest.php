@@ -878,6 +878,7 @@ return [
         );
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
+            'packageSource' => $manifest['packageSource'],
             'archiveBytes' => $manifest['archiveBytes'],
             'archiveSha256' => $manifest['archiveSha256'],
             'centralDirectoryOffset' => $manifest['centralDirectoryOffset'],
@@ -1010,19 +1011,37 @@ return [
         ], $comment);
         $package = ZipPackage::fromString($zip);
         $manifest = $package->packageManifestPreflight();
+        $layout = ZipPackage::packageByteLayoutPreflight($zip);
         $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $source = $manifest['packageSource'];
 
+        $t->same(strlen($zip), $source['archiveLength']);
         $t->same(strlen($zip), $manifest['archiveBytes']);
+        $t->same($source['archiveLength'], $manifest['archiveLength']);
         $t->same(hash('sha256', $zip), $manifest['archiveSha256']);
+        $t->same($manifest['archiveSha256'], $source['archiveSha256']);
         $t->same($package->centralDirectoryOffset(), $manifest['centralDirectoryOffset']);
+        $t->same($manifest['centralDirectoryOffset'], $source['centralDirectoryOffset']);
         $t->true($manifest['centralDirectoryOffset'] < $manifest['centralDirectoryEnd']);
         $t->same($manifest['centralDirectoryEnd'] - $manifest['centralDirectoryOffset'], $manifest['centralDirectoryBytes']);
         $t->same($manifest['endOfCentralDirectoryOffset'], $manifest['centralDirectoryEnd']);
+        $t->same($manifest['centralDirectoryEnd'], $source['centralDirectoryEnd']);
         $t->same(hash('sha256', substr($zip, $manifest['centralDirectoryOffset'], $manifest['centralDirectoryBytes'])), $manifest['centralDirectorySha256']);
+        $t->same($manifest['centralDirectorySha256'], $source['centralDirectorySha256']);
+        $t->same($layout['centralDirectoryToEocdGapOffset'], $source['centralDirectoryToEocdGapOffset']);
+        $t->same($layout['centralDirectoryToEocdGapBytes'], $source['centralDirectoryToEocdGapBytes']);
+        $t->same($layout['centralDirectoryToEocdGapSha256'], $source['centralDirectoryToEocdGapSha256']);
         $t->same(22 + strlen($comment), $manifest['endOfCentralDirectoryBytes']);
+        $t->same($manifest['endOfCentralDirectoryBytes'], $source['endOfCentralDirectoryBytes']);
         $t->same(strlen($zip), $manifest['endOfCentralDirectoryEnd']);
+        $t->same($manifest['endOfCentralDirectoryEnd'], $source['endOfCentralDirectoryEnd']);
         $t->same(strlen($comment), $manifest['packageCommentBytes']);
+        $t->same($layout['packageCommentOffset'], $source['packageCommentOffset']);
+        $t->same($manifest['packageCommentBytes'], $source['packageCommentBytes']);
+        $t->same(hash('sha256', $comment), $source['packageCommentSha256']);
+        $t->same(true, $source['hasPackageComment']);
         $t->same(hash('sha256', substr($zip, $manifest['endOfCentralDirectoryOffset'], $manifest['endOfCentralDirectoryBytes'])), $manifest['endOfCentralDirectorySha256']);
+        $t->same($manifest['endOfCentralDirectorySha256'], $source['endOfCentralDirectorySha256']);
         $t->same(false, $manifest['hasCentralDirectorySignature']);
         $t->same(null, $manifest['centralDirectorySignatureOffset']);
         $t->same(0, $manifest['centralDirectorySignatureBytes']);
@@ -1034,6 +1053,8 @@ return [
         $signedPackage = ZipPackage::fromString($signedZip);
         $signedManifest = $signedPackage->packageManifestPreflight();
         $signedRaw = ZipPackage::rawStrictImportPreflight($signedZip, 2048, 100.0, 2048);
+        $signedSignature = ZipPackage::centralDirectorySignaturePolicyPreflight($signedZip);
+        $signedSource = $signedManifest['packageSource'];
 
         $t->same(true, $signedManifest['hasCentralDirectorySignature']);
         $t->same(strlen('central-signature'), $signedManifest['centralDirectorySignatureBytes']);
@@ -1046,6 +1067,18 @@ return [
             $signedManifest['centralDirectorySignatureSha256'],
             $signedPackage->centralDirectorySignaturePreflight()['signatureSha256']
         );
+        $t->same($signedSignature['offset'], $signedSource['centralDirectoryToEocdGapOffset']);
+        $t->same($signedSignature['signatureLength'] + 6, $signedSource['centralDirectoryToEocdGapBytes']);
+        $t->same(
+            hash(
+                'sha256',
+                substr($signedZip, $signedSource['centralDirectoryToEocdGapOffset'], $signedSource['centralDirectoryToEocdGapBytes'])
+            ),
+            $signedSource['centralDirectoryToEocdGapSha256']
+        );
+        $t->same($signedSource['centralDirectoryToEocdGapOffset'], $signedManifest['centralDirectoryToEocdGapOffset']);
+        $t->same($signedSource['centralDirectoryToEocdGapBytes'], $signedManifest['centralDirectoryToEocdGapBytes']);
+        $t->same($signedSource['centralDirectoryToEocdGapSha256'], $signedManifest['centralDirectoryToEocdGapSha256']);
         $t->same($signedManifest, $signedRaw['packageManifest']);
         $t->same($signedManifest, $signedRaw['strictImport']['packageManifest']);
     },
@@ -1221,7 +1254,14 @@ return [
                 'usesDataDescriptor' => false,
                 'dataDescriptorBytes' => 0,
                 'dataDescriptorSha256' => null,
+                'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes'],
                 'centralDirectoryRecordSha256' => $documentEntry['centralDirectoryRecordSha256'],
+                'centralDirectoryFixedHeaderBytes' => $documentEntry['centralDirectoryFixedHeaderBytes'],
+                'centralDirectoryVariableFieldBytes' => $documentEntry['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryRawNameBytes' => $documentEntry['centralDirectoryRawNameBytes'],
+                'centralDirectoryExtraFieldBytes' => $documentEntry['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryRawCommentBytes' => $documentEntry['centralDirectoryRawCommentBytes'],
+                'centralDirectoryReviewFieldBytes' => $documentEntry['centralDirectoryReviewFieldBytes'],
             ],
             [
                 'name' => 'word/comments.xml',
@@ -1240,7 +1280,14 @@ return [
                 'usesDataDescriptor' => true,
                 'dataDescriptorBytes' => strlen($descriptorBytes),
                 'dataDescriptorSha256' => hash('sha256', $descriptorBytes),
+                'centralDirectoryRecordBytes' => $commentsEntry['centralDirectoryRecordBytes'],
                 'centralDirectoryRecordSha256' => $commentsEntry['centralDirectoryRecordSha256'],
+                'centralDirectoryFixedHeaderBytes' => $commentsEntry['centralDirectoryFixedHeaderBytes'],
+                'centralDirectoryVariableFieldBytes' => $commentsEntry['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryRawNameBytes' => $commentsEntry['centralDirectoryRawNameBytes'],
+                'centralDirectoryExtraFieldBytes' => $commentsEntry['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryRawCommentBytes' => $commentsEntry['centralDirectoryRawCommentBytes'],
+                'centralDirectoryReviewFieldBytes' => $commentsEntry['centralDirectoryReviewFieldBytes'],
             ],
         ];
         $expectedCompressionMethodSummaries = [
@@ -1285,6 +1332,7 @@ return [
         ];
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
+            'packageSource' => $manifest['packageSource'],
             'archiveBytes' => $manifest['archiveBytes'],
             'archiveSha256' => $manifest['archiveSha256'],
             'centralDirectoryOffset' => $manifest['centralDirectoryOffset'],
@@ -1298,6 +1346,15 @@ return [
             'centralDirectorySignatureSha256' => $manifest['centralDirectorySignatureSha256'],
             'centralDirectoryOrderNames' => ['word/document.xml', 'word/comments.xml'],
             'localHeaderOrderNames' => ['word/document.xml', 'word/comments.xml'],
+            'centralDirectoryRecordBytes' => $manifest['centralDirectoryRecordBytes'],
+            'centralDirectoryFixedHeaderBytes' => $manifest['centralDirectoryFixedHeaderBytes'],
+            'centralDirectoryVariableFieldBytes' => $manifest['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryRawNameBytes' => $manifest['centralDirectoryRawNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $manifest['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryRawCommentBytes' => $manifest['centralDirectoryRawCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'],
+            'centralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'],
+            'entryCommentCount' => $manifest['entryCommentCount'],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'entries' => $expectedManifestEntries,
@@ -1325,7 +1382,14 @@ return [
                 'usesDataDescriptor' => $entry['usesDataDescriptor'],
                 'dataDescriptorBytes' => $entry['dataDescriptorBytes'],
                 'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
+                'centralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'],
                 'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                'centralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'],
+                'centralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'],
+                'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
+                'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
             ],
             $manifest['entries']
         ));

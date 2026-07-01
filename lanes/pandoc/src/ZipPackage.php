@@ -13288,12 +13288,43 @@ final class ZipPackage
             substr($this->bytes, $centralDirectoryOffset, $centralDirectoryBytes)
         );
         $endOfCentralDirectoryOffset = $archive['eocdOffset'];
-        $endOfCentralDirectoryBytes = 22 + $archive['packageCommentLength'];
+        $packageCommentOffset = $endOfCentralDirectoryOffset + 22;
+        $packageCommentBytes = $archive['packageCommentLength'];
+        $packageCommentSha256 = $packageCommentBytes > 0
+            ? hash('sha256', substr($this->bytes, $packageCommentOffset, $packageCommentBytes))
+            : null;
+        $centralDirectoryToEocdGapBytes = max(0, $endOfCentralDirectoryOffset - $centralDirectoryEnd);
+        $centralDirectoryToEocdGapOffset = $centralDirectoryToEocdGapBytes > 0
+            ? $centralDirectoryEnd
+            : null;
+        $centralDirectoryToEocdGapSha256 = $centralDirectoryToEocdGapBytes > 0
+            ? hash('sha256', substr($this->bytes, $centralDirectoryEnd, $centralDirectoryToEocdGapBytes))
+            : null;
+        $endOfCentralDirectoryBytes = 22 + $packageCommentBytes;
         $endOfCentralDirectoryEnd = $endOfCentralDirectoryOffset + $endOfCentralDirectoryBytes;
         $endOfCentralDirectorySha256 = hash(
             'sha256',
             substr($this->bytes, $endOfCentralDirectoryOffset, $endOfCentralDirectoryBytes)
         );
+        $packageSource = [
+            'archiveLength' => $archiveBytes,
+            'archiveSha256' => $archiveSha256,
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryBytes' => $centralDirectoryBytes,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'centralDirectorySha256' => $centralDirectorySha256,
+            'centralDirectoryToEocdGapOffset' => $centralDirectoryToEocdGapOffset,
+            'centralDirectoryToEocdGapBytes' => $centralDirectoryToEocdGapBytes,
+            'centralDirectoryToEocdGapSha256' => $centralDirectoryToEocdGapSha256,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'packageCommentOffset' => $packageCommentOffset,
+            'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentSha256' => $packageCommentSha256,
+            'hasPackageComment' => $packageCommentBytes > 0,
+        ];
         $centralDirectorySignatureBytes = $this->centralDirectorySignatureData === null
             ? 0
             : strlen($this->centralDirectorySignatureData);
@@ -13531,6 +13562,7 @@ final class ZipPackage
         );
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
+            'packageSource' => $packageSource,
             'archiveBytes' => $archiveBytes,
             'archiveSha256' => $archiveSha256,
             'centralDirectoryOffset' => $centralDirectoryOffset,
@@ -13565,7 +13597,9 @@ final class ZipPackage
         return [
             'manifestVersion' => 'zip-package-manifest-v1',
             'manifestSha256' => hash('sha256', $manifestJson),
+            'packageSource' => $packageSource,
             'archiveBytes' => $archiveBytes,
+            'archiveLength' => $packageSource['archiveLength'],
             'archiveSha256' => $archiveSha256,
             'entryCount' => count($this->entries),
             'fileEntryCount' => $fileEntryCount,
@@ -13582,11 +13616,17 @@ final class ZipPackage
             'centralDirectoryBytes' => $centralDirectoryBytes,
             'centralDirectoryEnd' => $centralDirectoryEnd,
             'centralDirectorySha256' => $centralDirectorySha256,
+            'centralDirectoryToEocdGapOffset' => $centralDirectoryToEocdGapOffset,
+            'centralDirectoryToEocdGapBytes' => $centralDirectoryToEocdGapBytes,
+            'centralDirectoryToEocdGapSha256' => $centralDirectoryToEocdGapSha256,
             'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
-            'packageCommentBytes' => $archive['packageCommentLength'],
+            'packageCommentOffset' => $packageCommentOffset,
+            'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentSha256' => $packageCommentSha256,
+            'hasPackageComment' => $packageCommentBytes > 0,
             'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
             'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
             'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
