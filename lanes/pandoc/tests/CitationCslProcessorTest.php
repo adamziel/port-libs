@@ -31062,6 +31062,126 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Original Subtitle Camel Packet :: Manual Fuente: Archive Appendix :: Archive Appendix</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Original Subtitle Compact Packet :: Review Log: Source Annex :: Source Annex</dd>', $blocks);
     },
+    'preserves bounded direct csl original and reviewed title raw provenance across alias collisions' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-original-reviewed-title-collision',
+                'type' => 'review-book',
+                'title' => 'Direct Original Reviewed Collision Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'original-title' => 'Canonical Original Manual',
+                'originalTitle' => 'Camel Original Manual',
+                'originaltitle' => 'Flat Original Manual',
+                'origtitle' => 'Compact Original Manual',
+                'origTitle' => 'Camel Compact Original Manual',
+                'original-subtitle' => 'Canonical Original Appendix',
+                'originalSubtitle' => 'Camel Original Appendix',
+                'originalsubtitle' => 'Flat Original Appendix',
+                'origsubtitle' => 'Compact Original Appendix',
+                'origSubtitle' => 'Camel Compact Original Appendix',
+                'reviewed-title' => 'Canonical Reviewed Work',
+                'reviewedTitle' => 'Camel Reviewed Work',
+                'reviewedtitle' => 'Flat Reviewed Work',
+                'reviewtitle' => 'Compact Reviewed Work',
+                'reviewTitle' => 'Camel Compact Reviewed Work',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('direct-original-reviewed-title-collision');
+        $t->same('Canonical Original Manual: Canonical Original Appendix', $item['originalTitle'] ?? null);
+        $t->same('Canonical Original Appendix', $item['originalSubtitle'] ?? null);
+        $t->same('Canonical Reviewed Work', $item['reviewedTitle'] ?? null);
+        foreach ([
+            'original-title' => 'Canonical Original Manual',
+            'originalTitle' => 'Camel Original Manual',
+            'originaltitle' => 'Flat Original Manual',
+            'origtitle' => 'Compact Original Manual',
+            'origTitle' => 'Camel Compact Original Manual',
+            'original-subtitle' => 'Canonical Original Appendix',
+            'originalSubtitle' => 'Camel Original Appendix',
+            'originalsubtitle' => 'Flat Original Appendix',
+            'origsubtitle' => 'Compact Original Appendix',
+            'origSubtitle' => 'Camel Compact Original Appendix',
+            'reviewed-title' => 'Canonical Reviewed Work',
+            'reviewedTitle' => 'Camel Reviewed Work',
+            'reviewedtitle' => 'Flat Reviewed Work',
+            'reviewtitle' => 'Compact Reviewed Work',
+            'reviewTitle' => 'Camel Compact Reviewed Work',
+        ] as $key => $value) {
+            $t->same($value, $item['raw'][$key] ?? null);
+        }
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Original Reviewed Raw Provenance Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-original-reviewed-raw-provenance-review</id>
+    <updated>2026-06-30T17:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="original-title"/>
+        <text variable="originalTitleRaw"/>
+        <text variable="origTitleRaw"/>
+        <text variable="original-subtitle"/>
+        <text variable="origSubtitleRaw"/>
+        <text variable="reviewed-title"/>
+        <text variable="reviewedTitleRaw"/>
+        <text variable="reviewtitleRaw"/>
+        <text variable="reviewTitleRaw"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-title-raw"/>
+      <text variable="originalTitleRaw"/>
+      <text variable="origTitleRaw"/>
+      <text variable="original-subtitle-raw"/>
+      <text variable="origSubtitleRaw"/>
+      <text variable="reviewed-title-raw"/>
+      <text variable="reviewedTitleRaw"/>
+      <text variable="reviewtitleRaw"/>
+      <text variable="reviewTitleRaw"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyRendering = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Original Reviewed Raw Provenance Review', $summary['title'] ?? null);
+        $t->same('originalTitleRaw', $citationChildren[1]['variable'] ?? null);
+        $t->same('origTitleRaw', $citationChildren[2]['variable'] ?? null);
+        $t->same('origSubtitleRaw', $citationChildren[4]['variable'] ?? null);
+        $t->same('reviewedTitleRaw', $citationChildren[6]['variable'] ?? null);
+        $t->same('reviewtitleRaw', $citationChildren[7]['variable'] ?? null);
+        $t->same('reviewTitleRaw', $citationChildren[8]['variable'] ?? null);
+        $t->same('original-title-raw', $bibliographyRendering[1]['variable'] ?? null);
+        $t->same('reviewed-title-raw', $bibliographyRendering[6]['variable'] ?? null);
+
+        $t->same(
+            '[Canonical Original Manual: Canonical Original Appendix | Camel Original Manual | Camel Compact Original Manual | Canonical Original Appendix | Camel Compact Original Appendix | Canonical Reviewed Work | Camel Reviewed Work | Compact Reviewed Work | Camel Compact Reviewed Work]',
+            $styled->renderCitationCluster([$citation('direct-original-reviewed-title-collision', '[@direct-original-reviewed-title-collision]')])
+        );
+        $t->same(
+            'Direct Original Reviewed Collision Packet :: Canonical Original Manual :: Camel Original Manual :: Camel Compact Original Manual :: Canonical Original Appendix :: Camel Compact Original Appendix :: Canonical Reviewed Work :: Camel Reviewed Work :: Compact Reviewed Work :: Camel Compact Reviewed Work',
+            $styled->renderBibliographyEntry('direct-original-reviewed-title-collision')
+        );
+
+        $document = (new MarkdownReader())->read('Original and reviewed raw aliases [@direct-original-reviewed-title-collision] stay inspectable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original and reviewed raw aliases [Canonical Original Manual: Canonical Original Appendix | Camel Original Manual | Camel Compact Original Manual | Canonical Original Appendix | Camel Compact Original Appendix | Canonical Reviewed Work | Camel Reviewed Work | Compact Reviewed Work | Camel Compact Reviewed Work] stay inspectable.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Original Reviewed Collision Packet :: Canonical Original Manual :: Camel Original Manual :: Camel Compact Original Manual :: Canonical Original Appendix :: Camel Compact Original Appendix :: Canonical Reviewed Work :: Camel Reviewed Work :: Compact Reviewed Work :: Camel Compact Reviewed Work</dd>', $blocks);
+    },
     'normalizes bounded direct csl json title subtitle family aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
