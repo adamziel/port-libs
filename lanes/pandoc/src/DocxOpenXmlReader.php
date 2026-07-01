@@ -16924,6 +16924,7 @@ final class DocxOpenXmlReader
         );
         $largestRelationshipSourceParts = array_slice($relationshipSourceExistingParts, 0, 5);
         $relationshipSourceDirectories = $this->relationshipSourceDirectorySummary($relationshipSources);
+        $relationshipSourceCaseFoldParts = $this->relationshipSourceCaseFoldPartSummary($relationshipSources);
         $relationshipSourcePathDepths = $this->relationshipSourcePathDepthSummary($relationshipSources);
         $relationshipSourcePathDepthCounts = [];
         foreach ($relationshipSourcePathDepths as $sourcePathDepthSummary) {
@@ -17260,6 +17261,13 @@ final class DocxOpenXmlReader
             'relationshipSourceRoles' => $relationshipSourceRoles,
             'relationshipSourceDirectoryCount' => count($relationshipSourceDirectories),
             'relationshipSourceDirectories' => $relationshipSourceDirectories,
+            'relationshipSourceCaseFoldPartCount' => $relationshipSourceCaseFoldParts['caseFoldPartCount'],
+            'duplicateRelationshipSourceCaseFoldPartCount' => $relationshipSourceCaseFoldParts['duplicateGroupCount'],
+            'duplicateRelationshipSourceCaseFoldSourceCount' => $relationshipSourceCaseFoldParts['duplicateSourceCount'],
+            'duplicateRelationshipSourceCaseFoldRelationshipCount' => $relationshipSourceCaseFoldParts['duplicateRelationshipCount'],
+            'duplicateRelationshipSourceCaseFoldPartNameCount' => $relationshipSourceCaseFoldParts['duplicatePartNameCount'],
+            'duplicateRelationshipSourceCaseFoldParts' => $relationshipSourceCaseFoldParts['duplicateCaseFoldParts'],
+            'duplicateRelationshipSourceCaseFoldPartGroups' => $relationshipSourceCaseFoldParts['duplicateGroups'],
             'relationshipSourcePathDepthCount' => count($relationshipSourcePathDepths),
             'relationshipSourcePathDepthCounts' => $relationshipSourcePathDepthCounts,
             'maxRelationshipSourcePathSegmentCount' => $maxRelationshipSourcePathSegmentCount,
@@ -17691,6 +17699,199 @@ final class DocxOpenXmlReader
             'relationshipCount' => $relationshipCount,
             'targetParts' => array_keys($duplicates),
             'groups' => array_values($duplicates),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return array{caseFoldPartCount:int, duplicateGroupCount:int, duplicateSourceCount:int, duplicateRelationshipCount:int, duplicatePartNameCount:int, duplicateCaseFoldParts:list<string>, duplicateGroups:list<array<string, mixed>>}
+     */
+    private function relationshipSourceCaseFoldPartSummary(array $relationshipSources): array
+    {
+        $groups = [];
+        foreach ($relationshipSources as $source) {
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            if ($sourcePart === '' || $sourcePart === '/') {
+                continue;
+            }
+
+            $caseFoldSourcePart = $this->packagePartCaseFoldKey($sourcePart);
+            if (!isset($groups[$caseFoldSourcePart])) {
+                $groups[$caseFoldSourcePart] = [
+                    'caseFoldSourcePart' => $caseFoldSourcePart,
+                    'sourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'sourcePartVariantCount' => 0,
+                    'existingSourceCount' => 0,
+                    'missingSourceCount' => 0,
+                    'existingSourcePartByteLength' => 0,
+                    'sourcePartCounts' => [],
+                    'relationshipSourceKindCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceParts' => [],
+                    'existingSourceParts' => [],
+                    'missingSourceParts' => [],
+                    'relationshipParts' => [],
+                    'contentTypes' => [],
+                    'contentTypeBases' => [],
+                    'largestExistingSourcePart' => null,
+                    '_seenExistingSourceParts' => [],
+                ];
+            }
+
+            ++$groups[$caseFoldSourcePart]['sourceCount'];
+            $relationshipCount = (int) ($source['relationshipCount'] ?? 0);
+            $relationshipRecordCount = (int) ($source['relationshipRecordCount'] ?? 0);
+            $groups[$caseFoldSourcePart]['relationshipCount'] += $relationshipCount;
+            $groups[$caseFoldSourcePart]['relationshipRecordCount'] += $relationshipRecordCount;
+            $groups[$caseFoldSourcePart]['sourcePartCounts'][$sourcePart] =
+                ($groups[$caseFoldSourcePart]['sourcePartCounts'][$sourcePart] ?? 0) + 1;
+            $this->appendUniqueString($groups[$caseFoldSourcePart]['sourceParts'], $sourcePart);
+
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$groups[$caseFoldSourcePart]['existingSourceCount'];
+                $this->appendUniqueString($groups[$caseFoldSourcePart]['existingSourceParts'], $sourcePart);
+            } else {
+                ++$groups[$caseFoldSourcePart]['missingSourceCount'];
+                $this->appendUniqueString($groups[$caseFoldSourcePart]['missingSourceParts'], $sourcePart);
+            }
+
+            $relationshipSourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : '(unknown)';
+            if ($relationshipSourceKind === '') {
+                $relationshipSourceKind = '(unknown)';
+            }
+            $groups[$caseFoldSourcePart]['relationshipSourceKindCounts'][$relationshipSourceKind] =
+                ($groups[$caseFoldSourcePart]['relationshipSourceKindCounts'][$relationshipSourceKind] ?? 0) + 1;
+
+            $sourceContentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $sourceContentTypeBaseKey = $sourceContentTypeBase === '' ? '(missing)' : $sourceContentTypeBase;
+            $groups[$caseFoldSourcePart]['contentTypeBaseCounts'][$sourceContentTypeBaseKey] =
+                ($groups[$caseFoldSourcePart]['contentTypeBaseCounts'][$sourceContentTypeBaseKey] ?? 0) + 1;
+
+            $sourceContentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : 'missing';
+            if ($sourceContentTypeSource === '') {
+                $sourceContentTypeSource = 'missing';
+            }
+            $groups[$caseFoldSourcePart]['contentTypeSourceCounts'][$sourceContentTypeSource] =
+                ($groups[$caseFoldSourcePart]['contentTypeSourceCounts'][$sourceContentTypeSource] ?? 0) + 1;
+
+            $sourceRoles = is_array($source['sourceRoles'] ?? null)
+                ? array_values(array_filter(
+                    array_map('strval', $source['sourceRoles']),
+                    static fn (string $role): bool => $role !== '',
+                ))
+                : [];
+            foreach ($sourceRoles as $sourceRole) {
+                $groups[$caseFoldSourcePart]['sourceRoleCounts'][$sourceRole] =
+                    ($groups[$caseFoldSourcePart]['sourceRoleCounts'][$sourceRole] ?? 0) + 1;
+            }
+
+            $sourceContentType = is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : '';
+            $this->appendUniqueString(
+                $groups[$caseFoldSourcePart]['relationshipParts'],
+                is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString($groups[$caseFoldSourcePart]['contentTypes'], $sourceContentType);
+            $this->appendUniqueString($groups[$caseFoldSourcePart]['contentTypeBases'], $sourceContentTypeBase);
+
+            if (
+                $sourceExists
+                && is_int($source['sourceBytes'] ?? null)
+                && !isset($groups[$caseFoldSourcePart]['_seenExistingSourceParts'][$sourcePart])
+            ) {
+                $groups[$caseFoldSourcePart]['_seenExistingSourceParts'][$sourcePart] = true;
+                $sourceBytes = (int) $source['sourceBytes'];
+                $sourceSummary = [
+                    'sourcePart' => $sourcePart,
+                    'relationshipsPart' => is_string($source['relationshipsPart'] ?? null)
+                        ? $source['relationshipsPart']
+                        : null,
+                    'relationshipSourceKind' => $relationshipSourceKind,
+                    'sourceDirectory' => is_string($source['sourceDirectory'] ?? null)
+                        ? $source['sourceDirectory']
+                        : $this->packagePartDirectory($sourcePart),
+                    'sourceBaseName' => is_string($source['sourceBaseName'] ?? null)
+                        ? $source['sourceBaseName']
+                        : $this->packagePartBaseName($sourcePart),
+                    'sourcePathDepth' => is_int($source['sourcePathDepth'] ?? null)
+                        ? (int) $source['sourcePathDepth']
+                        : count($this->packagePartPathSegments($sourcePart)),
+                    'sourcePartExtension' => is_string($source['sourcePartExtension'] ?? null)
+                        ? $source['sourcePartExtension']
+                        : $this->packagePartExtension($sourcePart),
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                    'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                    'sourceContentType' => $sourceContentType,
+                    'sourceContentTypeBase' => $sourceContentTypeBase,
+                    'sourceContentTypeSource' => $sourceContentTypeSource,
+                    'sourceRoles' => $sourceRoles,
+                    'relationshipCount' => $relationshipCount,
+                    'relationshipRecordCount' => $relationshipRecordCount,
+                ];
+                $groups[$caseFoldSourcePart]['existingSourcePartByteLength'] += $sourceBytes;
+                $largestSourcePart = $groups[$caseFoldSourcePart]['largestExistingSourcePart'];
+                if (
+                    !is_array($largestSourcePart)
+                    || $sourceBytes > (int) ($largestSourcePart['sourceBytes'] ?? 0)
+                    || (
+                        $sourceBytes === (int) ($largestSourcePart['sourceBytes'] ?? 0)
+                        && strcmp($sourcePart, (string) ($largestSourcePart['sourcePart'] ?? '')) < 0
+                    )
+                ) {
+                    $groups[$caseFoldSourcePart]['largestExistingSourcePart'] = $sourceSummary;
+                }
+            }
+        }
+
+        ksort($groups, SORT_STRING);
+        $duplicates = [];
+        $duplicateSourceCount = 0;
+        $duplicateRelationshipCount = 0;
+        $duplicatePartNameCount = 0;
+        foreach ($groups as $caseFoldSourcePart => $group) {
+            ksort($group['sourcePartCounts'], SORT_STRING);
+            ksort($group['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($group['contentTypeBaseCounts'], SORT_STRING);
+            ksort($group['contentTypeSourceCounts'], SORT_STRING);
+            ksort($group['sourceRoleCounts'], SORT_STRING);
+            sort($group['sourceParts'], SORT_STRING);
+            sort($group['existingSourceParts'], SORT_STRING);
+            sort($group['missingSourceParts'], SORT_STRING);
+            sort($group['relationshipParts'], SORT_STRING);
+            sort($group['contentTypes'], SORT_STRING);
+            sort($group['contentTypeBases'], SORT_STRING);
+            $group['sourcePartVariantCount'] = count($group['sourcePartCounts']);
+            unset($group['_seenExistingSourceParts']);
+
+            if ($group['sourcePartVariantCount'] < 2) {
+                continue;
+            }
+
+            $duplicates[$caseFoldSourcePart] = $group;
+            $duplicateSourceCount += (int) $group['sourceCount'];
+            $duplicateRelationshipCount += (int) $group['relationshipCount'];
+            $duplicatePartNameCount += (int) $group['sourcePartVariantCount'];
+        }
+
+        return [
+            'caseFoldPartCount' => count($groups),
+            'duplicateGroupCount' => count($duplicates),
+            'duplicateSourceCount' => $duplicateSourceCount,
+            'duplicateRelationshipCount' => $duplicateRelationshipCount,
+            'duplicatePartNameCount' => $duplicatePartNameCount,
+            'duplicateCaseFoldParts' => array_keys($duplicates),
+            'duplicateGroups' => array_values($duplicates),
         ];
     }
 
