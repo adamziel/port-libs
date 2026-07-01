@@ -55,6 +55,7 @@ final class PptxReader
             $slideContext = $this->slideContext($package, $slideRelationships);
             $slideComments = $this->slideComments($package, $slideRelationships, $commentAuthors);
             $slideSpeakerNotes = $this->slideSpeakerNotes($package, $slideRelationships);
+            $slideBackgrounds = $this->slideBackgrounds($package, $slideDocument, $slideRelationships);
             $imageIssues = [];
             $shapeIssues = [];
             $richMedia = [];
@@ -75,6 +76,8 @@ final class PptxReader
                 'comments' => $slideComments,
                 'speakerNoteCount' => count($slideSpeakerNotes),
                 'speakerNotes' => $this->speakerNoteReviews($slideSpeakerNotes),
+                'backgroundCount' => count($slideBackgrounds),
+                'backgrounds' => $slideBackgrounds,
                 'imageIssueCount' => count($imageIssues),
                 'imageIssues' => $imageIssues,
                 'shapeIssueCount' => count($shapeIssues),
@@ -1110,6 +1113,105 @@ final class PptxReader
         }
 
         return trim($this->drawingText($commentElement));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function slideBackgrounds(ZipPackage $package, \DOMDocument $document, OpcRelationships $slideRelationships): array
+    {
+        $root = XmlHtmlDom::rootElement($document, 'sld');
+        if (!$root instanceof \DOMElement) {
+            return [];
+        }
+
+        $commonSlideData = $this->firstPresentationChildElement($root, 'cSld');
+        $background = $commonSlideData instanceof \DOMElement ? $this->firstPresentationChildElement($commonSlideData, 'bg') : null;
+        if (!$background instanceof \DOMElement) {
+            return [];
+        }
+
+        $backgrounds = [];
+        foreach ($background->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || $element->namespaceURI !== self::DRAWING_NAMESPACE || $element->localName !== 'blip') {
+                continue;
+            }
+
+            $backgrounds[] = $this->backgroundMediaReview($package, $element, $slideRelationships);
+        }
+
+        return $backgrounds;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function backgroundMediaReview(ZipPackage $package, \DOMElement $blip, OpcRelationships $slideRelationships): array
+    {
+        $relationshipAttribute = 'embed';
+        $relationshipId = $this->relationshipAttribute($blip, $relationshipAttribute);
+        if ($relationshipId === null) {
+            $relationshipAttribute = 'link';
+            $relationshipId = $this->relationshipAttribute($blip, $relationshipAttribute);
+        }
+
+        $review = [
+            'relationshipId' => $relationshipId ?? '',
+            'relationshipAttribute' => $relationshipAttribute,
+            'relationshipType' => '',
+            'target' => '',
+            'external' => false,
+            'exists' => false,
+            'issues' => [],
+        ];
+
+        if ($relationshipId === null) {
+            $review['issues'][] = 'missing-background-relationship-id';
+
+            return $review;
+        }
+
+        $relationship = $slideRelationships->byId($relationshipId);
+        if (!$relationship instanceof OpcRelationship) {
+            $review['issues'][] = 'unknown-background-relationship';
+
+            return $review;
+        }
+
+        $review['relationshipType'] = $relationship->type;
+        $review['target'] = $relationship->target;
+        $review['external'] = $relationship->isExternal();
+        if ($relationship->isExternal()) {
+            $review['externalTargetPolicy'] = $relationship->externalTargetPreflight();
+            $review['issues'][] = 'external-background-target';
+
+            return $review;
+        }
+
+        if ($relationshipAttribute === 'link') {
+            $partName = ltrim(OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship)), '/');
+            $review['partName'] = $partName;
+            if (in_array($partName, $package->names(), true)) {
+                $review['exists'] = true;
+            } else {
+                $review['issues'][] = 'missing-background-image-part';
+            }
+            $review['issues'][] = 'linked-background-target';
+
+            return $review;
+        }
+
+        $mediaPart = $this->upstreamPictureMediaPart($relationship->target);
+        $review['partName'] = $mediaPart;
+        if (!in_array($mediaPart, $package->names(), true)) {
+            $review['issues'][] = 'missing-background-image-part';
+
+            return $review;
+        }
+
+        $review['exists'] = true;
+
+        return $review;
     }
 
     /**
