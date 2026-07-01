@@ -1848,6 +1848,119 @@ XML;
         $t->same(true, $summary['manifestReview']['directoryItems'][0]['isDirectory']);
         $t->same('Pictures/', $summary['manifestReview']['directoryItems'][0]['path']);
     },
+    'summarizes ODT package inventory areas and path depths for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:full-path="Object 1/"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object 1/content.xml"/>'
+            . '<manifest:file-entry manifest:media-type="" manifest:full-path="Configurations2/"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Configurations2/statusbar/statusbar.xml"/>',
+            $manifestXml
+        );
+        $package = $buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Object 1/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Object 1/content.xml', 'data' => '<chart/>', 'compressionMethod' => 0],
+                ['name' => 'Configurations2/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Configurations2/statusbar/statusbar.xml', 'data' => '<statusbar/>', 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/thumbnail.png', 'data' => 'THUMBNAIL', 'compressionMethod' => 0],
+            ],
+        );
+
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $compactInventory = $compactSummary['packageInventory'];
+        $richProvenance = (new OdfReader())->readPackage($package)['importReport']['manifest']['packageProvenance'];
+        $compactAreaSummaries = [];
+        foreach ($compactInventory['packageAreaSummaries'] as $areaSummary) {
+            $compactAreaSummaries[$areaSummary['packageArea']] = $areaSummary;
+        }
+        $richAreaSummaries = [];
+        foreach ($richProvenance['packageAreaSummaries'] as $areaSummary) {
+            $richAreaSummaries[$areaSummary['packageArea']] = $areaSummary;
+        }
+
+        $expectedAreaCounts = [
+            '/' => 4,
+            'Configurations2/' => 2,
+            'META-INF/' => 1,
+            'Object 1/' => 2,
+            'Pictures/' => 2,
+            'Thumbnails/' => 1,
+        ];
+        $expectedDepthCounts = [
+            1 => 7,
+            2 => 4,
+            3 => 1,
+        ];
+
+        $t->same($expectedAreaCounts, $compactInventory['packageAreaCounts']);
+        $t->same($expectedAreaCounts, $richProvenance['packageAreaCounts']);
+        $t->same($compactInventory['packageAreaCounts'], $richProvenance['packageAreaCounts']);
+        $t->same([
+            'content.xml',
+            'meta.xml',
+            'mimetype',
+            'styles.xml',
+        ], $compactInventory['packagePathsByPackageArea']['/']);
+        $t->same([
+            'Pictures/',
+            'Pictures/hero.png',
+        ], $compactInventory['packagePathsByPackageArea']['Pictures/']);
+        $t->same($compactInventory['packagePathsByPackageArea'], $richProvenance['packagePathsByPackageArea']);
+        $t->same($expectedDepthCounts, $compactInventory['packagePathDepthCounts']);
+        $t->same($expectedDepthCounts, $richProvenance['packagePathDepthCounts']);
+        $t->same($compactInventory['packagePathsByPathDepth'], $richProvenance['packagePathsByPathDepth']);
+        $t->same(3, $compactInventory['maxPackagePathDepth']);
+        $t->same(3, $richProvenance['maxPackagePathDepth']);
+        $t->same('/', $compactInventory['parts']['mimetype']['packageArea']);
+        $t->same(1, $compactInventory['parts']['mimetype']['packagePathDepth']);
+        $t->same('Pictures/', $compactInventory['parts']['Pictures/']['packageArea']);
+        $t->same(1, $compactInventory['parts']['Pictures/']['packagePathDepth']);
+        $t->same('Configurations2/', $compactInventory['parts']['Configurations2/statusbar/statusbar.xml']['packageArea']);
+        $t->same(3, $compactInventory['parts']['Configurations2/statusbar/statusbar.xml']['packagePathDepth']);
+        $t->same(
+            $compactInventory['parts']['Configurations2/statusbar/statusbar.xml']['packageArea'],
+            $richProvenance['parts']['Configurations2/statusbar/statusbar.xml']['packageArea']
+        );
+        $t->same(
+            $compactInventory['parts']['Configurations2/statusbar/statusbar.xml']['packagePathDepth'],
+            $richProvenance['parts']['Configurations2/statusbar/statusbar.xml']['packagePathDepth']
+        );
+        $t->same([
+            'packageArea' => 'Pictures/',
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'byteLength' => strlen('PNGDATA'),
+            'compressedByteLength' => strlen(gzdeflate('PNGDATA')),
+            'declaredEntryCount' => 2,
+            'undeclaredEntryCount' => 0,
+            'exposableEntryCount' => 1,
+            'blockedEntryCount' => 1,
+            'roleCounts' => [
+                'manifest-declared' => 2,
+                'media-resource' => 1,
+                'zip-directory' => 1,
+            ],
+            'byteExposurePolicyCounts' => [
+                'directory-entry-no-bytes' => 1,
+                'package-bytes-exposable' => 1,
+            ],
+            'packagePaths' => [
+                'Pictures/',
+                'Pictures/hero.png',
+            ],
+        ], $compactAreaSummaries['Pictures/']);
+        $t->same($compactAreaSummaries['Pictures/'], $richAreaSummaries['Pictures/']);
+        $t->same($compactInventory['packageAreaCounts'], $compactSummary['packageIdentity']['packageAreaCounts']);
+        $t->same($richProvenance['packageAreaCounts'], $richProvenance['packageIdentity']['packageAreaCounts']);
+        $t->same($compactInventory['packagePathDepthCounts'], $compactSummary['packageIdentity']['packagePathDepthCounts']);
+        $t->same($richProvenance['packagePathDepthCounts'], $richProvenance['packageIdentity']['packagePathDepthCounts']);
+    },
     'summarizes compact ODT package inventory role buckets for review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $settingsXml = <<<'XML'
 <office:document-settings
