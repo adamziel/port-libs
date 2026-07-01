@@ -15360,6 +15360,7 @@ final class DocxOpenXmlReader
         ksort($partCaseFoldPathSegmentPositionCounts, SORT_STRING);
         ksort($partCaseFoldPathSegmentPositionPartCounts, SORT_STRING);
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
+        $partPathDepthRoleBuckets = $this->packagePartPathDepthRoleBucketSummary($partInventory);
         $parameterizedPartPathDepthCount = 0;
         $parameterizedPartPathDepthBucketCount = 0;
         $missingContentTypePartPathDepthCount = 0;
@@ -18457,6 +18458,12 @@ final class DocxOpenXmlReader
             'partPathDepthParameterizedBucketCount' => $parameterizedPartPathDepthBucketCount,
             'partPathDepthParameterizedPartCount' => $parameterizedPartPathDepthCount,
             'partPathDepthMissingContentTypeBucketCount' => $missingContentTypePartPathDepthCount,
+            'partPathDepthRoleBucketCount' => $partPathDepthRoleBuckets['roleBucketCount'],
+            'partPathDepthRoleCounts' => $partPathDepthRoleBuckets['roleCounts'],
+            'partNamesByPartPathDepthRole' => $partPathDepthRoleBuckets['partNamesByRole'],
+            'partPathDepthByteExposurePolicyBucketCount' => $partPathDepthRoleBuckets['byteExposurePolicyBucketCount'],
+            'partPathDepthByteExposurePolicyCounts' => $partPathDepthRoleBuckets['byteExposurePolicyCounts'],
+            'partNamesByPartPathDepthByteExposurePolicy' => $partPathDepthRoleBuckets['partNamesByByteExposurePolicy'],
             'maxPartPathSegmentCount' => $maxPartPathSegmentCount,
             'maxPartDirectoryDepth' => max(0, $maxPartPathSegmentCount - 1),
             'deepestPartNames' => array_values(array_map(
@@ -26902,6 +26909,112 @@ final class DocxOpenXmlReader
         }
 
         return array_values($depths);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{
+     *     roleBucketCount:int,
+     *     roleCounts:array<int|string, array<string, int>>,
+     *     partNamesByRole:array<int|string, array<string, list<string>>>,
+     *     byteExposurePolicyBucketCount:int,
+     *     byteExposurePolicyCounts:array<int|string, array<string, int>>,
+     *     partNamesByByteExposurePolicy:array<int|string, array<string, list<string>>>
+     * }
+     */
+    private function packagePartPathDepthRoleBucketSummary(array $partInventory): array
+    {
+        $roleCounts = [];
+        $partNamesByRole = [];
+        $byteExposurePolicyCounts = [];
+        $partNamesByByteExposurePolicy = [];
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = is_string($part['partName'] ?? null) ? $part['partName'] : (string) $partName;
+            $pathSegmentCount = is_int($part['pathSegmentCount'] ?? null)
+                ? $part['pathSegmentCount']
+                : count($this->packagePartPathSegments($partName));
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            if ($roles === []) {
+                $roles = ['package-part'];
+            }
+
+            foreach ($roles as $role) {
+                $roleCounts[$pathSegmentCount][$role] = ($roleCounts[$pathSegmentCount][$role] ?? 0) + 1;
+                $partNamesByRole[$pathSegmentCount][$role][] = $partName;
+            }
+
+            $byteExposurePolicy = $this->packagePartByteExposurePolicy($part);
+            $byteExposurePolicyCounts[$pathSegmentCount][$byteExposurePolicy] =
+                ($byteExposurePolicyCounts[$pathSegmentCount][$byteExposurePolicy] ?? 0) + 1;
+            $partNamesByByteExposurePolicy[$pathSegmentCount][$byteExposurePolicy][] = $partName;
+        }
+
+        $roleBucketCount = $this->sortNestedCountMap($roleCounts, SORT_NUMERIC);
+        $this->sortNestedStringListMap($partNamesByRole, SORT_NUMERIC);
+        $byteExposurePolicyBucketCount = $this->sortNestedCountMap($byteExposurePolicyCounts, SORT_NUMERIC);
+        $this->sortNestedStringListMap($partNamesByByteExposurePolicy, SORT_NUMERIC);
+
+        return [
+            'roleBucketCount' => $roleBucketCount,
+            'roleCounts' => $roleCounts,
+            'partNamesByRole' => $partNamesByRole,
+            'byteExposurePolicyBucketCount' => $byteExposurePolicyBucketCount,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'partNamesByByteExposurePolicy' => $partNamesByByteExposurePolicy,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $part
+     */
+    private function packagePartByteExposurePolicy(array $part): string
+    {
+        if (is_string($part['byteExposurePolicy'] ?? null) && $part['byteExposurePolicy'] !== '') {
+            return $part['byteExposurePolicy'];
+        }
+
+        if (is_string($part['zipByteExposurePolicy'] ?? null) && $part['zipByteExposurePolicy'] !== '') {
+            return $part['zipByteExposurePolicy'];
+        }
+
+        return 'docx-package-part-bytes-blocked';
+    }
+
+    /**
+     * @param array<int|string, array<string, int>> $map
+     */
+    private function sortNestedCountMap(array &$map, int $outerSortFlags = SORT_STRING): int
+    {
+        ksort($map, $outerSortFlags);
+        $bucketCount = 0;
+        foreach ($map as &$counts) {
+            ksort($counts, SORT_STRING);
+            $bucketCount += count($counts);
+        }
+        unset($counts);
+
+        return $bucketCount;
+    }
+
+    /**
+     * @param array<int|string, array<string, list<string>>> $map
+     */
+    private function sortNestedStringListMap(array &$map, int $outerSortFlags = SORT_STRING): void
+    {
+        ksort($map, $outerSortFlags);
+        foreach ($map as &$groups) {
+            ksort($groups, SORT_STRING);
+            foreach ($groups as &$names) {
+                $names = array_values(array_unique(array_map('strval', $names)));
+                sort($names, SORT_STRING);
+            }
+            unset($names);
+        }
+        unset($groups);
     }
 
     /**
@@ -35697,6 +35810,23 @@ final class DocxOpenXmlReader
             'packageDirectoryBaseNameCounts' => $this->packageIdentityCountMap(
                 $summary['partDirectoryBaseNameCounts'] ?? []
             ),
+            'packagePathDepthCount' => (int) ($summary['partPathDepthCount'] ?? 0),
+            'packagePathDepthRoleBucketCount' => (int) ($summary['partPathDepthRoleBucketCount'] ?? 0),
+            'packagePathDepthRoleCounts' => $this->packageIdentityNestedCountMap(
+                $summary['partPathDepthRoleCounts'] ?? []
+            ),
+            'entryNamesByPackagePathDepthRole' => $this->packageIdentityNestedStringListMap(
+                $summary['partNamesByPartPathDepthRole'] ?? []
+            ),
+            'packagePathDepthByteExposurePolicyBucketCount' => (int) (
+                $summary['partPathDepthByteExposurePolicyBucketCount'] ?? 0
+            ),
+            'packagePathDepthByteExposurePolicyCounts' => $this->packageIdentityNestedCountMap(
+                $summary['partPathDepthByteExposurePolicyCounts'] ?? []
+            ),
+            'entryNamesByPackagePathDepthByteExposurePolicy' => $this->packageIdentityNestedStringListMap(
+                $summary['partNamesByPartPathDepthByteExposurePolicy'] ?? []
+            ),
             'entryNamesByPackageDirectoryBaseName' => $this->packageIdentityLookupMapFromSummaries(
                 $summary['partDirectoryBaseNames'] ?? [],
                 'directoryBaseName'
@@ -35787,6 +35917,14 @@ final class DocxOpenXmlReader
                 'contentTypeHasParameters' => ($part['contentTypeHasParameters'] ?? false) === true,
                 'contentTypeParameterCount' => (int) ($part['contentTypeParameterCount'] ?? 0),
                 'isRelationshipPart' => ($part['isRelationshipPart'] ?? false) === true,
+                'pathSegmentCount' => is_int($part['pathSegmentCount'] ?? null)
+                    ? $part['pathSegmentCount']
+                    : count($this->packagePartPathSegments($partName)),
+                'directoryDepth' => is_int($part['directoryDepth'] ?? null)
+                    ? $part['directoryDepth']
+                    : $this->packagePartDirectoryDepth($directory),
+                'byteExposurePolicy' => $this->packagePartByteExposurePolicy($part),
+                'canExposeBytes' => false,
                 'roles' => $roles,
             ];
         }
@@ -35820,6 +35958,68 @@ final class DocxOpenXmlReader
             $map[(string) $key] = (int) $count;
         }
         ksort($map, SORT_STRING);
+
+        return $map;
+    }
+
+    /**
+     * @return array<string, array<string, int>>
+     */
+    private function packageIdentityNestedCountMap(mixed $counts): array
+    {
+        if (!is_array($counts)) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($counts as $outerKey => $innerCounts) {
+            if ((!is_string($outerKey) && !is_int($outerKey)) || !is_array($innerCounts)) {
+                continue;
+            }
+
+            $innerMap = [];
+            foreach ($innerCounts as $innerKey => $count) {
+                if (!is_string($innerKey) && !is_int($innerKey)) {
+                    continue;
+                }
+
+                $innerMap[(string) $innerKey] = (int) $count;
+            }
+            ksort($innerMap, SORT_STRING);
+            $map[(string) $outerKey] = $innerMap;
+        }
+        ksort($map, SORT_NATURAL);
+
+        return $map;
+    }
+
+    /**
+     * @return array<string, array<string, list<string>>>
+     */
+    private function packageIdentityNestedStringListMap(mixed $lookup): array
+    {
+        if (!is_array($lookup)) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($lookup as $outerKey => $innerLookup) {
+            if ((!is_string($outerKey) && !is_int($outerKey)) || !is_array($innerLookup)) {
+                continue;
+            }
+
+            $innerMap = [];
+            foreach ($innerLookup as $innerKey => $values) {
+                if (!is_string($innerKey) && !is_int($innerKey)) {
+                    continue;
+                }
+
+                $innerMap[(string) $innerKey] = $this->packageIdentitySortedStringList($values);
+            }
+            ksort($innerMap, SORT_STRING);
+            $map[(string) $outerKey] = $innerMap;
+        }
+        ksort($map, SORT_NATURAL);
 
         return $map;
     }
