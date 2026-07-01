@@ -583,6 +583,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['subdocumentMissingCount'] = $subdocuments['missingCount'];
         $packageProvenance['summary']['subdocumentExternalCount'] = $subdocuments['externalCount'];
         $packageProvenance['summary']['subdocumentInternalCount'] = $subdocuments['internalCount'];
+        $packageProvenance['summary']['subdocumentAllowedExternalTargetCount'] = $subdocuments['allowedExternalTargetCount'];
+        $packageProvenance['summary']['subdocumentUnsafeExternalTargetCount'] = $subdocuments['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['subdocumentExternalTargetKindCounts'] = $subdocuments['externalTargetKindCounts'];
+        $packageProvenance['summary']['subdocumentExternalTargetSchemeCounts'] = $subdocuments['externalTargetSchemeCounts'];
+        $packageProvenance['summary']['subdocumentExternalTargetIssueCodes'] = $subdocuments['externalTargetIssueCodes'];
         $packageProvenance['summary']['subdocumentUnsupportedCount'] = $subdocuments['unsupportedCount'];
         $packageProvenance['summary']['subdocumentIssueCount'] = $subdocuments['issueCount'];
         $packageProvenance['summary']['subdocumentIssueCodes'] = $subdocuments['issueCodes'];
@@ -3250,6 +3255,10 @@ final class DocxOpenXmlReader
 
         $partNames = [];
         $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
         foreach ($items as $item) {
@@ -3257,6 +3266,20 @@ final class DocxOpenXmlReader
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                if (($item['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                }
+
+                $kind = is_string($item['externalTargetKind'] ?? null) ? $item['externalTargetKind'] : '(unknown)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $scheme = is_string($item['externalTargetScheme'] ?? null) ? $item['externalTargetScheme'] : '(none)';
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
             }
             foreach (($item['issues'] ?? []) as $issue) {
                 if (is_string($issue) && $issue !== '') {
@@ -3265,6 +3288,9 @@ final class DocxOpenXmlReader
             }
         }
         ksort($issueCodes, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -3284,12 +3310,18 @@ final class DocxOpenXmlReader
             )),
             'unexpectedRelationshipTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-relationship-type', $item['issues'], true))),
             'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-content-type', $item['issues'], true))),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
             'unsupportedCount' => count(array_filter($items, static fn (array $item): bool => $item['directReaderParity'] === false)),
             'relationshipIds' => $relationshipIds,
             'referencedRelationshipIds' => $referencedRelationshipIds,
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
             'contentTypes' => $contentTypesSeen,
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
@@ -3332,6 +3364,10 @@ final class DocxOpenXmlReader
             'targetQuery' => null,
             'targetFragment' => null,
             'targetReferenceSuffix' => '',
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
             'exists' => false,
             'bytes' => 0,
             'crc32' => null,
@@ -3377,6 +3413,10 @@ final class DocxOpenXmlReader
         $item['targetQuery'] = $summary['targetQuery'];
         $item['targetFragment'] = $summary['targetFragment'];
         $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['externalTargetIssues'] = $summary['externalTargetIssues'];
         $item['exists'] = $exists;
         $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
         $item['crc32'] = $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null;
@@ -3397,15 +3437,23 @@ final class DocxOpenXmlReader
             return $item;
         }
 
-        if ($item['external'] !== true) {
-            $item['issues'][] = 'internal-subdocument-target';
+        if ($item['external'] === true) {
+            foreach ($item['externalTargetIssues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $this->appendUniqueString($item['issues'], $issue);
+                }
+            }
+
+            return $item;
         }
 
-        if ($item['external'] !== true && !$exists) {
+        $item['issues'][] = 'internal-subdocument-target';
+
+        if (!$exists) {
             $item['issues'][] = 'missing-in-package';
         }
 
-        if ($item['external'] !== true && $item['contentTypeSource'] === 'missing') {
+        if ($item['contentTypeSource'] === 'missing') {
             $item['issues'][] = 'missing-content-type';
         }
 

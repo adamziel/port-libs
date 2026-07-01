@@ -20605,6 +20605,80 @@ XML;
         $t->true(in_array('subdocument', $package['parts']['word/subdocuments/internal.docx']['roles'], true), 'internal subdocument role missing');
         $t->true(in_array('subdocument', $package['parts']['word/subdocuments/unreferenced.docx']['roles'], true), 'unreferenced subdocument role missing');
     },
+    'preflights docx subdocument external target policy metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $subdocumentRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/subDocument';
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSubSafeRemote" Type="' . $subdocumentRel . '" Target="https://example.test/subdocuments/source-review.docx?revision=4#main" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rSubUnsafeRemote" Type="' . $subdocumentRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/document.xml'] = str_replace(
+            '  </w:body>',
+            '    <w:subDoc r:id="rSubSafeRemote"/>' . "\n" .
+            '    <w:subDoc r:id="rSubUnsafeRemote"/>' . "\n" .
+            '  </w:body>',
+            $parts['word/document.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $subdocuments = $docx['subdocuments'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $safe = $subdocuments['byRelationshipId']['rSubSafeRemote'];
+        $unsafe = $subdocuments['byRelationshipId']['rSubUnsafeRemote'];
+        $relationshipType = $package['relationshipTypes'][$subdocumentRel];
+
+        $t->same(2, $subdocuments['count']);
+        $t->same(2, $subdocuments['relationshipCount']);
+        $t->same(2, $subdocuments['referencedCount']);
+        $t->same(2, $subdocuments['externalCount']);
+        $t->same(0, $subdocuments['internalCount']);
+        $t->same(1, $subdocuments['allowedExternalTargetCount']);
+        $t->same(1, $subdocuments['unsafeExternalTargetCount']);
+        $t->same([
+            'https://example.test/subdocuments/source-review.docx?revision=4#main',
+            'javascript:alert(1)',
+        ], $subdocuments['externalTargets']);
+        $t->same(['javascript:alert(1)'], $subdocuments['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $subdocuments['externalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $subdocuments['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $subdocuments['externalTargetIssueCodes']);
+        $t->same(['external-target-unsafe-scheme'], $subdocuments['issueCodes']);
+        $t->same(1, $subdocuments['issueCount']);
+
+        $t->same('absolute-uri', $safe['externalTargetKind']);
+        $t->same('https', $safe['externalTargetScheme']);
+        $t->same(true, $safe['externalTargetAllowed']);
+        $t->same([], $safe['externalTargetIssues']);
+        $t->same([], $safe['issues']);
+        $t->same('revision=4', $safe['targetQuery']);
+        $t->same('main', $safe['targetFragment']);
+        $t->same('?revision=4#main', $safe['targetReferenceSuffix']);
+
+        $t->same('absolute-uri', $unsafe['externalTargetKind']);
+        $t->same('javascript', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['issues']);
+
+        $t->same(1, $summary['subdocumentAllowedExternalTargetCount']);
+        $t->same(1, $summary['subdocumentUnsafeExternalTargetCount']);
+        $t->same(['absolute-uri' => 2], $summary['subdocumentExternalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $summary['subdocumentExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['subdocumentExternalTargetIssueCodes']);
+        $t->same(['external-target-unsafe-scheme'], $summary['subdocumentIssueCodes']);
+
+        $t->same(2, $relationshipType['externalCount']);
+        $t->same(1, $relationshipType['allowedExternalTargetCount']);
+        $t->same(1, $relationshipType['unsafeExternalTargetCount']);
+        $t->same(['https' => 1, 'javascript' => 1], $relationshipType['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme' => 1], $relationshipType['externalTargetIssueCounts']);
+        $t->same('javascript:alert(1)', $relationshipType['unsafeExternalTargets'][0]['target']);
+    },
     'summarizes docx document background image relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
