@@ -120,6 +120,38 @@ return [
             'png' => 1,
             'xml' => 6,
         ];
+        $expectedRoleByteExposurePolicyCounts = [
+            'configuration-package' => [
+                'configuration-package-bytes-blocked' => 1,
+            ],
+            'layout-cache' => [
+                'encrypted-resource-bytes-blocked' => 1,
+            ],
+            'manifest-declared' => [
+                'configuration-package-bytes-blocked' => 1,
+                'encrypted-resource-bytes-blocked' => 1,
+                'package-bytes-exposable' => 5,
+                'script-package-bytes-blocked' => 1,
+            ],
+            'media-resource' => [
+                'package-bytes-exposable' => 2,
+            ],
+            'odf-content' => [
+                'package-bytes-exposable' => 1,
+            ],
+            'odf-meta' => [
+                'package-bytes-exposable' => 1,
+            ],
+            'odf-styles' => [
+                'package-bytes-exposable' => 1,
+            ],
+            'script-package' => [
+                'script-package-bytes-blocked' => 1,
+            ],
+            'undeclared-package-entry' => [
+                'undeclared-package-entry-no-bytes' => 1,
+            ],
+        ];
 
         $t->same($expectedCounts, $compactInventory['packagePartExtensionCounts']);
         $t->same($expectedCounts, $richProvenance['packagePartExtensionCounts']);
@@ -133,6 +165,11 @@ return [
         $t->same($expectedPathExtensionCounts, $compactInventory['packagePathExtensionCounts']);
         $t->same($expectedPathExtensionCounts, $richProvenance['packagePathExtensionCounts']);
         $t->same($expectedPathExtensionCounts, $identity['packagePathExtensionCounts']);
+        $t->same($expectedRoleByteExposurePolicyCounts, $compactInventory['packageRoleByteExposurePolicyCounts']);
+        $t->same($expectedRoleByteExposurePolicyCounts, $compactIdentity['packageRoleByteExposurePolicyCounts']);
+        $t->same($expectedRoleByteExposurePolicyCounts, $richProvenance['packageRoleByteExposurePolicyCounts']);
+        $t->same($expectedRoleByteExposurePolicyCounts, $identity['packageRoleByteExposurePolicyCounts']);
+        $t->same($expectedRoleByteExposurePolicyCounts, $documentIdentity['packageRoleByteExposurePolicyCounts']);
         foreach ([
             'packageAreaSummaries',
             'packagePathsByPackageArea',

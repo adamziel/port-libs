@@ -770,6 +770,7 @@ final class OpenDocumentPackage
         $unsupportedCompressionByteLength = 0;
         $unsupportedCompressionCompressedByteLength = 0;
         $byteExposurePolicyCounts = [];
+        $packageRoleByteExposurePolicyCounts = [];
         $byteExposurePolicyByteLengths = [];
         $byteExposurePolicyCompressedByteLengths = [];
         $byteExposurePolicyItems = [];
@@ -992,6 +993,10 @@ final class OpenDocumentPackage
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
                 $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $entry->uncompressedSize;
                 $roleCompressedByteLengths[$role] = ($roleCompressedByteLengths[$role] ?? 0) + $entry->compressedSize;
+                if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                    $packageRoleByteExposurePolicyCounts[$role][$byteExposurePolicy] =
+                        ($packageRoleByteExposurePolicyCounts[$role][$byteExposurePolicy] ?? 0) + 1;
+                }
                 if ($isUndeclared) {
                     $undeclaredRoleCounts[$role] = ($undeclaredRoleCounts[$role] ?? 0) + 1;
                 }
@@ -1151,6 +1156,7 @@ final class OpenDocumentPackage
         ksort($roleCompressedByteLengths, SORT_STRING);
         ksort($undeclaredRoleCounts, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
+        self::sortPackageNestedCountMap($packageRoleByteExposurePolicyCounts);
         ksort($byteExposurePolicyByteLengths, SORT_STRING);
         ksort($byteExposurePolicyCompressedByteLengths, SORT_STRING);
         ksort($manifestMediaFamilyCounts, SORT_STRING);
@@ -1281,6 +1287,7 @@ final class OpenDocumentPackage
             'unsupportedCompressionByteLength' => $unsupportedCompressionByteLength,
             'unsupportedCompressionCompressedByteLength' => $unsupportedCompressionCompressedByteLength,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'packageRoleByteExposurePolicyCounts' => $packageRoleByteExposurePolicyCounts,
             'byteExposurePolicyItemCount' => count($byteExposurePolicyItems),
             'byteExposurePolicyItems' => $byteExposurePolicyItems,
             'byteExposurePolicyByteLengths' => $byteExposurePolicyByteLengths,
@@ -2245,6 +2252,7 @@ final class OpenDocumentPackage
             'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $packageInventory['zipPackageManifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
             'entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy' => $packageInventory['entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy'] ?? [],
             'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
+            'packageRoleByteExposurePolicyCounts' => $packageInventory['packageRoleByteExposurePolicyCounts'] ?? [],
             'roleCounts' => $packageInventory['roleCounts'] ?? [],
             'centralDirectoryOrderMismatchRoleCount' => $packageInventory['centralDirectoryOrderMismatchRoleCount'] ?? 0,
             'centralDirectoryOrderMismatchRoleCounts' => $packageInventory['centralDirectoryOrderMismatchRoleCounts'] ?? [],
