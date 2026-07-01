@@ -552,6 +552,8 @@
             "docxSelectedXmlDoctypeProvenanceAssertions": 73,
             "mappedDocxSelectedXmlEntityReferenceProvenanceCases": 1,
             "docxSelectedXmlEntityReferenceProvenanceAssertions": 44,
+            "mappedDocxZipCreatorHostSystemProvenanceCases": 1,
+            "docxZipCreatorHostSystemProvenanceAssertions": 115,
             "mappedDocxOpenXmlUnixOwnerMetadataProvenanceCases": 1,
             "docxOpenXmlUnixOwnerMetadataProvenanceAssertions": 95,
             "mappedDocxPackageIdentityPathAndFilenameShapeCases": 1
@@ -1701,6 +1703,8 @@
         "docxSelectedXmlEntityReferenceProvenanceAssertions": 44,
         "mappedDocxPackageIdentityRelationshipTargetByteLengthBucketCases": 1,
         "docxPackageIdentityRelationshipTargetByteLengthBucketAssertions": 11,
+        "mappedDocxZipCreatorHostSystemProvenanceCases": 1,
+        "docxZipCreatorHostSystemProvenanceAssertions": 115,
         "mappedDocxOpenXmlUnixOwnerMetadataProvenanceCases": 1,
         "docxOpenXmlUnixOwnerMetadataProvenanceAssertions": 95
     },
