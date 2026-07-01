@@ -91,8 +91,9 @@ BIB;
         $t->same(['pandoc', 'wordpress', 'archive'], $item['keyword']);
         $t->same(['review queue', 'source package'], $item['categories']);
         $t->same('Bounded CSL handoff for reviewer archives.', $item['abstract']);
-        $t->same('Import note attached', $item['note']);
-        $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
+        $t->same('Import note attached', $item['addendum']);
+        $t->same(false, array_key_exists('note', $item));
+        $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. Addendum: Import note attached. https://example.test/preprint.', $bibliography);
     },
     'carries legacy biblatex registry identifiers in bibliography handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -541,6 +542,76 @@ XML);
         $t->same(['annotated-source'], $handoff['citedKeys']);
         $t->same('Internal reviewer annotation.', $handoff['items'][0]['annotation']);
         $t->contains('Annotation: Internal reviewer annotation', $blocks);
+    },
+    'carries biblatex note and addendum separately in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@misc{note-addendum-source,
+  author   = {Roe, Riley},
+  title    = {Note Addendum Packet},
+  date     = {2026},
+  note     = {Internal catalog note.},
+  addendum = {Publication addendum visible to style.}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['note-addendum-source'];
+        $bibliography = $processor->renderBibliographyText($item);
+
+        $t->same('Internal catalog note.', $item['note']);
+        $t->same('Publication addendum visible to style.', $item['addendum']);
+        $t->same('Internal catalog note.', $item['rawBibtex']['fields']['note']);
+        $t->same('Publication addendum visible to style.', $item['rawBibtex']['fields']['addendum']);
+        $t->contains('Note: Internal catalog note.', $bibliography);
+        $t->contains('Addendum: Publication addendum visible to style.', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Note Addendum Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-note-addendum-review</id>
+    <updated>2026-07-01T15:35:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="note"/>
+        <text variable="addendum"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="note"/>
+      <text variable="addendum"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('note-addendum-source');
+        $t->same('Internal catalog note.', $normalized['note'] ?? null);
+        $t->same('Publication addendum visible to style.', $normalized['addendum'] ?? null);
+        $t->same(
+            '[Note Addendum Packet | Internal catalog note. | Publication addendum visible to style.]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'note-addendum-source', 'text' => '[@note-addendum-source]']),
+            ])
+        );
+        $t->same(
+            'Note Addendum Packet :: Internal catalog note. :: Publication addendum visible to style.',
+            $styled->renderBibliographyEntry('note-addendum-source')
+        );
+
+        $document = (new MarkdownReader())->read('Note addendum [@note-addendum-source] stays visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->contains('<p>Note addendum [Note Addendum Packet | Internal catalog note. | Publication addendum visible to style.] stays visible.</p>', $blocks);
+        $t->contains('Note Addendum Packet :: Internal catalog note. :: Publication addendum visible to style.', $blocks);
     },
     'maps obscure biblatex entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2750,7 +2821,7 @@ BIB;
             $processor->renderBibliographyText($set)
         );
         $t->same(
-            'Pat Roe. Xdata Source Packet. 2026. BibLaTeX xdata packets: Shared Review Policy (2026-06-05); missing: missing-policy. https://example.test/xdata.',
+            'Pat Roe. Xdata Source Packet. 2026. Note: metadata only. BibLaTeX xdata packets: Shared Review Policy (2026-06-05); missing: missing-policy. https://example.test/xdata.',
             $processor->renderBibliographyText($xdata)
         );
 
