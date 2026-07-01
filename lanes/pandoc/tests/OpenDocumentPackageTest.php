@@ -2922,6 +2922,18 @@ XML;
             'package-bytes-exposable' => 4,
             'undeclared-package-entry-no-bytes' => 1,
         ], $identity['byteExposurePolicyCounts']);
+        $t->same($summary['packageInventory']['byteExposurePolicyByteLengths'], $identity['byteExposurePolicyByteLengths']);
+        $t->same($summary['packageInventory']['byteExposurePolicyCompressedByteLengths'], $identity['byteExposurePolicyCompressedByteLengths']);
+        $t->same($summary['packageInventory']['byteExposurePolicyItemCount'], $identity['byteExposurePolicyItemCount']);
+        $t->same($summary['packageInventory']['byteExposurePolicyItems'], $identity['byteExposurePolicyItems']);
+        $t->same([
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Pictures/secret.png',
+            'Notes/private.txt',
+        ], array_column($identity['byteExposurePolicyItems'], 'path'));
         $t->same([
             'image' => 2,
             'xml' => 3,
