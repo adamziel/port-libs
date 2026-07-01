@@ -68,6 +68,85 @@ return [
         $t->same('Reviewer', $table->children[0]->children[0]->children[0]->attr('text'));
         $t->same(2, $table->children[0]->children[0]->children[1]->attr('colspan'));
     },
+    'preserves docx table omitted grid columns header rows and vertical merge metadata' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/document.xml'] = str_replace(
+            <<<'XML'
+    <w:tbl>
+      <w:tr><w:tc><w:p><w:r><w:t>Reviewer</w:t></w:r></w:p></w:tc><w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>Approved</w:t></w:r></w:p></w:tc></w:tr>
+    </w:tbl>
+XML,
+            <<<'XML'
+    <w:tbl>
+      <w:tr>
+        <w:trPr><w:tblHeader w:val="1"/><w:gridBefore w:val="1"/><w:gridAfter w:val="1"/></w:trPr>
+        <w:tc><w:p><w:r><w:t>Region</w:t></w:r></w:p></w:tc>
+        <w:tc><w:tcPr><w:gridSpan w:val="2"/></w:tcPr><w:p><w:r><w:t>Reviewer result</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:gridBefore w:val="1"/></w:trPr>
+        <w:tc><w:tcPr><w:vMerge w:val="restart"/></w:tcPr><w:p><w:r><w:t>North</w:t></w:r></w:p></w:tc>
+        <w:tc><w:p><w:r><w:t>Approved</w:t></w:r></w:p></w:tc>
+      </w:tr>
+      <w:tr>
+        <w:trPr><w:gridBefore w:val="1"/><w:gridAfter w:val="2"/></w:trPr>
+        <w:tc><w:tcPr><w:vMerge/></w:tcPr><w:p/></w:tc>
+        <w:tc><w:p><w:r><w:t>Pending</w:t></w:r></w:p></w:tc>
+      </w:tr>
+    </w:tbl>
+XML,
+            $parts['word/document.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $table = $document->children[5];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $headerRow = $head->children[0];
+        $restartRow = $body->children[0];
+        $continueRow = $body->children[1];
+        $blocks = (new WordPressBlockWriter())->write($document);
+
+        $t->same('table_head', $head->type);
+        $t->same('table_body', $body->type);
+        $t->same('docx-table-grid-merge-metadata-only', $table->attr('docxTableMetadataPolicy'));
+        $t->same(3, $table->attr('docxTableRowCount'));
+        $t->same(1, $table->attr('docxTableHeadRowCount'));
+        $t->same(2, $table->attr('docxTableBodyRowCount'));
+        $t->same(3, $table->attr('docxTableGridBeforeRowCount'));
+        $t->same(2, $table->attr('docxTableGridAfterRowCount'));
+        $t->same(3, $table->attr('docxTableOmittedBeforeColumnCount'));
+        $t->same(3, $table->attr('docxTableOmittedAfterColumnCount'));
+        $t->same(1, $table->attr('docxTableHeaderRowCount'));
+        $t->same(2, $table->attr('docxTableVerticalMergeCellCount'));
+        $t->same(1, $table->attr('docxTableVerticalMergeRestartCount'));
+        $t->same(1, $table->attr('docxTableVerticalMergeContinueCount'));
+        $t->same(5, $table->attr('docxTableMaxGridColumnCount'));
+
+        $t->same(true, $headerRow->attr('header'));
+        $t->same(true, $headerRow->attr('docxTableHeader'));
+        $t->same(1, $headerRow->attr('docxGridBefore'));
+        $t->same(1, $headerRow->attr('docxGridAfter'));
+        $t->same(5, $headerRow->attr('docxGridColumnCount'));
+        $t->same(true, $headerRow->children[0]->attr('header'));
+        $t->same(2, $headerRow->children[0]->attr('docxGridColumn'));
+        $t->same(1, $headerRow->children[0]->attr('docxGridSpan'));
+        $t->same(true, $headerRow->children[1]->attr('header'));
+        $t->same(3, $headerRow->children[1]->attr('docxGridColumn'));
+        $t->same(2, $headerRow->children[1]->attr('docxGridSpan'));
+        $t->same(2, $headerRow->children[1]->attr('colspan'));
+
+        $t->same('restart', $restartRow->children[0]->attr('docxVerticalMerge'));
+        $t->same(2, $restartRow->children[0]->attr('docxGridColumn'));
+        $t->same('North', $restartRow->children[0]->attr('text'));
+        $t->same('continue', $continueRow->children[0]->attr('docxVerticalMerge'));
+        $t->same('', $continueRow->children[0]->attr('text'));
+        $t->same(2, $continueRow->attr('docxGridAfter'));
+        $t->same(5, $continueRow->attr('docxGridColumnCount'));
+
+        $t->contains('<thead><tr><th><p>Region</p></th><th colspan="2"><p>Reviewer result</p></th></tr></thead>', $blocks);
+        $t->true(!str_contains($blocks, 'docxTableMetadataPolicy'), 'DOCX table metadata should not leak into rendered blocks');
+    },
     'summarizes docx body revision text provenance without accepting deleted text' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/document.xml'] = str_replace(

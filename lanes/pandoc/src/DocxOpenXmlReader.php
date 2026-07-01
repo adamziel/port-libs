@@ -32400,9 +32400,37 @@ final class DocxOpenXmlReader
      */
     private function readTable(\DOMElement $table, \DOMXPath $xpath, array $relationships, array $contentTypes, array $styles, array $referencedNotes): ?AstNode
     {
-        $rows = [];
+        $headRows = [];
+        $bodyRows = [];
+        $gridBeforeRowCount = 0;
+        $gridAfterRowCount = 0;
+        $omittedBeforeColumnCount = 0;
+        $omittedAfterColumnCount = 0;
+        $headerRowCount = 0;
+        $verticalMergeCellCount = 0;
+        $verticalMergeRestartCount = 0;
+        $verticalMergeContinueCount = 0;
+        $maxGridColumnCount = 0;
+        $promoteHeaderRows = true;
         foreach ($this->elements($xpath, 'w:tr', $table) as $row) {
+            $rowProperties = $this->childElement($row, 'trPr');
+            $gridBefore = $this->tableRowGridOmission($rowProperties, 'gridBefore');
+            $gridAfter = $this->tableRowGridOmission($rowProperties, 'gridAfter');
+            $isHeaderRow = $this->tableRowIsHeader($rowProperties);
+            if ($gridBefore > 0) {
+                ++$gridBeforeRowCount;
+                $omittedBeforeColumnCount += $gridBefore;
+            }
+            if ($gridAfter > 0) {
+                ++$gridAfterRowCount;
+                $omittedAfterColumnCount += $gridAfter;
+            }
+            if ($isHeaderRow) {
+                ++$headerRowCount;
+            }
+
             $cells = [];
+            $logicalColumn = $gridBefore + 1;
             foreach ($this->elements($xpath, 'w:tc', $row) as $cell) {
                 $blocks = [];
                 foreach ($this->elements($xpath, 'w:p', $cell) as $paragraph) {
@@ -32411,25 +32439,124 @@ final class DocxOpenXmlReader
                         $blocks[] = $node;
                     }
                 }
-                $gridSpan = $this->firstElement($xpath, 'w:tcPr/w:gridSpan', $cell);
-                $attrs = ['text' => $this->plainBlockText($blocks)];
-                if ($gridSpan instanceof \DOMElement) {
-                    $attrs['colspan'] = max(1, (int) ($gridSpan->getAttributeNS(self::NS_W, 'val') ?: '1'));
+                $cellProperties = $this->childElement($cell, 'tcPr');
+                $gridSpan = $this->tableCellGridSpan($cellProperties);
+                $verticalMerge = $this->tableCellVerticalMerge($cellProperties);
+                $attrs = [
+                    'text' => $this->plainBlockText($blocks),
+                    'docxGridColumn' => $logicalColumn,
+                    'docxGridSpan' => $gridSpan,
+                ];
+                if ($isHeaderRow) {
+                    $attrs['header'] = true;
+                }
+                if ($gridSpan > 1) {
+                    $attrs['colspan'] = $gridSpan;
+                }
+                if ($verticalMerge !== null) {
+                    ++$verticalMergeCellCount;
+                    if ($verticalMerge === 'restart') {
+                        ++$verticalMergeRestartCount;
+                    } else {
+                        ++$verticalMergeContinueCount;
+                    }
+                    $attrs['docxVerticalMerge'] = $verticalMerge;
                 }
                 $cells[] = new AstNode('table_cell', $attrs, $blocks);
+                $logicalColumn += $gridSpan;
             }
             if ($cells !== []) {
-                $rows[] = new AstNode('table_row', [], $cells);
+                $rowAttrs = [
+                    'docxGridBefore' => $gridBefore,
+                    'docxGridAfter' => $gridAfter,
+                    'docxGridColumnCount' => $logicalColumn - 1 + $gridAfter,
+                    'docxTableHeader' => $isHeaderRow,
+                ];
+                if ($isHeaderRow) {
+                    $rowAttrs['header'] = true;
+                }
+                $maxGridColumnCount = max($maxGridColumnCount, $rowAttrs['docxGridColumnCount']);
+                $rowNode = new AstNode('table_row', $rowAttrs, $cells);
+                if ($isHeaderRow && $promoteHeaderRows) {
+                    $headRows[] = $rowNode;
+                } else {
+                    $bodyRows[] = $rowNode;
+                }
+                if (!$isHeaderRow) {
+                    $promoteHeaderRows = false;
+                }
             }
         }
 
-        if ($rows === []) {
+        if ($headRows === [] && $bodyRows === []) {
             return null;
         }
 
-        return new AstNode('table', ['caption' => '', 'sourceFormat' => 'docx'], [
-            new AstNode('table_body', [], $rows),
-        ]);
+        $sections = [];
+        if ($headRows !== []) {
+            $sections[] = new AstNode('table_head', [], $headRows);
+        }
+        $sections[] = new AstNode('table_body', [], $bodyRows);
+
+        return new AstNode('table', [
+            'caption' => '',
+            'sourceFormat' => 'docx',
+            'docxTableMetadataPolicy' => 'docx-table-grid-merge-metadata-only',
+            'docxTableRowCount' => count($headRows) + count($bodyRows),
+            'docxTableHeadRowCount' => count($headRows),
+            'docxTableBodyRowCount' => count($bodyRows),
+            'docxTableGridBeforeRowCount' => $gridBeforeRowCount,
+            'docxTableGridAfterRowCount' => $gridAfterRowCount,
+            'docxTableOmittedBeforeColumnCount' => $omittedBeforeColumnCount,
+            'docxTableOmittedAfterColumnCount' => $omittedAfterColumnCount,
+            'docxTableHeaderRowCount' => $headerRowCount,
+            'docxTableVerticalMergeCellCount' => $verticalMergeCellCount,
+            'docxTableVerticalMergeRestartCount' => $verticalMergeRestartCount,
+            'docxTableVerticalMergeContinueCount' => $verticalMergeContinueCount,
+            'docxTableMaxGridColumnCount' => $maxGridColumnCount,
+        ], $sections);
+    }
+
+    private function tableRowGridOmission(?\DOMElement $rowProperties, string $localName): int
+    {
+        $element = $this->childElement($rowProperties, $localName);
+        if (!$element instanceof \DOMElement) {
+            return 0;
+        }
+
+        return max(0, $this->wordOptionalIntAttr($element, 'val') ?? 0);
+    }
+
+    private function tableRowIsHeader(?\DOMElement $rowProperties): bool
+    {
+        $header = $this->childElement($rowProperties, 'tblHeader');
+
+        return $header instanceof \DOMElement && $this->wordBoolean($header);
+    }
+
+    private function tableCellGridSpan(?\DOMElement $cellProperties): int
+    {
+        $gridSpan = $this->childElement($cellProperties, 'gridSpan');
+        if (!$gridSpan instanceof \DOMElement) {
+            return 1;
+        }
+
+        return max(1, $this->wordOptionalIntAttr($gridSpan, 'val') ?? 1);
+    }
+
+    private function tableCellVerticalMerge(?\DOMElement $cellProperties): ?string
+    {
+        $verticalMerge = $this->childElement($cellProperties, 'vMerge');
+        if (!$verticalMerge instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($verticalMerge->getAttributeNS(self::NS_W, 'val'));
+        if ($value === '') {
+            return 'continue';
+        }
+
+        return strtolower($value) === 'restart' ? 'restart' : 'continue';
     }
 
     private function listStyleForFormat(string $format): string
