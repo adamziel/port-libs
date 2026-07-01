@@ -15478,22 +15478,43 @@ final class XmlHtmlDom
     {
         $forms = [];
         foreach (self::descendantHtmlElements($search, 'form') as $form) {
+            $controls = self::searchControlSummaries($form);
             $forms[] = [
                 'id' => self::attributeOrNull($form, 'id'),
                 'action' => self::attributeOrNull($form, 'action'),
                 'method' => self::formMethod($form, 'method', 'get'),
                 'role' => self::attributeOrNull($form, 'role'),
-                'controls' => self::searchControlSummaries($form),
+                'controlCount' => count($controls),
+                'controlNames' => self::searchControlNames($controls),
+                'controlTypes' => self::searchControlTypes($controls),
+                'submitterCount' => self::searchSubmitterCount($controls),
+                'submitterNames' => self::searchSubmitterNames($controls),
+                'controls' => $controls,
             ];
         }
+        $controls = self::searchControlSummaries($search);
 
         return [
             'landmark' => 'search',
+            'searchReviewPolicy' => 'html-search-region-control-rollup',
             'searchRegion' => 'search',
             'searchText' => self::normalizedText($search),
             'searchFormCount' => count($forms),
+            'searchFormIds' => self::searchStringFieldValues($forms, 'id'),
+            'searchFormActions' => self::searchStringFieldValues($forms, 'action'),
+            'searchFormMethods' => self::searchStringFieldValues($forms, 'method'),
+            'searchFormControlCounts' => array_values(array_map(
+                static fn (array $form): int => (int) ($form['controlCount'] ?? 0),
+                $forms
+            )),
             'searchForms' => $forms,
-            'searchControls' => self::searchControlSummaries($search),
+            'searchControlCount' => count($controls),
+            'searchControlTags' => self::searchStringFieldValues($controls, 'control', true),
+            'searchControlNames' => self::searchControlNames($controls),
+            'searchControlTypes' => self::searchControlTypes($controls),
+            'searchSubmitterCount' => self::searchSubmitterCount($controls),
+            'searchSubmitterNames' => self::searchSubmitterNames($controls),
+            'searchControls' => $controls,
         ];
     }
 
@@ -15533,6 +15554,92 @@ final class XmlHtmlDom
         }
 
         return $controls;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<string>
+     */
+    private static function searchStringFieldValues(array $records, string $field, bool $unique = false): array
+    {
+        $values = [];
+        foreach ($records as $record) {
+            $value = $record[$field] ?? null;
+            if (!is_string($value) || $value === '') {
+                continue;
+            }
+            if ($unique && in_array($value, $values, true)) {
+                continue;
+            }
+
+            $values[] = $value;
+        }
+
+        return $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     * @return list<string>
+     */
+    private static function searchControlNames(array $controls): array
+    {
+        return self::searchStringFieldValues($controls, 'controlName', true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     * @return list<string>
+     */
+    private static function searchControlTypes(array $controls): array
+    {
+        return self::searchStringFieldValues($controls, 'type', true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     */
+    private static function searchSubmitterCount(array $controls): int
+    {
+        return count(self::searchSubmitterControls($controls));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     * @return list<string>
+     */
+    private static function searchSubmitterNames(array $controls): array
+    {
+        return self::searchStringFieldValues(self::searchSubmitterControls($controls), 'controlName', true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $controls
+     * @return list<array<string, mixed>>
+     */
+    private static function searchSubmitterControls(array $controls): array
+    {
+        return array_values(array_filter(
+            $controls,
+            static fn (array $control): bool => self::isSearchSubmitterControl($control)
+        ));
+    }
+
+    /**
+     * @param array<string, mixed> $control
+     */
+    private static function isSearchSubmitterControl(array $control): bool
+    {
+        $tag = $control['control'] ?? null;
+        $type = $control['type'] ?? null;
+        if (!is_string($tag) || !is_string($type)) {
+            return false;
+        }
+        if ($tag === 'button') {
+            return $type === 'submit';
+        }
+
+        return $tag === 'input' && self::isInputSubmitterType($type);
     }
 
     /**
