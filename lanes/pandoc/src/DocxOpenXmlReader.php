@@ -14514,6 +14514,21 @@ final class DocxOpenXmlReader
                 $duplicatePartDirectoryBaseNames[] = (string) ($directoryBaseNameSummary['directoryBaseName'] ?? '');
             }
         }
+        $partCaseFoldDirectoryBaseNames = $this->packagePartCaseFoldDirectoryBaseNameSummary($partInventory);
+        $partCaseFoldDirectoryBaseNameCounts = [];
+        foreach ($partCaseFoldDirectoryBaseNames as $caseFoldDirectoryBaseNameSummary) {
+            $caseFoldDirectoryBaseName = (string) ($caseFoldDirectoryBaseNameSummary['caseFoldDirectoryBaseName'] ?? '');
+            $partCaseFoldDirectoryBaseNameCounts[$caseFoldDirectoryBaseName] =
+                (int) ($caseFoldDirectoryBaseNameSummary['partCount'] ?? 0);
+        }
+        ksort($partCaseFoldDirectoryBaseNameCounts, SORT_STRING);
+        $duplicatePartCaseFoldDirectoryBaseNames = [];
+        foreach ($partCaseFoldDirectoryBaseNames as $caseFoldDirectoryBaseNameSummary) {
+            if ((int) ($caseFoldDirectoryBaseNameSummary['directoryCount'] ?? 0) > 1) {
+                $duplicatePartCaseFoldDirectoryBaseNames[] =
+                    (string) ($caseFoldDirectoryBaseNameSummary['caseFoldDirectoryBaseName'] ?? '');
+            }
+        }
         $partDirectoryDepths = $this->packagePartDirectoryDepthSummary($partInventory);
         $partDirectoryDepthCounts = [];
         $parameterizedPartDirectoryDepthCount = 0;
@@ -17672,6 +17687,11 @@ final class DocxOpenXmlReader
             'duplicatePartDirectoryBaseNameCount' => count($duplicatePartDirectoryBaseNames),
             'duplicatePartDirectoryBaseNames' => $duplicatePartDirectoryBaseNames,
             'partDirectoryBaseNames' => $partDirectoryBaseNames,
+            'partCaseFoldDirectoryBaseNameCount' => count($partCaseFoldDirectoryBaseNames),
+            'partCaseFoldDirectoryBaseNameCounts' => $partCaseFoldDirectoryBaseNameCounts,
+            'duplicatePartCaseFoldDirectoryBaseNameCount' => count($duplicatePartCaseFoldDirectoryBaseNames),
+            'duplicatePartCaseFoldDirectoryBaseNames' => $duplicatePartCaseFoldDirectoryBaseNames,
+            'partCaseFoldDirectoryBaseNames' => $partCaseFoldDirectoryBaseNames,
             'partDirectoryDepths' => $partDirectoryDepths,
             'partTopLevelSegments' => $partTopLevelSegments,
             'partPathSegments' => $partPathSegments,
@@ -19921,6 +19941,150 @@ final class DocxOpenXmlReader
             $summary['directories'] = $directories;
             $summary['directoryCount'] = count($directories);
             $directoryBaseNames[$directoryBaseName] = $summary;
+        }
+
+        return array_values($directoryBaseNames);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartCaseFoldDirectoryBaseNameSummary(array $partInventory): array
+    {
+        $directoryBaseNames = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $directoryBaseName = is_string($part['directoryBaseName'] ?? null)
+                ? $part['directoryBaseName']
+                : $this->packagePartDirectoryBaseName($directory);
+            $caseFoldDirectoryBaseName = is_string($part['caseFoldDirectoryBaseName'] ?? null)
+                ? $part['caseFoldDirectoryBaseName']
+                : $this->packagePartCaseFoldKey($directoryBaseName);
+            if (!isset($directoryBaseNames[$caseFoldDirectoryBaseName])) {
+                $directoryBaseNames[$caseFoldDirectoryBaseName] = [
+                    'caseFoldDirectoryBaseName' => $caseFoldDirectoryBaseName,
+                    'directoryBaseNameVariantCount' => 0,
+                    'directoryCount' => 0,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'directoryBaseNameCounts' => [],
+                    'directoryDepthCounts' => [],
+                    'topLevelSegmentCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'directories' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$directoryBaseNames[$caseFoldDirectoryBaseName]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $directoryBaseNames[$caseFoldDirectoryBaseName]['byteLength'] += $bytes;
+            $directoryBaseNames[$caseFoldDirectoryBaseName]['partNames'][] = $partName;
+            $directoryBaseNames[$caseFoldDirectoryBaseName]['directories'][$directory] = true;
+            $directoryBaseNames[$caseFoldDirectoryBaseName]['directoryBaseNameCounts'][$directoryBaseName] =
+                ($directoryBaseNames[$caseFoldDirectoryBaseName]['directoryBaseNameCounts'][$directoryBaseName] ?? 0) + 1;
+
+            $directoryDepth = is_int($part['directoryDepth'] ?? null)
+                ? (int) $part['directoryDepth']
+                : $this->packagePartDirectoryDepth($directory);
+            $directoryBaseNames[$caseFoldDirectoryBaseName]['directoryDepthCounts'][$directoryDepth] =
+                ($directoryBaseNames[$caseFoldDirectoryBaseName]['directoryDepthCounts'][$directoryDepth] ?? 0) + 1;
+
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : ($this->packagePartPathSegments($partName)[0] ?? '');
+            $topLevelSegmentKey = $topLevelSegment === '' ? '(none)' : $topLevelSegment;
+            $directoryBaseNames[$caseFoldDirectoryBaseName]['topLevelSegmentCounts'][$topLevelSegmentKey] =
+                ($directoryBaseNames[$caseFoldDirectoryBaseName]['topLevelSegmentCounts'][$topLevelSegmentKey] ?? 0) + 1;
+
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$directoryBaseNames[$caseFoldDirectoryBaseName]['relationshipPartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$directoryBaseNames[$caseFoldDirectoryBaseName]['parameterizedPartCount'];
+            }
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            if ($contentTypeSource === 'missing') {
+                ++$directoryBaseNames[$caseFoldDirectoryBaseName]['missingContentTypePartCount'];
+            }
+            $directoryBaseNames[$caseFoldDirectoryBaseName]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($directoryBaseNames[$caseFoldDirectoryBaseName]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $directoryBaseNames[$caseFoldDirectoryBaseName]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($directoryBaseNames[$caseFoldDirectoryBaseName]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                if ($role === '') {
+                    continue;
+                }
+
+                $directoryBaseNames[$caseFoldDirectoryBaseName]['roleCounts'][$role] =
+                    ($directoryBaseNames[$caseFoldDirectoryBaseName]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'directoryBaseName' => $directoryBaseName,
+                'caseFoldDirectoryBaseName' => $caseFoldDirectoryBaseName,
+                'directoryDepth' => $directoryDepth,
+                'topLevelSegment' => $topLevelSegment,
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $directoryBaseNames[$caseFoldDirectoryBaseName]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $directoryBaseNames[$caseFoldDirectoryBaseName]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($directoryBaseNames, SORT_STRING);
+        foreach ($directoryBaseNames as $caseFoldDirectoryBaseName => $summary) {
+            $directories = array_keys($summary['directories']);
+            sort($directories, SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['directoryBaseNameCounts'], SORT_STRING);
+            ksort($summary['directoryDepthCounts'], SORT_NUMERIC);
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['directories'] = $directories;
+            $summary['directoryCount'] = count($directories);
+            $summary['directoryBaseNameVariantCount'] = count($summary['directoryBaseNameCounts']);
+            $directoryBaseNames[$caseFoldDirectoryBaseName] = $summary;
         }
 
         return array_values($directoryBaseNames);
@@ -28806,6 +28970,7 @@ final class DocxOpenXmlReader
                 'partName' => $partName,
                 'directory' => $directory,
                 'directoryBaseName' => $directoryBaseName,
+                'caseFoldDirectoryBaseName' => $this->packagePartCaseFoldKey($directoryBaseName),
                 'directoryDepth' => $this->packagePartDirectoryDepth($directory),
                 'baseName' => $baseName,
                 'baseNameStem' => $baseNameStem,
