@@ -30,6 +30,8 @@
     "docxRelationshipTargetPathSegmentNameCharacterAssertions": 84,
     "mappedDocxRelationshipSourcePathSegmentNameCharacterCases": 1,
     "docxRelationshipSourcePathSegmentNameCharacterAssertions": 96,
+    "mappedDocxRelationshipSourceBaseNameCharacterCases": 1,
+    "docxRelationshipSourceBaseNameCharacterAssertions": 83,
     "mappedDocxRelationshipSourceCaseFoldDirectoryCases": 1,
     "docxRelationshipSourceCaseFoldDirectoryAssertions": 60,
     "mappedDocxRelationshipSourceDirectoryNameCharacterCases": 1,
