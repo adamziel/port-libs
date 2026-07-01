@@ -23,6 +23,7 @@ final class DocxOpenXmlReader
     private const NS_A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const NS_WP = 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing';
     private const NS_C = 'http://schemas.openxmlformats.org/drawingml/2006/chart';
+    private const NS_CS = 'http://schemas.microsoft.com/office/drawing/2012/chartStyle';
     private const NS_BIB = 'http://schemas.openxmlformats.org/officeDocument/2006/bibliography';
     private const NS_M = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     private const NS_V = 'urn:schemas-microsoft-com:vml';
@@ -69,6 +70,9 @@ final class DocxOpenXmlReader
     private const EMBEDDED_PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
     private const BIBLIOGRAPHY_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/bibliography';
     private const CHART_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
+    private const CHART_USER_SHAPES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chartUserShapes';
+    private const CHART_STYLE_REL = 'http://schemas.microsoft.com/office/2011/relationships/chartStyle';
+    private const CHART_COLOR_STYLE_REL = 'http://schemas.microsoft.com/office/2011/relationships/chartColorStyle';
     private const DIAGRAM_DATA_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData';
     private const DIAGRAM_LAYOUT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout';
     private const DIAGRAM_QUICK_STYLE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle';
@@ -125,6 +129,9 @@ final class DocxOpenXmlReader
     private const CT_CUSTOM_XML_PROPERTIES = 'application/vnd.openxmlformats-officedocument.customxmlproperties+xml';
     private const CT_PACKAGE_RELATIONSHIPS = 'application/vnd.openxmlformats-package.relationships+xml';
     private const CT_CHART = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
+    private const CT_CHART_USER_SHAPES = 'application/vnd.openxmlformats-officedocument.drawingml.chartshapes+xml';
+    private const CT_CHART_STYLE = 'application/vnd.ms-office.chartstyle+xml';
+    private const CT_CHART_COLOR_STYLE = 'application/vnd.ms-office.chartcolorstyle+xml';
     private const CT_DIAGRAM_DATA = 'application/vnd.openxmlformats-officedocument.drawingml.diagramdata+xml';
     private const CT_DIAGRAM_LAYOUT = 'application/vnd.openxmlformats-officedocument.drawingml.diagramlayout+xml';
     private const CT_DIAGRAM_QUICK_STYLE = 'application/vnd.openxmlformats-officedocument.drawingml.diagramstyle+xml';
@@ -1298,6 +1305,13 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['chartEmbeddedPackageExternalCount'] = $chartParts['embeddedPackageExternalCount'];
         $packageProvenance['summary']['chartEmbeddedPackageIssueCount'] = $chartParts['embeddedPackageIssueCount'];
         $packageProvenance['summary']['chartEmbeddedPackageIssueCodes'] = $chartParts['embeddedPackageIssueCodes'];
+        $packageProvenance['summary']['chartSidecarPartCount'] = $chartParts['sidecarPartCount'];
+        $packageProvenance['summary']['chartSidecarPartExistingCount'] = $chartParts['sidecarPartExistingCount'];
+        $packageProvenance['summary']['chartSidecarPartMissingCount'] = $chartParts['sidecarPartMissingCount'];
+        $packageProvenance['summary']['chartSidecarPartExternalCount'] = $chartParts['sidecarPartExternalCount'];
+        $packageProvenance['summary']['chartSidecarPartIssueCount'] = $chartParts['sidecarPartIssueCount'];
+        $packageProvenance['summary']['chartSidecarPartIssueCodes'] = $chartParts['sidecarPartIssueCodes'];
+        $packageProvenance['summary']['chartSidecarPartRoleCounts'] = $chartParts['sidecarPartRoleCounts'];
         $packageProvenance['diagramParts'] = $diagramParts;
         $packageProvenance['summary']['diagramPartCount'] = $diagramParts['count'];
         $packageProvenance['summary']['diagramPartRelationshipCount'] = $diagramParts['relationshipCount'];
@@ -6563,6 +6577,16 @@ final class DocxOpenXmlReader
         $embeddedPackageMissingCount = 0;
         $embeddedPackageExternalCount = 0;
         $embeddedPackageIssueCount = 0;
+        $sidecarPartRelationshipIds = [];
+        $sidecarPartNames = [];
+        $sidecarPartExternalTargets = [];
+        $sidecarPartIssueCodes = [];
+        $sidecarPartRoleCounts = [];
+        $sidecarPartCount = 0;
+        $sidecarPartExistingCount = 0;
+        $sidecarPartMissingCount = 0;
+        $sidecarPartExternalCount = 0;
+        $sidecarPartIssueCount = 0;
         $chartSeriesCount = 0;
         $chartDataPointCount = 0;
         foreach ($items as $item) {
@@ -6606,10 +6630,37 @@ final class DocxOpenXmlReader
                     $embeddedPackageIssueCodes[$issue] = true;
                 }
             }
+            $sidecarParts = is_array($item['sidecarParts'] ?? null) ? $item['sidecarParts'] : [];
+            $sidecarPartCount += (int) ($sidecarParts['count'] ?? 0);
+            $sidecarPartExistingCount += (int) ($sidecarParts['existingCount'] ?? 0);
+            $sidecarPartMissingCount += (int) ($sidecarParts['missingCount'] ?? 0);
+            $sidecarPartExternalCount += (int) ($sidecarParts['externalCount'] ?? 0);
+            $sidecarPartIssueCount += (int) ($sidecarParts['issueCount'] ?? 0);
+            foreach (($sidecarParts['relationshipIds'] ?? []) as $sidecarRelationshipId) {
+                $this->appendUniqueString($sidecarPartRelationshipIds, is_string($sidecarRelationshipId) ? $sidecarRelationshipId : null);
+            }
+            foreach (($sidecarParts['partNames'] ?? []) as $partName) {
+                $this->appendUniqueString($sidecarPartNames, is_string($partName) ? $partName : null);
+            }
+            foreach (($sidecarParts['externalTargets'] ?? []) as $target) {
+                $this->appendUniqueString($sidecarPartExternalTargets, is_string($target) ? $target : null);
+            }
+            foreach (($sidecarParts['issueCodes'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $sidecarPartIssueCodes[$issue] = true;
+                }
+            }
+            foreach (($sidecarParts['roleCounts'] ?? []) as $role => $count) {
+                if (is_string($role) && $role !== '') {
+                    $sidecarPartRoleCounts[$role] = ($sidecarPartRoleCounts[$role] ?? 0) + (int) $count;
+                }
+            }
         }
         ksort($sourceTypeCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
         ksort($embeddedPackageIssueCodes, SORT_STRING);
+        ksort($sidecarPartIssueCodes, SORT_STRING);
+        ksort($sidecarPartRoleCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -6654,6 +6705,16 @@ final class DocxOpenXmlReader
             'embeddedPackagePartNames' => $embeddedPackagePartNames,
             'embeddedPackageExternalTargets' => $embeddedPackageExternalTargets,
             'embeddedPackageIssueCodes' => array_keys($embeddedPackageIssueCodes),
+            'sidecarPartCount' => $sidecarPartCount,
+            'sidecarPartExistingCount' => $sidecarPartExistingCount,
+            'sidecarPartMissingCount' => $sidecarPartMissingCount,
+            'sidecarPartExternalCount' => $sidecarPartExternalCount,
+            'sidecarPartIssueCount' => $sidecarPartIssueCount,
+            'sidecarPartRelationshipIds' => $sidecarPartRelationshipIds,
+            'sidecarPartNames' => $sidecarPartNames,
+            'sidecarPartExternalTargets' => $sidecarPartExternalTargets,
+            'sidecarPartRoleCounts' => $sidecarPartRoleCounts,
+            'sidecarPartIssueCodes' => array_keys($sidecarPartIssueCodes),
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'byRelationshipKey' => $byRelationshipKey,
@@ -6716,6 +6777,7 @@ final class DocxOpenXmlReader
             'chartRelationshipCount' => 0,
             'externalDataRelationshipIds' => [],
             'embeddedPackages' => $this->emptyChartEmbeddedPackageParts(),
+            'sidecarParts' => $this->emptyChartSidecarParts(),
             'chartMetadata' => $this->emptyChartMetadata(),
             'validXml' => null,
             'xmlParseError' => null,
@@ -6818,7 +6880,16 @@ final class DocxOpenXmlReader
             $contentTypes,
             $item['externalDataRelationshipIds'],
         );
-        $item['valid'] = $item['issues'] === [] && (int) $item['embeddedPackages']['issueCount'] === 0;
+        $item['sidecarParts'] = $this->chartSidecarParts(
+            $parts,
+            $targetPart,
+            $chartRelationshipsPart,
+            $chartRelationships,
+            $contentTypes,
+        );
+        $item['valid'] = $item['issues'] === []
+            && (int) $item['embeddedPackages']['issueCount'] === 0
+            && (int) $item['sidecarParts']['issueCount'] === 0;
 
         return $item;
     }
@@ -7638,6 +7709,264 @@ final class DocxOpenXmlReader
             'issues' => $issues,
             'relationship' => $summary,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyChartSidecarParts(): array
+    {
+        return [
+            'count' => 0,
+            'relationshipCount' => 0,
+            'existingCount' => 0,
+            'missingCount' => 0,
+            'externalCount' => 0,
+            'invalidXmlCount' => 0,
+            'unexpectedRootCount' => 0,
+            'missingContentTypeCount' => 0,
+            'unexpectedContentTypeCount' => 0,
+            'issueCount' => 0,
+            'relationshipIds' => [],
+            'partNames' => [],
+            'externalTargets' => [],
+            'contentTypes' => [],
+            'roleCounts' => [],
+            'issueCodes' => [],
+            'byRelationshipId' => [],
+            'items' => [],
+            'byteExposurePolicy' => 'chart-sidecar-part-bytes-blocked',
+            'reviewPolicy' => 'chart-sidecar-part-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function chartSidecarParts(
+        array $parts,
+        ?string $sourcePart,
+        ?string $relationshipsPart,
+        array $relationships,
+        array $contentTypes,
+    ): array {
+        if ($sourcePart === null || $relationshipsPart === null) {
+            return $this->emptyChartSidecarParts();
+        }
+
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $roleCounts = [];
+        $issueCodes = [];
+
+        foreach ($relationships as $relationship) {
+            $definition = $this->chartSidecarDefinitionForRelationshipType($relationship['type']);
+            if ($definition === null) {
+                continue;
+            }
+
+            $relationshipId = $relationship['id'];
+            $item = $this->chartSidecarPartItem(
+                $parts,
+                $relationship,
+                $sourcePart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+                $definition,
+            );
+            $items[] = $item;
+            $byRelationshipId[$relationshipId] = $item;
+            $relationshipIds[] = $relationshipId;
+
+            $role = is_string($item['role'] ?? null) ? $item['role'] : '';
+            if ($role !== '') {
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+            }
+            $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($roleCounts, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-chart-sidecar-part', $item['issues'], true))),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-chart-sidecar-xml', $item['issues'], true))),
+            'unexpectedRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-chart-sidecar-root', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-chart-sidecar-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-chart-sidecar-content-type', $item['issues'], true))),
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'roleCounts' => $roleCounts,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+            'byteExposurePolicy' => 'chart-sidecar-part-bytes-blocked',
+            'reviewPolicy' => 'chart-sidecar-part-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array{role:string, relationshipType:string, contentTypeBase:string, rootNamespace:string, rootLocalName:string} $definition
+     * @return array<string, mixed>
+     */
+    private function chartSidecarPartItem(
+        array $parts,
+        array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index,
+        array $definition,
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $external = (bool) ($summary['external'] ?? false);
+        $exists = (bool) ($summary['exists'] ?? false);
+        $issues = [];
+        $root = [
+            'validXml' => null,
+            'xmlParseError' => null,
+            'namespace' => null,
+            'localName' => null,
+        ];
+
+        if ($external) {
+            $issues[] = 'external-chart-sidecar-part';
+        } else {
+            if (!$exists) {
+                $issues[] = 'missing-chart-sidecar-part';
+            }
+            if (($summary['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-chart-sidecar-content-type';
+            } elseif (($summary['contentTypeBase'] ?? '') !== $definition['contentTypeBase']) {
+                $issues[] = 'unexpected-chart-sidecar-content-type';
+            }
+
+            if ($exists && $targetPart !== null) {
+                $root = $this->xmlRootProvenance($parts[$targetPart], $targetPart);
+                if ($root['validXml'] === false) {
+                    $issues[] = 'invalid-chart-sidecar-xml';
+                } elseif (
+                    $root['namespace'] !== $definition['rootNamespace']
+                    || $root['localName'] !== $definition['rootLocalName']
+                ) {
+                    $issues[] = 'unexpected-chart-sidecar-root';
+                }
+            }
+        }
+
+        return [
+            'index' => $index,
+            'source' => $sourcePart,
+            'role' => $definition['role'],
+            'id' => $summary['id'],
+            'type' => $summary['type'],
+            'expectedType' => $definition['relationshipType'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'expectedContentTypeBase' => $definition['contentTypeBase'],
+            'external' => $external,
+            'exists' => $exists,
+            'relationshipsPart' => $relationshipsPart,
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+            'validXml' => $root['validXml'],
+            'xmlParseError' => $root['xmlParseError'],
+            'rootNamespace' => $root['namespace'],
+            'rootLocalName' => $root['localName'],
+            'expectedRootNamespace' => $definition['rootNamespace'],
+            'expectedRootLocalName' => $definition['rootLocalName'],
+            'byteExposurePolicy' => 'chart-sidecar-part-bytes-blocked',
+            'reviewPolicy' => 'chart-sidecar-part-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+            'relationship' => $summary,
+        ];
+    }
+
+    /**
+     * @return array<string, array{role:string, relationshipType:string, contentTypeBase:string, rootNamespace:string, rootLocalName:string}>
+     */
+    private function chartSidecarDefinitions(): array
+    {
+        return [
+            'style' => [
+                'role' => 'style',
+                'relationshipType' => self::CHART_STYLE_REL,
+                'contentTypeBase' => self::CT_CHART_STYLE,
+                'rootNamespace' => self::NS_CS,
+                'rootLocalName' => 'style',
+            ],
+            'color-style' => [
+                'role' => 'color-style',
+                'relationshipType' => self::CHART_COLOR_STYLE_REL,
+                'contentTypeBase' => self::CT_CHART_COLOR_STYLE,
+                'rootNamespace' => self::NS_CS,
+                'rootLocalName' => 'colorStyle',
+            ],
+            'user-shapes' => [
+                'role' => 'user-shapes',
+                'relationshipType' => self::CHART_USER_SHAPES_REL,
+                'contentTypeBase' => self::CT_CHART_USER_SHAPES,
+                'rootNamespace' => self::NS_C,
+                'rootLocalName' => 'userShapes',
+            ],
+        ];
+    }
+
+    /**
+     * @return array{role:string, relationshipType:string, contentTypeBase:string, rootNamespace:string, rootLocalName:string}|null
+     */
+    private function chartSidecarDefinitionForRelationshipType(string $relationshipType): ?array
+    {
+        foreach ($this->chartSidecarDefinitions() as $definition) {
+            if ($definition['relationshipType'] === $relationshipType) {
+                return $definition;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -29876,6 +30205,9 @@ final class DocxOpenXmlReader
             self::CT_CUSTOM_XML_PROPERTIES => 'custom-xml-properties',
             self::CT_PACKAGE_RELATIONSHIPS => 'relationship-part',
             self::CT_CHART => 'chart-part',
+            self::CT_CHART_STYLE => 'chart-style',
+            self::CT_CHART_COLOR_STYLE => 'chart-color-style',
+            self::CT_CHART_USER_SHAPES => 'chart-user-shapes',
             self::CT_DIAGRAM_DATA => 'diagram-data',
             self::CT_DIAGRAM_LAYOUT => 'diagram-layout',
             self::CT_DIAGRAM_QUICK_STYLE => 'diagram-quick-style',
@@ -30373,6 +30705,9 @@ final class DocxOpenXmlReader
                 if ($isChartRelationshipPart && $relationship['type'] === self::EMBEDDED_PACKAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'chart-embedded-package');
                 }
+                if ($isChartRelationshipPart && $this->chartSidecarDefinitionForRelationshipType($relationship['type']) !== null) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'chart-sidecar-part');
+                }
                 if ($isDiagramRelationshipPart && $relationship['type'] === self::EMBEDDED_PACKAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'diagram-embedded-package');
                 }
@@ -30707,6 +31042,9 @@ final class DocxOpenXmlReader
             self::EMBEDDED_PACKAGE_REL => 'embedded-package',
             self::BIBLIOGRAPHY_REL => 'bibliography-part',
             self::CHART_REL => 'chart-part',
+            self::CHART_STYLE_REL => 'chart-style',
+            self::CHART_COLOR_STYLE_REL => 'chart-color-style',
+            self::CHART_USER_SHAPES_REL => 'chart-user-shapes',
             self::DIAGRAM_DATA_REL => 'diagram-data',
             self::DIAGRAM_LAYOUT_REL => 'diagram-layout',
             self::DIAGRAM_QUICK_STYLE_REL => 'diagram-quick-style',
