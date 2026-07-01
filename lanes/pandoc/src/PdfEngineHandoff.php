@@ -766,7 +766,7 @@ final class PdfEngineHandoff
      *     pdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pdfPageTimingPolicy: array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
      *     pdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
-     *     pdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
+     *     pdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, remoteDocumentActionCount?:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
      *     pdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pdfPageContentResourceUsage: array<string, int>,
@@ -858,7 +858,7 @@ final class PdfEngineHandoff
      *     pdfDocumentSecurityStorePolicy: array<string, mixed>,
      *     pdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     pdfActiveActionTypes: array<string, int>,
-     *     pdfActiveActionPolicy: array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
+     *     pdfActiveActionPolicy: array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, remoteDocumentActionCount?:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
      *     pdfJavaScriptActions: list<array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}>,
      *     pdfJavaScriptActionPolicy: array{reviewStatus:string, scriptCount:int, sourceCount:int, sourceCategories:array<string, int>, tokenCounts:array<string, int>, totalScriptBytes:int, maxScriptBytes:int|null, urlCount:int, submitFormCount:int, missingScriptCount:int, issues:list<string>}|array{},
      *     pdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
@@ -2087,6 +2087,7 @@ final class PdfEngineHandoff
                         'scriptActionCount' => 'scripts',
                         'remoteTargetCount' => 'remote-targets',
                         'launchActionCount' => 'launch-actions',
+                        'remoteDocumentActionCount' => 'remote-document-actions',
                         'embeddedFileActionCount' => 'embedded-file-actions',
                     ] as $policyKey => $diagnosticName) {
                         if (isset($pdfPageActionPolicy[$policyKey]) && is_int($pdfPageActionPolicy[$policyKey]) && $pdfPageActionPolicy[$policyKey] > 0) {
@@ -4467,6 +4468,7 @@ final class PdfEngineHandoff
                         'remoteTargetCount' => 'remote-targets',
                         'launchActionCount' => 'launch-actions',
                         'formActionCount' => 'form-actions',
+                        'remoteDocumentActionCount' => 'remote-document-actions',
                         'embeddedFileActionCount' => 'embedded-file-actions',
                     ] as $policyKey => $diagnosticName) {
                         if (isset($pdfActiveActionPolicy[$policyKey]) && is_int($pdfActiveActionPolicy[$policyKey]) && $pdfActiveActionPolicy[$policyKey] > 0) {
@@ -5405,7 +5407,7 @@ final class PdfEngineHandoff
      *     finalPdfPageTimings: list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, directionLabel:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     finalPdfPageTimingPolicy: array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
      *     finalPdfPageActions: list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
-     *     finalPdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
+     *     finalPdfPageActionPolicy: array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, remoteDocumentActionCount?:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
      *     finalPdfPageViewports: list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     finalPdfPageContentStreams: list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     finalPdfPageContentResourceUsage: array<string, int>,
@@ -5507,7 +5509,7 @@ final class PdfEngineHandoff
      *     finalPdfDocumentSecurityStorePolicy: array<string, mixed>,
      *     finalPdfActiveActions: list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     finalPdfActiveActionTypes: array<string, int>,
-     *     finalPdfActiveActionPolicy: array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
+     *     finalPdfActiveActionPolicy: array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, remoteDocumentActionCount?:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
      *     finalPdfJavaScriptActions: list<array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}>,
      *     finalPdfJavaScriptActionPolicy: array{reviewStatus:string, scriptCount:int, sourceCount:int, sourceCategories:array<string, int>, tokenCounts:array<string, int>, totalScriptBytes:int, maxScriptBytes:int|null, urlCount:int, submitFormCount:int, missingScriptCount:int, issues:list<string>}|array{},
      *     finalPdfRichMediaAnnotations: list<array{page:int, pageObject:string|null, annotationObject:string|null, rect:list<float>|null, contents:string|null, contentObject:string|null, settingsObject:string|null, assetNames:list<string>, activationCondition:string|null, deactivationCondition:string|null, presentationStyle:string|null, presentationTransparent:bool|null, presentationToolbar:bool|null, presentationNavigationPane:bool|null, presentationPassContextClick:bool|null, configurations:list<array{object:string|null, subtype:string|null, name:string|null, instanceCount:int, assetReferences:list<string>, assetNames:list<string>}>}>,
@@ -12467,7 +12469,7 @@ final class PdfEngineHandoff
      *     pageTimings:list<array{page:int, pageObject:string|null, duration:float|null, transitionType:string|null, transitionDuration:float|null, direction:string|null, dimension:string|null, motion:string|null, scale:float|null, background:bool|null}>,
      *     pageTimingPolicy:array{reviewStatus:string, pageCount:int, timingCount:int, durationCount:int, transitionCount:int, pagesWithTiming:list<int>, durationPages:list<int>, transitionPages:list<int>, transitionTypes:array<string, int>, directionLabels:array<string, int>, maxDuration:float|null, maxTransitionDuration:float|null, issues:list<string>}|array{},
      *     pageActions:list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
-     *     pageActionPolicy:array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
+     *     pageActionPolicy:array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, remoteDocumentActionCount?:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
      *     pageViewports:list<array{page:int, pageObject:string|null, viewportObject:string|null, source:string, name:string|null, bbox:list<float>|null, measureSubtype:string|null, scaleRatio:string|null, xUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, yUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, distanceUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, areaUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>, angleUnits:list<array{unit:string|null, conversionFactor:float|null, fractionalDisplay:string|null}>}>,
      *     pageContentStreams:list<array{page:int, pageObject:string|null, contentObject:string|null, source:string, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, textObjectCount:int, imagePaintCount:int, formPaintCount:int, markedContentBeginCount:int, markedContentEndCount:int, mcidValues:list<int>, propertyNames:list<string>, resourceNames:list<string>}>,
      *     pageContentResourceUsage:array<string, int>,
@@ -12548,7 +12550,7 @@ final class PdfEngineHandoff
      *     documentSecurityStorePolicy:array<string, mixed>,
      *     activeActions:list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
      *     activeActionTypes:array<string, int>,
-     *     activeActionPolicy:array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
+     *     activeActionPolicy:array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, remoteDocumentActionCount?:int, embeddedFileActionCount?:int, issues:list<string>}|array{},
      *     javascriptActions:list<array{source:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null, tokenFlags:list<string>, urlCount:int, submitFormCount:int}>,
      *     javascriptActionPolicy:array{reviewStatus:string, scriptCount:int, sourceCount:int, sourceCategories:array<string, int>, tokenCounts:array<string, int>, totalScriptBytes:int, maxScriptBytes:int|null, urlCount:int, submitFormCount:int, missingScriptCount:int, issues:list<string>}|array{},
      *     annotations:list<array{page:int, pageObject:string|null, annotationObject:string|null, subtype:string|null, rect:list<float>|null, quadPoints:list<float>|null, contents:string|null, title:string|null, name:string|null, modified:string|null, iconName:string|null, replyTo:string|null, replyType:string|null, state:string|null, stateModel:string|null, flags:int, flagNames:list<string>, color:list<float>|null, border:list<float>|null, actionType:string|null, actionTarget:string|null, destPageObject:string|null, destFit:string|null, destTarget:string|null}>,
@@ -18131,7 +18133,7 @@ final class PdfEngineHandoff
 
     /**
      * @param list<array{source:string, type:string, target:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
-     * @return array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, embeddedFileActionCount?:int, issues:list<string>}|array{}
+     * @return array{reviewStatus:string, actionCount:int, sourceCount:int, sourceCategories:array<string, int>, actionTypes:array<string, int>, chainedActionCount:int, maxNextDepth:int, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, formActionCount:int, remoteDocumentActionCount?:int, embeddedFileActionCount?:int, issues:list<string>}|array{}
      */
     private function summarizePdfActiveActionPolicy(array $actions): array
     {
@@ -18148,6 +18150,7 @@ final class PdfEngineHandoff
         $remoteTargetCount = 0;
         $launchActionCount = 0;
         $formActionCount = 0;
+        $remoteDocumentActionCount = 0;
         $embeddedFileActionCount = 0;
         $issues = [];
 
@@ -18193,6 +18196,9 @@ final class PdfEngineHandoff
                     $issues[] = 'import-data-action';
                 } elseif ($type === 'URI') {
                     $issues[] = 'uri-action';
+                } elseif ($type === 'GoToR') {
+                    $remoteDocumentActionCount++;
+                    $issues[] = 'remote-document-action';
                 } elseif ($type === 'GoToE') {
                     $embeddedFileActionCount++;
                     $issues[] = 'embedded-file-action';
@@ -18234,6 +18240,9 @@ final class PdfEngineHandoff
             'launchActionCount' => $launchActionCount,
             'formActionCount' => $formActionCount,
         ];
+        if ($remoteDocumentActionCount > 0) {
+            $policy['remoteDocumentActionCount'] = $remoteDocumentActionCount;
+        }
         if ($embeddedFileActionCount > 0) {
             $policy['embeddedFileActionCount'] = $embeddedFileActionCount;
         }
@@ -27824,7 +27833,7 @@ final class PdfEngineHandoff
 
     /**
      * @param list<array{page:int, pageObject:string|null, trigger:string, triggerLabel:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}> $actions
-     * @return array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, embeddedFileActionCount?:int, issues:list<string>}|array{}
+     * @return array{reviewStatus:string, pageCount:int|null, actionCount:int, pagesWithActions:list<int>, openActionPages:list<int>, closeActionPages:list<int>, triggerCounts:array<string, int>, actionTypes:array<string, int>, scriptActionCount:int, remoteTargetCount:int, launchActionCount:int, remoteDocumentActionCount?:int, embeddedFileActionCount?:int, issues:list<string>}|array{}
      */
     private function summarizePdfPageActionPolicy(array $actions, ?int $pageCount): array
     {
@@ -27840,6 +27849,7 @@ final class PdfEngineHandoff
         $scriptActionCount = 0;
         $remoteTargetCount = 0;
         $launchActionCount = 0;
+        $remoteDocumentActionCount = 0;
         $embeddedFileActionCount = 0;
         $issues = [];
 
@@ -27881,6 +27891,9 @@ final class PdfEngineHandoff
                     $issues[] = 'reset-form-action';
                 } elseif ($type === 'URI') {
                     $issues[] = 'uri-action';
+                } elseif ($type === 'GoToR') {
+                    $remoteDocumentActionCount++;
+                    $issues[] = 'remote-document-action';
                 } elseif ($type === 'GoToE') {
                     $embeddedFileActionCount++;
                     $issues[] = 'embedded-file-action';
@@ -27924,6 +27937,9 @@ final class PdfEngineHandoff
             'remoteTargetCount' => $remoteTargetCount,
             'launchActionCount' => $launchActionCount,
         ];
+        if ($remoteDocumentActionCount > 0) {
+            $policy['remoteDocumentActionCount'] = $remoteDocumentActionCount;
+        }
         if ($embeddedFileActionCount > 0) {
             $policy['embeddedFileActionCount'] = $embeddedFileActionCount;
         }
