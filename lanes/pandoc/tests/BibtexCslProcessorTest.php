@@ -992,6 +992,88 @@ XML);
         $t->contains('Compiled Source Manual :: migration handbook :: compiler', $blocks);
         $t->contains('Container Type Chapter :: source chapter :: source volume author :: Smith, Ada; Curator, Eli', $blocks);
     },
+    'carries biblatex name addendum and author type qualifiers in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@incollection{typed-name-handoff,
+  author          = {Roe, Pat},
+  authortype      = {compiler},
+  bookauthor      = {Smith, Ada and Curator, Eli},
+  bookauthortype  = {source volume author},
+  title           = {Typed Name Chapter},
+  booktitle       = {Migration Sourcebook},
+  date            = {2026},
+  pages           = {7--9},
+  nameaddon       = {Reviewed imported source names}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['typed-name-handoff'];
+        $bibliography = $processor->renderBibliographyText($item);
+
+        $t->same('compiler', $item['author-type']);
+        $t->same('source volume author', $item['container-author-type']);
+        $t->same('Reviewed imported source names', $item['name-addon']);
+        $t->same('Smith', $item['container-author'][0]['family']);
+        $t->same('Curator', $item['container-author'][1]['family']);
+        $t->same('compiler', $item['rawBibtex']['fields']['authortype']);
+        $t->same('source volume author', $item['rawBibtex']['fields']['bookauthortype']);
+        $t->same('Reviewed imported source names', $item['rawBibtex']['fields']['nameaddon']);
+        $t->same(
+            'Pat Roe. Typed Name Chapter. Migration Sourcebook. 2026. 7-9. Name addendum: Reviewed imported source names. Author type: compiler. Container author type: source volume author.',
+            $bibliography
+        );
+
+        $document = (new MarkdownReader())->read('Typed source [@typed-name-handoff] preserves author-role qualifiers.');
+        $handoff = $processor->citationHandoff($document, $source);
+
+        $t->same(['typed-name-handoff'], $handoff['citedKeys']);
+        $t->same([], $handoff['missingKeys']);
+        $t->same('compiler', $handoff['items'][0]['author-type'] ?? null);
+        $t->same('source volume author', $handoff['bibliography']->children[0]->attr('cslItem')['container-author-type'] ?? null);
+        $t->same('Reviewed imported source names', $handoff['bibliography']->children[0]->attr('cslItem')['name-addon'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="author-type"/>
+        <text variable="container-author-type"/>
+        <text variable="name-addon"/>
+        <names variable="container-author"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="author-type"/>
+      <text variable="container-author-type"/>
+      <text variable="name-addon"/>
+      <names variable="container-author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same(
+            '[Roe | compiler | source volume author | Reviewed imported source names | Smith and Curator]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'typed-name-handoff', 'text' => '[@typed-name-handoff]']),
+            ])
+        );
+        $t->same(
+            'Typed Name Chapter :: compiler :: source volume author :: Reviewed imported source names :: Smith, Ada; Curator, Eli',
+            $styled->renderBibliographyEntry('typed-name-handoff')
+        );
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Typed source [Roe | compiler | source volume author | Reviewed imported source names | Smith and Curator] preserves author-role qualifiers.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Typed Name Chapter :: compiler :: source volume author :: Reviewed imported source names :: Smith, Ada; Curator, Eli</dd>', $blocks);
+    },
     'carries biblatex legal and patent authority metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @patent{bounded-patent,

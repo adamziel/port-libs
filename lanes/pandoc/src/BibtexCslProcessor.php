@@ -450,6 +450,9 @@ final class BibtexCslProcessor
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
         }
+        if (($item['name-addon'] ?? '') !== '') {
+            $parts[] = 'Name addendum: ' . (string) $item['name-addon'];
+        }
         foreach ([
             'author-type' => 'Author type',
             'container-author-type' => 'Container author type',
@@ -607,9 +610,6 @@ final class BibtexCslProcessor
         }
         if (($item['gender'] ?? '') !== '') {
             $parts[] = 'BibLaTeX gender: ' . (string) $item['gender'];
-        }
-        if (($item['name-addon'] ?? '') !== '') {
-            $parts[] = 'Name addendum: ' . (string) $item['name-addon'];
         }
         $nameAnnotationSummary = $this->biblatexNameAnnotationSummary($item);
         if ($nameAnnotationSummary !== '') {
