@@ -1205,6 +1205,70 @@ BIB;
         $t->same('11-13', $item['page']);
         $t->same('Sam Speaker. Conference Packet. Proceedings of Migration Review. 2026. 11-13.', $bibliography);
     },
+    'carries biblatex organizer alias name annotations in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@talk{legacy-organizer-annotation,
+  author           = {Ng, Nia},
+  title            = {Organizer Alias Annotation Packet},
+  eventtitle       = {Migration Review Clinic},
+  organizer        = {Committee, Program and Curator, Eli},
+  organizer+an:role = {1=program owner; 2=review chair},
+  date             = {2026},
+  venue            = {Remote Hall}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-organizer-annotation'];
+
+        $t->same('speech', $item['type']);
+        $t->same('Committee', $item['event-organizer'][0]['family'] ?? null);
+        $t->same('Program', $item['event-organizer'][0]['given'] ?? null);
+        $t->same('program owner', $item['event-organizer'][0]['annotations'][0]['value'] ?? null);
+        $t->same('role', $item['event-organizer'][1]['annotations'][0]['part'] ?? null);
+        $t->same('review chair', $item['event-organizer'][1]['annotations'][0]['value'] ?? null);
+        $t->same(false, isset($item['biblatex-field-annotations']['organizer']));
+        $t->same('1=program owner; 2=review chair', $item['rawBibtex']['fields']['organizer+an:role'] ?? null);
+
+        $bibliography = $processor->renderBibliographyText($item);
+        $t->contains('Event organizer 1 role: program owner; Event organizer 2 role: review chair', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="event-organizer"/>
+        <text variable="name-annotation-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="event-organizer"/>
+      <text variable="name-annotation-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-organizer-annotation');
+        $t->same('program owner', $styledItem['eventOrganizers'][0]['annotations'][0]['value'] ?? null);
+        $t->same('[Committee and Curator | Event organizer 1 role: program owner; Event organizer 2 role: review chair]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-organizer-annotation', 'text' => '[@legacy-organizer-annotation]']),
+        ]));
+        $t->same('Organizer Alias Annotation Packet :: Committee, Program; Curator, Eli :: Event organizer 1 role: program owner; Event organizer 2 role: review chair', $styled->renderBibliographyEntry('legacy-organizer-annotation'));
+
+        $document = (new MarkdownReader())->read('Organizer alias @legacy-organizer-annotation keeps program-owner notes.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+        $t->same(['legacy-organizer-annotation'], $handoff['citedKeys']);
+        $t->same('program owner', $handoff['items'][0]['event-organizer'][0]['annotations'][0]['value'] ?? null);
+        $t->contains('Name annotations: Event organizer 1 role: program owner; Event organizer 2 role: review chair', $blocks);
+    },
     'maps biblatex speech entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @talk{legacy-talk,
