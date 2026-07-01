@@ -2335,7 +2335,8 @@ BIB;
         $items = $processor->cslItems($source);
         $item = $items['review-handoff'];
 
-        $t->same('article', $item['type']);
+        $t->same('review', $item['type']);
+        $t->same('2', $item['issue']);
         $t->same('Source Manual: Field Appendix', $item['reviewed-title']);
         $t->same('migration handbook', $item['reviewed-genre']);
         $t->same('Collected Review Set: Legacy Volume', $item['main-title']);

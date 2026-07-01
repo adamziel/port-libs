@@ -1615,6 +1615,7 @@ final class BibtexCslParser
     {
         return match (strtolower($type)) {
             'article', 'periodical', 'suppperiodical' => 'article-journal',
+            'review' => 'review',
             'inproceedings', 'conference' => 'paper-conference',
             'talk', 'lecture', 'presentation' => 'speech',
             'bookinbook', 'inbook', 'incollection', 'suppbook', 'suppcollection' => 'chapter',
@@ -1771,7 +1772,7 @@ final class BibtexCslParser
             return $issue;
         }
 
-        if (in_array(strtolower($type), ['article', 'periodical', 'suppperiodical'], true)) {
+        if (in_array(strtolower($type), ['article', 'periodical', 'review', 'suppperiodical'], true)) {
             return self::firstField($fields, ['number']);
         }
 

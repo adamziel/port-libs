@@ -2049,7 +2049,10 @@ final class BibtexCslProcessor
     private function cslType(string $type): string
     {
         return match ($type) {
-            'article' => 'article-journal',
+            'article',
+            'periodical',
+            'suppperiodical' => 'article-journal',
+            'review' => 'review',
             'book',
             'collection',
             'manual',
