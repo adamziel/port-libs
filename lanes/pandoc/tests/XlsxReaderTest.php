@@ -289,7 +289,7 @@ XML,
     <numFmt numFmtId="165" formatCode="[h]:mm:ss"/>
   </numFmts>
   <fonts count="2">
-    <font><u/><color rgb="FF336699"/><sz val="11"/><name val="Aptos"/></font>
+    <font><u val="double"/><color rgb="FF336699"/><sz val="11"/><name val="Aptos"/><family val="2"/><charset val="1"/><scheme val="minor"/><vertAlign val="superscript"/></font>
     <font><b/><strike/><name val="Aptos"/></font>
   </fonts>
   <fills count="3">
@@ -521,7 +521,19 @@ XML,
     <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row>
     <row r="2"><c r="A2"><f>1+1</f><v>999</v></c><c r="B2" t="e"><f>A2/0</f><v>#DIV/0!</v></c><c r="C2" t="str"><f>&quot;cached&quot;</f><v>Cached string</v></c></row>
   </sheetData>
-  <autoFilter ref="A1:C3"/>
+  <autoFilter ref="A1:C3">
+    <filterColumn colId="1" hiddenButton="1" showButton="0">
+      <filters blank="0"><filter val="Result"/></filters>
+    </filterColumn>
+    <filterColumn colId="2">
+      <customFilters and="1">
+        <customFilter operator="notEqual" val="#DIV/0!"/>
+      </customFilters>
+    </filterColumn>
+    <sortState ref="A2:C3" caseSensitive="0">
+      <sortCondition ref="A2:A3" descending="1"/>
+    </sortState>
+  </autoFilter>
   <tableParts count="1">
     <tablePart r:id="rIdTable1"/>
   </tableParts>
@@ -541,13 +553,18 @@ XML,
             'name' => 'xl/tables/table1.xml',
             'data' => <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
-<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="VisibleTable" displayName="VisibleTable" ref="A1:C3" headerRowCount="1" totalsRowShown="0">
-  <autoFilter ref="A1:C3"/>
+<table xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" id="1" name="VisibleTable" displayName="VisibleTable" ref="A1:C3" headerRowCount="1" totalsRowCount="1" totalsRowShown="0" published="1">
+  <autoFilter ref="A1:C3">
+    <filterColumn colId="0">
+      <dynamicFilter type="thisYear"/>
+    </filterColumn>
+  </autoFilter>
   <tableColumns count="3">
-    <tableColumn id="1" name="Formula"/>
-    <tableColumn id="2" name="Result"/>
-    <tableColumn id="3" name="Error"/>
+    <tableColumn id="1" name="Formula" totalsRowFunction="sum"/>
+    <tableColumn id="2" name="Result" totalsRowLabel="Total"/>
+    <tableColumn id="3" name="Error" dataDxfId="5"/>
   </tableColumns>
+  <tableStyleInfo name="TableStyleMedium2" showFirstColumn="0" showLastColumn="1" showRowStripes="1" showColumnStripes="0"/>
 </table>
 XML,
         ],
@@ -876,8 +893,20 @@ return [
 
         $t->same('($1,234.50)', $moneyCell->attr('text'));
         $t->same('right', $moneyCell->attr('align'));
+        $t->same('-1234.5', $moneyCell->attr('xlsxRawValue'));
+        $t->same(-1234.5, $moneyCell->attr('xlsxNumericValue'));
+        $t->same('($#,##0.00)', $moneyCell->attr('xlsxNumberFormatSection'));
+        $t->same('currency', $moneyCell->attr('xlsxNumberFormatKind'));
         $t->same(1, $moneyCell->attr('xlsxStyleIndex'));
         $t->same('$#,##0.00;($#,##0.00)', $moneyCell->attr('xlsxNumberFormatCode'));
+        $t->same('Aptos', $moneyCell->attr('xlsxFontName'));
+        $t->same(11.0, $moneyCell->attr('xlsxFontSize'));
+        $t->same('rgb:FF336699', $moneyCell->attr('xlsxFontColor'));
+        $t->same(2, $moneyCell->attr('xlsxFontFamily'));
+        $t->same(1, $moneyCell->attr('xlsxFontCharset'));
+        $t->same('minor', $moneyCell->attr('xlsxFontScheme'));
+        $t->same('double', $moneyCell->attr('xlsxFontUnderlineStyle'));
+        $t->same('superscript', $moneyCell->attr('xlsxFontVerticalAlign'));
         $t->same('rgb:FFFFCC00', $moneyCell->attr('xlsxFillForegroundColor'));
         $t->same(true, $moneyCell->attr('xlsxWrapText'));
         $t->same(45, $moneyCell->attr('xlsxTextRotation'));
@@ -889,13 +918,23 @@ return [
 
         $t->same('2024-01-15', $dateCell->attr('text'));
         $t->same('date', $dateCell->attr('xlsxValueType'));
+        $t->same('45306', $dateCell->attr('xlsxRawValue'));
+        $t->same(45306.0, $dateCell->attr('xlsxNumericValue'));
+        $t->same('m/d/yy', $dateCell->attr('xlsxNumberFormatSection'));
+        $t->same('date', $dateCell->attr('xlsxNumberFormatKind'));
         $t->same('strikeout', $dateCell->children[0]->children[0]->type);
         $t->same('strong', $dateCell->children[0]->children[0]->children[0]->type);
         $t->same('36:00:00', $elapsedCell->attr('text'));
         $t->same('date', $elapsedCell->attr('xlsxValueType'));
+        $t->same('[h]:mm:ss', $elapsedCell->attr('xlsxNumberFormatSection'));
+        $t->same('elapsed-time', $elapsedCell->attr('xlsxNumberFormatKind'));
         $t->same('13%', $percentCell->attr('text'));
+        $t->same('0%', $percentCell->attr('xlsxNumberFormatSection'));
+        $t->same('percentage', $percentCell->attr('xlsxNumberFormatKind'));
         $t->same('3:30 PM', $timeCell->attr('text'));
         $t->same('date', $timeCell->attr('xlsxValueType'));
+        $t->same('h:mm AM/PM', $timeCell->attr('xlsxNumberFormatSection'));
+        $t->same('time', $timeCell->attr('xlsxNumberFormatKind'));
         $t->same(1, $timeCell->attr('xlsxStyleXfId'));
         $t->same('Attention Time', $timeCell->attr('xlsxCellStyleName'));
         $t->same(40, $timeCell->attr('xlsxCellStyleBuiltinId'));
@@ -1041,7 +1080,31 @@ return [
 
         $t->same(1, $review['tablePartCount'] ?? null);
         $t->same(1, $review['autoFilterCount'] ?? null);
+        $t->same(2, $review['autoFilterDetailCount'] ?? null);
         $t->same(['A1:C3'], $visibleSheet['autoFilterRanges'] ?? null);
+        $t->same(2, count($visibleSheet['autoFilters'] ?? []));
+        $t->same('worksheet', $visibleSheet['autoFilters'][0]['source'] ?? null);
+        $t->same('A1:C3', $visibleSheet['autoFilters'][0]['ref'] ?? null);
+        $t->same(2, $visibleSheet['autoFilters'][0]['filterColumnCount'] ?? null);
+        $t->same(1, $visibleSheet['autoFilters'][0]['filterColumns'][0]['colId'] ?? null);
+        $t->same(true, $visibleSheet['autoFilters'][0]['filterColumns'][0]['hiddenButton'] ?? null);
+        $t->same(false, $visibleSheet['autoFilters'][0]['filterColumns'][0]['showButton'] ?? null);
+        $t->same('filters', $visibleSheet['autoFilters'][0]['filterColumns'][0]['filterType'] ?? null);
+        $t->same(['Result'], $visibleSheet['autoFilters'][0]['filterColumns'][0]['details']['values'] ?? null);
+        $t->same(false, $visibleSheet['autoFilters'][0]['filterColumns'][0]['details']['blank'] ?? null);
+        $t->same('customFilters', $visibleSheet['autoFilters'][0]['filterColumns'][1]['filterType'] ?? null);
+        $t->same(true, $visibleSheet['autoFilters'][0]['filterColumns'][1]['details']['and'] ?? null);
+        $t->same('notEqual', $visibleSheet['autoFilters'][0]['filterColumns'][1]['details']['filters'][0]['operator'] ?? null);
+        $t->same('#DIV/0!', $visibleSheet['autoFilters'][0]['filterColumns'][1]['details']['filters'][0]['value'] ?? null);
+        $t->same('A2:C3', $visibleSheet['autoFilters'][0]['sortState']['ref'] ?? null);
+        $t->same(1, $visibleSheet['autoFilters'][0]['sortState']['conditionCount'] ?? null);
+        $t->same('A2:A3', $visibleSheet['autoFilters'][0]['sortState']['conditions'][0]['ref'] ?? null);
+        $t->same(true, $visibleSheet['autoFilters'][0]['sortState']['conditions'][0]['descending'] ?? null);
+        $t->same('table', $visibleSheet['autoFilters'][1]['source'] ?? null);
+        $t->same('rIdTable1', $visibleSheet['autoFilters'][1]['tableRelationshipId'] ?? null);
+        $t->same('xl/tables/table1.xml', $visibleSheet['autoFilters'][1]['tablePartName'] ?? null);
+        $t->same('dynamicFilter', $visibleSheet['autoFilters'][1]['filterColumns'][0]['filterType'] ?? null);
+        $t->same('thisYear', $visibleSheet['autoFilters'][1]['filterColumns'][0]['details']['type'] ?? null);
         $t->same([], $visibleSheet['tablePartDiagnostics'] ?? null);
         $t->same('rIdTable1', $visibleSheet['tableParts'][0]['relationshipId'] ?? null);
         $t->same('xl/tables/table1.xml', $visibleSheet['tableParts'][0]['partName'] ?? null);
@@ -1050,7 +1113,18 @@ return [
         $t->same('VisibleTable', $visibleSheet['tableParts'][0]['displayName'] ?? null);
         $t->same('A1:C3', $visibleSheet['tableParts'][0]['ref'] ?? null);
         $t->same('A1:C3', $visibleSheet['tableParts'][0]['autoFilterRef'] ?? null);
+        $t->same(1, $visibleSheet['tableParts'][0]['totalsRowCount'] ?? null);
+        $t->same(true, $visibleSheet['tableParts'][0]['published'] ?? null);
         $t->same(3, $visibleSheet['tableParts'][0]['columnCount'] ?? null);
+        $t->same('Formula', $visibleSheet['tableParts'][0]['columns'][0]['name'] ?? null);
+        $t->same('sum', $visibleSheet['tableParts'][0]['columns'][0]['totalsRowFunction'] ?? null);
+        $t->same('Total', $visibleSheet['tableParts'][0]['columns'][1]['totalsRowLabel'] ?? null);
+        $t->same(5, $visibleSheet['tableParts'][0]['columns'][2]['dataDxfId'] ?? null);
+        $t->same('TableStyleMedium2', $visibleSheet['tableParts'][0]['tableStyleInfo']['name'] ?? null);
+        $t->same(false, $visibleSheet['tableParts'][0]['tableStyleInfo']['showFirstColumn'] ?? null);
+        $t->same(true, $visibleSheet['tableParts'][0]['tableStyleInfo']['showLastColumn'] ?? null);
+        $t->same(true, $visibleSheet['tableParts'][0]['tableStyleInfo']['showRowStripes'] ?? null);
+        $t->same(false, $visibleSheet['tableParts'][0]['tableStyleInfo']['showColumnStripes'] ?? null);
     },
 
     'preserves bounded chart pivot and slicer metadata for review without execution' => static function (TestRunner $t) use ($buildFeatureMetadataXlsxPackage): void {

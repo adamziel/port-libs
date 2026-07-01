@@ -107,6 +107,7 @@ final class XlsxReader
         $errorCellCount = 0;
         $tablePartCount = 0;
         $autoFilterCount = 0;
+        $autoFilterDetailCount = 0;
         $commentCount = 0;
         foreach ($sheets as $sheet) {
             $relationship = $workbookRelationships->byId($sheet['relationshipId']);
@@ -140,6 +141,7 @@ final class XlsxReader
             $errorCellCount += $sheetDiagnostics['errorCellCount'];
             $tablePartCount += count($sheetTableMetadata['tableParts']);
             $autoFilterCount += count($sheetTableMetadata['autoFilterRanges']);
+            $autoFilterDetailCount += count($sheetTableMetadata['autoFilters']);
             $commentCount += $sheetComments['commentCount'];
 
             $sheetReviews[] = [
@@ -162,6 +164,7 @@ final class XlsxReader
                 'comments' => $sheetComments['comments'],
                 'commentDiagnostics' => $sheetComments['commentDiagnostics'],
                 'autoFilterRanges' => $sheetTableMetadata['autoFilterRanges'],
+                'autoFilters' => $sheetTableMetadata['autoFilters'],
                 'tableParts' => $sheetTableMetadata['tableParts'],
                 'tablePartDiagnostics' => $sheetTableMetadata['tablePartDiagnostics'],
                 'tableEmitted' => $table instanceof AstNode,
@@ -201,6 +204,7 @@ final class XlsxReader
                 'commentCount' => $commentCount,
                 'tablePartCount' => $tablePartCount,
                 'autoFilterCount' => $autoFilterCount,
+                'autoFilterDetailCount' => $autoFilterDetailCount,
                 'sheets' => $sheetReviews,
                 'featureMetadata' => $featureMetadata,
                 'contentTypesAvailable' => $contentTypeReview['available'],
@@ -1362,6 +1366,11 @@ final class XlsxReader
             $style['fontName'] = $font['name'];
             $style['fontSize'] = $font['size'];
             $style['fontColor'] = $font['color'];
+            $style['fontFamily'] = $font['family'];
+            $style['fontCharset'] = $font['charset'];
+            $style['fontScheme'] = $font['scheme'];
+            $style['fontUnderlineStyle'] = $font['underlineStyle'];
+            $style['fontVerticalAlign'] = $font['verticalAlign'];
         }
 
         $fillId = $this->integerAttribute($xfElement, 'fillId');
@@ -1483,6 +1492,15 @@ final class XlsxReader
         $size = $this->firstChildElement($fontElement, 'sz');
         $color = $this->firstChildElement($fontElement, 'color');
         $underline = $this->firstChildElement($fontElement, 'u');
+        $family = $this->firstChildElement($fontElement, 'family');
+        $charset = $this->firstChildElement($fontElement, 'charset');
+        $scheme = $this->firstChildElement($fontElement, 'scheme');
+        $verticalAlign = $this->firstChildElement($fontElement, 'vertAlign');
+        $underlineStyle = null;
+        if ($underline instanceof \DOMElement) {
+            $underlineValue = strtolower(trim($underline->getAttribute('val')));
+            $underlineStyle = $underlineValue !== '' ? $underlineValue : 'single';
+        }
 
         return [
             'bold' => $this->firstChildElement($fontElement, 'b') instanceof \DOMElement,
@@ -1492,6 +1510,11 @@ final class XlsxReader
             'name' => $name instanceof \DOMElement && trim($name->getAttribute('val')) !== '' ? trim($name->getAttribute('val')) : null,
             'size' => $size instanceof \DOMElement && is_numeric(trim($size->getAttribute('val'))) ? (float) trim($size->getAttribute('val')) : null,
             'color' => $color instanceof \DOMElement ? $this->styleColorValue($color) : null,
+            'family' => $family instanceof \DOMElement ? $this->integerAttribute($family, 'val') : null,
+            'charset' => $charset instanceof \DOMElement ? $this->integerAttribute($charset, 'val') : null,
+            'scheme' => $scheme instanceof \DOMElement && trim($scheme->getAttribute('val')) !== '' ? trim($scheme->getAttribute('val')) : null,
+            'underlineStyle' => $underlineStyle,
+            'verticalAlign' => $verticalAlign instanceof \DOMElement && trim($verticalAlign->getAttribute('val')) !== '' ? trim($verticalAlign->getAttribute('val')) : null,
         ];
     }
 
@@ -1508,6 +1531,11 @@ final class XlsxReader
             'name' => null,
             'size' => null,
             'color' => null,
+            'family' => null,
+            'charset' => null,
+            'scheme' => null,
+            'underlineStyle' => null,
+            'verticalAlign' => null,
         ];
     }
 
@@ -1645,6 +1673,11 @@ final class XlsxReader
             'fontName' => null,
             'fontSize' => null,
             'fontColor' => null,
+            'fontFamily' => null,
+            'fontCharset' => null,
+            'fontScheme' => null,
+            'fontUnderlineStyle' => null,
+            'fontVerticalAlign' => null,
             'fillPatternType' => null,
             'fillForegroundColor' => null,
             'fillBackgroundColor' => null,
@@ -1796,6 +1829,9 @@ final class XlsxReader
         $rawValue = $valueElement instanceof \DOMElement ? $valueElement->textContent : '';
         $empty = false;
         $valueType = 'text';
+        $numericValue = null;
+        $numberFormatSection = null;
+        $numberFormatKind = null;
 
         if ($cellType === 's') {
             if (preg_match('/^-?\d+$/', trim($rawValue)) === 1) {
@@ -1827,6 +1863,8 @@ final class XlsxReader
             $valueType = 'empty';
         } elseif (is_numeric(trim($rawValue))) {
             $number = (float) trim($rawValue);
+            $numericValue = $number;
+            $numberFormatSection = $this->selectedNumberFormatSectionForStyle($style, $number);
             if ($this->isDateStyle($style)) {
                 $text = $this->formatDateSerial($number, $style, $date1904);
                 $valueType = 'date';
@@ -1834,6 +1872,7 @@ final class XlsxReader
                 $text = $this->formatNumberForStyle($number, $style);
                 $valueType = 'number';
             }
+            $numberFormatKind = $this->numberFormatKindForStyle($style, $numberFormatSection);
         } else {
             $text = $rawValue;
         }
@@ -1847,6 +1886,10 @@ final class XlsxReader
             'ref' => $ref,
             'styleIndex' => $styleIndex,
             'valueType' => $valueType,
+            'rawValue' => $numericValue === null ? null : trim($rawValue),
+            'numericValue' => $numericValue,
+            'numberFormatSection' => $numberFormatSection,
+            'numberFormatKind' => $numberFormatKind,
             'text' => $text,
             'bold' => $style['bold'],
             'italic' => $style['italic'],
@@ -1936,6 +1979,61 @@ final class XlsxReader
         }
 
         return $isPercent ? $text . '%' : $text;
+    }
+
+    /**
+     * @param array{formatCode:string|null} $style
+     */
+    private function selectedNumberFormatSectionForStyle(array $style, float $number): ?string
+    {
+        $formatCode = $style['formatCode'];
+        if (!is_string($formatCode) || $formatCode === '' || strcasecmp($formatCode, 'General') === 0) {
+            return null;
+        }
+
+        return $this->selectNumberFormatSection($formatCode, $number);
+    }
+
+    /**
+     * @param array{numFmtId:int|null, formatCode:string|null} $style
+     */
+    private function numberFormatKindForStyle(array $style, ?string $formatSection): ?string
+    {
+        if ($formatSection === null || trim($formatSection) === '') {
+            return null;
+        }
+
+        if ($this->isDateStyle($style)) {
+            $formatCode = (string) ($style['formatCode'] ?? '');
+            if ($this->isElapsedTimeFormat($formatCode)) {
+                return 'elapsed-time';
+            }
+
+            $normalized = strtolower($this->numberFormatCodeForDetection($formatCode));
+            $hasTime = preg_match('/[hs]/', $normalized) === 1;
+            $hasDate = preg_match('/[yd]/', $normalized) === 1;
+            if ($hasTime && !$hasDate) {
+                return 'time';
+            }
+
+            return $hasTime ? 'date-time' : 'date';
+        }
+
+        $normalizedSection = $this->numberFormatCodeForFormatting($formatSection);
+        if (str_contains($formatSection, '%')) {
+            return 'percentage';
+        }
+        if ($this->numberFormatCurrencySymbol($formatSection) !== '') {
+            return 'currency';
+        }
+        if (preg_match('/e[+-]?[0#]+/i', $normalizedSection) === 1) {
+            return 'scientific';
+        }
+        if (str_contains($normalizedSection, '/')) {
+            return 'fraction';
+        }
+
+        return 'number';
     }
 
     private function selectNumberFormatSection(string $formatCode, float $number): string
@@ -2177,6 +2275,11 @@ final class XlsxReader
                 'fontName' => $font['name'] ?? null,
                 'fontSize' => $font['size'] ?? null,
                 'fontColor' => $font['color'] ?? null,
+                'fontFamily' => $font['family'] ?? null,
+                'fontCharset' => $font['charset'] ?? null,
+                'fontScheme' => $font['scheme'] ?? null,
+                'fontUnderlineStyle' => $font['underlineStyle'] ?? null,
+                'fontVerticalAlign' => $font['verticalAlign'] ?? null,
             ]);
         }
 
@@ -2264,6 +2367,7 @@ final class XlsxReader
                 'xlsxValueType' => is_array($cell) ? (string) $cell['valueType'] : 'empty',
             ];
             if (is_array($cell)) {
+                $attrs += $this->cellValueAttributes($cell);
                 $attrs += $this->cellStyleAttributes($cell);
                 $commentAttributes = $this->cellCommentAttributes($cell);
                 if ($commentAttributes !== []) {
@@ -2326,6 +2430,31 @@ final class XlsxReader
      * @param array<string, mixed> $cell
      * @return array<string, mixed>
      */
+    private function cellValueAttributes(array $cell): array
+    {
+        $attrs = [];
+        $map = [
+            'rawValue' => 'xlsxRawValue',
+            'numericValue' => 'xlsxNumericValue',
+            'numberFormatSection' => 'xlsxNumberFormatSection',
+            'numberFormatKind' => 'xlsxNumberFormatKind',
+        ];
+
+        foreach ($map as $source => $target) {
+            $value = $cell[$source] ?? null;
+            if ($value === null || $value === '') {
+                continue;
+            }
+            $attrs[$target] = $value;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @param array<string, mixed> $cell
+     * @return array<string, mixed>
+     */
     private function cellStyleAttributes(array $cell): array
     {
         $style = $cell['style'] ?? [];
@@ -2346,6 +2475,11 @@ final class XlsxReader
             'fontName' => 'xlsxFontName',
             'fontSize' => 'xlsxFontSize',
             'fontColor' => 'xlsxFontColor',
+            'fontFamily' => 'xlsxFontFamily',
+            'fontCharset' => 'xlsxFontCharset',
+            'fontScheme' => 'xlsxFontScheme',
+            'fontUnderlineStyle' => 'xlsxFontUnderlineStyle',
+            'fontVerticalAlign' => 'xlsxFontVerticalAlign',
             'fillId' => 'xlsxFillId',
             'fillPatternType' => 'xlsxFillPatternType',
             'fillForegroundColor' => 'xlsxFillForegroundColor',
@@ -2599,7 +2733,8 @@ final class XlsxReader
     /**
      * @return array{
      *     autoFilterRanges:list<string>,
-     *     tableParts:list<array<string, bool|int|string|null>>,
+     *     autoFilters:list<array<string, mixed>>,
+     *     tableParts:list<array<string, mixed>>,
      *     tablePartDiagnostics:list<string>
      * }
      */
@@ -2607,13 +2742,15 @@ final class XlsxReader
     {
         $root = XmlHtmlDom::rootElement($document, 'worksheet');
         if (!$root instanceof \DOMElement) {
-            return ['autoFilterRanges' => [], 'tableParts' => [], 'tablePartDiagnostics' => []];
+            return ['autoFilterRanges' => [], 'autoFilters' => [], 'tableParts' => [], 'tablePartDiagnostics' => []];
         }
 
         $autoFilterRanges = [];
+        $autoFilters = [];
         $worksheetAutoFilter = $this->firstChildElement($root, 'autoFilter');
         if ($worksheetAutoFilter instanceof \DOMElement) {
             $this->appendAutoFilterRange($autoFilterRanges, $worksheetAutoFilter->getAttribute('ref'));
+            $autoFilters[] = $this->parseAutoFilter($worksheetAutoFilter, 'worksheet');
         }
 
         $tableParts = [];
@@ -2622,6 +2759,7 @@ final class XlsxReader
         if (!$tablePartsElement instanceof \DOMElement) {
             return [
                 'autoFilterRanges' => $autoFilterRanges,
+                'autoFilters' => $autoFilters,
                 'tableParts' => [],
                 'tablePartDiagnostics' => [],
             ];
@@ -2668,18 +2806,25 @@ final class XlsxReader
             if (($tableMetadata['autoFilterRef'] ?? null) !== null) {
                 $this->appendAutoFilterRange($autoFilterRanges, (string) $tableMetadata['autoFilterRef']);
             }
+            if (is_array($tableMetadata['autoFilter'] ?? null)) {
+                $tableAutoFilter = $tableMetadata['autoFilter'];
+                $tableAutoFilter['tableRelationshipId'] = $relationshipId;
+                $tableAutoFilter['tablePartName'] = ltrim($part, '/');
+                $autoFilters[] = $tableAutoFilter;
+            }
             $tableParts[] = array_merge($tablePart, $tableMetadata);
         }
 
         return [
             'autoFilterRanges' => $autoFilterRanges,
+            'autoFilters' => $autoFilters,
             'tableParts' => $tableParts,
             'tablePartDiagnostics' => array_values(array_unique($diagnostics)),
         ];
     }
 
     /**
-     * @return array{id:int|null, name:string|null, displayName:string|null, ref:string|null, autoFilterRef:string|null, headerRowCount:int|null, totalsRowShown:bool|null, columnCount:int}
+     * @return array<string, mixed>
      */
     private function parseTablePart(\DOMDocument $document): array
     {
@@ -2691,9 +2836,14 @@ final class XlsxReader
                 'displayName' => null,
                 'ref' => null,
                 'autoFilterRef' => null,
+                'autoFilter' => null,
                 'headerRowCount' => null,
+                'totalsRowCount' => null,
                 'totalsRowShown' => null,
+                'published' => null,
                 'columnCount' => 0,
+                'columns' => [],
+                'tableStyleInfo' => null,
             ];
         }
 
@@ -2708,9 +2858,229 @@ final class XlsxReader
             'autoFilterRef' => $autoFilter instanceof \DOMElement && trim($autoFilter->getAttribute('ref')) !== ''
                 ? trim($autoFilter->getAttribute('ref'))
                 : null,
+            'autoFilter' => $autoFilter instanceof \DOMElement ? $this->parseAutoFilter($autoFilter, 'table') : null,
             'headerRowCount' => $this->integerAttribute($root, 'headerRowCount'),
+            'totalsRowCount' => $this->integerAttribute($root, 'totalsRowCount'),
             'totalsRowShown' => $this->booleanAttribute($root, 'totalsRowShown'),
+            'published' => $this->booleanAttribute($root, 'published'),
             'columnCount' => $tableColumns instanceof \DOMElement ? count($this->childElements($tableColumns, 'tableColumn')) : 0,
+            'columns' => $tableColumns instanceof \DOMElement ? $this->parseTableColumns($tableColumns) : [],
+            'tableStyleInfo' => $this->parseTableStyleInfo($this->firstChildElement($root, 'tableStyleInfo')),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseAutoFilter(\DOMElement $autoFilter, string $source): array
+    {
+        $filterColumns = [];
+        foreach ($this->childElements($autoFilter, 'filterColumn') as $filterColumn) {
+            $filterColumns[] = $this->parseFilterColumn($filterColumn);
+        }
+
+        $ref = trim($autoFilter->getAttribute('ref'));
+
+        return [
+            'source' => $source,
+            'ref' => $ref !== '' ? $ref : null,
+            'filterColumnCount' => count($filterColumns),
+            'filterColumns' => $filterColumns,
+            'sortState' => $this->parseSortState($this->firstChildElement($autoFilter, 'sortState')),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseFilterColumn(\DOMElement $filterColumn): array
+    {
+        $filters = $this->firstChildElement($filterColumn, 'filters');
+        $customFilters = $this->firstChildElement($filterColumn, 'customFilters');
+        $dynamicFilter = $this->firstChildElement($filterColumn, 'dynamicFilter');
+        $top10 = $this->firstChildElement($filterColumn, 'top10');
+        $colorFilter = $this->firstChildElement($filterColumn, 'colorFilter');
+        $iconFilter = $this->firstChildElement($filterColumn, 'iconFilter');
+
+        $details = null;
+        $type = null;
+        if ($filters instanceof \DOMElement) {
+            $type = 'filters';
+            $details = $this->parseFilters($filters);
+        } elseif ($customFilters instanceof \DOMElement) {
+            $type = 'customFilters';
+            $details = $this->parseCustomFilters($customFilters);
+        } elseif ($dynamicFilter instanceof \DOMElement) {
+            $type = 'dynamicFilter';
+            $details = $this->parseDynamicFilter($dynamicFilter);
+        } elseif ($top10 instanceof \DOMElement) {
+            $type = 'top10';
+            $details = $this->parseTop10Filter($top10);
+        } elseif ($colorFilter instanceof \DOMElement) {
+            $type = 'colorFilter';
+            $details = [
+                'dxfId' => $this->integerAttribute($colorFilter, 'dxfId'),
+                'cellColor' => $this->booleanAttribute($colorFilter, 'cellColor'),
+            ];
+        } elseif ($iconFilter instanceof \DOMElement) {
+            $type = 'iconFilter';
+            $details = [
+                'iconSet' => trim($iconFilter->getAttribute('iconSet')) !== '' ? trim($iconFilter->getAttribute('iconSet')) : null,
+                'iconId' => $this->integerAttribute($iconFilter, 'iconId'),
+            ];
+        }
+
+        return [
+            'colId' => $this->integerAttribute($filterColumn, 'colId'),
+            'hiddenButton' => $this->booleanAttribute($filterColumn, 'hiddenButton'),
+            'showButton' => $this->booleanAttribute($filterColumn, 'showButton'),
+            'filterType' => $type,
+            'details' => $details,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseFilters(\DOMElement $filters): array
+    {
+        $values = [];
+        foreach ($this->childElements($filters, 'filter') as $filter) {
+            $values[] = $filter->getAttribute('val');
+        }
+
+        $dateGroups = [];
+        foreach ($this->childElements($filters, 'dateGroupItem') as $dateGroupItem) {
+            $dateGroups[] = [
+                'year' => $this->integerAttribute($dateGroupItem, 'year'),
+                'month' => $this->integerAttribute($dateGroupItem, 'month'),
+                'day' => $this->integerAttribute($dateGroupItem, 'day'),
+                'hour' => $this->integerAttribute($dateGroupItem, 'hour'),
+                'minute' => $this->integerAttribute($dateGroupItem, 'minute'),
+                'second' => $this->integerAttribute($dateGroupItem, 'second'),
+                'dateTimeGrouping' => trim($dateGroupItem->getAttribute('dateTimeGrouping')) !== '' ? trim($dateGroupItem->getAttribute('dateTimeGrouping')) : null,
+            ];
+        }
+
+        return [
+            'blank' => $this->booleanAttribute($filters, 'blank'),
+            'calendarType' => trim($filters->getAttribute('calendarType')) !== '' ? trim($filters->getAttribute('calendarType')) : null,
+            'values' => $values,
+            'dateGroups' => $dateGroups,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseCustomFilters(\DOMElement $customFilters): array
+    {
+        $filters = [];
+        foreach ($this->childElements($customFilters, 'customFilter') as $customFilter) {
+            $filters[] = [
+                'operator' => trim($customFilter->getAttribute('operator')) !== '' ? trim($customFilter->getAttribute('operator')) : null,
+                'value' => $customFilter->hasAttribute('val') ? $customFilter->getAttribute('val') : null,
+            ];
+        }
+
+        return [
+            'and' => $this->booleanAttribute($customFilters, 'and'),
+            'filters' => $filters,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseDynamicFilter(\DOMElement $dynamicFilter): array
+    {
+        return [
+            'type' => trim($dynamicFilter->getAttribute('type')) !== '' ? trim($dynamicFilter->getAttribute('type')) : null,
+            'value' => $this->numericAttribute($dynamicFilter, 'val'),
+            'maxValue' => $this->numericAttribute($dynamicFilter, 'maxVal'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseTop10Filter(\DOMElement $top10): array
+    {
+        return [
+            'top' => $this->booleanAttribute($top10, 'top'),
+            'percent' => $this->booleanAttribute($top10, 'percent'),
+            'value' => $this->numericAttribute($top10, 'val'),
+            'filterValue' => $this->numericAttribute($top10, 'filterVal'),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseSortState(?\DOMElement $sortState): ?array
+    {
+        if (!$sortState instanceof \DOMElement) {
+            return null;
+        }
+
+        $conditions = [];
+        foreach ($this->childElements($sortState, 'sortCondition') as $condition) {
+            $conditions[] = [
+                'ref' => trim($condition->getAttribute('ref')) !== '' ? trim($condition->getAttribute('ref')) : null,
+                'descending' => $this->booleanAttribute($condition, 'descending'),
+                'sortBy' => trim($condition->getAttribute('sortBy')) !== '' ? trim($condition->getAttribute('sortBy')) : null,
+                'customList' => trim($condition->getAttribute('customList')) !== '' ? trim($condition->getAttribute('customList')) : null,
+                'dxfId' => $this->integerAttribute($condition, 'dxfId'),
+            ];
+        }
+
+        return [
+            'ref' => trim($sortState->getAttribute('ref')) !== '' ? trim($sortState->getAttribute('ref')) : null,
+            'caseSensitive' => $this->booleanAttribute($sortState, 'caseSensitive'),
+            'columnSort' => $this->booleanAttribute($sortState, 'columnSort'),
+            'conditionCount' => count($conditions),
+            'conditions' => $conditions,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseTableColumns(\DOMElement $tableColumns): array
+    {
+        $columns = [];
+        foreach ($this->childElements($tableColumns, 'tableColumn') as $tableColumn) {
+            $columns[] = [
+                'id' => $this->integerAttribute($tableColumn, 'id'),
+                'name' => $tableColumn->hasAttribute('name') ? $tableColumn->getAttribute('name') : null,
+                'uniqueName' => $tableColumn->hasAttribute('uniqueName') ? $tableColumn->getAttribute('uniqueName') : null,
+                'totalsRowFunction' => trim($tableColumn->getAttribute('totalsRowFunction')) !== '' ? trim($tableColumn->getAttribute('totalsRowFunction')) : null,
+                'totalsRowLabel' => $tableColumn->hasAttribute('totalsRowLabel') ? $tableColumn->getAttribute('totalsRowLabel') : null,
+                'queryTableFieldId' => $this->integerAttribute($tableColumn, 'queryTableFieldId'),
+                'dataDxfId' => $this->integerAttribute($tableColumn, 'dataDxfId'),
+                'headerRowDxfId' => $this->integerAttribute($tableColumn, 'headerRowDxfId'),
+                'totalsRowDxfId' => $this->integerAttribute($tableColumn, 'totalsRowDxfId'),
+            ];
+        }
+
+        return $columns;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseTableStyleInfo(?\DOMElement $tableStyleInfo): ?array
+    {
+        if (!$tableStyleInfo instanceof \DOMElement) {
+            return null;
+        }
+
+        return [
+            'name' => $tableStyleInfo->hasAttribute('name') ? $tableStyleInfo->getAttribute('name') : null,
+            'showFirstColumn' => $this->booleanAttribute($tableStyleInfo, 'showFirstColumn'),
+            'showLastColumn' => $this->booleanAttribute($tableStyleInfo, 'showLastColumn'),
+            'showRowStripes' => $this->booleanAttribute($tableStyleInfo, 'showRowStripes'),
+            'showColumnStripes' => $this->booleanAttribute($tableStyleInfo, 'showColumnStripes'),
         ];
     }
 
@@ -2953,6 +3323,16 @@ final class XlsxReader
         }
 
         return (int) $value;
+    }
+
+    private function numericAttribute(\DOMElement $element, string $attribute): int|float|null
+    {
+        $value = trim($element->getAttribute($attribute));
+        if ($value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        return str_contains($value, '.') || stripos($value, 'e') !== false ? (float) $value : (int) $value;
     }
 
     /**
