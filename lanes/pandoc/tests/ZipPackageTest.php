@@ -15059,11 +15059,29 @@ return [
         foreach ($summary['handoffDirectoryRootSummaries'] as $rootSummary) {
             $handoffByRoot[$rootSummary['directoryRoot']] = $rootSummary;
         }
+        $selectedByExtension = [];
+        foreach ($summary['selectedPackagePartExtensionSummaries'] as $extensionSummary) {
+            $selectedByExtension[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
+        $handoffByExtension = [];
+        foreach ($summary['handoffPackagePartExtensionSummaries'] as $extensionSummary) {
+            $handoffByExtension[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
 
         $t->same(4, $summary['selectedDirectoryRootCount']);
         $t->same(4, $summary['handoffDirectoryRootCount']);
         $t->same(['/', '_rels/', 'docProps/', 'word/'], array_keys($selectedByRoot));
         $t->same(['/', '_rels/', 'docProps/', 'word/'], array_keys($handoffByRoot));
+        $t->same(4, $summary['selectedPackagePartExtensionSummaryCount']);
+        $t->same(['bin', 'png', 'rels', 'xml'], $summary['selectedPackagePartExtensions']);
+        $t->same(0, $summary['selectedExtensionlessPackagePartCount']);
+        $t->same(false, $summary['selectedHasExtensionlessPackageParts']);
+        $t->same(3, $summary['handoffPackagePartExtensionSummaryCount']);
+        $t->same(['png', 'rels', 'xml'], $summary['handoffPackagePartExtensions']);
+        $t->same(0, $summary['handoffExtensionlessPackagePartCount']);
+        $t->same(false, $summary['handoffHasExtensionlessPackageParts']);
+        $t->same(['bin', 'png', 'rels', 'xml'], array_keys($selectedByExtension));
+        $t->same(['png', 'rels', 'xml'], array_keys($handoffByExtension));
 
         $t->same(1, $selectedByRoot['/']['entryCount']);
         $t->same(1, $selectedByRoot['/']['fileEntryCount']);
@@ -15098,6 +15116,22 @@ return [
             'word/media/image.png',
         ], $handoffByRoot['word/']['entryNames']);
         $t->same(['document-relationships', 'main-document', 'media', 'media-directory'], $handoffByRoot['word/']['roles']);
+        $t->same(1, $selectedByExtension['bin']['fileEntryCount']);
+        $t->same(strlen($largeBytes), $selectedByExtension['bin']['uncompressedBytes']);
+        $t->same(['word/media/large.bin'], $selectedByExtension['bin']['entryNames']);
+        $t->same(['media'], $selectedByExtension['bin']['roles']);
+        $t->same(2, $selectedByExtension['rels']['fileEntryCount']);
+        $t->same(strlen($packageRelsXml) + strlen($documentRelsXml), $selectedByExtension['rels']['uncompressedBytes']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $selectedByExtension['rels']['entryNames']);
+        $t->same(['document-relationships', 'root-relationships'], $selectedByExtension['rels']['roles']);
+        $t->same(3, $selectedByExtension['xml']['fileEntryCount']);
+        $t->same(strlen($contentTypesXml) + strlen($coreXml) + strlen($documentXml), $selectedByExtension['xml']['uncompressedBytes']);
+        $t->same(['[Content_Types].xml', 'docProps/core.xml', 'word/document.xml'], $selectedByExtension['xml']['entryNames']);
+        $t->same(['content-types', 'main-document', 'metadata'], $selectedByExtension['xml']['roles']);
+        $t->same(1, $handoffByExtension['png']['fileEntryCount']);
+        $t->same(strlen($imageBytes), $handoffByExtension['png']['uncompressedBytes']);
+        $t->same(['word/media/image.png'], $handoffByExtension['png']['entryNames']);
+        $t->same(false, isset($handoffByExtension['bin']));
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
         $t->same('word/', $summary['entries'][6]['directoryRoot']);
         $t->same(null, $summary['entries'][8]['directoryRoot']);

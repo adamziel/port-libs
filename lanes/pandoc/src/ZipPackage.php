@@ -5382,12 +5382,13 @@ final class ZipPackage
         foreach ($selectedEntriesByName as $entry) {
             $localHeader = $this->readLocalHeader($entry);
             $isDirectory = $entry->isDirectory();
+            $packagePartIdentity = self::entryHandoffPackagePartIdentity($entry->name, $isDirectory);
             if ($isDirectory) {
                 ++$selectedDirectoryEntryCount;
             } else {
                 ++$selectedFileEntryCount;
             }
-            $selectedDirectoryRootSummaryEntries[] = [
+            $selectedDirectoryRootSummaryEntries[] = $packagePartIdentity + [
                 'name' => $entry->name,
                 'roles' => array_keys($selectedRolesByName[$entry->name] ?? []),
                 'isDirectory' => $isDirectory,
@@ -6007,6 +6008,28 @@ final class ZipPackage
 
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
+        $selectedPackagePartExtensionSummaries = self::entryHandoffPackagePartExtensionSummaries($selectedDirectoryRootSummaryEntries);
+        $handoffPackagePartExtensionSummaries = self::entryHandoffPackagePartExtensionSummaries($handoffEntries);
+        $selectedPackagePartExtensions = [];
+        $selectedExtensionlessPackagePartCount = 0;
+        foreach ($selectedPackagePartExtensionSummaries as $summary) {
+            if (is_string($summary['packagePartExtension'] ?? null)) {
+                $selectedPackagePartExtensions[] = $summary['packagePartExtension'];
+            }
+            if (($summary['extensionKey'] ?? null) === '(none)') {
+                $selectedExtensionlessPackagePartCount += (int) ($summary['fileEntryCount'] ?? 0);
+            }
+        }
+        $handoffPackagePartExtensions = [];
+        $handoffExtensionlessPackagePartCount = 0;
+        foreach ($handoffPackagePartExtensionSummaries as $summary) {
+            if (is_string($summary['packagePartExtension'] ?? null)) {
+                $handoffPackagePartExtensions[] = $summary['packagePartExtension'];
+            }
+            if (($summary['extensionKey'] ?? null) === '(none)') {
+                $handoffExtensionlessPackagePartCount += (int) ($summary['fileEntryCount'] ?? 0);
+            }
+        }
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $selectedSourceByteSpanBuckets = self::entryHandoffSourceByteSpanBuckets($selectedSourceByteSpanEntries);
         $selectedSourceManifest = self::selectedSourceByteSpanManifest($selectedSourceByteSpanEntries);
@@ -6019,6 +6042,10 @@ final class ZipPackage
             'presentEntryCount' => count($presentNames),
             'selectedUniqueEntryCount' => count($selectedEntriesByName),
             'selectedDirectoryRootCount' => count($selectedDirectoryRootSummaries),
+            'selectedPackagePartExtensionSummaryCount' => count($selectedPackagePartExtensionSummaries),
+            'selectedPackagePartExtensions' => $selectedPackagePartExtensions,
+            'selectedExtensionlessPackagePartCount' => $selectedExtensionlessPackagePartCount,
+            'selectedHasExtensionlessPackageParts' => $selectedExtensionlessPackagePartCount > 0,
             'selectedFileEntryCount' => $selectedFileEntryCount,
             'selectedDirectoryEntryCount' => $selectedDirectoryEntryCount,
             'selectedZeroByteEntryCount' => count($selectedZeroByteEntries),
@@ -6039,6 +6066,10 @@ final class ZipPackage
             'missingOptionalEntryCount' => $missingOptionalEntryCount,
             'handoffEntryCount' => count($handoffEntries),
             'handoffDirectoryRootCount' => count($handoffDirectoryRootSummaries),
+            'handoffPackagePartExtensionSummaryCount' => count($handoffPackagePartExtensionSummaries),
+            'handoffPackagePartExtensions' => $handoffPackagePartExtensions,
+            'handoffExtensionlessPackagePartCount' => $handoffExtensionlessPackagePartCount,
+            'handoffHasExtensionlessPackageParts' => $handoffExtensionlessPackagePartCount > 0,
             'readableEntryCount' => count($handoffEntries),
             'handoffZeroByteEntryCount' => count($handoffZeroByteEntries),
             'handoffZeroByteFileCount' => $handoffZeroByteFileCount,
@@ -6121,6 +6152,8 @@ final class ZipPackage
             'roleSummaries' => $roleSummaries,
             'selectedDirectoryRootSummaries' => $selectedDirectoryRootSummaries,
             'handoffDirectoryRootSummaries' => $handoffDirectoryRootSummaries,
+            'selectedPackagePartExtensionSummaries' => $selectedPackagePartExtensionSummaries,
+            'handoffPackagePartExtensionSummaries' => $handoffPackagePartExtensionSummaries,
             'selectedCompressionMethodBuckets' => self::compressionMethodBuckets($selectedCompressionMethodBuckets),
             'selectedUnsupportedCompressionMethodEntries' => $selectedUnsupportedCompressionMethodEntries,
             'selectedZeroByteEntries' => $selectedZeroByteEntries,
@@ -6988,6 +7021,66 @@ final class ZipPackage
             foreach ($roles as $role) {
                 if (!in_array($role, $summaries[$root]['roles'], true)) {
                     $summaries[$root]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffPackagePartExtensionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '' || ($entry['isDirectory'] ?? false) === true) {
+                continue;
+            }
+
+            $extension = is_string($entry['packagePartExtension'] ?? null)
+                ? $entry['packagePartExtension']
+                : self::zipPackagePartExtension($name, false);
+            $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null)
+                ? $entry['packagePartExtensionKey']
+                : ($extension ?? '(none)');
+            if (!isset($summaries[$extensionKey])) {
+                $summaries[$extensionKey] = [
+                    'extensionKey' => $extensionKey,
+                    'packagePartExtension' => $extension,
+                    'fileEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$extensionKey]['fileEntryCount'];
+            $summaries[$extensionKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$extensionKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$extensionKey]['entryNames'][] = $name;
+
+            $roles = [];
+            if (is_array($entry['roles'] ?? null)) {
+                $roles = array_values(array_filter($entry['roles'], static fn (mixed $role): bool => is_string($role) && $role !== ''));
+            } elseif (is_string($entry['role'] ?? null) && $entry['role'] !== '') {
+                $roles = [$entry['role']];
+            }
+
+            foreach ($roles as $role) {
+                if (!in_array($role, $summaries[$extensionKey]['roles'], true)) {
+                    $summaries[$extensionKey]['roles'][] = $role;
                 }
             }
         }
