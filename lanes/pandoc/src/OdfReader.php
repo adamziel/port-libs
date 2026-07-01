@@ -1412,6 +1412,12 @@ final class OdfReader
         $rootNamespaceDeclarationCount = 0;
         $rootNamespaceDeclarationNames = [];
         $rootNamespaceDeclarationItems = [];
+        $xmlDeclarationPartCount = 0;
+        $xmlDeclarationAttributeCount = 0;
+        $xmlDeclarationVersionCounts = [];
+        $xmlDeclarationEncodingCounts = [];
+        $xmlDeclarationStandaloneCounts = [];
+        $xmlDeclarationItems = [];
         $manifestPartReferenceSuffixItems = [];
         $manifestMediaTypeMismatches = [];
         $byteExposurePolicyCounts = [];
@@ -1427,6 +1433,7 @@ final class OdfReader
             $officeVersion = null;
             $validRoot = false;
             $diagnostics = [];
+            $xmlDeclaration = self::emptyXmlDeclarationProvenance();
             $rootAttributeProvenance = [
                 'attributeCount' => 0,
                 'attributeNames' => [],
@@ -1444,7 +1451,9 @@ final class OdfReader
             if (!$entry instanceof ZipPackageEntry) {
                 $diagnostics[] = 'odf-xml-part-missing-package-part';
             } else {
-                $dom = self::loadXml($package->read($part), 'ODT ' . $part);
+                $xml = $package->read($part);
+                $xmlDeclaration = self::xmlDeclarationProvenance($xml);
+                $dom = self::loadXml($xml, 'ODT ' . $part);
                 $root = $dom->documentElement;
                 if ($root instanceof \DOMElement) {
                     $rootName = $root->localName;
@@ -1469,6 +1478,26 @@ final class OdfReader
                             'manifestVersion' => $manifestVersion,
                         ];
                     }
+                }
+                if ($xmlDeclaration['present']) {
+                    ++$xmlDeclarationPartCount;
+                    $xmlDeclarationAttributeCount += $xmlDeclaration['attributeCount'];
+                    $version = $xmlDeclaration['version'] ?? '(missing)';
+                    $xmlDeclarationVersionCounts[$version] = ($xmlDeclarationVersionCounts[$version] ?? 0) + 1;
+                    $encoding = $xmlDeclaration['encoding'] ?? '(missing)';
+                    $xmlDeclarationEncodingCounts[$encoding] = ($xmlDeclarationEncodingCounts[$encoding] ?? 0) + 1;
+                    $standalone = $xmlDeclaration['standalone'];
+                    $standaloneKey = $standalone === true ? 'yes' : ($standalone === false ? 'no' : 'omitted');
+                    $xmlDeclarationStandaloneCounts[$standaloneKey] = ($xmlDeclarationStandaloneCounts[$standaloneKey] ?? 0) + 1;
+                    $xmlDeclarationItems[] = [
+                        'part' => $part,
+                        'expectedRoot' => $expectedRoot,
+                        'rootName' => $rootName,
+                        'version' => $xmlDeclaration['version'],
+                        'encoding' => $xmlDeclaration['encoding'],
+                        'standalone' => $xmlDeclaration['standalone'],
+                        'attributeCount' => $xmlDeclaration['attributeCount'],
+                    ];
                 }
             }
 
@@ -1561,6 +1590,11 @@ final class OdfReader
                 'rootName' => $rootName,
                 'validRoot' => $validRoot,
                 'officeVersion' => $officeVersion,
+                'xmlDeclarationPresent' => $xmlDeclaration['present'],
+                'xmlDeclarationVersion' => $xmlDeclaration['version'],
+                'xmlDeclarationEncoding' => $xmlDeclaration['encoding'],
+                'xmlDeclarationStandalone' => $xmlDeclaration['standalone'],
+                'xmlDeclarationAttributeCount' => $xmlDeclaration['attributeCount'],
                 'rootAttributeCount' => $rootAttributeProvenance['attributeCount'] ?? 0,
                 'rootAttributeNames' => $rootAttributeProvenance['attributeNames'] ?? [],
                 'rootAttributes' => $rootAttributeProvenance['attributes'] ?? [],
@@ -1614,6 +1648,9 @@ final class OdfReader
         ksort($versionCounts, SORT_STRING);
         sort($rootCustomAttributeNames, SORT_STRING);
         sort($rootNamespaceDeclarationNames, SORT_STRING);
+        ksort($xmlDeclarationVersionCounts, SORT_STRING);
+        ksort($xmlDeclarationEncodingCounts, SORT_STRING);
+        ksort($xmlDeclarationStandaloneCounts, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
 
         return [
@@ -1633,6 +1670,12 @@ final class OdfReader
             'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
             'rootNamespaceDeclarationNames' => $rootNamespaceDeclarationNames,
             'rootNamespaceDeclarationItems' => $rootNamespaceDeclarationItems,
+            'xmlDeclarationPartCount' => $xmlDeclarationPartCount,
+            'xmlDeclarationAttributeCount' => $xmlDeclarationAttributeCount,
+            'xmlDeclarationVersionCounts' => $xmlDeclarationVersionCounts,
+            'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,
+            'xmlDeclarationStandaloneCounts' => $xmlDeclarationStandaloneCounts,
+            'xmlDeclarationItems' => $xmlDeclarationItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => count(array_filter(
                 $manifestPartReferenceSuffixItems,
@@ -1651,6 +1694,55 @@ final class OdfReader
             'manifestMediaTypeMismatches' => $manifestMediaTypeMismatches,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array{present:bool, version:?string, encoding:?string, standalone:?bool, attributeCount:int}
+     */
+    private static function emptyXmlDeclarationProvenance(): array
+    {
+        return [
+            'present' => false,
+            'version' => null,
+            'encoding' => null,
+            'standalone' => null,
+            'attributeCount' => 0,
+        ];
+    }
+
+    /**
+     * @return array{present:bool, version:?string, encoding:?string, standalone:?bool, attributeCount:int}
+     */
+    private static function xmlDeclarationProvenance(string $xml): array
+    {
+        if (preg_match('/^(?:\xEF\xBB\xBF)?\s*<\?xml\s+([^?]*?)\?>/i', $xml, $match) !== 1) {
+            return self::emptyXmlDeclarationProvenance();
+        }
+
+        $attributes = [];
+        preg_match_all('/([A-Za-z_][A-Za-z0-9_.:-]*)\s*=\s*(["\'])(.*?)\2/s', (string) $match[1], $matches, PREG_SET_ORDER);
+        foreach ($matches as $attribute) {
+            $name = strtolower((string) $attribute[1]);
+            if (!isset($attributes[$name])) {
+                $attributes[$name] = (string) $attribute[3];
+            }
+        }
+
+        $standalone = null;
+        $standaloneValue = strtolower($attributes['standalone'] ?? '');
+        if ($standaloneValue === 'yes') {
+            $standalone = true;
+        } elseif ($standaloneValue === 'no') {
+            $standalone = false;
+        }
+
+        return [
+            'present' => true,
+            'version' => isset($attributes['version']) && $attributes['version'] !== '' ? $attributes['version'] : null,
+            'encoding' => isset($attributes['encoding']) && $attributes['encoding'] !== '' ? $attributes['encoding'] : null,
+            'standalone' => $standalone,
+            'attributeCount' => count($attributes),
         ];
     }
 
