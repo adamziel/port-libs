@@ -33089,6 +33089,21 @@ XML;
         $zipPackage = $package['zipPackage'];
         $summary = $package['summary'];
         $inventory = $package['parts'];
+        $identity = $package['packageIdentity'];
+        $identityEntries = [];
+        foreach ($identity['packageEntries'] as $identityEntry) {
+            $identityEntries[$identityEntry['partName']] = $identityEntry;
+        }
+        $variantZipParts = $zipParts;
+        foreach ($variantZipParts as &$variantZipPart) {
+            if ($variantZipPart['name'] === 'word/media/executable.png') {
+                $variantZipPart['externalAttributes'] = 0x81a40000;
+            }
+        }
+        unset($variantZipPart);
+        $variantIdentity = (new DocxOpenXmlReader())->readZipPackage(
+            ZipPackage::fromParts($variantZipParts)
+        )->attr('docx')['packageProvenance']['packageIdentity'];
         $platformAttributes = $zipPackage['platformAttributes'];
         $hostSystemsByName = [];
         foreach ($zipPackage['creatorHostSystems']['hostSystems'] as $hostSystem) {
@@ -33118,6 +33133,19 @@ XML;
         $t->same(['dos-hidden-attribute', 'internal-text-attribute', 'unix-executable-file'], $summary['zipPlatformAttributeIssueCodes']);
         $t->same(count($zipParts) - 1, $hostSystemsByName['unix']['entryCount']);
         $t->same(1, $hostSystemsByName['windows-ntfs']['entryCount']);
+        $t->same(0, $identity['zipPlatformMetadataEntryCount']);
+        $t->same(count($zipParts), $identity['zipKnownCreatorHostSystemEntryCount']);
+        $t->same(2, $identity['zipUnixModeEntryCount']);
+        $t->same(1, $identity['zipExecutableFileCount']);
+        $t->same(1, $identity['zipDosAttributeEntryCount']);
+        $t->same(1, $identity['zipInternalAttributeEntryCount']);
+        $t->same(3, $identity['zipPlatformAttributeProvenanceEntryCount']);
+        $t->same(3, $identity['zipPlatformAttributeIssueEntryCount']);
+        $t->same(['dos-hidden-attribute', 'internal-text-attribute', 'unix-executable-file'], $identity['zipPlatformAttributeIssueCodes']);
+        $t->true(
+            $identity['identitySha256'] !== $variantIdentity['identitySha256'],
+            'package identity should change when ZIP platform attributes change'
+        );
 
         $executableEntry = $zipPackage['byPackagePath']['word/media/executable.png'];
         $hiddenEntry = $zipPackage['byPackagePath']['word/media/hidden.png'];
@@ -33125,6 +33153,9 @@ XML;
         $executablePart = $inventory['word/media/executable.png'];
         $hiddenPart = $inventory['word/media/hidden.png'];
         $textPart = $inventory['word/media/text-attr.png'];
+        $executableIdentity = $identityEntries['word/media/executable.png'];
+        $hiddenIdentity = $identityEntries['word/media/hidden.png'];
+        $textIdentity = $identityEntries['word/media/text-attr.png'];
 
         $t->same('unix', $executableEntry['madeByHostSystemName']);
         $t->same(0x81ed0000, $executableEntry['externalAttributes']);
@@ -33143,6 +33174,13 @@ XML;
         $t->same(true, $executablePart['isUnixExecutableFile']);
         $t->same(['unix-executable-file'], $executablePart['platformAttributeIssues']);
         $t->same('docx-zip-platform-attributes-metadata-only', $executablePart['zipPlatformAttributeReviewPolicy']);
+        $t->same('unix', $executableIdentity['madeByHostSystemName']);
+        $t->same(0x81ed0000, $executableIdentity['externalAttributes']);
+        $t->same('100755', $executableIdentity['unixModeOctal']);
+        $t->same('0755', $executableIdentity['unixPermissionsOctal']);
+        $t->same(true, $executableIdentity['isUnixExecutableFile']);
+        $t->same(['unix-executable-file'], $executableIdentity['platformAttributeIssues']);
+        $t->same('docx-zip-platform-attributes-metadata-only', $executableIdentity['zipPlatformAttributeReviewPolicy']);
 
         $t->same('windows-ntfs', $hiddenEntry['madeByHostSystemName']);
         $t->same(0x00000022, $hiddenEntry['externalAttributes']);
@@ -33155,6 +33193,10 @@ XML;
         $t->same('windows-ntfs', $hiddenPart['madeByHostSystemName']);
         $t->same(['hidden', 'archive'], $hiddenPart['dosAttributeNames']);
         $t->same(['dos-hidden-attribute'], $hiddenPart['platformAttributeIssues']);
+        $t->same('windows-ntfs', $hiddenIdentity['madeByHostSystemName']);
+        $t->same('00000022', $hiddenIdentity['externalAttributesHex']);
+        $t->same(['hidden', 'archive'], $hiddenIdentity['dosAttributeNames']);
+        $t->same(['dos-hidden-attribute'], $hiddenIdentity['platformAttributeIssues']);
 
         $t->same(0x0001, $textEntry['internalFileAttributes']);
         $t->same('0001', $textEntry['internalFileAttributesHex']);
@@ -33169,6 +33211,9 @@ XML;
         $t->same('0001', $textPart['internalFileAttributesHex']);
         $t->same(['apparently-text'], $textPart['internalAttributeNames']);
         $t->same(['internal-text-attribute'], $textPart['platformAttributeIssues']);
+        $t->same('0001', $textIdentity['internalFileAttributesHex']);
+        $t->same(['apparently-text'], $textIdentity['internalAttributeNames']);
+        $t->same(['internal-text-attribute'], $textIdentity['platformAttributeIssues']);
     },
     'summarizes docx source zip timestamps without exposing entry bytes' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
