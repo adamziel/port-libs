@@ -50,6 +50,12 @@ final class BibliographyReader
             $attrs['risReview'] = $review;
             $attrs['risItemReviews'] = $review['items'];
         }
+        if ($this->format === 'endnotexml') {
+            $review = $this->endnoteXmlReview($items, $ids);
+            $attrs['bibliography']['endnoteXmlReview'] = $review;
+            $attrs['endnoteXmlReview'] = $review;
+            $attrs['endnoteXmlItemReviews'] = $review['items'];
+        }
         if ($this->format === 'bibtex' || $this->format === 'biblatex') {
             $review = $this->bibtexReview($items, $ids);
             $attrs['bibliography']['bibtexReview'] = $review;
@@ -383,6 +389,197 @@ final class BibliographyReader
      * @param list<string> $ids
      * @return array<string, mixed>
      */
+    private function endnoteXmlReview(array $items, array $ids): array
+    {
+        $reviews = [];
+        $cslTypeCounts = [];
+        $titleFieldCounts = [];
+        $nameVariableCounts = [];
+        $dateVariableCounts = [];
+        $identifierFieldCounts = [];
+        $publicationTypeHintFieldCounts = [];
+        $publicationTypeHintReasonCounts = [];
+        $dateFieldCounts = [];
+        $dateDiagnosticReasonCounts = [];
+        $nameGroupCounts = [];
+        $nameRoleCounts = [];
+        $nameParsedAsCounts = [];
+        $nameDiagnosticReasonCounts = [];
+        $unsupportedFieldCounts = [];
+        $unsupportedFieldReasonCounts = [];
+        $sourceFileDiagnosticReasonCounts = [];
+        $titleBearingItemCount = 0;
+        $linkBearingItemCount = 0;
+        $sourceFileCandidateCount = 0;
+        $endnoteRefTypeItemCount = 0;
+        $endnoteDatabaseItemCount = 0;
+
+        foreach ($items as $index => $item) {
+            $review = $this->endnoteXmlItemReview($item, $index);
+            $reviews[] = $review;
+
+            $cslType = (string) $review['cslType'];
+            if ($cslType !== '') {
+                $cslTypeCounts[$cslType] = ($cslTypeCounts[$cslType] ?? 0) + 1;
+            }
+
+            $this->mergeStringListCounts($identifierFieldCounts, $review['identifierFields']);
+            $this->mergeCountMap($titleFieldCounts, $review['endnoteTitleFieldCounts']);
+            $this->mergeCountMap($nameVariableCounts, $review['nameVariableCounts']);
+            $this->mergeCountMap($dateVariableCounts, $review['datePartCounts']);
+            $this->mergeCountMap($publicationTypeHintFieldCounts, $review['endnotePublicationTypeHintFieldCounts']);
+            $this->mergeCountMap($publicationTypeHintReasonCounts, $review['endnotePublicationTypeHintReasonCounts']);
+            $this->mergeCountMap($dateFieldCounts, $review['endnoteDateFieldCounts']);
+            $this->mergeCountMap($dateDiagnosticReasonCounts, $review['endnoteDateDiagnosticReasonCounts']);
+            $this->mergeCountMap($nameGroupCounts, $review['endnoteNameGroupCounts']);
+            $this->mergeCountMap($nameRoleCounts, $review['endnoteNameRoleCounts']);
+            $this->mergeCountMap($nameParsedAsCounts, $review['endnoteNameParsedAsCounts']);
+            $this->mergeCountMap($nameDiagnosticReasonCounts, $review['endnoteNameDiagnosticReasonCounts']);
+            $this->mergeCountMap($unsupportedFieldCounts, $review['endnoteUnsupportedFieldCounts']);
+            $this->mergeCountMap($unsupportedFieldReasonCounts, $review['endnoteUnsupportedFieldReasonCounts']);
+            $this->mergeCountMap($sourceFileDiagnosticReasonCounts, $review['sourceFileDiagnosticReasonCounts']);
+
+            if ($review['titleBearing']) {
+                $titleBearingItemCount++;
+            }
+            if ($review['linkBearing']) {
+                $linkBearingItemCount++;
+            }
+            if ($review['endnoteRefTypePresent']) {
+                $endnoteRefTypeItemCount++;
+            }
+            if ($review['endnoteDatabasePresent']) {
+                $endnoteDatabaseItemCount++;
+            }
+            $sourceFileCandidateCount += $review['sourceFileCandidateCount'];
+        }
+
+        ksort($cslTypeCounts);
+        ksort($titleFieldCounts);
+        ksort($nameVariableCounts);
+        ksort($dateVariableCounts);
+        ksort($identifierFieldCounts);
+        ksort($publicationTypeHintFieldCounts);
+        ksort($publicationTypeHintReasonCounts);
+        ksort($dateFieldCounts);
+        ksort($dateDiagnosticReasonCounts);
+        ksort($nameGroupCounts);
+        ksort($nameRoleCounts);
+        ksort($nameParsedAsCounts);
+        ksort($nameDiagnosticReasonCounts);
+        ksort($unsupportedFieldCounts);
+        ksort($unsupportedFieldReasonCounts);
+        ksort($sourceFileDiagnosticReasonCounts);
+
+        return [
+            'scope' => 'endnote-xml-bibliography',
+            'byteExposurePolicy' => 'metadata-only',
+            'externalTooling' => false,
+            'itemCount' => count($items),
+            'itemIds' => $ids,
+            'cslTypeCounts' => $cslTypeCounts,
+            'titleBearingItemCount' => $titleBearingItemCount,
+            'linkBearingItemCount' => $linkBearingItemCount,
+            'nameVariableCounts' => $nameVariableCounts,
+            'dateVariableCounts' => $dateVariableCounts,
+            'identifierFieldCounts' => $identifierFieldCounts,
+            'sourceFileCandidateCount' => $sourceFileCandidateCount,
+            'sourceFileDiagnosticReasonCounts' => $sourceFileDiagnosticReasonCounts,
+            'endnoteRefTypeItemCount' => $endnoteRefTypeItemCount,
+            'endnoteDatabaseItemCount' => $endnoteDatabaseItemCount,
+            'endnoteTitleFieldCounts' => $titleFieldCounts,
+            'endnotePublicationTypeHintFieldCounts' => $publicationTypeHintFieldCounts,
+            'endnotePublicationTypeHintReasonCounts' => $publicationTypeHintReasonCounts,
+            'endnoteDateFieldCounts' => $dateFieldCounts,
+            'endnoteDateDiagnosticReasonCounts' => $dateDiagnosticReasonCounts,
+            'endnoteNameGroupCounts' => $nameGroupCounts,
+            'endnoteNameRoleCounts' => $nameRoleCounts,
+            'endnoteNameParsedAsCounts' => $nameParsedAsCounts,
+            'endnoteNameDiagnosticReasonCounts' => $nameDiagnosticReasonCounts,
+            'endnoteUnsupportedFieldCounts' => $unsupportedFieldCounts,
+            'endnoteUnsupportedFieldReasonCounts' => $unsupportedFieldReasonCounts,
+            'items' => $reviews,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function endnoteXmlItemReview(array $item, int $index): array
+    {
+        $rawEndnoteXml = is_array($item['rawEndnoteXml'] ?? null) ? $item['rawEndnoteXml'] : [];
+        $titleFieldCounts = $this->rowScalarValueCounts($rawEndnoteXml['titleFields'] ?? [], 'field');
+        $publicationTypeHintFieldCounts = $this->rowScalarValueCounts($rawEndnoteXml['publicationTypeHints'] ?? [], 'field');
+        $publicationTypeHintReasonCounts = $this->rowScalarValueCounts($rawEndnoteXml['publicationTypeHints'] ?? [], 'reason');
+        $dateFieldCounts = $this->rowScalarValueCounts($rawEndnoteXml['dateFields'] ?? [], 'field');
+        $dateDiagnosticReasonCounts = $this->rowScalarValueCounts($rawEndnoteXml['dateDiagnostics'] ?? [], 'reason');
+        $nameGroupCounts = $this->rowScalarValueCounts($rawEndnoteXml['nameGroups'] ?? [], 'group');
+        $nameRoleCounts = $this->rowScalarValueCounts($rawEndnoteXml['nameGroups'] ?? [], 'role');
+        $nameParsedAsCounts = $this->rowScalarValueCounts($rawEndnoteXml['nameGroups'] ?? [], 'parsedAs');
+        $nameDiagnosticReasonCounts = $this->rowScalarValueCounts($rawEndnoteXml['nameGroupDiagnostics'] ?? [], 'reason');
+        $unsupportedFieldCounts = $this->rowScalarValueCounts($rawEndnoteXml['unsupportedFields'] ?? [], 'field');
+        $unsupportedFieldReasonCounts = $this->rowScalarValueCounts($rawEndnoteXml['unsupportedFields'] ?? [], 'reason');
+        $sourceFileDiagnosticReasonCounts = $this->sourceFileDiagnosticReasonCounts($item['sourceFileDiagnostics'] ?? []);
+        $identifierFields = $this->presentFieldNames($item, [
+            'DOI', 'doi',
+            'ISBN', 'isbn', 'ISSN', 'issn',
+        ]);
+        $linkFields = $this->presentFieldNames($item, [
+            'URL', 'url', 'DOI', 'doi', 'sourceFileDiagnostics',
+        ]);
+        $titleFields = $this->presentFieldNames($item, [
+            'title', 'title-short', 'shortTitle', 'short-title',
+            'container-title', 'containerTitle', 'collection-title', 'collectionTitle',
+        ]);
+        $nameVariableCounts = $this->cslJsonNameVariableCounts($item);
+        $datePartCounts = $this->cslJsonDatePartCounts($item);
+        $id = $item['id'] ?? '';
+        $type = $item['type'] ?? '';
+
+        return [
+            'index' => $index,
+            'id' => is_scalar($id) ? trim((string) $id) : '',
+            'cslType' => is_scalar($type) ? trim((string) $type) : '',
+            'titleBearing' => $titleFields !== [],
+            'titleFields' => $titleFields,
+            'nameVariableCount' => count($nameVariableCounts),
+            'nameVariableCounts' => $nameVariableCounts,
+            'nameCount' => array_sum($nameVariableCounts),
+            'dateVariableCount' => count($datePartCounts),
+            'datePartCounts' => $datePartCounts,
+            'identifierFieldCount' => count($identifierFields),
+            'identifierFields' => $identifierFields,
+            'linkBearing' => $linkFields !== [],
+            'linkFields' => $linkFields,
+            'sourceFileCandidateCount' => array_sum($sourceFileDiagnosticReasonCounts),
+            'sourceFileDiagnosticReasonCounts' => $sourceFileDiagnosticReasonCounts,
+            'endnoteRefTypePresent' => trim((string) ($rawEndnoteXml['refType'] ?? '')) !== '',
+            'endnoteDatabasePresent' => trim((string) ($rawEndnoteXml['database'] ?? '')) !== '',
+            'endnoteTitleFieldCount' => array_sum($titleFieldCounts),
+            'endnoteTitleFieldCounts' => $titleFieldCounts,
+            'endnotePublicationTypeHintCount' => array_sum($publicationTypeHintReasonCounts),
+            'endnotePublicationTypeHintFieldCounts' => $publicationTypeHintFieldCounts,
+            'endnotePublicationTypeHintReasonCounts' => $publicationTypeHintReasonCounts,
+            'endnoteDateFieldCount' => array_sum($dateFieldCounts),
+            'endnoteDateFieldCounts' => $dateFieldCounts,
+            'endnoteDateDiagnosticReasonCounts' => $dateDiagnosticReasonCounts,
+            'endnoteNameGroupCount' => array_sum($nameGroupCounts),
+            'endnoteNameGroupCounts' => $nameGroupCounts,
+            'endnoteNameRoleCounts' => $nameRoleCounts,
+            'endnoteNameParsedAsCounts' => $nameParsedAsCounts,
+            'endnoteNameDiagnosticReasonCounts' => $nameDiagnosticReasonCounts,
+            'endnoteUnsupportedFieldCounts' => $unsupportedFieldCounts,
+            'endnoteUnsupportedFieldReasonCounts' => $unsupportedFieldReasonCounts,
+            'payloadExposurePolicy' => 'source-values-omitted',
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $ids
+     * @return array<string, mixed>
+     */
     private function bibtexReview(array $items, array $ids): array
     {
         $reviews = [];
@@ -641,6 +838,33 @@ final class BibliographyReader
             if ($reason !== '') {
                 $counts[$reason] = ($counts[$reason] ?? 0) + 1;
             }
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function rowScalarValueCounts(mixed $rows, string $key): array
+    {
+        if (!is_array($rows)) {
+            return [];
+        }
+
+        $counts = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || !is_scalar($row[$key] ?? null)) {
+                continue;
+            }
+
+            $value = trim((string) $row[$key]);
+            if ($value === '') {
+                continue;
+            }
+
+            $counts[$value] = ($counts[$value] ?? 0) + 1;
         }
         ksort($counts);
 

@@ -157,6 +157,170 @@ XML;
         $t->same(['endnote-source'], $endnoteDocument->attr('cslItemIds'));
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. EndNote Packet. 2024.</dd>', $endnoteBlocks);
     },
+    'records metadata only endnote xml reader review provenance' => static function (TestRunner $t): void {
+        $endnoteXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xml>
+  <records>
+    <record>
+      <ref-type name="Journal Article">17</ref-type>
+      <accession-num>endnote-one</accession-num>
+      <contributors>
+        <authors>
+          <author>Ng, Nia</author>
+          <corporate-author>Private Archive Desk</corporate-author>
+        </authors>
+        <secondary-authors>
+          <author>
+            <first-name>Eli</first-name>
+            <last-name>Editor</last-name>
+          </author>
+        </secondary-authors>
+      </contributors>
+      <titles>
+        <title>Secret EndNote Packet Title</title>
+        <secondary-title>Private Journal Title</secondary-title>
+        <alternate-title>Private Short Title</alternate-title>
+      </titles>
+      <dates>
+        <year>2026-07-01</year>
+        <pub-date>not-a-date</pub-date>
+      </dates>
+      <work-type>peer reviewed article</work-type>
+      <publication-type>online ahead</publication-type>
+      <electronic-resource-num>10.5555/private-endnote</electronic-resource-num>
+      <urls>
+        <related-urls>
+          <url>https://example.test/private-endnote</url>
+        </related-urls>
+        <pdf-urls>
+          <url>attachments/private.pdf</url>
+        </pdf-urls>
+      </urls>
+      <custom3>Private custom note</custom3>
+      <research-notes>Private research note</research-notes>
+    </record>
+    <record>
+      <ref-type name="Book">6</ref-type>
+      <accession-num>endnote-two</accession-num>
+      <contributors>
+        <authors>
+          <author>
+            <first-name>GivenOnly</first-name>
+          </author>
+          <author>
+            <suffix>III</suffix>
+          </author>
+        </authors>
+      </contributors>
+      <titles>
+        <title>Second Secret EndNote Title</title>
+        <tertiary-title>Private Series</tertiary-title>
+        <short-title>Private Short</short-title>
+      </titles>
+      <dates>
+        <date></date>
+        <issue-date>2025</issue-date>
+      </dates>
+      <urls>
+        <image-urls>
+          <url>attachments/private-image.png</url>
+        </image-urls>
+      </urls>
+      <custom1>Private custom field</custom1>
+    </record>
+  </records>
+</xml>
+XML;
+
+        $document = (new BibliographyReader('endnotexml'))->read($endnoteXml);
+        $review = $document->attr('endnoteXmlReview');
+        $items = $review['items'];
+
+        $t->same($review, $document->attr('bibliography')['endnoteXmlReview'] ?? null);
+        $t->same($items, $document->attr('endnoteXmlItemReviews'));
+        $t->same('endnote-xml-bibliography', $review['scope']);
+        $t->same('metadata-only', $review['byteExposurePolicy']);
+        $t->same(false, $review['externalTooling']);
+        $t->same(2, $review['itemCount']);
+        $t->same(['endnote-one', 'endnote-two'], $review['itemIds']);
+        $t->same(['article-journal' => 1, 'book' => 1], $review['cslTypeCounts']);
+        $t->same(2, $review['titleBearingItemCount']);
+        $t->same(2, $review['linkBearingItemCount']);
+        $t->same(['author' => 3, 'editor' => 1], $review['nameVariableCounts']);
+        $t->same(['issued' => 4], $review['dateVariableCounts']);
+        $t->same(['doi' => 1], $review['identifierFieldCounts']);
+        $t->same(2, $review['sourceFileCandidateCount']);
+        $t->same(['endnote-attachment-not-imported' => 2], $review['sourceFileDiagnosticReasonCounts']);
+        $t->same(2, $review['endnoteRefTypeItemCount']);
+        $t->same(0, $review['endnoteDatabaseItemCount']);
+        $t->same([
+            'alternate-title' => 1,
+            'secondary-title' => 1,
+            'short-title' => 1,
+            'tertiary-title' => 1,
+            'title' => 2,
+        ], $review['endnoteTitleFieldCounts']);
+        $t->same(['publication-type' => 1, 'ref-type' => 2, 'work-type' => 1], $review['endnotePublicationTypeHintFieldCounts']);
+        $t->same(['endnote-publication-hint-preserved' => 2, 'endnote-ref-type-mapped' => 2], $review['endnotePublicationTypeHintReasonCounts']);
+        $t->same(['date' => 1, 'issue-date' => 1, 'pub-date' => 1, 'year' => 1], $review['endnoteDateFieldCounts']);
+        $t->same(['endnote-date-empty-field' => 1, 'endnote-date-malformed-field' => 1], $review['endnoteDateDiagnosticReasonCounts']);
+        $t->same(['authors' => 4, 'secondary-authors' => 1], $review['endnoteNameGroupCounts']);
+        $t->same(['author' => 4, 'editor' => 1], $review['endnoteNameRoleCounts']);
+        $t->same(['corporate' => 1, 'personal-comma' => 1, 'personal-parts' => 2, 'skipped' => 1], $review['endnoteNameParsedAsCounts']);
+        $t->same(['endnote-name-empty-structured-parts' => 1, 'endnote-name-missing-family' => 1], $review['endnoteNameDiagnosticReasonCounts']);
+        $t->same(['custom1' => 1, 'custom3' => 1, 'research-notes' => 1], $review['endnoteUnsupportedFieldCounts']);
+        $t->same(['endnote-field-preserved-raw-only' => 3], $review['endnoteUnsupportedFieldReasonCounts']);
+
+        $first = $items[0];
+        $t->same(0, $first['index']);
+        $t->same('endnote-one', $first['id']);
+        $t->same('article-journal', $first['cslType']);
+        $t->same(['container-title', 'short-title', 'title'], $first['titleFields']);
+        $t->same(['author' => 2, 'editor' => 1], $first['nameVariableCounts']);
+        $t->same(3, $first['nameCount']);
+        $t->same(['issued' => 3], $first['datePartCounts']);
+        $t->same(['doi'], $first['identifierFields']);
+        $t->same(['doi', 'sourceFileDiagnostics', 'url'], $first['linkFields']);
+        $t->same(['alternate-title' => 1, 'secondary-title' => 1, 'title' => 1], $first['endnoteTitleFieldCounts']);
+        $t->same(['publication-type' => 1, 'ref-type' => 1, 'work-type' => 1], $first['endnotePublicationTypeHintFieldCounts']);
+        $t->same(['pub-date' => 1, 'year' => 1], $first['endnoteDateFieldCounts']);
+        $t->same(['endnote-date-malformed-field' => 1], $first['endnoteDateDiagnosticReasonCounts']);
+        $t->same(['authors' => 2, 'secondary-authors' => 1], $first['endnoteNameGroupCounts']);
+        $t->same(['author' => 2, 'editor' => 1], $first['endnoteNameRoleCounts']);
+        $t->same(['corporate' => 1, 'personal-comma' => 1, 'personal-parts' => 1], $first['endnoteNameParsedAsCounts']);
+        $t->same(['custom3' => 1, 'research-notes' => 1], $first['endnoteUnsupportedFieldCounts']);
+        $t->same('source-values-omitted', $first['payloadExposurePolicy']);
+
+        $second = $items[1];
+        $t->same('endnote-two', $second['id']);
+        $t->same('book', $second['cslType']);
+        $t->same(['collection-title', 'short-title', 'title'], $second['titleFields']);
+        $t->same(['author' => 1], $second['nameVariableCounts']);
+        $t->same(['issued' => 1], $second['datePartCounts']);
+        $t->same([], $second['identifierFields']);
+        $t->same(['sourceFileDiagnostics'], $second['linkFields']);
+        $t->same(['short-title' => 1, 'tertiary-title' => 1, 'title' => 1], $second['endnoteTitleFieldCounts']);
+        $t->same(['date' => 1, 'issue-date' => 1], $second['endnoteDateFieldCounts']);
+        $t->same(['endnote-date-empty-field' => 1], $second['endnoteDateDiagnosticReasonCounts']);
+        $t->same(['authors' => 2], $second['endnoteNameGroupCounts']);
+        $t->same(['personal-parts' => 1, 'skipped' => 1], $second['endnoteNameParsedAsCounts']);
+        $t->same(['endnote-name-empty-structured-parts' => 1, 'endnote-name-missing-family' => 1], $second['endnoteNameDiagnosticReasonCounts']);
+        $t->same(['custom1' => 1], $second['endnoteUnsupportedFieldCounts']);
+
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'Secret EndNote Packet Title'));
+        $t->same(false, str_contains($reviewJson, 'Second Secret EndNote Title'));
+        $t->same(false, str_contains($reviewJson, 'Private Archive Desk'));
+        $t->same(false, str_contains($reviewJson, 'Private Journal Title'));
+        $t->same(false, str_contains($reviewJson, '10.5555/private-endnote'));
+        $t->same(false, str_contains($reviewJson, 'https://example.test/private-endnote'));
+        $t->same(false, str_contains($reviewJson, 'attachments/private.pdf'));
+        $t->same(false, str_contains($reviewJson, 'attachments/private-image.png'));
+        $t->same(false, str_contains($reviewJson, 'Private custom note'));
+        $t->same(false, str_contains($reviewJson, 'Private research note'));
+        $t->same(false, str_contains($reviewJson, 'Private custom field'));
+    },
     'records metadata only csl json reader review provenance' => static function (TestRunner $t): void {
         $cslJson = json_encode([
             [
