@@ -11833,6 +11833,7 @@ final class DocxOpenXmlReader
             ? $zipPackageManifest['packageSource']
             : [];
         $summary['zipPackageManifestArchiveBytes'] = (int) ($zipPackageManifest['archiveBytes'] ?? 0);
+        $summary['zipPackageManifestArchiveLength'] = (int) ($zipPackageManifest['archiveLength'] ?? 0);
         $summary['zipPackageManifestArchiveSha256'] = is_string($zipPackageManifest['archiveSha256'] ?? null)
             ? $zipPackageManifest['archiveSha256']
             : null;
@@ -12670,6 +12671,7 @@ final class DocxOpenXmlReader
                 ? $packageManifest['packageSource']
                 : [],
             'packageManifestArchiveBytes' => (int) ($packageManifest['archiveBytes'] ?? 0),
+            'packageManifestArchiveLength' => (int) ($packageManifest['archiveLength'] ?? 0),
             'packageManifestArchiveSha256' => is_string($packageManifest['archiveSha256'] ?? null)
                 ? $packageManifest['archiveSha256']
                 : null,

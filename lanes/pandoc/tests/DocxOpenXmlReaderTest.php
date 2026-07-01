@@ -1129,6 +1129,7 @@ XML,
             'manifestSha256' => 'packageManifestSha256',
             'packageSource' => 'packageManifestPackageSource',
             'archiveBytes' => 'packageManifestArchiveBytes',
+            'archiveLength' => 'packageManifestArchiveLength',
             'archiveSha256' => 'packageManifestArchiveSha256',
             'centralDirectoryOffset' => 'packageManifestCentralDirectoryOffset',
             'centralDirectoryBytes' => 'packageManifestCentralDirectoryBytes',
@@ -1208,6 +1209,7 @@ XML,
         $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryRecordHashCount']);
         $t->same($manifest['packageSource'], $summary['zipPackageManifestPackageSource']);
         $t->same($manifest['archiveBytes'], $summary['zipPackageManifestArchiveBytes']);
+        $t->same($manifest['archiveLength'], $summary['zipPackageManifestArchiveLength']);
         $t->same($manifest['archiveSha256'], $summary['zipPackageManifestArchiveSha256']);
         $t->same($manifest['centralDirectoryOffset'], $summary['zipPackageManifestCentralDirectoryOffset']);
         $t->same($manifest['centralDirectoryEnd'], $summary['zipPackageManifestCentralDirectoryEnd']);
