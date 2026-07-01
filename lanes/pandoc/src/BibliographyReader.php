@@ -399,9 +399,14 @@ final class BibliographyReader
         $biblatexCustomListCounts = [];
         $biblatexCustomNameCounts = [];
         $biblatexFieldAnnotationCounts = [];
+        $biblatexOptionNameCounts = [];
+        $biblatexLanguageOptionNameCounts = [];
+        $biblatexBibliographyVisibilityCounts = [];
         $titleBearingItemCount = 0;
         $linkBearingItemCount = 0;
         $sourceFileCandidateCount = 0;
+        $biblatexSkipBibliographyItemCount = 0;
+        $biblatexBibliographyVisibleItemCount = 0;
 
         foreach ($items as $index => $item) {
             $review = $this->bibtexItemReview($item, $index);
@@ -428,6 +433,14 @@ final class BibliographyReader
             $this->mergeStringListCounts($biblatexCustomListCounts, $review['biblatexCustomLists']);
             $this->mergeStringListCounts($biblatexCustomNameCounts, $review['biblatexCustomNames']);
             $this->mergeCountMap($biblatexFieldAnnotationCounts, $review['biblatexFieldAnnotationCounts']);
+            $this->mergeStringListCounts($biblatexOptionNameCounts, $review['biblatexOptionNames']);
+            $this->mergeStringListCounts($biblatexLanguageOptionNameCounts, $review['biblatexLanguageOptionNames']);
+
+            $visibility = (string) ($review['biblatexBibliographyVisibility'] ?? '');
+            if ($visibility !== '') {
+                $biblatexBibliographyVisibilityCounts[$visibility] =
+                    ($biblatexBibliographyVisibilityCounts[$visibility] ?? 0) + 1;
+            }
 
             if ($review['titleBearing']) {
                 $titleBearingItemCount++;
@@ -436,6 +449,11 @@ final class BibliographyReader
                 $linkBearingItemCount++;
             }
             $sourceFileCandidateCount += $review['sourceFileCandidateCount'];
+            if (($review['biblatexSkipsBibliography'] ?? false) === true) {
+                $biblatexSkipBibliographyItemCount++;
+            } else {
+                $biblatexBibliographyVisibleItemCount++;
+            }
         }
 
         ksort($entryTypeCounts);
@@ -451,6 +469,9 @@ final class BibliographyReader
         ksort($biblatexCustomListCounts);
         ksort($biblatexCustomNameCounts);
         ksort($biblatexFieldAnnotationCounts);
+        ksort($biblatexOptionNameCounts);
+        ksort($biblatexLanguageOptionNameCounts);
+        ksort($biblatexBibliographyVisibilityCounts);
 
         return [
             'scope' => $this->format . '-bibliography',
@@ -475,6 +496,11 @@ final class BibliographyReader
             'biblatexCustomListCounts' => $biblatexCustomListCounts,
             'biblatexCustomNameCounts' => $biblatexCustomNameCounts,
             'biblatexFieldAnnotationCounts' => $biblatexFieldAnnotationCounts,
+            'biblatexOptionNameCounts' => $biblatexOptionNameCounts,
+            'biblatexLanguageOptionNameCounts' => $biblatexLanguageOptionNameCounts,
+            'biblatexSkipBibliographyItemCount' => $biblatexSkipBibliographyItemCount,
+            'biblatexBibliographyVisibleItemCount' => $biblatexBibliographyVisibleItemCount,
+            'biblatexBibliographyVisibilityCounts' => $biblatexBibliographyVisibilityCounts,
             'items' => $reviews,
         ];
     }
@@ -500,6 +526,9 @@ final class BibliographyReader
         $relationReferenceCounts = $this->bibtexRelationReferenceCounts($item, false);
         $missingRelationReferenceCounts = $this->bibtexRelationReferenceCounts($item, true);
         $biblatexFieldAnnotationCounts = $this->biblatexFieldAnnotationCounts($item['biblatex-field-annotations'] ?? []);
+        $biblatexOptions = $item['biblatex-options'] ?? [];
+        $biblatexLanguageOptions = $item['biblatex-language-options'] ?? [];
+        $biblatexSkipsBibliography = $this->biblatexSkipsBibliography($biblatexOptions);
         $identifierFields = $this->presentFieldNames($item, [
             'DOI', 'doi',
             'ISBN', 'isbn', 'ISSN', 'issn',
@@ -551,8 +580,12 @@ final class BibliographyReader
             'biblatexCustomLists' => $this->biblatexMapKeys($item['biblatex-custom-lists'] ?? []),
             'biblatexCustomNames' => $this->biblatexMapKeys($item['biblatex-custom-names'] ?? []),
             'biblatexFieldAnnotationCounts' => $biblatexFieldAnnotationCounts,
-            'biblatexOptionCount' => is_array($item['biblatex-options'] ?? null) ? count($item['biblatex-options']) : 0,
-            'biblatexLanguageOptionCount' => is_array($item['biblatex-language-options'] ?? null) ? count($item['biblatex-language-options']) : 0,
+            'biblatexOptionCount' => is_array($biblatexOptions) ? count($biblatexOptions) : 0,
+            'biblatexOptionNames' => $this->biblatexOptionNames($biblatexOptions),
+            'biblatexLanguageOptionCount' => is_array($biblatexLanguageOptions) ? count($biblatexLanguageOptions) : 0,
+            'biblatexLanguageOptionNames' => $this->biblatexOptionNames($biblatexLanguageOptions),
+            'biblatexSkipsBibliography' => $biblatexSkipsBibliography,
+            'biblatexBibliographyVisibility' => $biblatexSkipsBibliography ? 'omit' : 'include',
             'payloadExposurePolicy' => 'source-values-omitted',
         ];
     }
@@ -644,6 +677,75 @@ final class BibliographyReader
         ksort($counts);
 
         return $counts;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function biblatexOptionNames(mixed $options): array
+    {
+        if (!is_array($options)) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($options as $option) {
+            if (!is_scalar($option)) {
+                continue;
+            }
+
+            $option = strtolower(trim(str_replace('_', '-', (string) $option)));
+            if ($option === '') {
+                continue;
+            }
+
+            $name = trim(explode('=', $option, 2)[0]);
+            if ($name !== '') {
+                $names[$name] = true;
+            }
+        }
+
+        $names = array_keys($names);
+        sort($names, SORT_STRING);
+
+        return $names;
+    }
+
+    private function biblatexSkipsBibliography(mixed $options): bool
+    {
+        if (!is_array($options)) {
+            return false;
+        }
+
+        $skip = false;
+        foreach ($options as $option) {
+            if (!is_scalar($option)) {
+                continue;
+            }
+
+            $option = strtolower(trim(str_replace('_', '-', (string) $option)));
+            if ($option === '') {
+                continue;
+            }
+
+            if ($option === 'skipbib') {
+                $skip = true;
+                continue;
+            }
+
+            if (!str_starts_with($option, 'skipbib=')) {
+                continue;
+            }
+
+            $value = trim(substr($option, strlen('skipbib=')));
+            if (in_array($value, ['1', 'true', 'yes', 'on'], true)) {
+                $skip = true;
+            } elseif (in_array($value, ['0', 'false', 'no', 'off'], true)) {
+                $skip = false;
+            }
+        }
+
+        return $skip;
     }
 
     /**

@@ -440,6 +440,81 @@ BIB;
         $t->same(false, str_contains($reviewJson, 'Private Publisher'));
         $t->same(false, str_contains($reviewJson, 'Private Related Title'));
     },
+    'honors biblatex skip bibliography options in the reader bibliography path' => static function (TestRunner $t): void {
+        $biblatex = <<<'BIB'
+@book{visible-entry,
+  author = {Ng, Nia},
+  title = {Visible Packet Title},
+  date = {2026}
+}
+
+@book{skip-entry,
+  author = {Roe, Pat},
+  title = {Skipped Private Packet Title},
+  date = {2025},
+  options = {skipbib, useprefix=true}
+}
+
+@book{include-entry,
+  author = {Ito, Ira},
+  title = {Explicit Include Packet Title},
+  date = {2024},
+  options = {skipbib=false, terseinits},
+  langidopts = {variant=british, hyphenation=ngerman}
+}
+
+@xdata{source-defaults,
+  publisher = {Private Defaults Publisher}
+}
+
+@book{data-only-entry,
+  title = {Data Only Private Packet Title},
+  options = {dataonly}
+}
+BIB;
+
+        $document = (new BibliographyReader('biblatex'))->read($biblatex);
+        $bibliography = $document->children[0];
+        $review = $document->attr('bibtexReview');
+        $items = [];
+        foreach ($review['items'] as $item) {
+            $items[$item['id']] = $item;
+        }
+
+        $t->same(['visible-entry', 'skip-entry', 'include-entry'], $document->attr('cslItemIds'));
+        $t->same([
+            'visible-entry',
+            'include-entry',
+        ], array_map(
+            static fn (AstNode $item): string => (string) $item->attr('cslId'),
+            $bibliography->children
+        ));
+        $t->same(3, $review['itemCount']);
+        $t->same(2, $review['biblatexBibliographyVisibleItemCount']);
+        $t->same(1, $review['biblatexSkipBibliographyItemCount']);
+        $t->same(['include' => 2, 'omit' => 1], $review['biblatexBibliographyVisibilityCounts']);
+        $t->same(['skipbib' => 2, 'terseinits' => 1, 'useprefix' => 1], $review['biblatexOptionNameCounts']);
+        $t->same(['hyphenation' => 1, 'variant' => 1], $review['biblatexLanguageOptionNameCounts']);
+
+        $t->same([], $items['visible-entry']['biblatexOptionNames']);
+        $t->same(false, $items['visible-entry']['biblatexSkipsBibliography']);
+        $t->same('include', $items['visible-entry']['biblatexBibliographyVisibility']);
+        $t->same(['skipbib', 'useprefix'], $items['skip-entry']['biblatexOptionNames']);
+        $t->same(true, $items['skip-entry']['biblatexSkipsBibliography']);
+        $t->same('omit', $items['skip-entry']['biblatexBibliographyVisibility']);
+        $t->same(['skipbib', 'terseinits'], $items['include-entry']['biblatexOptionNames']);
+        $t->same(['hyphenation', 'variant'], $items['include-entry']['biblatexLanguageOptionNames']);
+        $t->same(false, $items['include-entry']['biblatexSkipsBibliography']);
+        $t->same('include', $items['include-entry']['biblatexBibliographyVisibility']);
+
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'Skipped Private Packet Title'));
+        $t->same(false, str_contains($reviewJson, 'Explicit Include Packet Title'));
+        $t->same(false, str_contains($reviewJson, 'Data Only Private Packet Title'));
+        $t->same(false, str_contains($reviewJson, 'Private Defaults Publisher'));
+        $t->same(false, str_contains($reviewJson, 'british'));
+        $t->same(false, str_contains($reviewJson, 'ngerman'));
+    },
     'rejects malformed bibliography inputs through converter dispatch' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('@book{missing,title={Bad}', 'bibtex');

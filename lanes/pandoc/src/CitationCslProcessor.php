@@ -915,6 +915,11 @@ final class CitationCslProcessor
      */
     public function bibliographyDefinitionList(array $ids, array $yearSuffixes = [], array $firstReferenceNoteNumbers = []): AstNode
     {
+        $ids = array_values(array_filter(
+            $ids,
+            fn (string $id): bool => !$this->itemSkipsBibliography($id)
+        ));
+
         if ($yearSuffixes === []) {
             $yearSuffixes = $this->yearSuffixesForIds($ids);
         }
