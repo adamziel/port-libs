@@ -2537,7 +2537,7 @@ XML, 'DocBook media target XML', preserveWhiteSpace: false);
   <info><title>Reviewer Reference Packet</title></info>
   <chapter xml:id="ch1">
     <title>Body References</title>
-    <para>See <xref linkend="ref-good"/> plus <citation>[ref-missing]</citation> and <link linkend="ref-dup">duplicate reference</link>.</para>
+    <para>See <xref linkend="ref-good" role="primary-reference"/> plus <citation role="ref-role">[ref-missing]</citation> and <link linkend="ref-dup" role="related duplicate-reference">duplicate reference</link>. Also <citerefentry linkend="ref-good" role="manual-entry"><refentrytitle>portable-imports</refentrytitle><manvolnum>7</manvolnum></citerefentry>.</para>
   </chapter>
   <bibliography xml:id="refs">
     <title>Works Cited</title>
@@ -2550,7 +2550,7 @@ XML, 'DocBook media target XML', preserveWhiteSpace: false);
       <pubdate>2026</pubdate>
       <year>2026</year>
       <publisher><publishername>Port Libs Press</publishername></publisher>
-      <mediaobject><imageobject/></mediaobject>
+      <mediaobject role="cover-image"><imageobject/></mediaobject>
     </biblioentry>
     <bibliomixed xml:id="ref-dup">
       <title>Mixed Reference</title>
@@ -2563,12 +2563,18 @@ XML, 'DocBook media target XML', preserveWhiteSpace: false);
       <date>2024-05</date>
       <publisher><publishername>Duplicate Press</publishername></publisher>
     </biblioentry>
+    <biblioentry xml:id="ref-role">
+      <title>Role Citation Reference</title>
+      <author><personname><firstname>Rae</firstname><surname>Role</surname></personname></author>
+      <year>2022</year>
+      <publisher><publishername>Role Press</publishername></publisher>
+    </biblioentry>
     <biblioentry id="ref-metadata-gaps">
       <date>2023</date>
     </biblioentry>
     <bibliodiv xml:id="legacy">
       <title>Legacy References</title>
-      <simpara>unsupported div text</simpara>
+      <simpara role="legacy-note">unsupported div text</simpara>
     </bibliodiv>
   </bibliography>
 </book>
@@ -2593,7 +2599,7 @@ XML, 'DocBook bibliography XML', preserveWhiteSpace: false);
         $t->same(true, $packet['directReaderDiagnostics'][0]['coveredByPacket'] ?? null);
         $t->same('docbook', $packet['directReaderDiagnostics'][0]['details']['format'] ?? null);
         $t->same(1, $packet['directReaderDiagnostics'][1]['details']['bibliographyCount'] ?? null);
-        $t->same(4, $packet['directReaderDiagnostics'][1]['details']['entryCount'] ?? null);
+        $t->same(5, $packet['directReaderDiagnostics'][1]['details']['entryCount'] ?? null);
         $t->same(['ref-dup'], $packet['directReaderDiagnostics'][2]['details']['duplicateIds'] ?? null);
         $t->same(['ref-missing'], $packet['directReaderDiagnostics'][3]['details']['missingTargets'] ?? null);
         $t->same(true, in_array('docbook-bibliography-entry-missing-contributor', $packet['directReaderDiagnostics'][4]['details']['missingMetadataCodes'] ?? [], true));
@@ -2606,13 +2612,13 @@ XML, 'DocBook bibliography XML', preserveWhiteSpace: false);
         $t->same(1, $packet['bibliographyCount']);
         $t->same(['refs'], $packet['bibliographyIds']);
         $t->same('Works Cited', $packet['bibliographies'][0]['title'] ?? null);
-        $t->same(['ref-good', 'ref-dup', 'ref-metadata-gaps'], $packet['bibliographies'][0]['entryIds'] ?? null);
-        $t->same(4, $packet['bibliographies'][0]['entryCount'] ?? null);
-        $t->same(4, $packet['bibliographyEntryCount']);
-        $t->same(['ref-good', 'ref-dup', 'ref-metadata-gaps'], $packet['bibliographyEntryIds']);
-        $t->same(['ref-good', 'ref-dup', 'ref-metadata-gaps'], $packet['biblioentryIds']);
+        $t->same(['ref-good', 'ref-dup', 'ref-role', 'ref-metadata-gaps'], $packet['bibliographies'][0]['entryIds'] ?? null);
+        $t->same(5, $packet['bibliographies'][0]['entryCount'] ?? null);
+        $t->same(5, $packet['bibliographyEntryCount']);
+        $t->same(['ref-good', 'ref-dup', 'ref-role', 'ref-metadata-gaps'], $packet['bibliographyEntryIds']);
+        $t->same(['ref-good', 'ref-dup', 'ref-role', 'ref-metadata-gaps'], $packet['biblioentryIds']);
         $t->same(['ref-dup'], $packet['bibliomixedIds']);
-        $t->same(['refs' => 1, 'ref-good' => 1, 'ref-dup' => 2, 'ref-metadata-gaps' => 1, 'legacy' => 1], $packet['bibliographicIdOccurrences']);
+        $t->same(['refs' => 1, 'ref-good' => 1, 'ref-dup' => 2, 'ref-role' => 1, 'ref-metadata-gaps' => 1, 'legacy' => 1], $packet['bibliographicIdOccurrences']);
         $t->same(['ref-dup'], $packet['duplicateBibliographyIds']);
         $t->same('biblioentry', $packet['bibliographyEntries'][0]['element'] ?? null);
         $t->same('ref-good', $packet['bibliographyEntries'][0]['id'] ?? null);
@@ -2646,10 +2652,14 @@ XML, 'DocBook bibliography XML', preserveWhiteSpace: false);
         $t->same('Mixed Press', $packet['bibliographyEntries'][1]['publisher'] ?? null);
         $t->same(['2025'], $packet['bibliographyEntries'][1]['yearLikeValues'] ?? null);
         $t->same(['2024-05'], $packet['bibliographyEntries'][2]['yearLikeValues'] ?? null);
-        $t->same('ref-metadata-gaps', $packet['bibliographyEntries'][3]['id'] ?? null);
-        $t->same(null, $packet['bibliographyEntries'][3]['xmlId'] ?? null);
-        $t->same('ref-metadata-gaps', $packet['bibliographyEntries'][3]['idAttribute'] ?? null);
-        $t->same('id', $packet['bibliographyEntries'][3]['idSource'] ?? null);
+        $t->same('ref-role', $packet['bibliographyEntries'][3]['id'] ?? null);
+        $t->same('Role Citation Reference', $packet['bibliographyEntries'][3]['title'] ?? null);
+        $t->same(['Rae Role'], $packet['bibliographyEntries'][3]['contributorNames'] ?? null);
+        $t->same(['2022'], $packet['bibliographyEntries'][3]['yearLikeValues'] ?? null);
+        $t->same('ref-metadata-gaps', $packet['bibliographyEntries'][4]['id'] ?? null);
+        $t->same(null, $packet['bibliographyEntries'][4]['xmlId'] ?? null);
+        $t->same('ref-metadata-gaps', $packet['bibliographyEntries'][4]['idAttribute'] ?? null);
+        $t->same('id', $packet['bibliographyEntries'][4]['idSource'] ?? null);
         $t->same(true, in_array('docbook-bibliography-entry-missing-title', $packet['bibliographyEntryMetadataDiagnosticCodes'], true));
         $t->same(true, in_array('docbook-bibliography-entry-missing-publisher', $packet['bibliographyEntryMetadataDiagnosticCodes'], true));
         $t->same(true, in_array('docbook-bibliography-entry-duplicate-title', $packet['bibliographyEntryMetadataDiagnosticCodes'], true));
@@ -2658,26 +2668,60 @@ XML, 'DocBook bibliography XML', preserveWhiteSpace: false);
         $t->same(true, in_array('docbook-bibliography-entry-conflicting-id', $packet['bibliographyEntryMetadataDiagnosticCodes'], true));
         $t->same(4, count($packet['missingBibliographyEntryMetadataDiagnostics']));
         $t->same(4, count($packet['duplicateBibliographyEntryMetadataDiagnostics']));
-        $t->same(['ref-good', 'ref-dup', 'ref-missing'], $packet['referenceLinkTargets']);
-        $t->same(3, $packet['referenceLinkTargetCount']);
+        $t->same(['ref-good', 'ref-role', 'ref-missing', 'ref-dup'], $packet['referenceLinkTargets']);
+        $t->same(4, $packet['referenceLinkTargetCount']);
+        $t->same(['ref-good', 'ref-role'], $packet['resolvedReferenceTargets']);
+        $t->same(['ref-dup'], $packet['duplicateReferenceTargets']);
         $t->same(['ref-good', 'ref-dup'], $packet['linkendTargets']);
         $t->same(['ref-good', 'ref-dup'], $packet['xrefTargets']);
-        $t->same(['ref-missing'], $packet['citationTargets']);
-        $t->same('duplicate-id', $packet['referenceTargetSummaries'][1]['status'] ?? null);
-        $t->same(['link'], $packet['referenceTargetSummaries'][1]['elements'] ?? null);
+        $t->same(['ref-role', 'ref-missing'], $packet['citationTargets']);
+        $t->same(['ref-role'], $packet['roleTargets']);
+        $t->same(['ref-role'], $packet['citationRoleTargets']);
+        $t->same(['ref-good'], $packet['citerefentryTargets']);
+        $t->same('resolved', $packet['referenceTargetSummaries'][0]['status'] ?? null);
+        $t->same(2, $packet['referenceTargetSummaries'][0]['referenceCount'] ?? null);
+        $t->same(['xref', 'citerefentry'], $packet['referenceTargetSummaries'][0]['elements'] ?? null);
+        $t->same(['primary-reference', 'manual-entry'], $packet['referenceTargetSummaries'][0]['roles'] ?? null);
+        $t->same(['Portable Imports'], $packet['referenceTargetSummaries'][0]['entryTitles'] ?? null);
+        $t->same(['Ada Zed', 'Nia Editor'], $packet['referenceTargetSummaries'][0]['entryContributors'] ?? null);
+        $t->same(['2026'], $packet['referenceTargetSummaries'][0]['entryYears'] ?? null);
+        $t->same('resolved', $packet['referenceTargetSummaries'][1]['status'] ?? null);
+        $t->same(['citation'], $packet['referenceTargetSummaries'][1]['elements'] ?? null);
+        $t->same(['role'], $packet['referenceTargetSummaries'][1]['targetSources'] ?? null);
+        $t->same(['Role Citation Reference'], $packet['referenceTargetSummaries'][1]['entryTitles'] ?? null);
         $t->same('missing', $packet['referenceTargetSummaries'][2]['status'] ?? null);
+        $t->same('duplicate-id', $packet['referenceTargetSummaries'][3]['status'] ?? null);
+        $t->same(['link'], $packet['referenceTargetSummaries'][3]['elements'] ?? null);
+        $t->same(2, $packet['referenceTargetSummaries'][3]['bibliographyEntryCount'] ?? null);
+        $t->same(['Mixed Reference', 'Duplicate Reference'], $packet['referenceTargetSummaries'][3]['entryTitles'] ?? null);
         $t->same(['ref-missing'], $packet['missingReferenceTargets']);
         $t->same(1, $packet['missingReferenceTargetCount']);
         $t->same('xref', $packet['referenceLinks'][0]['element'] ?? null);
         $t->same('ref-good', $packet['referenceLinks'][0]['target'] ?? null);
+        $t->same(['primary-reference'], $packet['referenceLinks'][0]['roleTokens'] ?? null);
+        $t->same('role', $packet['referenceLinks'][1]['targetSource'] ?? null);
         $t->same('citation-text', $packet['referenceLinks'][2]['targetSource'] ?? null);
+        $t->same('citerefentry', $packet['referenceLinks'][4]['element'] ?? null);
+        $t->same('portable-imports', $packet['referenceLinks'][4]['refentryTitle'] ?? null);
+        $t->same('7', $packet['referenceLinks'][4]['manvolnum'] ?? null);
+        $t->same(2, $packet['bibliographyEntryLinkageSummaries'][0]['incomingReferenceCount'] ?? null);
+        $t->same(['xref', 'citerefentry'], $packet['bibliographyEntryLinkageSummaries'][0]['incomingReferenceElements'] ?? null);
+        $t->same(['primary-reference', 'manual-entry'], $packet['bibliographyEntryLinkageSummaries'][0]['incomingReferenceRoles'] ?? null);
+        $t->same(1, $packet['bibliographyEntryLinkageSummaries'][3]['incomingReferenceCount'] ?? null);
+        $t->same(['ref-role'], $packet['bibliographyEntryLinkageSummaries'][3]['incomingReferenceRoles'] ?? null);
+        $t->same(0, $packet['bibliographyEntryLinkageSummaries'][4]['incomingReferenceCount'] ?? null);
         $t->same(2, $packet['unsupportedBibliographyChildCount']);
+        $t->same(['cover-image', 'legacy-note'], $packet['unsupportedBibliographyChildRoles']);
+        $t->same(2, $packet['unsupportedBibliographyChildRoleCount']);
         $t->same('biblioentry', $packet['unsupportedBibliographyChildren'][0]['parentElement'] ?? null);
         $t->same('ref-good', $packet['unsupportedBibliographyChildren'][0]['parentId'] ?? null);
         $t->same('mediaobject', $packet['unsupportedBibliographyChildren'][0]['childName'] ?? null);
+        $t->same('cover-image', $packet['unsupportedBibliographyChildren'][0]['childRole'] ?? null);
+        $t->same(['cover-image'], $packet['unsupportedBibliographyChildren'][0]['childRoleTokens'] ?? null);
         $t->same('bibliodiv', $packet['unsupportedBibliographyChildren'][1]['parentElement'] ?? null);
         $t->same('legacy', $packet['unsupportedBibliographyChildren'][1]['parentId'] ?? null);
         $t->same('simpara', $packet['unsupportedBibliographyChildren'][1]['childName'] ?? null);
+        $t->same('legacy-note', $packet['unsupportedBibliographyChildren'][1]['childRole'] ?? null);
         $t->same('unsupported div text', $packet['unsupportedBibliographyChildren'][1]['childText'] ?? null);
         $t->throws(InvalidArgumentException::class, static fn (): array => XmlHtmlDom::summarizeDocBookBibliography(new DOMDocument()));
         json_encode($packet, JSON_THROW_ON_ERROR);

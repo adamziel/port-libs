@@ -3182,6 +3182,7 @@ final class XmlHtmlDom
         )));
         $documentIds = self::docBookBibliographyDocumentIdSet($root);
         $referenceLinks = self::docBookBibliographyReferenceLinks($root);
+        $entriesById = self::docBookBibliographyEntriesGroupedById($entries);
         $referenceLinkTargets = array_values(array_unique(array_map(
             static fn (array $link): string => (string) $link['target'],
             $referenceLinks
@@ -3190,8 +3191,9 @@ final class XmlHtmlDom
             $referenceLinkTargets,
             static fn (string $target): bool => !isset($documentIds[$target])
         ));
-        $referenceTargetSummaries = self::docBookBibliographyReferenceTargetSummaries($referenceLinks, $documentIds, $duplicateIds);
+        $referenceTargetSummaries = self::docBookBibliographyReferenceTargetSummaries($referenceLinks, $documentIds, $duplicateIds, $entriesById);
         $unsupportedChildren = self::docBookBibliographyUnsupportedChildSummaries($root);
+        $unsupportedChildRoles = self::docBookBibliographyUnsupportedChildRoles($unsupportedChildren);
         $directReaderDiagnostics = self::docBookBibliographyDirectReaderDiagnostics(
             count($bibliographies),
             count($entries),
@@ -3243,13 +3245,21 @@ final class XmlHtmlDom
             'referenceLinkTargets' => $referenceLinkTargets,
             'referenceLinkTargetCount' => count($referenceLinkTargets),
             'referenceTargetSummaries' => $referenceTargetSummaries,
+            'resolvedReferenceTargets' => self::docBookBibliographyReferenceTargetsByStatus($referenceTargetSummaries, 'resolved'),
+            'duplicateReferenceTargets' => self::docBookBibliographyReferenceTargetsByStatus($referenceTargetSummaries, 'duplicate-id'),
             'linkendTargets' => self::docBookBibliographyReferenceTargetsBySource($referenceLinks, ['linkend']),
             'xrefTargets' => self::docBookBibliographyReferenceTargetsByElement($referenceLinks, ['xref', 'biblioref', 'link']),
+            'roleTargets' => self::docBookBibliographyReferenceTargetsBySource($referenceLinks, ['role']),
             'citationTargets' => self::docBookBibliographyReferenceTargetsByElement($referenceLinks, ['citation']),
+            'citationRoleTargets' => self::docBookBibliographyReferenceTargetsByElementAndSource($referenceLinks, ['citation'], ['role']),
+            'citerefentryTargets' => self::docBookBibliographyReferenceTargetsByElement($referenceLinks, ['citerefentry']),
+            'bibliographyEntryLinkageSummaries' => self::docBookBibliographyEntryLinkageSummaries($entries, $referenceTargetSummaries),
             'missingReferenceTargets' => $missingReferenceTargets,
             'missingReferenceTargetCount' => count($missingReferenceTargets),
             'unsupportedBibliographyChildren' => $unsupportedChildren,
             'unsupportedBibliographyChildCount' => count($unsupportedChildren),
+            'unsupportedBibliographyChildRoles' => $unsupportedChildRoles,
+            'unsupportedBibliographyChildRoleCount' => count($unsupportedChildRoles),
         ];
     }
 
@@ -3366,6 +3376,26 @@ final class XmlHtmlDom
     }
 
     /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function docBookBibliographyEntriesGroupedById(array $entries): array
+    {
+        $byId = [];
+        foreach ($entries as $entry) {
+            $id = is_string($entry['id'] ?? null) ? (string) $entry['id'] : null;
+            if ($id === null || $id === '') {
+                continue;
+            }
+
+            $byId[$id] ??= [];
+            $byId[$id][] = $entry;
+        }
+
+        return $byId;
+    }
+
+    /**
      * @param list<string> $localNames
      * @return list<string>
      */
@@ -3417,46 +3447,70 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return list<array{element:string, target:string, targetSource:string, text:string}>
+     * @return list<array<string, mixed>>
      */
     private static function docBookBibliographyReferenceLinks(\DOMElement $root): array
     {
         $links = [];
-        foreach (self::docBookBibliographyElementsWithLocalNames($root, ['xref', 'biblioref', 'link']) as $element) {
-            $linkend = self::attribute($element, 'linkend');
-            if ($linkend === null || trim($linkend) === '') {
+        foreach (self::docBookBibliographyElementsWithLocalNames($root, ['xref', 'biblioref', 'link', 'citation', 'citerefentry']) as $element) {
+            $roleTargets = $element->localName === 'citation'
+                ? self::docBookBibliographyRoleTokens($element)
+                : [];
+            $linkend = self::docBookBibliographyNormalizedAttribute($element, 'linkend');
+            if ($linkend !== null) {
+                foreach (self::spaceSeparatedTokens($linkend) as $target) {
+                    $links[] = self::docBookBibliographyReferenceLinkSummary($element, $target, 'linkend');
+                }
+            }
+
+            foreach ($roleTargets as $target) {
+                $links[] = self::docBookBibliographyReferenceLinkSummary($element, $target, 'role');
+            }
+
+            if ($element->localName === 'citation') {
+                $target = self::docBookBibliographyCitationTarget($element);
+                if ($target !== null) {
+                    $links[] = self::docBookBibliographyReferenceLinkSummary($element, $target, 'citation-text');
+                }
+
                 continue;
             }
 
-            foreach (self::spaceSeparatedTokens($linkend) as $target) {
-                $links[] = [
-                    'element' => $element->localName,
-                    'target' => $target,
-                    'targetSource' => 'linkend',
-                    'text' => self::normalizedText($element),
-                ];
+            if ($element->localName === 'citerefentry' && $linkend === null && $roleTargets === []) {
+                $target = self::docBookBibliographyCiterefentryTarget($element);
+                if ($target !== null) {
+                    $links[] = self::docBookBibliographyReferenceLinkSummary($element, $target, 'citerefentry-title');
+                }
             }
-        }
-
-        foreach (self::docBookBibliographyElementsWithLocalNames($root, ['citation']) as $element) {
-            $target = self::docBookBibliographyCitationTarget($element);
-            if ($target === null) {
-                continue;
-            }
-
-            $links[] = [
-                'element' => $element->localName,
-                'target' => $target,
-                'targetSource' => 'citation-text',
-                'text' => self::normalizedText($element),
-            ];
         }
 
         return $links;
     }
 
     /**
-     * @param list<array{element:string, target:string, targetSource:string, text:string}> $links
+     * @return array<string, mixed>
+     */
+    private static function docBookBibliographyReferenceLinkSummary(\DOMElement $element, string $target, string $targetSource): array
+    {
+        $summary = [
+            'element' => $element->localName,
+            'target' => $target,
+            'targetSource' => $targetSource,
+            'text' => self::normalizedText($element),
+            'role' => self::docBookBibliographyNormalizedAttribute($element, 'role'),
+            'roleTokens' => self::docBookBibliographyRoleTokens($element),
+        ];
+
+        if ($element->localName === 'citerefentry') {
+            $summary['refentryTitle'] = self::docBookBibliographyFirstDescendantText($element, ['refentrytitle']);
+            $summary['manvolnum'] = self::docBookBibliographyFirstDescendantText($element, ['manvolnum']);
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
      * @param list<string> $elementNames
      * @return list<string>
      */
@@ -3473,7 +3527,7 @@ final class XmlHtmlDom
     }
 
     /**
-     * @param list<array{element:string, target:string, targetSource:string, text:string}> $links
+     * @param list<array<string, mixed>> $links
      * @param list<string> $targetSources
      * @return list<string>
      */
@@ -3490,33 +3544,90 @@ final class XmlHtmlDom
     }
 
     /**
-     * @param list<array{element:string, target:string, targetSource:string, text:string}> $links
+     * @param list<array<string, mixed>> $links
+     * @param list<string> $elementNames
+     * @param list<string> $targetSources
+     * @return list<string>
+     */
+    private static function docBookBibliographyReferenceTargetsByElementAndSource(array $links, array $elementNames, array $targetSources): array
+    {
+        $targets = [];
+        foreach ($links as $link) {
+            if (in_array($link['element'], $elementNames, true) && in_array($link['targetSource'], $targetSources, true)) {
+                $targets[] = $link['target'];
+            }
+        }
+
+        return array_values(array_unique($targets));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $summaries
+     * @return list<string>
+     */
+    private static function docBookBibliographyReferenceTargetsByStatus(array $summaries, string $status): array
+    {
+        $targets = [];
+        foreach ($summaries as $summary) {
+            if (($summary['status'] ?? null) === $status) {
+                $targets[] = (string) $summary['target'];
+            }
+        }
+
+        return $targets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
      * @param array<string, true> $documentIds
      * @param list<string> $duplicateIds
+     * @param array<string, list<array<string, mixed>>> $entriesById
      * @return list<array<string, mixed>>
      */
-    private static function docBookBibliographyReferenceTargetSummaries(array $links, array $documentIds, array $duplicateIds): array
-    {
+    private static function docBookBibliographyReferenceTargetSummaries(
+        array $links,
+        array $documentIds,
+        array $duplicateIds,
+        array $entriesById = []
+    ): array {
         $summaries = [];
         foreach ($links as $link) {
             $target = (string) $link['target'];
             if (!isset($summaries[$target])) {
                 $duplicate = in_array($target, $duplicateIds, true);
                 $resolved = isset($documentIds[$target]);
+                $targetEntries = $entriesById[$target] ?? [];
                 $summaries[$target] = [
                     'target' => $target,
                     'resolved' => $resolved,
                     'duplicateTargetId' => $duplicate,
                     'missing' => !$resolved,
                     'status' => $duplicate ? 'duplicate-id' : ($resolved ? 'resolved' : 'missing'),
+                    'referenceCount' => 0,
                     'elements' => [],
                     'targetSources' => [],
+                    'roles' => [],
                     'texts' => [],
+                    'bibliographyEntryTarget' => $targetEntries !== [],
+                    'bibliographyEntryCount' => count($targetEntries),
+                    'bibliographyEntrySummaries' => array_values(array_map(
+                        static fn (array $entry): array => self::docBookBibliographyEntryLinkageSummary($entry),
+                        $targetEntries
+                    )),
+                    'entryTitles' => self::docBookBibliographyEntrySummaryValues($targetEntries, 'title'),
+                    'entryContributors' => self::docBookBibliographyEntrySummaryListValues($targetEntries, 'contributorNames'),
+                    'entryContributorRoles' => self::docBookBibliographyEntrySummaryListValues($targetEntries, 'contributorRoles'),
+                    'entryYears' => self::docBookBibliographyEntrySummaryListValues($targetEntries, 'yearLikeValues'),
+                    'entryPublishers' => self::docBookBibliographyEntrySummaryListValues($targetEntries, 'publisherNames'),
                 ];
             }
 
+            ++$summaries[$target]['referenceCount'];
             $summaries[$target]['elements'][] = (string) $link['element'];
             $summaries[$target]['targetSources'][] = (string) $link['targetSource'];
+            foreach (is_array($link['roleTokens'] ?? null) ? $link['roleTokens'] : [] as $role) {
+                $summaries[$target]['roles'][] = (string) $role;
+            }
             if ((string) $link['text'] !== '') {
                 $summaries[$target]['texts'][] = (string) $link['text'];
             }
@@ -3525,11 +3636,95 @@ final class XmlHtmlDom
         foreach ($summaries as &$summary) {
             $summary['elements'] = array_values(array_unique($summary['elements']));
             $summary['targetSources'] = array_values(array_unique($summary['targetSources']));
+            $summary['roles'] = array_values(array_unique($summary['roles']));
             $summary['texts'] = array_values(array_unique($summary['texts']));
         }
         unset($summary);
 
         return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<string>
+     */
+    private static function docBookBibliographyEntrySummaryValues(array $entries, string $field): array
+    {
+        $values = [];
+        foreach ($entries as $entry) {
+            $value = $entry[$field] ?? null;
+            if (is_string($value) && $value !== '') {
+                $values[] = $value;
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<string>
+     */
+    private static function docBookBibliographyEntrySummaryListValues(array $entries, string $field): array
+    {
+        $values = [];
+        foreach ($entries as $entry) {
+            foreach (is_array($entry[$field] ?? null) ? $entry[$field] : [] as $value) {
+                if (is_string($value) && $value !== '') {
+                    $values[] = $value;
+                }
+            }
+        }
+
+        return array_values(array_unique($values));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array<string, mixed>> $targetSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function docBookBibliographyEntryLinkageSummaries(array $entries, array $targetSummaries): array
+    {
+        $targetsById = [];
+        foreach ($targetSummaries as $summary) {
+            $target = is_string($summary['target'] ?? null) ? (string) $summary['target'] : null;
+            if ($target !== null && $target !== '') {
+                $targetsById[$target] = $summary;
+            }
+        }
+
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $id = is_string($entry['id'] ?? null) ? (string) $entry['id'] : null;
+            $targetSummary = $id === null ? null : ($targetsById[$id] ?? null);
+            $summary = self::docBookBibliographyEntryLinkageSummary($entry);
+            $summary['incomingReferenceCount'] = is_array($targetSummary) ? (int) ($targetSummary['referenceCount'] ?? 0) : 0;
+            $summary['incomingReferenceElements'] = is_array($targetSummary) ? ($targetSummary['elements'] ?? []) : [];
+            $summary['incomingReferenceTargetSources'] = is_array($targetSummary) ? ($targetSummary['targetSources'] ?? []) : [];
+            $summary['incomingReferenceRoles'] = is_array($targetSummary) ? ($targetSummary['roles'] ?? []) : [];
+            $summary['incomingReferenceTexts'] = is_array($targetSummary) ? ($targetSummary['texts'] ?? []) : [];
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function docBookBibliographyEntryLinkageSummary(array $entry): array
+    {
+        return [
+            'entryIndex' => (int) ($entry['entryIndex'] ?? 0),
+            'element' => is_string($entry['element'] ?? null) ? (string) $entry['element'] : null,
+            'id' => is_string($entry['id'] ?? null) ? (string) $entry['id'] : null,
+            'title' => is_string($entry['title'] ?? null) ? (string) $entry['title'] : null,
+            'contributorNames' => is_array($entry['contributorNames'] ?? null) ? $entry['contributorNames'] : [],
+            'contributorRoles' => is_array($entry['contributorRoles'] ?? null) ? $entry['contributorRoles'] : [],
+            'yearLikeValues' => is_array($entry['yearLikeValues'] ?? null) ? $entry['yearLikeValues'] : [],
+            'publisherNames' => is_array($entry['publisherNames'] ?? null) ? $entry['publisherNames'] : [],
+        ];
     }
 
     /**
@@ -3709,7 +3904,7 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return list<array{parentElement:string, parentId:?string, childName:string, childText:string}>
+     * @return list<array<string, mixed>>
      */
     private static function docBookBibliographyUnsupportedChildSummaries(\DOMElement $root): array
     {
@@ -3725,12 +3920,33 @@ final class XmlHtmlDom
                     'parentElement' => $parent->localName,
                     'parentId' => self::docBookBibliographyElementId($parent),
                     'childName' => $child->localName,
+                    'childRole' => self::docBookBibliographyNormalizedAttribute($child, 'role'),
+                    'childRoleTokens' => self::docBookBibliographyRoleTokens($child),
+                    'childAttributes' => self::xmlAttributeMap($child),
                     'childText' => self::docBookBibliographyTextSnippet($child),
                 ];
             }
         }
 
         return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $children
+     * @return list<string>
+     */
+    private static function docBookBibliographyUnsupportedChildRoles(array $children): array
+    {
+        $roles = [];
+        foreach ($children as $child) {
+            foreach (is_array($child['childRoleTokens'] ?? null) ? $child['childRoleTokens'] : [] as $role) {
+                if (is_string($role) && $role !== '') {
+                    $roles[] = $role;
+                }
+            }
+        }
+
+        return array_values(array_unique($roles));
     }
 
     /**
@@ -3875,6 +4091,25 @@ final class XmlHtmlDom
         $target = trim($target);
 
         return $target === '' ? null : $target;
+    }
+
+    private static function docBookBibliographyCiterefentryTarget(\DOMElement $citerefentry): ?string
+    {
+        $target = self::docBookBibliographyFirstDescendantText($citerefentry, ['refentrytitle'])
+            ?? self::normalizedText($citerefentry);
+        $target = trim($target);
+
+        return $target === '' ? null : $target;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function docBookBibliographyRoleTokens(\DOMElement $element): array
+    {
+        $role = self::docBookBibliographyNormalizedAttribute($element, 'role');
+
+        return $role === null ? [] : self::spaceSeparatedTokens($role);
     }
 
     private static function docBookBibliographyNormalizedAttribute(\DOMElement $element, string $localName, ?string $namespace = null): ?string
