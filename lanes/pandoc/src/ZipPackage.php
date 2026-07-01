@@ -14353,9 +14353,17 @@ final class ZipPackage
      *     hasSplitArchiveMarkers:bool,
      *     centralDirectoryNonEntryRecordCount:int,
      *     splitArchiveEntryCount:int,
+     *     diskStartSummaryCount:int,
+     *     splitArchiveDiskStartSummaryCount:int,
+     *     diskStartValues:list<int>,
+     *     splitArchiveDiskStartValues:list<int>,
+     *     diskStartEntryCounts:array<int, int>,
+     *     splitArchiveDiskStartEntryCounts:array<int, int>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     centralDirectoryNonEntryRecords:list<array{type:string, offset:int, length:int, endOffset:int}>,
+     *     diskStartSummaries:list<array{diskStart:int, entryCount:int, splitArchiveEntryCount:int, centralDirectoryIndexes:list<int>, localHeaderOffsets:list<int>, entryNames:list<string>}>,
+     *     splitArchiveDiskStartSummaries:list<array{diskStart:int, entryCount:int, splitArchiveEntryCount:int, centralDirectoryIndexes:list<int>, localHeaderOffsets:list<int>, entryNames:list<string>}>,
      *     splitArchiveEntries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>,
      *     entries:list<array{name:string, rawName:string, centralDirectoryIndex:int, diskStart:int, localHeaderOffset:int, issues:list<string>}>
      * }
@@ -14379,6 +14387,9 @@ final class ZipPackage
 
         $entries = [];
         $splitArchiveEntries = [];
+        $diskStartEntryCounts = [];
+        $splitArchiveDiskStartEntryCounts = [];
+        $diskStartSummaries = [];
         $centralDirectoryNonEntryRecords = [];
         $cursor = $archive['centralDirectoryOffset'];
         $index = 0;
@@ -14430,8 +14441,25 @@ final class ZipPackage
                 'issues' => $issues,
             ];
             $entries[] = $entry;
+            $diskStartEntryCounts[$diskStart] = ($diskStartEntryCounts[$diskStart] ?? 0) + 1;
+            if (!isset($diskStartSummaries[$diskStart])) {
+                $diskStartSummaries[$diskStart] = [
+                    'diskStart' => $diskStart,
+                    'entryCount' => 0,
+                    'splitArchiveEntryCount' => 0,
+                    'centralDirectoryIndexes' => [],
+                    'localHeaderOffsets' => [],
+                    'entryNames' => [],
+                ];
+            }
+            ++$diskStartSummaries[$diskStart]['entryCount'];
+            $diskStartSummaries[$diskStart]['centralDirectoryIndexes'][] = $index;
+            $diskStartSummaries[$diskStart]['localHeaderOffsets'][] = $localHeaderOffset;
+            $diskStartSummaries[$diskStart]['entryNames'][] = $decodedName['text'];
             if ($issues !== []) {
                 $splitArchiveEntries[] = $entry;
+                $splitArchiveDiskStartEntryCounts[$diskStart] = ($splitArchiveDiskStartEntryCounts[$diskStart] ?? 0) + 1;
+                ++$diskStartSummaries[$diskStart]['splitArchiveEntryCount'];
             }
 
             $cursor += 46 + $variableLength;
@@ -14477,6 +14505,14 @@ final class ZipPackage
         if ($splitArchiveEntries !== []) {
             $issues[] = 'split-entry-disk-start';
         }
+        ksort($diskStartEntryCounts, SORT_NUMERIC);
+        ksort($splitArchiveDiskStartEntryCounts, SORT_NUMERIC);
+        ksort($diskStartSummaries, SORT_NUMERIC);
+        $splitArchiveDiskStartSummaries = array_values(array_filter(
+            $diskStartSummaries,
+            static fn (array $summary): bool => $summary['diskStart'] !== 0
+        ));
+        $diskStartSummaries = array_values($diskStartSummaries);
 
         return [
             'entryCount' => count($entries),
@@ -14490,9 +14526,17 @@ final class ZipPackage
             'hasSplitArchiveMarkers' => $issues !== [],
             'centralDirectoryNonEntryRecordCount' => count($centralDirectoryNonEntryRecords),
             'splitArchiveEntryCount' => count($splitArchiveEntries),
+            'diskStartSummaryCount' => count($diskStartSummaries),
+            'splitArchiveDiskStartSummaryCount' => count($splitArchiveDiskStartSummaries),
+            'diskStartValues' => array_keys($diskStartEntryCounts),
+            'splitArchiveDiskStartValues' => array_keys($splitArchiveDiskStartEntryCounts),
+            'diskStartEntryCounts' => $diskStartEntryCounts,
+            'splitArchiveDiskStartEntryCounts' => $splitArchiveDiskStartEntryCounts,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'centralDirectoryNonEntryRecords' => $centralDirectoryNonEntryRecords,
+            'diskStartSummaries' => $diskStartSummaries,
+            'splitArchiveDiskStartSummaries' => $splitArchiveDiskStartSummaries,
             'splitArchiveEntries' => $splitArchiveEntries,
             'entries' => $entries,
         ];
