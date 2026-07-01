@@ -6285,6 +6285,15 @@ final class ZipPackage
         $handoffRequestCount = 0;
         $failedRequestCount = 0;
         $contentHashEntryCount = 0;
+        $rawNameProvenanceRequestCount = 0;
+        $legacyEncodedNameRequestCount = 0;
+        $unicodePathExtraRequestCount = 0;
+        $decodedNameDiffersFromRawNameRequestCount = 0;
+        $commentedRequestCount = 0;
+        $rawCommentProvenanceRequestCount = 0;
+        $legacyEncodedCommentRequestCount = 0;
+        $unicodeCommentExtraRequestCount = 0;
+        $decodedCommentDiffersFromRawCommentRequestCount = 0;
         $issueCounts = [];
 
         foreach ($entries as $entry) {
@@ -6317,6 +6326,33 @@ final class ZipPackage
             if (is_string($entry['contentSha256'] ?? null) && $entry['contentSha256'] !== '') {
                 ++$contentHashEntryCount;
             }
+            if (($entry['hasRawNameProvenance'] ?? false) === true) {
+                ++$rawNameProvenanceRequestCount;
+            }
+            if (($entry['usesLegacyNameEncoding'] ?? false) === true) {
+                ++$legacyEncodedNameRequestCount;
+            }
+            if (($entry['usesUnicodePathExtraField'] ?? false) === true) {
+                ++$unicodePathExtraRequestCount;
+            }
+            if (($entry['rawNameMatchesDecodedName'] ?? null) === false) {
+                ++$decodedNameDiffersFromRawNameRequestCount;
+            }
+            if (is_string($entry['rawComment'] ?? null) && $entry['rawComment'] !== '') {
+                ++$commentedRequestCount;
+            }
+            if (($entry['hasRawCommentProvenance'] ?? false) === true) {
+                ++$rawCommentProvenanceRequestCount;
+            }
+            if (($entry['usesLegacyCommentEncoding'] ?? false) === true) {
+                ++$legacyEncodedCommentRequestCount;
+            }
+            if (($entry['usesUnicodeCommentExtraField'] ?? false) === true) {
+                ++$unicodeCommentExtraRequestCount;
+            }
+            if (($entry['rawCommentMatchesDecodedComment'] ?? null) === false) {
+                ++$decodedCommentDiffersFromRawCommentRequestCount;
+            }
 
             $manifestEntries[] = [
                 'requestIndex' => $entry['requestIndex'] ?? null,
@@ -6333,6 +6369,18 @@ final class ZipPackage
                 'compressedSize' => $entry['compressedSize'] ?? null,
                 'uncompressedSize' => $entry['uncompressedSize'] ?? null,
                 'crc32Hex' => $entry['crc32Hex'] ?? null,
+                'rawNameHex' => $entry['rawNameHex'] ?? null,
+                'nameEncoding' => $entry['nameEncoding'] ?? null,
+                'rawNameMatchesDecodedName' => $entry['rawNameMatchesDecodedName'] ?? null,
+                'usesLegacyNameEncoding' => ($entry['usesLegacyNameEncoding'] ?? false) === true,
+                'usesUnicodePathExtraField' => ($entry['usesUnicodePathExtraField'] ?? false) === true,
+                'hasRawNameProvenance' => ($entry['hasRawNameProvenance'] ?? false) === true,
+                'rawCommentHex' => $entry['rawCommentHex'] ?? null,
+                'commentEncoding' => $entry['commentEncoding'] ?? null,
+                'rawCommentMatchesDecodedComment' => $entry['rawCommentMatchesDecodedComment'] ?? null,
+                'usesLegacyCommentEncoding' => ($entry['usesLegacyCommentEncoding'] ?? false) === true,
+                'usesUnicodeCommentExtraField' => ($entry['usesUnicodeCommentExtraField'] ?? false) === true,
+                'hasRawCommentProvenance' => ($entry['hasRawCommentProvenance'] ?? false) === true,
                 'maxUncompressedBytes' => $entry['maxUncompressedBytes'] ?? null,
                 'isReadable' => ($entry['isReadable'] ?? false) === true,
                 'bytesRead' => $entry['bytesRead'] ?? null,
@@ -6353,6 +6401,15 @@ final class ZipPackage
             'handoffRequestCount' => $handoffRequestCount,
             'failedRequestCount' => $failedRequestCount,
             'contentHashEntryCount' => $contentHashEntryCount,
+            'rawNameProvenanceRequestCount' => $rawNameProvenanceRequestCount,
+            'legacyEncodedNameRequestCount' => $legacyEncodedNameRequestCount,
+            'unicodePathExtraRequestCount' => $unicodePathExtraRequestCount,
+            'decodedNameDiffersFromRawNameRequestCount' => $decodedNameDiffersFromRawNameRequestCount,
+            'commentedRequestCount' => $commentedRequestCount,
+            'rawCommentProvenanceRequestCount' => $rawCommentProvenanceRequestCount,
+            'legacyEncodedCommentRequestCount' => $legacyEncodedCommentRequestCount,
+            'unicodeCommentExtraRequestCount' => $unicodeCommentExtraRequestCount,
+            'decodedCommentDiffersFromRawCommentRequestCount' => $decodedCommentDiffersFromRawCommentRequestCount,
             'issueCount' => count($manifestIssues),
             'issues' => $manifestIssues,
             'issueCounts' => $issueCounts,

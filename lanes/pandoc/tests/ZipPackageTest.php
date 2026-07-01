@@ -11470,6 +11470,61 @@ return [
         $t->same(null, $missingEntry['nameEncoding']);
         $t->same(false, $missingEntry['hasRawNameProvenance']);
         $t->same([$documentEntry, $unicodeEntry, $cp437Entry], $summary['handoffEntries']);
+
+        $manifest = $summary['selectedHandoffManifest'];
+        $t->same(2, $manifest['rawNameProvenanceRequestCount']);
+        $t->same(1, $manifest['legacyEncodedNameRequestCount']);
+        $t->same(1, $manifest['unicodePathExtraRequestCount']);
+        $t->same(2, $manifest['decodedNameDiffersFromRawNameRequestCount']);
+        $t->same([
+            [
+                'name' => 'word/document.xml',
+                'rawNameHex' => bin2hex('word/document.xml'),
+                'nameEncoding' => 'utf-8',
+                'rawNameMatchesDecodedName' => true,
+                'usesLegacyNameEncoding' => false,
+                'usesUnicodePathExtraField' => false,
+                'hasRawNameProvenance' => false,
+            ],
+            [
+                'name' => $unicodeName,
+                'rawNameHex' => bin2hex($unicodeRawName),
+                'nameEncoding' => 'info-zip-unicode-path',
+                'rawNameMatchesDecodedName' => false,
+                'usesLegacyNameEncoding' => false,
+                'usesUnicodePathExtraField' => true,
+                'hasRawNameProvenance' => true,
+            ],
+            [
+                'name' => $cp437Name,
+                'rawNameHex' => bin2hex($cp437RawName),
+                'nameEncoding' => 'cp437',
+                'rawNameMatchesDecodedName' => false,
+                'usesLegacyNameEncoding' => true,
+                'usesUnicodePathExtraField' => false,
+                'hasRawNameProvenance' => true,
+            ],
+            [
+                'name' => 'word/media/missing.png',
+                'rawNameHex' => null,
+                'nameEncoding' => null,
+                'rawNameMatchesDecodedName' => null,
+                'usesLegacyNameEncoding' => false,
+                'usesUnicodePathExtraField' => false,
+                'hasRawNameProvenance' => false,
+            ],
+        ], array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'rawNameHex' => $entry['rawNameHex'],
+                'nameEncoding' => $entry['nameEncoding'],
+                'rawNameMatchesDecodedName' => $entry['rawNameMatchesDecodedName'],
+                'usesLegacyNameEncoding' => $entry['usesLegacyNameEncoding'],
+                'usesUnicodePathExtraField' => $entry['usesUnicodePathExtraField'],
+                'hasRawNameProvenance' => $entry['hasRawNameProvenance'],
+            ],
+            $manifest['entries']
+        ));
         $t->same("unicode path media placeholder\n", $package->read('/' . $unicodeName));
         $t->same("legacy encoded media placeholder\n", $package->read('/' . $cp437Name));
     },
@@ -11583,6 +11638,62 @@ return [
         $t->same(null, $missingEntry['commentEncoding']);
         $t->same(false, $missingEntry['hasRawCommentProvenance']);
         $t->same([$documentEntry, $unicodeEntry, $cp437Entry], $summary['handoffEntries']);
+
+        $manifest = $summary['selectedHandoffManifest'];
+        $t->same(2, $manifest['commentedRequestCount']);
+        $t->same(2, $manifest['rawCommentProvenanceRequestCount']);
+        $t->same(1, $manifest['legacyEncodedCommentRequestCount']);
+        $t->same(1, $manifest['unicodeCommentExtraRequestCount']);
+        $t->same(2, $manifest['decodedCommentDiffersFromRawCommentRequestCount']);
+        $t->same([
+            [
+                'name' => 'word/document.xml',
+                'rawCommentHex' => '',
+                'commentEncoding' => 'utf-8',
+                'rawCommentMatchesDecodedComment' => true,
+                'usesLegacyCommentEncoding' => false,
+                'usesUnicodeCommentExtraField' => false,
+                'hasRawCommentProvenance' => false,
+            ],
+            [
+                'name' => $unicodeName,
+                'rawCommentHex' => bin2hex($unicodeRawComment),
+                'commentEncoding' => 'info-zip-unicode-comment',
+                'rawCommentMatchesDecodedComment' => false,
+                'usesLegacyCommentEncoding' => false,
+                'usesUnicodeCommentExtraField' => true,
+                'hasRawCommentProvenance' => true,
+            ],
+            [
+                'name' => $cp437Name,
+                'rawCommentHex' => bin2hex($cp437RawComment),
+                'commentEncoding' => 'cp437',
+                'rawCommentMatchesDecodedComment' => false,
+                'usesLegacyCommentEncoding' => true,
+                'usesUnicodeCommentExtraField' => false,
+                'hasRawCommentProvenance' => true,
+            ],
+            [
+                'name' => 'word/media/missing.bin',
+                'rawCommentHex' => null,
+                'commentEncoding' => null,
+                'rawCommentMatchesDecodedComment' => null,
+                'usesLegacyCommentEncoding' => false,
+                'usesUnicodeCommentExtraField' => false,
+                'hasRawCommentProvenance' => false,
+            ],
+        ], array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'rawCommentHex' => $entry['rawCommentHex'],
+                'commentEncoding' => $entry['commentEncoding'],
+                'rawCommentMatchesDecodedComment' => $entry['rawCommentMatchesDecodedComment'],
+                'usesLegacyCommentEncoding' => $entry['usesLegacyCommentEncoding'],
+                'usesUnicodeCommentExtraField' => $entry['usesUnicodeCommentExtraField'],
+                'hasRawCommentProvenance' => $entry['hasRawCommentProvenance'],
+            ],
+            $manifest['entries']
+        ));
     },
 
     'preflights selected zip entry extra field provenance before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
