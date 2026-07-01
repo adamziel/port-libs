@@ -559,12 +559,13 @@ final class OpcRelationshipGraph
         $contentTypes = null;
         $contentTypesParseError = null;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
+        $packageManifest = $package->packageManifestPreflight();
         $localHeaderOrderByCentralDirectoryIndex = [];
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
             $localHeaderOrderByCentralDirectoryIndex[$orderEntry['centralDirectoryIndex']] = $orderEntry;
         }
         $packageManifestEntriesByCentralDirectoryIndex = [];
-        foreach ($package->packageManifestPreflight()['entries'] as $manifestEntry) {
+        foreach ($packageManifest['entries'] as $manifestEntry) {
             $packageManifestEntriesByCentralDirectoryIndex[$manifestEntry['centralDirectoryIndex']] = $manifestEntry;
         }
 
@@ -1262,6 +1263,28 @@ final class OpcRelationshipGraph
         return [
             'valid' => $issues === [],
             'isSupportedByBoundedReader' => $issues === [],
+            'packageSource' => $packageManifest['packageSource'],
+            'archiveLength' => $packageManifest['archiveLength'],
+            'archiveSha256' => $packageManifest['archiveSha256'],
+            'centralDirectoryOffset' => $packageManifest['centralDirectoryOffset'],
+            'centralDirectoryBytes' => $packageManifest['centralDirectoryBytes'],
+            'centralDirectoryEnd' => $packageManifest['centralDirectoryEnd'],
+            'centralDirectorySha256' => $packageManifest['centralDirectorySha256'],
+            'centralDirectoryToEocdGapOffset' => $packageManifest['centralDirectoryToEocdGapOffset'],
+            'centralDirectoryToEocdGapBytes' => $packageManifest['centralDirectoryToEocdGapBytes'],
+            'centralDirectoryToEocdGapSha256' => $packageManifest['centralDirectoryToEocdGapSha256'],
+            'endOfCentralDirectoryOffset' => $packageManifest['endOfCentralDirectoryOffset'],
+            'endOfCentralDirectoryBytes' => $packageManifest['endOfCentralDirectoryBytes'],
+            'endOfCentralDirectoryEnd' => $packageManifest['endOfCentralDirectoryEnd'],
+            'endOfCentralDirectorySha256' => $packageManifest['endOfCentralDirectorySha256'],
+            'packageCommentOffset' => $packageManifest['packageCommentOffset'],
+            'packageCommentBytes' => $packageManifest['packageCommentBytes'],
+            'packageCommentSha256' => $packageManifest['packageCommentSha256'],
+            'hasPackageComment' => $packageManifest['hasPackageComment'],
+            'hasCentralDirectorySignature' => $packageManifest['hasCentralDirectorySignature'],
+            'centralDirectorySignatureOffset' => $packageManifest['centralDirectorySignatureOffset'],
+            'centralDirectorySignatureBytes' => $packageManifest['centralDirectorySignatureBytes'],
+            'centralDirectorySignatureSha256' => $packageManifest['centralDirectorySignatureSha256'],
             'entryCount' => count($entries),
             'fileEntryCount' => $fileEntryCount,
             'directoryEntryCount' => $directoryEntryCount,
@@ -1362,6 +1385,100 @@ final class OpcRelationshipGraph
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function zipPackageSourcePreflightFromBytes(string $bytes): array
+    {
+        $archive = ZipPackage::endOfCentralDirectoryPreflight($bytes);
+        $archiveLength = strlen($bytes);
+        $centralDirectoryOffset = $archive['centralDirectoryOffset'];
+        $centralDirectoryBytes = $archive['centralDirectorySize'];
+        $centralDirectoryEnd = $archive['centralDirectoryEnd'];
+        $endOfCentralDirectoryOffset = $archive['eocdOffset'];
+        $packageCommentOffset = $endOfCentralDirectoryOffset + 22;
+        $packageCommentBytes = $archive['packageCommentLength'];
+        $centralDirectoryToEocdGapBytes = max(0, $endOfCentralDirectoryOffset - $centralDirectoryEnd);
+        $centralDirectoryToEocdGapOffset = $centralDirectoryToEocdGapBytes > 0 ? $centralDirectoryEnd : null;
+        $endOfCentralDirectoryBytes = 22 + $packageCommentBytes;
+        $endOfCentralDirectoryEnd = $endOfCentralDirectoryOffset + $endOfCentralDirectoryBytes;
+
+        $centralDirectorySha256 = hash(
+            'sha256',
+            substr($bytes, $centralDirectoryOffset, $centralDirectoryBytes)
+        );
+        $centralDirectoryToEocdGapSha256 = $centralDirectoryToEocdGapBytes > 0
+            ? hash('sha256', substr($bytes, $centralDirectoryEnd, $centralDirectoryToEocdGapBytes))
+            : null;
+        $endOfCentralDirectorySha256 = hash(
+            'sha256',
+            substr($bytes, $endOfCentralDirectoryOffset, $endOfCentralDirectoryBytes)
+        );
+        $packageCommentSha256 = $packageCommentBytes > 0
+            ? hash('sha256', substr($bytes, $packageCommentOffset, $packageCommentBytes))
+            : null;
+
+        $centralDirectorySignatureOffset = null;
+        $centralDirectorySignatureBytes = 0;
+        $centralDirectorySignatureSha256 = null;
+        try {
+            $centralDirectorySignature = ZipPackage::centralDirectorySignaturePolicyPreflight($bytes);
+            if ($centralDirectorySignature['present']) {
+                $centralDirectorySignatureOffset = $centralDirectorySignature['offset'];
+                $centralDirectorySignatureBytes = $centralDirectorySignature['signatureLength'];
+                $centralDirectorySignatureSha256 = $centralDirectorySignature['signatureSha256'];
+            }
+        } catch (\Throwable) {
+            // Keep package-level source spans available even when signature policy
+            // parsing is blocked by another raw central-directory issue.
+        }
+
+        $packageSource = [
+            'archiveLength' => $archiveLength,
+            'archiveSha256' => hash('sha256', $bytes),
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryBytes' => $centralDirectoryBytes,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'centralDirectorySha256' => $centralDirectorySha256,
+            'centralDirectoryToEocdGapOffset' => $centralDirectoryToEocdGapOffset,
+            'centralDirectoryToEocdGapBytes' => $centralDirectoryToEocdGapBytes,
+            'centralDirectoryToEocdGapSha256' => $centralDirectoryToEocdGapSha256,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'packageCommentOffset' => $packageCommentOffset,
+            'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentSha256' => $packageCommentSha256,
+            'hasPackageComment' => $packageCommentBytes > 0,
+        ];
+
+        return [
+            'packageSource' => $packageSource,
+            'archiveLength' => $archiveLength,
+            'archiveSha256' => $packageSource['archiveSha256'],
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryBytes' => $centralDirectoryBytes,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'centralDirectorySha256' => $centralDirectorySha256,
+            'centralDirectoryToEocdGapOffset' => $centralDirectoryToEocdGapOffset,
+            'centralDirectoryToEocdGapBytes' => $centralDirectoryToEocdGapBytes,
+            'centralDirectoryToEocdGapSha256' => $centralDirectoryToEocdGapSha256,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'packageCommentOffset' => $packageCommentOffset,
+            'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentSha256' => $packageCommentSha256,
+            'hasPackageComment' => $packageCommentBytes > 0,
+            'hasCentralDirectorySignature' => $centralDirectorySignatureOffset !== null,
+            'centralDirectorySignatureOffset' => $centralDirectorySignatureOffset,
+            'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
+        ];
+    }
+
+    /**
      * Classify OPC package parts directly from the ZIP central directory,
      * before local-header validation or package construction has succeeded.
      *
@@ -1370,6 +1487,7 @@ final class OpcRelationshipGraph
     public static function preflightZipCentralDirectoryManifest(string $bytes): array
     {
         $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
+        $packageSource = self::zipPackageSourcePreflightFromBytes($bytes);
         $localHeaderOrder = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($bytes);
         $localHeaderOrderByCentralDirectoryIndex = [];
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
@@ -1971,6 +2089,28 @@ final class OpcRelationshipGraph
         return [
             'valid' => $issues === [],
             'isSupportedByBoundedReader' => $issues === [],
+            'packageSource' => $packageSource['packageSource'],
+            'archiveLength' => $packageSource['archiveLength'],
+            'archiveSha256' => $packageSource['archiveSha256'],
+            'centralDirectoryOffset' => $packageSource['centralDirectoryOffset'],
+            'centralDirectoryBytes' => $packageSource['centralDirectoryBytes'],
+            'centralDirectoryEnd' => $packageSource['centralDirectoryEnd'],
+            'centralDirectorySha256' => $packageSource['centralDirectorySha256'],
+            'centralDirectoryToEocdGapOffset' => $packageSource['centralDirectoryToEocdGapOffset'],
+            'centralDirectoryToEocdGapBytes' => $packageSource['centralDirectoryToEocdGapBytes'],
+            'centralDirectoryToEocdGapSha256' => $packageSource['centralDirectoryToEocdGapSha256'],
+            'endOfCentralDirectoryOffset' => $packageSource['endOfCentralDirectoryOffset'],
+            'endOfCentralDirectoryBytes' => $packageSource['endOfCentralDirectoryBytes'],
+            'endOfCentralDirectoryEnd' => $packageSource['endOfCentralDirectoryEnd'],
+            'endOfCentralDirectorySha256' => $packageSource['endOfCentralDirectorySha256'],
+            'packageCommentOffset' => $packageSource['packageCommentOffset'],
+            'packageCommentBytes' => $packageSource['packageCommentBytes'],
+            'packageCommentSha256' => $packageSource['packageCommentSha256'],
+            'hasPackageComment' => $packageSource['hasPackageComment'],
+            'hasCentralDirectorySignature' => $packageSource['hasCentralDirectorySignature'],
+            'centralDirectorySignatureOffset' => $packageSource['centralDirectorySignatureOffset'],
+            'centralDirectorySignatureBytes' => $packageSource['centralDirectorySignatureBytes'],
+            'centralDirectorySignatureSha256' => $packageSource['centralDirectorySignatureSha256'],
             'zipCentralDirectoryValid' => $centralDirectory['isSupportedByBoundedReader'],
             'centralDirectoryIssues' => $centralDirectory['issues'],
             'localHeaderNamesValid' => $localHeaderNames !== null

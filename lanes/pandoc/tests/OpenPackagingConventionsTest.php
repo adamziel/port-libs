@@ -563,6 +563,63 @@ XML;
         $t->same($contentTypesEntry['localHeaderSha256'], $rawContentTypesEntry['localHeaderSha256']);
         $t->same($contentTypesEntry['compressedDataSha256'], $rawContentTypesEntry['compressedDataSha256']);
     },
+    'carries OPC ZIP package source records through manifest preflights' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>
+XML;
+        $packageComment = 'opc package source review';
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => '<w:document/>', 'compressionMethod' => 0],
+        ], $packageComment);
+        $package = ZipPackage::fromString($zip);
+        $zipManifest = $package->packageManifestPreflight();
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+
+        foreach ([$summary, $rawSummary] as $manifest) {
+            $t->same(true, $manifest['valid']);
+            $t->same($zipManifest['packageSource'], $manifest['packageSource']);
+            $t->same(strlen($zip), $manifest['archiveLength']);
+            $t->same(hash('sha256', $zip), $manifest['archiveSha256']);
+            $t->same($zipManifest['centralDirectoryOffset'], $manifest['centralDirectoryOffset']);
+            $t->same($zipManifest['centralDirectoryBytes'], $manifest['centralDirectoryBytes']);
+            $t->same($zipManifest['centralDirectoryEnd'], $manifest['centralDirectoryEnd']);
+            $t->same(
+                hash('sha256', substr($zip, $manifest['centralDirectoryOffset'], $manifest['centralDirectoryBytes'])),
+                $manifest['centralDirectorySha256']
+            );
+            $t->same(null, $manifest['centralDirectoryToEocdGapOffset']);
+            $t->same(0, $manifest['centralDirectoryToEocdGapBytes']);
+            $t->same(null, $manifest['centralDirectoryToEocdGapSha256']);
+            $t->same($zipManifest['endOfCentralDirectoryOffset'], $manifest['endOfCentralDirectoryOffset']);
+            $t->same(22 + strlen($packageComment), $manifest['endOfCentralDirectoryBytes']);
+            $t->same(strlen($zip), $manifest['endOfCentralDirectoryEnd']);
+            $t->same(
+                hash(
+                    'sha256',
+                    substr($zip, $manifest['endOfCentralDirectoryOffset'], $manifest['endOfCentralDirectoryBytes'])
+                ),
+                $manifest['endOfCentralDirectorySha256']
+            );
+            $t->same($zipManifest['packageCommentOffset'], $manifest['packageCommentOffset']);
+            $t->same(strlen($packageComment), $manifest['packageCommentBytes']);
+            $t->same(hash('sha256', $packageComment), $manifest['packageCommentSha256']);
+            $t->same(true, $manifest['hasPackageComment']);
+            $t->same(false, $manifest['hasCentralDirectorySignature']);
+            $t->same(null, $manifest['centralDirectorySignatureOffset']);
+            $t->same(0, $manifest['centralDirectorySignatureBytes']);
+            $t->same(null, $manifest['centralDirectorySignatureSha256']);
+        }
+
+        $t->same($summary['packageSource'], $rawSummary['packageSource']);
+        $t->same($summary['endOfCentralDirectorySha256'], $rawSummary['endOfCentralDirectorySha256']);
+        $t->same($summary['packageCommentSha256'], $rawSummary['packageCommentSha256']);
+    },
     'preflights raw ZIP central directory OPC manifest before package construction' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';
         $rootRelationshipsXml = '<Relationships/>';
