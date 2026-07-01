@@ -11926,6 +11926,132 @@ final class ZipPackage
      * @param list<array<string, mixed>> $entries
      * @return list<array<string, mixed>>
      */
+    private static function entryHandoffCrc32ValueSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $crc32 = is_int($entry['crc32'] ?? null) ? $entry['crc32'] : null;
+            $crc32Hex = is_string($entry['crc32Hex'] ?? null) && $entry['crc32Hex'] !== ''
+                ? strtolower($entry['crc32Hex'])
+                : ($crc32 === null ? null : sprintf('%08x', $crc32));
+            if ($name === '' || $crc32Hex === null) {
+                continue;
+            }
+
+            if (!isset($summaries[$crc32Hex])) {
+                $summaries[$crc32Hex] = [
+                    'crc32' => $crc32,
+                    'crc32Hex' => $crc32Hex,
+                    'isZeroCrc32' => $crc32Hex === '00000000',
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'zeroCrc32EntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'centralDirectoryIndexes' => [],
+                    'localHeaderOrders' => [],
+                    'directoryRoots' => [],
+                    'parentDirectories' => [],
+                    'entryExtensionKeys' => [],
+                    'packagePartKinds' => [],
+                    'roles' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            ++$summaries[$crc32Hex]['entryCount'];
+            if ($isDirectory) {
+                ++$summaries[$crc32Hex]['directoryEntryCount'];
+            } else {
+                ++$summaries[$crc32Hex]['fileEntryCount'];
+            }
+            if ($crc32Hex === '00000000') {
+                ++$summaries[$crc32Hex]['zeroCrc32EntryCount'];
+            }
+
+            $summaries[$crc32Hex]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$crc32Hex]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$crc32Hex]['entryNames'][] = $name;
+
+            if (is_int($entry['centralDirectoryIndex'] ?? null)) {
+                $summaries[$crc32Hex]['centralDirectoryIndexes'][] = $entry['centralDirectoryIndex'];
+            }
+            if (is_int($entry['localHeaderOrder'] ?? null)) {
+                $summaries[$crc32Hex]['localHeaderOrders'][] = $entry['localHeaderOrder'];
+            }
+
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null) && $entry['directoryRoot'] !== ''
+                ? $entry['directoryRoot']
+                : self::entryHandoffDirectoryRoot($name);
+            if (!in_array($directoryRoot, $summaries[$crc32Hex]['directoryRoots'], true)) {
+                $summaries[$crc32Hex]['directoryRoots'][] = $directoryRoot;
+            }
+
+            $parentDirectory = is_string($entry['parentDirectory'] ?? null) && $entry['parentDirectory'] !== ''
+                ? $entry['parentDirectory']
+                : self::entryHandoffParentDirectory($name);
+            if (!in_array($parentDirectory, $summaries[$crc32Hex]['parentDirectories'], true)) {
+                $summaries[$crc32Hex]['parentDirectories'][] = $parentDirectory;
+            }
+
+            $entryExtensionKey = is_string($entry['entryExtensionKey'] ?? null) && $entry['entryExtensionKey'] !== ''
+                ? $entry['entryExtensionKey']
+                : (
+                    $isDirectory
+                        ? '(none)'
+                        : (self::entryHandoffExtension($name, false) ?? '(none)')
+                );
+            if (!in_array($entryExtensionKey, $summaries[$crc32Hex]['entryExtensionKeys'], true)) {
+                $summaries[$crc32Hex]['entryExtensionKeys'][] = $entryExtensionKey;
+            }
+
+            $packagePartKind = is_string($entry['packagePartKind'] ?? null) && $entry['packagePartKind'] !== ''
+                ? $entry['packagePartKind']
+                : self::entryHandoffPackagePartKind($name, $isDirectory);
+            if (!in_array($packagePartKind, $summaries[$crc32Hex]['packagePartKinds'], true)) {
+                $summaries[$crc32Hex]['packagePartKinds'][] = $packagePartKind;
+            }
+
+            foreach (self::entryHandoffRolesForSummary($entry) as $role) {
+                if (!in_array($role, $summaries[$crc32Hex]['roles'], true)) {
+                    $summaries[$crc32Hex]['roles'][] = $role;
+                }
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['parentDirectories'], SORT_STRING);
+            sort($summary['entryExtensionKeys'], SORT_STRING);
+            sort($summary['packagePartKinds'], SORT_STRING);
+            sort($summary['roles'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $crc32ValueSummaries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffDuplicateCrc32ValueSummaries(array $crc32ValueSummaries): array
+    {
+        return array_values(array_filter(
+            $crc32ValueSummaries,
+            static fn (array $summary): bool => (int) ($summary['entryCount'] ?? 0) > 1
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
     private static function entryHandoffPackagePartKindSummaries(array $entries): array
     {
         $summaries = [];
@@ -19898,6 +20024,8 @@ final class ZipPackage
         $caseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries($entries);
         $caseFoldLeafNameCollisionSummaries = self::entryHandoffCaseFoldLeafNameCollisionSummaries($entries);
         $expansionRatioBucketSummaries = self::entryHandoffExpansionRatioBucketSummaries($entries);
+        $crc32ValueSummaries = self::entryHandoffCrc32ValueSummaries($entries);
+        $duplicateCrc32ValueSummaries = self::entryHandoffDuplicateCrc32ValueSummaries($crc32ValueSummaries);
         $manifestOrderSummary = self::entryHandoffOrderSummary($entries);
         $manifestOrderIssueCodes = $manifestOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder']
             ? []
@@ -19950,6 +20078,10 @@ final class ZipPackage
             'unknownExpansionRatioEntryCount' => $unknownExpansionRatioEntryCount,
             'hasUnknownExpansionRatioEntries' => $unknownExpansionRatioEntryCount > 0,
             'expansionRatioBucketCount' => count($expansionRatioBucketSummaries),
+            'crc32ValueCount' => count($crc32ValueSummaries),
+            'duplicateCrc32ValueCount' => count($duplicateCrc32ValueSummaries),
+            'duplicateCrc32EntryCount' => self::entryHandoffSummaryTotal($duplicateCrc32ValueSummaries, 'entryCount'),
+            'zeroCrc32EntryCount' => self::entryHandoffSummaryTotal($crc32ValueSummaries, 'zeroCrc32EntryCount'),
             'leafNameCount' => count($leafNameSummaries),
             'sharedLeafNameCount' => count($sharedLeafNameSummaries),
             'sharedLeafNameEntryCount' => array_sum(array_map(
@@ -19980,6 +20112,8 @@ final class ZipPackage
             'pathDepthSummaries' => $pathDepthSummaries,
             'pathPrefixSummaries' => $pathPrefixSummaries,
             'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
+            'crc32ValueSummaries' => $crc32ValueSummaries,
+            'duplicateCrc32ValueSummaries' => $duplicateCrc32ValueSummaries,
             'leafNameSummaries' => $leafNameSummaries,
             'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
             'caseFoldNameCollisionSummaries' => $caseFoldNameCollisionSummaries,
