@@ -12789,6 +12789,70 @@ XML;
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(0, $provenance['undeclaredEntryCount']);
     },
+    'surfaces ODT ZIP extra fields in rich package provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithReviewImage = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . "\n  "
+            . '<manifest:file-entry manifest:full-path="Pictures/review.png" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+        $extraField = pack('vva*', 0xcafe, strlen('odf-review'), 'odf-review');
+        $package = $buildOdtPackage(
+            overrideManifestXml: $manifestWithReviewImage,
+            extraParts: [
+                [
+                    'name' => 'Pictures/review.png',
+                    'data' => 'REVIEWPNG',
+                    'compressionMethod' => 0,
+                    'extraFieldData' => $extraField,
+                ],
+            ],
+        );
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $review = $provenance['parts']['Pictures/review.png'];
+        $identityParts = [];
+        foreach ($provenance['packageIdentity']['packageEntries'] as $packageEntry) {
+            $identityParts[$packageEntry['part']] = $packageEntry;
+        }
+
+        $t->same($package->extraFieldPreflight(), $provenance['extraFields']);
+        $t->same($provenance, $documentProvenance);
+        $t->same(true, $provenance['hasZipExtraFields']);
+        $t->same(1, $provenance['extraFieldEntryCount']);
+        $t->same(0, $provenance['duplicateExtraFieldEntryCount']);
+        $t->same(0, $provenance['mismatchedExtraFieldEntryCount']);
+        $t->same(0, $provenance['mismatchedExtraFieldValueEntryCount']);
+        $t->same(1, $provenance['extraFieldIdCount']);
+        $t->same(1, $provenance['centralExtraFieldIdCount']);
+        $t->same(1, $provenance['localExtraFieldIdCount']);
+        $t->same(1, $provenance['sharedExtraFieldIdCount']);
+
+        $t->same([0xcafe], $review['zipExtraFieldIds']);
+        $t->same([0xcafe], $review['centralExtraFieldIds']);
+        $t->same([0xcafe], $review['localExtraFieldIds']);
+        $t->same(1, $review['extraFieldIdCount']);
+        $t->same(1, $review['centralExtraFieldRecordCount']);
+        $t->same(1, $review['localExtraFieldRecordCount']);
+        $t->same([], $review['duplicateCentralExtraFieldIds']);
+        $t->same([], $review['duplicateLocalExtraFieldIds']);
+        $t->same([], $review['centralOnlyExtraFieldIds']);
+        $t->same([], $review['localOnlyExtraFieldIds']);
+        $t->same([], $review['mismatchedExtraFieldValueIds']);
+        $t->same(true, $review['centralLocalExtraFieldIdsMatch']);
+        $t->same(true, $review['centralLocalExtraFieldValuesMatch']);
+        $t->same(true, $review['hasCentralExtraFields']);
+        $t->same(true, $review['hasLocalExtraFields']);
+        $t->same(true, $review['hasZipExtraFieldProvenance']);
+        $t->same(false, $review['hasDuplicateExtraFieldIds']);
+        $t->same(false, $review['hasMismatchedExtraFieldIds']);
+        $t->same(false, $review['hasMismatchedExtraFieldValues']);
+        $t->same([0xcafe], $identityParts['Pictures/review.png']['zipExtraFieldIds']);
+        $t->same(true, $provenance['packageIdentity']['hasZipExtraFields']);
+    },
     'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml): void {
         $reader = new OdfReader();
 
