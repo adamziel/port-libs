@@ -600,6 +600,15 @@ XML,
       <sortCondition ref="A2:A3" descending="1"/>
     </sortState>
   </autoFilter>
+  <dataValidations count="2">
+    <dataValidation type="whole" operator="between" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorStyle="stop" sqref="A2:A3">
+      <formula1>1</formula1>
+      <formula2>10</formula2>
+    </dataValidation>
+    <dataValidation type="list" showDropDown="1" showErrorMessage="0" promptTitle="Choose result" prompt="Pick a known status" errorTitle="Invalid result" error="Not in list" sqref="B2 C2:C3">
+      <formula1>"Result,Cached string"</formula1>
+    </dataValidation>
+  </dataValidations>
   <tableParts count="1">
     <tablePart r:id="rIdTable1"/>
   </tableParts>
@@ -1273,6 +1282,42 @@ return [
         $t->same('B2', $sheetView['selections'][1]['activeCell'] ?? null);
         $t->same(1, $sheetView['selections'][1]['activeCellId'] ?? null);
         $t->same('B2:C3', $sheetView['selections'][1]['sqref'] ?? null);
+        $t->same('xlsx-data-validation-metadata-only', $review['dataValidationPolicy'] ?? null);
+        $t->same(2, $review['dataValidationCount'] ?? null);
+        $t->same(1, $review['dataValidationSheetCount'] ?? null);
+        $t->same(3, $review['dataValidationRangeCount'] ?? null);
+        $t->same(2, $visibleSheet['dataValidationCount'] ?? null);
+        $t->same(2, $visibleSheet['dataValidationDeclaredCount'] ?? null);
+        $t->same(3, $visibleSheet['dataValidationRangeCount'] ?? null);
+        $t->same(['list' => 1, 'whole' => 1], $visibleSheet['dataValidationTypeCounts'] ?? null);
+        $t->same(['A2:A3', 'B2', 'C2:C3'], $visibleSheet['dataValidationRanges'] ?? null);
+        $t->same([], $visibleSheet['dataValidationDiagnostics'] ?? null);
+        $wholeValidation = $visibleSheet['dataValidations'][0] ?? [];
+        $listValidation = $visibleSheet['dataValidations'][1] ?? [];
+        $t->same('whole', $wholeValidation['type'] ?? null);
+        $t->same('between', $wholeValidation['operator'] ?? null);
+        $t->same('stop', $wholeValidation['errorStyle'] ?? null);
+        $t->same(true, $wholeValidation['allowBlank'] ?? null);
+        $t->same(true, $wholeValidation['showInputMessage'] ?? null);
+        $t->same(true, $wholeValidation['showErrorMessage'] ?? null);
+        $t->same('A2:A3', $wholeValidation['sqref'] ?? null);
+        $t->same(['A2:A3'], $wholeValidation['ranges'] ?? null);
+        $t->same(true, $wholeValidation['formula1Present'] ?? null);
+        $t->same(1, $wholeValidation['formula1TextBytes'] ?? null);
+        $t->same(hash('sha256', '1'), $wholeValidation['formula1Sha256'] ?? null);
+        $t->same(true, $wholeValidation['formula2Present'] ?? null);
+        $t->same(hash('sha256', '10'), $wholeValidation['formula2Sha256'] ?? null);
+        $t->same('list', $listValidation['type'] ?? null);
+        $t->same(true, $listValidation['showDropDown'] ?? null);
+        $t->same(false, $listValidation['showErrorMessage'] ?? null);
+        $t->same(['B2', 'C2:C3'], $listValidation['ranges'] ?? null);
+        $t->same(strlen('"Result,Cached string"'), $listValidation['formula1TextBytes'] ?? null);
+        $t->same(hash('sha256', '"Result,Cached string"'), $listValidation['formula1Sha256'] ?? null);
+        $t->same(true, $listValidation['promptTitlePresent'] ?? null);
+        $t->same(hash('sha256', 'Choose result'), $listValidation['promptTitleSha256'] ?? null);
+        $t->same(hash('sha256', 'Pick a known status'), $listValidation['promptSha256'] ?? null);
+        $t->same(hash('sha256', 'Invalid result'), $listValidation['errorTitleSha256'] ?? null);
+        $t->same(hash('sha256', 'Not in list'), $listValidation['errorSha256'] ?? null);
         $t->same(2, count($visibleSheet['columnMetadata'] ?? []));
         $t->same('B', $visibleSheet['columnMetadata'][0]['range'] ?? null);
         $t->same(18.5, $visibleSheet['columnMetadata'][0]['width'] ?? null);

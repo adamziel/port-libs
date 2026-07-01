@@ -134,6 +134,9 @@ final class XlsxReader
         $sheetViewCount = 0;
         $frozenPaneCount = 0;
         $splitPaneCount = 0;
+        $dataValidationCount = 0;
+        $dataValidationSheetCount = 0;
+        $dataValidationRangeCount = 0;
         foreach ($sheets as $sheet) {
             $relationship = $workbookRelationships->byId($sheet['relationshipId']);
             if (!$relationship instanceof OpcRelationship) {
@@ -149,6 +152,7 @@ final class XlsxReader
             $sheetLayout = $this->parseSheetLayoutMetadata($sheetDocument);
             $sheetComments = $this->parseSheetComments($package, $sheetPart, $sheetRelationships);
             $sheetDiagnostics = $this->parseSheetDiagnostics($sheetDocument);
+            $sheetDataValidations = $this->parseSheetDataValidations($sheetDocument);
             $sheetTableMetadata = $this->parseSheetTableMetadata($package, $sheetPart, $sheetDocument, $sheetRelationships);
             $cells = $this->parseSheetCells($sheetDocument, $sharedStrings, $styles, $workbookInfo['date1904'], $sheetRelationships, $sheetComments['commentsByCell'], $sheetLayout);
             $table = $this->cellsToTable($sheet['name'], $cells);
@@ -176,6 +180,11 @@ final class XlsxReader
             $sheetViewCount += $sheetLayout['sheetViewCount'];
             $frozenPaneCount += $sheetLayout['frozenPaneCount'];
             $splitPaneCount += $sheetLayout['splitPaneCount'];
+            $dataValidationCount += $sheetDataValidations['validationCount'];
+            $dataValidationRangeCount += $sheetDataValidations['rangeCount'];
+            if ($sheetDataValidations['validationCount'] > 0) {
+                ++$dataValidationSheetCount;
+            }
 
             $sheetReviews[] = [
                 'index' => $sheet['index'],
@@ -203,6 +212,13 @@ final class XlsxReader
                 'sheetViews' => $sheetLayout['sheetViews'],
                 'frozenPaneCount' => $sheetLayout['frozenPaneCount'],
                 'splitPaneCount' => $sheetLayout['splitPaneCount'],
+                'dataValidationCount' => $sheetDataValidations['validationCount'],
+                'dataValidationDeclaredCount' => $sheetDataValidations['declaredCount'],
+                'dataValidationRangeCount' => $sheetDataValidations['rangeCount'],
+                'dataValidationTypeCounts' => $sheetDataValidations['typeCounts'],
+                'dataValidationRanges' => $sheetDataValidations['ranges'],
+                'dataValidations' => $sheetDataValidations['validations'],
+                'dataValidationDiagnostics' => $sheetDataValidations['diagnostics'],
                 'commentCount' => $sheetComments['commentCount'],
                 'comments' => $sheetComments['comments'],
                 'commentDiagnostics' => $sheetComments['commentDiagnostics'],
@@ -259,6 +275,10 @@ final class XlsxReader
                 'sheetViewCount' => $sheetViewCount,
                 'frozenPaneCount' => $frozenPaneCount,
                 'splitPaneCount' => $splitPaneCount,
+                'dataValidationPolicy' => 'xlsx-data-validation-metadata-only',
+                'dataValidationCount' => $dataValidationCount,
+                'dataValidationSheetCount' => $dataValidationSheetCount,
+                'dataValidationRangeCount' => $dataValidationRangeCount,
                 'tablePartCount' => $tablePartCount,
                 'autoFilterCount' => $autoFilterCount,
                 'autoFilterDetailCount' => $autoFilterDetailCount,
@@ -3841,6 +3861,158 @@ final class XlsxReader
             'formulaDiagnostics' => $formulaDiagnostics,
             'errorCellCount' => count($errorDiagnostics),
             'errorDiagnostics' => $errorDiagnostics,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     declaredCount:int|null,
+     *     validationCount:int,
+     *     rangeCount:int,
+     *     typeCounts:array<string, int>,
+     *     ranges:list<string>,
+     *     validations:list<array<string, mixed>>,
+     *     diagnostics:list<string>
+     * }
+     */
+    private function parseSheetDataValidations(\DOMDocument $document): array
+    {
+        $root = XmlHtmlDom::rootElement($document, 'worksheet');
+        if (!$root instanceof \DOMElement) {
+            return [
+                'declaredCount' => null,
+                'validationCount' => 0,
+                'rangeCount' => 0,
+                'typeCounts' => [],
+                'ranges' => [],
+                'validations' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        $dataValidations = $this->firstChildElement($root, 'dataValidations');
+        if (!$dataValidations instanceof \DOMElement) {
+            return [
+                'declaredCount' => null,
+                'validationCount' => 0,
+                'rangeCount' => 0,
+                'typeCounts' => [],
+                'ranges' => [],
+                'validations' => [],
+                'diagnostics' => [],
+            ];
+        }
+
+        $validations = [];
+        $typeCounts = [];
+        $ranges = [];
+        $diagnostics = [];
+        foreach ($this->childElements($dataValidations, 'dataValidation') as $validation) {
+            $sqref = trim($validation->getAttribute('sqref'));
+            $validationRanges = [];
+            if ($sqref === '') {
+                $diagnostics[] = 'data-validation-missing-sqref';
+            } else {
+                foreach (preg_split('/\s+/', $sqref) ?: [] as $range) {
+                    $range = trim($range);
+                    if ($range === '') {
+                        continue;
+                    }
+                    if ($this->parseCellRange($range) === null && $this->parseCellReference($range) === null) {
+                        $diagnostics[] = 'data-validation-invalid-range:' . $range;
+                        continue;
+                    }
+                    if (!in_array($range, $validationRanges, true)) {
+                        $validationRanges[] = $range;
+                    }
+                    if (!in_array($range, $ranges, true)) {
+                        $ranges[] = $range;
+                    }
+                }
+            }
+
+            $type = $this->nonEmptyAttribute($validation, 'type') ?? 'any';
+            $typeCounts[$type] = ($typeCounts[$type] ?? 0) + 1;
+
+            $validations[] = [
+                'type' => $type,
+                'operator' => $this->nonEmptyAttribute($validation, 'operator'),
+                'errorStyle' => $this->nonEmptyAttribute($validation, 'errorStyle'),
+                'imeMode' => $this->nonEmptyAttribute($validation, 'imeMode'),
+                'allowBlank' => $this->booleanAttribute($validation, 'allowBlank'),
+                'showDropDown' => $this->booleanAttribute($validation, 'showDropDown'),
+                'showInputMessage' => $this->booleanAttribute($validation, 'showInputMessage'),
+                'showErrorMessage' => $this->booleanAttribute($validation, 'showErrorMessage'),
+                'sqref' => $sqref === '' ? null : $sqref,
+                'rangeCount' => count($validationRanges),
+                'ranges' => $validationRanges,
+            ] + $this->textElementDigestMetadata($this->firstChildElement($validation, 'formula1'), 'formula1')
+                + $this->textElementDigestMetadata($this->firstChildElement($validation, 'formula2'), 'formula2')
+                + $this->attributeDigestMetadata($validation, 'promptTitle')
+                + $this->attributeDigestMetadata($validation, 'prompt')
+                + $this->attributeDigestMetadata($validation, 'errorTitle')
+                + $this->attributeDigestMetadata($validation, 'error');
+        }
+
+        ksort($typeCounts, SORT_STRING);
+        $declaredCount = $this->integerAttribute($dataValidations, 'count');
+        if ($declaredCount !== null && $declaredCount !== count($validations)) {
+            $diagnostics[] = 'data-validation-count-mismatch';
+        }
+
+        return [
+            'declaredCount' => $declaredCount,
+            'validationCount' => count($validations),
+            'rangeCount' => count($ranges),
+            'typeCounts' => $typeCounts,
+            'ranges' => $ranges,
+            'validations' => $validations,
+            'diagnostics' => array_values(array_unique($diagnostics)),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function textElementDigestMetadata(?\DOMElement $element, string $prefix): array
+    {
+        if (!$element instanceof \DOMElement) {
+            return [
+                $prefix . 'Present' => false,
+                $prefix . 'TextBytes' => 0,
+                $prefix . 'Sha256' => null,
+            ];
+        }
+
+        $text = trim($element->textContent);
+
+        return [
+            $prefix . 'Present' => true,
+            $prefix . 'TextBytes' => strlen($text),
+            $prefix . 'Sha256' => hash('sha256', $text),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function attributeDigestMetadata(\DOMElement $element, string $attribute): array
+    {
+        $prefix = $attribute;
+        if (!$element->hasAttribute($attribute)) {
+            return [
+                $prefix . 'Present' => false,
+                $prefix . 'TextBytes' => 0,
+                $prefix . 'Sha256' => null,
+            ];
+        }
+
+        $text = trim($element->getAttribute($attribute));
+
+        return [
+            $prefix . 'Present' => true,
+            $prefix . 'TextBytes' => strlen($text),
+            $prefix . 'Sha256' => hash('sha256', $text),
         ];
     }
 
