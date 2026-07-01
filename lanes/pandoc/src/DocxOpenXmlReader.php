@@ -322,7 +322,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceTargetFragmentCounts'] = $packageRootResources['targetFragmentCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCount'] = $packageRootResources['issueCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCodes'] = $packageRootResources['issueCodes'];
+        $packageProvenance['summary']['packageRootRelationshipResourceRelationshipTypeCounts'] = $packageRootResources['relationshipTypeCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetDirectoryCounts'] = $packageRootResources['targetDirectoryCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetPartExtensionCounts'] = $packageRootResources['targetPartExtensionCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetBaseNameCounts'] = $packageRootResources['targetBaseNameCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetCaseFoldBaseNameCounts'] = $packageRootResources['targetCaseFoldBaseNameCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetPartsByCaseFoldBaseName'] = $packageRootResources['targetPartsByCaseFoldBaseName'];
@@ -335,7 +337,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceTargetPathSegmentPositionSegmentCounts'] = $packageRootResources['targetPathSegmentPositionSegmentCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetCaseFoldPathSegmentPositionSegmentCounts'] = $packageRootResources['targetCaseFoldPathSegmentPositionSegmentCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetPartsByPathSegmentPosition'] = $packageRootResources['targetPartsByPathSegmentPosition'];
+        $packageProvenance['summary']['packageRootRelationshipResourceContentTypeBaseCounts'] = $packageRootResources['contentTypeBaseCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceContentTypeSourceCounts'] = $packageRootResources['contentTypeSourceCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTypeCounts'] = $packageRootResources['targetRelationshipTypeCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetDirectoryCounts'] = $packageRootResources['targetRelationshipTargetDirectoryCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPartExtensionCounts'] = $packageRootResources['targetRelationshipTargetPartExtensionCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetBaseNameCounts'] = $packageRootResources['targetRelationshipTargetBaseNameCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetCaseFoldBaseNameCounts'] = $packageRootResources['targetRelationshipTargetCaseFoldBaseNameCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPartsByCaseFoldBaseName'] = $packageRootResources['targetRelationshipTargetPartsByCaseFoldBaseName'];
@@ -353,6 +359,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetFragmentCount'] = $packageRootResources['targetRelationshipTargetFragmentCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetFragments'] = $packageRootResources['targetRelationshipTargetFragments'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetFragmentCounts'] = $packageRootResources['targetRelationshipTargetFragmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipContentTypeBaseCounts'] = $packageRootResources['targetRelationshipContentTypeBaseCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipContentTypeSourceCounts'] = $packageRootResources['targetRelationshipContentTypeSourceCounts'];
         $customUiParts = $this->packageCustomUiProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['customUiParts'] = $customUiParts;
         $packageProvenance['summary']['customUiPartCount'] = $customUiParts['count'];
@@ -34510,10 +34518,14 @@ final class DocxOpenXmlReader
         $byRelationshipId = [];
         $relationshipIds = [];
         $relationshipTypes = [];
+        $relationshipTypeCounts = [];
         $targetParts = [];
         $externalTargets = [];
         $contentTypesSeen = [];
+        $contentTypeBaseCounts = [];
+        $contentTypeSourceCounts = [];
         $targetRelationshipTypes = [];
+        $targetRelationshipTypeCounts = [];
         $targetRelationshipTargetParts = [];
         $targetRelationshipExternalTargets = [];
         $targetRelationshipExistingTargetParts = [];
@@ -34522,6 +34534,8 @@ final class DocxOpenXmlReader
         $targetRelationshipUnsafeExternalTargets = [];
         $targetRelationshipContentTypes = [];
         $targetRelationshipContentTypeBases = [];
+        $targetRelationshipContentTypeBaseCounts = [];
+        $targetRelationshipContentTypeSourceCounts = [];
         $targetRelationshipIssueCodes = [];
         $targetQueryParameterCount = 0;
         $targetQueryParameterRelationshipCount = 0;
@@ -34648,6 +34662,34 @@ final class DocxOpenXmlReader
                         $itemTargetRelationshipIssueCodes[$issue] = true;
                     }
                 }
+
+                $targetRelationshipType = is_string($targetRelationshipSummary['type'] ?? null)
+                    && $targetRelationshipSummary['type'] !== ''
+                    ? $targetRelationshipSummary['type']
+                    : '(missing)';
+                $targetRelationshipTypeCounts[$targetRelationshipType] =
+                    ($targetRelationshipTypeCounts[$targetRelationshipType] ?? 0) + 1;
+                if (($targetRelationshipSummary['external'] ?? false) === true) {
+                    $targetRelationshipContentTypeBaseKey = '(external)';
+                    $targetRelationshipContentTypeSourceKey = '(external)';
+                } else {
+                    $targetRelationshipContentTypeBase = is_string($targetRelationshipSummary['contentTypeBase'] ?? null)
+                        ? $targetRelationshipSummary['contentTypeBase']
+                        : '';
+                    $targetRelationshipContentTypeBaseKey = $targetRelationshipContentTypeBase !== ''
+                        ? $targetRelationshipContentTypeBase
+                        : '(missing)';
+                    $targetRelationshipContentTypeSource = is_string($targetRelationshipSummary['contentTypeSource'] ?? null)
+                        ? $targetRelationshipSummary['contentTypeSource']
+                        : '';
+                    $targetRelationshipContentTypeSourceKey = $targetRelationshipContentTypeSource !== ''
+                        ? $targetRelationshipContentTypeSource
+                        : 'missing';
+                }
+                $targetRelationshipContentTypeBaseCounts[$targetRelationshipContentTypeBaseKey] =
+                    ($targetRelationshipContentTypeBaseCounts[$targetRelationshipContentTypeBaseKey] ?? 0) + 1;
+                $targetRelationshipContentTypeSourceCounts[$targetRelationshipContentTypeSourceKey] =
+                    ($targetRelationshipContentTypeSourceCounts[$targetRelationshipContentTypeSourceKey] ?? 0) + 1;
             }
             ksort($itemTargetRelationshipIssueCodes, SORT_STRING);
             $externalTargetIssues = is_array($summary['externalTargetIssues'] ?? null)
@@ -34824,10 +34866,23 @@ final class DocxOpenXmlReader
             $byRelationshipId[(string) $item['id']] = $item;
             $relationshipIds[] = (string) $item['id'];
             $this->appendUniqueString($relationshipTypes, is_string($item['type'] ?? null) ? $item['type'] : null);
+            $relationshipType = is_string($item['type'] ?? null) && $item['type'] !== ''
+                ? $item['type']
+                : '(missing)';
+            $relationshipTypeCounts[$relationshipType] = ($relationshipTypeCounts[$relationshipType] ?? 0) + 1;
             $this->appendUniqueString($targetParts, $targetPart);
             if ($external) {
                 $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                $contentTypeBaseKey = '(external)';
+                $contentTypeSourceKey = '(external)';
+            } else {
+                $contentTypeBase = is_string($item['contentTypeBase'] ?? null) ? $item['contentTypeBase'] : '';
+                $contentTypeBaseKey = $contentTypeBase !== '' ? $contentTypeBase : '(missing)';
+                $contentTypeSource = is_string($item['contentTypeSource'] ?? null) ? $item['contentTypeSource'] : '';
+                $contentTypeSourceKey = $contentTypeSource !== '' ? $contentTypeSource : 'missing';
             }
+            $contentTypeBaseCounts[$contentTypeBaseKey] = ($contentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+            $contentTypeSourceCounts[$contentTypeSourceKey] = ($contentTypeSourceCounts[$contentTypeSourceKey] ?? 0) + 1;
             $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
             foreach ($itemTargetRelationshipTypes as $targetRelationshipType) {
                 $this->appendUniqueString($targetRelationshipTypes, is_string($targetRelationshipType) ? $targetRelationshipType : null);
@@ -34871,6 +34926,12 @@ final class DocxOpenXmlReader
         ksort($targetRelationshipTargetFragmentCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
         ksort($targetRelationshipIssueCodes, SORT_STRING);
+        ksort($relationshipTypeCounts, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeSourceCounts, SORT_STRING);
+        ksort($targetRelationshipTypeCounts, SORT_STRING);
+        ksort($targetRelationshipContentTypeBaseCounts, SORT_STRING);
+        ksort($targetRelationshipContentTypeSourceCounts, SORT_STRING);
         $targetLookup = $this->packageRootRelationshipTargetLookupMaps($items);
         $targetRelationshipItems = [];
         foreach ($items as $item) {
@@ -34906,6 +34967,7 @@ final class DocxOpenXmlReader
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'relationshipIds' => $relationshipIds,
             'relationshipTypes' => $relationshipTypes,
+            'relationshipTypeCounts' => $relationshipTypeCounts,
             'targetParts' => $targetParts,
             'targetDirectoryCounts' => $targetLookup['targetDirectoryCounts'],
             'targetDirectoryBaseNameCounts' => $targetLookup['targetDirectoryBaseNameCounts'],
@@ -34935,7 +34997,10 @@ final class DocxOpenXmlReader
             'targetPartsByPathSegmentPosition' => $targetLookup['targetPartsByPathSegmentPosition'],
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'targetRelationshipTypes' => $targetRelationshipTypes,
+            'targetRelationshipTypeCounts' => $targetRelationshipTypeCounts,
             'targetRelationshipTargetParts' => $targetRelationshipTargetParts,
             'targetRelationshipTargetDirectoryCounts' => $targetRelationshipLookup['targetDirectoryCounts'],
             'targetRelationshipTargetDirectoryBaseNameCounts' => $targetRelationshipLookup['targetDirectoryBaseNameCounts'],
@@ -34970,6 +35035,8 @@ final class DocxOpenXmlReader
             'targetRelationshipUnsafeExternalTargets' => $targetRelationshipUnsafeExternalTargets,
             'targetRelationshipContentTypes' => $targetRelationshipContentTypes,
             'targetRelationshipContentTypeBases' => $targetRelationshipContentTypeBases,
+            'targetRelationshipContentTypeBaseCounts' => $targetRelationshipContentTypeBaseCounts,
+            'targetRelationshipContentTypeSourceCounts' => $targetRelationshipContentTypeSourceCounts,
             'targetRelationshipIssueCodes' => array_keys($targetRelationshipIssueCodes),
             'targetQueryParameterCount' => $targetQueryParameterCount,
             'targetQueryParameterRelationshipCount' => $targetQueryParameterRelationshipCount,
