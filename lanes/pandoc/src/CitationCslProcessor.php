@@ -1391,6 +1391,18 @@ final class CitationCslProcessor
         ];
         $originalTitleKeys = ['original-title', 'originalTitle', 'originaltitle', 'origtitle', 'origTitle'];
         $originalSubtitleKeys = ['original-subtitle', 'originalSubtitle', 'originalsubtitle', 'origsubtitle', 'origSubtitle'];
+        $biblatexDisambiguationFields = [
+            'pageRef' => self::firstStringField($item, ['biblatex-page-ref', 'biblatexPageRef', 'biblatexpageref', 'pageref', 'page-ref']),
+            'nameHash' => self::firstStringField($item, ['biblatex-name-hash', 'biblatexNameHash', 'biblatexnamehash', 'namehash', 'name-hash']),
+            'fullNameHash' => self::firstStringField($item, ['biblatex-full-name-hash', 'biblatexFullNameHash', 'biblatexfullnamehash', 'fullhash', 'full-hash']),
+            'bibNameHash' => self::firstStringField($item, ['biblatex-bib-name-hash', 'biblatexBibNameHash', 'biblatexbibnamehash', 'bibnamehash', 'bib-name-hash']),
+            'labelNameHash' => self::firstStringField($item, ['biblatex-label-name-hash', 'biblatexLabelNameHash', 'biblatexlabelnamehash', 'labelnamehash', 'label-name-hash']),
+            'authorNameHash' => self::firstStringField($item, ['biblatex-author-name-hash', 'biblatexAuthorNameHash', 'biblatexauthornamehash', 'authornamehash', 'author-name-hash', 'authorfullhash', 'author-full-hash']),
+            'editorNameHash' => self::firstStringField($item, ['biblatex-editor-name-hash', 'biblatexEditorNameHash', 'biblatexeditornamehash', 'editornamehash', 'editor-name-hash', 'editorfullhash', 'editor-full-hash']),
+            'sortNameHash' => self::firstStringField($item, ['biblatex-sort-name-hash', 'biblatexSortNameHash', 'biblatexsortnamehash', 'sortnamehash', 'sort-name-hash']),
+        ];
+        $biblatexDisambiguationSummary = self::firstStringField($item, ['biblatex-disambiguation-summary', 'biblatexDisambiguationSummary', 'biblatexdisambiguationsummary'])
+            ?: self::biblatexDisambiguationSummary($biblatexDisambiguationFields);
 
         return [
             'id' => $id,
@@ -1732,6 +1744,15 @@ final class CitationCslProcessor
             'biblatexLanguageOptionSummary' => implode('; ', $biblatexLanguageOptions),
             'biblatexFieldAnnotations' => $biblatexFieldAnnotations,
             'biblatexFieldAnnotationSummary' => self::biblatexFieldAnnotationSummary($biblatexFieldAnnotations),
+            'biblatexPageRef' => $biblatexDisambiguationFields['pageRef'],
+            'biblatexNameHash' => $biblatexDisambiguationFields['nameHash'],
+            'biblatexFullNameHash' => $biblatexDisambiguationFields['fullNameHash'],
+            'biblatexBibNameHash' => $biblatexDisambiguationFields['bibNameHash'],
+            'biblatexLabelNameHash' => $biblatexDisambiguationFields['labelNameHash'],
+            'biblatexAuthorNameHash' => $biblatexDisambiguationFields['authorNameHash'],
+            'biblatexEditorNameHash' => $biblatexDisambiguationFields['editorNameHash'],
+            'biblatexSortNameHash' => $biblatexDisambiguationFields['sortNameHash'],
+            'biblatexDisambiguationSummary' => $biblatexDisambiguationSummary,
             'biblatexCustomFields' => $biblatexCustomFields,
             'biblatexCustomFieldSummary' => self::biblatexCustomFieldSummary($biblatexCustomFields),
             'biblatexCustomLists' => $biblatexCustomLists,
@@ -3014,6 +3035,31 @@ final class CitationCslProcessor
             }
 
             $parts[] = $label . ' ' . $value;
+        }
+
+        return implode('; ', $parts);
+    }
+
+    /**
+     * @param array{pageRef:string, nameHash:string, fullNameHash:string, bibNameHash:string, labelNameHash:string, authorNameHash:string, editorNameHash:string, sortNameHash:string} $fields
+     */
+    private static function biblatexDisambiguationSummary(array $fields): string
+    {
+        $parts = [];
+        foreach ([
+            'pageRef' => 'pageref',
+            'nameHash' => 'namehash',
+            'fullNameHash' => 'fullhash',
+            'bibNameHash' => 'bibnamehash',
+            'labelNameHash' => 'labelnamehash',
+            'authorNameHash' => 'authornamehash',
+            'editorNameHash' => 'editornamehash',
+            'sortNameHash' => 'sortnamehash',
+        ] as $key => $label) {
+            $value = trim($fields[$key] ?? '');
+            if ($value !== '') {
+                $parts[] = $label . '=' . $value;
+            }
         }
 
         return implode('; ', $parts);
@@ -8976,6 +9022,7 @@ final class CitationCslProcessor
             ['reprintDateAddon', 'Reprint date addendum'],
             ['eventDateAddon', 'Event date addendum'],
             ['accessedDateAddon', 'Accessed date addendum'],
+            ['biblatexDisambiguationSummary', 'BibLaTeX disambiguation'],
             ['risFieldProvenanceSummary', 'RIS field provenance'],
             ['risFieldDuplicateSummary', 'RIS duplicate fields'],
             ['risFieldConflictSummary', 'RIS conflicting fields'],
@@ -11311,6 +11358,15 @@ final class CitationCslProcessor
             'date-time-summary', 'time-summary' => (string) ($item['dateTimeSummary'] ?? ''),
             'date-season-summary', 'season-summary' => (string) ($item['dateSeasonSummary'] ?? ''),
             'date-era-summary', 'era-summary' => (string) ($item['dateEraSummary'] ?? ''),
+            'biblatex-page-ref', 'pageref', 'page-ref' => (string) ($item['biblatexPageRef'] ?? ''),
+            'biblatex-name-hash', 'namehash', 'name-hash' => (string) ($item['biblatexNameHash'] ?? ''),
+            'biblatex-full-name-hash', 'fullhash', 'full-hash' => (string) ($item['biblatexFullNameHash'] ?? ''),
+            'biblatex-bib-name-hash', 'bibnamehash', 'bib-name-hash' => (string) ($item['biblatexBibNameHash'] ?? ''),
+            'biblatex-label-name-hash', 'labelnamehash', 'label-name-hash' => (string) ($item['biblatexLabelNameHash'] ?? ''),
+            'biblatex-author-name-hash', 'authornamehash', 'author-name-hash', 'authorfullhash', 'author-full-hash' => (string) ($item['biblatexAuthorNameHash'] ?? ''),
+            'biblatex-editor-name-hash', 'editornamehash', 'editor-name-hash', 'editorfullhash', 'editor-full-hash' => (string) ($item['biblatexEditorNameHash'] ?? ''),
+            'biblatex-sort-name-hash', 'sortnamehash', 'sort-name-hash' => (string) ($item['biblatexSortNameHash'] ?? ''),
+            'biblatex-disambiguation-summary', 'biblatex-disambiguation', 'biblatexdisambiguationsummary', 'disambiguation-summary' => (string) ($item['biblatexDisambiguationSummary'] ?? ''),
             'issued-time', 'date-time' => $this->dateTimeForVariable($item, 'issued'),
             'issued-end-time', 'date-end-time' => $this->dateEndTimeForVariable($item, 'issued'),
             'accessed-time' => $this->dateTimeForVariable($item, 'accessed'),

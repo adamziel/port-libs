@@ -3393,6 +3393,104 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine</dd>', $blocks);
         $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies');
     },
+    'carries legacy biblatex disambiguation hash metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-disambiguation,
+  author          = {Smith, Ada and Roe, Pat},
+  title           = {Legacy Disambiguation Packet},
+  date            = {2026},
+  pageref         = {12, 18},
+  namehash        = {nh-smith-roe},
+  fullhash        = {fh-smith-roe},
+  bibnamehash     = {bnh-smith-roe},
+  labelnamehash   = {lnh-smith-roe},
+  authorfullhash  = {afh-smith-roe},
+  editornamehash  = {eh-review-desk},
+  sortnamehash    = {snh-smith-roe}
+}
+
+@report{legacy-hyphen-disambiguation,
+  author           = {Desk, Review},
+  title            = {Hyphen Hash Packet},
+  date             = {2025},
+  page-ref         = {appendix b},
+  name-hash        = {nh-desk},
+  full-hash        = {fh-desk},
+  author-name-hash = {anh-desk}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $primary = $items['legacy-disambiguation'];
+        $hyphen = $items['legacy-hyphen-disambiguation'];
+        $summary = 'pageref=12, 18; namehash=nh-smith-roe; fullhash=fh-smith-roe; bibnamehash=bnh-smith-roe; labelnamehash=lnh-smith-roe; authornamehash=afh-smith-roe; editornamehash=eh-review-desk; sortnamehash=snh-smith-roe';
+
+        $t->same('12, 18', $primary['biblatex-page-ref']);
+        $t->same('nh-smith-roe', $primary['biblatex-name-hash']);
+        $t->same('fh-smith-roe', $primary['biblatex-full-name-hash']);
+        $t->same('bnh-smith-roe', $primary['biblatex-bib-name-hash']);
+        $t->same('lnh-smith-roe', $primary['biblatex-label-name-hash']);
+        $t->same('afh-smith-roe', $primary['biblatex-author-name-hash']);
+        $t->same('eh-review-desk', $primary['biblatex-editor-name-hash']);
+        $t->same('snh-smith-roe', $primary['biblatex-sort-name-hash']);
+        $t->same($summary, $primary['biblatex-disambiguation-summary']);
+        $t->same('appendix b', $hyphen['biblatex-page-ref']);
+        $t->same('nh-desk', $hyphen['biblatex-name-hash']);
+        $t->same('anh-desk', $hyphen['biblatex-author-name-hash']);
+        $t->true(array_key_exists('authorfullhash', $primary['rawBibtex']['fields']), 'Raw BibLaTeX authorfullhash field should be preserved');
+        $t->contains('BibLaTeX disambiguation: ' . $summary, $processor->renderBibliographyText($primary));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Disambiguation Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-disambiguation-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="biblatex-disambiguation-summary"/>
+        <text variable="pageref"/>
+        <text variable="namehash"/>
+        <text variable="author-name-hash"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="biblatex-disambiguation-summary"/>
+      <text variable="editor-name-hash"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('legacy-disambiguation');
+        $t->same('Bounded Legacy BibLaTeX Disambiguation Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('12, 18', $normalized['biblatexPageRef'] ?? null);
+        $t->same('fh-smith-roe', $normalized['biblatexFullNameHash'] ?? null);
+        $t->same($summary, $normalized['biblatexDisambiguationSummary'] ?? null);
+        $t->same('[Legacy Disambiguation Packet | ' . $summary . ' | 12, 18 | nh-smith-roe | afh-smith-roe; Hyphen Hash Packet | pageref=appendix b; namehash=nh-desk; fullhash=fh-desk; authornamehash=anh-desk | appendix b | nh-desk | anh-desk]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-disambiguation', 'text' => '[@legacy-disambiguation]']),
+            new AstNode('citation', ['id' => 'legacy-hyphen-disambiguation', 'text' => '[@legacy-hyphen-disambiguation]']),
+        ]));
+        $t->same('Legacy Disambiguation Packet :: ' . $summary . ' :: eh-review-desk', $styled->renderBibliographyEntry('legacy-disambiguation'));
+
+        $document = (new MarkdownReader())->read('Disambiguation review [@legacy-disambiguation; @legacy-hyphen-disambiguation] stays visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-disambiguation', 'legacy-hyphen-disambiguation'], $handoff['citedKeys']);
+        $t->same('nh-smith-roe', $handoff['items'][0]['biblatex-name-hash'] ?? null);
+        $t->same('fh-smith-roe', $handoff['bibliography']->children[0]->attr('cslItem')['biblatex-full-name-hash'] ?? null);
+        $t->contains('<p>Disambiguation review [Legacy Disambiguation Packet | ' . $summary . ' | 12, 18 | nh-smith-roe | afh-smith-roe; Hyphen Hash Packet | pageref=appendix b; namehash=nh-desk; fullhash=fh-desk; authornamehash=anh-desk | appendix b | nh-desk | anh-desk] stays visible.</p>', $blocks);
+        $t->contains('<dt>Smith and Roe 2026</dt><dd>Legacy Disambiguation Packet :: ' . $summary . ' :: eh-review-desk</dd>', $blocks);
+    },
     'carries standalone biblatex entry option fields in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{legacy-standalone-options,

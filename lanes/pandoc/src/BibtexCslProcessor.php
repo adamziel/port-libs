@@ -513,6 +513,7 @@ final class BibtexCslProcessor
             'reprint-date-addon' => 'Reprint date addendum',
             'event-date-addon' => 'Event date addendum',
             'accessed-date-addon' => 'Accessed date addendum',
+            'biblatex-disambiguation-summary' => 'BibLaTeX disambiguation',
         ] as $field => $label) {
             if (($item[$field] ?? '') !== '') {
                 $value = (string) $item[$field];
@@ -922,6 +923,14 @@ final class BibtexCslProcessor
             'reprint-date-addon' => ['reprintdateaddon', 'reprintdate-addon', 'reprint-date-addon', 'reprintdateaddendum', 'reprint-date-addendum'],
             'event-date-addon' => ['eventdateaddon', 'eventdate-addon', 'event-date-addon'],
             'accessed-date-addon' => ['urldateaddon', 'urldate-addon', 'url-date-addon', 'accesseddateaddon', 'accessed-date-addon'],
+            'biblatex-page-ref' => ['pageref', 'page-ref'],
+            'biblatex-name-hash' => ['namehash', 'name-hash'],
+            'biblatex-full-name-hash' => ['fullhash', 'full-hash'],
+            'biblatex-bib-name-hash' => ['bibnamehash', 'bib-name-hash'],
+            'biblatex-label-name-hash' => ['labelnamehash', 'label-name-hash'],
+            'biblatex-author-name-hash' => ['authornamehash', 'author-name-hash', 'authorfullhash', 'author-full-hash'],
+            'biblatex-editor-name-hash' => ['editornamehash', 'editor-name-hash', 'editorfullhash', 'editor-full-hash'],
+            'biblatex-sort-name-hash' => ['sortnamehash', 'sort-name-hash'],
             'short-title' => ['shorttitle', 'short-title', 'title-short'],
             'subtitle' => ['subtitle'],
             'title-addon' => ['titleaddon', 'title-addon'],
@@ -1396,6 +1405,11 @@ final class BibtexCslProcessor
         $options = $this->biblatexEntryOptions($fields);
         if ($options !== []) {
             $item['biblatex-options'] = $options;
+        }
+
+        $disambiguationSummary = $this->biblatexDisambiguationSummary($item);
+        if ($disambiguationSummary !== '') {
+            $item['biblatex-disambiguation-summary'] = $disambiguationSummary;
         }
 
         $languageOptions = $this->biblatexOptionList($fields['langidopts'] ?? '');
@@ -3107,6 +3121,31 @@ final class BibtexCslProcessor
         $name = strtolower($this->cleanValue($name));
 
         return preg_replace('/[-_\s]+/', '', $name) ?? $name;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function biblatexDisambiguationSummary(array $item): string
+    {
+        $parts = [];
+        foreach ([
+            'biblatex-page-ref' => 'pageref',
+            'biblatex-name-hash' => 'namehash',
+            'biblatex-full-name-hash' => 'fullhash',
+            'biblatex-bib-name-hash' => 'bibnamehash',
+            'biblatex-label-name-hash' => 'labelnamehash',
+            'biblatex-author-name-hash' => 'authornamehash',
+            'biblatex-editor-name-hash' => 'editornamehash',
+            'biblatex-sort-name-hash' => 'sortnamehash',
+        ] as $field => $label) {
+            $value = trim((string) ($item[$field] ?? ''));
+            if ($value !== '') {
+                $parts[] = $label . '=' . $value;
+            }
+        }
+
+        return implode('; ', $parts);
     }
 
     /**
