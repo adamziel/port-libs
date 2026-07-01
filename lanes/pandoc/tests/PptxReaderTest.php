@@ -2012,6 +2012,10 @@ XML);
       <p:nvGraphicFramePr><p:cNvPr id="12" name="Diagram Missing Rels"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds/></a:graphicData></a:graphic>
     </p:graphicFrame>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="13" name="Diagram Unknown Rel"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdMissingData" r:lo="rIdMissingLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
   </p:spTree></p:cSld>
 </p:sld>
 XML);
@@ -2615,10 +2619,10 @@ return [
         $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
         $diagnostics = array_values(array_filter(
             $paragraphs,
-            static fn (AstNode $paragraph): bool => str_contains((string) $paragraph->attr('text'), 'missing-or-invalid-diagram-data')
+            static fn (AstNode $paragraph): bool => str_contains((string) $paragraph->attr('text'), 'File not found in archive')
         ));
 
-        $t->same(true, in_array('[Diagram parse error: missing-or-invalid-diagram-data: ppt/diagrams/missing-data.xml]', $texts, true));
+        $t->same(true, in_array('[Diagram parse error: File not found in archive: ppt/diagrams/missing-data.xml]', $texts, true));
         $t->same(1, count($diagnostics));
         $t->same('graphicFrame', $diagnostics[0]->attr('pptxShape')['element'] ?? null);
         $t->same('Broken SmartArt Frame', $diagnostics[0]->attr('pptxShape')['name'] ?? null);
@@ -2636,6 +2640,7 @@ return [
             '[Graphic: no-uri]',
             '[Graphic: diagram-no-relIds]',
             '[Graphic: diagram-missing-rels]',
+            '[Diagram parse error: Relationship not found: rIdMissingData]',
         ] as $expected) {
             $t->same(true, in_array($expected, $texts, true));
         }
@@ -2643,16 +2648,19 @@ return [
         $t->contains('Para [ Str "[Graphic:" , Space , Str "no-uri]" ]', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-no-relIds]" ]', $native);
         $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-missing-rels]" ]', $native);
+        $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "Relationship" , Space , Str "not" , Space , Str "found:" , Space , Str "rIdMissingData]" ]', $native);
 
         $placeholderParagraphs = array_values(array_filter(
             $paragraphs,
             static fn (AstNode $paragraph): bool => str_starts_with((string) $paragraph->attr('text'), '[Graphic:')
+                || str_starts_with((string) $paragraph->attr('text'), '[Diagram parse error:')
         ));
 
-        $t->same(3, count($placeholderParagraphs));
+        $t->same(4, count($placeholderParagraphs));
         $t->same('No URI Graphic', $placeholderParagraphs[0]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram No RelIds', $placeholderParagraphs[1]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram Missing Rels', $placeholderParagraphs[2]->attr('pptxShape')['name'] ?? null);
+        $t->same('Diagram Unknown Rel', $placeholderParagraphs[3]->attr('pptxShape')['name'] ?? null);
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
 

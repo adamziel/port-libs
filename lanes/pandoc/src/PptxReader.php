@@ -2586,26 +2586,32 @@ final class PptxReader
 
         $dataRelationship = $slideRelationships->byId($dataRelId);
         $layoutRelationship = $slideRelationships->byId($layoutRelId);
-        if (!$dataRelationship instanceof OpcRelationship || !$layoutRelationship instanceof OpcRelationship || $dataRelationship->isExternal() || $layoutRelationship->isExternal()) {
-            return $this->paragraph('[Diagram parse error: diagram-missing-rels]');
+        if (!$dataRelationship instanceof OpcRelationship) {
+            return $this->paragraph('[Diagram parse error: Relationship not found: ' . $dataRelId . ']');
+        }
+        if (!$layoutRelationship instanceof OpcRelationship) {
+            return $this->paragraph('[Diagram parse error: Relationship not found: ' . $layoutRelId . ']');
         }
 
-        $dataPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($dataRelationship));
-        $layoutPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($layoutRelationship));
-        $dataDocument = $this->optionalPackageXml($package, $dataPart, 'PPTX SmartArt data');
+        $dataPart = $this->upstreamDiagramPart($dataRelationship->target);
+        $layoutPart = $this->upstreamDiagramPart($layoutRelationship->target);
+        $dataDocument = $this->optionalPackageXml($package, '/' . ltrim($dataPart, '/'), 'PPTX SmartArt data');
         if (!$dataDocument instanceof \DOMDocument) {
-            return $this->paragraph('[Diagram parse error: missing-or-invalid-diagram-data: ' . ltrim($dataPart, '/') . ']');
+            return $this->paragraph('[Diagram parse error: File not found in archive: ' . $dataPart . ']');
         }
 
-        $layoutDocument = $this->optionalPackageXml($package, $layoutPart, 'PPTX SmartArt layout');
+        $layoutDocument = $this->optionalPackageXml($package, '/' . ltrim($layoutPart, '/'), 'PPTX SmartArt layout');
         if (!$layoutDocument instanceof \DOMDocument) {
-            return $this->paragraph('[Diagram parse error: missing-or-invalid-diagram-layout: ' . ltrim($layoutPart, '/') . ']');
+            return $this->paragraph('[Diagram parse error: File not found in archive: ' . $layoutPart . ']');
         }
 
-        $dataRoot = XmlHtmlDom::rootElement($dataDocument, 'dataModel');
-        $layoutRoot = XmlHtmlDom::rootElement($layoutDocument, 'layoutDef');
+        $dataRoot = XmlHtmlDom::rootElement($dataDocument);
+        $layoutRoot = XmlHtmlDom::rootElement($layoutDocument);
         if (!$dataRoot instanceof \DOMElement || !$layoutRoot instanceof \DOMElement) {
             return $this->paragraph('[Diagram parse error: diagram-invalid-xml]');
+        }
+        if (!$this->firstChildElement($dataRoot, 'ptLst') instanceof \DOMElement) {
+            return $this->paragraph('[Diagram parse error: Missing dgm:ptLst]');
         }
 
         $layoutType = $this->diagramLayoutType($layoutRoot);
@@ -2628,6 +2634,15 @@ final class PptxReader
             'classes' => ['smartart', $layoutType],
             'attributes' => ['layout' => $layoutType],
         ], $children);
+    }
+
+    private function upstreamDiagramPart(string $target): string
+    {
+        if (str_starts_with($target, '../diagrams/')) {
+            return 'ppt/diagrams/' . substr($target, strlen('../diagrams/'));
+        }
+
+        return $target;
     }
 
     private function diagramLayoutType(\DOMElement $layoutRoot): string
