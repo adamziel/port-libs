@@ -14793,6 +14793,7 @@ final class XmlHtmlDom
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
+            $summary += self::typedInputValueReviewSummary($node, $inputType['inputType']);
             if ($inputType['inputType'] === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
                 $summary += self::fileInputReviewSummary($node, $inputType['inputType']);
             }
@@ -22995,6 +22996,158 @@ final class XmlHtmlDom
             'inputTypeMissingDefaulted' => $missing,
             'inputTypeInvalidValueDefaulted' => !$missing && !$known,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function typedInputValueReviewSummary(\DOMElement $input, string $inputType): array
+    {
+        if (!self::isTypedInputValueType($inputType)) {
+            return [];
+        }
+
+        $value = self::typedInputValueTokenSummary($inputType, self::attributeOrNull($input, 'value'));
+        $min = $input->hasAttribute('min')
+            ? self::typedInputValueTokenSummary($inputType, $input->getAttribute('min'))
+            : null;
+        $max = $input->hasAttribute('max')
+            ? self::typedInputValueTokenSummary($inputType, $input->getAttribute('max'))
+            : null;
+        $stepRaw = self::attributeOrNull($input, 'step');
+        $step = $stepRaw === null ? null : self::stepConstraintToken($stepRaw);
+        $rangeValid = null;
+        if ($min !== null && $max !== null && $min['valid'] && $max['valid']) {
+            $rangeValid = self::typedInputComparableValue($inputType, $max['value'])
+                >= self::typedInputComparableValue($inputType, $min['value']);
+        }
+
+        $issues = [];
+        if (!$value['valid']) {
+            $issues[] = [
+                'code' => 'invalid-typed-input-value',
+                'inputType' => $inputType,
+                'valueRaw' => $value['raw'],
+            ];
+        }
+        if ($min !== null && !$min['valid']) {
+            $issues[] = [
+                'code' => 'invalid-typed-input-min',
+                'inputType' => $inputType,
+                'minRaw' => $min['raw'],
+            ];
+        }
+        if ($max !== null && !$max['valid']) {
+            $issues[] = [
+                'code' => 'invalid-typed-input-max',
+                'inputType' => $inputType,
+                'maxRaw' => $max['raw'],
+            ];
+        }
+        if ($rangeValid === false) {
+            $issues[] = [
+                'code' => 'typed-input-min-exceeds-max',
+                'inputType' => $inputType,
+                'min' => $min['value'],
+                'max' => $max['value'],
+            ];
+        }
+        if ($stepRaw !== null && $step === null) {
+            $issues[] = [
+                'code' => 'invalid-typed-input-step',
+                'inputType' => $inputType,
+                'stepRaw' => $stepRaw,
+            ];
+        }
+
+        return [
+            'typedInputReviewPolicy' => 'html-typed-input-value-review',
+            'typedInputType' => $inputType,
+            'typedInputValueRaw' => $value['raw'],
+            'typedInputValue' => $value['value'],
+            'typedInputValueKind' => $value['kind'],
+            'typedInputValueState' => $value['state'],
+            'typedInputValueValid' => $value['valid'],
+            'typedInputMinRaw' => $min['raw'] ?? null,
+            'typedInputMin' => $min['value'] ?? null,
+            'typedInputMinKind' => $min['kind'] ?? null,
+            'typedInputMinValid' => $min['valid'] ?? null,
+            'typedInputMaxRaw' => $max['raw'] ?? null,
+            'typedInputMax' => $max['value'] ?? null,
+            'typedInputMaxKind' => $max['kind'] ?? null,
+            'typedInputMaxValid' => $max['valid'] ?? null,
+            'typedInputRangeValid' => $rangeValid,
+            'typedInputStepRaw' => $stepRaw,
+            'typedInputStep' => $step,
+            'typedInputStepValid' => $stepRaw === null ? null : $step !== null,
+            'typedInputIssues' => $issues,
+            'typedInputIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'typedInputValid' => $issues === [],
+        ];
+    }
+
+    private static function isTypedInputValueType(string $inputType): bool
+    {
+        return in_array($inputType, ['date', 'month', 'week', 'time', 'datetime-local', 'number', 'range'], true);
+    }
+
+    /**
+     * @return array{raw:?string, value:float|string|null, kind:?string, state:string, valid:bool}
+     */
+    private static function typedInputValueTokenSummary(string $inputType, ?string $raw): array
+    {
+        if ($raw === null) {
+            return [
+                'raw' => null,
+                'value' => null,
+                'kind' => null,
+                'state' => 'missing',
+                'valid' => true,
+            ];
+        }
+
+        if ($inputType === 'number' || $inputType === 'range') {
+            $number = self::finiteNumericToken($raw);
+
+            return [
+                'raw' => $raw,
+                'value' => $number,
+                'kind' => 'number',
+                'state' => $number === null ? 'invalid' : 'valid-number',
+                'valid' => $number !== null,
+            ];
+        }
+
+        $datetime = self::timeDatetimeSummary($raw);
+        $expectedKind = match ($inputType) {
+            'date' => 'date',
+            'month' => 'month',
+            'week' => 'week',
+            'time' => 'time',
+            'datetime-local' => 'local-datetime',
+            default => null,
+        };
+        $valid = $datetime !== null && $datetime['kind'] === $expectedKind;
+
+        return [
+            'raw' => $raw,
+            'value' => $valid ? $datetime['value'] : null,
+            'kind' => $valid ? $datetime['kind'] : $expectedKind,
+            'state' => $valid ? 'valid-' . $expectedKind : 'invalid',
+            'valid' => $valid,
+        ];
+    }
+
+    private static function typedInputComparableValue(string $inputType, float|string|null $value): float|string
+    {
+        if (($inputType === 'number' || $inputType === 'range') && is_float($value)) {
+            return $value;
+        }
+
+        return (string) $value;
     }
 
     /**
