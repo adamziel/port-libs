@@ -15597,7 +15597,7 @@ final class OdfReader
                 'declared' => false,
                 'declaredSize' => null,
                 'declaredSizeMismatch' => false,
-                'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'signature-package-bytes-blocked',
             ];
         }
 
@@ -15659,7 +15659,7 @@ final class OdfReader
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'canExposeAsDocumentMedia' => false,
-                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? ($declared ? 'signature-package-bytes-blocked' : 'undeclared-package-entry-no-bytes'),
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? 'signature-package-bytes-blocked',
                 'reviewPolicy' => 'package-signature-metadata-only',
                 'issues' => $issues,
             ];
@@ -15684,6 +15684,8 @@ final class OdfReader
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'byteExposurePolicy' => 'signature-package-bytes-blocked',
+            'reviewPolicy' => 'package-signature-metadata-only',
             'items' => $items,
         ];
     }
@@ -16841,6 +16843,9 @@ final class OdfReader
 
     private function undeclaredPackageEntryByteExposurePolicy(string $part): string
     {
+        if ($this->isSignaturePartName($part)) {
+            return 'signature-package-bytes-blocked';
+        }
         if ($this->isFontPackagePartName($part)) {
             return 'font-package-bytes-blocked';
         }

@@ -10994,7 +10994,7 @@ XML;
         $t->same(true, $orphan['undeclared']);
         $t->same(null, $orphan['mediaType']);
         $t->same(strlen($orphanBytes), $orphan['byteLength']);
-        $t->same('undeclared-package-entry-no-bytes', $orphan['byteExposurePolicy']);
+        $t->same('signature-package-bytes-blocked', $orphan['byteExposurePolicy']);
         $t->same(['odf-signature-undeclared-package-part'], $orphan['issues']);
 
         $t->same(true, $manifestByPart['META-INF/documentsignatures.xml']['signaturePackagePart']);
@@ -11012,8 +11012,10 @@ XML;
         $t->same(['package-signature', 'undeclared-package-entry'], $inventory['META-INF/orphan-signatures.xml']['roles']);
         $t->same(false, $inventory['META-INF/documentsignatures.xml']['canExposeBytes']);
         $t->same('signature-package-bytes-blocked', $inventory['META-INF/documentsignatures.xml']['byteExposurePolicy']);
+        $t->same('signature-package-bytes-blocked', $inventory['META-INF/orphan-signatures.xml']['byteExposurePolicy']);
         $t->same(1, $result['importReport']['manifest']['undeclaredEntryCount']);
         $t->same('META-INF/orphan-signatures.xml', $result['importReport']['manifest']['undeclaredEntries'][0]['part']);
+        $t->same('signature-package-bytes-blocked', $result['importReport']['manifest']['undeclaredEntries'][0]['byteExposurePolicy']);
         $t->same(1, $mediaResources['packageRolePrecedenceCount']);
         $t->same(['package-signature'], $mediaResources['packageRolePrecedenceItems'][0]['packageRolePrecedence']);
     },
