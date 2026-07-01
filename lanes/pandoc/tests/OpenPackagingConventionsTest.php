@@ -10,6 +10,33 @@ use PortLibs\Pandoc\OpcRelationshipGraph;
 use PortLibs\Pandoc\OpcRelationships;
 use PortLibs\Pandoc\ZipPackage;
 
+$pathSegmentPositionReviews = static function (array $segments): array {
+    $reviews = [];
+    $segmentCount = count($segments);
+    foreach ($segments as $segmentIndex => $segment) {
+        $isFirst = $segmentIndex === 0;
+        $isLast = $segmentIndex === $segmentCount - 1;
+        $isOnly = $segmentCount === 1;
+        $position = match (true) {
+            $isOnly => 'only',
+            $isFirst => 'first',
+            $isLast => 'last',
+            default => 'middle',
+        };
+
+        $reviews[] = [
+            'pathSegmentIndex' => $segmentIndex,
+            'segment' => $segment,
+            'position' => $position,
+            'isFirst' => $isFirst,
+            'isLast' => $isLast,
+            'isOnly' => $isOnly,
+        ];
+    }
+
+    return $reviews;
+};
+
 $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -1987,7 +2014,7 @@ XML;
         $t->same('xml-part', $summary['largestPayloadEntries'][4]['role']);
         $t->same('xml', $summary['largestPayloadEntries'][4]['handoffKind']);
     },
-    'summarizes OPC ZIP manifest directory roots before XML package handoff' => static function (TestRunner $t): void {
+    'summarizes OPC ZIP manifest directory roots before XML package handoff' => static function (TestRunner $t) use ($pathSegmentPositionReviews): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -2090,6 +2117,10 @@ XML;
         $t->same(5, $centralSummary['directoryRootCount']);
         $t->same($expectedRootCounts, $summary['directoryRootCounts']);
         $t->same($expectedRootCounts, $centralSummary['directoryRootCounts']);
+        $t->same(4, $summary['pathSegmentPositionSummaryCount']);
+        $t->same(19, $summary['pathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 8, 'last' => 8, 'middle' => 2, 'only' => 1], $summary['pathSegmentPositionCounts']);
+        $t->same(['first' => 8, 'last' => 8, 'middle' => 2, 'only' => 1], $summary['pathSegmentPositionEntryCounts']);
         $t->same([
             'word/_rels/document.xml.rels',
             'word/document.xml',
@@ -2104,14 +2135,26 @@ XML;
         $t->same(['xml' => 1], $roots['docProps/']['handoffKindCounts']);
         $t->same('/', $entries['[Content_Types].xml']['directoryRoot']);
         $t->same(['[Content_Types].xml'], $entries['[Content_Types].xml']['pathSegments']);
+        $t->same(
+            $pathSegmentPositionReviews(['[Content_Types].xml']),
+            $entries['[Content_Types].xml']['pathSegmentPositionReviews']
+        );
         $t->same(1, $entries['[Content_Types].xml']['pathSegmentCount']);
         $t->same(0, $entries['[Content_Types].xml']['directoryDepth']);
         $t->same('word/', $entries['word/media/image.png']['directoryRoot']);
         $t->same(['word', 'media', 'image.png'], $entries['word/media/image.png']['pathSegments']);
+        $t->same(
+            $pathSegmentPositionReviews(['word', 'media', 'image.png']),
+            $entries['word/media/image.png']['pathSegmentPositionReviews']
+        );
         $t->same(3, $entries['word/media/image.png']['pathSegmentCount']);
         $t->same(2, $entries['word/media/image.png']['directoryDepth']);
         $t->same('customXml/', $entries['customXml/item1.xml']['directoryRoot']);
         $t->same(['customXml', 'item1.xml'], $entries['customXml/item1.xml']['pathSegments']);
+        $t->same(
+            $pathSegmentPositionReviews(['customXml', 'item1.xml']),
+            $entries['customXml/item1.xml']['pathSegmentPositionReviews']
+        );
         $t->same(2, $entries['customXml/item1.xml']['pathSegmentCount']);
         $t->same(1, $entries['customXml/item1.xml']['directoryDepth']);
     },

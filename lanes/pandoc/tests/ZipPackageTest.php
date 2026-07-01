@@ -7,6 +7,32 @@ use PortLibs\Pandoc\ZipPackageEntry;
 use PortLibs\Pandoc\GzipStream;
 
 $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+$pathSegmentPositionReviews = static function (array $segments): array {
+    $reviews = [];
+    $segmentCount = count($segments);
+    foreach ($segments as $segmentIndex => $segment) {
+        $isFirst = $segmentIndex === 0;
+        $isLast = $segmentIndex === $segmentCount - 1;
+        $isOnly = $segmentCount === 1;
+        $position = match (true) {
+            $isOnly => 'only',
+            $isFirst => 'first',
+            $isLast => 'last',
+            default => 'middle',
+        };
+
+        $reviews[] = [
+            'pathSegmentIndex' => $segmentIndex,
+            'segment' => $segment,
+            'position' => $position,
+            'isFirst' => $isFirst,
+            'isLast' => $isLast,
+            'isOnly' => $isOnly,
+        ];
+    }
+
+    return $reviews;
+};
 $packNtfsFileTime = static function (int $timestamp): string {
     $filetime = ($timestamp + 11644473600) * 10000000;
     $low = $filetime & 0xffffffff;
@@ -698,7 +724,7 @@ return [
         $t->same('<container/>', $package->read('/META-INF/container.xml'));
     },
 
-    'preflights deterministic zip package manifest for shared package ingestion' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+    'preflights deterministic zip package manifest for shared package ingestion' => static function (TestRunner $t) use ($buildZipPackage, $crc32, $pathSegmentPositionReviews): void {
         $mimetype = 'application/epub+zip';
         $contentXhtml = '<html xmlns="http://www.w3.org/1999/xhtml"><body><p>Manifest identity</p></body></html>';
         $zip = $buildZipPackage([
@@ -738,6 +764,7 @@ return [
                 'caseInsensitiveNameCollisionIssues' => [],
                 'directoryRoot' => 'OEBPS/',
                 'pathSegments' => ['OEBPS', 'content.xhtml'],
+                'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['OEBPS', 'content.xhtml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
                 'packagePartExtension' => 'xhtml',
@@ -761,6 +788,7 @@ return [
                 'caseInsensitiveNameCollisionIssues' => [],
                 'directoryRoot' => 'OEBPS/',
                 'pathSegments' => ['OEBPS', 'images'],
+                'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['OEBPS', 'images']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
                 'packagePartExtension' => null,
@@ -784,6 +812,7 @@ return [
                 'caseInsensitiveNameCollisionIssues' => [],
                 'directoryRoot' => '/',
                 'pathSegments' => ['mimetype'],
+                'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['mimetype']),
                 'pathSegmentCount' => 1,
                 'directoryDepth' => 0,
                 'packagePartExtension' => null,
@@ -827,6 +856,7 @@ return [
                     'creatorHostSystemIssues' => [],
                     'directoryRoot' => $entry['directoryRoot'],
                     'pathSegments' => $entry['pathSegments'],
+                    'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                     'pathSegmentCount' => $entry['pathSegmentCount'],
                     'directoryDepth' => $entry['directoryDepth'],
                     'packagePartExtension' => $entry['packagePartExtension'],
@@ -1131,6 +1161,11 @@ return [
             'extensionlessPackagePartCount' => 1,
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
+            'pathSegmentPositionSummaryCount' => $manifest['pathSegmentPositionSummaryCount'],
+            'pathSegmentPositionOccurrenceCount' => $manifest['pathSegmentPositionOccurrenceCount'],
+            'pathSegmentPositionCounts' => $manifest['pathSegmentPositionCounts'],
+            'pathSegmentPositionEntryCounts' => $manifest['pathSegmentPositionEntryCounts'],
+            'pathSegmentPositionSummaries' => $manifest['pathSegmentPositionSummaries'],
             'entries' => $expectedEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -1234,6 +1269,10 @@ return [
         $t->same(2, $manifest['packagePartExtensionSummaryCount']);
         $t->same($expectedPackagePartExtensions, $manifest['packagePartExtensions']);
         $t->same($expectedPackagePartExtensionSummaries, $manifest['packagePartExtensionSummaries']);
+        $t->same(3, $manifest['pathSegmentPositionSummaryCount']);
+        $t->same(5, $manifest['pathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 2, 'last' => 2, 'only' => 1], $manifest['pathSegmentPositionCounts']);
+        $t->same(['first' => 2, 'last' => 2, 'only' => 1], $manifest['pathSegmentPositionEntryCounts']);
         $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
         $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);
         $t->same(false, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
@@ -1257,6 +1296,7 @@ return [
                 'creatorHostSystemIssues' => $entry['creatorHostSystemIssues'],
                 'directoryRoot' => $entry['directoryRoot'],
                 'pathSegments' => $entry['pathSegments'],
+                'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
                 'directoryDepth' => $entry['directoryDepth'],
                 'packagePartExtension' => $entry['packagePartExtension'],
@@ -1303,6 +1343,75 @@ return [
         $t->same($manifest, $strict['packageManifest']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest path segment positions for shared package handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
+        $documentXml = '<w:document><w:body><w:p>path segment positions</w:p></w:body></w:document>';
+        $scanBytes = "deep scan payload bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'mimetype',
+                'data' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/deep/scan.png',
+                'data' => $scanBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/deep/',
+                'data' => '',
+                'method' => 0,
+            ],
+        ]));
+
+        $manifest = $package->packageManifestPreflight();
+        $entriesByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+        $positions = [];
+        foreach ($manifest['pathSegmentPositionSummaries'] as $position) {
+            $positions[$position['position']] = $position;
+        }
+
+        $t->same($pathSegmentPositionReviews(['mimetype']), $entriesByName['mimetype']['pathSegmentPositionReviews']);
+        $t->same(
+            $pathSegmentPositionReviews(['word', 'media', 'deep', 'scan.png']),
+            $entriesByName['word/media/deep/scan.png']['pathSegmentPositionReviews']
+        );
+        $t->same(4, $manifest['pathSegmentPositionSummaryCount']);
+        $t->same(10, $manifest['pathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 3, 'last' => 3, 'middle' => 3, 'only' => 1], $manifest['pathSegmentPositionCounts']);
+        $t->same(['first' => 3, 'last' => 3, 'middle' => 2, 'only' => 1], $manifest['pathSegmentPositionEntryCounts']);
+        $t->same(['first', 'last', 'middle', 'only'], array_column($manifest['pathSegmentPositionSummaries'], 'position'));
+
+        $middle = $positions['middle'];
+        $t->same(3, $middle['occurrenceCount']);
+        $t->same(2, $middle['entryCount']);
+        $t->same(1, $middle['fileEntryCount']);
+        $t->same(1, $middle['directoryEntryCount']);
+        $t->same(strlen($scanBytes), $middle['compressedBytes']);
+        $t->same(strlen($scanBytes), $middle['uncompressedBytes']);
+        $t->same(2, $middle['uniqueSegmentCount']);
+        $t->same(['deep' => 1, 'media' => 2], $middle['segmentCounts']);
+        $t->same(['deep', 'media'], $middle['segments']);
+        $t->same([1 => 2, 2 => 1], $middle['pathSegmentIndexCounts']);
+        $t->same(['word/media/deep/scan.png', 'word/media/deep/'], $middle['entryNames']);
+
+        $last = $positions['last'];
+        $t->same(['deep' => 1, 'document.xml' => 1, 'scan.png' => 1], $last['segmentCounts']);
+        $t->same([1 => 1, 2 => 1, 3 => 1], $last['pathSegmentIndexCounts']);
+
+        $only = $positions['only'];
+        $t->same(['mimetype' => 1], $only['segmentCounts']);
+        $t->same(['mimetype'], $only['entryNames']);
     },
 
     'preflights zip package manifest case-insensitive name collisions for package handoff' => static function (TestRunner $t): void {
@@ -1743,7 +1852,7 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
-    'preflights zip package manifest data descriptor source records for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+    'preflights zip package manifest data descriptor source records for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32, $pathSegmentPositionReviews): void {
         $documentXml = '<w:document><w:body><w:p>descriptor manifest source</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment>descriptor manifest sidecar</w:comment></w:comments>';
         $commentsCompressed = gzdeflate($commentsXml);
@@ -1792,6 +1901,7 @@ return [
                 'creatorHostSystemIssues' => [],
                 'directoryRoot' => 'word/',
                 'pathSegments' => ['word', 'document.xml'],
+                'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['word', 'document.xml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
                 'packagePartExtension' => 'xml',
@@ -1852,6 +1962,7 @@ return [
                 'creatorHostSystemIssues' => [],
                 'directoryRoot' => 'word/',
                 'pathSegments' => ['word', 'comments.xml'],
+                'pathSegmentPositionReviews' => $pathSegmentPositionReviews(['word', 'comments.xml']),
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
                 'packagePartExtension' => 'xml',
@@ -2091,6 +2202,11 @@ return [
             'extensionlessPackagePartCount' => 0,
             'packagePartExtensions' => $expectedPackagePartExtensions,
             'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
+            'pathSegmentPositionSummaryCount' => $manifest['pathSegmentPositionSummaryCount'],
+            'pathSegmentPositionOccurrenceCount' => $manifest['pathSegmentPositionOccurrenceCount'],
+            'pathSegmentPositionCounts' => $manifest['pathSegmentPositionCounts'],
+            'pathSegmentPositionEntryCounts' => $manifest['pathSegmentPositionEntryCounts'],
+            'pathSegmentPositionSummaries' => $manifest['pathSegmentPositionSummaries'],
             'entries' => $expectedManifestEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -2114,6 +2230,10 @@ return [
         $t->same(1, $manifest['packagePartExtensionSummaryCount']);
         $t->same($expectedPackagePartExtensions, $manifest['packagePartExtensions']);
         $t->same($expectedPackagePartExtensionSummaries, $manifest['packagePartExtensionSummaries']);
+        $t->same(2, $manifest['pathSegmentPositionSummaryCount']);
+        $t->same(4, $manifest['pathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 2, 'last' => 2], $manifest['pathSegmentPositionCounts']);
+        $t->same(['first' => 2, 'last' => 2], $manifest['pathSegmentPositionEntryCounts']);
         $t->same(2, $manifest['generalPurposeFlagSummaryCount']);
         $t->same(2, $manifest['generalPurposeUtf8NameEntryCount']);
         $t->same(1, $manifest['generalPurposeDataDescriptorEntryCount']);
@@ -2155,6 +2275,7 @@ return [
                 'creatorHostSystemIssues' => $entry['creatorHostSystemIssues'],
                 'directoryRoot' => $entry['directoryRoot'],
                 'pathSegments' => $entry['pathSegments'],
+                'pathSegmentPositionReviews' => $entry['pathSegmentPositionReviews'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
                 'directoryDepth' => $entry['directoryDepth'],
                 'packagePartExtension' => $entry['packagePartExtension'],
