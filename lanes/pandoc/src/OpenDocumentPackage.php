@@ -1713,6 +1713,15 @@ final class OpenDocumentPackage
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount'],
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartBaseNameStems'],
             'packageZipSourceRecordPackagePartBaseNameStems' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartBaseNameStems'],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemCount' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartCaseFoldBaseNameStemCount'],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemCounts' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartCaseFoldBaseNameStemCounts'],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemBytes' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartCaseFoldBaseNameStemBytes'],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemDataDescriptorEntryCount' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartCaseFoldBaseNameStemDataDescriptorEntryCount'],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemIssueEntryCount' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartCaseFoldBaseNameStemIssueEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemCount' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemEntryCount' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStems' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStems'],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStems' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartCaseFoldBaseNameStems'],
             'packageZipSourceRecordCompressionMethodCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCount'],
             'packageZipSourceRecordCompressionMethodCounts' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCounts'],
             'packageZipSourceRecordCompressionMethodBytes' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodBytes'],
@@ -3124,6 +3133,15 @@ final class OpenDocumentPackage
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $packageInventory['packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount'] ?? 0,
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $packageInventory['packageZipSourceRecordDuplicatePackagePartBaseNameStems'] ?? [],
             'packageZipSourceRecordPackagePartBaseNameStems' => $packageInventory['packageZipSourceRecordPackagePartBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemCount' => $packageInventory['packageZipSourceRecordPackagePartCaseFoldBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemCounts' => $packageInventory['packageZipSourceRecordPackagePartCaseFoldBaseNameStemCounts'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemBytes' => $packageInventory['packageZipSourceRecordPackagePartCaseFoldBaseNameStemBytes'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemDataDescriptorEntryCount' => $packageInventory['packageZipSourceRecordPackagePartCaseFoldBaseNameStemDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemIssueEntryCount' => $packageInventory['packageZipSourceRecordPackagePartCaseFoldBaseNameStemIssueEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemCount' => $packageInventory['packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemEntryCount' => $packageInventory['packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStems' => $packageInventory['packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStems' => $packageInventory['packageZipSourceRecordPackagePartCaseFoldBaseNameStems'] ?? [],
             'packageZipSourceRecordCompressionMethodCount' => $packageInventory['packageZipSourceRecordCompressionMethodCount'] ?? 0,
             'packageZipSourceRecordCompressionMethodCounts' => $packageInventory['packageZipSourceRecordCompressionMethodCounts'] ?? [],
             'packageZipSourceRecordCompressionMethodBytes' => $packageInventory['packageZipSourceRecordCompressionMethodBytes'] ?? [],
@@ -4898,6 +4916,7 @@ final class OpenDocumentPackage
             return is_int($value) ? $value : 0;
         };
         $baseNameStems = [];
+        $caseFoldBaseNameStems = [];
 
         foreach ($parts as $name => $part) {
             if (($part['zipHasSourceRecordProvenance'] ?? false) !== true || ($part['isDirectory'] ?? false) === true) {
@@ -4919,6 +4938,12 @@ final class OpenDocumentPackage
                 ? $part['zipPackageManifestPackagePartBaseNameStem']
                 : ($baseName !== '' ? self::packagePartBasenameStem($baseName) : null);
             if (!is_string($baseNameStem) || $baseNameStem === '') {
+                continue;
+            }
+            $caseFoldBaseNameStem = is_string($part['zipPackageManifestPackagePartCaseFoldBaseNameStem'] ?? null)
+                ? $part['zipPackageManifestPackagePartCaseFoldBaseNameStem']
+                : strtolower($baseNameStem);
+            if ($caseFoldBaseNameStem === '') {
                 continue;
             }
 
@@ -4951,6 +4976,49 @@ final class OpenDocumentPackage
                     'sourceRecordIssueCount' => 0,
                     'exposableEntryCount' => 0,
                     'blockedEntryCount' => 0,
+                    'baseNameCounts' => [],
+                    'partExtensionCounts' => [],
+                    'directoryRootCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'manifestMediaFamilyCounts' => [],
+                    'manifestMediaTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'entryNames' => [],
+                    'largestSourceRecordEntry' => null,
+                ];
+            }
+            if (!isset($caseFoldBaseNameStems[$caseFoldBaseNameStem])) {
+                $caseFoldBaseNameStems[$caseFoldBaseNameStem] = [
+                    'caseFoldBaseNameStem' => $caseFoldBaseNameStem,
+                    'entryCount' => 0,
+                    'baseNameStemVariantCount' => 0,
+                    'baseNameVariantCount' => 0,
+                    'extensionVariantCount' => 0,
+                    'extensionlessPackagePartCount' => 0,
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'localHeaderBytes' => 0,
+                    'localHeaderFixedHeaderBytes' => 0,
+                    'localHeaderVariableFieldBytes' => 0,
+                    'localHeaderRawNameBytes' => 0,
+                    'localHeaderExtraFieldBytes' => 0,
+                    'localHeaderReviewFieldBytes' => 0,
+                    'compressedDataBytes' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'centralDirectoryFixedHeaderBytes' => 0,
+                    'centralDirectoryVariableFieldBytes' => 0,
+                    'centralDirectoryRawNameBytes' => 0,
+                    'centralDirectoryExtraFieldBytes' => 0,
+                    'centralDirectoryRawCommentBytes' => 0,
+                    'centralDirectoryReviewFieldBytes' => 0,
+                    'sourceRecordIssueEntryCount' => 0,
+                    'sourceRecordIssueCount' => 0,
+                    'exposableEntryCount' => 0,
+                    'blockedEntryCount' => 0,
+                    'baseNameStemCounts' => [],
                     'baseNameCounts' => [],
                     'partExtensionCounts' => [],
                     'directoryRootCounts' => [],
@@ -5061,9 +5129,65 @@ final class OpenDocumentPackage
                     ($baseNameStems[$baseNameStem]['roleCounts'][$role] ?? 0) + 1;
             }
 
+            ++$caseFoldBaseNameStems[$caseFoldBaseNameStem]['entryCount'];
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['sourceRecordBytes'] += $sourceRecordBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['localRecordBytes'] += $localRecordBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['localHeaderBytes'] += $localHeaderBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['localHeaderFixedHeaderBytes'] += $localHeaderFixedHeaderBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['localHeaderVariableFieldBytes'] += $localHeaderVariableFieldBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['localHeaderRawNameBytes'] += $localHeaderRawNameBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['localHeaderExtraFieldBytes'] += $localHeaderExtraFieldBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['localHeaderReviewFieldBytes'] += $localHeaderReviewFieldBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['compressedDataBytes'] += $compressedDataBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['centralDirectoryFixedHeaderBytes'] += $centralDirectoryFixedHeaderBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['centralDirectoryVariableFieldBytes'] += $centralDirectoryVariableFieldBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['centralDirectoryRawNameBytes'] += $centralDirectoryRawNameBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['centralDirectoryExtraFieldBytes'] += $centralDirectoryExtraFieldBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['centralDirectoryRawCommentBytes'] += $centralDirectoryRawCommentBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['centralDirectoryReviewFieldBytes'] += $centralDirectoryReviewFieldBytes;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['sourceRecordIssueCount'] += count($sourceRecordIssues);
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['entryNames'][] = $entryName;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['baseNameStemCounts'][$baseNameStem] =
+                ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['baseNameStemCounts'][$baseNameStem] ?? 0) + 1;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['baseNameCounts'][$baseName] =
+                ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['baseNameCounts'][$baseName] ?? 0) + 1;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['partExtensionCounts'][$partExtensionKey] =
+                ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['directoryRootCounts'][$directoryRoot] =
+                ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['compressionMethodCounts'][$compressionMethod] =
+                ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['compressionMethodCounts'][$compressionMethod] ?? 0) + 1;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] =
+                ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] ?? 0) + 1;
+            if ($partExtension === null) {
+                ++$caseFoldBaseNameStems[$caseFoldBaseNameStem]['extensionlessPackagePartCount'];
+            }
+            if ($dataDescriptorBytes > 0 || ($part['zipUsesDataDescriptor'] ?? false) === true) {
+                ++$caseFoldBaseNameStems[$caseFoldBaseNameStem]['dataDescriptorEntryCount'];
+            }
+            if ($sourceRecordIssues !== []) {
+                ++$caseFoldBaseNameStems[$caseFoldBaseNameStem]['sourceRecordIssueEntryCount'];
+            }
+            if (($part['canExposeBytes'] ?? false) === true) {
+                ++$caseFoldBaseNameStems[$caseFoldBaseNameStem]['exposableEntryCount'];
+            } else {
+                ++$caseFoldBaseNameStems[$caseFoldBaseNameStem]['blockedEntryCount'];
+            }
+            foreach ($roles as $role) {
+                $caseFoldBaseNameStems[$caseFoldBaseNameStem]['roleCounts'][$role] =
+                    ($caseFoldBaseNameStems[$caseFoldBaseNameStem]['roleCounts'][$role] ?? 0) + 1;
+            }
+
             $entrySummary = [
                 'entryName' => $entryName,
                 'baseNameStem' => $baseNameStem,
+                'caseFoldBaseNameStem' => $caseFoldBaseNameStem,
                 'packageBasename' => $baseName,
                 'packagePartExtension' => $partExtension,
                 'extensionlessPackagePart' => $partExtension === null,
@@ -5111,6 +5235,14 @@ final class OpenDocumentPackage
             ) {
                 $baseNameStems[$baseNameStem]['largestSourceRecordEntry'] = $entrySummary;
             }
+            $caseFoldLargestEntry = $caseFoldBaseNameStems[$caseFoldBaseNameStem]['largestSourceRecordEntry'];
+            if (
+                !is_array($caseFoldLargestEntry)
+                || $sourceRecordBytes > (int) ($caseFoldLargestEntry['sourceRecordBytes'] ?? 0)
+                || ($sourceRecordBytes === (int) ($caseFoldLargestEntry['sourceRecordBytes'] ?? 0) && strcmp($entryName, (string) ($caseFoldLargestEntry['entryName'] ?? '')) < 0)
+            ) {
+                $caseFoldBaseNameStems[$caseFoldBaseNameStem]['largestSourceRecordEntry'] = $entrySummary;
+            }
         }
 
         $baseNameStemCounts = [];
@@ -5145,6 +5277,40 @@ final class OpenDocumentPackage
             }
         }
 
+        $caseFoldBaseNameStemCounts = [];
+        $caseFoldBaseNameStemBytes = [];
+        $caseFoldDataDescriptorEntryCount = 0;
+        $caseFoldIssueEntryCount = 0;
+        $duplicateCaseFoldBaseNameStemCount = 0;
+        $duplicateCaseFoldBaseNameStemEntryCount = 0;
+        $duplicateCaseFoldBaseNameStems = [];
+        ksort($caseFoldBaseNameStems, SORT_STRING);
+        foreach ($caseFoldBaseNameStems as $caseFoldBaseNameStem => $summary) {
+            sort($summary['entryNames'], SORT_STRING);
+            ksort($summary['baseNameStemCounts'], SORT_STRING);
+            ksort($summary['baseNameCounts'], SORT_STRING);
+            ksort($summary['partExtensionCounts'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['baseNameStemVariantCount'] = count($summary['baseNameStemCounts']);
+            $summary['baseNameVariantCount'] = count($summary['baseNameCounts']);
+            $summary['extensionVariantCount'] = count($summary['partExtensionCounts']);
+            $caseFoldBaseNameStems[$caseFoldBaseNameStem] = $summary;
+            $caseFoldBaseNameStemCounts[$caseFoldBaseNameStem] = $summary['entryCount'];
+            $caseFoldBaseNameStemBytes[$caseFoldBaseNameStem] = $summary['sourceRecordBytes'];
+            $caseFoldDataDescriptorEntryCount += $summary['dataDescriptorEntryCount'];
+            $caseFoldIssueEntryCount += $summary['sourceRecordIssueEntryCount'];
+            if ($summary['entryCount'] > 1) {
+                ++$duplicateCaseFoldBaseNameStemCount;
+                $duplicateCaseFoldBaseNameStemEntryCount += $summary['entryCount'];
+                $duplicateCaseFoldBaseNameStems[] = $caseFoldBaseNameStem;
+            }
+        }
+
         return [
             'packageZipSourceRecordPackagePartBaseNameStemCount' => count($baseNameStems),
             'packageZipSourceRecordPackagePartBaseNameStemCounts' => $baseNameStemCounts,
@@ -5155,6 +5321,15 @@ final class OpenDocumentPackage
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $duplicateBaseNameStemEntryCount,
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $duplicateBaseNameStems,
             'packageZipSourceRecordPackagePartBaseNameStems' => array_values($baseNameStems),
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemCount' => count($caseFoldBaseNameStems),
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemCounts' => $caseFoldBaseNameStemCounts,
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemBytes' => $caseFoldBaseNameStemBytes,
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemDataDescriptorEntryCount' => $caseFoldDataDescriptorEntryCount,
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStemIssueEntryCount' => $caseFoldIssueEntryCount,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemCount' => $duplicateCaseFoldBaseNameStemCount,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStemEntryCount' => $duplicateCaseFoldBaseNameStemEntryCount,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldBaseNameStems' => $duplicateCaseFoldBaseNameStems,
+            'packageZipSourceRecordPackagePartCaseFoldBaseNameStems' => array_values($caseFoldBaseNameStems),
         ];
     }
 
