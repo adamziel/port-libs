@@ -7837,6 +7837,11 @@ final class CitationCslProcessor
     private function missingCitationEntryText(AstNode $citation): string
     {
         $entry = $this->sourceCitationText($citation);
+        $id = (string) $citation->attr('id', '');
+        if ($id !== '' && !in_array($entry, ['@' . $id, '-@' . $id], true)) {
+            return $entry;
+        }
+
         $suffix = $this->citationSuffix($citation);
         if ($suffix !== '') {
             $entry .= ', ' . $suffix;
