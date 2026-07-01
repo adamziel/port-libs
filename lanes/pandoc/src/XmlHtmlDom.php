@@ -24316,6 +24316,10 @@ final class XmlHtmlDom
         if ($name === 'dialog') {
             $summary['dialogOpen'] = $target->hasAttribute('open');
             $summary['dialogState'] = $target->hasAttribute('open') ? 'open' : 'closed';
+            $methodForms = self::dialogMethodFormSummaries($target);
+            $summary['dialogMethodFormCount'] = count($methodForms);
+            $summary['dialogCloseValues'] = self::dialogCloseValues($methodForms);
+            $summary += self::dialogClosedBySummary(self::attributeOrNull($target, 'closedby'));
         }
 
         $popoverRaw = self::attributeOrNull($target, 'popover');
