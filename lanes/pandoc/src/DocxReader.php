@@ -13,12 +13,16 @@ final class DocxReader
     private const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
     private const REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
     private const OFFICE_NS = 'urn:schemas-microsoft-com:office:office';
+    private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
 
     /** @var array<string, array<string, mixed>> */
     private array $styles = [];
 
-    /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
+    /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, paragraphStyle?: string}>> */
     private array $numbering = [];
+
+    /** @var array<string, array{numId: string, level: int}> */
+    private array $numberingParagraphStyles = [];
 
     /** @var array<string, array{target: string, type: string, mode: string}> */
     private array $relationships = [];
@@ -78,11 +82,21 @@ final class DocxReader
         ksort($header_xmls);
         ksort($footer_xmls);
 
+        $documentRelationshipsXml = $this->readOptionalPackagePart($package, $entriesByName, 'word/_rels/document.xml.rels');
+        $numberingPart = $this->relatedWordPackagePart(
+            $package,
+            $entriesByName,
+            $documentRelationshipsXml,
+            self::NUMBERING_REL,
+            'word/numbering.xml',
+            'DOCX document relationships'
+        );
+
         return $this->readPackage(
             $this->readRequiredPackagePart($package, $entriesByName, 'word/document.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/styles.xml'),
-            $this->readOptionalPackagePart($package, $entriesByName, 'word/numbering.xml'),
-            $this->readOptionalPackagePart($package, $entriesByName, 'word/_rels/document.xml.rels'),
+            $numberingPart['xml'],
+            $documentRelationshipsXml,
             $this->readOptionalPackagePart($package, $entriesByName, 'docProps/core.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/footnotes.xml'),
             $this->readOptionalPackagePart($package, $entriesByName, 'word/endnotes.xml'),
@@ -91,6 +105,7 @@ final class DocxReader
             $footer_xmls,
             $entries,
             $media,
+            $numberingPart,
         );
     }
 
@@ -142,10 +157,49 @@ final class DocxReader
     }
 
     /**
+     * @param array<string, ZipPackageEntry> $entriesByName
+     * @return array{xml: string, partName: string, relationshipId: string|null, relationshipTarget: string|null}
+     */
+    private function relatedWordPackagePart(
+        ZipPackage $package,
+        array $entriesByName,
+        string $relationshipsXml,
+        string $relationshipType,
+        string $fallbackPartName,
+        string $relationshipLabel
+    ): array {
+        if ($relationshipsXml !== '') {
+            $relationships = $this->relationships($this->loadXml($relationshipsXml, $relationshipLabel));
+            foreach ($relationships as $id => $relationship) {
+                if ($relationship['type'] !== $relationshipType || $relationship['mode'] === 'External') {
+                    continue;
+                }
+
+                $partName = $this->wordRelationshipTargetPartName($relationship['target']);
+
+                return [
+                    'xml' => $partName !== '' ? $this->readOptionalPackagePart($package, $entriesByName, $partName) : '',
+                    'partName' => $partName,
+                    'relationshipId' => $id,
+                    'relationshipTarget' => $relationship['target'],
+                ];
+            }
+        }
+
+        return [
+            'xml' => $this->readOptionalPackagePart($package, $entriesByName, $fallbackPartName),
+            'partName' => $fallbackPartName,
+            'relationshipId' => null,
+            'relationshipTarget' => null,
+        ];
+    }
+
+    /**
      * @param array<string, string> $header_xmls
      * @param array<string, string> $footer_xmls
      * @param list<string> $entries
      * @param list<string> $media
+     * @param array{xml: string, partName: string, relationshipId: string|null, relationshipTarget: string|null} $numberingPart
      */
     private function readPackage(
         string $document_xml,
@@ -159,9 +213,11 @@ final class DocxReader
         array $header_xmls,
         array $footer_xmls,
         array $entries,
-        array $media
+        array $media,
+        array $numberingPart
     ): AstNode {
         $this->styles = $styles_xml !== '' ? $this->styles($this->loadXml($styles_xml, 'DOCX styles.xml')) : [];
+        $this->numberingParagraphStyles = [];
         $this->numbering = $numbering_xml !== '' ? $this->numbering($this->loadXml($numbering_xml, 'DOCX numbering.xml')) : [];
         $this->relationships = $rels_xml !== '' ? $this->relationships($this->loadXml($rels_xml, 'DOCX document relationships')) : [];
         $this->footnotes = $footnotes_xml !== '' ? $this->notes($this->loadXml($footnotes_xml, 'DOCX footnotes.xml'), 'footnote') : [];
@@ -196,6 +252,9 @@ final class DocxReader
         $metadata['docxMediaFiles'] = $media;
         $metadata['docxRelationshipCount'] = count($this->relationships);
         $metadata['docxNumberingDefinitions'] = count($this->numbering);
+        $metadata['docxNumberingPart'] = $numberingPart['partName'];
+        $metadata['docxNumberingRelationshipId'] = $numberingPart['relationshipId'];
+        $metadata['docxNumberingRelationshipTarget'] = $numberingPart['relationshipTarget'];
         $metadata['docxFootnotes'] = count($this->footnotes);
         $metadata['docxEndnotes'] = count($this->endnotes);
         $metadata['docxComments'] = count($this->comments);
@@ -347,6 +406,7 @@ final class DocxReader
                     $list = $this->numberingListAttributes($numbering['numId'], $numbering['level']);
                     $pendingListRecords[] = [
                         'level' => $numbering['level'],
+                        'numId' => $numbering['numId'],
                         'ordered' => $list['ordered'],
                         'attrs' => $list['attrs'],
                         'paragraph' => $paragraph,
@@ -382,7 +442,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, paragraph: AstNode}> $records
+     * @param list<array{level: int, numId: string, ordered: bool, attrs: array<string, mixed>, paragraph: AstNode}> $records
      * @return list<AstNode>
      */
     private function listBlocksFromRecords(array $records): array
@@ -396,7 +456,7 @@ final class DocxReader
     }
 
     /**
-     * @param list<array{level: int, ordered: bool, attrs: array<string, mixed>, paragraph: AstNode}> $records
+     * @param list<array{level: int, numId: string, ordered: bool, attrs: array<string, mixed>, paragraph: AstNode}> $records
      * @return list<AstNode>
      */
     private function listBlocksAtLevel(array $records, int &$index, int $level): array
@@ -415,6 +475,7 @@ final class DocxReader
 
             $ordered = (bool) $record['ordered'];
             $attrs = $record['attrs'];
+            $numId = (string) $record['numId'];
             $items = [];
 
             while ($index < $count) {
@@ -426,7 +487,7 @@ final class DocxReader
                 if ($recordLevel > $level) {
                     break;
                 }
-                if ((bool) $record['ordered'] !== $ordered || $record['attrs'] !== $attrs) {
+                if ((bool) $record['ordered'] !== $ordered || $record['attrs'] !== $attrs || (string) $record['numId'] !== $numId) {
                     break;
                 }
 
@@ -439,7 +500,12 @@ final class DocxReader
                 $items[] = new AstNode('list_item', [], $children);
             }
 
-            $blocks[] = new AstNode($ordered ? 'ordered_list' : 'bullet_list', $ordered ? $attrs : [], $items);
+            $listAttrs = $ordered ? $attrs : [];
+            if ($numId !== '') {
+                $listAttrs['numId'] = $numId;
+                $listAttrs['level'] = max(0, $level - 1);
+            }
+            $blocks[] = new AstNode($ordered ? 'ordered_list' : 'bullet_list', $listAttrs, $items);
         }
 
         return $blocks;
@@ -2131,11 +2197,35 @@ final class DocxReader
                 }
             }
             if ($numId !== '') {
+                if ($numId === '0') {
+                    return null;
+                }
+
                 return ['numId' => $numId, 'level' => $level];
             }
         }
 
+        $paragraphStyle = $this->paragraphStyleId($paragraph);
+        if ($paragraphStyle !== '' && isset($this->numberingParagraphStyles[$paragraphStyle])) {
+            return $this->numberingParagraphStyles[$paragraphStyle];
+        }
+
         return null;
+    }
+
+    private function paragraphStyleId(\DOMElement $paragraph): string
+    {
+        $properties = $this->directChild($paragraph, 'pPr');
+        if (!$properties instanceof \DOMElement) {
+            return '';
+        }
+
+        $style = $this->directChild($properties, 'pStyle');
+        if (!$style instanceof \DOMElement) {
+            return '';
+        }
+
+        return $this->attr($style, self::W_NS, 'val');
     }
 
     /**
@@ -2373,7 +2463,7 @@ final class DocxReader
     }
 
     /**
-     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>>
+     * @return array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int, paragraphStyle?: string}>>
      */
     private function numbering(\DOMDocument $dom): array
     {
@@ -2397,6 +2487,7 @@ final class DocxReader
         }
 
         $numbering = [];
+        $paragraphStyleLinks = [];
         foreach ($dom->getElementsByTagNameNS(self::W_NS, 'num') as $num) {
             if (!$num instanceof \DOMElement) {
                 continue;
@@ -2436,20 +2527,33 @@ final class DocxReader
                     $levels[$level] = array_replace($levels[$level] ?? ['ordered' => false], $override);
                 }
                 $numbering[$numId] = $levels;
+
+                foreach ($levels as $levelIndex => $level) {
+                    $paragraphStyle = $level['paragraphStyle'] ?? '';
+                    if (!is_string($paragraphStyle) || $paragraphStyle === '') {
+                        continue;
+                    }
+                    $paragraphStyleLinks[$paragraphStyle] ??= [
+                        'numId' => $numId,
+                        'level' => (int) $levelIndex,
+                    ];
+                }
             }
         }
+        $this->numberingParagraphStyles = $this->expandedNumberingParagraphStyleLinks($paragraphStyleLinks);
 
         return $numbering;
     }
 
     /**
-     * @return array{ordered: bool, style?: string, delimiter?: string, start?: int}
+     * @return array{ordered: bool, style?: string, delimiter?: string, start?: int, paragraphStyle?: string}
      */
     private function numberingLevel(\DOMElement $level): array
     {
         $format = 'bullet';
         $text = '';
         $start = null;
+        $paragraphStyle = '';
         foreach ($level->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
                 continue;
@@ -2463,11 +2567,18 @@ final class DocxReader
                 if ($value !== '' && is_numeric($value)) {
                     $start = max(1, (int) $value);
                 }
+            } elseif ($child->localName === 'pStyle') {
+                $paragraphStyle = $this->attr($child, self::W_NS, 'val');
             }
         }
 
         if ($format === 'bullet') {
-            return ['ordered' => false];
+            $entry = ['ordered' => false];
+            if ($paragraphStyle !== '') {
+                $entry['paragraphStyle'] = $paragraphStyle;
+            }
+
+            return $entry;
         }
 
         $entry = [
@@ -2478,8 +2589,38 @@ final class DocxReader
         if ($start !== null) {
             $entry['start'] = $start;
         }
+        if ($paragraphStyle !== '') {
+            $entry['paragraphStyle'] = $paragraphStyle;
+        }
 
         return $entry;
+    }
+
+    /**
+     * @param array<string, array{numId: string, level: int}> $links
+     * @return array<string, array{numId: string, level: int}>
+     */
+    private function expandedNumberingParagraphStyleLinks(array $links): array
+    {
+        $expanded = $links;
+        foreach ($links as $styleId => $link) {
+            foreach ($this->styles as $candidateId => $style) {
+                if (isset($expanded[$candidateId])) {
+                    continue;
+                }
+
+                $chain = $style['styleChain'] ?? [];
+                if (!is_array($chain)) {
+                    continue;
+                }
+
+                if (in_array($styleId, array_map(static fn (mixed $value): string => (string) $value, $chain), true)) {
+                    $expanded[$candidateId] = $link;
+                }
+            }
+        }
+
+        return $expanded;
     }
 
     private function docxOrderedListStyle(string $format): string
@@ -2846,6 +2987,23 @@ final class DocxReader
         }
 
         return $target;
+    }
+
+    private function wordRelationshipTargetPartName(string $target): string
+    {
+        if ($target === '') {
+            return '';
+        }
+
+        $target = preg_replace('/[?#].*$/', '', $target);
+        if (!is_string($target) || $target === '') {
+            return '';
+        }
+        if (str_starts_with($target, '/')) {
+            return ltrim($target, '/');
+        }
+
+        return $this->normalizeWordTarget($target);
     }
 
     private function emuCssDimension(string $value): string

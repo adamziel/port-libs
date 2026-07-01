@@ -30,7 +30,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Versions/VersionList.xml" manifest:media-type="text/xml" manifest:size="{$versionListSize}"/>
   <manifest:file-entry manifest:full-path="Versions/v1/content.xml" manifest:media-type="text/xml" manifest:size="{$versionContentSize}"/>
   <manifest:file-entry manifest:full-path="Versions/v1/preview.png" manifest:media-type="image/png" manifest:size="{$versionPreviewSize}"/>
-  <manifest:file-entry manifest:full-path="Versions/v1/document.odt" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:size="{$versionDocumentSize}"/>
+  <manifest:file-entry manifest:full-path="Versions/v1/document.odt" manifest:media-type="application/vnd.oasis.opendocument.text" manifest:size="{$versionDocumentSize}bytes"/>
   <manifest:file-entry manifest:full-path="Versions/missing/content.xml" manifest:media-type="text/xml" manifest:size="19"/>
   <manifest:file-entry manifest:full-path="Versions/v2/content.xml" manifest:media-type="text/xml" manifest:size="{$encryptedVersionSize}">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="version-checksum"/>
@@ -130,9 +130,11 @@ return [
         $t->same(1, $readerVersions['encryptedCount']);
         $t->same(0, $readerVersions['missingMediaTypeCount']);
         $t->same(0, $readerVersions['invalidMediaTypeCount']);
-        $t->same(3, $readerVersions['issueCount']);
+        $t->same(1, $readerVersions['invalidDeclaredSizeCount']);
+        $t->same(4, $readerVersions['issueCount']);
         $t->same([
             'odf-version-package-encrypted-part',
+            'odf-version-package-invalid-declared-size',
             'odf-version-package-missing-part',
             'odf-version-package-undeclared-part',
         ], $readerVersions['issueCodes']);
@@ -166,6 +168,12 @@ return [
         $t->same('version-document-package', $document['kind']);
         $t->same(OdfReader::MIMETYPE, $document['mediaTypeBase']);
         $t->same(strlen($versionDocumentBytes), $document['byteLength']);
+        $t->same(null, $document['declaredSize']);
+        $t->same(strlen($versionDocumentBytes) . 'bytes', $document['declaredSizeRaw']);
+        $t->same(false, $document['declaredSizeValid']);
+        $t->same(true, $document['declaredSizeInvalid']);
+        $t->same(false, $document['declaredSizeMismatch']);
+        $t->same(['odf-version-package-invalid-declared-size'], $document['issues']);
 
         $missing = $readerItems['Versions/missing/content.xml'];
         $t->same(false, $missing['exists']);
@@ -216,13 +224,20 @@ return [
         $t->same(1, $compactVersions['missingCount']);
         $t->same(1, $compactVersions['directoryCount']);
         $t->same(1, $compactVersions['encryptedCount']);
-        $t->same(3, $compactVersions['issueCount']);
+        $t->same(1, $compactVersions['invalidDeclaredSizeCount']);
+        $t->same(4, $compactVersions['issueCount']);
         $t->same($readerVersions['issueCodes'], $compactVersions['issueCodes']);
         $t->same('version-package-bytes-blocked', $compactVersions['byteExposurePolicy']);
         $t->same('version-package-metadata-only', $compactVersions['reviewPolicy']);
         $t->same('version-list', $compactItems['Versions/VersionList.xml']['kind']);
         $t->same('version-media-resource', $compactItems['Versions/v1/preview.png']['kind']);
         $t->same('version-document-package', $compactItems['Versions/v1/document.odt']['kind']);
+        $t->same(null, $compactItems['Versions/v1/document.odt']['declaredSize']);
+        $t->same(strlen($versionDocumentBytes) . 'bytes', $compactItems['Versions/v1/document.odt']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Versions/v1/document.odt']['declaredSizeValid']);
+        $t->same(true, $compactItems['Versions/v1/document.odt']['declaredSizeInvalid']);
+        $t->same(false, $compactItems['Versions/v1/document.odt']['declaredSizeMismatch']);
+        $t->same(['odf-version-package-invalid-declared-size'], $compactItems['Versions/v1/document.odt']['issues']);
         $t->same(false, $compactItems['Versions/v1/preview.png']['canExposeBytes']);
         $t->same(false, $compactItems['Versions/v1/preview.png']['canExposeAsDocumentMedia']);
         $t->same(strlen($versionPreviewBytes), $compactItems['Versions/v1/preview.png']['byteLength']);

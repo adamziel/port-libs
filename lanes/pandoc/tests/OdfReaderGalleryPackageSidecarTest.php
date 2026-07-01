@@ -25,7 +25,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
   <manifest:file-entry manifest:full-path="Gallery/Theme/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Gallery/Theme/sg100.thm" manifest:media-type="text/xml" manifest:size="{$galleryIndexSize}"/>
-  <manifest:file-entry manifest:full-path="Gallery/Theme/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}"/>
+  <manifest:file-entry manifest:full-path="Gallery/Theme/preview.png" manifest:media-type="image/png" manifest:size="{$previewSize}bytes"/>
   <manifest:file-entry manifest:full-path="Gallery/Theme/missing.sdg" manifest:media-type="application/octet-stream" manifest:size="19"/>
   <manifest:file-entry manifest:full-path="Gallery/Theme/encrypted.sdv" manifest:media-type="application/octet-stream" manifest:size="{$encryptedSize}">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="gallery-checksum"/>
@@ -98,6 +98,7 @@ return [
     'reports ODT gallery package sidecars as metadata-only review data' => static function (TestRunner $t) use (
         $buildPackage,
         $galleryIndexXml,
+        $previewSize,
         $previewBytes,
         $encryptedBytes,
         $orphanBytes,
@@ -122,9 +123,11 @@ return [
         $t->same(1, $readerGalleries['encryptedCount']);
         $t->same(0, $readerGalleries['missingMediaTypeCount']);
         $t->same(0, $readerGalleries['invalidMediaTypeCount']);
-        $t->same(3, $readerGalleries['issueCount']);
+        $t->same(1, $readerGalleries['invalidDeclaredSizeCount']);
+        $t->same(4, $readerGalleries['issueCount']);
         $t->same([
             'odf-gallery-package-encrypted-part',
+            'odf-gallery-package-invalid-declared-size',
             'odf-gallery-package-missing-part',
             'odf-gallery-package-undeclared-part',
         ], $readerGalleries['issueCodes']);
@@ -158,6 +161,11 @@ return [
         $t->same('gallery-media-resource', $preview['kind']);
         $t->same('image/png', $preview['mediaTypeBase']);
         $t->same(strlen($previewBytes), $preview['byteLength']);
+        $t->same(null, $preview['declaredSize']);
+        $t->same($previewSize . 'bytes', $preview['declaredSizeRaw']);
+        $t->same(false, $preview['declaredSizeValid']);
+        $t->same(true, $preview['declaredSizeInvalid']);
+        $t->same(['odf-gallery-package-invalid-declared-size'], $preview['issues']);
         $t->same(false, $preview['canExposeAsDocumentMedia']);
 
         $missing = $readerItems['Gallery/Theme/missing.sdg'];
@@ -221,7 +229,8 @@ return [
         $t->same(1, $compactGalleries['missingCount']);
         $t->same(1, $compactGalleries['directoryCount']);
         $t->same(1, $compactGalleries['encryptedCount']);
-        $t->same(3, $compactGalleries['issueCount']);
+        $t->same(1, $compactGalleries['invalidDeclaredSizeCount']);
+        $t->same(4, $compactGalleries['issueCount']);
         $t->same($readerGalleries['issueCodes'], $compactGalleries['issueCodes']);
         $t->same('gallery-package-bytes-blocked', $compactGalleries['byteExposurePolicy']);
         $t->same('gallery-package-metadata-only', $compactGalleries['reviewPolicy']);
@@ -231,6 +240,11 @@ return [
         $t->same(false, $compactItems['Gallery/Theme/preview.png']['canExposeAsDocumentMedia']);
         $t->same(strlen($previewBytes), $compactItems['Gallery/Theme/preview.png']['byteLength']);
         $t->same(sprintf('%08x', crc32($previewBytes)), $compactItems['Gallery/Theme/preview.png']['crc32']);
+        $t->same(null, $compactItems['Gallery/Theme/preview.png']['declaredSize']);
+        $t->same($previewSize . 'bytes', $compactItems['Gallery/Theme/preview.png']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Gallery/Theme/preview.png']['declaredSizeValid']);
+        $t->same(true, $compactItems['Gallery/Theme/preview.png']['declaredSizeInvalid']);
+        $t->same(['odf-gallery-package-invalid-declared-size'], $compactItems['Gallery/Theme/preview.png']['issues']);
         $t->same(['odf-gallery-package-missing-part'], $compactItems['Gallery/Theme/missing.sdg']['issues']);
         $t->same(['odf-gallery-package-encrypted-part'], $compactItems['Gallery/Theme/encrypted.sdv']['issues']);
         $t->same(['odf-gallery-package-undeclared-part'], $compactItems['Gallery/Theme/orphan.svm']['issues']);

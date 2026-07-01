@@ -121,6 +121,71 @@ XML);
         $t->contains('Pictures/image.png', $blocks);
         $t->contains('<!-- wp:list -->', $converterBlocks);
     },
+    'maps direct odt bookmarks and references into safe fragments' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:bookmark-start text:name="an anchor"/>Some text.</text:p>
+      <text:p>A reference to <text:bookmark-ref text:ref-name="an anchor" text:reference-format="text">Some text</text:bookmark-ref>.</text:p>
+      <text:list>
+        <text:list-item><text:p><text:bookmark text:name="list anchor"/>A list item</text:p></text:list-item>
+      </text:list>
+      <text:p><text:reference-mark-start text:name="ref target"/>Reference target<text:reference-mark-end text:name="ref target"/></text:p>
+      <text:p>Number ref <text:reference-ref text:ref-name="ref target" text:reference-format="number">1.</text:reference-ref>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+            $blocks = (new WordPressBlockWriter())->write($document);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $sourceAnchor = $document->children[0]->children[0];
+        $bookmarkReference = $document->children[1]->children[1];
+        $listAnchor = $document->children[2]->children[0]->children[0]->children[0];
+        $referenceAnchor = $document->children[3]->children[0];
+        $referenceReference = $document->children[4]->children[1];
+
+        $t->same(2, $meta['odtBookmarkCount']);
+        $t->same(1, $meta['odtBookmarkReferenceCount']);
+        $t->same(1, $meta['odtReferenceMarkCount']);
+        $t->same(1, $meta['odtReferenceReferenceCount']);
+        $t->same('span', $sourceAnchor->type);
+        $t->same('an-anchor', $sourceAnchor->attr('id'));
+        $t->same(['anchor', 'odt-bookmark'], $sourceAnchor->attr('classes'));
+        $t->same('link', $bookmarkReference->type);
+        $t->same('#an-anchor', $bookmarkReference->attr('url'));
+        $t->same('list-anchor', $listAnchor->attr('id'));
+        $t->same('ref-target', $referenceAnchor->attr('id'));
+        $t->same(['anchor', 'odt-reference-mark'], $referenceAnchor->attr('classes'));
+        $t->same('link', $referenceReference->type);
+        $t->same('#ref-target', $referenceReference->attr('url'));
+        $t->contains('<span id="an-anchor" class="anchor odt-bookmark" data-odt-bookmark-name="an anchor" data-pandoc-anchor="empty-target"></span>Some text.', $blocks);
+        $t->contains('<a href="#an-anchor" class="odt-bookmark-ref" data-odt-ref-name="an anchor" data-odt-reference-format="text">Some text</a>', $blocks);
+        $t->contains('<span id="list-anchor" class="anchor odt-bookmark" data-odt-bookmark-name="list anchor" data-pandoc-anchor="empty-target"></span>A list item', $blocks);
+        $t->contains('<span id="ref-target" class="anchor odt-reference-mark" data-odt-reference-name="ref target" data-pandoc-anchor="empty-target"></span>Reference target', $blocks);
+        $t->contains('<a href="#ref-target" class="odt-reference-ref" data-odt-ref-name="ref target" data-odt-reference-format="number">1.</a>', $blocks);
+        $t->true(!str_contains($blocks, 'href="#an anchor"'), 'ODT bookmark links should use normalized fragments');
+    },
     'reads odt bytes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
         if ($path === false) {
@@ -147,6 +212,457 @@ XML);
         $t->same('heading', $document->children[0]->type);
         $t->same('Byte ODT', $document->children[0]->attr('text'));
         $t->same('paragraph', $document->children[1]->type);
+    },
+    'reports direct odt style diagnostics in document metadata' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:family="text" style:display-name="Nameless Text"/>
+    <style:style style:name="FamilylessText"><style:text-properties fo:font-style="italic"/></style:style>
+    <style:style style:name="VendorInline" style:family="review-extension"/>
+    <style:style style:name="KnownText" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+    <text:list-style>
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+    <text:list-style style:name="KnownNumbers">
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="KnownText">Known</text:span> and <text:span text:style-name="MissingText">missing</text:span> text style.</text:p>
+      <text:list text:style-name="MissingList">
+        <text:list-item><text:p>Missing list style.</text:p></text:list-item>
+      </text:list>
+      <text:list text:style-name="KnownNumbers">
+        <text:list-item><text:p>Known list style.</text:p></text:list-item>
+      </text:list>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnosticsByCode = [];
+        foreach ($meta['odtStyleDiagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(6, $meta['odtStyleDiagnosticCount']);
+        $t->same([
+            'odt-content-missing-list-style' => 1,
+            'odt-content-missing-text-style' => 1,
+            'odt-list-style-missing-name' => 1,
+            'odt-style-missing-family' => 1,
+            'odt-style-missing-name' => 1,
+            'odt-style-unknown-family' => 1,
+        ], $meta['odtStyleDiagnosticCodeCounts']);
+
+        $missingName = $diagnosticsByCode['odt-style-missing-name'][0];
+        $t->same('styles.xml', $missingName['sourcePart']);
+        $t->same('style:style', $missingName['element']);
+        $t->same('text', $missingName['family']);
+
+        $missingFamily = $diagnosticsByCode['odt-style-missing-family'][0];
+        $t->same('FamilylessText', $missingFamily['styleName']);
+        $t->same('style:style', $missingFamily['element']);
+
+        $unknownFamily = $diagnosticsByCode['odt-style-unknown-family'][0];
+        $t->same('VendorInline', $unknownFamily['styleName']);
+        $t->same('review-extension', $unknownFamily['family']);
+
+        $missingListName = $diagnosticsByCode['odt-list-style-missing-name'][0];
+        $t->same('styles.xml', $missingListName['sourcePart']);
+        $t->same('text:list-style', $missingListName['element']);
+
+        $missingTextStyle = $diagnosticsByCode['odt-content-missing-text-style'][0];
+        $t->same('content.xml', $missingTextStyle['sourcePart']);
+        $t->same('text:span', $missingTextStyle['element']);
+        $t->same('MissingText', $missingTextStyle['styleName']);
+
+        $missingListStyle = $diagnosticsByCode['odt-content-missing-list-style'][0];
+        $t->same('content.xml', $missingListStyle['sourcePart']);
+        $t->same('text:list', $missingListStyle['element']);
+        $t->same('MissingList', $missingListStyle['listStyleName']);
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Known and missing text style.', $document->children[0]->attr('text'));
+    },
+    'reports direct odt missing parent style diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="KnownParent" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+    <style:style style:name="ChildMissingParent" style:family="text" style:parent-style-name="MissingParent"><style:text-properties fo:font-style="italic"/></style:style>
+    <style:style style:name="ChildKnownParent" style:family="text" style:parent-style-name="KnownParent"/>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="ChildMissingParent">Missing parent</text:span> and <text:span text:style-name="ChildKnownParent">known parent</text:span>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnostic = $meta['odtStyleDiagnostics'][0];
+
+        $t->same(3, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtStyleDiagnosticCount']);
+        $t->same(['odt-style-missing-parent' => 1], $meta['odtStyleDiagnosticCodeCounts']);
+        $t->same('styles.xml', $diagnostic['sourcePart']);
+        $t->same('style:style', $diagnostic['element']);
+        $t->same('ChildMissingParent', $diagnostic['styleName']);
+        $t->same('MissingParent', $diagnostic['parentStyleName']);
+        $t->same('text', $diagnostic['family']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Missing parent and known parent.', $document->children[0]->attr('text'));
+    },
+    'reports direct odt missing next style diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:styles>
+    <style:style style:name="KnownNext" style:family="text"><style:text-properties fo:font-weight="bold"/></style:style>
+    <style:style style:name="MissingNextLink" style:family="text" style:next-style-name="MissingNext"><style:text-properties fo:font-style="italic"/></style:style>
+    <style:style style:name="KnownNextLink" style:family="text" style:next-style-name="KnownNext"/>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="MissingNextLink">Missing next style</text:span> and <text:span text:style-name="KnownNextLink">known next style</text:span>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnostic = $meta['odtStyleDiagnostics'][0];
+
+        $t->same(3, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtStyleDiagnosticCount']);
+        $t->same(['odt-style-missing-next-style' => 1], $meta['odtStyleDiagnosticCodeCounts']);
+        $t->same('styles.xml', $diagnostic['sourcePart']);
+        $t->same('style:style', $diagnostic['element']);
+        $t->same('MissingNextLink', $diagnostic['styleName']);
+        $t->same('MissingNext', $diagnostic['nextStyleName']);
+        $t->same('text', $diagnostic['family']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Missing next style and known next style.', $document->children[0]->attr('text'));
+    },
+    'reports direct odt missing style font face diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="Known Sans"/>
+  </office:font-face-decls>
+  <office:styles>
+    <style:style style:name="MissingFontStyle" style:family="text"><style:text-properties style:font-name="Missing Sans" fo:font-style="italic"/></style:style>
+    <style:style style:name="KnownFontStyle" style:family="text"><style:text-properties style:font-name="Known Sans" fo:font-weight="bold"/></style:style>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="MissingFontStyle">Missing font</text:span> and <text:span text:style-name="KnownFontStyle">known font</text:span>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnostic = $meta['odtStyleDiagnostics'][0];
+
+        $t->same(2, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtStyleDiagnosticCount']);
+        $t->same(['odt-style-missing-font-face' => 1], $meta['odtStyleDiagnosticCodeCounts']);
+        $t->same('styles.xml', $diagnostic['sourcePart']);
+        $t->same('style:style', $diagnostic['element']);
+        $t->same('MissingFontStyle', $diagnostic['styleName']);
+        $t->same('Missing Sans', $diagnostic['fontName']);
+        $t->same('text', $diagnostic['family']);
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Missing font and known font.', $document->children[0]->attr('text'));
+    },
+    'reports direct odt duplicate style catalog diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0">
+  <office:font-face-decls>
+    <style:font-face style:name="Review Sans"/>
+    <style:font-face style:name="Review Sans"/>
+  </office:font-face-decls>
+  <office:styles>
+    <style:style style:name="DuplicateText" style:family="paragraph"/>
+    <style:style style:name="DuplicateText" style:family="text"><style:text-properties fo:font-style="italic"/></style:style>
+    <text:list-style style:name="DuplicateNumbers">
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+    <text:list-style style:name="DuplicateNumbers">
+      <text:list-level-style-bullet text:level="1" text:bullet-char="*"/>
+    </text:list-style>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p><text:span text:style-name="DuplicateText">Duplicate style diagnostics</text:span> stay metadata-only.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnosticsByCode = [];
+        foreach ($meta['odtStyleDiagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(1, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtListStyleCount']);
+        $t->same(3, $meta['odtStyleDiagnosticCount']);
+        $t->same([
+            'odt-font-face-duplicate-name' => 1,
+            'odt-list-style-duplicate-name' => 1,
+            'odt-style-duplicate-name' => 1,
+        ], $meta['odtStyleDiagnosticCodeCounts']);
+
+        $duplicateStyle = $diagnosticsByCode['odt-style-duplicate-name'][0];
+        $t->same('DuplicateText', $duplicateStyle['styleName']);
+        $t->same('paragraph', $duplicateStyle['previousFamily']);
+        $t->same('text', $duplicateStyle['replacementFamily']);
+        $t->same('styles.xml', $duplicateStyle['replacementSourcePart']);
+
+        $duplicateFontFace = $diagnosticsByCode['odt-font-face-duplicate-name'][0];
+        $t->same('Review Sans', $duplicateFontFace['fontFaceName']);
+        $t->same('style:font-face', $duplicateFontFace['replacementElement']);
+
+        $duplicateListStyle = $diagnosticsByCode['odt-list-style-duplicate-name'][0];
+        $t->same('DuplicateNumbers', $duplicateListStyle['listStyleName']);
+        $t->same('text:list-style', $duplicateListStyle['replacementElement']);
+
+        $t->same('paragraph', $document->children[0]->type);
+        $t->same('Duplicate style diagnostics stay metadata-only.', $document->children[0]->attr('text'));
+    },
+    'reports direct odt style list and content reference diagnostics' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary ODT path');
+        }
+
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            throw new RuntimeException('Unable to create temporary ODT package');
+        }
+        $zip->addFromString('styles.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:styles>
+    <text:list-style style:name="KnownNumbers">
+      <text:list-level-style-number text:level="1" style:num-format="1"/>
+    </text:list-style>
+    <style:style style:name="ReviewParagraph" style:family="paragraph" style:list-style-name="MissingNumbers"/>
+    <style:style style:name="KnownParagraph" style:family="paragraph" style:list-style-name="KnownNumbers"/>
+  </office:styles>
+</office:document-styles>
+XML);
+        $zip->addFromString('content.xml', <<<'XML'
+<?xml version="1.0"?>
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:h text:outline-level="2" text:style-name="MissingHeadingStyle">Missing heading style</text:h>
+      <text:p text:style-name="MissingParagraphStyle">Missing paragraph style.</text:p>
+      <text:p text:style-name="KnownParagraph">Known paragraph style.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML);
+        $zip->close();
+
+        try {
+            $document = (new OdtReader())->readOdtFile($path);
+        } finally {
+            @unlink($path);
+        }
+
+        $meta = $document->attr('meta');
+        $diagnosticsByCode = [];
+        foreach ($meta['odtStyleDiagnostics'] as $diagnostic) {
+            $diagnosticsByCode[$diagnostic['code']][] = $diagnostic;
+        }
+
+        $t->same(0, $meta['odtTextStyleCount']);
+        $t->same(1, $meta['odtListStyleCount']);
+        $t->same(3, $meta['odtStyleDiagnosticCount']);
+        $t->same([
+            'odt-content-missing-style' => 2,
+            'odt-style-missing-list-style' => 1,
+        ], $meta['odtStyleDiagnosticCodeCounts']);
+
+        $missingListStyle = $diagnosticsByCode['odt-style-missing-list-style'][0];
+        $t->same('styles.xml', $missingListStyle['sourcePart']);
+        $t->same('style:style', $missingListStyle['element']);
+        $t->same('ReviewParagraph', $missingListStyle['styleName']);
+        $t->same('MissingNumbers', $missingListStyle['listStyleName']);
+        $t->same('paragraph', $missingListStyle['family']);
+
+        $missingHeadingStyle = $diagnosticsByCode['odt-content-missing-style'][0];
+        $t->same('content.xml', $missingHeadingStyle['sourcePart']);
+        $t->same('text:h', $missingHeadingStyle['element']);
+        $t->same('text:style-name', $missingHeadingStyle['attribute']);
+        $t->same('MissingHeadingStyle', $missingHeadingStyle['styleName']);
+
+        $missingParagraphStyle = $diagnosticsByCode['odt-content-missing-style'][1];
+        $t->same('content.xml', $missingParagraphStyle['sourcePart']);
+        $t->same('text:p', $missingParagraphStyle['element']);
+        $t->same('text:style-name', $missingParagraphStyle['attribute']);
+        $t->same('MissingParagraphStyle', $missingParagraphStyle['styleName']);
+
+        $t->same('heading', $document->children[0]->type);
+        $t->same('Missing heading style', $document->children[0]->attr('text'));
+        $t->same('paragraph', $document->children[1]->type);
+        $t->same('Missing paragraph style.', $document->children[1]->attr('text'));
+        $t->same('paragraph', $document->children[2]->type);
+        $t->same('Known paragraph style.', $document->children[2]->attr('text'));
     },
     'preserves odt footnotes through the converter input path' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-odt-');

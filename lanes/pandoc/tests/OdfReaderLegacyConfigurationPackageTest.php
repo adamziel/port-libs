@@ -12,6 +12,7 @@ $statusbarXml = '<statusbar:statusbar xmlns:statusbar="http://openoffice.org/200
 $heroBytes = 'PNGDATA';
 $acceleratorSize = strlen($acceleratorXml);
 $configIconSize = strlen($configIconBytes);
+$invalidConfigIconSize = $configIconSize . 'bytes';
 $heroSize = strlen($heroBytes);
 
 $manifestXml = <<<XML
@@ -23,7 +24,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png" manifest:size="{$heroSize}"/>
   <manifest:file-entry manifest:full-path="Configurations/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Configurations/accelerator/current.xml" manifest:media-type="text/xml" manifest:size="{$acceleratorSize}"/>
-  <manifest:file-entry manifest:full-path="Configurations/images/Bitmaps/review.png" manifest:media-type="image/png" manifest:size="{$configIconSize}"/>
+  <manifest:file-entry manifest:full-path="Configurations/images/Bitmaps/review.png" manifest:media-type="image/png" manifest:size="{$invalidConfigIconSize}"/>
   <manifest:file-entry manifest:full-path="Configurations/toolbar/missing.xml" manifest:media-type="text/xml"/>
 </manifest:manifest>
 XML;
@@ -94,6 +95,7 @@ return [
         $indexBy,
         $acceleratorXml,
         $configIconBytes,
+        $configIconSize,
         $statusbarXml,
         $heroBytes
     ): void {
@@ -115,7 +117,12 @@ return [
         $t->same(1, $configurations['missingCount']);
         $t->same(0, $configurations['encryptedCount']);
         $t->same(0, $configurations['invalidMediaTypeCount']);
-        $t->same(['odf-configuration-package-missing-part', 'odf-configuration-package-undeclared-part'], $configurations['issueCodes']);
+        $t->same(1, $configurations['invalidDeclaredSizeCount']);
+        $t->same([
+            'odf-configuration-package-invalid-declared-size',
+            'odf-configuration-package-missing-part',
+            'odf-configuration-package-undeclared-part',
+        ], $configurations['issueCodes']);
         $t->same([
             'accelerator-configuration' => 1,
             'configuration-directory' => 1,
@@ -150,6 +157,10 @@ return [
         $t->same('configuration-package-bytes-blocked', $configIcon['byteExposurePolicy']);
         $t->same('image-configuration-resource', $configurationsByPart['Configurations/images/Bitmaps/review.png']['kind']);
         $t->same('Configurations', $configurationsByPart['Configurations/images/Bitmaps/review.png']['packageRoot']);
+        $t->same($configIconSize . 'bytes', $configurationsByPart['Configurations/images/Bitmaps/review.png']['declaredSizeRaw']);
+        $t->same(false, $configurationsByPart['Configurations/images/Bitmaps/review.png']['declaredSizeValid']);
+        $t->same(true, $configurationsByPart['Configurations/images/Bitmaps/review.png']['declaredSizeInvalid']);
+        $t->same(['odf-configuration-package-invalid-declared-size'], $configurationsByPart['Configurations/images/Bitmaps/review.png']['issues']);
 
         $missing = $configurationsByPart['Configurations/toolbar/missing.xml'];
         $t->same(false, $missing['exists']);
@@ -182,6 +193,12 @@ return [
         $t->same(1, $compactConfigurations['undeclaredCount']);
         $t->same(1, $compactConfigurations['missingCount']);
         $t->same(1, $compactConfigurations['directoryCount']);
+        $t->same(1, $compactConfigurations['invalidDeclaredSizeCount']);
+        $t->same([
+            'odf-configuration-invalid-declared-size',
+            'odf-configuration-missing-package-part',
+            'odf-configuration-undeclared-package-part',
+        ], $compactConfigurations['issueCodes']);
         $t->same(['accelerator', 'images', 'statusbar', 'toolbar'], $compactConfigurations['configurationAreas']);
         $t->same(['configuration-image', 'configuration-root', 'configuration-xml'], $compactConfigurations['configurationKinds']);
         $t->same('Configurations', $compactByPath['Configurations/accelerator/current.xml']['packageRoot']);
@@ -189,6 +206,10 @@ return [
         $t->same(strlen($acceleratorXml), $compactByPath['Configurations/accelerator/current.xml']['byteLength']);
         $t->same('Configurations', $compactByPath['Configurations/images/Bitmaps/review.png']['packageRoot']);
         $t->same(false, $compactByPath['Configurations/images/Bitmaps/review.png']['canExposeAsDocumentMedia']);
+        $t->same($configIconSize . 'bytes', $compactByPath['Configurations/images/Bitmaps/review.png']['declaredSizeRaw']);
+        $t->same(false, $compactByPath['Configurations/images/Bitmaps/review.png']['declaredSizeValid']);
+        $t->same(true, $compactByPath['Configurations/images/Bitmaps/review.png']['declaredSizeInvalid']);
+        $t->same(['odf-configuration-invalid-declared-size'], $compactByPath['Configurations/images/Bitmaps/review.png']['issues']);
         $t->same(['odf-configuration-missing-package-part'], $compactByPath['Configurations/toolbar/missing.xml']['issues']);
         $t->same(['odf-configuration-undeclared-package-part'], $compactByPath['Configurations/statusbar/standardbar.xml']['issues']);
 

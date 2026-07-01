@@ -28,7 +28,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Events/Launch/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Events/Launch/events.xml" manifest:media-type="text/xml" manifest:size="{$eventDefinitionSize}"/>
   <manifest:file-entry manifest:full-path="Events/Launch/launch.js" manifest:media-type="application/javascript" manifest:size="{$launchScriptSize}"/>
-  <manifest:file-entry manifest:full-path="Events/Launch/metadata.json" manifest:media-type="application/json" manifest:size="{$metadataSize}"/>
+  <manifest:file-entry manifest:full-path="Events/Launch/metadata.json" manifest:media-type="application/json" manifest:size="{$metadataSize}bytes"/>
   <manifest:file-entry manifest:full-path="Events/Launch/missing.dat" manifest:media-type="application/octet-stream" manifest:size="21"/>
   <manifest:file-entry manifest:full-path="Events/Launch/encrypted.dat" manifest:media-type="application/octet-stream" manifest:size="{$encryptedSize}">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="event-checksum"/>
@@ -129,9 +129,11 @@ return [
         $t->same(1, $readerEvents['encryptedCount']);
         $t->same(0, $readerEvents['missingMediaTypeCount']);
         $t->same(0, $readerEvents['invalidMediaTypeCount']);
-        $t->same(3, $readerEvents['issueCount']);
+        $t->same(1, $readerEvents['invalidDeclaredSizeCount']);
+        $t->same(4, $readerEvents['issueCount']);
         $t->same([
             'odf-event-package-encrypted-part',
+            'odf-event-package-invalid-declared-size',
             'odf-event-package-missing-part',
             'odf-event-package-undeclared-part',
         ], $readerEvents['issueCodes']);
@@ -164,6 +166,12 @@ return [
         $t->same('event-metadata', $metadata['kind']);
         $t->same('application/json', $metadata['mediaTypeBase']);
         $t->same(strlen($metadataBytes), $metadata['byteLength']);
+        $t->same(null, $metadata['declaredSize']);
+        $t->same(strlen($metadataBytes) . 'bytes', $metadata['declaredSizeRaw']);
+        $t->same(false, $metadata['declaredSizeValid']);
+        $t->same(true, $metadata['declaredSizeInvalid']);
+        $t->same(false, $metadata['declaredSizeMismatch']);
+        $t->same(['odf-event-package-invalid-declared-size'], $metadata['issues']);
 
         $missing = $readerItems['Events/Launch/missing.dat'];
         $t->same(false, $missing['exists']);
@@ -239,7 +247,8 @@ return [
         $t->same(1, $compactEvents['missingCount']);
         $t->same(1, $compactEvents['directoryCount']);
         $t->same(1, $compactEvents['encryptedCount']);
-        $t->same(3, $compactEvents['issueCount']);
+        $t->same(1, $compactEvents['invalidDeclaredSizeCount']);
+        $t->same(4, $compactEvents['issueCount']);
         $t->same($readerEvents['issueCodes'], $compactEvents['issueCodes']);
         $t->same('event-package-bytes-blocked', $compactEvents['byteExposurePolicy']);
         $t->same('event-package-metadata-only', $compactEvents['reviewPolicy']);
@@ -250,6 +259,12 @@ return [
         $t->same(sprintf('%08x', crc32($eventDefinitionXml)), $compactItems['Events/Launch/events.xml']['crc32']);
         $t->same('event-script', $compactItems['Events/Launch/launch.js']['kind']);
         $t->same('event-metadata', $compactItems['Events/Launch/metadata.json']['kind']);
+        $t->same(null, $compactItems['Events/Launch/metadata.json']['declaredSize']);
+        $t->same(strlen($metadataBytes) . 'bytes', $compactItems['Events/Launch/metadata.json']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Events/Launch/metadata.json']['declaredSizeValid']);
+        $t->same(true, $compactItems['Events/Launch/metadata.json']['declaredSizeInvalid']);
+        $t->same(false, $compactItems['Events/Launch/metadata.json']['declaredSizeMismatch']);
+        $t->same(['odf-event-package-invalid-declared-size'], $compactItems['Events/Launch/metadata.json']['issues']);
         $t->same(['odf-event-package-missing-part'], $compactItems['Events/Launch/missing.dat']['issues']);
         $t->same(['odf-event-package-encrypted-part'], $compactItems['Events/Launch/encrypted.dat']['issues']);
         $t->same(['odf-event-package-undeclared-part'], $compactItems['Events/Launch/orphan.dat']['issues']);

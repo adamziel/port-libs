@@ -104,6 +104,13 @@ $buildOdtPackage = static function (
     return ZipPackage::fromParts($parts, 'odt package');
 };
 
+$zipCrc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+$buildUnicodeExtra = static function (int $id, string $rawBytes, string $utf8Text) use ($zipCrc32): string {
+    $payload = pack('CV', 1, $zipCrc32($rawBytes)) . $utf8Text;
+
+    return pack('vv', $id, strlen($payload)) . $payload;
+};
+
 $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array $centralOrder): ZipPackage {
     $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
     $body = '';
@@ -115,6 +122,8 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
         $data = $part['data'] ?? '';
         $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
         $flags = $part['generalPurposeFlags'] ?? 0x0800;
+        $localExtra = $part['localExtra'] ?? ($part['extraFieldData'] ?? '');
+        $centralExtra = $part['centralExtra'] ?? ($part['extraFieldData'] ?? $localExtra);
         $compressed = $method === 8 ? gzdeflate($data) : $data;
         $offset = strlen($body);
         $crc = $crc32($data);
@@ -131,9 +140,9 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
             strlen($compressed),
             strlen($data),
             strlen($rawName),
-            0
+            strlen($localExtra)
         );
-        $body .= $rawName . $compressed;
+        $body .= $rawName . $localExtra . $compressed;
 
         $centralRecords[$name] = pack(
             'VvvvvvvVVVvvvvvVV',
@@ -148,13 +157,13 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
             strlen($compressed),
             strlen($data),
             strlen($rawName),
-            0,
+            strlen($centralExtra),
             0,
             0,
             0,
             str_ends_with($name, '/') ? 0x10 : 0,
             $offset
-        ) . $rawName;
+        ) . $rawName . $centralExtra;
     }
 
     $central = '';
@@ -336,6 +345,10 @@ return [
             $mediaByPath[$media['path']] = $media;
         }
         $inventory = $summary['packageInventory']['parts'];
+        $identityEntries = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $item) {
+            $identityEntries[$item['path']] = $item;
+        }
 
         $t->same('1.4', $odt->manifestVersion());
         $t->same('1.4', $summary['manifestVersion']);
@@ -359,6 +372,112 @@ return [
         $t->same('page-preview', $inventory['content.xml']['manifestPreferredViewMode']);
         $t->same('1.1', $inventory['Pictures/hero.png']['manifestVersion']);
         $t->same('thumbnail', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
+        $t->same('1.2', $identityEntries['content.xml']['manifestVersion']);
+        $t->same('page-preview', $identityEntries['content.xml']['manifestPreferredViewMode']);
+        $t->same('1.1', $identityEntries['Pictures/hero.png']['manifestVersion']);
+        $t->same('thumbnail', $identityEntries['Pictures/hero.png']['manifestPreferredViewMode']);
+    },
+    'summarizes compact ODT manifest leaf names across package areas' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $picturePreviewBytes = 'PIC';
+        $objectPreviewBytes = 'CHART';
+        $replacementPreviewBytes = 'REPL';
+        $extraManifestEntries = <<<'XML'
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/preview.png" manifest:size="3"/>
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:full-path="Object%20Chart/"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Object%20Chart/Pictures/preview.png" manifest:size="5"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="ObjectReplacements/preview.png" manifest:size="4"/>
+XML;
+        $manifest = str_replace('</manifest:manifest>', $extraManifestEntries . "\n" . '</manifest:manifest>', $manifestXml);
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/preview.png', 'data' => $picturePreviewBytes],
+                ['name' => 'Object Chart/', 'data' => ''],
+                ['name' => 'Object Chart/Pictures/preview.png', 'data' => $objectPreviewBytes],
+                ['name' => 'ObjectReplacements/preview.png', 'data' => $replacementPreviewBytes],
+            ]
+        ));
+        $summary = $odt->summarize();
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
+        $reviewByPath = [];
+        foreach ($review['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $reviewSharedByLeaf = [];
+        foreach ($review['sharedLeafNameSummaries'] as $item) {
+            $reviewSharedByLeaf[$item['leafName']] = $item;
+        }
+        $inventorySharedByLeaf = [];
+        foreach ($inventory['sharedLeafNameSummaries'] as $item) {
+            $inventorySharedByLeaf[$item['leafName']] = $item;
+        }
+        $identitySharedByLeaf = [];
+        foreach ($identity['sharedLeafNameSummaries'] as $item) {
+            $identitySharedByLeaf[$item['leafName']] = $item;
+        }
+
+        $t->same('Object Chart/Pictures/preview.png', $reviewByPath['Object%20Chart/Pictures/preview.png']['packagePath']);
+        $t->same('Object Chart/', $reviewByPath['Object%20Chart/Pictures/preview.png']['directoryRoot']);
+        $t->same('Object Chart/Pictures/', $reviewByPath['Object%20Chart/Pictures/preview.png']['parentDirectory']);
+        $t->same('preview.png', $reviewByPath['Object%20Chart/Pictures/preview.png']['leafName']);
+        $t->same('preview', $reviewByPath['Object%20Chart/Pictures/preview.png']['entryBaseName']);
+        $t->same('png', $reviewByPath['Object%20Chart/Pictures/preview.png']['entryExtensionKey']);
+        $t->same(3, $reviewByPath['Object%20Chart/Pictures/preview.png']['pathDepth']);
+        $t->same(true, $reviewByPath['Object%20Chart/Pictures/preview.png']['embeddedObjectPackagePart']);
+        $t->same(false, $reviewByPath['Object%20Chart/Pictures/preview.png']['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $reviewByPath['Object%20Chart/Pictures/preview.png']['byteExposurePolicy']);
+
+        $t->same(7, $review['leafNameCount']);
+        $t->same(1, $review['sharedLeafNameCount']);
+        $t->same(3, $review['sharedLeafNameEntryCount']);
+        $t->same([
+            'leafName' => 'preview.png',
+            'entryCount' => 3,
+            'fileEntryCount' => 3,
+            'directoryEntryCount' => 0,
+            'rootEntryCount' => 0,
+            'storedByteLength' => strlen($picturePreviewBytes) + strlen($objectPreviewBytes) + strlen($replacementPreviewBytes),
+            'compressedByteLength' => strlen(gzdeflate($picturePreviewBytes)) + strlen(gzdeflate($objectPreviewBytes)) + strlen(gzdeflate($replacementPreviewBytes)),
+            'entryBaseNames' => ['preview'],
+            'entryExtensionKeys' => ['png'],
+            'directoryRoots' => ['Object Chart/', 'ObjectReplacements/', 'Pictures/'],
+            'parentDirectories' => ['Object Chart/Pictures/', 'ObjectReplacements/', 'Pictures/'],
+            'manifestMediaFamilies' => ['image', 'object-replacement'],
+            'byteExposurePolicies' => [
+                'embedded-object-package-bytes-blocked',
+                'object-replacement-package-bytes-blocked',
+                'package-bytes-exposable',
+            ],
+            'roles' => [],
+            'paths' => [
+                'Object%20Chart/Pictures/preview.png',
+                'ObjectReplacements/preview.png',
+                'Pictures/preview.png',
+            ],
+            'packagePaths' => [
+                'Object Chart/Pictures/preview.png',
+                'ObjectReplacements/preview.png',
+                'Pictures/preview.png',
+            ],
+        ], $reviewSharedByLeaf['preview.png']);
+
+        $t->same(8, $inventory['leafNameCount']);
+        $t->same(1, $inventory['sharedLeafNameCount']);
+        $t->same(3, $inventory['sharedLeafNameEntryCount']);
+        $t->same($inventory['sharedLeafNameSummaries'], $identity['sharedLeafNameSummaries']);
+        $t->same($inventory['leafNameCount'], $identity['leafNameCount']);
+        $t->same($inventory['sharedLeafNameCount'], $identity['sharedLeafNameCount']);
+        $t->same($inventory['sharedLeafNameEntryCount'], $identity['sharedLeafNameEntryCount']);
+        $t->same([
+            'Object Chart/Pictures/preview.png',
+            'ObjectReplacements/preview.png',
+            'Pictures/preview.png',
+        ], $inventorySharedByLeaf['preview.png']['paths']);
+        $t->same(['embedded-object-part', 'manifest-declared', 'media-resource', 'object-replacement'], $inventorySharedByLeaf['preview.png']['roles']);
+        $t->same($inventorySharedByLeaf['preview.png'], $identitySharedByLeaf['preview.png']);
     },
     'preserves compact ODT manifest custom file-entry attributes in review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
@@ -394,6 +513,7 @@ return [
         }
         $order = $summary['manifestReview']['manifestFileEntryOrder'];
         $inventory = $summary['packageInventory']['parts'];
+        $identity = $summary['packageIdentity'];
 
         $t->same(4, $rootAttributeProvenance['attributeCount']);
         $t->same(['loext:generator', 'manifest:version', 'wp:review-source', 'xml:lang'], $rootAttributeProvenance['attributeNames']);
@@ -444,6 +564,17 @@ return [
         $t->same('sha256-content', $inventory['content.xml']['customManifestAttributeMap']['loext:checksum']);
         $t->same(3, $inventory['Pictures/hero.png']['customManifestAttributeCount']);
         $t->same('en-US', $inventory['Pictures/hero.png']['customManifestAttributeMap']['xml:lang']);
+
+        $t->same(3, $identity['manifestRootCustomAttributeCount']);
+        $t->same(['loext:generator', 'wp:review-source', 'xml:lang'], $identity['manifestRootCustomAttributeNames']);
+        $t->same($rootAttributeProvenance['customAttributeMap'], $identity['manifestRootCustomAttributeMap']);
+        $t->same($rootAttributeProvenance['namespaceDeclarationCount'], $identity['manifestRootNamespaceDeclarationCount']);
+        $t->same($rootAttributeProvenance['namespaceDeclarationNames'], $identity['manifestRootNamespaceDeclarationNames']);
+        $t->same($rootAttributeProvenance['namespaceDeclarationMap'], $identity['manifestRootNamespaceDeclarationMap']);
+
+        $changedManifest = str_replace('wp:review-source="migration-queue"', 'wp:review-source="archive-queue"', $manifest);
+        $changedIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $changedManifest))->summarize()['packageIdentity'];
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
     },
     'includes compact ODT manifest root provenance in package identity' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
@@ -510,6 +641,10 @@ return [
         $t->same('wp', $content['customManifestChildElements'][0]['prefix']);
         $t->same(1, $content['customManifestChildElements'][0]['attributeCount']);
         $t->same(1, $content['customManifestChildElements'][0]['childElementCount']);
+        $t->same(3, $content['customManifestChildElements'][0]['namespaceDeclarationCount']);
+        $t->same(['xmlns:loext', 'xmlns:manifest', 'xmlns:wp'], $content['customManifestChildElements'][0]['namespaceDeclarationNames']);
+        $t->same('urn:wordpress:review', $content['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:wp']);
+        $t->same('urn:libreoffice:manifest', $content['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:loext']);
 
         $t->same(2, $hero['manifestChildElementCount']);
         $t->same(['manifest:encryption-data', 'loext:media-policy'], $hero['manifestChildElementNames']);
@@ -518,6 +653,9 @@ return [
         $t->same(1, $hero['customManifestChildElementCount']);
         $t->same(['loext:media-policy'], $hero['customManifestChildElementNames']);
         $t->same('media-policy', $hero['customManifestChildElements'][0]['localName']);
+        $t->same(3, $hero['customManifestChildElements'][0]['namespaceDeclarationCount']);
+        $t->same('urn:libreoffice:manifest', $hero['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:loext']);
+        $t->same('urn:wordpress:review', $hero['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:wp']);
 
         $t->same(2, $review['manifestCustomChildElementEntryCount']);
         $t->same(2, $review['manifestCustomChildElementCount']);
@@ -531,6 +669,14 @@ return [
         $t->same(['loext:media-policy'], $inventory['Pictures/hero.png']['customManifestChildElementNames']);
         $t->same(['wp:review-hint'], $identityByPath['content.xml']['customManifestChildElementNames']);
         $t->same(['loext:media-policy'], $identityByPath['Pictures/hero.png']['customManifestChildElementNames']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $reviewByPath['content.xml']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $reviewByPath['Pictures/hero.png']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $order[1]['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $order[4]['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $inventory['content.xml']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $inventory['Pictures/hero.png']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $identityByPath['content.xml']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $identityByPath['Pictures/hero.png']['customManifestChildElements'][0]['namespaceDeclarationMap']);
     },
     'keeps compact ODT manifest custom attribute collision provenance stable' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
@@ -1070,6 +1216,46 @@ XML,
         $t->same(['odf-manifest-file-entry-missing-media-type'], $inventory['Pictures/nameless.bin']['manifestDiagnostics']);
         $t->same(false, $inventory['Pictures/nameless.bin']['canExposeBytes']);
     },
+    'reports compact ODT manifest directory declared sizes as metadata-only diagnostics' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/" manifest:size="24"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0]],
+        ))->summarize();
+        $directory = $summary['manifestReview']['directoryItems'][0];
+        $reviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $inventory = $summary['packageInventory']['parts'];
+
+        $t->same('Pictures/', $directory['path']);
+        $t->same(true, $directory['isDirectory']);
+        $t->same(24, $directory['declaredSize']);
+        $t->same('24', $directory['declaredSizeRaw']);
+        $t->same(true, $directory['declaredSizeValid']);
+        $t->same(false, $directory['declaredSizeMismatch']);
+        $t->same([
+            'odf-manifest-directory-entry',
+            'odf-manifest-directory-declared-size',
+        ], $directory['diagnostics']);
+
+        $t->same(1, $summary['manifestReview']['directoryCount']);
+        $t->same(2, $summary['manifestReview']['diagnosticCount']);
+        $t->same([
+            'odf-manifest-directory-declared-size' => 1,
+            'odf-manifest-directory-entry' => 1,
+        ], $summary['manifestReview']['diagnosticCodeCounts']);
+        $t->same($directory['diagnostics'], $reviewByPath['Pictures/']['diagnostics']);
+        $t->same($directory['diagnostics'], $inventory['Pictures/']['manifestDiagnostics']);
+        $t->same('directory-entry-no-bytes', $inventory['Pictures/']['byteExposurePolicy']);
+    },
     'reports compact ODT audio and video manifest media resources' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $audioBytes = 'AUDIODATA';
         $videoBytes = 'VIDEODATA!';
@@ -1458,6 +1644,128 @@ XML;
             $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $encodedControlManifest)));
         }
     },
+    'preserves compact ODT package path segment character provenance for review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $mixedCaseWhitespacePart = 'Pictures/Review Draft.PNG';
+        $multiSegmentPart = 'ReviewAssets/Review Folder/review%20encoded.xml';
+        $nonAsciiPart = "Data/caf\xC3\xA9.xml";
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/Review%20Draft.PNG" manifest:size="14"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="ReviewAssets/Review%20Folder/review%2520encoded.xml" manifest:size="17"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Data/caf%C3%A9.xml" manifest:size="14"/>',
+            $manifestXml
+        );
+
+        $package = $buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => $mixedCaseWhitespacePart, 'data' => 'review png data', 'compressionMethod' => 0],
+                ['name' => $multiSegmentPart, 'data' => '<encoded-review/>', 'compressionMethod' => 0],
+                ['name' => $nonAsciiPart, 'data' => '<cafe-review/>', 'compressionMethod' => 0],
+            ],
+        );
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory']['parts'];
+        $readerProvenance = (new OdfReader())->readPackage($package)['importReport']['manifest']['packageProvenance'];
+        $reviewByPath = [];
+        foreach ($summary['packageInventory']['packagePathSegmentCharacterReviewParts'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $readerReviewByPart = [];
+        foreach ($readerProvenance['packagePathSegmentCharacterReviewParts'] as $item) {
+            $readerReviewByPart[$item['part']] = $item;
+        }
+
+        $expectedUppercasePartNames = [
+            'META-INF/manifest.xml',
+            'Pictures/hero.png',
+            $mixedCaseWhitespacePart,
+            $multiSegmentPart,
+            $nonAsciiPart,
+        ];
+        sort($expectedUppercasePartNames, SORT_STRING);
+        $expectedUppercaseSegments = [
+            'Data',
+            'META-INF',
+            'Pictures',
+            'Review Draft.PNG',
+            'Review Folder',
+            'ReviewAssets',
+        ];
+        sort($expectedUppercaseSegments, SORT_STRING);
+
+        $t->same(5, $summary['packageInventory']['packagePathSegmentCharacterReviewPartCount']);
+        $t->same(9, $summary['packageInventory']['packagePathSegmentCharacterReviewSegmentCount']);
+        $t->same(5, $summary['packageInventory']['packagePathSegmentUppercasePartCount']);
+        $t->same(2, $summary['packageInventory']['packagePathSegmentWhitespacePartCount']);
+        $t->same(1, $summary['packageInventory']['packagePathSegmentPercentEncodedOctetPartCount']);
+        $t->same(1, $summary['packageInventory']['packagePathSegmentNonAsciiPartCount']);
+        $t->same([
+            'non-ascii' => 1,
+            'percent-encoded-octet' => 1,
+            'uppercase' => 7,
+            'whitespace' => 2,
+        ], $summary['packageInventory']['packagePathSegmentCharacterFlagCounts']);
+        $t->same($expectedUppercasePartNames, $summary['packageInventory']['packagePathSegmentCharacterFlagPartNames']['uppercase']);
+        $t->same([$mixedCaseWhitespacePart, $multiSegmentPart], $summary['packageInventory']['packagePathSegmentCharacterFlagPartNames']['whitespace']);
+        $t->same([$multiSegmentPart], $summary['packageInventory']['packagePathSegmentCharacterFlagPartNames']['percent-encoded-octet']);
+        $t->same([$nonAsciiPart], $summary['packageInventory']['packagePathSegmentCharacterFlagPartNames']['non-ascii']);
+        $t->same($expectedUppercaseSegments, $summary['packageInventory']['packagePathSegmentCharacterFlagSegments']['uppercase']);
+        $t->same(['Review Draft.PNG', 'Review Folder'], $summary['packageInventory']['packagePathSegmentCharacterFlagSegments']['whitespace']);
+        $t->same(['review%20encoded.xml'], $summary['packageInventory']['packagePathSegmentCharacterFlagSegments']['percent-encoded-octet']);
+        $t->same(["caf\xC3\xA9.xml"], $summary['packageInventory']['packagePathSegmentCharacterFlagSegments']['non-ascii']);
+
+        $t->same([
+            [
+                'index' => 0,
+                'segment' => 'ReviewAssets',
+                'flags' => ['uppercase'],
+            ],
+            [
+                'index' => 1,
+                'segment' => 'Review Folder',
+                'flags' => ['uppercase', 'whitespace'],
+            ],
+            [
+                'index' => 2,
+                'segment' => 'review%20encoded.xml',
+                'flags' => ['percent-encoded-octet'],
+            ],
+        ], $inventory[$multiSegmentPart]['pathSegmentCharacterFlags']);
+        $t->same(3, $inventory[$multiSegmentPart]['pathSegmentCharacterFlaggedSegmentCount']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasUppercase']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasWhitespace']);
+        $t->same(true, $inventory[$multiSegmentPart]['pathSegmentHasPercentEncodedOctet']);
+        $t->same(false, $inventory[$multiSegmentPart]['pathSegmentHasNonAscii']);
+        $t->same([
+            [
+                'index' => 0,
+                'segment' => 'Data',
+                'flags' => ['uppercase'],
+            ],
+            [
+                'index' => 1,
+                'segment' => "caf\xC3\xA9.xml",
+                'flags' => ['non-ascii'],
+            ],
+        ], $inventory[$nonAsciiPart]['pathSegmentCharacterFlags']);
+        $t->same(true, $inventory[$nonAsciiPart]['pathSegmentHasNonAscii']);
+
+        $t->same(3, $reviewByPath[$multiSegmentPart]['flaggedSegmentCount']);
+        $t->same(['ReviewAssets', 'Review Folder', 'review%20encoded.xml'], $reviewByPath[$multiSegmentPart]['pathSegments']);
+        $t->same('text/xml', $reviewByPath[$multiSegmentPart]['manifestMediaTypeBase']);
+        $t->same('package-bytes-exposable', $reviewByPath[$multiSegmentPart]['byteExposurePolicy']);
+        $t->same(['percent-encoded-octet', 'uppercase', 'whitespace'], $reviewByPath[$multiSegmentPart]['flags']);
+        $t->same($inventory[$multiSegmentPart]['pathSegmentCharacterFlags'], $reviewByPath[$multiSegmentPart]['flaggedSegments']);
+
+        $t->same($summary['packageInventory']['packagePathSegmentCharacterFlagCounts'], $readerProvenance['packagePathSegmentCharacterFlagCounts']);
+        $t->same($summary['packageInventory']['packagePathSegmentCharacterFlagPartNames'], $readerProvenance['packagePathSegmentCharacterFlagPartNames']);
+        $t->same($summary['packageInventory']['packagePathSegmentCharacterFlagSegments'], $readerProvenance['packagePathSegmentCharacterFlagSegments']);
+        $t->same($inventory[$multiSegmentPart]['pathSegmentCharacterFlags'], $readerProvenance['parts'][$multiSegmentPart]['pathSegmentCharacterFlags']);
+        $t->same($reviewByPath[$multiSegmentPart]['flaggedSegments'], $readerReviewByPart[$multiSegmentPart]['flaggedSegments']);
+        $t->same($summary['packageInventory']['packagePathSegmentCharacterReviewSegmentCount'], $readerProvenance['packagePathSegmentCharacterReviewSegmentCount']);
+    },
     'keeps compact ODT URI encoded manifest parts declared in package inventory' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SRCIMAGE';
         $manifest = str_replace(
@@ -1569,7 +1877,81 @@ XML;
             'Dictionaries/en_US/preview.png',
         ], array_column($mediaResources['packageRolePrecedenceItems'], 'part'));
     },
-    'preserves compact ODT raw ZIP entry name provenance in package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+    'summarizes compact ODT package inventory directory and extension buckets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reviewImage = 'REVIEWPNG';
+        $scriptXml = '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>';
+        $thumbnail = 'THUMBNAIL';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/review.png" manifest:size="' . strlen($reviewImage) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Basic/Standard/Module1.xml" manifest:size="' . strlen($scriptXml) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Pictures/review.png', 'data' => $reviewImage, 'compressionMethod' => 0],
+                ['name' => 'Basic/Standard/Module1.xml', 'data' => $scriptXml, 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnail, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $inventory = $summary['packageInventory'];
+        $parts = $inventory['parts'];
+        $directories = [];
+        foreach ($inventory['packagePathDirectorySummaries'] as $item) {
+            $directories[$item['directory']] = $item;
+        }
+        $extensions = [];
+        foreach ($inventory['packagePathExtensionSummaries'] as $item) {
+            $extensions[$item['extension'] ?? '(none)'] = $item;
+        }
+
+        $t->same(5, $inventory['packagePathDirectoryCount']);
+        $t->same(['/', 'Basic/Standard', 'META-INF', 'Pictures', 'Thumbnails'], $inventory['packagePathDirectories']);
+        $t->same(3, $inventory['packagePathExtensionCount']);
+        $t->same([null, 'png', 'xml'], $inventory['packagePathExtensions']);
+
+        $t->same('Pictures', $parts['Pictures/review.png']['directory']);
+        $t->same(1, $parts['Pictures/review.png']['directoryDepth']);
+        $t->same('review.png', $parts['Pictures/review.png']['baseName']);
+        $t->same('png', $parts['Pictures/review.png']['extension']);
+        $t->same('/', $parts['Pictures/']['directory']);
+        $t->same('Pictures', $parts['Pictures/']['baseName']);
+        $t->same(null, $parts['Pictures/']['extension']);
+
+        $t->same(2, $directories['Pictures']['entryCount']);
+        $t->same(2, $directories['Pictures']['fileEntryCount']);
+        $t->same(2, $directories['Pictures']['manifestDeclaredEntryCount']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage), $directories['Pictures']['byteLength']);
+        $t->same([
+            'manifest-declared' => 2,
+            'media-resource' => 2,
+        ], $directories['Pictures']['roleCounts']);
+        $t->same(['image' => 2], $directories['Pictures']['manifestMediaFamilyCounts']);
+        $t->same(['package-bytes-exposable' => 2], $directories['Pictures']['byteExposurePolicyCounts']);
+
+        $t->same(1, $directories['Basic/Standard']['entryCount']);
+        $t->same(['manifest-declared' => 1, 'script-package' => 1], $directories['Basic/Standard']['roleCounts']);
+        $t->same(['script-package-bytes-blocked' => 1], $directories['Basic/Standard']['byteExposurePolicyCounts']);
+        $t->same(1, $directories['Thumbnails']['undeclaredEntryCount']);
+        $t->same(['package-thumbnail' => 1, 'undeclared-package-entry' => 1], $directories['Thumbnails']['roleCounts']);
+
+        $t->same(3, $extensions['png']['entryCount']);
+        $t->same(2, $extensions['png']['manifestDeclaredEntryCount']);
+        $t->same(1, $extensions['png']['undeclaredEntryCount']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage) + strlen($thumbnail), $extensions['png']['byteLength']);
+        $t->same([
+            'manifest-declared' => 2,
+            'media-resource' => 2,
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 1,
+        ], $extensions['png']['roleCounts']);
+        $t->same(1, $extensions['(none)']['directoryEntryCount']);
+    },
+    'preserves compact ODT raw ZIP entry name provenance in package inventory and identity' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $buildUnicodeExtra, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
         $rawName = "Pictures/caf\x82.png";
         $legacyBytes = 'CAFEPNG';
@@ -1599,11 +1981,32 @@ XML;
             $buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name'))
         )->summarize();
         $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
         $legacy = $inventory['parts'][$decodedName];
+        $identityParts = [];
+        foreach ($identity['packageEntries'] as $part) {
+            $identityParts[$part['path']] = $part;
+        }
+        $identityLegacy = $identityParts[$decodedName];
         $mediaByPath = [];
         foreach ($summary['mediaParts'] as $media) {
             $mediaByPath[$media['path']] = $media;
         }
+        $unicodeRawName = 'Pictures/cafe.png';
+        $unicodePathExtra = $buildUnicodeExtra(0x7075, $unicodeRawName, $decodedName);
+        $unicodeParts = $parts;
+        $unicodeParts[6]['rawName'] = $unicodeRawName;
+        $unicodeParts[6]['localExtra'] = $unicodePathExtra;
+        $unicodeParts[6]['centralExtra'] = $unicodePathExtra;
+        $unicodeIdentity = OpenDocumentPackage::fromPackage(
+            $buildZipPackageWithCentralDirectoryOrder($unicodeParts, array_column($unicodeParts, 'name'))
+        )->summarize()['packageIdentity'];
+        $utf8Parts = $parts;
+        $utf8Parts[6]['rawName'] = $decodedName;
+        $utf8Parts[6]['generalPurposeFlags'] = 0x0800;
+        $utf8Identity = OpenDocumentPackage::fromPackage(
+            $buildZipPackageWithCentralDirectoryOrder($utf8Parts, array_column($utf8Parts, 'name'))
+        )->summarize()['packageIdentity'];
 
         $t->same(1, $inventory['rawNameProvenanceEntryCount']);
         $t->same(1, $inventory['legacyEncodedNameEntryCount']);
@@ -1613,6 +2016,11 @@ XML;
         $t->same(bin2hex($rawName), $inventory['rawNameProvenanceEntries'][0]['rawNameHex']);
         $t->same('cp437', $inventory['rawNameProvenanceEntries'][0]['nameEncoding']);
         $t->same(false, $inventory['rawNameProvenanceEntries'][0]['rawNameMatchesDecodedName']);
+        $t->same(1, $identity['rawNameProvenanceEntryCount']);
+        $t->same(1, $identity['legacyEncodedNameEntryCount']);
+        $t->same(0, $identity['unicodePathExtraEntryCount']);
+        $t->same(1, $identity['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same($inventory['rawNameProvenanceEntries'], $identity['rawNameProvenanceEntries']);
 
         $t->same('Pictures/caf%C3%A9.png', $legacy['manifestPath']);
         $t->same($decodedName, $legacy['manifestPackagePath']);
@@ -1624,10 +2032,24 @@ XML;
         $t->same(true, $legacy['hasRawNameProvenance']);
         $t->same(true, $legacy['declaredInManifest']);
         $t->same(['manifest-declared', 'media-resource'], $legacy['roles']);
+        $t->same(bin2hex($rawName), $identityLegacy['rawNameHex']);
+        $t->same('cp437', $identityLegacy['nameEncoding']);
+        $t->same(false, $identityLegacy['rawNameMatchesDecodedName']);
+        $t->same(true, $identityLegacy['usesLegacyNameEncoding']);
+        $t->same(false, $identityLegacy['usesUnicodePathExtraField']);
+        $t->same(true, $identityLegacy['hasRawNameProvenance']);
+        $t->same(true, $identityLegacy['declaredInManifest']);
         $t->same(strlen($legacyBytes), $legacy['byteLength']);
         $t->same(strlen($legacyBytes), $mediaByPath['Pictures/caf%C3%A9.png']['byteLength']);
         $t->same($decodedName, $mediaByPath['Pictures/caf%C3%A9.png']['packagePath']);
         $t->same(hash('sha256', $legacyBytes), $mediaByPath['Pictures/caf%C3%A9.png']['byteSha256']);
+        $t->same(1, $unicodeIdentity['rawNameProvenanceEntryCount']);
+        $t->same(0, $unicodeIdentity['legacyEncodedNameEntryCount']);
+        $t->same(1, $unicodeIdentity['unicodePathExtraEntryCount']);
+        $t->same(1, $unicodeIdentity['decodedNameDiffersFromRawNameEntryCount']);
+        $t->true($identity['identitySha256'] !== $unicodeIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $utf8Identity['identitySha256']);
+        $t->same(0, $utf8Identity['rawNameProvenanceEntryCount']);
     },
     'preserves compact ODT ZIP timestamp provenance in package review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $timestampedBytes = 'TIMESTAMPEDPNG';
@@ -1658,10 +2080,29 @@ XML;
         foreach ($review['items'] as $item) {
             $reviewByPath[$item['path']] = $item;
         }
+        $identityManifestByPath = [];
+        foreach ($summary['packageIdentity']['manifestEntries'] as $item) {
+            $identityManifestByPath[$item['path']] = $item;
+        }
+        $identityPackageByPath = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $item) {
+            $identityPackageByPath[$item['path']] = $item;
+        }
+        $changedIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [[
+                'name' => 'Pictures/timestamped.png',
+                'data' => $timestampedBytes,
+                'compressionMethod' => 0,
+                'modifiedAt' => $modifiedAt + 1,
+            ]],
+        ))->summarize()['packageIdentity'];
 
         $media = $mediaByPath['Pictures/timestamped.png'];
         $part = $inventory['parts']['Pictures/timestamped.png'];
         $reviewItem = $reviewByPath['Pictures/timestamped.png'];
+        $identityManifest = $identityManifestByPath['Pictures/timestamped.png'];
+        $identityPackage = $identityPackageByPath['Pictures/timestamped.png'];
 
         $t->same($modifiedAt, $media['zipModifiedAt']);
         $t->same('extended-timestamp', $media['zipTimestampSource']);
@@ -1689,6 +2130,20 @@ XML;
         $t->same($modifiedAt, $part['zipLocalModifiedAt']);
         $t->same('extended-timestamp', $part['zipLocalTimestampSource']);
         $t->same([], $part['zipTimestampIssues']);
+
+        $t->same(1, $summary['packageIdentity']['zipTimestampEntryCount']);
+        $t->same(1, $summary['packageIdentity']['zipDosTimestampEntryCount']);
+        $t->same(1, $summary['packageIdentity']['zipExtendedTimestampEntryCount']);
+        $t->same(0, $summary['packageIdentity']['zipInvalidDosTimestampEntryCount']);
+        $t->same($modifiedAt, $identityManifest['zipModifiedAt']);
+        $t->same('extended-timestamp', $identityManifest['zipTimestampSource']);
+        $t->same($modifiedAt, $identityManifest['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $identityManifest['zipLocalTimestampSource']);
+        $t->same($modifiedAt, $identityPackage['zipModifiedAt']);
+        $t->same('extended-timestamp', $identityPackage['zipTimestampSource']);
+        $t->same($modifiedAt, $identityPackage['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $identityPackage['zipLocalTimestampSource']);
+        $t->true($summary['packageIdentity']['identitySha256'] !== $changedIdentity['identitySha256']);
     },
     'resolves compact ODT manifest path suffixes while preserving query and fragment provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $sourceBytes = 'SOURCEPNG';
@@ -1755,6 +2210,108 @@ XML;
         $t->same('cache=1', $inventory['Pictures/hero.png']['manifestPathQuery']);
         $t->same('review', $inventory['Pictures/hero.png']['manifestPathFragment']);
         $t->same('Pictures/source hero.png', $inventory['Pictures/source hero.png']['manifestPackagePath']);
+    },
+    'summarizes compact ODT manifest package path profile for review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $sourceBytes = 'SOURCEPNG';
+        $objectBytes = '<office:document-content/>';
+        $scriptBytes = 'print("review")';
+        $rdfBytes = '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/>';
+        $payloadBytes = 'PAYLOAD';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/source%20hero.png?download=true#asset" manifest:size="' . strlen($sourceBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:full-path="Object%20Chart/"/>'
+            . '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="Object%20Chart/content.xml" manifest:size="' . strlen($objectBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="text/x-python" manifest:full-path="Scripts/python/review.py" manifest:size="' . strlen($scriptBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/rdf+xml" manifest:full-path="manifest.rdf" manifest:size="' . strlen($rdfBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Payloads/archive" manifest:size="' . strlen($payloadBytes) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/source hero.png', 'data' => $sourceBytes, 'compressionMethod' => 0],
+                ['name' => 'Object Chart/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Object Chart/content.xml', 'data' => $objectBytes, 'compressionMethod' => 0],
+                ['name' => 'Scripts/python/review.py', 'data' => $scriptBytes, 'compressionMethod' => 0],
+                ['name' => 'manifest.rdf', 'data' => $rdfBytes, 'compressionMethod' => 0],
+                ['name' => 'Payloads/archive', 'data' => $payloadBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $profile = $summary['manifestReview']['manifestPackagePathProfile'];
+        $itemsByPath = [];
+        foreach ($profile['items'] as $item) {
+            $itemsByPath[$item['fullPath']] = $item;
+        }
+
+        $t->same(11, $profile['itemCount']);
+        $t->same(1, $profile['packageRootEntryCount']);
+        $t->same(10, $profile['packagePathEntryCount']);
+        $t->same(1, $profile['directoryEntryCount']);
+        $t->same(9, $profile['fileEntryCount']);
+        $t->same(5, $profile['topLevelEntryCount']);
+        $t->same(5, $profile['nestedEntryCount']);
+        $t->same(3, $profile['maxDepth']);
+        $t->same(3, $profile['uriEncodedPackageReferenceCount']);
+        $t->same(1, $profile['suffixReferenceCount']);
+        $t->same(4, $profile['pathRootCounts']['(package-root)']);
+        $t->same(1, $profile['pathRootCounts']['/']);
+        $t->same(2, $profile['pathRootCounts']['Pictures']);
+        $t->same(2, $profile['pathRootCounts']['Object Chart']);
+        $t->same(1, $profile['pathRootCounts']['Scripts']);
+        $t->same(1, $profile['pathRootCounts']['Payloads']);
+        $t->same([0 => 1, 1 => 5, 2 => 4, 3 => 1], $profile['pathDepthCounts']);
+        $t->same([
+            '(none)' => 1,
+            'png' => 2,
+            'py' => 1,
+            'rdf' => 1,
+            'xml' => 4,
+        ], $profile['fileExtensionCounts']);
+        $t->same(1, $profile['duplicateBasenameCount']);
+        $t->same('content.xml', $profile['duplicateBasenameItems'][0]['baseName']);
+        $t->same(['content.xml', 'Object%20Chart/content.xml'], $profile['duplicateBasenameItems'][0]['paths']);
+
+        $root = $itemsByPath['/'];
+        $t->same('/', $root['pathRoot']);
+        $t->same(0, $root['pathDepth']);
+        $t->same(null, $root['packagePath']);
+        $t->same(true, $root['isPackageRoot']);
+
+        $source = $itemsByPath['Pictures/source%20hero.png?download=true#asset'];
+        $t->same('Pictures/source hero.png', $source['packagePath']);
+        $t->same('Pictures/source%20hero.png', $source['pathReference']);
+        $t->same('?download=true#asset', $source['pathSuffix']);
+        $t->same('download=true', $source['pathQuery']);
+        $t->same('asset', $source['pathFragment']);
+        $t->same('Pictures', $source['pathRoot']);
+        $t->same(2, $source['pathDepth']);
+        $t->same('Pictures/', $source['parentDirectory']);
+        $t->same('source hero.png', $source['baseName']);
+        $t->same('png', $source['extension']);
+        $t->same(true, $source['uriEncodedPackageReference']);
+
+        $objectRoot = $itemsByPath['Object%20Chart/'];
+        $t->same('Object Chart/', $objectRoot['packagePath']);
+        $t->same('Object Chart', $objectRoot['pathRoot']);
+        $t->same(1, $objectRoot['pathDepth']);
+        $t->same('Object Chart', $objectRoot['baseName']);
+        $t->same(null, $objectRoot['extension']);
+        $t->same(true, $objectRoot['isDirectory']);
+        $t->same(true, $objectRoot['uriEncodedPackageReference']);
+
+        $script = $itemsByPath['Scripts/python/review.py'];
+        $t->same('Scripts', $script['pathRoot']);
+        $t->same(3, $script['pathDepth']);
+        $t->same('Scripts/python/', $script['parentDirectory']);
+        $t->same('review.py', $script['baseName']);
+        $t->same('py', $script['extension']);
+
+        $payload = $itemsByPath['Payloads/archive'];
+        $t->same('Payloads', $payload['pathRoot']);
+        $t->same(null, $payload['extension']);
     },
     'summarizes compact ODT manifest suffix references without marking stripped parts undeclared' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifest = str_replace(
@@ -1881,6 +2438,50 @@ XML;
         $t->same(0, $parts['Thumbnails/thumbnail.png']['compressionMethod']);
         $t->same('stored', $parts['Thumbnails/thumbnail.png']['compressionMethodName']);
         $t->same(sprintf('%08x', crc32('THUMBNAIL')), $parts['Thumbnails/thumbnail.png']['crc32']);
+    },
+    'carries compact ODT central directory source records into package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $parts = [
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
+            ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8],
+            ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
+            ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ];
+        $package = $buildZipPackageWithCentralDirectoryOrder(
+            $parts,
+            ['META-INF/manifest.xml', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png', 'mimetype']
+        );
+        $sourceRecords = [];
+        foreach ($package->packageManifestPreflight()['entries'] as $entry) {
+            $sourceRecords[$entry['name']] = $entry;
+        }
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $content = $inventory['parts']['content.xml'];
+        $identityEntries = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $entry) {
+            $identityEntries[$entry['path']] = $entry;
+        }
+        $source = $sourceRecords['content.xml'];
+        $expectedBytes = $source['centralDirectoryRecordEnd'] - $source['centralDirectoryRecordOffset'];
+
+        $t->same(6, $inventory['centralDirectorySourceRecordEntryCount']);
+        $t->same(6, $inventory['centralDirectorySourceRecordSha256Count']);
+        $t->true($inventory['centralDirectorySourceRecordByteLength'] > 6 * 46);
+        $t->same($source['centralDirectoryRecordOffset'], $content['centralDirectoryRecordOffset']);
+        $t->same($expectedBytes, $content['centralDirectoryRecordBytes']);
+        $t->same($source['centralDirectoryRecordEnd'], $content['centralDirectoryRecordEnd']);
+        $t->same($source['centralDirectoryRecordSha256'], $content['centralDirectoryRecordSha256']);
+        $t->same(
+            hash('sha256', substr($package->bytes(), $content['centralDirectoryRecordOffset'], $content['centralDirectoryRecordBytes'])),
+            $content['centralDirectoryRecordSha256']
+        );
+        $t->same($content['centralDirectoryRecordOffset'], $identityEntries['content.xml']['centralDirectoryRecordOffset']);
+        $t->same($content['centralDirectoryRecordBytes'], $identityEntries['content.xml']['centralDirectoryRecordBytes']);
+        $t->same($content['centralDirectoryRecordEnd'], $identityEntries['content.xml']['centralDirectoryRecordEnd']);
+        $t->same($content['centralDirectoryRecordSha256'], $identityEntries['content.xml']['centralDirectoryRecordSha256']);
     },
     'keeps compact ODT manifest directory package entries out of media handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
@@ -3506,6 +4107,7 @@ XML;
     },
     'reports compact ODT package thumbnails as metadata-only package review items' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
+        $inferredBytes = 'INFERREDPNG';
         $encryptedBytes = 'ENCRYPTEDPNG';
         $invalidBytes = 'NOT-IMAGE';
         $orphanBytes = 'WEBPTHUMB';
@@ -3520,6 +4122,7 @@ XML;
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
             '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
             . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Thumbnails/thumbnail.png" manifest:size="' . strlen($thumbnailBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="" manifest:full-path="Thumbnails/inferred.png" manifest:size="' . strlen($inferredBytes) . '"/>'
             . '<manifest:file-entry manifest:media-type="image/jpeg" manifest:full-path="Thumbnails/missing.jpg"/>'
             . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Thumbnails/not-image.png"/>'
             . $encryptedEntry,
@@ -3530,6 +4133,7 @@ XML;
             manifest: $manifest,
             extraParts: [
                 ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+                ['name' => 'Thumbnails/inferred.png', 'data' => $inferredBytes, 'compressionMethod' => 0],
                 ['name' => 'Thumbnails/encrypted.png', 'data' => $encryptedBytes, 'compressionMethod' => 0],
                 ['name' => 'Thumbnails/not-image.png', 'data' => $invalidBytes, 'compressionMethod' => 0],
                 ['name' => 'Thumbnails/orphan.webp', 'data' => $orphanBytes, 'compressionMethod' => 0],
@@ -3546,9 +4150,9 @@ XML;
         }
         $inventory = $summary['packageInventory']['parts'];
 
-        $t->same(5, $thumbnails['count']);
-        $t->same(3, $thumbnails['readableCount']);
-        $t->same(4, $thumbnails['declaredCount']);
+        $t->same(6, $thumbnails['count']);
+        $t->same(4, $thumbnails['readableCount']);
+        $t->same(5, $thumbnails['declaredCount']);
         $t->same(1, $thumbnails['undeclaredCount']);
         $t->same(1, $thumbnails['missingCount']);
         $t->same(1, $thumbnails['encryptedCount']);
@@ -3575,6 +4179,20 @@ XML;
         $t->same('package-thumbnail-bytes-blocked', $declared['byteExposurePolicy']);
         $t->same('package-thumbnail-metadata-only', $declared['reviewPolicy']);
         $t->same([], $declared['issues']);
+        $t->same('image/png', $declared['declaredMediaType']);
+        $t->same('image/png', $declared['inferredMediaType']);
+        $t->same('manifest', $declared['mediaTypeSource']);
+        $t->same(true, $declared['mediaTypeMatchesInferred']);
+        $t->same(false, $declared['missingDeclaredMediaType']);
+
+        $inferred = $itemsByPath['Thumbnails/inferred.png'];
+        $t->same('image/png', $inferred['mediaType']);
+        $t->same(null, $inferred['declaredMediaType']);
+        $t->same('image/png', $inferred['inferredMediaType']);
+        $t->same('package-extension', $inferred['mediaTypeSource']);
+        $t->same(null, $inferred['mediaTypeMatchesInferred']);
+        $t->same(true, $inferred['missingDeclaredMediaType']);
+        $t->same([], $inferred['issues']);
 
         $manifestDeclared = $manifestReviewByPath['Thumbnails/thumbnail.png'];
         $t->same(true, $manifestDeclared['thumbnailPackagePart']);
@@ -3604,6 +4222,10 @@ XML;
         $invalid = $itemsByPath['Thumbnails/not-image.png'];
         $t->same('application/octet-stream', $invalid['mediaType']);
         $t->same('application/octet-stream', $invalid['mediaTypeBase']);
+        $t->same('application/octet-stream', $invalid['declaredMediaType']);
+        $t->same('image/png', $invalid['inferredMediaType']);
+        $t->same('manifest', $invalid['mediaTypeSource']);
+        $t->same(false, $invalid['mediaTypeMatchesInferred']);
         $t->same(false, $invalid['valid']);
         $t->same(['odf-thumbnail-invalid-media-type'], $invalid['issues']);
 
@@ -3611,6 +4233,9 @@ XML;
         $t->same(false, $orphan['declared']);
         $t->same(true, $orphan['undeclared']);
         $t->same('image/webp', $orphan['mediaType']);
+        $t->same(null, $orphan['declaredMediaType']);
+        $t->same('image/webp', $orphan['inferredMediaType']);
+        $t->same('package-extension', $orphan['mediaTypeSource']);
         $t->same(strlen($orphanBytes), $orphan['byteLength']);
         $t->same(['odf-thumbnail-undeclared-package-part'], $orphan['issues']);
 
@@ -3620,8 +4245,8 @@ XML;
         $t->same('package-thumbnail-bytes-blocked', $inventory['Thumbnails/thumbnail.png']['byteExposurePolicy']);
         $t->same(['package-thumbnail', 'manifest-declared'], $inventory['Thumbnails/not-image.png']['roles']);
         $t->same(['package-thumbnail', 'undeclared-package-entry'], $inventory['Thumbnails/orphan.webp']['roles']);
-        $t->same(4, $summary['packageInventory']['packageThumbnailPartCount']);
-        $t->same(4, $summary['packageIdentity']['packageThumbnailPartCount']);
+        $t->same(5, $summary['packageInventory']['packageThumbnailPartCount']);
+        $t->same(5, $summary['packageIdentity']['packageThumbnailPartCount']);
         $t->same(1, $summary['undeclaredPackageEntryCount']);
         $t->same('Thumbnails/orphan.webp', $summary['undeclaredPackageEntries'][0]['path']);
         $t->same(true, $summary['undeclaredPackageEntries'][0]['thumbnailPackagePart']);
@@ -4470,20 +5095,44 @@ XML;
         $t->same(1, count($summary['mediaParts']), 'settings.xml must remain outside media handoff');
     },
     'surfaces compact ODT ZIP package comments as metadata-only provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
-        $package = ZipPackage::fromParts([
+        $parts = [
             ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'comment' => 'manifest review'],
             ['name' => 'content.xml', 'data' => $contentXml, 'comment' => 'body review'],
             ['name' => 'styles.xml', 'data' => $stylesXml],
             ['name' => 'meta.xml', 'data' => $metaXml],
             ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0, 'comment' => 'media review'],
-        ], 'odt package review');
+        ];
+        $package = ZipPackage::fromParts($parts, 'odt package review');
 
         $summary = OpenDocumentPackage::fromPackage($package)->summarize();
         $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
         $comments = $inventory['comments'];
         $content = $inventory['parts']['content.xml'];
         $hero = $inventory['parts']['Pictures/hero.png'];
+        $manifestReviewByPath = [];
+        foreach ($summary['manifestReview']['items'] as $item) {
+            $manifestReviewByPath[$item['path']] = $item;
+        }
+        $manifestOrderByPath = [];
+        foreach ($summary['manifestReview']['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['path']] = $item;
+        }
+        $repeatIdentity = OpenDocumentPackage::fromPackage(ZipPackage::fromParts(
+            $parts,
+            'odt package review'
+        ))->summarize()['packageIdentity'];
+        $changedPackageCommentIdentity = OpenDocumentPackage::fromPackage(ZipPackage::fromParts(
+            $parts,
+            'odt package review changed'
+        ))->summarize()['packageIdentity'];
+        $changedEntryCommentParts = $parts;
+        $changedEntryCommentParts[2]['comment'] = 'body review changed';
+        $changedEntryCommentIdentity = OpenDocumentPackage::fromPackage(ZipPackage::fromParts(
+            $changedEntryCommentParts,
+            'odt package review'
+        ))->summarize()['packageIdentity'];
 
         $t->same($comments, $package->commentPreflight());
         $t->same($comments, $summary['packageInventory']['comments']);
@@ -4498,6 +5147,16 @@ XML;
         $t->same(true, $inventory['hasEntryComments']);
         $t->same(3, $inventory['entryCommentCount']);
         $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $inventory['commentedEntryNames']);
+        $t->same(true, $identity['hasPackageComment']);
+        $t->same(true, $identity['hasEntryComments']);
+        $t->same(3, $identity['entryCommentCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['commentedEntryNames']);
+        $t->same('odt package review', $identity['comments']['packageComment']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['comments']['commentedEntryNames']);
+        $t->same($comments['entries'], $identity['comments']['entries']);
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedPackageCommentIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedEntryCommentIdentity['identitySha256']);
 
         $t->same('body review', $content['zipEntryComment']);
         $t->same(strlen('body review'), $content['zipEntryCommentLength']);
@@ -4507,10 +5166,165 @@ XML;
         $t->same('media review', $hero['zipEntryComment']);
         $t->same(true, $hero['zipEntryHasComment']);
         $t->same('package-bytes-exposable', $hero['byteExposurePolicy']);
+        $t->same('body review', $manifestReviewByPath['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $manifestReviewByPath['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $manifestReviewByPath['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $manifestReviewByPath['content.xml']['zipEntryHasComment']);
+        $t->same([], $manifestReviewByPath['content.xml']['zipEntryCommentIssues']);
+        $t->same('media review', $manifestReviewByPath['Pictures/hero.png']['zipEntryComment']);
+        $t->same('body review', $manifestOrderByPath['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $manifestOrderByPath['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $manifestOrderByPath['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $manifestOrderByPath['content.xml']['zipEntryHasComment']);
+        $t->same([], $manifestOrderByPath['content.xml']['zipEntryCommentIssues']);
+        $t->same('media review', $manifestOrderByPath['Pictures/hero.png']['zipEntryComment']);
         $t->same(1, count($summary['mediaParts']));
         $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
         $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
         $t->same(false, $inventory['canExposeBytes']);
+    },
+    'includes compact ODT manifest provenance in package identity metadata' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:wp="urn:wordpress:review" manifest:version="1.3" wp:review-source="identity">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" manifest:preferred-view-mode="page-preview" wp:review-priority="high"/>',
+                '<manifest:file-entry manifest:media-type="image/jpeg; profile=&quot;review cover&quot;" manifest:full-path="Pictures/hero.png" manifest:size="7" manifest:preferred-view-mode="thumbnail" wp:media-role="cover"/>',
+            ],
+            $manifestXml
+        );
+
+        $identityForManifest = static fn (string $manifestXml): array => OpenDocumentPackage::fromPackage(
+            $buildOdtPackage(manifest: $manifestXml)
+        )->summarize()['packageIdentity'];
+
+        $identity = $identityForManifest($manifest);
+        $repeatIdentity = $identityForManifest($manifest);
+        $changedPreferredViewIdentity = $identityForManifest(str_replace(
+            'manifest:preferred-view-mode="thumbnail"',
+            'manifest:preferred-view-mode="presentation-slide-show"',
+            $manifest
+        ));
+        $changedCustomAttributeIdentity = $identityForManifest(str_replace(
+            'wp:review-priority="high"',
+            'wp:review-priority="low"',
+            $manifest
+        ));
+        $changedMediaParameterIdentity = $identityForManifest(str_replace(
+            'profile=&quot;review cover&quot;',
+            'profile=&quot;review alternate&quot;',
+            $manifest
+        ));
+
+        $manifestEntries = [];
+        foreach ($identity['manifestEntries'] as $entry) {
+            $manifestEntries[$entry['path']] = $entry;
+        }
+        $packageEntries = [];
+        foreach ($identity['packageEntries'] as $entry) {
+            $packageEntries[$entry['path']] = $entry;
+        }
+
+        $content = $manifestEntries['content.xml'];
+        $hero = $manifestEntries['Pictures/hero.png'];
+        $packageContent = $packageEntries['content.xml'];
+        $packageHero = $packageEntries['Pictures/hero.png'];
+
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedPreferredViewIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedCustomAttributeIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedMediaParameterIdentity['identitySha256']);
+
+        $t->same(2, $identity['manifestRootAttributeCount']);
+        $t->same(['manifest:version', 'wp:review-source'], $identity['manifestRootAttributeNames']);
+        $t->same(1, $identity['manifestRootCustomAttributeCount']);
+        $t->same(['wp:review-source'], $identity['manifestRootCustomAttributeNames']);
+        $t->same(['wp:review-source' => 'identity'], $identity['manifestRootCustomAttributeMap']);
+        $t->same(2, $identity['manifestRootNamespaceDeclarationCount']);
+        $t->same('urn:wordpress:review', $identity['manifestRootNamespaceDeclarationMap']['xmlns:wp']);
+
+        $t->same('page-preview', $content['preferredViewMode']);
+        $t->same(1, $content['customManifestAttributeCount']);
+        $t->same(['wp:review-priority'], $content['customManifestAttributeNames']);
+        $t->same(['wp:review-priority' => 'high'], $content['customManifestAttributeMap']);
+        $t->same('page-preview', $packageContent['manifestPreferredViewMode']);
+        $t->same(['wp:review-priority' => 'high'], $packageContent['customManifestAttributeMap']);
+
+        $t->same('image/jpeg; profile="review cover"', $hero['mediaType']);
+        $t->same('image/jpeg', $hero['mediaTypeBase']);
+        $t->same(true, $hero['mediaTypeHasParameters']);
+        $t->same(1, $hero['mediaTypeParameterCount']);
+        $t->same(['profile' => 'review cover'], $hero['mediaTypeParameterMap']);
+        $t->same('thumbnail', $hero['preferredViewMode']);
+        $t->same(['wp:media-role' => 'cover'], $hero['customManifestAttributeMap']);
+        $t->same('image/jpeg; profile="review cover"', $packageHero['manifestMediaType']);
+        $t->same(true, $packageHero['manifestMediaTypeHasParameters']);
+        $t->same(['profile' => 'review cover'], $packageHero['manifestMediaTypeParameterMap']);
+        $t->same('thumbnail', $packageHero['manifestPreferredViewMode']);
+        $t->same(['wp:media-role' => 'cover'], $packageHero['customManifestAttributeMap']);
+    },
+    'surfaces compact ODT ZIP extra fields as metadata-only provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $customExtraField = pack('vva*', 0xcafe, strlen('odf-review'), 'odf-review');
+        $package = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml, 'extraFieldData' => $customExtraField],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ]);
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $extraFields = $inventory['extraFields'];
+        $content = $inventory['parts']['content.xml'];
+        $extraFieldEntries = [];
+        foreach ($extraFields['entries'] as $entry) {
+            $extraFieldEntries[$entry['name']] = $entry;
+        }
+        $identityParts = [];
+        foreach ($summary['packageIdentity']['packageEntries'] as $entry) {
+            $identityParts[$entry['path']] = $entry;
+        }
+
+        $expectedIds = [0xcafe];
+        $t->same($package->extraFieldPreflight(), $extraFields);
+        $t->same(1, $inventory['zipExtraFieldEntryCount']);
+        $t->same(0, $inventory['zipDuplicateExtraFieldEntryCount']);
+        $t->same(0, $inventory['zipMismatchedExtraFieldEntryCount']);
+        $t->same(0, $inventory['zipMismatchedExtraFieldValueEntryCount']);
+        $t->same(1, $inventory['zipExtraFieldIdCount']);
+        $t->same(1, $inventory['zipCentralExtraFieldIdCount']);
+        $t->same(1, $inventory['zipLocalExtraFieldIdCount']);
+        $t->same(1, $inventory['zipSharedExtraFieldIdCount']);
+        $t->same(0, $inventory['zipCentralOnlyExtraFieldIdCount']);
+        $t->same(0, $inventory['zipLocalOnlyExtraFieldIdCount']);
+
+        $t->same($expectedIds, $content['centralExtraFieldIds']);
+        $t->same($expectedIds, $content['localExtraFieldIds']);
+        $t->same(true, $content['hasCentralExtraFields']);
+        $t->same(true, $content['hasLocalExtraFields']);
+        $t->same(true, $content['hasZipExtraFieldProvenance']);
+        $t->same(false, $content['hasDuplicateExtraFieldIds']);
+        $t->same(false, $content['hasMismatchedExtraFieldIds']);
+        $t->same(false, $content['hasMismatchedExtraFieldValues']);
+        $t->same([], $inventory['parts']['styles.xml']['centralExtraFieldIds']);
+        $t->same(false, $inventory['parts']['styles.xml']['hasZipExtraFieldProvenance']);
+
+        $t->same($expectedIds, $extraFieldEntries['content.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $extraFieldEntries['content.xml']['localExtraFieldIds']);
+        $t->same('0xcafe', $inventory['zipExtraFieldIdUsage'][0]['idHex']);
+        $t->same(['content.xml'], $inventory['zipExtraFieldIdUsage'][0]['centralEntryNames']);
+        $t->same(['content.xml'], $inventory['zipExtraFieldIdUsage'][0]['localEntryNames']);
+        $t->same($expectedIds, $identityParts['content.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $identityParts['content.xml']['localExtraFieldIds']);
+        $t->same(true, $identityParts['content.xml']['hasZipExtraFieldProvenance']);
+        $t->same(1, $summary['packageIdentity']['zipExtraFieldEntryCount']);
+        $t->same(1, $summary['packageIdentity']['zipExtraFieldIdCount']);
     },
     'surfaces compact ODT ZIP platform attributes as metadata-only provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithPlatformParts = str_replace(

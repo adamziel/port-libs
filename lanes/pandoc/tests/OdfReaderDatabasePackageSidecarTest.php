@@ -27,7 +27,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="database/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="database/script" manifest:media-type="text/plain" manifest:size="{$databaseScriptSize}"/>
   <manifest:file-entry manifest:full-path="database/data" manifest:media-type="application/octet-stream" manifest:size="{$databaseDataSize}"/>
-  <manifest:file-entry manifest:full-path="database/config.xml" manifest:media-type="text/xml" manifest:size="{$databaseConfigSize}"/>
+  <manifest:file-entry manifest:full-path="database/config.xml" manifest:media-type="text/xml" manifest:size="{$databaseConfigSize}bytes"/>
   <manifest:file-entry manifest:full-path="database/missing" manifest:media-type="application/octet-stream" manifest:size="19"/>
   <manifest:file-entry manifest:full-path="database/encrypted" manifest:media-type="application/octet-stream" manifest:size="{$databaseEncryptedSize}">
     <manifest:encryption-data manifest:checksum-type="SHA1/1K" manifest:checksum="database-checksum"/>
@@ -102,6 +102,7 @@ return [
         $buildPackage,
         $databaseScript,
         $databaseData,
+        $databaseConfig,
         $databaseLog,
         $indexBy
     ): void {
@@ -125,9 +126,11 @@ return [
         $t->same(1, $readerDatabases['encryptedCount']);
         $t->same(0, $readerDatabases['missingMediaTypeCount']);
         $t->same(0, $readerDatabases['invalidMediaTypeCount']);
-        $t->same(3, $readerDatabases['issueCount']);
+        $t->same(1, $readerDatabases['invalidDeclaredSizeCount']);
+        $t->same(4, $readerDatabases['issueCount']);
         $t->same([
             'odf-database-package-encrypted-part',
+            'odf-database-package-invalid-declared-size',
             'odf-database-package-missing-part',
             'odf-database-package-undeclared-part',
         ], $readerDatabases['issueCodes']);
@@ -151,6 +154,15 @@ return [
         $t->same('application/octet-stream', $data['mediaTypeBase']);
         $t->same(strlen($databaseData), $data['storedByteLength']);
         $t->same('database-package-bytes-blocked', $data['byteExposurePolicy']);
+
+        $config = $readerItems['database/config.xml'];
+        $t->same('database-xml', $config['kind']);
+        $t->same(null, $config['declaredSize']);
+        $t->same(strlen($databaseConfig) . 'bytes', $config['declaredSizeRaw']);
+        $t->same(false, $config['declaredSizeValid']);
+        $t->same(true, $config['declaredSizeInvalid']);
+        $t->same(false, $config['declaredSizeMismatch']);
+        $t->same(['odf-database-package-invalid-declared-size'], $config['issues']);
 
         $missing = $readerItems['database/missing'];
         $t->same(false, $missing['exists']);
@@ -207,7 +219,8 @@ return [
         $t->same(1, $compactDatabases['missingCount']);
         $t->same(1, $compactDatabases['directoryCount']);
         $t->same(1, $compactDatabases['encryptedCount']);
-        $t->same(3, $compactDatabases['issueCount']);
+        $t->same(1, $compactDatabases['invalidDeclaredSizeCount']);
+        $t->same(4, $compactDatabases['issueCount']);
         $t->same($readerDatabases['issueCodes'], $compactDatabases['issueCodes']);
         $t->same('database-package-bytes-blocked', $compactDatabases['byteExposurePolicy']);
         $t->same('database-package-metadata-only', $compactDatabases['reviewPolicy']);
@@ -216,6 +229,13 @@ return [
         $t->same(false, $compactItems['database/script']['canExposeAsDocumentMedia']);
         $t->same(strlen($databaseScript), $compactItems['database/script']['byteLength']);
         $t->same(sprintf('%08x', crc32($databaseScript)), $compactItems['database/script']['crc32']);
+        $t->same('database-xml', $compactItems['database/config.xml']['kind']);
+        $t->same(null, $compactItems['database/config.xml']['declaredSize']);
+        $t->same(strlen($databaseConfig) . 'bytes', $compactItems['database/config.xml']['declaredSizeRaw']);
+        $t->same(false, $compactItems['database/config.xml']['declaredSizeValid']);
+        $t->same(true, $compactItems['database/config.xml']['declaredSizeInvalid']);
+        $t->same(false, $compactItems['database/config.xml']['declaredSizeMismatch']);
+        $t->same(['odf-database-package-invalid-declared-size'], $compactItems['database/config.xml']['issues']);
         $t->same(['odf-database-package-missing-part'], $compactItems['database/missing']['issues']);
         $t->same(['odf-database-package-encrypted-part'], $compactItems['database/encrypted']['issues']);
         $t->same(['odf-database-package-undeclared-part'], $compactItems['database/log']['issues']);

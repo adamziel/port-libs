@@ -157,9 +157,16 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
         $data = $part['data'] ?? '';
         $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
         $flags = $part['generalPurposeFlags'] ?? 0x0800;
+        $dataDescriptor = (bool) ($part['dataDescriptor'] ?? false);
+        if ($dataDescriptor) {
+            $flags |= 0x0008;
+        }
         $compressed = $method === 8 ? gzdeflate($data) : $data;
         $offset = strlen($body);
         $crc = $crc32($data);
+        $localCrc = $dataDescriptor ? 0 : $crc;
+        $localCompressedSize = $dataDescriptor ? 0 : strlen($compressed);
+        $localUncompressedSize = $dataDescriptor ? 0 : strlen($data);
 
         $body .= pack(
             'VvvvvvVVVvv',
@@ -169,13 +176,16 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
             $method,
             0,
             0,
-            $crc,
-            strlen($compressed),
-            strlen($data),
+            $localCrc,
+            $localCompressedSize,
+            $localUncompressedSize,
             strlen($rawName),
             0
         );
         $body .= $rawName . $compressed;
+        if ($dataDescriptor) {
+            $body .= "PK\x07\x08" . pack('VVV', $crc, strlen($compressed), strlen($data));
+        }
 
         $centralRecords[$name] = pack(
             'VvvvvvvVVVvvvvvVV',
@@ -668,6 +678,10 @@ XML;
             $orderByPath[$item['fullPath']] = $item;
         }
         $inventory = $provenance['parts'];
+        $identityEntries = [];
+        foreach ($provenance['packageIdentity']['packageEntries'] as $item) {
+            $identityEntries[$item['part']] = $item;
+        }
 
         $t->same($provenance, $result['document']->attr('manifest')['packageProvenance']);
         $t->same(5, $provenance['manifestFileEntryCount']);
@@ -691,6 +705,10 @@ XML;
         $t->same('page-preview', $inventory['content.xml']['manifestPreferredViewMode']);
         $t->same('1.1', $inventory['Pictures/hero.png']['manifestVersion']);
         $t->same('presentation-slide-show', $inventory['Pictures/hero.png']['manifestPreferredViewMode']);
+        $t->same('1.2', $identityEntries['content.xml']['manifestVersion']);
+        $t->same('page-preview', $identityEntries['content.xml']['manifestPreferredViewMode']);
+        $t->same('1.1', $identityEntries['Pictures/hero.png']['manifestVersion']);
+        $t->same('presentation-slide-show', $identityEntries['Pictures/hero.png']['manifestPreferredViewMode']);
     },
     'preserves typed ODT meta user-defined fields for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $metaWithTypedUserDefined = <<<'XML'
@@ -1123,7 +1141,7 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains("```{data-odf-preformatted=\"true\" data-odf-style-name=\"InheritedSourceCode\"}\ndefine('WP_DEBUG', true);\necho sanitize_text_field(\$title); // review\n```", $markdown);
+        $t->contains("``` {data-odf-preformatted=\"true\" data-odf-style-name=\"InheritedSourceCode\"}\ndefine('WP_DEBUG', true);\necho sanitize_text_field(\$title); // review\n```", $markdown);
         $t->contains('<pre class="wp-block-code" data-odf-preformatted="true" data-odf-style-name="InheritedSourceCode"><code>define(&#039;WP_DEBUG&#039;, true);', $blocksHtml);
         $t->contains("echo sanitize_text_field(\$title); // review</code></pre>", $blocksHtml);
         $t->contains('<p>Following review prose stays a paragraph.</p>', $blocksHtml);
@@ -1190,7 +1208,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('**[Important [source](https://example.test/source) packet.]{data-odf-style-name="StrongParagraph"}**', $markdown);
-        $t->contains('[*__[Inherited emphasis packet.]{data-odf-style-name="InheritedEmphasisParagraph"}__*]{.smallcaps}', $markdown);
+        $t->contains('[***[Inherited emphasis packet.]{data-odf-style-name="InheritedEmphasisParagraph"}***]{.smallcaps}', $markdown);
         $t->contains('<p><strong><span data-odf-style-name="StrongParagraph">Important <a href="https://example.test/source">source</a> packet.</span></strong></p>', $blocksHtml);
         $t->contains('<p><span style="font-variant:small-caps"><em><strong><span data-odf-style-name="InheritedEmphasisParagraph">Inherited emphasis packet.</span></strong></em></span></p>', $blocksHtml);
         $t->contains('<p>Plain styled paragraph.</p>', $blocksHtml);
@@ -1356,10 +1374,10 @@ XML;
 
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
-        $t->contains('# ODT Source Packet {#odt-source-packet}', $markdown);
-        $t->contains('## ODT Source Packet {#odt-source-packet-1}', $markdown);
-        $t->contains('## Styled packet title {#styled-packet-title}', $markdown);
-        $t->contains('### !!! {#section}', $markdown);
+        $t->contains('# ODT Source Packet', $markdown);
+        $t->contains('## ODT Source Packet', $markdown);
+        $t->contains('## Styled packet title', $markdown);
+        $t->contains('### !!!', $markdown);
         $t->contains('<h1 id="odt-source-packet">ODT Source Packet</h1>', $blocksHtml);
         $t->contains('<h2 id="odt-source-packet-1">ODT Source Packet</h2>', $blocksHtml);
         $t->contains('<h2 id="styled-packet-title">Styled packet title</h2>', $blocksHtml);
@@ -3149,7 +3167,7 @@ XML;
         $t->same(1, $result['importReport']['content']['continuedListCount']);
 
         $markdown = (new MarkdownWriter())->write($result['document']);
-        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter(['preserveListAttributes' => true]))->write($result['document']);
         $t->contains('3.  Third source step', $markdown);
         $t->contains('<ol data-odf-list-id="review-list-a" data-odf-list-id-attribute="text:id"><li>First source step</li><li>Second source step</li></ol>', $blocksHtml);
         $t->contains('<ol data-odf-list-id="unrelated-list" data-odf-list-id-attribute="text:id"><li>Unrelated inserted checklist</li></ol>', $blocksHtml);
@@ -3238,7 +3256,7 @@ XML;
         $t->same(1, $result['importReport']['content']['imageListStyleCount']);
 
         $markdown = (new MarkdownWriter())->write($result['document']);
-        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter(['preserveListAttributes' => true]))->write($result['document']);
         $manifestByPath = [];
         foreach ($result['manifest'] as $item) {
             $manifestByPath[$item['fullPath']] = $item;
@@ -3340,7 +3358,7 @@ XML;
         $t->same(2, $result['importReport']['content']['listTextPropertyCount']);
 
         $markdown = (new MarkdownWriter())->write($result['document']);
-        $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
+        $blocksHtml = (new WordPressBlockWriter(['preserveListAttributes' => true]))->write($result['document']);
         $t->contains('1.  Styled marker source item', $markdown);
         $t->contains('- Nested marker style metadata', $markdown);
         $t->contains('<ol data-odf-list-text-property-count="7" data-odf-list-text-font-name="ListMono" data-odf-list-text-font-face-name="ListMono"', $blocksHtml);
@@ -3765,7 +3783,7 @@ XML;
         $t->contains('[jump back](#review-anchor){.odf-bookmark-ref data-odf-ref-name="Review Anchor" data-odf-reference-format="text"}', $markdown);
         $t->contains('[^1]: ODF footnote body.', $markdown);
         $t->contains('[^2]: ODF endnote body with [review link](https://example.test/review).', $markdown);
-        $t->contains('<span id="review-anchor" class="anchor odf-bookmark" data-odf-bookmark-name="Review Anchor"></span>', $blocksHtml);
+        $t->contains('<span id="review-anchor" class="anchor odf-bookmark" data-odf-bookmark-name="Review Anchor" data-pandoc-anchor="empty-target"></span>', $blocksHtml);
         $t->contains('<a href="#review-anchor" class="odf-bookmark-ref" data-odf-ref-name="Review Anchor" data-odf-reference-format="text">jump back</a>', $blocksHtml);
         $t->contains('<li id="fn-1"><p>ODF footnote body.</p>', $blocksHtml);
         $t->contains('<li id="fn-2"><p>ODF endnote body with <a href="https://example.test/review">review link</a>.</p>', $blocksHtml);
@@ -4420,7 +4438,7 @@ XML;
         $t->contains('[source claim](#source-claim){.odf-reference-ref data-odf-ref-name="Source Claim" data-odf-reference-format="text"}', $markdown);
         $t->contains('<span id="source-claim" class="odf-reference-mark odf-reference-mark-range" data-odf-reference-name="Source Claim" data-odf-reference-range="true">source claim</span>', $blocksHtml);
         $t->contains('<a href="#source-claim" class="odf-reference-ref" data-odf-ref-name="Source Claim" data-odf-reference-format="text">source claim</a>', $blocksHtml);
-        $t->contains('<span id="point-review" class="anchor odf-reference-mark" data-odf-reference-name="Point Review"></span>marker.', $blocksHtml);
+        $t->contains('<span id="point-review" class="anchor odf-reference-mark" data-odf-reference-name="Point Review" data-pandoc-anchor="empty-target"></span>marker.', $blocksHtml);
         $t->contains('<a href="#point-review" class="odf-reference-ref" data-odf-ref-name="Point Review" data-odf-reference-format="page">point marker</a>', $blocksHtml);
     },
     'wraps ODT reference mark ranges around nested inline content' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -7206,7 +7224,8 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $processedBlocks = (new WordPressBlockWriter())->write($processed);
         $t->contains('Source cites [@smith1899] and [@missing-source].', $markdown);
-        $t->contains('<p>Source cites [@smith1899] and [@missing-source].</p>', $blocksHtml);
+        $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="smith1899"', $blocksHtml);
+        $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="missing-source"', $blocksHtml);
         $t->contains('<p>Source cites (Smith 1899) and [@missing-source].</p>', $processedBlocks);
     },
     'maps ODT table of contents into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -7681,7 +7700,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains(': Table **[1]{data-odf-style-name="CaptionStrong"}**: Source media audit', $markdown);
-        $t->contains('<figcaption class="wp-element-caption odf-table-caption" data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table"><p>Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</p></figcaption>', $blocksHtml);
+        $t->contains('<figcaption data-odf-table-caption-source="following-paragraph" data-odf-table-caption-style-name="Table" class="odf-table-caption wp-element-caption">Table <strong><span data-odf-style-name="CaptionStrong">1</span></strong>: Source media audit</figcaption>', $blocksHtml);
         $t->true(!str_contains($blocksHtml, '<div class="caption odf-table-caption"'), 'Following ODT table captions should not remain standalone divs after a table');
     },
     'maps ODT linked and protected sections into review div metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8606,7 +8625,7 @@ XML;
         $t->same('Block-level recovered caption.', $image->children[0]->attr('text'));
         $t->same('paragraph', $paragraph->type);
         $t->same('Following paragraph remains separate.', $paragraph->attr('text'));
-        $t->contains('![Block-level recovered caption.](Pictures/hero.png "fig:Block hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"}', $markdown);
+        $t->contains('![Block-level recovered caption.](Pictures/hero.png "Block hero title"){.odf-text-box-image-caption data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"}', $markdown);
         $t->contains('<figure class="wp-block-image"><img src="Pictures/hero.png" alt="Block-level recovered caption." title="fig:Block hero title" class="odf-text-box-image-caption" data-odf-text-box-caption="true" data-odf-text-box-frame-name="Block captioned hero"/><figcaption>Block-level recovered caption.</figcaption></figure>', $blocksHtml);
     },
     'maps ODT draw frame captions into figure caption metadata' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8660,7 +8679,8 @@ XML;
         $t->same(1, $result['importReport']['content']['frameCaptionCount'] ?? 0);
         $t->same('paragraph', $blocks[1]->type);
         $t->same('Following content remains separate.', $blocks[1]->attr('text'));
-        $t->contains('![Hero fallback alt](Pictures/hero.png "Hero source title"){.odf-frame-caption data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame"}', $markdown);
+        $t->contains('<figure class="odf-frame-caption" data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame">', $markdown);
+        $t->contains('<figcaption>Figure 2: Source hero caption.</figcaption>', $markdown);
         $t->contains('<figure class="wp-block-image odf-frame-caption" data-odf-frame-caption-source="draw:caption" data-odf-frame-caption-frame-name="Captioned draw frame"><img src="Pictures/hero.png" alt="Hero fallback alt" title="Hero source title"/><figcaption>Figure 2: Source hero caption.</figcaption></figure>', $blocksHtml);
     },
     'preserves ODT frame image dimensions for Markdown and WordPress handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8715,8 +8735,8 @@ XML;
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('![Inline proof alt](Pictures/hero.png "Inline proof title"){width="2.5cm" height="1.25cm"}', $markdown);
         $t->contains('![Block proof alt](Pictures/hero.png "Block proof title"){width="5cm" height="3cm"}', $markdown);
-        $t->contains('<img src="Pictures/hero.png" alt="Inline proof alt" title="Inline proof title" width="2.5cm" height="1.25cm"/>', $blocksHtml);
-        $t->contains('<img src="Pictures/hero.png" alt="Block proof alt" title="Block proof title" width="5cm" height="3cm"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Inline proof alt" title="Inline proof title" data-pandoc-width="2.5cm" data-pandoc-height="1.25cm" style="width:2.5cm; height:1.25cm"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Block proof alt" title="Block proof title" data-pandoc-width="5cm" data-pandoc-height="3cm" style="width:5cm; height:3cm"/>', $blocksHtml);
     },
     'preserves ODT frame image xlink metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithLinkedImage = <<<'XML'
@@ -8760,7 +8780,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('![Linked hero alt](Pictures/hero.png "Linked hero title"){width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"}', $markdown);
-        $t->contains('<img src="Pictures/hero.png" alt="Linked hero alt" title="Linked hero title" width="4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Linked hero alt" title="Linked hero title" data-pandoc-width="4cm" style="width:4cm" data-odf-image-xlink-type="simple" data-odf-image-xlink-show="embed" data-odf-image-xlink-actuate="onLoad"/>', $blocksHtml);
     },
     'preserves ODT image frame anchor metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithAnchoredImage = <<<'XML'
@@ -8811,7 +8831,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('![Frame metadata alt](Pictures/hero.png "Frame metadata title"){width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"}', $markdown);
-        $t->contains('<img src="Pictures/hero.png" alt="Frame metadata alt" title="Frame metadata title" width="4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Frame metadata alt" title="Frame metadata title" data-pandoc-width="4cm" style="width:4cm" data-odf-frame-name="Review image frame" data-odf-frame-style-name="FrameStyle" data-odf-frame-anchor-type="paragraph" data-odf-frame-anchor-page-number="4" data-odf-frame-x="1.25cm" data-odf-frame-y="2cm" data-odf-frame-z-index="7"/>', $blocksHtml);
     },
     'preserves ODT text box frame anchor metadata for review handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithAnchoredTextBox = <<<'XML'
@@ -8936,7 +8956,7 @@ XML;
         $markdown = (new MarkdownWriter())->write($result['document']);
         $blocksHtml = (new WordPressBlockWriter())->write($result['document']);
         $t->contains('![Layered hero alt](Pictures/hero.png "Layered hero title"){width="4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"}', $markdown);
-        $t->contains('<img src="Pictures/hero.png" alt="Layered hero alt" title="Layered hero title" width="4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/>', $blocksHtml);
+        $t->contains('<img src="Pictures/hero.png" alt="Layered hero alt" title="Layered hero title" data-pandoc-width="4cm" style="width:4cm" data-odf-frame-name="Layered hero" data-odf-frame-layer="review-media" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="screen" data-odf-frame-layer-protected="true"/>', $blocksHtml);
         $t->contains('<div class="odf-text-box" data-odf-frame-name="Layered aside" data-odf-frame-width="6cm" data-odf-frame-layer="draft-notes" data-odf-frame-layer-exists="true" data-odf-frame-layer-display="none" data-odf-frame-layer-hidden="true"><p>Draft layer note.</p></div>', $blocksHtml);
     },
     'renders ODT handoff nodes through Markdown and WordPress writers' => static function (TestRunner $t) use ($buildOdtPackage): void {
@@ -8950,8 +8970,8 @@ XML;
         $t->contains('[^1]', $markdown);
         $t->contains('c.  Legal review', $markdown);
         $t->contains('![Hero alt text](Pictures/hero.png "Hero title")', $markdown);
-        $t->contains('<table data-odf-table-name="Audit" data-odf-table-column-count="2">', $markdown);
-        $t->contains('<th scope="col"><p>Status</p></th>', $markdown);
+        $t->contains('| Status                | Owner', $markdown);
+        $t->contains(': Audit', $markdown);
         $t->contains('Ready for review', $markdown);
 
         $t->contains('<!-- wp:heading {"level":1} -->', $blocks);
@@ -9125,6 +9145,114 @@ XML;
         $t->same(1, count($result['importReport']['manifest']['missingItems']));
         $t->same('Pictures/missing.png?missing=true', $result['importReport']['manifest']['missingItems'][0]['fullPath']);
     },
+    'summarizes ODT content package references against manifest provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $mathObject = <<<'XML'
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mrow><mi>x</mi><mo>=</mo><mn>1</mn></mrow>
+</math>
+XML;
+        $contentWithPackageReferences = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Content references <draw:frame draw:name="Declared hero"><draw:image xlink:href="Pictures/hero.png"><svg:desc>Declared hero</svg:desc></draw:image></draw:frame> <draw:frame draw:name="Undeclared hero"><draw:image xlink:href="Pictures/orphan.png"><svg:desc>Undeclared hero</svg:desc></draw:image></draw:frame> <draw:frame draw:name="Formula"><draw:object xlink:href="./Object%201"/></draw:frame> <draw:frame draw:name="OLE"><draw:object-ole xlink:href="./Object%20OLE"/></draw:frame>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $manifestWithPackageReferences = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Object%201/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>
+  <manifest:file-entry manifest:full-path="Object%201/content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20OLE/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+</manifest:manifest>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithPackageReferences,
+            $manifestWithPackageReferences,
+            null,
+            null,
+            [
+                ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG', 'compressionMethod' => 0],
+                ['name' => 'Object 1/content.xml', 'data' => $mathObject, 'compressionMethod' => 0],
+                ['name' => 'Object OLE/content.xml', 'data' => '<office:document/>', 'compressionMethod' => 0],
+            ]
+        ));
+        $report = $result['contentPackageReferences'];
+        $itemsByPart = [];
+        foreach ($report['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+
+        $t->same($report, $result['document']->attr('manifest')['contentPackageReferences']);
+        $t->same($report, $result['importReport']['manifest']['contentPackageReferences']);
+        $t->same($report, $result['importReport']['content']['packageReferences']);
+        $t->same(4, $report['count']);
+        $t->same(4, $report['uniquePartCount']);
+        $t->same([
+            'Object 1/content.xml',
+            'Object OLE/',
+            'Pictures/hero.png',
+            'Pictures/orphan.png',
+        ], $report['parts']);
+        $t->same([
+            'draw:image' => 2,
+            'draw:object-mathml' => 1,
+            'draw:object-ole' => 1,
+        ], $report['referenceRoleCounts']);
+        $t->same(3, $report['declaredReferenceCount']);
+        $t->same(1, $report['undeclaredReferenceCount']);
+        $t->same(0, $report['missingPackagePartCount']);
+        $t->same(0, $report['encryptedReferenceCount']);
+        $t->same(2, $report['exposableReferenceCount']);
+        $t->same(2, $report['blockedReferenceCount']);
+        $t->same([
+            'directory-entry-no-bytes' => 1,
+            'embedded-object-package-bytes-blocked' => 1,
+            'package-bytes-exposable' => 2,
+        ], $report['byteExposurePolicyCounts']);
+        $t->same('odf-content-package-reference-metadata-only', $report['byteExposurePolicy']);
+        $t->same(false, $report['canExposeBytes']);
+
+        $t->same('draw:image', $itemsByPart['Pictures/hero.png']['referenceRole']);
+        $t->same(true, $itemsByPart['Pictures/hero.png']['declaredInManifest']);
+        $t->same('Pictures/hero.png', $itemsByPart['Pictures/hero.png']['manifestFullPath']);
+        $t->same('image/png', $itemsByPart['Pictures/hero.png']['mediaType']);
+        $t->same(true, $itemsByPart['Pictures/hero.png']['canExposeBytes']);
+        $t->same(7, $itemsByPart['Pictures/hero.png']['byteLength']);
+
+        $t->same('draw:image', $itemsByPart['Pictures/orphan.png']['referenceRole']);
+        $t->same(false, $itemsByPart['Pictures/orphan.png']['declaredInManifest']);
+        $t->same(true, $itemsByPart['Pictures/orphan.png']['exists']);
+        $t->same('package-bytes-exposable', $itemsByPart['Pictures/orphan.png']['byteExposurePolicy']);
+        $t->same(9, $itemsByPart['Pictures/orphan.png']['byteLength']);
+
+        $t->same('draw:object-mathml', $itemsByPart['Object 1/content.xml']['referenceRole']);
+        $t->same('Object 1', $itemsByPart['Object 1/content.xml']['sourceReference']);
+        $t->same(true, $itemsByPart['Object 1/content.xml']['declaredInManifest']);
+        $t->same('Object%201/content.xml', $itemsByPart['Object 1/content.xml']['manifestPartReference']);
+        $t->same(false, $itemsByPart['Object 1/content.xml']['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $itemsByPart['Object 1/content.xml']['byteExposurePolicy']);
+
+        $t->same('draw:object-ole', $itemsByPart['Object OLE/']['referenceRole']);
+        $t->same('./Object%20OLE', $itemsByPart['Object OLE/']['sourceReference']);
+        $t->same('ole', $itemsByPart['Object OLE/']['objectType']);
+        $t->same('Object OLE', $itemsByPart['Object OLE/']['objectPath']);
+        $t->same('application/vnd.oasis.opendocument.spreadsheet', $itemsByPart['Object OLE/']['mediaType']);
+        $t->same(false, $itemsByPart['Object OLE/']['canExposeBytes']);
+        $t->same('directory-entry-no-bytes', $itemsByPart['Object OLE/']['byteExposurePolicy']);
+    },
     'reports ODT ZIP entries missing from the manifest for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
             ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG'],
@@ -9151,17 +9279,23 @@ XML;
     },
     'reports ODT package thumbnails as metadata-only previews' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $thumbnailBytes = 'THUMBNAIL';
+        $inferredThumbnailBytes = 'INFERRED-THUMBNAIL';
+        $invalidThumbnailBytes = 'INVALID-THUMBNAIL';
         $orphanThumbnailBytes = 'ORPHAN-THUMBNAIL';
         $manifestWithThumbnails = str_replace(
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
             '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
             . '<manifest:file-entry manifest:full-path="Thumbnails/thumbnail.png" manifest:media-type="image/png" manifest:size="' . strlen($thumbnailBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Thumbnails/inferred.png" manifest:media-type="" manifest:size="' . strlen($inferredThumbnailBytes) . '"/>'
+            . '<manifest:file-entry manifest:full-path="Thumbnails/not-image.png" manifest:media-type="application/octet-stream" manifest:size="' . strlen($invalidThumbnailBytes) . '"/>'
             . '<manifest:file-entry manifest:full-path="Thumbnails/missing.jpg" manifest:media-type="image/jpeg"/>',
             $manifestXml
         );
 
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithThumbnails, null, null, [
             ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnailBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/inferred.png', 'data' => $inferredThumbnailBytes, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/not-image.png', 'data' => $invalidThumbnailBytes, 'compressionMethod' => 0],
             ['name' => 'Thumbnails/orphan.jpg', 'data' => $orphanThumbnailBytes, 'compressionMethod' => 0],
         ]));
         $report = $result['importReport']['packageThumbnails'];
@@ -9179,15 +9313,16 @@ XML;
 
         $t->same($report, $metadata);
         $t->same($report, $documentThumbnails);
-        $t->same(3, $report['count']);
-        $t->same(2, $report['readableCount']);
-        $t->same(2, $report['declaredCount']);
+        $t->same(5, $report['count']);
+        $t->same(4, $report['readableCount']);
+        $t->same(4, $report['declaredCount']);
         $t->same(1, $report['undeclaredCount']);
         $t->same(1, $report['missingCount']);
         $t->same(0, $report['encryptedCount']);
-        $t->same(0, $report['invalidMediaTypeCount']);
-        $t->same(2, $report['issueCount']);
+        $t->same(1, $report['invalidMediaTypeCount']);
+        $t->same(3, $report['issueCount']);
         $t->same([
+            'odf-thumbnail-invalid-media-type',
             'odf-thumbnail-missing-package-part',
             'odf-thumbnail-undeclared-package-part',
         ], $report['issueCodes']);
@@ -9205,6 +9340,26 @@ XML;
         $t->same('package-thumbnail-bytes-blocked', $itemsByPart['Thumbnails/thumbnail.png']['byteExposurePolicy']);
         $t->same('package-thumbnail-metadata-only', $itemsByPart['Thumbnails/thumbnail.png']['reviewPolicy']);
         $t->same([], $itemsByPart['Thumbnails/thumbnail.png']['issues']);
+        $t->same('image/png', $itemsByPart['Thumbnails/thumbnail.png']['declaredMediaType']);
+        $t->same('image/png', $itemsByPart['Thumbnails/thumbnail.png']['inferredMediaType']);
+        $t->same('manifest', $itemsByPart['Thumbnails/thumbnail.png']['mediaTypeSource']);
+        $t->same(true, $itemsByPart['Thumbnails/thumbnail.png']['mediaTypeMatchesInferred']);
+        $t->same(false, $itemsByPart['Thumbnails/thumbnail.png']['missingDeclaredMediaType']);
+
+        $t->same('image/png', $itemsByPart['Thumbnails/inferred.png']['mediaType']);
+        $t->same(null, $itemsByPart['Thumbnails/inferred.png']['declaredMediaType']);
+        $t->same('image/png', $itemsByPart['Thumbnails/inferred.png']['inferredMediaType']);
+        $t->same('package-extension', $itemsByPart['Thumbnails/inferred.png']['mediaTypeSource']);
+        $t->same(null, $itemsByPart['Thumbnails/inferred.png']['mediaTypeMatchesInferred']);
+        $t->same(true, $itemsByPart['Thumbnails/inferred.png']['missingDeclaredMediaType']);
+        $t->same([], $itemsByPart['Thumbnails/inferred.png']['issues']);
+
+        $t->same('application/octet-stream', $itemsByPart['Thumbnails/not-image.png']['mediaType']);
+        $t->same('application/octet-stream', $itemsByPart['Thumbnails/not-image.png']['declaredMediaType']);
+        $t->same('image/png', $itemsByPart['Thumbnails/not-image.png']['inferredMediaType']);
+        $t->same('manifest', $itemsByPart['Thumbnails/not-image.png']['mediaTypeSource']);
+        $t->same(false, $itemsByPart['Thumbnails/not-image.png']['mediaTypeMatchesInferred']);
+        $t->same(['odf-thumbnail-invalid-media-type'], $itemsByPart['Thumbnails/not-image.png']['issues']);
 
         $manifestThumbnail = $manifestByPart['Thumbnails/thumbnail.png'];
         $t->same(true, $manifestThumbnail['thumbnailPackagePart']);
@@ -9223,6 +9378,9 @@ XML;
         $t->same(['odf-thumbnail-missing-package-part'], $itemsByPart['Thumbnails/missing.jpg']['issues']);
         $t->same(null, $itemsByPart['Thumbnails/missing.jpg']['byteLength']);
         $t->same('image/jpeg', $itemsByPart['Thumbnails/orphan.jpg']['mediaType']);
+        $t->same(null, $itemsByPart['Thumbnails/orphan.jpg']['declaredMediaType']);
+        $t->same('image/jpeg', $itemsByPart['Thumbnails/orphan.jpg']['inferredMediaType']);
+        $t->same('package-extension', $itemsByPart['Thumbnails/orphan.jpg']['mediaTypeSource']);
         $t->same(false, $itemsByPart['Thumbnails/orphan.jpg']['declared']);
         $t->same(true, $itemsByPart['Thumbnails/orphan.jpg']['undeclared']);
         $t->same(true, $itemsByPart['Thumbnails/orphan.jpg']['exists']);
@@ -9459,6 +9617,42 @@ XML;
             $result['document']->attr('manifest')['items'],
             static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
         )));
+    },
+    'diagnoses ODT manifest directory declared sizes as metadata-only provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifestWithDirectorySize = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/" manifest:media-type="" manifest:size="24"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithDirectorySize, null, null, [
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+        ]));
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $summary = $result['importReport']['manifest']['mediaTypeSummary'];
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+
+        $directory = $manifestByPath['Pictures/'];
+        $t->same(true, $directory['isDirectory']);
+        $t->same(true, $directory['exists']);
+        $t->same(false, $directory['canExposeBytes']);
+        $t->same(24, $directory['declaredSize']);
+        $t->same('24', $directory['declaredSizeRaw']);
+        $t->same(true, $directory['declaredSizeValid']);
+        $t->same(false, $directory['declaredSizeMismatch']);
+        $t->same(['odf-manifest-directory-declared-size'], $directory['diagnostics']);
+
+        $t->same(1, $summary['diagnosticCount']);
+        $t->same(['odf-manifest-directory-declared-size' => 1], $summary['diagnosticCodeCounts']);
+        $t->same(['Pictures/'], $summary['emptyMediaTypeDirectoryParts']);
+        $t->same('Pictures/', $summary['diagnostics'][0]['part']);
+        $t->same('odf-manifest-directory-declared-size', $summary['diagnostics'][0]['code']);
+        $t->same(['odf-manifest-directory-declared-size'], $provenance['parts']['Pictures/']['manifestDiagnostics']);
+        $t->same('directory-entry-no-bytes', $provenance['parts']['Pictures/']['byteExposurePolicy']);
     },
     'summarizes ODT manifest media-type package buckets for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $objectXml = '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>x</mi></math>';
@@ -11567,6 +11761,10 @@ XML;
         $t->same('wp', $content['customManifestChildElements'][0]['prefix']);
         $t->same(1, $content['customManifestChildElements'][0]['attributeCount']);
         $t->same(1, $content['customManifestChildElements'][0]['childElementCount']);
+        $t->same(3, $content['customManifestChildElements'][0]['namespaceDeclarationCount']);
+        $t->same(['xmlns:loext', 'xmlns:manifest', 'xmlns:wp'], $content['customManifestChildElements'][0]['namespaceDeclarationNames']);
+        $t->same('urn:wordpress:review', $content['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:wp']);
+        $t->same('urn:libreoffice:manifest', $content['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:loext']);
 
         $t->same(2, $hero['manifestChildElementCount']);
         $t->same(['manifest:encryption-data', 'loext:media-policy'], $hero['manifestChildElementNames']);
@@ -11575,6 +11773,9 @@ XML;
         $t->same(1, $hero['customManifestChildElementCount']);
         $t->same(['loext:media-policy'], $hero['customManifestChildElementNames']);
         $t->same('media-policy', $hero['customManifestChildElements'][0]['localName']);
+        $t->same(3, $hero['customManifestChildElements'][0]['namespaceDeclarationCount']);
+        $t->same('urn:libreoffice:manifest', $hero['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:loext']);
+        $t->same('urn:wordpress:review', $hero['customManifestChildElements'][0]['namespaceDeclarationMap']['xmlns:wp']);
 
         $t->same(2, $provenance['manifestCustomChildElementEntryCount']);
         $t->same(2, $provenance['manifestCustomChildElementCount']);
@@ -11586,6 +11787,12 @@ XML;
         $t->same(['loext:media-policy'], $inventory['Pictures/hero.png']['customManifestChildElementNames']);
         $t->same(['wp:review-hint'], $identityByPath['content.xml']['customManifestChildElementNames']);
         $t->same(['loext:media-policy'], $identityByPath['Pictures/hero.png']['customManifestChildElementNames']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $order[1]['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $order[4]['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $inventory['content.xml']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $inventory['Pictures/hero.png']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($content['customManifestChildElements'][0]['namespaceDeclarationMap'], $identityByPath['content.xml']['customManifestChildElements'][0]['namespaceDeclarationMap']);
+        $t->same($hero['customManifestChildElements'][0]['namespaceDeclarationMap'], $identityByPath['Pictures/hero.png']['customManifestChildElements'][0]['namespaceDeclarationMap']);
     },
     'summarizes ODT XML package part office versions for provenance review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithSettings = str_replace(
@@ -11825,6 +12032,82 @@ XML;
         $t->same('unsupported-compression-bytes-blocked', $provenance['parts']['Pictures/unsupported.webp']['byteExposurePolicy']);
         $t->same(['package-thumbnail', 'undeclared-package-entry'], $provenance['parts']['Thumbnails/thumbnail.png']['roles']);
         $t->same('package-thumbnail-bytes-blocked', $provenance['parts']['Thumbnails/thumbnail.png']['byteExposurePolicy']);
+    },
+    'summarizes ODT package inventory path directory and extension buckets for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $reviewImage = 'REVIEWPNG';
+        $scriptXml = '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>';
+        $thumbnail = 'THUMBNAIL';
+        $manifestWithPathBuckets = str_replace(
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '<manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Pictures/review.png" manifest:media-type="image/png"/>'
+            . '<manifest:file-entry manifest:full-path="Basic/Standard/Module1.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(null, $manifestWithPathBuckets, null, null, [
+            ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'Pictures/review.png', 'data' => $reviewImage, 'compressionMethod' => 0],
+            ['name' => 'Basic/Standard/Module1.xml', 'data' => $scriptXml, 'compressionMethod' => 0],
+            ['name' => 'Thumbnails/thumbnail.png', 'data' => $thumbnail, 'compressionMethod' => 0],
+        ]));
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $parts = $provenance['parts'];
+        $directories = [];
+        foreach ($provenance['packagePathDirectorySummaries'] as $item) {
+            $directories[$item['directory']] = $item;
+        }
+        $extensions = [];
+        foreach ($provenance['packagePathExtensionSummaries'] as $item) {
+            $extensions[$item['extension'] ?? '(none)'] = $item;
+        }
+
+        $t->same($provenance, $documentProvenance);
+        $t->same(5, $provenance['packagePathDirectoryCount']);
+        $t->same(['/', 'Basic/Standard', 'META-INF', 'Pictures', 'Thumbnails'], $provenance['packagePathDirectories']);
+        $t->same(3, $provenance['packagePathExtensionCount']);
+        $t->same([null, 'png', 'xml'], $provenance['packagePathExtensions']);
+
+        $t->same('Pictures', $parts['Pictures/review.png']['directory']);
+        $t->same(1, $parts['Pictures/review.png']['directoryDepth']);
+        $t->same('review.png', $parts['Pictures/review.png']['baseName']);
+        $t->same('png', $parts['Pictures/review.png']['extension']);
+        $t->same('/', $parts['Pictures/']['directory']);
+        $t->same('Pictures', $parts['Pictures/']['baseName']);
+        $t->same(null, $parts['Pictures/']['extension']);
+
+        $t->same(2, $directories['Pictures']['entryCount']);
+        $t->same(2, $directories['Pictures']['fileEntryCount']);
+        $t->same(2, $directories['Pictures']['manifestDeclaredEntryCount']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage), $directories['Pictures']['byteLength']);
+        $t->same([
+            'manifest-declared' => 2,
+            'media-resource' => 2,
+        ], $directories['Pictures']['roleCounts']);
+        $t->same(['package-bytes-exposable' => 2], $directories['Pictures']['byteExposurePolicyCounts']);
+
+        $t->same(1, $directories['Basic/Standard']['entryCount']);
+        $t->same(['manifest-declared' => 1, 'script-package' => 1], $directories['Basic/Standard']['roleCounts']);
+        $t->same(['script-package-bytes-blocked' => 1], $directories['Basic/Standard']['byteExposurePolicyCounts']);
+        $t->same(1, $directories['Thumbnails']['undeclaredEntryCount']);
+        $t->same(['package-thumbnail' => 1, 'undeclared-package-entry' => 1], $directories['Thumbnails']['roleCounts']);
+
+        $t->same(3, $extensions['png']['entryCount']);
+        $t->same(2, $extensions['png']['manifestDeclaredEntryCount']);
+        $t->same(1, $extensions['png']['undeclaredEntryCount']);
+        $t->same(strlen('PNGDATA') + strlen($reviewImage) + strlen($thumbnail), $extensions['png']['byteLength']);
+        $t->same([
+            'manifest-declared' => 2,
+            'media-resource' => 2,
+            'package-thumbnail' => 1,
+            'undeclared-package-entry' => 1,
+        ], $extensions['png']['roleCounts']);
+        $t->same([
+            'package-bytes-exposable' => 2,
+            'package-thumbnail-bytes-blocked' => 1,
+        ], $extensions['png']['byteExposurePolicyCounts']);
+        $t->same(1, $extensions['(none)']['directoryEntryCount']);
     },
     'reports ODT package media SHA-256 provenance without exposing blocked sidecars' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $reviewImage = 'REVIEWPNG';
@@ -12734,6 +13017,95 @@ XML;
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithDuplicateFullPath)));
         $t->throws(\RuntimeException::class, static fn (): array => $reader->readPackage($buildOdtPackage(null, $manifestWithDuplicateDecodedPart)));
     },
+    'preserves ODT ZIP timestamp provenance in rich package review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $timestampedBytes = 'TIMESTAMPEDPNG';
+        $modifiedAt = 1780479017;
+        $manifest = str_replace(
+            '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>',
+            '  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>'
+            . "\n"
+            . '  <manifest:file-entry manifest:full-path="Pictures/timestamped.png" manifest:media-type="image/png"/>',
+            $manifestXml
+        );
+        $package = $buildOdtPackage(null, $manifest, null, null, [[
+            'name' => 'Pictures/timestamped.png',
+            'data' => $timestampedBytes,
+            'compressionMethod' => 0,
+            'modifiedAt' => $modifiedAt,
+        ]]);
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $identity = $provenance['packageIdentity'];
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $manifestOrderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
+        $identityManifestByPath = [];
+        foreach ($identity['manifestEntries'] as $item) {
+            $identityManifestByPath[$item['fullPath']] = $item;
+        }
+        $identityPackageByPart = [];
+        foreach ($identity['packageEntries'] as $item) {
+            $identityPackageByPart[$item['part']] = $item;
+        }
+        $changedIdentity = (new OdfReader())->readPackage($buildOdtPackage(null, $manifest, null, null, [[
+            'name' => 'Pictures/timestamped.png',
+            'data' => $timestampedBytes,
+            'compressionMethod' => 0,
+            'modifiedAt' => $modifiedAt + 1,
+        ]]))['importReport']['manifest']['packageProvenance']['packageIdentity'];
+        $manifestItem = $manifestByPath['Pictures/timestamped.png'];
+        $orderItem = $manifestOrderByPath['Pictures/timestamped.png'];
+        $part = $provenance['parts']['Pictures/timestamped.png'];
+        $identityManifest = $identityManifestByPath['Pictures/timestamped.png'];
+        $identityPackage = $identityPackageByPart['Pictures/timestamped.png'];
+
+        $t->same($package->modificationTimePreflight(), $provenance['modificationTimes']);
+        $t->same(1, $provenance['zipTimestampEntryCount']);
+        $t->same(1, $provenance['zipDosTimestampEntryCount']);
+        $t->same(1, $provenance['zipExtendedTimestampEntryCount']);
+        $t->same(0, $provenance['zipInvalidDosTimestampEntryCount']);
+
+        $t->same($modifiedAt, $manifestItem['zipModifiedAt']);
+        $t->same('extended-timestamp', $manifestItem['zipTimestampSource']);
+        $t->same(true, $manifestItem['zipHasDosTimestamp']);
+        $t->same(true, $manifestItem['zipIsDosTimestampValid']);
+        $t->same($modifiedAt, $manifestItem['zipExtendedModifiedAt']);
+        $t->same($modifiedAt, $manifestItem['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $manifestItem['zipLocalTimestampSource']);
+        $t->same([], $manifestItem['zipTimestampIssues']);
+
+        $t->same($modifiedAt, $orderItem['zipModifiedAt']);
+        $t->same('extended-timestamp', $orderItem['zipTimestampSource']);
+        $t->same($modifiedAt, $orderItem['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $orderItem['zipLocalTimestampSource']);
+        $t->same([], $orderItem['zipTimestampIssues']);
+
+        $t->same($modifiedAt, $part['zipModifiedAt']);
+        $t->same('extended-timestamp', $part['zipTimestampSource']);
+        $t->same($modifiedAt, $part['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $part['zipLocalTimestampSource']);
+        $t->same([], $part['zipTimestampIssues']);
+
+        $t->same(1, $identity['zipTimestampEntryCount']);
+        $t->same(1, $identity['zipDosTimestampEntryCount']);
+        $t->same(1, $identity['zipExtendedTimestampEntryCount']);
+        $t->same(0, $identity['zipInvalidDosTimestampEntryCount']);
+        $t->same($modifiedAt, $identityManifest['zipModifiedAt']);
+        $t->same('extended-timestamp', $identityManifest['zipTimestampSource']);
+        $t->same($modifiedAt, $identityManifest['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $identityManifest['zipLocalTimestampSource']);
+        $t->same($modifiedAt, $identityPackage['zipModifiedAt']);
+        $t->same('extended-timestamp', $identityPackage['zipTimestampSource']);
+        $t->same($modifiedAt, $identityPackage['zipLocalModifiedAt']);
+        $t->same('extended-timestamp', $identityPackage['zipLocalTimestampSource']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+    },
     'surfaces ODT ZIP package comments in rich package provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $package = ZipPackage::fromParts([
             ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
@@ -12750,6 +13122,14 @@ XML;
         $comments = $provenance['comments'];
         $content = $provenance['parts']['content.xml'];
         $hero = $provenance['parts']['Pictures/hero.png'];
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $manifestOrderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
 
         $t->same($comments, $package->commentPreflight());
         $t->same($provenance, $documentProvenance);
@@ -12772,9 +13152,173 @@ XML;
         $t->same('media review', $hero['zipEntryComment']);
         $t->same(true, $hero['zipEntryHasComment']);
         $t->same('package-bytes-exposable', $hero['byteExposurePolicy']);
+        $t->same('body review', $manifestByPath['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $manifestByPath['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $manifestByPath['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $manifestByPath['content.xml']['zipEntryHasComment']);
+        $t->same([], $manifestByPath['content.xml']['zipEntryCommentIssues']);
+        $t->same('media review', $manifestByPath['Pictures/hero.png']['zipEntryComment']);
+        $t->same('body review', $manifestOrderByPath['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $manifestOrderByPath['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $manifestOrderByPath['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $manifestOrderByPath['content.xml']['zipEntryHasComment']);
+        $t->same([], $manifestOrderByPath['content.xml']['zipEntryCommentIssues']);
+        $t->same('media review', $manifestOrderByPath['Pictures/hero.png']['zipEntryComment']);
         $t->same(1, count($result['media']));
         $t->same('Pictures/hero.png', $result['media'][0]['part']);
         $t->same(0, $provenance['undeclaredEntryCount']);
+    },
+    'surfaces ODT ZIP general purpose flags in manifest and package provenance' => static function (
+        TestRunner $t
+    ) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $package = $buildZipPackageWithCentralDirectoryOrder(
+            [
+                ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+                ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
+                ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8, 'dataDescriptor' => true],
+                ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+                ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+                ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ],
+            ['mimetype', 'META-INF/manifest.xml', 'content.xml', 'styles.xml', 'meta.xml', 'Pictures/hero.png']
+        );
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $expectedFlagReview = $package->generalPurposeFlagPreflight();
+        $expectedFlags = 0x0808;
+        $expectedFlagNames = ['data-descriptor', 'utf-8-names'];
+        $expectedIssues = ['data-descriptor-entry'];
+
+        $manifestByPath = [];
+        foreach ($result['manifest'] as $item) {
+            $manifestByPath[$item['fullPath']] = $item;
+        }
+        $manifestOrderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
+        $identityManifestByPath = [];
+        foreach ($provenance['packageIdentity']['manifestEntries'] as $item) {
+            $identityManifestByPath[$item['fullPath']] = $item;
+        }
+        $identityPackageByPart = [];
+        foreach ($provenance['packageIdentity']['packageEntries'] as $item) {
+            $identityPackageByPart[$item['part']] = $item;
+        }
+        $compactReviewByPath = [];
+        foreach ($compactSummary['manifestReview']['items'] as $item) {
+            $compactReviewByPath[$item['fullPath']] = $item;
+        }
+        $compactOrderByPath = [];
+        foreach ($compactSummary['manifestReview']['manifestFileEntryOrder'] as $item) {
+            $compactOrderByPath[$item['fullPath']] = $item;
+        }
+        $compactIdentityManifestByPath = [];
+        foreach ($compactSummary['packageIdentity']['manifestEntries'] as $item) {
+            $compactIdentityManifestByPath[$item['path']] = $item;
+        }
+        $compactIdentityPackageByPath = [];
+        foreach ($compactSummary['packageIdentity']['packageEntries'] as $item) {
+            $compactIdentityPackageByPath[$item['path']] = $item;
+        }
+
+        $t->same($expectedFlagReview, $provenance['generalPurposeFlags']);
+        $t->same($expectedFlagReview, $compactSummary['packageInventory']['generalPurposeFlags']);
+        $t->same(count($package->entries()), $provenance['zipUtf8NameEntryCount']);
+        $t->same(1, $provenance['zipDataDescriptorEntryCount']);
+        $t->same(1, $provenance['zipStrictFlagReviewEntryCount']);
+        $t->same(0, $provenance['zipUnsupportedGeneralPurposeFlagEntryCount']);
+        $t->same(count($package->entries()), $compactSummary['packageInventory']['zipUtf8NameEntryCount']);
+        $t->same(1, $compactSummary['packageInventory']['zipDataDescriptorEntryCount']);
+        $t->same(1, $compactSummary['packageInventory']['zipStrictFlagReviewEntryCount']);
+        $t->same(0, $compactSummary['packageInventory']['zipUnsupportedGeneralPurposeFlagEntryCount']);
+
+        foreach ([
+            'rich manifest' => $manifestByPath['content.xml'],
+            'rich manifest order' => $manifestOrderByPath['content.xml'],
+            'rich inventory part' => $provenance['parts']['content.xml'],
+            'rich identity manifest' => $identityManifestByPath['content.xml'],
+            'rich identity package' => $identityPackageByPart['content.xml'],
+            'compact manifest review' => $compactReviewByPath['content.xml'],
+            'compact manifest order' => $compactOrderByPath['content.xml'],
+            'compact inventory part' => $compactSummary['packageInventory']['parts']['content.xml'],
+            'compact identity manifest' => $compactIdentityManifestByPath['content.xml'],
+            'compact identity package' => $compactIdentityPackageByPath['content.xml'],
+        ] as $context => $item) {
+            $t->same($expectedFlags, $item['zipGeneralPurposeFlags'], "{$context} flags");
+            $t->same($expectedFlagNames, $item['zipGeneralPurposeFlagNames'], "{$context} flag names");
+            $t->same(0, $item['zipUnsupportedGeneralPurposeFlagBits'], "{$context} unsupported bits");
+            $t->same(true, $item['zipGeneralPurposeFlagsSupported'], "{$context} supported");
+            $t->same(true, $item['zipUsesUtf8Names'], "{$context} utf8 names");
+            $t->same(true, $item['zipUsesDataDescriptor'], "{$context} data descriptor");
+            $t->same(0, $item['zipDeflateOptionFlags'], "{$context} deflate flags");
+            $t->same(null, $item['zipDeflateOptionName'] ?? null, "{$context} deflate flag name");
+            $t->same(true, $item['zipRequiresStrictFlagReview'], "{$context} strict review");
+            $t->same($expectedIssues, $item['zipGeneralPurposeFlagIssues'], "{$context} issues");
+        }
+    },
+    'surfaces ODT ZIP extra fields in rich package provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
+        $customExtraField = pack('vva*', 0xcafe, strlen('odf-review'), 'odf-review');
+        $package = ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml, 'extraFieldData' => $customExtraField],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ]);
+
+        $result = (new OdfReader())->readPackage($package);
+        $provenance = $result['importReport']['manifest']['packageProvenance'];
+        $documentProvenance = $result['document']->attr('manifest')['packageProvenance'];
+        $extraFields = $provenance['extraFields'];
+        $content = $provenance['parts']['content.xml'];
+        $extraFieldEntries = [];
+        foreach ($extraFields['entries'] as $entry) {
+            $extraFieldEntries[$entry['name']] = $entry;
+        }
+        $identityParts = [];
+        foreach ($provenance['packageIdentity']['packageEntries'] as $entry) {
+            $identityParts[$entry['part']] = $entry;
+        }
+
+        $expectedIds = [0xcafe];
+        $t->same($package->extraFieldPreflight(), $extraFields);
+        $t->same($provenance, $documentProvenance);
+        $t->same(1, $provenance['zipExtraFieldEntryCount']);
+        $t->same(0, $provenance['zipDuplicateExtraFieldEntryCount']);
+        $t->same(0, $provenance['zipMismatchedExtraFieldEntryCount']);
+        $t->same(0, $provenance['zipMismatchedExtraFieldValueEntryCount']);
+        $t->same(1, $provenance['zipExtraFieldIdCount']);
+        $t->same(1, $provenance['zipCentralExtraFieldIdCount']);
+        $t->same(1, $provenance['zipLocalExtraFieldIdCount']);
+        $t->same(1, $provenance['zipSharedExtraFieldIdCount']);
+        $t->same(0, $provenance['zipCentralOnlyExtraFieldIdCount']);
+        $t->same(0, $provenance['zipLocalOnlyExtraFieldIdCount']);
+
+        $t->same($expectedIds, $content['centralExtraFieldIds']);
+        $t->same($expectedIds, $content['localExtraFieldIds']);
+        $t->same(true, $content['hasCentralExtraFields']);
+        $t->same(true, $content['hasLocalExtraFields']);
+        $t->same(true, $content['hasZipExtraFieldProvenance']);
+        $t->same(false, $content['hasDuplicateExtraFieldIds']);
+        $t->same(false, $content['hasMismatchedExtraFieldIds']);
+        $t->same(false, $content['hasMismatchedExtraFieldValues']);
+        $t->same([], $provenance['parts']['styles.xml']['centralExtraFieldIds']);
+        $t->same(false, $provenance['parts']['styles.xml']['hasZipExtraFieldProvenance']);
+
+        $t->same($expectedIds, $extraFieldEntries['content.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $extraFieldEntries['content.xml']['localExtraFieldIds']);
+        $t->same('0xcafe', $provenance['zipExtraFieldIdUsage'][0]['idHex']);
+        $t->same(['content.xml'], $provenance['zipExtraFieldIdUsage'][0]['centralEntryNames']);
+        $t->same(['content.xml'], $provenance['zipExtraFieldIdUsage'][0]['localEntryNames']);
+        $t->same($expectedIds, $identityParts['content.xml']['centralExtraFieldIds']);
+        $t->same($expectedIds, $identityParts['content.xml']['localExtraFieldIds']);
+        $t->same(true, $identityParts['content.xml']['hasZipExtraFieldProvenance']);
+        $t->same(1, $provenance['packageIdentity']['zipExtraFieldEntryCount']);
+        $t->same(1, $provenance['packageIdentity']['zipExtraFieldIdCount']);
     },
     'rejects malformed ODT packages before conversion handoff' => static function (TestRunner $t) use ($buildOdtPackage, $buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml): void {
         $reader = new OdfReader();
