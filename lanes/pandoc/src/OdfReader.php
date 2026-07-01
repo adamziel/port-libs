@@ -2112,6 +2112,7 @@ final class OdfReader
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
         $packageZipSourceRecordCompressionMethods = self::packageZipSourceRecordCompressionMethodInventory($parts);
+        $packageZipTimestampSources = self::packageZipTimestampSourceInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
@@ -2249,6 +2250,13 @@ final class OdfReader
             'packageZipSourceRecordCompressionMethodDataDescriptorEntryCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodDataDescriptorEntryCount'],
             'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodUnsupportedEntryCount'],
             'packageZipSourceRecordCompressionMethods' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethods'],
+            'packageZipTimestampSourceCount' => $packageZipTimestampSources['packageZipTimestampSourceCount'],
+            'packageZipTimestampSourceCounts' => $packageZipTimestampSources['packageZipTimestampSourceCounts'],
+            'packageZipTimestampSourceByteLengths' => $packageZipTimestampSources['packageZipTimestampSourceByteLengths'],
+            'packageZipTimestampSourceRecordBytes' => $packageZipTimestampSources['packageZipTimestampSourceRecordBytes'],
+            'packageZipTimestampSourceModifiedEntryCount' => $packageZipTimestampSources['packageZipTimestampSourceModifiedEntryCount'],
+            'packageZipTimestampSourceIssueEntryCount' => $packageZipTimestampSources['packageZipTimestampSourceIssueEntryCount'],
+            'packageZipTimestampSources' => $packageZipTimestampSources['packageZipTimestampSources'],
             'packageAreaCounts' => $packageAreaCounts,
             'packageAreaByteLengths' => $packageAreaByteLengths,
             'packageAreaCompressedByteLengths' => $packageAreaCompressedByteLengths,
@@ -3206,6 +3214,13 @@ final class OdfReader
             'packageZipSourceRecordCompressionMethodDataDescriptorEntryCount' => $provenance['packageZipSourceRecordCompressionMethodDataDescriptorEntryCount'] ?? 0,
             'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $provenance['packageZipSourceRecordCompressionMethodUnsupportedEntryCount'] ?? 0,
             'packageZipSourceRecordCompressionMethods' => $provenance['packageZipSourceRecordCompressionMethods'] ?? [],
+            'packageZipTimestampSourceCount' => $provenance['packageZipTimestampSourceCount'] ?? 0,
+            'packageZipTimestampSourceCounts' => $provenance['packageZipTimestampSourceCounts'] ?? [],
+            'packageZipTimestampSourceByteLengths' => $provenance['packageZipTimestampSourceByteLengths'] ?? [],
+            'packageZipTimestampSourceRecordBytes' => $provenance['packageZipTimestampSourceRecordBytes'] ?? [],
+            'packageZipTimestampSourceModifiedEntryCount' => $provenance['packageZipTimestampSourceModifiedEntryCount'] ?? 0,
+            'packageZipTimestampSourceIssueEntryCount' => $provenance['packageZipTimestampSourceIssueEntryCount'] ?? 0,
+            'packageZipTimestampSources' => $provenance['packageZipTimestampSources'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
@@ -3450,6 +3465,13 @@ final class OdfReader
             'packageZipSourceRecordCompressionMethodDataDescriptorEntryCount' => $provenance['packageZipSourceRecordCompressionMethodDataDescriptorEntryCount'] ?? 0,
             'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $provenance['packageZipSourceRecordCompressionMethodUnsupportedEntryCount'] ?? 0,
             'packageZipSourceRecordCompressionMethods' => $provenance['packageZipSourceRecordCompressionMethods'] ?? [],
+            'packageZipTimestampSourceCount' => $provenance['packageZipTimestampSourceCount'] ?? 0,
+            'packageZipTimestampSourceCounts' => $provenance['packageZipTimestampSourceCounts'] ?? [],
+            'packageZipTimestampSourceByteLengths' => $provenance['packageZipTimestampSourceByteLengths'] ?? [],
+            'packageZipTimestampSourceRecordBytes' => $provenance['packageZipTimestampSourceRecordBytes'] ?? [],
+            'packageZipTimestampSourceModifiedEntryCount' => $provenance['packageZipTimestampSourceModifiedEntryCount'] ?? 0,
+            'packageZipTimestampSourceIssueEntryCount' => $provenance['packageZipTimestampSourceIssueEntryCount'] ?? 0,
+            'packageZipTimestampSources' => $provenance['packageZipTimestampSources'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
             'packageAreaSummaries' => $provenance['packageAreaSummaries'] ?? [],
@@ -4355,6 +4377,233 @@ final class OdfReader
             'packageZipSourceRecordCompressionMethodDataDescriptorEntryCount' => $dataDescriptorEntryCount,
             'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $unsupportedEntryCount,
             'packageZipSourceRecordCompressionMethods' => array_values($methods),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function packageZipTimestampSourceInventory(array $parts): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+        $sources = [];
+
+        foreach ($parts as $name => $part) {
+            if (($part['zipHasSourceRecordProvenance'] ?? false) !== true) {
+                continue;
+            }
+
+            $entryName = is_string($part['path'] ?? null)
+                ? $part['path']
+                : (is_string($part['part'] ?? null) ? $part['part'] : (string) $name);
+            $timestampSource = is_string($part['zipTimestampSource'] ?? null) && $part['zipTimestampSource'] !== ''
+                ? $part['zipTimestampSource']
+                : null;
+            $timestampSourceKey = $timestampSource ?? '(missing)';
+            if (!isset($sources[$timestampSourceKey])) {
+                $sources[$timestampSourceKey] = [
+                    'timestampSourceKey' => $timestampSourceKey,
+                    'timestampSource' => $timestampSource,
+                    'entryCount' => 0,
+                    'modifiedEntryCount' => 0,
+                    'byteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'dosTimestampEntryCount' => 0,
+                    'extendedTimestampEntryCount' => 0,
+                    'ntfsTimestampEntryCount' => 0,
+                    'invalidDosTimestampEntryCount' => 0,
+                    'zipModificationTimeIssueEntryCount' => 0,
+                    'zipModificationTimeIssueCount' => 0,
+                    'directoryRootCounts' => [],
+                    'localTimestampSourceCounts' => [],
+                    'centralTimestampSourceCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'manifestMediaFamilyCounts' => [],
+                    'manifestMediaTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'entryNames' => [],
+                    'earliestModifiedAt' => null,
+                    'latestModifiedAt' => null,
+                    'earliestModifiedEntry' => null,
+                    'latestModifiedEntry' => null,
+                    'largestSourceRecordEntry' => null,
+                ];
+            }
+
+            $pathShape = is_array($part['pathShape'] ?? null) ? $part['pathShape'] : [];
+            $directoryRoot = is_string($part['zipPackageManifestDirectoryRoot'] ?? null)
+                ? $part['zipPackageManifestDirectoryRoot']
+                : self::packageDirectoryRoot($entryName);
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+            $localTimestampSource = is_string($part['zipLocalTimestampSource'] ?? null) && $part['zipLocalTimestampSource'] !== ''
+                ? $part['zipLocalTimestampSource']
+                : '(missing)';
+            $centralTimestampSource = is_string($part['zipCentralTimestampSource'] ?? null) && $part['zipCentralTimestampSource'] !== ''
+                ? $part['zipCentralTimestampSource']
+                : '(missing)';
+            $byteLength = $intField($part, 'byteLength');
+            $compressedByteLength = $intField($part, 'compressedByteLength');
+            $sourceRecordBytes = $intField($part, 'zipSourceRecordBytes');
+            $localRecordBytes = $intField($part, 'zipLocalRecordBytes');
+            $centralDirectoryRecordBytes = $intField($part, 'zipCentralDirectoryRecordBytes');
+            $modifiedAt = is_int($part['zipModifiedAt'] ?? null) ? $part['zipModifiedAt'] : null;
+            $byteExposurePolicy = is_string($part['byteExposurePolicy'] ?? null) && $part['byteExposurePolicy'] !== ''
+                ? $part['byteExposurePolicy']
+                : '(missing)';
+            $manifestMediaFamily = is_string($part['manifestMediaFamily'] ?? null) && $part['manifestMediaFamily'] !== ''
+                ? $part['manifestMediaFamily']
+                : '(missing)';
+            $manifestMediaTypeBase = is_string($part['manifestMediaTypeBase'] ?? null) && $part['manifestMediaTypeBase'] !== ''
+                ? $part['manifestMediaTypeBase']
+                : '(missing)';
+            $roles = array_values(array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []));
+            $issues = is_array($part['zipTimestampIssues'] ?? null)
+                ? array_values(array_filter($part['zipTimestampIssues'], static fn (mixed $issue): bool => is_string($issue)))
+                : [];
+
+            $entrySummary = [
+                'entryName' => $entryName,
+                'directoryRoot' => $directoryRoot,
+                'packageDirectory' => is_string($part['packageDirectory'] ?? null)
+                    ? $part['packageDirectory']
+                    : (is_string($pathShape['directory'] ?? null) ? $pathShape['directory'] : null),
+                'packageBasename' => is_string($part['packageBasename'] ?? null)
+                    ? $part['packageBasename']
+                    : (is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : null),
+                'packagePathDepth' => is_int($part['packagePathDepth'] ?? null) ? $part['packagePathDepth'] : null,
+                'byteLength' => $byteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'zipModifiedAt' => $modifiedAt,
+                'zipTimestampSource' => $timestampSource,
+                'zipLocalTimestampSource' => $localTimestampSource === '(missing)' ? null : $localTimestampSource,
+                'zipCentralTimestampSource' => $centralTimestampSource === '(missing)' ? null : $centralTimestampSource,
+                'zipHasDosTimestamp' => ($part['zipHasDosTimestamp'] ?? false) === true,
+                'zipIsDosTimestampValid' => ($part['zipIsDosTimestampValid'] ?? true) === true,
+                'zipExtendedModifiedAt' => is_int($part['zipExtendedModifiedAt'] ?? null) ? $part['zipExtendedModifiedAt'] : null,
+                'zipNtfsModifiedAt' => is_int($part['zipNtfsModifiedAt'] ?? null) ? $part['zipNtfsModifiedAt'] : null,
+                'zipModificationTimeIssueCount' => count($issues),
+                'zipModificationTimeIssues' => $issues,
+                'roles' => $roles,
+                'byteExposurePolicy' => $byteExposurePolicy === '(missing)' ? null : $byteExposurePolicy,
+                'manifestMediaFamily' => $manifestMediaFamily === '(missing)' ? null : $manifestMediaFamily,
+                'manifestMediaType' => is_string($part['manifestMediaType'] ?? null) ? $part['manifestMediaType'] : null,
+                'manifestMediaTypeBase' => $manifestMediaTypeBase === '(missing)' ? null : $manifestMediaTypeBase,
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'undeclared' => ($part['undeclared'] ?? false) === true,
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+            ];
+
+            ++$sources[$timestampSourceKey]['entryCount'];
+            $sources[$timestampSourceKey]['entryNames'][] = $entryName;
+            $sources[$timestampSourceKey]['byteLength'] += $byteLength;
+            $sources[$timestampSourceKey]['compressedByteLength'] += $compressedByteLength;
+            $sources[$timestampSourceKey]['sourceRecordBytes'] += $sourceRecordBytes;
+            $sources[$timestampSourceKey]['localRecordBytes'] += $localRecordBytes;
+            $sources[$timestampSourceKey]['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes;
+            $sources[$timestampSourceKey]['directoryRootCounts'][$directoryRoot] =
+                ($sources[$timestampSourceKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $sources[$timestampSourceKey]['localTimestampSourceCounts'][$localTimestampSource] =
+                ($sources[$timestampSourceKey]['localTimestampSourceCounts'][$localTimestampSource] ?? 0) + 1;
+            $sources[$timestampSourceKey]['centralTimestampSourceCounts'][$centralTimestampSource] =
+                ($sources[$timestampSourceKey]['centralTimestampSourceCounts'][$centralTimestampSource] ?? 0) + 1;
+            $sources[$timestampSourceKey]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($sources[$timestampSourceKey]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            $sources[$timestampSourceKey]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                ($sources[$timestampSourceKey]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+            $sources[$timestampSourceKey]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] =
+                ($sources[$timestampSourceKey]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] ?? 0) + 1;
+            foreach ($roles as $role) {
+                if ($role === '') {
+                    continue;
+                }
+                $sources[$timestampSourceKey]['roleCounts'][$role] =
+                    ($sources[$timestampSourceKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            if ($modifiedAt !== null) {
+                ++$sources[$timestampSourceKey]['modifiedEntryCount'];
+                $earliestModifiedAt = $sources[$timestampSourceKey]['earliestModifiedAt'];
+                if (!is_int($earliestModifiedAt) || $modifiedAt < $earliestModifiedAt) {
+                    $sources[$timestampSourceKey]['earliestModifiedAt'] = $modifiedAt;
+                    $sources[$timestampSourceKey]['earliestModifiedEntry'] = $entrySummary;
+                }
+                $latestModifiedAt = $sources[$timestampSourceKey]['latestModifiedAt'];
+                if (!is_int($latestModifiedAt) || $modifiedAt > $latestModifiedAt) {
+                    $sources[$timestampSourceKey]['latestModifiedAt'] = $modifiedAt;
+                    $sources[$timestampSourceKey]['latestModifiedEntry'] = $entrySummary;
+                }
+            }
+            if (($part['zipHasDosTimestamp'] ?? false) === true) {
+                ++$sources[$timestampSourceKey]['dosTimestampEntryCount'];
+            }
+            if (($part['zipIsDosTimestampValid'] ?? true) !== true) {
+                ++$sources[$timestampSourceKey]['invalidDosTimestampEntryCount'];
+            }
+            if (is_int($part['zipExtendedModifiedAt'] ?? null)) {
+                ++$sources[$timestampSourceKey]['extendedTimestampEntryCount'];
+            }
+            if (is_int($part['zipNtfsModifiedAt'] ?? null)) {
+                ++$sources[$timestampSourceKey]['ntfsTimestampEntryCount'];
+            }
+            if ($issues !== []) {
+                ++$sources[$timestampSourceKey]['zipModificationTimeIssueEntryCount'];
+                $sources[$timestampSourceKey]['zipModificationTimeIssueCount'] += count($issues);
+            }
+
+            $largestEntry = $sources[$timestampSourceKey]['largestSourceRecordEntry'];
+            if (
+                !is_array($largestEntry)
+                || $sourceRecordBytes > (int) ($largestEntry['sourceRecordBytes'] ?? 0)
+                || ($sourceRecordBytes === (int) ($largestEntry['sourceRecordBytes'] ?? 0) && strcmp($entryName, (string) ($largestEntry['entryName'] ?? '')) < 0)
+            ) {
+                $sources[$timestampSourceKey]['largestSourceRecordEntry'] = $entrySummary;
+            }
+        }
+
+        $sourceCounts = [];
+        $sourceByteLengths = [];
+        $sourceRecordBytes = [];
+        $modifiedEntryCount = 0;
+        $issueEntryCount = 0;
+        ksort($sources, SORT_STRING);
+        foreach ($sources as $sourceKey => $summary) {
+            sort($summary['entryNames'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['localTimestampSourceCounts'], SORT_STRING);
+            ksort($summary['centralTimestampSourceCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $sources[$sourceKey] = $summary;
+            $sourceCounts[$sourceKey] = $summary['entryCount'];
+            $sourceByteLengths[$sourceKey] = $summary['byteLength'];
+            $sourceRecordBytes[$sourceKey] = $summary['sourceRecordBytes'];
+            $modifiedEntryCount += $summary['modifiedEntryCount'];
+            $issueEntryCount += $summary['zipModificationTimeIssueEntryCount'];
+        }
+
+        return [
+            'packageZipTimestampSourceCount' => count($sources),
+            'packageZipTimestampSourceCounts' => $sourceCounts,
+            'packageZipTimestampSourceByteLengths' => $sourceByteLengths,
+            'packageZipTimestampSourceRecordBytes' => $sourceRecordBytes,
+            'packageZipTimestampSourceModifiedEntryCount' => $modifiedEntryCount,
+            'packageZipTimestampSourceIssueEntryCount' => $issueEntryCount,
+            'packageZipTimestampSources' => array_values($sources),
         ];
     }
 
