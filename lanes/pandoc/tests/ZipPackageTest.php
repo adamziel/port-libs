@@ -10436,12 +10436,18 @@ return [
         $t->same(1, $summary['duplicateLocalExtraFieldEntryCount']);
         $t->same('word/media/reviewer-note.txt', $summary['duplicateEntries'][0]['name']);
         $t->same([0xcafe, 0xcafe, 0x5455], $summary['entries'][0]['centralExtraFieldIds']);
+        $t->same(['0xcafe', '0xcafe', '0x5455'], $summary['entries'][0]['centralExtraFieldIdHexes']);
         $t->same([0xbeef, 0xbeef, 0x5455], $summary['entries'][0]['localExtraFieldIds']);
+        $t->same(['0xbeef', '0xbeef', '0x5455'], $summary['entries'][0]['localExtraFieldIdHexes']);
         $t->same([0xcafe], $summary['entries'][0]['duplicateCentralExtraFieldIds']);
+        $t->same(['0xcafe'], $summary['entries'][0]['duplicateCentralExtraFieldIdHexes']);
         $t->same([0xbeef], $summary['entries'][0]['duplicateLocalExtraFieldIds']);
+        $t->same(['0xbeef'], $summary['entries'][0]['duplicateLocalExtraFieldIdHexes']);
         $t->same(true, $summary['entries'][0]['hasDuplicateExtraFieldIds']);
         $t->same([], $summary['entries'][1]['duplicateCentralExtraFieldIds']);
+        $t->same([], $summary['entries'][1]['duplicateCentralExtraFieldIdHexes']);
         $t->same([], $summary['entries'][1]['duplicateLocalExtraFieldIds']);
+        $t->same([], $summary['entries'][1]['duplicateLocalExtraFieldIdHexes']);
         $t->same('central-one', $package->entry('word/media/reviewer-note.txt')->centralExtraField(0xcafe));
         $t->same('local-one', $package->localExtraField('/word/media/reviewer-note.txt', 0xbeef));
         $t->same('reviewer media provenance with duplicate extra fields', $package->read('/word/media/reviewer-note.txt'));
@@ -10462,7 +10468,9 @@ return [
         $t->same(0, $safeSummary['duplicateExtraFieldEntryCount']);
         $t->same([], $safeSummary['duplicateEntries']);
         $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $safeSummary['entries'][0]['centralExtraFieldIdHexes']);
         $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['localExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $safeSummary['entries'][0]['localExtraFieldIdHexes']);
     },
 
     'preflights central and local zip extra field id mismatches before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -10493,9 +10501,13 @@ return [
         $t->same(1, $summary['localOnlyExtraFieldEntryCount']);
         $t->same('word/media/reviewer-note.txt', $summary['mismatchedEntries'][0]['name']);
         $t->same([0x5455, 0xcafe], $summary['mismatchedEntries'][0]['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $summary['mismatchedEntries'][0]['centralExtraFieldIdHexes']);
         $t->same([0x5455, 0xbeef], $summary['mismatchedEntries'][0]['localExtraFieldIds']);
+        $t->same(['0x5455', '0xbeef'], $summary['mismatchedEntries'][0]['localExtraFieldIdHexes']);
         $t->same([0xcafe], $summary['mismatchedEntries'][0]['centralOnlyExtraFieldIds']);
+        $t->same(['0xcafe'], $summary['mismatchedEntries'][0]['centralOnlyExtraFieldIdHexes']);
         $t->same([0xbeef], $summary['mismatchedEntries'][0]['localOnlyExtraFieldIds']);
+        $t->same(['0xbeef'], $summary['mismatchedEntries'][0]['localOnlyExtraFieldIdHexes']);
         $t->same(true, $summary['mismatchedEntries'][0]['hasMismatchedExtraFieldIds']);
         $t->same(false, $summary['mismatchedEntries'][0]['hasDuplicateExtraFieldIds']);
         $t->same(false, $summary['entries'][1]['hasMismatchedExtraFieldIds']);
@@ -10518,9 +10530,13 @@ return [
         $t->same(0, $safeSummary['mismatchedExtraFieldEntryCount']);
         $t->same([], $safeSummary['mismatchedEntries']);
         $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $safeSummary['entries'][0]['centralExtraFieldIdHexes']);
         $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['localExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $safeSummary['entries'][0]['localExtraFieldIdHexes']);
         $t->same([], $safeSummary['entries'][0]['centralOnlyExtraFieldIds']);
+        $t->same([], $safeSummary['entries'][0]['centralOnlyExtraFieldIdHexes']);
         $t->same([], $safeSummary['entries'][0]['localOnlyExtraFieldIds']);
+        $t->same([], $safeSummary['entries'][0]['localOnlyExtraFieldIdHexes']);
     },
 
     'preflights central and local zip extra field value mismatches before office package media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -10553,12 +10569,16 @@ return [
         $t->same([], $summary['mismatchedEntries']);
         $t->same('word/media/reviewer-note.txt', $summary['valueMismatchedEntries'][0]['name']);
         $t->same([0x5455, 0xcafe], $summary['valueMismatchedEntries'][0]['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $summary['valueMismatchedEntries'][0]['centralExtraFieldIdHexes']);
         $t->same([0x5455, 0xcafe], $summary['valueMismatchedEntries'][0]['localExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $summary['valueMismatchedEntries'][0]['localExtraFieldIdHexes']);
         $t->same([0xcafe], $summary['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIds']);
+        $t->same(['0xcafe'], $summary['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIdHexes']);
         $t->same(false, $summary['valueMismatchedEntries'][0]['hasMismatchedExtraFieldIds']);
         $t->same(true, $summary['valueMismatchedEntries'][0]['hasMismatchedExtraFieldValues']);
         $t->same(false, $summary['entries'][1]['hasMismatchedExtraFieldValues']);
         $t->same([], $summary['entries'][1]['mismatchedExtraFieldValueIds']);
+        $t->same([], $summary['entries'][1]['mismatchedExtraFieldValueIdHexes']);
         $t->same('central-review', $package->entry('word/media/reviewer-note.txt')->centralExtraField(0xcafe));
         $t->same('local-review', $package->localExtraField('/word/media/reviewer-note.txt', 0xcafe));
         $t->same('review media with conflicting central/local metadata values', $package->read('/word/media/reviewer-note.txt'));
@@ -10579,8 +10599,11 @@ return [
         $t->same(0, $safeSummary['mismatchedExtraFieldValueEntryCount']);
         $t->same([], $safeSummary['valueMismatchedEntries']);
         $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['centralExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $safeSummary['entries'][0]['centralExtraFieldIdHexes']);
         $t->same([0x5455, 0xcafe], $safeSummary['entries'][0]['localExtraFieldIds']);
+        $t->same(['0x5455', '0xcafe'], $safeSummary['entries'][0]['localExtraFieldIdHexes']);
         $t->same([], $safeSummary['entries'][0]['mismatchedExtraFieldValueIds']);
+        $t->same([], $safeSummary['entries'][0]['mismatchedExtraFieldValueIdHexes']);
         $t->same(false, $safeSummary['entries'][0]['hasMismatchedExtraFieldValues']);
         $t->same('matching review metadata values', $safePackage->read('word/media/reviewer-note.txt'));
     },
@@ -10634,6 +10657,20 @@ return [
         $t->same(1, $summary['centralOnlyExtraFieldIdCount']);
         $t->same(2, $summary['localOnlyExtraFieldIdCount']);
         $t->same([0x1111, 0x2222, 0x3333, 0x5455, 0xcafe], array_column($summary['extraFieldIdUsage'], 'id'));
+        $t->same(['0x1111', '0x2222', '0x3333', '0x5455', '0xcafe'], $summary['extraFieldIdHexes']);
+        $t->same(['0x1111', '0x5455', '0xcafe'], $summary['centralExtraFieldIdHexes']);
+        $t->same(['0x2222', '0x3333', '0x5455', '0xcafe'], $summary['localExtraFieldIdHexes']);
+        $t->same(['0x5455', '0xcafe'], $summary['sharedExtraFieldIdHexes']);
+        $t->same(['0x1111'], $summary['centralOnlyExtraFieldIdHexes']);
+        $t->same(['0x2222', '0x3333'], $summary['localOnlyExtraFieldIdHexes']);
+        $t->same($summary['extraFieldIdHexes'], $rawSummary['extraFieldIdHexes']);
+        $t->same($summary['centralExtraFieldIdHexes'], $rawSummary['centralExtraFieldIdHexes']);
+        $t->same($summary['localExtraFieldIdHexes'], $rawSummary['localExtraFieldIdHexes']);
+        $t->same($summary['sharedExtraFieldIdHexes'], $rawSummary['sharedExtraFieldIdHexes']);
+        $t->same($summary['centralOnlyExtraFieldIdHexes'], $rawSummary['centralOnlyExtraFieldIdHexes']);
+        $t->same($summary['localOnlyExtraFieldIdHexes'], $rawSummary['localOnlyExtraFieldIdHexes']);
+        $t->same($summary['extraFieldIdHexes'], $strict['extraFields']['extraFieldIdHexes']);
+        $t->same($summary['extraFieldIdHexes'], $rawStrict['extraFields']['extraFieldIdHexes']);
         $t->same($summary['extraFieldIdUsage'], $rawSummary['extraFieldIdUsage']);
         $t->same($summary['extraFieldIdUsage'], $strict['extraFields']['extraFieldIdUsage']);
         $t->same($summary['extraFieldIdUsage'], $rawStrict['extraFields']['extraFieldIdUsage']);
@@ -10667,7 +10704,9 @@ return [
         $t->same(['word/document.xml'], $reviewUsage['centralEntryNames']);
         $t->same(['word/document.xml'], $reviewUsage['localEntryNames']);
         $t->same([0x1111], $summary['mismatchedEntries'][0]['centralOnlyExtraFieldIds']);
+        $t->same(['0x1111'], $summary['mismatchedEntries'][0]['centralOnlyExtraFieldIdHexes']);
         $t->same([0xcafe], $summary['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIds']);
+        $t->same(['0xcafe'], $summary['valueMismatchedEntries'][0]['mismatchedExtraFieldValueIdHexes']);
         $t->contains('central-local-extra-field-id-mismatch', implode(',', $strict['diagnostics']));
         $t->contains('central-local-extra-field-value-mismatch', implode(',', $rawStrict['diagnostics']));
         $t->same('central and local-only extra-field ids', $package->read('word/media/reviewer-note.txt'));
@@ -12743,21 +12782,28 @@ return [
         $duplicateEntry = $summary['duplicateEntries'][0];
         $t->same('word/media/duplicate-extra.bin', $duplicateEntry['name']);
         $t->same([0xcafe, 0xcafe], $duplicateEntry['centralExtraFieldIds']);
+        $t->same(['0xcafe', '0xcafe'], $duplicateEntry['centralExtraFieldIdHexes']);
         $t->same([0xcafe, 0xcafe], $duplicateEntry['localExtraFieldIds']);
+        $t->same(['0xcafe', '0xcafe'], $duplicateEntry['localExtraFieldIdHexes']);
         $t->same([0xcafe], $duplicateEntry['duplicateCentralExtraFieldIds']);
+        $t->same(['0xcafe'], $duplicateEntry['duplicateCentralExtraFieldIdHexes']);
         $t->same([0xcafe], $duplicateEntry['duplicateLocalExtraFieldIds']);
+        $t->same(['0xcafe'], $duplicateEntry['duplicateLocalExtraFieldIdHexes']);
         $t->same(true, $duplicateEntry['hasDuplicateExtraFieldIds']);
         $t->same('blocked', $duplicateEntry['policy']);
 
         $mismatchEntry = $summary['mismatchedEntries'][0];
         $t->same('word/media/split-extra.bin', $mismatchEntry['name']);
         $t->same([0xbeef], $mismatchEntry['centralOnlyExtraFieldIds']);
+        $t->same(['0xbeef'], $mismatchEntry['centralOnlyExtraFieldIdHexes']);
         $t->same([0xfeed], $mismatchEntry['localOnlyExtraFieldIds']);
+        $t->same(['0xfeed'], $mismatchEntry['localOnlyExtraFieldIdHexes']);
         $t->same(true, $mismatchEntry['hasMismatchedExtraFieldIds']);
 
         $valueEntry = $summary['valueMismatchedEntries'][0];
         $t->same('word/media/value-extra.bin', $valueEntry['name']);
         $t->same([0xf00d], $valueEntry['mismatchedExtraFieldValueIds']);
+        $t->same(['0xf00d'], $valueEntry['mismatchedExtraFieldValueIdHexes']);
         $t->same(true, $valueEntry['hasMismatchedExtraFieldValues']);
 
         $t->same($summary, $rawStrict['extraFields']);
@@ -13598,10 +13644,12 @@ return [
         $t->same(strlen($documentExtra), $documentEntry['centralExtraFieldLength']);
         $t->same(1, $documentEntry['centralExtraFieldRecordCount']);
         $t->same([0xcafe], $documentEntry['centralExtraFieldIds']);
+        $t->same(['0xcafe'], $documentEntry['centralExtraFieldIdHexes']);
         $t->same(true, $documentEntry['hasCentralExtraFields']);
         $t->same(strlen($documentExtra), $documentEntry['localExtraFieldLength']);
         $t->same(1, $documentEntry['localExtraFieldRecordCount']);
         $t->same([0xcafe], $documentEntry['localExtraFieldIds']);
+        $t->same(['0xcafe'], $documentEntry['localExtraFieldIdHexes']);
         $t->same(true, $documentEntry['hasLocalExtraFields']);
         $t->same(true, $documentEntry['centralLocalExtraFieldIdsMatch']);
         $t->same(true, $documentEntry['hasExtraFieldProvenance']);
@@ -13611,10 +13659,12 @@ return [
         $t->same(0, $localOnlyEntry['centralExtraFieldLength']);
         $t->same(0, $localOnlyEntry['centralExtraFieldRecordCount']);
         $t->same([], $localOnlyEntry['centralExtraFieldIds']);
+        $t->same([], $localOnlyEntry['centralExtraFieldIdHexes']);
         $t->same(false, $localOnlyEntry['hasCentralExtraFields']);
         $t->same(strlen($localOnlyExtra), $localOnlyEntry['localExtraFieldLength']);
         $t->same(1, $localOnlyEntry['localExtraFieldRecordCount']);
         $t->same([0xbeef], $localOnlyEntry['localExtraFieldIds']);
+        $t->same(['0xbeef'], $localOnlyEntry['localExtraFieldIdHexes']);
         $t->same(true, $localOnlyEntry['hasLocalExtraFields']);
         $t->same(false, $localOnlyEntry['centralLocalExtraFieldIdsMatch']);
         $t->same(true, $localOnlyEntry['hasExtraFieldProvenance']);
@@ -13625,10 +13675,12 @@ return [
                 'centralExtraFieldLength' => strlen($documentExtra),
                 'centralExtraFieldRecordCount' => 1,
                 'centralExtraFieldIds' => [0xcafe],
+                'centralExtraFieldIdHexes' => ['0xcafe'],
                 'hasCentralExtraFields' => true,
                 'localExtraFieldLength' => strlen($documentExtra),
                 'localExtraFieldRecordCount' => 1,
                 'localExtraFieldIds' => [0xcafe],
+                'localExtraFieldIdHexes' => ['0xcafe'],
                 'hasLocalExtraFields' => true,
                 'centralLocalExtraFieldIdsMatch' => true,
                 'hasExtraFieldProvenance' => true,
@@ -13638,10 +13690,12 @@ return [
                 'centralExtraFieldLength' => 0,
                 'centralExtraFieldRecordCount' => 0,
                 'centralExtraFieldIds' => [],
+                'centralExtraFieldIdHexes' => [],
                 'hasCentralExtraFields' => false,
                 'localExtraFieldLength' => strlen($localOnlyExtra),
                 'localExtraFieldRecordCount' => 1,
                 'localExtraFieldIds' => [0xbeef],
+                'localExtraFieldIdHexes' => ['0xbeef'],
                 'hasLocalExtraFields' => true,
                 'centralLocalExtraFieldIdsMatch' => false,
                 'hasExtraFieldProvenance' => true,
@@ -13654,10 +13708,12 @@ return [
         $t->same(null, $missingEntry['centralExtraFieldLength']);
         $t->same(0, $missingEntry['centralExtraFieldRecordCount']);
         $t->same([], $missingEntry['centralExtraFieldIds']);
+        $t->same([], $missingEntry['centralExtraFieldIdHexes']);
         $t->same(false, $missingEntry['hasCentralExtraFields']);
         $t->same(null, $missingEntry['localExtraFieldLength']);
         $t->same(0, $missingEntry['localExtraFieldRecordCount']);
         $t->same([], $missingEntry['localExtraFieldIds']);
+        $t->same([], $missingEntry['localExtraFieldIdHexes']);
         $t->same(false, $missingEntry['hasLocalExtraFields']);
         $t->same(null, $missingEntry['centralLocalExtraFieldIdsMatch']);
         $t->same(false, $missingEntry['hasExtraFieldProvenance']);

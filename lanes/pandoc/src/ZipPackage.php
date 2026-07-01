@@ -3074,6 +3074,12 @@ final class ZipPackage
      *     sharedExtraFieldIdCount:int,
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
+     *     extraFieldIdHexes:list<string>,
+     *     centralExtraFieldIdHexes:list<string>,
+     *     localExtraFieldIdHexes:list<string>,
+     *     sharedExtraFieldIdHexes:list<string>,
+     *     centralOnlyExtraFieldIdHexes:list<string>,
+     *     localOnlyExtraFieldIdHexes:list<string>,
      *     extraFieldIdUsage:list<array<string, mixed>>,
      *     duplicateEntries:list<array<string, mixed>>,
      *     mismatchedEntries:list<array<string, mixed>>,
@@ -3138,12 +3144,19 @@ final class ZipPackage
             $summary = [
                 'name' => $entry->name,
                 'centralExtraFieldIds' => $centralExtraFieldIds,
+                'centralExtraFieldIdHexes' => self::extraFieldIdHexes($centralExtraFieldIds),
                 'localExtraFieldIds' => $localExtraFieldIds,
+                'localExtraFieldIdHexes' => self::extraFieldIdHexes($localExtraFieldIds),
                 'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+                'duplicateCentralExtraFieldIdHexes' => self::extraFieldIdHexes($duplicateCentralExtraFieldIds),
                 'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+                'duplicateLocalExtraFieldIdHexes' => self::extraFieldIdHexes($duplicateLocalExtraFieldIds),
                 'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+                'centralOnlyExtraFieldIdHexes' => self::extraFieldIdHexes($centralOnlyExtraFieldIds),
                 'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+                'localOnlyExtraFieldIdHexes' => self::extraFieldIdHexes($localOnlyExtraFieldIds),
                 'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+                'mismatchedExtraFieldValueIdHexes' => self::extraFieldIdHexes($mismatchedExtraFieldValueIds),
                 'hasDuplicateExtraFieldIds' => $hasDuplicateExtraFieldIds,
                 'hasMismatchedExtraFieldIds' => $hasMismatchedExtraFieldIds,
                 'hasMismatchedExtraFieldValues' => $hasMismatchedExtraFieldValues,
@@ -3177,6 +3190,12 @@ final class ZipPackage
             'sharedExtraFieldIdCount' => $idUsage['sharedExtraFieldIdCount'],
             'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
+            'extraFieldIdHexes' => $idUsage['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $idUsage['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $idUsage['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $idUsage['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $idUsage['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $idUsage['localOnlyExtraFieldIdHexes'],
             'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
             'duplicateEntries' => $duplicateEntries,
             'mismatchedEntries' => $mismatchedEntries,
@@ -4361,6 +4380,12 @@ final class ZipPackage
      *     sharedExtraFieldIdCount:int,
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
+     *     extraFieldIdHexes:list<string>,
+     *     centralExtraFieldIdHexes:list<string>,
+     *     localExtraFieldIdHexes:list<string>,
+     *     sharedExtraFieldIdHexes:list<string>,
+     *     centralOnlyExtraFieldIdHexes:list<string>,
+     *     localOnlyExtraFieldIdHexes:list<string>,
      *     extraFieldIdUsage:list<array<string, mixed>>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
@@ -4491,12 +4516,19 @@ final class ZipPackage
                 'centralExtraFieldLength' => $extraLength,
                 'localExtraFieldLength' => $localHeader['extraFieldLength'],
                 'centralExtraFieldIds' => $centralExtraFieldIds,
+                'centralExtraFieldIdHexes' => self::extraFieldIdHexes($centralExtraFieldIds),
                 'localExtraFieldIds' => $localExtraFieldIds,
+                'localExtraFieldIdHexes' => self::extraFieldIdHexes($localExtraFieldIds),
                 'duplicateCentralExtraFieldIds' => $duplicateCentralExtraFieldIds,
+                'duplicateCentralExtraFieldIdHexes' => self::extraFieldIdHexes($duplicateCentralExtraFieldIds),
                 'duplicateLocalExtraFieldIds' => $duplicateLocalExtraFieldIds,
+                'duplicateLocalExtraFieldIdHexes' => self::extraFieldIdHexes($duplicateLocalExtraFieldIds),
                 'centralOnlyExtraFieldIds' => $centralOnlyExtraFieldIds,
+                'centralOnlyExtraFieldIdHexes' => self::extraFieldIdHexes($centralOnlyExtraFieldIds),
                 'localOnlyExtraFieldIds' => $localOnlyExtraFieldIds,
+                'localOnlyExtraFieldIdHexes' => self::extraFieldIdHexes($localOnlyExtraFieldIds),
                 'mismatchedExtraFieldValueIds' => $mismatchedExtraFieldValueIds,
+                'mismatchedExtraFieldValueIdHexes' => self::extraFieldIdHexes($mismatchedExtraFieldValueIds),
                 'hasDuplicateExtraFieldIds' => $duplicateCentralExtraFieldIds !== [] || $duplicateLocalExtraFieldIds !== [],
                 'hasMismatchedExtraFieldIds' => $centralOnlyExtraFieldIds !== [] || $localOnlyExtraFieldIds !== [],
                 'hasMismatchedExtraFieldValues' => $mismatchedExtraFieldValueIds !== [],
@@ -4560,6 +4592,12 @@ final class ZipPackage
             'sharedExtraFieldIdCount' => $idUsage['sharedExtraFieldIdCount'],
             'centralOnlyExtraFieldIdCount' => $idUsage['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $idUsage['localOnlyExtraFieldIdCount'],
+            'extraFieldIdHexes' => $idUsage['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $idUsage['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $idUsage['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $idUsage['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $idUsage['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $idUsage['localOnlyExtraFieldIdHexes'],
             'extraFieldIdUsage' => $idUsage['extraFieldIdUsage'],
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
@@ -5665,10 +5703,12 @@ final class ZipPackage
                 'centralExtraFieldLength' => null,
                 'centralExtraFieldRecordCount' => 0,
                 'centralExtraFieldIds' => [],
+                'centralExtraFieldIdHexes' => [],
                 'hasCentralExtraFields' => false,
                 'localExtraFieldLength' => null,
                 'localExtraFieldRecordCount' => 0,
                 'localExtraFieldIds' => [],
+                'localExtraFieldIdHexes' => [],
                 'hasLocalExtraFields' => false,
                 'centralLocalExtraFieldIdsMatch' => null,
                 'hasExtraFieldProvenance' => false,
@@ -8296,10 +8336,12 @@ final class ZipPackage
      *     centralExtraFieldLength:int,
      *     centralExtraFieldRecordCount:int,
      *     centralExtraFieldIds:list<int>,
+     *     centralExtraFieldIdHexes:list<string>,
      *     hasCentralExtraFields:bool,
      *     localExtraFieldLength:int,
      *     localExtraFieldRecordCount:int,
      *     localExtraFieldIds:list<int>,
+     *     localExtraFieldIdHexes:list<string>,
      *     hasLocalExtraFields:bool,
      *     centralLocalExtraFieldIdsMatch:bool,
      *     hasExtraFieldProvenance:bool
@@ -8328,10 +8370,12 @@ final class ZipPackage
             'centralExtraFieldLength' => strlen($entry->centralExtraFieldData),
             'centralExtraFieldRecordCount' => count($centralExtraFields),
             'centralExtraFieldIds' => $centralExtraFieldIds,
+            'centralExtraFieldIdHexes' => self::extraFieldIdHexes($centralExtraFieldIds),
             'hasCentralExtraFields' => $centralExtraFields !== [],
             'localExtraFieldLength' => strlen($localExtraFieldData),
             'localExtraFieldRecordCount' => count($localExtraFields),
             'localExtraFieldIds' => $localExtraFieldIds,
+            'localExtraFieldIdHexes' => self::extraFieldIdHexes($localExtraFieldIds),
             'hasLocalExtraFields' => $localExtraFields !== [],
             'centralLocalExtraFieldIdsMatch' => $centralExtraFieldIds === $localExtraFieldIds,
             'hasExtraFieldProvenance' => $centralExtraFields !== [] || $localExtraFields !== [],
@@ -19626,6 +19670,12 @@ final class ZipPackage
      *     sharedExtraFieldIdCount:int,
      *     centralOnlyExtraFieldIdCount:int,
      *     localOnlyExtraFieldIdCount:int,
+     *     extraFieldIdHexes:list<string>,
+     *     centralExtraFieldIdHexes:list<string>,
+     *     localExtraFieldIdHexes:list<string>,
+     *     sharedExtraFieldIdHexes:list<string>,
+     *     centralOnlyExtraFieldIdHexes:list<string>,
+     *     localOnlyExtraFieldIdHexes:list<string>,
      *     extraFieldIdUsage:list<array<string, mixed>>
      * }
      */
@@ -19652,27 +19702,40 @@ final class ZipPackage
         $sharedIdCount = 0;
         $centralOnlyIdCount = 0;
         $localOnlyIdCount = 0;
+        $extraFieldIdHexes = [];
+        $centralExtraFieldIdHexes = [];
+        $localExtraFieldIdHexes = [];
+        $sharedExtraFieldIdHexes = [];
+        $centralOnlyExtraFieldIdHexes = [];
+        $localOnlyExtraFieldIdHexes = [];
         $rows = [];
         foreach ($usage as $id => $row) {
             $appearsInCentral = $row['centralRecordCount'] > 0;
             $appearsInLocal = $row['localRecordCount'] > 0;
+            $idHex = sprintf('0x%04x', $id);
+            $extraFieldIdHexes[] = $idHex;
             if ($appearsInCentral) {
                 $centralIdCount++;
+                $centralExtraFieldIdHexes[] = $idHex;
             }
             if ($appearsInLocal) {
                 $localIdCount++;
+                $localExtraFieldIdHexes[] = $idHex;
             }
             if ($appearsInCentral && $appearsInLocal) {
                 $sharedIdCount++;
+                $sharedExtraFieldIdHexes[] = $idHex;
             } elseif ($appearsInCentral) {
                 $centralOnlyIdCount++;
+                $centralOnlyExtraFieldIdHexes[] = $idHex;
             } elseif ($appearsInLocal) {
                 $localOnlyIdCount++;
+                $localOnlyExtraFieldIdHexes[] = $idHex;
             }
 
             $rows[] = [
                 'id' => $id,
-                'idHex' => sprintf('0x%04x', $id),
+                'idHex' => $idHex,
                 'centralRecordCount' => $row['centralRecordCount'],
                 'localRecordCount' => $row['localRecordCount'],
                 'centralEntryCount' => count($row['centralEntryNames']),
@@ -19694,8 +19757,28 @@ final class ZipPackage
             'sharedExtraFieldIdCount' => $sharedIdCount,
             'centralOnlyExtraFieldIdCount' => $centralOnlyIdCount,
             'localOnlyExtraFieldIdCount' => $localOnlyIdCount,
+            'extraFieldIdHexes' => $extraFieldIdHexes,
+            'centralExtraFieldIdHexes' => $centralExtraFieldIdHexes,
+            'localExtraFieldIdHexes' => $localExtraFieldIdHexes,
+            'sharedExtraFieldIdHexes' => $sharedExtraFieldIdHexes,
+            'centralOnlyExtraFieldIdHexes' => $centralOnlyExtraFieldIdHexes,
+            'localOnlyExtraFieldIdHexes' => $localOnlyExtraFieldIdHexes,
             'extraFieldIdUsage' => $rows,
         ];
+    }
+
+    /**
+     * @param list<int> $ids
+     * @return list<string>
+     */
+    private static function extraFieldIdHexes(array $ids): array
+    {
+        $hexes = [];
+        foreach ($ids as $id) {
+            $hexes[] = sprintf('0x%04x', $id);
+        }
+
+        return $hexes;
     }
 
     /**
