@@ -1401,7 +1401,26 @@ final class PandocJsonReader
             }
         }
 
+        if ($this->nativePayloadHasSidecars($section->attr('native'))) {
+            return true;
+        }
+
         return $this->hasContentAttrs($section);
+    }
+
+    private function nativePayloadHasSidecars(mixed $native): bool
+    {
+        if (!is_array($native) || array_is_list($native)) {
+            return false;
+        }
+
+        foreach ($native as $key => $_value) {
+            if ($key !== 't' && $key !== 'c') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function hasContentAttrs(AstNode $node): bool

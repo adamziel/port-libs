@@ -14190,6 +14190,125 @@ return [
             }
         }
     },
+    'preserves empty table section native sidecars when rebuilding table wrappers' => static function (TestRunner $t): void {
+        $headNative = [
+            't' => 'TableHead',
+            'c' => [
+                ['', [], []],
+                [],
+            ],
+            'reviewQueue' => 'empty-head-source',
+            'sourceOrdinal' => 101,
+        ];
+        $cellNative = [
+            't' => 'Cell',
+            'c' => [
+                ['', [], []],
+                ['t' => 'AlignDefault'],
+                ['t' => 'RowSpan', 'c' => 1],
+                ['t' => 'ColSpan', 'c' => 1],
+                [
+                    ['t' => 'Plain', 'c' => [
+                        ['t' => 'Str', 'c' => 'Metric'],
+                    ]],
+                ],
+            ],
+        ];
+        $rowNative = [
+            't' => 'Row',
+            'c' => [
+                ['', [], []],
+                [$cellNative],
+            ],
+        ];
+        $bodyNative = [
+            't' => 'TableBody',
+            'c' => [
+                ['', [], []],
+                ['t' => 'RowHeadColumns', 'c' => 0],
+                [],
+                [$rowNative],
+            ],
+        ];
+        $footNative = [
+            't' => 'TableFoot',
+            'c' => [
+                ['', [], []],
+                [],
+            ],
+            'reviewQueue' => 'empty-foot-source',
+            'sourceOrdinal' => 102,
+        ];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['source-table', [], []],
+                ['t' => 'Caption', 'c' => [null, []]],
+                [[['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']]],
+                $headNative,
+                [$bodyNative],
+                $footNative,
+            ],
+            'reviewQueue' => 'table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+
+        $documents = [
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ];
+
+        foreach ($documents as $source => $document) {
+            $table = $document->children[0];
+            $head = $table->children[0];
+            $body = $table->children[1];
+            $foot = $table->children[2];
+
+            $t->same(['table_head', 'table_body', 'table_foot'], array_map(static fn (AstNode $node): string => $node->type, $table->children), "{$source} reader keeps empty sidecar sections");
+            $t->same($headNative, $head->attr('native'), "{$source} reader preserves empty head native sidecar payload");
+            $t->same($footNative, $foot->attr('native'), "{$source} reader preserves empty foot native sidecar payload");
+
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'rebuilt-empty-sections']), $table->children),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+
+                $t->same('rebuilt-empty-sections', $encodedTable['c'][0][0], "{$source} {$writer} writer regenerates edited table attr");
+                $t->same(false, array_key_exists('reviewQueue', $encodedTable), "{$source} {$writer} writer drops stale table sidecar");
+                $t->same($headNative, $encodedTable['c'][3], "{$source} {$writer} writer preserves empty table head helper sidecar");
+                $t->same($bodyNative, $encodedTable['c'][4][0], "{$source} {$writer} writer preserves body helper payload");
+                $t->same($footNative, $encodedTable['c'][5], "{$source} {$writer} writer preserves empty table foot helper sidecar");
+            }
+
+            $editedHead = new AstNode('table_head', array_replace($head->attrs, ['id' => 'edited-head']), $head->children);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($table->attrs, ['id' => 'edited-empty-head']), [$editedHead, $body, $foot]),
+            ]);
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedTable = $encoded['blocks'][0];
+                $editedHeadPayload = $encodedTable['c'][3];
+
+                $t->same('edited-empty-head', $encodedTable['c'][0][0], "{$source} {$writer} edited head keeps edited table attr");
+                $t->same('TableHead', $editedHeadPayload['t'], "{$source} {$writer} edited empty head regenerates head constructor");
+                $t->same('edited-head', $editedHeadPayload['c'][0][0], "{$source} {$writer} edited empty head regenerates attr");
+                $t->same(false, array_key_exists('reviewQueue', $editedHeadPayload), "{$source} {$writer} edited empty head drops stale sidecar");
+                $t->same($footNative, $encodedTable['c'][5], "{$source} {$writer} edited empty head preserves empty foot sidecar");
+            }
+        }
+    },
     'reads single-wrapped task list item checkbox sidecars from json and native ast' => static function (TestRunner $t): void {
         $uncheckedBlocks = [
             ['t' => 'Plain', 'c' => [
