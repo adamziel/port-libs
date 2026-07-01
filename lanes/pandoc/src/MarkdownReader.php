@@ -12194,6 +12194,9 @@ final class MarkdownReader
         if ($destination === '') {
             return null;
         }
+        if (!$this->isValidBareLinkDestination($destination)) {
+            return null;
+        }
 
         $title = '';
         if ($titleSource !== null) {
@@ -12245,7 +12248,12 @@ final class MarkdownReader
                 return [null, ''];
             }
 
-            return [substr($content, 1, $end - 1), substr($content, $end + 1)];
+            $destination = substr($content, 1, $end - 1);
+            if (!$this->isValidAngleLinkDestination($destination)) {
+                return [null, ''];
+            }
+
+            return [$destination, substr($content, $end + 1)];
         }
 
         $length = strlen($content);
@@ -12261,6 +12269,68 @@ final class MarkdownReader
         }
 
         return [$content, ''];
+    }
+
+    private function isValidAngleLinkDestination(string $destination): bool
+    {
+        if (str_contains($destination, "\n") || str_contains($destination, "\r")) {
+            return false;
+        }
+
+        return $this->findUnescapedCharacter($destination, '<', 0) === null;
+    }
+
+    private function isValidBareLinkDestination(string $destination): bool
+    {
+        if ($this->findUnescapedCharacter($destination, '<', 0) !== null) {
+            return false;
+        }
+
+        if (!$this->strictBareLinkDestinationValidationEnabled()) {
+            return true;
+        }
+
+        if (preg_match('/[\s\x00-\x1F\x7F]/', $destination) === 1) {
+            return false;
+        }
+
+        return $this->hasBalancedBareLinkDestinationParentheses($destination);
+    }
+
+    private function strictBareLinkDestinationValidationEnabled(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat($format);
+
+        return in_array($canonical, ['commonmark', 'commonmark_x', 'gfm', 'markdown_github', 'markdown_strict'], true);
+    }
+
+    private function hasBalancedBareLinkDestinationParentheses(string $destination): bool
+    {
+        $depth = 0;
+        $length = strlen($destination);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($destination[$offset] === '\\') {
+                $offset++;
+                continue;
+            }
+
+            if ($destination[$offset] === '(') {
+                $depth++;
+                continue;
+            }
+
+            if ($destination[$offset] !== ')') {
+                continue;
+            }
+
+            if ($depth === 0) {
+                return false;
+            }
+            $depth--;
+        }
+
+        return $depth === 0;
     }
 
     private function findUnescapedCharacter(string $text, string $character, int $offset): ?int
