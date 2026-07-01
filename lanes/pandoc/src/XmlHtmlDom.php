@@ -18969,8 +18969,10 @@ final class XmlHtmlDom
         $summary += self::effectiveHiddenSummary($element, $attributes);
 
         if (array_key_exists('inert', $attributes)) {
+            $summary['inertReviewPolicy'] = 'html-inert-boolean-attribute-review';
             $summary['inertRaw'] = $attributes['inert'];
             $summary['inert'] = true;
+            $summary += self::inertBooleanAttributeSummary($attributes['inert']);
         }
 
         $summary += self::effectiveInertSummary($element, $attributes);
@@ -19613,9 +19615,14 @@ final class XmlHtmlDom
         string $raw,
         bool $inherited
     ): array {
+        $inertReview = self::inertBooleanAttributeSummary($raw);
         $summary = [
             'effectiveInertRaw' => $raw,
             'effectiveInert' => true,
+            'effectiveInertBooleanAttribute' => $inertReview['inertBooleanAttribute'],
+            'effectiveInertHasValue' => $inertReview['inertHasValue'],
+            'effectiveInertValueConforming' => $inertReview['inertValueConforming'],
+            'effectiveInertIssueCodes' => $inertReview['inertIssueCodes'],
             'inertInherited' => $inherited,
             'inertSource' => $inherited ? 'ancestor-inert' : 'self-inert',
             'inertSourceElement' => self::htmlElementName($source),
@@ -19627,6 +19634,26 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function inertBooleanAttributeSummary(string $raw): array
+    {
+        $conforming = self::htmlBooleanAttributeValueConforming('inert', $raw);
+
+        return [
+            'inertBooleanAttribute' => true,
+            'inertHasValue' => $raw !== '',
+            'inertValueConforming' => $conforming,
+            'inertIssueCodes' => $conforming ? [] : ['non-conforming-inert-boolean-value'],
+        ];
+    }
+
+    private static function htmlBooleanAttributeValueConforming(string $attribute, string $raw): bool
+    {
+        return $raw === '' || strcasecmp($raw, $attribute) === 0;
     }
 
     /**
