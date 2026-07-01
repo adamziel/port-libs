@@ -348,6 +348,13 @@ XML;
                 'original-date' => ['date-parts' => [[1999]]],
                 'ISBN' => '978-private-isbn',
                 'citationAliases' => ['packet-two-alt'],
+                'relatedKeys' => ['private-related-one', 'private-related-two'],
+                'crossrefItems' => [
+                    [
+                        'id' => 'private-crossref',
+                        'title' => 'Private Crossref Title',
+                    ],
+                ],
             ],
         ], JSON_THROW_ON_ERROR);
 
@@ -362,7 +369,7 @@ XML;
         $t->same(false, $review['externalTooling']);
         $t->same(2, $review['itemCount']);
         $t->same(['packet-one', 'packet-two'], $review['itemIds']);
-        $t->same(17, $review['fieldNameCount']);
+        $t->same(19, $review['fieldNameCount']);
         $t->same([
             'DOI',
             'ISBN',
@@ -372,12 +379,14 @@ XML;
             'category-list',
             'citationAliases',
             'container-title',
+            'crossrefItems',
             'editor',
             'id',
             'issued',
             'keywordList',
             'original-date',
             'references',
+            'relatedKeys',
             'title',
             'translator',
             'type',
@@ -388,6 +397,10 @@ XML;
         $t->same(['author' => 2, 'editor' => 1, 'translator' => 1], $review['nameVariableCounts']);
         $t->same(['accessed' => 3, 'issued' => 3, 'original-date' => 1], $review['dateVariableCounts']);
         $t->same(['DOI' => 1, 'ISBN' => 1], $review['identifierFieldCounts']);
+        $t->same(2, $review['relationBearingItemCount']);
+        $t->same(['crossrefItems' => 1, 'references' => 1, 'relatedKeys' => 1], $review['relationFieldCounts']);
+        $t->same(4, $review['relationReferenceCount']);
+        $t->same(['crossrefItems' => 1, 'references' => 1, 'relatedKeys' => 2], $review['relationReferenceCounts']);
 
         $first = $items[0];
         $t->same(0, $first['index']);
@@ -400,6 +413,8 @@ XML;
         $t->same(['DOI'], $first['identifierFields']);
         $t->same(['DOI', 'URL'], $first['linkFields']);
         $t->same(['references'], $first['relationFields']);
+        $t->same(1, $first['relationReferenceCount']);
+        $t->same(['references' => 1], $first['relationReferenceCounts']);
         $t->same('source-values-omitted', $first['payloadExposurePolicy']);
 
         $second = $items[1];
@@ -408,6 +423,9 @@ XML;
         $t->same(['original-date' => 1], $second['datePartCounts']);
         $t->same(['ISBN'], $second['identifierFields']);
         $t->same([], $second['linkFields']);
+        $t->same(['crossrefItems', 'relatedKeys'], $second['relationFields']);
+        $t->same(3, $second['relationReferenceCount']);
+        $t->same(['crossrefItems' => 1, 'relatedKeys' => 2], $second['relationReferenceCounts']);
 
         $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
         $t->same(false, str_contains($reviewJson, 'Secret CSL JSON Packet Title'));
@@ -418,6 +436,9 @@ XML;
         $t->same(false, str_contains($reviewJson, 'private-category'));
         $t->same(false, str_contains($reviewJson, 'private reference payload'));
         $t->same(false, str_contains($reviewJson, '978-private-isbn'));
+        $t->same(false, str_contains($reviewJson, 'private-related-one'));
+        $t->same(false, str_contains($reviewJson, 'private-related-two'));
+        $t->same(false, str_contains($reviewJson, 'Private Crossref Title'));
     },
     'records metadata only ris reader review provenance' => static function (TestRunner $t): void {
         $ris = <<<'RIS'

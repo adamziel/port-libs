@@ -112,8 +112,11 @@ final class BibliographyReader
         $nameVariableCounts = [];
         $dateVariableCounts = [];
         $identifierFieldCounts = [];
+        $relationFieldCounts = [];
+        $relationReferenceCounts = [];
         $titleBearingItemCount = 0;
         $linkBearingItemCount = 0;
+        $relationBearingItemCount = 0;
 
         foreach ($items as $index => $item) {
             $review = $this->cslJsonItemReview($item, $index);
@@ -137,6 +140,10 @@ final class BibliographyReader
             foreach ($review['identifierFields'] as $fieldName) {
                 $identifierFieldCounts[$fieldName] = ($identifierFieldCounts[$fieldName] ?? 0) + 1;
             }
+            foreach ($review['relationFields'] as $fieldName) {
+                $relationFieldCounts[$fieldName] = ($relationFieldCounts[$fieldName] ?? 0) + 1;
+            }
+            $this->mergeCountMap($relationReferenceCounts, $review['relationReferenceCounts']);
 
             if ($review['titleBearing']) {
                 $titleBearingItemCount++;
@@ -144,12 +151,17 @@ final class BibliographyReader
             if ($review['linkBearing']) {
                 $linkBearingItemCount++;
             }
+            if ($review['relationFieldCount'] > 0) {
+                $relationBearingItemCount++;
+            }
         }
 
         ksort($typeCounts);
         ksort($nameVariableCounts);
         ksort($dateVariableCounts);
         ksort($identifierFieldCounts);
+        ksort($relationFieldCounts);
+        ksort($relationReferenceCounts);
 
         return [
             'scope' => 'csl-json-bibliography',
@@ -162,9 +174,13 @@ final class BibliographyReader
             'typeCounts' => $typeCounts,
             'titleBearingItemCount' => $titleBearingItemCount,
             'linkBearingItemCount' => $linkBearingItemCount,
+            'relationBearingItemCount' => $relationBearingItemCount,
             'nameVariableCounts' => $nameVariableCounts,
             'dateVariableCounts' => $dateVariableCounts,
             'identifierFieldCounts' => $identifierFieldCounts,
+            'relationFieldCounts' => $relationFieldCounts,
+            'relationReferenceCount' => array_sum($relationReferenceCounts),
+            'relationReferenceCounts' => $relationReferenceCounts,
             'items' => $reviews,
         ];
     }
@@ -203,6 +219,11 @@ final class BibliographyReader
             'xref', 'xrefKeys', 'xref-keys', 'xdata', 'xdataKeys', 'xdata-keys',
             'entrySet', 'entry-set', 'entryset',
         ]);
+        $relationReferenceCounts = [];
+        foreach ($relationFields as $relationField) {
+            $relationReferenceCounts[$relationField] = $this->cslJsonListValueCount($item[$relationField]);
+        }
+        ksort($relationReferenceCounts);
         $id = $item['id'] ?? '';
         $type = $item['type'] ?? '';
 
@@ -225,6 +246,8 @@ final class BibliographyReader
             'linkFields' => $linkFields,
             'relationFieldCount' => count($relationFields),
             'relationFields' => $relationFields,
+            'relationReferenceCount' => array_sum($relationReferenceCounts),
+            'relationReferenceCounts' => $relationReferenceCounts,
             'payloadExposurePolicy' => 'source-values-omitted',
         ];
     }
