@@ -1563,6 +1563,16 @@ final class OdfReader
             'instructions' => [],
             'truncated' => false,
         ];
+        $packagePartXmlRootElements = [
+            'partCount' => 0,
+            'rootNames' => [],
+            'rootNameCounts' => [],
+            'namespaceUris' => [],
+            'namespaceUriCounts' => [],
+            'partNames' => [],
+            'roots' => [],
+            'truncated' => false,
+        ];
 
         foreach ($manifest as $item) {
             $part = $item['part'] ?? null;
@@ -1816,6 +1826,11 @@ final class OdfReader
             $byteExposurePolicy = is_array($manifestItem)
                 ? ($manifestItem['byteExposurePolicy'] ?? null)
                 : (is_array($undeclaredItem) ? ($undeclaredItem['byteExposurePolicy'] ?? null) : null);
+            $xmlRootElement = self::packagePartXmlRootElementMetadata(
+                $package,
+                $entry,
+                is_array($manifestItem) ? (string) ($manifestItem['mediaTypeBase'] ?? '') : ''
+            );
             $xmlCdataSections = self::packagePartXmlCdataSectionMetadata(
                 $package,
                 $entry,
@@ -1872,6 +1887,16 @@ final class OdfReader
                 'compressedByteLength' => $entry->compressedSize,
                 'crc32' => $entry->crc32Hex(),
                 'byteSha256' => is_array($manifestItem) ? ($manifestItem['byteSha256'] ?? null) : null,
+                'xmlHasRootElement' => ($xmlRootElement['hasRootElement'] ?? false) === true,
+                'xmlRootElementName' => $xmlRootElement['name'] ?? null,
+                'xmlRootElementLocalName' => $xmlRootElement['localName'] ?? null,
+                'xmlRootElementPrefix' => $xmlRootElement['prefix'] ?? null,
+                'xmlRootElementNamespaceUri' => $xmlRootElement['namespaceUri'] ?? null,
+                'xmlRootElementPath' => $xmlRootElement['path'] ?? null,
+                'xmlRootElementAttributeCount' => $xmlRootElement['attributeCount'] ?? 0,
+                'xmlRootElementAttributeNames' => $xmlRootElement['attributeNames'] ?? [],
+                'xmlRootElementNamespaceDeclarationCount' => $xmlRootElement['namespaceDeclarationCount'] ?? 0,
+                'xmlRootElementNamespaceDeclarationNames' => $xmlRootElement['namespaceDeclarationNames'] ?? [],
                 'xmlCdataSectionCount' => $xmlCdataSections['count'],
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
@@ -2093,6 +2118,7 @@ final class OdfReader
             if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
                 ++$decodedNameDiffersFromRawNameEntryCount;
             }
+            self::recordPackagePartXmlRootElementSummary($packagePartXmlRootElements, $entry->name, $xmlRootElement);
             self::recordPackagePartXmlCdataSectionSummary($packagePartXmlCdataSections, $entry->name, $xmlCdataSections);
             self::recordPackagePartXmlCommentSummary($packagePartXmlComments, $entry->name, $xmlComments);
             self::recordPackagePartXmlProcessingInstructionSummary(
@@ -2375,6 +2401,14 @@ final class OdfReader
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+            'packagePartXmlRootElementPartCount' => $packagePartXmlRootElements['partCount'],
+            'packagePartXmlRootElementNames' => $packagePartXmlRootElements['rootNames'],
+            'packagePartXmlRootElementNameCounts' => $packagePartXmlRootElements['rootNameCounts'],
+            'packagePartXmlRootElementNamespaceUris' => $packagePartXmlRootElements['namespaceUris'],
+            'packagePartXmlRootElementNamespaceUriCounts' => $packagePartXmlRootElements['namespaceUriCounts'],
+            'packagePartXmlRootElementPartNames' => $packagePartXmlRootElements['partNames'],
+            'packagePartXmlRootElements' => $packagePartXmlRootElements['roots'],
+            'packagePartXmlRootElementsTruncated' => $packagePartXmlRootElements['truncated'],
             'packagePartXmlCdataSectionPartCount' => $packagePartXmlCdataSections['partCount'],
             'packagePartXmlCdataSectionCount' => $packagePartXmlCdataSections['sectionCount'],
             'packagePartXmlCdataSectionByteLength' => $packagePartXmlCdataSections['byteLength'],
@@ -2606,6 +2640,157 @@ final class OdfReader
             'byteExposurePolicy' => 'odf-zip-name-policy-metadata-only',
             'canExposeBytes' => false,
         ];
+    }
+
+    /**
+     * @param array{partCount:int, rootNames:list<string>, rootNameCounts:array<string, int>, namespaceUris:list<string>, namespaceUriCounts:array<string, int>, partNames:list<string>, roots:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{hasRootElement:bool, name:?string, localName:?string, prefix:?string, namespaceUri:?string, path:?string, attributeCount:int, attributeNames:list<string>, namespaceDeclarationCount:int, namespaceDeclarationNames:list<string>} $metadata
+     */
+    private static function recordPackagePartXmlRootElementSummary(array &$summary, string $partName, array $metadata): void
+    {
+        if (($metadata['hasRootElement'] ?? false) !== true) {
+            return;
+        }
+
+        ++$summary['partCount'];
+        $summary['partNames'][] = $partName;
+        $name = $metadata['name'] ?? null;
+        if (is_string($name) && $name !== '') {
+            $summary['rootNameCounts'][$name] = ($summary['rootNameCounts'][$name] ?? 0) + 1;
+            if (!in_array($name, $summary['rootNames'], true)) {
+                $summary['rootNames'][] = $name;
+            }
+        }
+        $namespaceUri = $metadata['namespaceUri'] ?? null;
+        if (is_string($namespaceUri) && $namespaceUri !== '') {
+            $summary['namespaceUriCounts'][$namespaceUri] = ($summary['namespaceUriCounts'][$namespaceUri] ?? 0) + 1;
+            if (!in_array($namespaceUri, $summary['namespaceUris'], true)) {
+                $summary['namespaceUris'][] = $namespaceUri;
+            }
+        }
+
+        if (count($summary['roots']) >= 64) {
+            $summary['truncated'] = true;
+        } else {
+            $summary['roots'][] = ['partName' => $partName] + $metadata;
+        }
+
+        sort($summary['partNames'], SORT_STRING);
+        sort($summary['rootNames'], SORT_STRING);
+        sort($summary['namespaceUris'], SORT_STRING);
+        ksort($summary['rootNameCounts'], SORT_STRING);
+        ksort($summary['namespaceUriCounts'], SORT_STRING);
+    }
+
+    /**
+     * @return array{hasRootElement:bool, name:?string, localName:?string, prefix:?string, namespaceUri:?string, path:?string, attributeCount:int, attributeNames:list<string>, namespaceDeclarationCount:int, namespaceDeclarationNames:list<string>}
+     */
+    private static function packagePartXmlRootElementMetadata(
+        ZipPackage $package,
+        ZipPackageEntry $entry,
+        string $mediaTypeBase
+    ): array {
+        $empty = [
+            'hasRootElement' => false,
+            'name' => null,
+            'localName' => null,
+            'prefix' => null,
+            'namespaceUri' => null,
+            'path' => null,
+            'attributeCount' => 0,
+            'attributeNames' => [],
+            'namespaceDeclarationCount' => 0,
+            'namespaceDeclarationNames' => [],
+        ];
+        if (
+            $entry->isDirectory()
+            || !in_array($entry->compressionMethod, [0, 8], true)
+            || !self::isXmlPackagePart($entry->name, $mediaTypeBase, self::packagePartExtension($entry->name))
+        ) {
+            return $empty;
+        }
+
+        try {
+            $dom = self::loadXmlForPackageProvenance($package->read($entry->name));
+        } catch (\Throwable) {
+            return $empty;
+        }
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $root = $dom->documentElement;
+        $attributeNames = self::xmlRootElementAttributeNames($root);
+        $namespaceDeclarationNames = self::xmlRootElementNamespaceDeclarationNames($root);
+
+        return [
+            'hasRootElement' => true,
+            'name' => self::qualifiedDomName($root),
+            'localName' => self::nullable($root->localName),
+            'prefix' => self::nullable((string) $root->prefix),
+            'namespaceUri' => self::nullable((string) $root->namespaceURI),
+            'path' => self::domElementPath($root),
+            'attributeCount' => count($attributeNames),
+            'attributeNames' => $attributeNames,
+            'namespaceDeclarationCount' => count($namespaceDeclarationNames),
+            'namespaceDeclarationNames' => $namespaceDeclarationNames,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function xmlRootElementAttributeNames(\DOMElement $root): array
+    {
+        $names = [];
+        foreach ($root->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr || $attribute->namespaceURI === self::XMLNS_NS) {
+                continue;
+            }
+
+            $names[] = self::qualifiedDomAttributeName($attribute);
+        }
+
+        $names = array_values(array_unique($names));
+        sort($names, SORT_STRING);
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function xmlRootElementNamespaceDeclarationNames(\DOMElement $root): array
+    {
+        if (!$root->ownerDocument instanceof \DOMDocument) {
+            return [];
+        }
+
+        $nodes = (new \DOMXPath($root->ownerDocument))->query('namespace::*', $root);
+        if (!$nodes instanceof \DOMNodeList) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($nodes as $node) {
+            if (!$node instanceof \DOMNameSpaceNode || $node->nodeName === 'xmlns:xml') {
+                continue;
+            }
+
+            $names[] = $node->nodeName;
+        }
+
+        $names = array_values(array_unique($names));
+        sort($names, SORT_STRING);
+
+        return $names;
+    }
+
+    private static function qualifiedDomAttributeName(\DOMAttr $attribute): string
+    {
+        return $attribute->prefix !== null && $attribute->prefix !== ''
+            ? $attribute->prefix . ':' . $attribute->localName
+            : $attribute->name;
     }
 
     /**
