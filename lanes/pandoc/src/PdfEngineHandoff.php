@@ -750,6 +750,9 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['invalidDiagnosticOutputCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-invalid-diagnostics:' . $typstBoundarySummary['invalidDiagnosticOutputCount'];
             }
+            if (($typstBoundarySummary['diagnosticOutputIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-diagnostic-output-issues:' . $typstBoundarySummary['diagnosticOutputIssueCount'];
+            }
             if (($typstBoundarySummary['executionJobObservationCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-execution-jobs:' . $typstBoundarySummary['executionJobObservationCount'];
             }
@@ -9811,6 +9814,58 @@ final class PdfEngineHandoff
             static fn (mixed $entry): bool => is_array($entry)
                 && in_array($entry['option'] ?? null, ['diagnosticFormat', 'diagnosticColor'], true)
         ));
+        $collectDiagnosticEntryIssues = static function (array $entries): array {
+            $issues = [];
+            foreach ($entries as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issues[] = $issue;
+                    }
+                }
+            }
+
+            return $issues;
+        };
+        $diagnosticFormatIssues = array_merge(
+            is_array($diagnosticFormat['issues'] ?? null) ? $diagnosticFormat['issues'] : [],
+            $collectDiagnosticEntryIssues($diagnosticFormatHistory)
+        );
+        $diagnosticColorIssues = array_merge(
+            is_array($diagnosticColor['issues'] ?? null) ? $diagnosticColor['issues'] : [],
+            $collectDiagnosticEntryIssues($diagnosticColorHistory)
+        );
+        foreach ($diagnosticOutputOverrides as $override) {
+            if (!is_array($override) || !is_string($override['issue'] ?? null) || $override['issue'] === '') {
+                continue;
+            }
+            if (($override['option'] ?? null) === 'diagnosticFormat') {
+                $diagnosticFormatIssues[] = $override['issue'];
+            } elseif (($override['option'] ?? null) === 'diagnosticColor') {
+                $diagnosticColorIssues[] = $override['issue'];
+            }
+        }
+        $diagnosticFormatIssues = array_values(array_unique(array_filter(
+            $diagnosticFormatIssues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        )));
+        sort($diagnosticFormatIssues);
+        $diagnosticColorIssues = array_values(array_unique(array_filter(
+            $diagnosticColorIssues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        )));
+        sort($diagnosticColorIssues);
+        $diagnosticOutputIssues = array_values(array_unique(array_filter(
+            array_merge(
+                is_array($diagnosticOutput['issues'] ?? null) ? $diagnosticOutput['issues'] : [],
+                $diagnosticFormatIssues,
+                $diagnosticColorIssues
+            ),
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        )));
+        sort($diagnosticOutputIssues);
         $systemFontAccess = is_array($provenance['systemFonts'] ?? null) ? $provenance['systemFonts'] : [];
         $embeddedFontAccess = is_array($provenance['embeddedFonts'] ?? null) ? $provenance['embeddedFonts'] : [];
         $systemFontAccessDisabled = ($systemFontAccess['systemFontAccess'] ?? null) === 'disabled';
@@ -10263,10 +10318,18 @@ final class PdfEngineHandoff
             'sidecarOutputIssueCount' => count($sidecarOutputIssues),
             'diagnosticOutputPresent' => $diagnosticOutput !== [],
             'diagnosticOutputControlCount' => (int) ($diagnosticFormat !== []) + (int) ($diagnosticColor !== []),
+            'selectedDiagnosticFormat' => is_string($diagnosticFormat['format'] ?? null) ? $diagnosticFormat['format'] : null,
+            'selectedDiagnosticFormatMachineReadable' => ($diagnosticFormat['machineReadable'] ?? false) === true,
+            'selectedDiagnosticColor' => is_string($diagnosticColor['color'] ?? null) ? $diagnosticColor['color'] : null,
+            'selectedDiagnosticAnsiColor' => is_string($diagnosticColor['ansiColor'] ?? null) ? $diagnosticColor['ansiColor'] : null,
             'diagnosticFormatHistoryCount' => count($diagnosticFormatHistory),
             'diagnosticColorHistoryCount' => count($diagnosticColorHistory),
             'diagnosticOutputOverrideCount' => count($diagnosticOutputOverrides),
             'invalidDiagnosticOutputCount' => $invalidDiagnosticFormatCount + $invalidDiagnosticColorCount,
+            'diagnosticFormatIssueCount' => count($diagnosticFormatIssues),
+            'diagnosticColorIssueCount' => count($diagnosticColorIssues),
+            'diagnosticOutputIssueCount' => count($diagnosticOutputIssues),
+            'diagnosticOutputIssues' => $diagnosticOutputIssues,
             'fontAccessControlCount' => (int) $systemFontAccessDisabled + (int) $embeddedFontAccessDisabled,
             'systemFontAccessDisabled' => $systemFontAccessDisabled,
             'systemFontAccessFlagCount' => $systemFontAccessFlagCount,
