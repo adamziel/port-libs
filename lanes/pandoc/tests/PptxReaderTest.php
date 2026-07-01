@@ -4086,7 +4086,7 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <p:notPresentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
                    xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <p:sldSz cx="12192000" cy="6858000"/>
+  <p:sldSz cx=" 12192000 " cy=" 6858000 "/>
   <p:sldIdLst>
     <p:sldId id="461" r:id="rIdSlide"/>
   </p:sldIdLst>

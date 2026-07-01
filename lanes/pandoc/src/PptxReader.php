@@ -1766,7 +1766,7 @@ final class PptxReader
 
     private function integerAttribute(\DOMElement $element, string $name): ?int
     {
-        $value = $element->getAttribute($name);
+        $value = trim($element->getAttribute($name));
 
         return preg_match('/^-?\d+$/', $value) === 1 ? (int) $value : null;
     }
