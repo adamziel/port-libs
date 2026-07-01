@@ -332,7 +332,7 @@ final class PptxReader
             return $blocks;
         }
 
-        $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r') ?? $this->localNamespaceForPrefix($spTree, 'r');
+        $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r');
         $drawingNamespace = $this->localNamespaceForPrefix($root, 'a');
         $zOrder = 0;
         foreach ($this->childElements($spTree, null) as $shapeElement) {
