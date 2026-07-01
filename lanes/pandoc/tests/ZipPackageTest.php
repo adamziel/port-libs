@@ -799,6 +799,11 @@ return [
             'manifestVersion' => 'zip-package-manifest-v1',
             'centralDirectoryOrderNames' => $expectedCentralOrder,
             'localHeaderOrderNames' => $expectedLocalOrder,
+            'hasEntryComments' => false,
+            'commentedEntryNames' => [],
+            'entryCommentSummaryCount' => 0,
+            'entryCommentSourceRecordBytes' => 0,
+            'entryCommentSummaries' => [],
             'entries' => $expectedEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -812,6 +817,11 @@ return [
         $t->same(2, $manifest['storedEntryCount']);
         $t->same(1, $manifest['deflatedEntryCount']);
         $t->same(0, $manifest['unsupportedCompressionMethodCount']);
+        $t->same(false, $manifest['hasEntryComments']);
+        $t->same([], $manifest['commentedEntryNames']);
+        $t->same(0, $manifest['entryCommentSummaryCount']);
+        $t->same(0, $manifest['entryCommentSourceRecordBytes']);
+        $t->same([], $manifest['entryCommentSummaries']);
         $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
         $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);
         $t->same(false, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
@@ -7098,6 +7108,7 @@ return [
             ],
         ], 'source package review comment'));
         $summary = $commentedPackage->commentPreflight();
+        $manifest = $commentedPackage->packageManifestPreflight();
 
         $t->same('source package review comment', $summary['packageComment']);
         $t->same(true, $summary['hasPackageComment']);
@@ -7106,6 +7117,16 @@ return [
         $t->same(1, $summary['entryCommentCount']);
         $t->same(['word/document.xml'], $summary['commentedEntryNames']);
         $t->same('document reviewer comment', $summary['commentedEntries'][0]['comment']);
+        $t->same(true, $manifest['hasEntryComments']);
+        $t->same(['word/document.xml'], $manifest['commentedEntryNames']);
+        $t->same(1, $manifest['entryCommentSummaryCount']);
+        $t->same('word/document.xml', $manifest['entryCommentSummaries'][0]['name']);
+        $t->same(strlen('document reviewer comment'), $manifest['entryCommentSummaries'][0]['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', 'document reviewer comment'), $manifest['entryCommentSummaries'][0]['centralDirectoryRawCommentSha256']);
+        $t->same(false, $manifest['entryCommentSummaries'][0]['entryCommentCanExposeBytes']);
+        $t->same('zip-entry-comment-source-metadata-only', $manifest['entryCommentSummaries'][0]['entryCommentByteExposurePolicy']);
+        $t->same(false, array_key_exists('comment', $manifest['entryCommentSummaries'][0]));
+        $t->same($manifest['entryCommentSummaries'][0]['sourceRecordBytes'], $manifest['entryCommentSourceRecordBytes']);
         $t->same('review packet comment metadata', $commentedPackage->read('/word/media/review-note.txt'));
         $t->throws(\RuntimeException::class, static fn (): array => $commentedPackage->assertNoPackageOrEntryComments());
 
