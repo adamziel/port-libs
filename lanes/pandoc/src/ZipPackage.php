@@ -7000,6 +7000,7 @@ final class ZipPackage
                     'compressedBytes' => 0,
                     'uncompressedBytes' => 0,
                     'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
                     'dataDescriptorEntryCount' => 0,
                     'dataDescriptorBytes' => 0,
                     'entryNames' => [],
@@ -7016,6 +7017,7 @@ final class ZipPackage
             $summaries[$root]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
             $summaries[$root]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
             $summaries[$root]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$root]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
             $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
             if ($dataDescriptorBytes > 0) {
                 ++$summaries[$root]['dataDescriptorEntryCount'];
@@ -7054,6 +7056,7 @@ final class ZipPackage
                     'compressedBytes' => 0,
                     'uncompressedBytes' => 0,
                     'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
                     'dataDescriptorEntryCount' => 0,
                     'dataDescriptorBytes' => 0,
                     'entryNames' => [],
@@ -7064,6 +7067,7 @@ final class ZipPackage
             $summaries[$extensionKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
             $summaries[$extensionKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
             $summaries[$extensionKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$extensionKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
             $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
             if ($dataDescriptorBytes > 0) {
                 ++$summaries[$extensionKey]['dataDescriptorEntryCount'];
