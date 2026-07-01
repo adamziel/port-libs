@@ -964,6 +964,20 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlStoryPartCount'] = $contentControls['storyPartCount'];
         $packageProvenance['summary']['contentControlPartNames'] = $contentControls['partNames'];
         $packageProvenance['summary']['contentControlSourceTypeCounts'] = $contentControls['sourceTypeCounts'];
+        $packageProvenance['summary']['contentControlScopeCounts'] = $contentControls['scopeCounts'];
+        $packageProvenance['summary']['contentControlStoreItemIds'] = $contentControls['storeItemIds'];
+        $packageProvenance['summary']['contentControlMatchedStoreItemIds'] = $contentControls['matchedStoreItemIds'];
+        $packageProvenance['summary']['contentControlTags'] = $contentControls['tags'];
+        $packageProvenance['summary']['contentControlLockCount'] = $contentControls['lockCount'];
+        $packageProvenance['summary']['contentControlLockValueCounts'] = $contentControls['lockValueCounts'];
+        $packageProvenance['summary']['contentControlAppearanceCount'] = $contentControls['appearanceCount'];
+        $packageProvenance['summary']['contentControlAppearanceValueCounts'] = $contentControls['appearanceValueCounts'];
+        $packageProvenance['summary']['contentControlPlaceholderCount'] = $contentControls['placeholderCount'];
+        $packageProvenance['summary']['contentControlPlaceholderDocPartValues'] = $contentControls['placeholderDocPartValues'];
+        $packageProvenance['summary']['contentControlTemporaryCount'] = $contentControls['temporaryCount'];
+        $packageProvenance['summary']['contentControlShowingPlaceholderCount'] = $contentControls['showingPlaceholderCount'];
+        $packageProvenance['summary']['contentControlTypeCounts'] = $contentControls['controlTypeCounts'];
+        $packageProvenance['summary']['contentControlContentKindCounts'] = $contentControls['contentKindCounts'];
         $packageProvenance['summary']['contentControlIssueCount'] = $contentControls['issueCount'];
         $packageProvenance['summary']['contentControlIssueCodes'] = $contentControls['issueCodes'];
         $packageProvenance['settingsRelationships'] = $settingsRelationshipInventory;
@@ -10371,6 +10385,14 @@ final class DocxOpenXmlReader
         $byStoreItemId = [];
         $partNames = [];
         $tags = [];
+        $lockValueCounts = [];
+        $appearanceValueCounts = [];
+        $placeholderDocPartValues = [];
+        $controlTypeCounts = [];
+        $contentKindCounts = [];
+        $placeholderCount = 0;
+        $temporaryCount = 0;
+        $showingPlaceholderCount = 0;
 
         foreach ($sources as $source) {
             $sourceType = $source['sourceType'];
@@ -10386,6 +10408,37 @@ final class DocxOpenXmlReader
                 $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
                 $tag = is_string($item['tag'] ?? null) ? $item['tag'] : '';
                 $this->appendUniqueString($tags, $tag === '' ? null : $tag);
+                $lock = is_string($item['lock'] ?? null) ? $item['lock'] : '';
+                if ($lock !== '') {
+                    $lockValueCounts[$lock] = ($lockValueCounts[$lock] ?? 0) + 1;
+                }
+                $appearance = is_string($item['appearance'] ?? null) ? $item['appearance'] : '';
+                if ($appearance !== '') {
+                    $appearanceValueCounts[$appearance] = ($appearanceValueCounts[$appearance] ?? 0) + 1;
+                }
+                if (($item['placeholderPresent'] ?? false) === true) {
+                    ++$placeholderCount;
+                    $this->appendUniqueString(
+                        $placeholderDocPartValues,
+                        is_string($item['placeholderDocPart'] ?? null) ? $item['placeholderDocPart'] : null
+                    );
+                }
+                if (($item['temporary'] ?? false) === true) {
+                    ++$temporaryCount;
+                }
+                if (($item['showingPlaceholder'] ?? false) === true) {
+                    ++$showingPlaceholderCount;
+                }
+                $controlType = is_string($item['controlType'] ?? null) ? $item['controlType'] : '';
+                if ($controlType !== '') {
+                    $controlTypeCounts[$controlType] = ($controlTypeCounts[$controlType] ?? 0) + 1;
+                }
+                foreach (($item['contentKinds'] ?? []) as $contentKind) {
+                    if (!is_string($contentKind) || $contentKind === '') {
+                        continue;
+                    }
+                    $contentKindCounts[$contentKind] = ($contentKindCounts[$contentKind] ?? 0) + 1;
+                }
 
                 $storeItemId = is_string($item['storeItemId'] ?? null) ? $item['storeItemId'] : '';
                 if ($storeItemId !== '') {
@@ -10408,6 +10461,11 @@ final class DocxOpenXmlReader
         ksort($scopeCounts, SORT_STRING);
         ksort($sourceTypeCounts, SORT_STRING);
         ksort($byStoreItemId, SORT_STRING);
+        ksort($lockValueCounts, SORT_STRING);
+        ksort($appearanceValueCounts, SORT_STRING);
+        ksort($controlTypeCounts, SORT_STRING);
+        ksort($contentKindCounts, SORT_STRING);
+        sort($placeholderDocPartValues, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -10423,6 +10481,16 @@ final class DocxOpenXmlReader
             'storeItemIds' => $storeItemIds,
             'matchedStoreItemIds' => $matchedStoreItemIds,
             'tags' => $tags,
+            'lockCount' => array_sum($lockValueCounts),
+            'lockValueCounts' => $lockValueCounts,
+            'appearanceCount' => array_sum($appearanceValueCounts),
+            'appearanceValueCounts' => $appearanceValueCounts,
+            'placeholderCount' => $placeholderCount,
+            'placeholderDocPartValues' => $placeholderDocPartValues,
+            'temporaryCount' => $temporaryCount,
+            'showingPlaceholderCount' => $showingPlaceholderCount,
+            'controlTypeCounts' => $controlTypeCounts,
+            'contentKindCounts' => $contentKindCounts,
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
             'byStoreItemId' => $byStoreItemId,
@@ -10487,6 +10555,16 @@ final class DocxOpenXmlReader
             'storeItemIds' => [],
             'matchedStoreItemIds' => [],
             'tags' => [],
+            'lockCount' => 0,
+            'lockValueCounts' => [],
+            'appearanceCount' => 0,
+            'appearanceValueCounts' => [],
+            'placeholderCount' => 0,
+            'placeholderDocPartValues' => [],
+            'temporaryCount' => 0,
+            'showingPlaceholderCount' => 0,
+            'controlTypeCounts' => [],
+            'contentKindCounts' => [],
             'issueCount' => 0,
             'issueCodes' => [],
             'byStoreItemId' => [],
@@ -10515,6 +10593,9 @@ final class DocxOpenXmlReader
         $xpathValue = $dataBinding instanceof \DOMElement ? trim($dataBinding->getAttributeNS(self::NS_W, 'xpath')) : '';
         $prefixMappings = $dataBinding instanceof \DOMElement ? trim($dataBinding->getAttributeNS(self::NS_W, 'prefixMappings')) : '';
         $matchingStoreItems = $storeItemId === '' ? [] : ($storeItemReferences['byStoreItemId'][$storeItemId] ?? []);
+        $placeholder = $this->contentControlPlaceholder($properties);
+        $temporary = $this->childElement($properties, 'temporary');
+        $showingPlaceholder = $this->childElement($properties, 'showingPlcHdr');
         $issues = [];
 
         if ($dataBinding instanceof \DOMElement && $storeItemId === '') {
@@ -10536,6 +10617,11 @@ final class DocxOpenXmlReader
             'tag' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'tag', 'val')) : null,
             'id' => $this->contentControlId($properties),
             'lock' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'lock', 'val')) : null,
+            'appearance' => $properties instanceof \DOMElement ? $this->emptyStringToNull($this->childAttr($properties, 'appearance', 'val')) : null,
+            'placeholderPresent' => $placeholder['present'],
+            'placeholderDocPart' => $placeholder['docPart'],
+            'temporary' => $temporary instanceof \DOMElement && $this->wordBoolean($temporary),
+            'showingPlaceholder' => $showingPlaceholder instanceof \DOMElement && $this->wordBoolean($showingPlaceholder),
             'controlType' => $this->contentControlType($properties),
             'contentKinds' => $this->contentControlContentKinds($content),
             'text' => $this->contentControlText($contentControl, $xpath),
@@ -10559,6 +10645,25 @@ final class DocxOpenXmlReader
         $id = $this->childElement($properties, 'id');
 
         return $id instanceof \DOMElement ? $this->wordOptionalIntAttr($id, 'val') : null;
+    }
+
+    /**
+     * @return array{present:bool, docPart:?string}
+     */
+    private function contentControlPlaceholder(?\DOMElement $properties): array
+    {
+        $placeholder = $this->childElement($properties, 'placeholder');
+        if (!$placeholder instanceof \DOMElement) {
+            return [
+                'present' => false,
+                'docPart' => null,
+            ];
+        }
+
+        return [
+            'present' => true,
+            'docPart' => $this->emptyStringToNull($this->childAttr($placeholder, 'docPart', 'val')),
+        ];
     }
 
     private function contentControlScope(\DOMElement $contentControl): string
@@ -10587,7 +10692,20 @@ final class DocxOpenXmlReader
             if (!$child instanceof \DOMElement || $child->namespaceURI !== self::NS_W) {
                 continue;
             }
-            if (in_array($child->localName, ['alias', 'tag', 'id', 'lock', 'placeholder', 'dataBinding'], true)) {
+            if (in_array($child->localName, [
+                'alias',
+                'tag',
+                'id',
+                'lock',
+                'placeholder',
+                'showingPlcHdr',
+                'dataBinding',
+                'temporary',
+                'appearance',
+                'color',
+                'rPr',
+                'sdtPrChange',
+            ], true)) {
                 continue;
             }
 

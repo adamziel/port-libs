@@ -15176,6 +15176,9 @@ XML;
             '        <w:tag w:val="reviewer-name"/>' . "\n" .
             '        <w:id w:val="101"/>' . "\n" .
             '        <w:lock w:val="sdtContentLocked"/>' . "\n" .
+            '        <w:appearance w:val="tags"/>' . "\n" .
+            '        <w:placeholder><w:docPart w:val="ReviewPlaceholder"/></w:placeholder>' . "\n" .
+            '        <w:showingPlcHdr/>' . "\n" .
             '        <w:text/>' . "\n" .
             '        <w:dataBinding w:storeItemID="' . $storeItemId . '" w:xpath="/review/reviewer/name[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot;"/>' . "\n" .
             '      </w:sdtPr>' . "\n" .
@@ -15191,6 +15194,9 @@ XML;
             '          <w:alias w:val="Missing packet field"/>' . "\n" .
             '          <w:tag w:val="missing-review-field"/>' . "\n" .
             '          <w:id w:val="102"/>' . "\n" .
+            '          <w:lock w:val="contentLocked"/>' . "\n" .
+            '          <w:appearance w:val="hidden"/>' . "\n" .
+            '          <w:temporary/>' . "\n" .
             '          <w:text/>' . "\n" .
             '          <w:dataBinding w:storeItemID="' . $missingStoreItemId . '" w:xpath="/review/missing[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot;"/>' . "\n" .
             '        </w:sdtPr>' . "\n" .
@@ -15238,6 +15244,16 @@ XML;
         $t->same([$storeItemId, $missingStoreItemId], $contentControls['storeItemIds']);
         $t->same([$storeItemId], $contentControls['matchedStoreItemIds']);
         $t->same(['reviewer-name', 'missing-review-field'], $contentControls['tags']);
+        $t->same(2, $contentControls['lockCount']);
+        $t->same(['contentLocked' => 1, 'sdtContentLocked' => 1], $contentControls['lockValueCounts']);
+        $t->same(2, $contentControls['appearanceCount']);
+        $t->same(['hidden' => 1, 'tags' => 1], $contentControls['appearanceValueCounts']);
+        $t->same(1, $contentControls['placeholderCount']);
+        $t->same(['ReviewPlaceholder'], $contentControls['placeholderDocPartValues']);
+        $t->same(1, $contentControls['temporaryCount']);
+        $t->same(1, $contentControls['showingPlaceholderCount']);
+        $t->same(['text' => 2], $contentControls['controlTypeCounts']);
+        $t->same(['p' => 1, 'r' => 1], $contentControls['contentKindCounts']);
         $t->same(1, $contentControls['issueCount']);
         $t->same(['unmatched-store-item-id'], $contentControls['issueCodes']);
         $t->same(2, $summary['contentControlCount']);
@@ -15245,6 +15261,20 @@ XML;
         $t->same(1, $summary['contentControlMatchedDataBindingCount']);
         $t->same(1, $summary['contentControlUnmatchedDataBindingCount']);
         $t->same(0, $summary['contentControlDuplicateStoreItemBindingCount']);
+        $t->same(['block' => 1, 'inline' => 1], $summary['contentControlScopeCounts']);
+        $t->same([$storeItemId, $missingStoreItemId], $summary['contentControlStoreItemIds']);
+        $t->same([$storeItemId], $summary['contentControlMatchedStoreItemIds']);
+        $t->same(['reviewer-name', 'missing-review-field'], $summary['contentControlTags']);
+        $t->same(2, $summary['contentControlLockCount']);
+        $t->same(['contentLocked' => 1, 'sdtContentLocked' => 1], $summary['contentControlLockValueCounts']);
+        $t->same(2, $summary['contentControlAppearanceCount']);
+        $t->same(['hidden' => 1, 'tags' => 1], $summary['contentControlAppearanceValueCounts']);
+        $t->same(1, $summary['contentControlPlaceholderCount']);
+        $t->same(['ReviewPlaceholder'], $summary['contentControlPlaceholderDocPartValues']);
+        $t->same(1, $summary['contentControlTemporaryCount']);
+        $t->same(1, $summary['contentControlShowingPlaceholderCount']);
+        $t->same(['text' => 2], $summary['contentControlTypeCounts']);
+        $t->same(['p' => 1, 'r' => 1], $summary['contentControlContentKindCounts']);
         $t->same(1, $summary['contentControlIssueCount']);
         $t->same(['unmatched-store-item-id'], $summary['contentControlIssueCodes']);
 
@@ -15253,6 +15283,11 @@ XML;
         $t->same('reviewer-name', $matched['tag']);
         $t->same(101, $matched['id']);
         $t->same('sdtContentLocked', $matched['lock']);
+        $t->same('tags', $matched['appearance']);
+        $t->same(true, $matched['placeholderPresent']);
+        $t->same('ReviewPlaceholder', $matched['placeholderDocPart']);
+        $t->same(false, $matched['temporary']);
+        $t->same(true, $matched['showingPlaceholder']);
         $t->same('text', $matched['controlType']);
         $t->same(['p'], $matched['contentKinds']);
         $t->same('Reviewer: Ada', $matched['text']);
@@ -15279,6 +15314,13 @@ XML;
         $t->same('Missing packet field', $unmatched['alias']);
         $t->same('missing-review-field', $unmatched['tag']);
         $t->same(102, $unmatched['id']);
+        $t->same('contentLocked', $unmatched['lock']);
+        $t->same('hidden', $unmatched['appearance']);
+        $t->same(false, $unmatched['placeholderPresent']);
+        $t->same(null, $unmatched['placeholderDocPart']);
+        $t->same(true, $unmatched['temporary']);
+        $t->same(false, $unmatched['showingPlaceholder']);
+        $t->same('text', $unmatched['controlType']);
         $t->same(['r'], $unmatched['contentKinds']);
         $t->same(' unmatched inline', $unmatched['text']);
         $t->same($missingStoreItemId, $unmatched['storeItemId']);
