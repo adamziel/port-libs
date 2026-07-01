@@ -7182,6 +7182,7 @@ final class OpenDocumentPackage
             return [
                 'kind' => 'missing',
                 'segments' => [],
+                'pathSegmentPositionReviews' => [],
                 'segmentCount' => 0,
                 'directorySegmentCount' => 0,
             ];
@@ -7191,6 +7192,7 @@ final class OpenDocumentPackage
             return [
                 'kind' => 'root',
                 'segments' => [],
+                'pathSegmentPositionReviews' => [],
                 'segmentCount' => 0,
                 'directorySegmentCount' => 0,
             ];
@@ -7218,9 +7220,46 @@ final class OpenDocumentPackage
             'basename' => $basename,
             'extension' => $extension,
             'segments' => $segments,
+            'pathSegmentPositionReviews' => self::pathSegmentPositionReviews($segments),
             'segmentCount' => count($segments),
             'directorySegmentCount' => count($directorySegments),
         ]);
+    }
+
+    /**
+     * @param list<string> $segments
+     * @return list<array{pathSegmentIndex:int, segment:string, position:string, isFirst:bool, isLast:bool, isOnly:bool}>
+     */
+    private static function pathSegmentPositionReviews(array $segments): array
+    {
+        $reviews = [];
+        $segmentCount = count($segments);
+        foreach ($segments as $segmentIndex => $segment) {
+            if (!is_string($segment) || $segment === '') {
+                continue;
+            }
+
+            $isFirst = $segmentIndex === 0;
+            $isLast = $segmentIndex === $segmentCount - 1;
+            $isOnly = $segmentCount === 1;
+            $position = match (true) {
+                $isOnly => 'only',
+                $isFirst => 'first',
+                $isLast => 'last',
+                default => 'middle',
+            };
+
+            $reviews[] = [
+                'pathSegmentIndex' => $segmentIndex,
+                'segment' => $segment,
+                'position' => $position,
+                'isFirst' => $isFirst,
+                'isLast' => $isLast,
+                'isOnly' => $isOnly,
+            ];
+        }
+
+        return $reviews;
     }
 
     private static function normalizeManifestPath(string $path): string

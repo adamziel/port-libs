@@ -1629,12 +1629,41 @@ XML;
         ], $review['manifestPathExtensionCounts']);
 
         $t->same('root', $reviewByPath['/']['pathShape']['kind']);
+        $t->same([], $reviewByPath['/']['pathShape']['pathSegmentPositionReviews']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => 'content.xml',
+                'position' => 'only',
+                'isFirst' => true,
+                'isLast' => true,
+                'isOnly' => true,
+            ],
+        ], $reviewByPath['content.xml']['pathShape']['pathSegmentPositionReviews']);
         $t->same('file', $reviewByPath['Pictures/hero.png']['pathShape']['kind']);
         $t->same('Pictures', $reviewByPath['Pictures/hero.png']['pathShape']['topLevelSegment']);
         $t->same('Pictures/', $reviewByPath['Pictures/hero.png']['pathShape']['directory']);
         $t->same('hero.png', $reviewByPath['Pictures/hero.png']['pathShape']['basename']);
         $t->same('png', $reviewByPath['Pictures/hero.png']['pathShape']['extension']);
         $t->same(['Pictures', 'hero.png'], $reviewByPath['Pictures/hero.png']['pathShape']['segments']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => 'Pictures',
+                'position' => 'first',
+                'isFirst' => true,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'hero.png',
+                'position' => 'last',
+                'isFirst' => false,
+                'isLast' => true,
+                'isOnly' => false,
+            ],
+        ], $reviewByPath['Pictures/hero.png']['pathShape']['pathSegmentPositionReviews']);
         $t->same(2, $reviewByPath['Pictures/hero.png']['pathShape']['segmentCount']);
         $t->same(1, $reviewByPath['Pictures/hero.png']['pathShape']['directorySegmentCount']);
         $t->same('directory', $reviewByPath['Pictures/']['pathShape']['kind']);
@@ -1672,6 +1701,24 @@ XML;
         $t->same('file', $identity['manifestEntries'][6]['pathShape']['kind']);
         $t->same('source audio.ogg', $identity['manifestEntries'][6]['packagePathShape']['basename']);
         $t->same('private.txt', $identity['packageEntries'][9]['pathShape']['basename']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => 'Notes',
+                'position' => 'first',
+                'isFirst' => true,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'private.txt',
+                'position' => 'last',
+                'isFirst' => false,
+                'isLast' => true,
+                'isOnly' => false,
+            ],
+        ], $identity['packageEntries'][9]['pathShape']['pathSegmentPositionReviews']);
         $t->same($inventory['packagePathKindCounts'], $identity['packagePathKindCounts']);
         $t->same($inventory['packageTopLevelSegmentCounts'], $identity['packageTopLevelSegmentCounts']);
         $t->same($inventory['packagePathExtensionCounts'], $identity['packagePathExtensionCounts']);
@@ -1752,6 +1799,36 @@ XML;
         $t->same(1, $compactInventory['parts']['Pictures/']['packagePathDepth']);
         $t->same('Configurations2/', $compactInventory['parts']['Configurations2/statusbar/statusbar.xml']['packageArea']);
         $t->same(3, $compactInventory['parts']['Configurations2/statusbar/statusbar.xml']['packagePathDepth']);
+        $expectedStatusbarSegmentReviews = [
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => 'Configurations2',
+                'position' => 'first',
+                'isFirst' => true,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'statusbar',
+                'position' => 'middle',
+                'isFirst' => false,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 2,
+                'segment' => 'statusbar.xml',
+                'position' => 'last',
+                'isFirst' => false,
+                'isLast' => true,
+                'isOnly' => false,
+            ],
+        ];
+        $t->same(
+            $expectedStatusbarSegmentReviews,
+            $compactInventory['parts']['Configurations2/statusbar/statusbar.xml']['pathShape']['pathSegmentPositionReviews']
+        );
         $t->same(
             $compactInventory['parts']['Configurations2/statusbar/statusbar.xml']['packageArea'],
             $richProvenance['parts']['Configurations2/statusbar/statusbar.xml']['packageArea']
