@@ -864,6 +864,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartUnexpectedContentTypeCount'] = $selectedXmlParts['unexpectedContentTypeCount'];
         $packageProvenance['summary']['selectedXmlPartMissingContentTypeCount'] = $selectedXmlParts['missingContentTypeCount'];
         $packageProvenance['summary']['selectedXmlPartByteDigestCount'] = $selectedXmlParts['byteDigestCount'];
+        $packageProvenance['summary']['selectedXmlPartByteLength'] = $selectedXmlParts['byteLength'];
+        $packageProvenance['summary']['selectedXmlPartLargestPart'] = $selectedXmlParts['largestPart'];
+        $packageProvenance['summary']['selectedXmlPartSelectionSourceCounts'] = $selectedXmlParts['selectionSourceCounts'];
         $packageProvenance['summary']['selectedXmlPartIssueCount'] = $selectedXmlParts['issueCount'];
         $packageProvenance['summary']['selectedXmlPartInvalidXmlCount'] = $selectedXmlParts['invalidXmlCount'];
         $packageProvenance['summary']['selectedXmlPartIssueKinds'] = $selectedXmlParts['issueKinds'];
@@ -871,6 +874,9 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartRootAttributeCount'] = $selectedXmlParts['rootAttributeCount'];
         $packageProvenance['summary']['selectedXmlPartRootNamespaceDeclarationCount'] = $selectedXmlParts['rootNamespaceDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartRootNamespacePrefixes'] = $selectedXmlParts['rootNamespacePrefixes'];
+        $packageProvenance['summary']['selectedXmlPartRootNamespaceCounts'] = $selectedXmlParts['rootNamespaceCounts'];
+        $packageProvenance['summary']['selectedXmlPartRootLocalNameCounts'] = $selectedXmlParts['rootLocalNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartRootQualifiedNameCounts'] = $selectedXmlParts['rootQualifiedNameCounts'];
         $packageProvenance['summary']['selectedXmlPartXmlDeclarationCount'] = $selectedXmlParts['xmlDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlDeclarationEncodingCounts'] = $selectedXmlParts['xmlDeclarationEncodingCounts'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
@@ -28617,11 +28623,48 @@ final class DocxOpenXmlReader
         $doctypeInternalSubsetCount = 0;
         $doctypeEntityDeclarationCount = 0;
         $doctypeIssueCodes = [];
+        $byteLength = 0;
+        $largestPart = null;
+        $selectionSourceCounts = [];
+        $rootNamespaceCounts = [];
+        $rootLocalNameCounts = [];
+        $rootQualifiedNameCounts = [];
         foreach ($items as $item) {
+            $bytes = (int) ($item['bytes'] ?? 0);
+            $byteLength += $bytes;
+            $selectionSource = is_string($item['selectionSource'] ?? null) && $item['selectionSource'] !== ''
+                ? $item['selectionSource']
+                : '(unknown)';
+            $selectionSourceCounts[$selectionSource] = ($selectionSourceCounts[$selectionSource] ?? 0) + 1;
+            if (($item['exists'] ?? false) === true) {
+                $partSummary = $this->selectedXmlPartSummaryItem($item);
+                if (
+                    !is_array($largestPart)
+                    || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                    || (
+                        $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                        && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $largestPart = $partSummary;
+                }
+            }
             $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
             $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
             if (($item['rootPrefix'] ?? null) !== null) {
                 ++$rootPrefixedCount;
+            }
+            $rootNamespace = is_string($item['rootNamespace'] ?? null) ? $item['rootNamespace'] : '';
+            if ($rootNamespace !== '') {
+                $rootNamespaceCounts[$rootNamespace] = ($rootNamespaceCounts[$rootNamespace] ?? 0) + 1;
+            }
+            $rootLocalName = is_string($item['rootLocalName'] ?? null) ? $item['rootLocalName'] : '';
+            if ($rootLocalName !== '') {
+                $rootLocalNameCounts[$rootLocalName] = ($rootLocalNameCounts[$rootLocalName] ?? 0) + 1;
+            }
+            $rootQualifiedName = is_string($item['rootQualifiedName'] ?? null) ? $item['rootQualifiedName'] : '';
+            if ($rootQualifiedName !== '') {
+                $rootQualifiedNameCounts[$rootQualifiedName] = ($rootQualifiedNameCounts[$rootQualifiedName] ?? 0) + 1;
             }
             if (($item['xmlDeclarationPresent'] ?? false) === true) {
                 ++$xmlDeclarationCount;
@@ -28665,6 +28708,10 @@ final class DocxOpenXmlReader
                 }
             }
         }
+        ksort($selectionSourceCounts, SORT_STRING);
+        ksort($rootNamespaceCounts, SORT_STRING);
+        ksort($rootLocalNameCounts, SORT_STRING);
+        ksort($rootQualifiedNameCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
 
         return [
@@ -28672,6 +28719,9 @@ final class DocxOpenXmlReader
             'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['exists'] === true)),
             'relationshipSelectedCount' => count(array_filter($items, static fn (array $item): bool => $item['relationshipId'] !== null)),
             'byteDigestCount' => count(array_filter($items, static fn (array $item): bool => is_string($item['sha256'] ?? null))),
+            'byteLength' => $byteLength,
+            'largestPart' => $largestPart,
+            'selectionSourceCounts' => $selectionSourceCounts,
             'missingRequiredOrReferencedCount' => count(array_filter(
                 $items,
                 static fn (array $item): bool => in_array('missing-required-part', $item['issues'], true)
@@ -28686,6 +28736,9 @@ final class DocxOpenXmlReader
             'rootAttributeCount' => $rootAttributeCount,
             'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
             'rootNamespacePrefixes' => $rootNamespacePrefixes,
+            'rootNamespaceCounts' => $rootNamespaceCounts,
+            'rootLocalNameCounts' => $rootLocalNameCounts,
+            'rootQualifiedNameCounts' => $rootQualifiedNameCounts,
             'xmlDeclarationCount' => $xmlDeclarationCount,
             'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
@@ -28702,6 +28755,34 @@ final class DocxOpenXmlReader
             'issueKinds' => $issueKinds,
             'byKind' => $byKind,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function selectedXmlPartSummaryItem(array $item): array
+    {
+        return [
+            'kind' => (string) ($item['kind'] ?? ''),
+            'partName' => (string) ($item['partName'] ?? ''),
+            'selectionSource' => (string) ($item['selectionSource'] ?? ''),
+            'relationshipId' => is_string($item['relationshipId'] ?? null) ? $item['relationshipId'] : null,
+            'relationshipsPart' => is_string($item['relationshipsPart'] ?? null) ? $item['relationshipsPart'] : null,
+            'bytes' => (int) ($item['bytes'] ?? 0),
+            'crc32' => is_string($item['crc32'] ?? null) ? $item['crc32'] : null,
+            'sha256' => is_string($item['sha256'] ?? null) ? $item['sha256'] : null,
+            'contentType' => is_string($item['contentType'] ?? null) ? $item['contentType'] : null,
+            'contentTypeBase' => is_string($item['contentTypeBase'] ?? null) ? $item['contentTypeBase'] : null,
+            'contentTypeSource' => is_string($item['contentTypeSource'] ?? null) ? $item['contentTypeSource'] : 'missing',
+            'rootNamespace' => is_string($item['rootNamespace'] ?? null) ? $item['rootNamespace'] : null,
+            'rootLocalName' => is_string($item['rootLocalName'] ?? null) ? $item['rootLocalName'] : null,
+            'rootQualifiedName' => is_string($item['rootQualifiedName'] ?? null) ? $item['rootQualifiedName'] : null,
+            'validRoot' => is_bool($item['validRoot'] ?? null) ? $item['validRoot'] : null,
+            'issues' => is_array($item['issues'] ?? null)
+                ? array_values(array_map('strval', $item['issues']))
+                : [],
         ];
     }
 
