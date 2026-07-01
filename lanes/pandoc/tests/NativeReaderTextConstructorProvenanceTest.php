@@ -87,4 +87,45 @@ NATIVE;
             (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
         );
     },
+    'preserves textual native quote and math enum constructor provenance' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ Para [ Quoted SingleQuote [ Str "quoted" ], Space, Math InlineMath "x + 1", Space, Math DisplayMath "y = 2" ] ]
+NATIVE;
+        $singleQuote = ['t' => 'SingleQuote'];
+        $inlineMath = ['t' => 'InlineMath'];
+        $displayMath = ['t' => 'DisplayMath'];
+
+        $nativeDocument = (new NativeReader())->read($native);
+        $paragraph = $nativeDocument->children[0];
+        $quoted = $paragraph->children[0];
+        $inline = $paragraph->children[2];
+        $display = $paragraph->children[4];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('quoted', $quoted->type);
+        $t->same('single', $quoted->attr('kind'));
+        $t->same('SingleQuote', $quoted->attr('quoteTypeConstructor'));
+        $t->same($singleQuote, $quoted->attr('quoteTypeNative'));
+        $t->same('math', $inline->type);
+        $t->same(false, $inline->attr('display'));
+        $t->same('InlineMath', $inline->attr('mathTypeConstructor'));
+        $t->same($inlineMath, $inline->attr('mathTypeNative'));
+        $t->same('math', $display->type);
+        $t->same(true, $display->attr('display'));
+        $t->same('DisplayMath', $display->attr('mathTypeConstructor'));
+        $t->same($displayMath, $display->attr('mathTypeNative'));
+        $t->same($singleQuote, $jsonPacket['blocks'][0]['c'][0]['c'][0]);
+        $t->same($inlineMath, $jsonPacket['blocks'][0]['c'][2]['c'][0]);
+        $t->same($displayMath, $jsonPacket['blocks'][0]['c'][4]['c'][0]);
+        $t->same($jsonPacket['blocks'], $nativePacket['blocks']);
+        $t->same(
+            '[ Para [ Quoted SingleQuote [ Str "quoted" ] , Space , Math InlineMath "x + 1" , Space , Math DisplayMath "y = 2" ]' . "\n" . ']',
+            (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
+        );
+    },
 ];

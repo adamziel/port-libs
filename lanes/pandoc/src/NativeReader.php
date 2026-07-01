@@ -1020,16 +1020,27 @@ final class NativeReader
 
     private function parseQuotedInline(): AstNode
     {
-        $kind = $this->expectAnyIdentifier() === 'SingleQuote' ? 'single' : 'double';
+        $constructor = $this->expectAnyIdentifier();
+        $kind = $constructor === 'SingleQuote' ? 'single' : 'double';
 
-        return new AstNode('quoted', ['kind' => $kind], $this->parseInlineList());
+        return new AstNode('quoted', [
+            'kind' => $kind,
+            'quoteTypeConstructor' => $constructor,
+            'quoteTypeNative' => ['t' => $constructor],
+        ], $this->parseInlineList());
     }
 
     private function parseMathInline(): AstNode
     {
-        $display = $this->expectAnyIdentifier() === 'DisplayMath';
+        $constructor = $this->expectAnyIdentifier();
+        $display = $constructor === 'DisplayMath';
 
-        return new AstNode('math', ['display' => $display, 'text' => $this->expectString()]);
+        return new AstNode('math', [
+            'display' => $display,
+            'mathTypeConstructor' => $constructor,
+            'mathTypeNative' => ['t' => $constructor],
+            'text' => $this->expectString(),
+        ]);
     }
 
     private function parseCitationInline(): AstNode
