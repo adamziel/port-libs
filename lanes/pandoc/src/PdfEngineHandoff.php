@@ -9,6 +9,7 @@ final class PdfEngineHandoff
     private const MAX_SOURCE_MAP_BYTES = 1048576;
     private const MAX_DEPENDENCY_FILE_BYTES = 1048576;
     private const MAX_PDF_OUTPUT_INSPECTION_BYTES = 1048576;
+    private const MAX_PDF_EOF_MARKER_OFFSETS = 64;
     private const MAX_XMP_METADATA_BYTES = 262144;
     private const MAX_OUTPUT_INTENT_PROFILE_BYTES = 262144;
     private const MAX_EMBEDDED_FILE_STREAM_BYTES = 262144;
@@ -825,7 +826,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceInput:array<string, mixed>, handoffInputProvenance:array<string, mixed>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstPackageDependencyPolicy:array<string, mixed>, typstImportPathPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, typstDependencyEdgePackageProvenance:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>, packageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceInput:array<string, mixed>, handoffInputProvenance:array<string, mixed>, sourceSha256:string|null, pdfSha256:string|null, pdfEofMarkerPolicy:array<string, mixed>, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstPackageDependencyPolicy:array<string, mixed>, typstImportPathPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, typstDependencyEdgePackageProvenance:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>, packageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -835,6 +836,7 @@ final class PdfEngineHandoff
      *     pdfLinearization: array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
      *     pdfExtensionMetadata: list<array{prefix:string, baseVersion:string|null, extensionLevel:int|null}>,
      *     pdfTrailerComplete: bool,
+     *     pdfEofMarkerPolicy: array{reviewStatus:string, eofMarkerCount:int, eofMarkerOffsets:list<int>, eofMarkerOffsetsTruncated:bool, lastEofOffset:int|null, trailingByteCount:int|null, trailingNonWhitespaceByteCount:int|null, completeTrailer:bool, repeatedEofMarker:bool, issues:list<string>}|array{},
      *     pdfTrailerCount: int,
      *     pdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     pdfTrailerIdPolicy: array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{},
@@ -1617,6 +1619,24 @@ final class PdfEngineHandoff
 
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
         $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
+        $pdfEofMarkerPolicy = is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-')
+            ? $this->pdfEofMarkerPolicy($pdfBytes)
+            : [];
+        if ($pdfEofMarkerPolicy !== []) {
+            $diagnostics[] = 'pdf-byte-eof-marker-policy:' . $pdfEofMarkerPolicy['reviewStatus'];
+            $diagnostics[] = 'pdf-byte-eof-markers:' . $pdfEofMarkerPolicy['eofMarkerCount'];
+            if (($pdfEofMarkerPolicy['eofMarkerOffsetsTruncated'] ?? false) === true) {
+                $diagnostics[] = 'pdf-byte-eof-marker-offsets-truncated';
+            }
+            if (($pdfEofMarkerPolicy['trailingNonWhitespaceByteCount'] ?? 0) > 0) {
+                $diagnostics[] = 'pdf-byte-eof-trailing-non-whitespace-bytes:' . $pdfEofMarkerPolicy['trailingNonWhitespaceByteCount'];
+            }
+            foreach (($pdfEofMarkerPolicy['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $diagnostics[] = 'pdf-byte-eof-marker-policy-issue:' . $issue;
+                }
+            }
+        }
         $pdfHeaderVersion = null;
         $pdfCatalogVersion = null;
         $pdfEffectiveVersion = null;
@@ -5357,6 +5377,9 @@ final class PdfEngineHandoff
         if (($typstTimingSourcePolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-timing-source-policy:' . $typstTimingSourcePolicy['reviewStatus'];
         }
+        if (($pdfEofMarkerPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'pdf-eof-marker-policy:' . $pdfEofMarkerPolicy['reviewStatus'];
+        }
         if (($sourceInput['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-source-input:' . $sourceInput['reviewStatus'];
         }
@@ -5390,6 +5413,7 @@ final class PdfEngineHandoff
             'handoffInputProvenance' => $handoffInputProvenance,
             'sourceSha256' => $sourceSha256,
             'pdfSha256' => is_string($pdfBytes) ? hash('sha256', $pdfBytes) : null,
+            'pdfEofMarkerPolicy' => $pdfEofMarkerPolicy,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
             'missingExpectedEngineArtifacts' => $missingExpectedEngineArtifacts,
             'producedEngineArtifactsSha256' => $producedArtifactsSha256,
@@ -5490,6 +5514,7 @@ final class PdfEngineHandoff
             'pdfLinearization' => $pdfLinearization,
             'pdfExtensionMetadata' => $pdfExtensionMetadata,
             'pdfTrailerComplete' => $pdfTrailerComplete,
+            'pdfEofMarkerPolicy' => $pdfEofMarkerPolicy,
             'pdfTrailerCount' => $pdfTrailerCount,
             'pdfTrailerRevisions' => $pdfTrailerRevisions,
             'pdfTrailerIdPolicy' => $pdfTrailerIdPolicy,
@@ -5700,6 +5725,7 @@ final class PdfEngineHandoff
      *     finalPdfStreamDecodeParameters: array{streamCount:int, parameterSetCount:int, filters:array<string, int>, surfaces:array<string, int>, predictors:array<string, int>, streams:list<array{surface:string, source:string, object:string|null, filters:list<string>, parameterSets:list<array{filter:string|null, parameterSource:string, predictor:int|null, predictorLabel:string|null, colors:int|null, bitsPerComponent:int|null, columns:int|null, earlyChange:int|null, k:int|null, rows:int|null, blackIs1:bool|null, encodedByteAlign:bool|null, endOfLine:bool|null, endOfBlock:bool|null, damagedRowsBeforeError:int|null, jbig2Globals:string|null, cryptName:string|null, cryptType:string|null, rawKeys:list<string>}>}>}|array{},
      *     finalPdfGraphicsStates: list<array{page:int, pageObject:string|null, resourceName:string, graphicsStateObject:string|null, inherited:bool, strokingAlpha:float|null, nonstrokingAlpha:float|null, blendModes:list<string>, overprintStroking:bool|null, overprintNonstroking:bool|null, overprintMode:int|null, alphaSource:bool|null, textKnockout:bool|null, softMask:string|null}>,
      *     finalPdfGraphicsStateBlendModes: array<string, int>,
+     *     finalPdfEofMarkerPolicy: array{reviewStatus:string, eofMarkerCount:int, eofMarkerOffsets:list<int>, eofMarkerOffsetsTruncated:bool, lastEofOffset:int|null, trailingByteCount:int|null, trailingNonWhitespaceByteCount:int|null, completeTrailer:bool, repeatedEofMarker:bool, issues:list<string>}|array{},
      *     finalPdfTrailerCount: int,
      *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     finalPdfTrailerIdPolicy: array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{},
@@ -6035,6 +6061,7 @@ final class PdfEngineHandoff
             'finalPdfStreamDecodeParameters' => is_array($finalRun) && is_array($finalRun['pdfStreamDecodeParameters'] ?? null) ? $finalRun['pdfStreamDecodeParameters'] : [],
             'finalPdfGraphicsStates' => is_array($finalRun) && is_array($finalRun['pdfGraphicsStates'] ?? null) ? $finalRun['pdfGraphicsStates'] : [],
             'finalPdfGraphicsStateBlendModes' => is_array($finalRun) && is_array($finalRun['pdfGraphicsStateBlendModes'] ?? null) ? $finalRun['pdfGraphicsStateBlendModes'] : [],
+            'finalPdfEofMarkerPolicy' => is_array($finalRun) && is_array($finalRun['pdfEofMarkerPolicy'] ?? null) ? $finalRun['pdfEofMarkerPolicy'] : [],
             'finalPdfTrailerCount' => is_array($finalRun) && is_int($finalRun['pdfTrailerCount'] ?? null) ? $finalRun['pdfTrailerCount'] : 0,
             'finalPdfTrailerRevisions' => is_array($finalRun) && is_array($finalRun['pdfTrailerRevisions'] ?? null) ? $finalRun['pdfTrailerRevisions'] : [],
             'finalPdfTrailerIdPolicy' => is_array($finalRun) && is_array($finalRun['pdfTrailerIdPolicy'] ?? null) ? $finalRun['pdfTrailerIdPolicy'] : [],
@@ -13698,6 +13725,72 @@ final class PdfEngineHandoff
     private function hasCompletePdfTrailer(string $pdfBytes): bool
     {
         return preg_match('/%%EOF\s*\z/s', $pdfBytes) === 1;
+    }
+
+    /**
+     * @return array{
+     *     reviewStatus:string,
+     *     eofMarkerCount:int,
+     *     eofMarkerOffsets:list<int>,
+     *     eofMarkerOffsetsTruncated:bool,
+     *     lastEofOffset:int|null,
+     *     trailingByteCount:int|null,
+     *     trailingNonWhitespaceByteCount:int|null,
+     *     completeTrailer:bool,
+     *     repeatedEofMarker:bool,
+     *     issues:list<string>
+     * }
+     */
+    private function pdfEofMarkerPolicy(string $pdfBytes): array
+    {
+        $marker = '%%EOF';
+        $markerLength = strlen($marker);
+        $offsets = [];
+        $count = 0;
+        $lastOffset = null;
+        $searchOffset = 0;
+
+        while (($offset = strpos($pdfBytes, $marker, $searchOffset)) !== false) {
+            $count++;
+            $lastOffset = $offset;
+            if (count($offsets) < self::MAX_PDF_EOF_MARKER_OFFSETS) {
+                $offsets[] = $offset;
+            }
+            $searchOffset = $offset + $markerLength;
+        }
+
+        $completeTrailer = $this->hasCompletePdfTrailer($pdfBytes);
+        $trailingByteCount = null;
+        $trailingNonWhitespaceByteCount = null;
+        if ($lastOffset !== null) {
+            $trailingBytes = substr($pdfBytes, $lastOffset + $markerLength);
+            $trailingByteCount = strlen($trailingBytes);
+            $trailingNonWhitespaceBytes = preg_replace('/\s+/', '', $trailingBytes);
+            $trailingNonWhitespaceByteCount = strlen(is_string($trailingNonWhitespaceBytes) ? $trailingNonWhitespaceBytes : '');
+        }
+
+        $issues = [];
+        if ($count === 0) {
+            $issues[] = 'pdf-eof-marker-missing';
+        } elseif (!$completeTrailer) {
+            $issues[] = 'pdf-eof-marker-not-final';
+        }
+        if ($count > 1) {
+            $issues[] = 'pdf-eof-marker-repeated';
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'eofMarkerCount' => $count,
+            'eofMarkerOffsets' => $offsets,
+            'eofMarkerOffsetsTruncated' => $count > count($offsets),
+            'lastEofOffset' => $lastOffset,
+            'trailingByteCount' => $trailingByteCount,
+            'trailingNonWhitespaceByteCount' => $trailingNonWhitespaceByteCount,
+            'completeTrailer' => $completeTrailer,
+            'repeatedEofMarker' => $count > 1,
+            'issues' => $issues,
+        ];
     }
 
     /**
