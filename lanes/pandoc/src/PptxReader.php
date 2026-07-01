@@ -245,7 +245,8 @@ final class PptxReader
             throw new \RuntimeException('PPTX presentation XML must have a root element');
         }
 
-        $slideIdList = $this->firstPresentationChildElement($root, 'sldIdLst');
+        $presentationNamespace = $this->localNamespaceForPrefix($root, 'p');
+        $slideIdList = $this->firstChildElementForPrefix($root, 'p', 'sldIdLst', $presentationNamespace);
         if (!$slideIdList instanceof \DOMElement) {
             return [];
         }
@@ -253,7 +254,7 @@ final class PptxReader
         $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r');
         $slides = [];
         $index = 1;
-        foreach ($this->presentationChildElements($slideIdList, 'sldId') as $slideIdElement) {
+        foreach ($this->childElementsForPrefix($slideIdList, 'p', 'sldId', $presentationNamespace) as $slideIdElement) {
             $relationshipId = $this->relationshipAttributeForPrefix($slideIdElement, 'r', 'id', $relationshipNamespace);
             if ($relationshipId === null) {
                 throw new \RuntimeException('PPTX presentation slide is missing r:id');
@@ -276,7 +277,8 @@ final class PptxReader
             throw new \RuntimeException('PPTX presentation XML must have a root element');
         }
 
-        $sizeElement = $this->firstPresentationChildElement($root, 'sldSz');
+        $presentationNamespace = $this->localNamespaceForPrefix($root, 'p');
+        $sizeElement = $this->firstChildElementForPrefix($root, 'p', 'sldSz', $presentationNamespace);
         $source = 'default';
         $widthEmu = self::DEFAULT_SLIDE_WIDTH_EMU;
         $heightEmu = self::DEFAULT_SLIDE_HEIGHT_EMU;
@@ -3396,6 +3398,27 @@ final class PptxReader
         }
 
         return null;
+    }
+
+    private function firstChildElementForPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $namespace): ?\DOMElement
+    {
+        foreach ($this->childElementsForPrefix($parent, $prefix, $localName, $namespace) as $child) {
+            return $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function childElementsForPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $namespace): array
+    {
+        return array_values(array_filter(
+            $this->childElements($parent, $localName),
+            static fn (\DOMElement $child): bool => $child->namespaceURI === $namespace
+                && ($namespace !== null || $child->prefix === $prefix)
+        ));
     }
 
     /**
