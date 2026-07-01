@@ -250,10 +250,11 @@ final class PptxReader
             return [];
         }
 
+        $relationshipNamespace = $root->lookupNamespaceURI('r');
         $slides = [];
         $index = 1;
         foreach ($this->presentationChildElements($slideIdList, 'sldId') as $slideIdElement) {
-            $relationshipId = $this->relationshipAttribute($slideIdElement, 'id');
+            $relationshipId = $this->relationshipAttributeForPrefix($slideIdElement, 'r', 'id', $relationshipNamespace);
             if ($relationshipId === null) {
                 throw new \RuntimeException('PPTX presentation slide is missing r:id');
             }
@@ -3370,6 +3371,16 @@ final class PptxReader
         return $element->hasAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName)
             ? $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName)
             : null;
+    }
+
+    private function relationshipAttributeForPrefix(\DOMElement $element, string $prefix, string $localName, ?string $outerNamespace): ?string
+    {
+        $namespace = $outerNamespace ?? $element->lookupNamespaceURI($prefix);
+        if ($namespace === null || !$element->hasAttributeNS($namespace, $localName)) {
+            return null;
+        }
+
+        return $element->getAttributeNS($namespace, $localName);
     }
 
     /**
