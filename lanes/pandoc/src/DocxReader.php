@@ -54,13 +54,15 @@ final class DocxReader
     private array $openRawBookmarkIds = [];
 
     private string $revisionMode;
+    private string $commentsMode;
 
     /**
-     * @param array{revisionMode?: string} $options
+     * @param array{revisionMode?: string, commentsMode?: string} $options
      */
     public function __construct(array $options = [])
     {
         $this->revisionMode = $this->normalizeRevisionMode((string) ($options['revisionMode'] ?? 'preserve'));
+        $this->commentsMode = $this->normalizeCommentsMode((string) ($options['commentsMode'] ?? 'preserve'));
     }
 
     public function read(string $bytes): AstNode
@@ -1966,6 +1968,9 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'commentRangeStart' || $child->localName === 'commentRangeEnd') {
+                if ($this->commentsMode !== 'preserve') {
+                    continue;
+                }
                 $commentRange = $this->commentRangeSpan($child);
                 if ($commentRange instanceof AstNode) {
                     $this->appendFieldAwareInlines($inlines, $complexFieldStack, [$commentRange]);
@@ -2179,6 +2184,9 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'commentReference') {
+                if ($this->commentsMode !== 'preserve') {
+                    continue;
+                }
                 if (isset($this->commentRangeIds[$this->attr($child, self::W_NS, 'id')])) {
                     continue;
                 }
@@ -5819,6 +5827,22 @@ final class DocxReader
         }
 
         throw new \InvalidArgumentException("Unsupported DOCX revisionMode '{$mode}'. Expected preserve, accept, or reject.");
+    }
+
+    private function normalizeCommentsMode(string $mode): string
+    {
+        $mode = strtolower(trim($mode));
+        if (in_array($mode, ['preserve', 'all', 'all-changes'], true)) {
+            return 'preserve';
+        }
+        if (in_array($mode, ['accept', 'accept-changes'], true)) {
+            return 'accept';
+        }
+        if (in_array($mode, ['reject', 'reject-changes'], true)) {
+            return 'reject';
+        }
+
+        throw new \InvalidArgumentException("Unsupported DOCX commentsMode '{$mode}'. Expected preserve/all, accept, or reject.");
     }
 
     private function loadXml(string $xml, string $label): \DOMDocument

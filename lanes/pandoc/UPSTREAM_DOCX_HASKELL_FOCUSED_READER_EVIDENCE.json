@@ -32,20 +32,19 @@
         ]
     },
     "focusedCoverage": {
-        "coveredCaseCount": 30,
-        "remainingOpenCaseCount": 6,
+        "coveredCaseCount": 31,
+        "remainingOpenCaseCount": 5,
         "coverageKindCounts": {
             "focused-citation-addin-native-php-check": 4,
-            "focused-comments-native-php-check": 1,
+            "focused-comments-native-php-check": 2,
             "focused-media-bag-native-php-check": 5,
             "focused-metadata-native-php-check": 2,
             "focused-revision-mode-native-php-check": 12,
             "focused-style-default-native-php-check": 2,
             "mapped-upstream-native-expectation-evidence": 4
         },
-        "coveredPercentOf36CaseDenominator": 83.33,
+        "coveredPercentOf36CaseDenominator": 86.11,
         "remainingOpenLabels": [
-            "comments (accept -- no comments)",
             "comments (reject -- comments)",
             "comment warnings (accept -- no warnings)",
             "comment warnings (reject -- no warnings)",
@@ -57,7 +56,7 @@
         "status": "completed-targeted-docx-reader-checks",
         "sourceDirectoryPresent": true,
         "upstreamDocxDirectory": ".upstream-cache/pandoc-current/test/docx",
-        "passedTargetedCaseCount": 26,
+        "passedTargetedCaseCount": 27,
         "failedTargetedCaseCount": 0,
         "skippedTargetedCaseCount": 0,
         "mappedOnlyCaseCount": 4,
@@ -322,6 +321,31 @@
                         "insertion.move-to",
                         "deletion.move-from"
                     ]
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|comments (accept -- no comments)|docx/comments.docx|docx/comments_no_comments.native",
+                "label": "comments (accept -- no comments)",
+                "targetedCheckId": "comments:accept",
+                "status": "passed",
+                "fixture": "comments.docx",
+                "native": "comments_no_comments.native",
+                "details": {
+                    "commentsMode": "accept",
+                    "blockTexts": [
+                        "I want some text to have a comment on it.",
+                        "This is a new paragraph.",
+                        "And so is this.",
+                        "One more. And this is one with a comment in a comment."
+                    ],
+                    "nativeBlockTexts": [
+                        "I want some text to have a comment on it.",
+                        "This is a new paragraph.",
+                        "And so is this.",
+                        "One more. And this is one with a comment in a comment."
+                    ],
+                    "classes": [],
+                    "nativeBytes": 519
                 }
             },
             {
@@ -868,9 +892,22 @@
             "docx": "docx/comments.docx",
             "native": "docx/comments_no_comments.native",
             "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
-            "coverageStatus": "remaining-open",
-            "openReason": "local DocxReader does not yet expose an accept/reject comments ReaderOptions mode equivalent",
-            "nextEvidence": "Add a focused commentsMode option or mapped no-comments native evidence."
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-comments-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader commentsMode=accept suppresses comment spans and matches parsed comments_no_comments.native block text"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/src/NativeReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "comments:accept",
+            "limitations": [
+                "local explicit commentsMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
         },
         {
             "caseKey": "testCompareWithOpts|comments (reject -- comments)|docx/comments.docx|docx/comments_no_comments.native",
@@ -880,7 +917,7 @@
             "native": "docx/comments_no_comments.native",
             "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
             "coverageStatus": "remaining-open",
-            "openReason": "local DocxReader does not yet expose an accept/reject comments ReaderOptions mode equivalent",
+            "openReason": "local DocxReader does not yet expose the remaining reject comments ReaderOptions mode as covered evidence",
             "nextEvidence": "Add a focused commentsMode option or mapped no-comments native evidence."
         },
         {
@@ -897,13 +934,14 @@
             ],
             "localEvidence": [
                 "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/src/NativeReader.php",
                 "lanes/pandoc/tests/DocxReaderTest.php",
                 "lanes/pandoc/tests/MarkdownReaderTest.php",
                 "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
             ],
             "targetedCheckId": "comments:all",
             "limitations": [
-                "does not cover accept/reject no-comment ReaderOptions"
+                "does not cover the remaining reject comments ReaderOptions case"
             ]
         },
         {

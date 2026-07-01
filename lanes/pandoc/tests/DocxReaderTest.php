@@ -180,6 +180,25 @@ return [
         $t->same(['comment-end'], $children[6]->attr('classes'));
         $t->same(['id' => '3'], $children[6]->attr('attributes'));
         $t->same([], array_values(array_filter($children, static fn ($node): bool => $node->type === 'note')));
+
+        $noCommentsParagraph = (new DocxReader(['commentsMode' => 'accept']))->read($bytes)->children[0];
+        $noCommentsChildren = $noCommentsParagraph->children;
+        $noCommentsClasses = [];
+        foreach ($noCommentsChildren as $child) {
+            $classes = $child->attr('classes', []);
+            if (is_array($classes)) {
+                array_push($noCommentsClasses, ...$classes);
+            }
+        }
+
+        $t->same('Here is a dummytest document.', $noCommentsParagraph->attr('text'));
+        $t->same(['text', 'span', 'span', 'text'], array_map(static fn ($node): string => $node->type, $noCommentsChildren));
+        $t->same(['deletion'], $noCommentsChildren[1]->attr('classes'));
+        $t->same(['insertion'], $noCommentsChildren[2]->attr('classes'));
+        $t->same([], array_values(array_filter($noCommentsChildren, static fn ($node): bool => $node->type === 'note')));
+        $t->true(!in_array('comment-start', $noCommentsClasses, true), 'accepted comments should not expose comment-start spans');
+        $t->true(!in_array('comment-end', $noCommentsClasses, true), 'accepted comments should not expose comment-end spans');
+        $t->throws(InvalidArgumentException::class, static fn (): DocxReader => new DocxReader(['commentsMode' => 'merge']));
     },
     'nests adjacent docx comment range ends to match native inline granularity' => static function (TestRunner $t) use ($buildDocxReaderPackagePartsBytes): void {
         $bytes = $buildDocxReaderPackagePartsBytes([

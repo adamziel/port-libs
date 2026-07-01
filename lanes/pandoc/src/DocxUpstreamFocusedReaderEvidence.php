@@ -328,6 +328,7 @@ final class DocxUpstreamFocusedReaderEvidence
                 ),
                 'revision:track_changes_scrubbed_metadata:preserve' => $this->checkScrubbedRevisionFixture(),
                 'comments:all' => $this->checkCommentsAllFixture(),
+                'comments:accept' => $this->checkCommentsNoCommentsFixture(),
                 'custom-style-reference:default' => $this->checkCustomStyleDefaultFixture(),
                 'compact-style-removal:styles' => $this->checkCompactStyleFixture(),
                 'metadata:styles' => $this->checkMetadataFixture('metadata', false),
@@ -544,6 +545,53 @@ final class DocxUpstreamFocusedReaderEvidence
     /**
      * @return array<string, mixed>
      */
+    private function checkCommentsNoCommentsFixture(): array
+    {
+        $loaded = $this->readDocxFixture('comments', ['commentsMode' => 'accept']);
+        if (is_array($loaded['skipped'] ?? null)) {
+            return $loaded['skipped'];
+        }
+
+        /** @var AstNode $document */
+        $document = $loaded['document'];
+        $classes = self::classNames($document);
+        $expectedTexts = [
+            'I want some text to have a comment on it.',
+            'This is a new paragraph.',
+            'And so is this.',
+            'One more. And this is one with a comment in a comment.',
+        ];
+        $this->assertSame($expectedTexts, self::blockTexts($document), 'comments.docx commentsMode=accept visible text mismatch');
+        $this->assertTrue(!in_array('comment-start', $classes, true), 'commentsMode=accept should not expose comment-start spans');
+        $this->assertTrue(!in_array('comment-end', $classes, true), 'commentsMode=accept should not expose comment-end spans');
+
+        $expectedNativePath = $this->absoluteDocxDirectory() . DIRECTORY_SEPARATOR . 'comments_no_comments.native';
+        $this->assertTrue(is_file($expectedNativePath), 'comments_no_comments.native should be present beside comments.docx');
+        $expectedNative = file_get_contents($expectedNativePath);
+        if (!is_string($expectedNative)) {
+            throw new \RuntimeException('Unable to read comments_no_comments.native');
+        }
+        $nativeDocument = (new NativeReader())->read($expectedNative);
+        $nativeTexts = self::blockTexts($nativeDocument);
+        $this->assertSame($nativeTexts, self::blockTexts($document), 'commentsMode=accept should match parsed comments_no_comments.native block text');
+
+        return [
+            'status' => 'passed',
+            'fixture' => 'comments.docx',
+            'native' => 'comments_no_comments.native',
+            'details' => [
+                'commentsMode' => 'accept',
+                'blockTexts' => self::blockTexts($document),
+                'nativeBlockTexts' => $nativeTexts,
+                'classes' => $classes,
+                'nativeBytes' => strlen($expectedNative),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     private function checkCustomStyleDefaultFixture(): array
     {
         $loaded = $this->readDocxFixture('custom-style-reference');
@@ -730,11 +778,13 @@ final class DocxUpstreamFocusedReaderEvidence
 
         $commentsLocal = [
             'lanes/pandoc/src/DocxReader.php',
+            'lanes/pandoc/src/NativeReader.php',
             'lanes/pandoc/tests/DocxReaderTest.php',
             'lanes/pandoc/tests/MarkdownReaderTest.php',
             'lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php',
         ];
-        $add('testCompareWithOpts', 'comments (all comments)', 'docx/comments.docx', 'docx/comments.native', 'focused-comments-native-php-check', ['local DOCX reader loads comments.xml records and exposes comment-start/comment-end spans'], $commentsLocal, ['does not cover accept/reject no-comment ReaderOptions'], 'comments:all');
+        $add('testCompareWithOpts', 'comments (all comments)', 'docx/comments.docx', 'docx/comments.native', 'focused-comments-native-php-check', ['local DOCX reader loads comments.xml records and exposes comment-start/comment-end spans'], $commentsLocal, ['does not cover the remaining reject comments ReaderOptions case'], 'comments:all');
+        $add('testCompareWithOpts', 'comments (accept -- no comments)', 'docx/comments.docx', 'docx/comments_no_comments.native', 'focused-comments-native-php-check', ['local DOCX reader commentsMode=accept suppresses comment spans and matches parsed comments_no_comments.native block text'], $commentsLocal, ['local explicit commentsMode evidence is not an upstream Haskell ReaderOptions run'], 'comments:accept');
 
         $styleLocal = [
             'lanes/pandoc/src/DocxReader.php',
@@ -764,8 +814,7 @@ final class DocxUpstreamFocusedReaderEvidence
             ];
         };
 
-        $commentModeReason = 'local DocxReader does not yet expose an accept/reject comments ReaderOptions mode equivalent';
-        $add('testCompareWithOpts', 'comments (accept -- no comments)', 'docx/comments.docx', 'docx/comments_no_comments.native', $commentModeReason, 'Add a focused commentsMode option or mapped no-comments native evidence.');
+        $commentModeReason = 'local DocxReader does not yet expose the remaining reject comments ReaderOptions mode as covered evidence';
         $add('testCompareWithOpts', 'comments (reject -- comments)', 'docx/comments.docx', 'docx/comments_no_comments.native', $commentModeReason, 'Add a focused commentsMode option or mapped no-comments native evidence.');
 
         $warningReason = 'local DocxReader has no DocxParserWarning channel equivalent to upstream testForWarningsWithOpts';

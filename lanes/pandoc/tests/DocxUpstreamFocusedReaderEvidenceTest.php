@@ -120,9 +120,9 @@ return [
         $t->same(DocxUpstreamFocusedReaderEvidence::TOOL_NAME, $report['tool']);
         $t->same('focused-native-php-and-mapped-reader-evidence', $report['evidenceKind']);
         $t->same(36, $report['denominator']['denominatorCaseRows']);
-        $t->same(30, $report['focusedCoverage']['coveredCaseCount']);
-        $t->same(6, $report['focusedCoverage']['remainingOpenCaseCount']);
-        $t->same(26, $report['targetedFixtureChecks']['passedTargetedCaseCount']);
+        $t->same(31, $report['focusedCoverage']['coveredCaseCount']);
+        $t->same(5, $report['focusedCoverage']['remainingOpenCaseCount']);
+        $t->same(27, $report['targetedFixtureChecks']['passedTargetedCaseCount']);
         $t->same(0, $report['targetedFixtureChecks']['failedTargetedCaseCount']);
         $t->same(4, $report['targetedFixtureChecks']['mappedOnlyCaseCount']);
         $t->same('valid-denominator-map', $report['mappingValidation']['status']);
@@ -143,18 +143,20 @@ return [
             $t->same(36, $report['denominator']['totalCasesNotCoveredByLocal74GateSemantics']);
             $t->same(36, $report['denominator']['denominatorCaseRows']);
             $t->same(36, count($caseRows));
-            $t->same(30, $coverage['coveredCaseCount']);
-            $t->same(6, $coverage['remainingOpenCaseCount']);
+            $t->same(31, $coverage['coveredCaseCount']);
+            $t->same(5, $coverage['remainingOpenCaseCount']);
             $t->same('valid-denominator-map', $report['mappingValidation']['status']);
             $t->same([], $report['mappingValidation']['issues']);
             $t->same(DocxUpstreamFocusedReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $targeted['status']);
             $t->same(false, $targeted['sourceDirectoryPresent']);
             $t->same(5, $coverage['coverageKindCounts']['focused-media-bag-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['focused-citation-addin-native-php-check']);
+            $t->same(2, $coverage['coverageKindCounts']['focused-comments-native-php-check']);
             $t->same(12, $coverage['coverageKindCounts']['focused-revision-mode-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['mapped-upstream-native-expectation-evidence']);
             $t->true(in_array('comment warnings (all)', $coverage['remainingOpenLabels'], true));
-            $t->true(in_array('comments (accept -- no comments)', $coverage['remainingOpenLabels'], true));
+            $t->true(in_array('comments (reject -- comments)', $coverage['remainingOpenLabels'], true));
+            $t->true(!in_array('comments (accept -- no comments)', $coverage['remainingOpenLabels'], true));
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
             $removeTree($root);
