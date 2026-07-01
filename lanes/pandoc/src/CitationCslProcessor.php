@@ -1687,6 +1687,7 @@ final class CitationCslProcessor
             'containerAuthorType' => self::firstStringField($item, [
                 'container-author-type',
                 'containerAuthorType',
+                'containerauthortype',
                 'bookauthor-type',
                 'bookAuthorType',
                 'bookauthortype',
@@ -11423,7 +11424,7 @@ final class CitationCslProcessor
             'addendum' => (string) $item['addendum'],
             'name-addon' => (string) $item['nameAddon'],
             'author-type', 'authortype' => (string) ($item['authorType'] ?? ''),
-            'container-author-type', 'bookauthor-type', 'bookauthortype' => (string) ($item['containerAuthorType'] ?? ''),
+            'container-author-type', 'containerauthortype', 'bookauthor-type', 'bookauthortype' => (string) ($item['containerAuthorType'] ?? ''),
             'date-addon', 'dateaddendum', 'date-addendum' => (string) ($item['dateAddon'] ?? ''),
             'category', 'categories' => implode(', ', is_array($item['categories'] ?? null) ? $item['categories'] : []),
             'category-list', 'categorylist' => (string) ($item['categorySummary'] ?? ''),

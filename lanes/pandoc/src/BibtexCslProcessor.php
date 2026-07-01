@@ -359,6 +359,30 @@ final class BibtexCslProcessor
             }
             $parts[] = 'Translated title: ' . $translatedTitle;
         }
+        if (($item['original-title'] ?? '') !== '') {
+            $parts[] = 'Original title: ' . (string) $item['original-title'];
+        }
+        if (($item['original-title-addon'] ?? '') !== '') {
+            $parts[] = 'Original title addendum: ' . (string) $item['original-title-addon'];
+        }
+        $originalDate = $this->dateDisplay($item['original-date'] ?? null);
+        if ($originalDate !== '') {
+            $parts[] = 'Original work published ' . $originalDate;
+        }
+        $hasOriginalPublisherList = $this->literalListSummary($item['original-publisher-list'] ?? []) !== '';
+        $hasOriginalPublisherPlaceList = $this->literalListSummary($item['original-publisher-place-list'] ?? []) !== '';
+        $originalPublisher = (string) ($item['original-publisher'] ?? '');
+        $originalPublisherPlace = (string) ($item['original-publisher-place'] ?? '');
+        if (!$hasOriginalPublisherList && !$hasOriginalPublisherPlaceList && $originalPublisher !== '' && $originalPublisherPlace !== '') {
+            $parts[] = 'Original publisher: ' . $originalPublisher . ', ' . $originalPublisherPlace;
+        } elseif (!$hasOriginalPublisherList && $originalPublisher !== '') {
+            $parts[] = 'Original publisher: ' . $originalPublisher;
+        } elseif (!$hasOriginalPublisherPlaceList && $originalPublisherPlace !== '') {
+            $parts[] = 'Original publisher place: ' . $originalPublisherPlace;
+        }
+        if ($this->literalListSummary($item['original-language-list'] ?? []) === '' && ($item['original-language'] ?? '') !== '') {
+            $parts[] = 'Original language: ' . (string) $item['original-language'];
+        }
 
         $container = (string) ($item['container-title'] ?? '');
         $volume = (string) ($item['volume'] ?? '');
