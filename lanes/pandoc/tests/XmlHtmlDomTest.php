@@ -3718,6 +3718,59 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('Two', $summary[1]['children'][1]['text']);
         $t->same('<p data-id="42">Intro<br>Next<img alt="Cover" src="cover.png?x=1&amp;y=2"></p><ul><li>One</li><li>Two</li></ul>', $html);
     },
+    'summarizes html fragment tree packet for reviewer handoff' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            'Lead <section id="root" class="alpha beta alpha" data-package-part="word/document.xml" aria-label="Review">'
+                . '<p>Alpha<br>Beta<img src="cover.png" alt="Cover"></p>'
+                . '<!--nested--><script type="application/json">{"ok":true}</script>'
+                . '</section><!--tail--><hr>',
+            'fragment tree packet review'
+        );
+        $packet = XmlHtmlDom::summarizeHtmlFragmentReviewPacket($dom);
+
+        $t->same('xml-html5-dom', $packet['formatFamily']);
+        $t->same('html', $packet['format']);
+        $t->same('html-fragment-tree-summary-review', $packet['fragmentTreeReviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(['html-fragment-tree-summary-review-only'], $packet['directReaderDiagnosticCodes']);
+        $t->same(4, $packet['topLevelNodeCount']);
+        $t->same(12, $packet['nodeCount']);
+        $t->same(6, $packet['elementCount']);
+        $t->same(4, $packet['textNodeCount']);
+        $t->same(2, $packet['commentCount']);
+        $t->same(3, $packet['maxDepth']);
+        $t->same(['section', 'hr'], $packet['topLevelElementNames']);
+        $t->same(['section', 'p', 'br', 'img', 'script', 'hr'], $packet['elementNames']);
+        $t->same([
+            'section' => 1,
+            'p' => 1,
+            'br' => 1,
+            'img' => 1,
+            'script' => 1,
+            'hr' => 1,
+        ], $packet['elementNameCounts']);
+        $t->same(3, $packet['voidElementCount']);
+        $t->same(['br', 'img', 'hr'], $packet['voidElementNames']);
+        $t->same(1, $packet['rawTextElementCount']);
+        $t->same(['script'], $packet['rawTextElementNames']);
+        $t->same(1, $packet['activeContentElementCount']);
+        $t->same(['script'], $packet['activeContentElementNames']);
+        $t->same(1, $packet['elementIdCount']);
+        $t->same(['root'], $packet['elementIds']);
+        $t->same([], $packet['duplicateElementIds']);
+        $t->same(3, $packet['classTokenCount']);
+        $t->same(['alpha', 'beta'], $packet['classNames']);
+        $t->same(1, $packet['dataAttributeCount']);
+        $t->same(['data-package-part'], $packet['dataAttributeNames']);
+        $t->same(1, $packet['ariaAttributeCount']);
+        $t->same(['aria-label'], $packet['ariaAttributeNames']);
+        $t->same('text', $packet['nodes'][0]['type']);
+        $t->same('Lead ', $packet['nodes'][0]['text']);
+        $t->same('section', $packet['nodes'][1]['name']);
+        $t->same('script', $packet['nodes'][1]['children'][2]['name']);
+        $t->same('hr', $packet['nodes'][3]['name']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes html break and separator elements for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<p>Alpha<br id="hard">Beta<wbr data-source="wrap">Gamma</p><hr id="rule" class="review-separator">',

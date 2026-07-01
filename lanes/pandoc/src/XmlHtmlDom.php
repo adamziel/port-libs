@@ -1141,6 +1141,26 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    public static function summarizeHtmlFragmentReviewPacket(\DOMDocument $dom): array
+    {
+        $root = self::requireFragmentRoot($dom);
+        $nodes = self::summarizeChildNodes($root);
+
+        return [
+            'formatFamily' => 'xml-html5-dom',
+            'format' => 'html',
+            'fragmentTreeReviewPolicy' => 'html-fragment-tree-summary-review',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => ['html-fragment-tree-summary-review-only'],
+            'topLevelNodeCount' => count($nodes),
+            ...self::htmlFragmentTreeReviewSummary($nodes),
+            'nodes' => $nodes,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function summarizeHtmlFragmentComments(\DOMDocument $dom): array
     {
         $root = self::requireFragmentRoot($dom);
@@ -14911,6 +14931,184 @@ final class XmlHtmlDom
         return self::shouldRepairOrphanHtmlTableChildren($parent)
             ? self::wrapOrphanHtmlTableSummary($summary)
             : $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $nodes
+     * @return array<string, mixed>
+     */
+    private static function htmlFragmentTreeReviewSummary(array $nodes): array
+    {
+        $state = [
+            'nodeCount' => 0,
+            'elementCount' => 0,
+            'textNodeCount' => 0,
+            'commentCount' => 0,
+            'maxDepth' => 0,
+            'topLevelElementNames' => [],
+            'elementNames' => [],
+            'elementNameCounts' => [],
+            'voidElementCount' => 0,
+            'voidElementNames' => [],
+            'rawTextElementCount' => 0,
+            'rawTextElementNames' => [],
+            'activeContentElementCount' => 0,
+            'activeContentElementNames' => [],
+            'elementIdCount' => 0,
+            'elementIds' => [],
+            'elementIdCounts' => [],
+            'classTokenCount' => 0,
+            'classNames' => [],
+            'dataAttributeCount' => 0,
+            'dataAttributeNames' => [],
+            'ariaAttributeCount' => 0,
+            'ariaAttributeNames' => [],
+        ];
+
+        foreach ($nodes as $node) {
+            if (($node['type'] ?? null) === 'element' && is_string($node['name'] ?? null)) {
+                self::appendUniqueString($state['topLevelElementNames'], $node['name']);
+            }
+
+            self::accumulateHtmlFragmentTreeReviewNode($node, $state, 1);
+        }
+
+        $duplicateElementIds = [];
+        foreach ($state['elementIdCounts'] as $id => $count) {
+            if ($count > 1) {
+                $duplicateElementIds[] = $id;
+            }
+        }
+
+        return [
+            'nodeCount' => $state['nodeCount'],
+            'elementCount' => $state['elementCount'],
+            'textNodeCount' => $state['textNodeCount'],
+            'commentCount' => $state['commentCount'],
+            'maxDepth' => $state['maxDepth'],
+            'topLevelElementNames' => $state['topLevelElementNames'],
+            'elementNames' => $state['elementNames'],
+            'elementNameCounts' => $state['elementNameCounts'],
+            'voidElementCount' => $state['voidElementCount'],
+            'voidElementNames' => $state['voidElementNames'],
+            'rawTextElementCount' => $state['rawTextElementCount'],
+            'rawTextElementNames' => $state['rawTextElementNames'],
+            'activeContentElementCount' => $state['activeContentElementCount'],
+            'activeContentElementNames' => $state['activeContentElementNames'],
+            'elementIdCount' => $state['elementIdCount'],
+            'elementIds' => $state['elementIds'],
+            'duplicateElementIds' => $duplicateElementIds,
+            'classTokenCount' => $state['classTokenCount'],
+            'classNames' => $state['classNames'],
+            'dataAttributeCount' => $state['dataAttributeCount'],
+            'dataAttributeNames' => $state['dataAttributeNames'],
+            'ariaAttributeCount' => $state['ariaAttributeCount'],
+            'ariaAttributeNames' => $state['ariaAttributeNames'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, mixed> $state
+     */
+    private static function accumulateHtmlFragmentTreeReviewNode(array $node, array &$state, int $depth): void
+    {
+        ++$state['nodeCount'];
+        $state['maxDepth'] = max($state['maxDepth'], $depth);
+
+        $type = $node['type'] ?? null;
+        if ($type === 'text') {
+            ++$state['textNodeCount'];
+            return;
+        }
+
+        if ($type === 'comment') {
+            ++$state['commentCount'];
+            return;
+        }
+
+        if ($type !== 'element') {
+            return;
+        }
+
+        ++$state['elementCount'];
+        $name = $node['name'] ?? null;
+        if (is_string($name) && $name !== '') {
+            self::appendUniqueString($state['elementNames'], $name);
+            $state['elementNameCounts'][$name] = ($state['elementNameCounts'][$name] ?? 0) + 1;
+            if (isset(self::HTML5_VOID_ELEMENTS[$name])) {
+                ++$state['voidElementCount'];
+                self::appendUniqueString($state['voidElementNames'], $name);
+            }
+            if (isset(self::HTML5_RAW_TEXT_ELEMENTS[$name])) {
+                ++$state['rawTextElementCount'];
+                self::appendUniqueString($state['rawTextElementNames'], $name);
+            }
+        }
+
+        $activeContent = $node['activeContent'] ?? null;
+        if (is_string($activeContent) && $activeContent !== '') {
+            ++$state['activeContentElementCount'];
+            self::appendUniqueString($state['activeContentElementNames'], $activeContent);
+        }
+
+        $elementId = $node['elementId'] ?? null;
+        if (is_string($elementId)) {
+            ++$state['elementIdCount'];
+            self::appendUniqueString($state['elementIds'], $elementId);
+            $state['elementIdCounts'][$elementId] = ($state['elementIdCounts'][$elementId] ?? 0) + 1;
+        }
+
+        self::accumulateHtmlFragmentAttributeReviewSummary($node, $state);
+
+        foreach (($node['children'] ?? []) as $child) {
+            if (is_array($child)) {
+                self::accumulateHtmlFragmentTreeReviewNode($child, $state, $depth + 1);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $node
+     * @param array<string, mixed> $state
+     */
+    private static function accumulateHtmlFragmentAttributeReviewSummary(array $node, array &$state): void
+    {
+        $classTokenCount = $node['classTokenCount'] ?? null;
+        if (is_int($classTokenCount)) {
+            $state['classTokenCount'] += $classTokenCount;
+        } elseif (is_array($node['classList'] ?? null)) {
+            $state['classTokenCount'] += count($node['classList']);
+        }
+
+        $classNames = $node['classNames'] ?? $node['classList'] ?? [];
+        if (is_array($classNames)) {
+            foreach ($classNames as $className) {
+                if (is_string($className)) {
+                    self::appendUniqueString($state['classNames'], $className);
+                }
+            }
+        }
+
+        $dataAttributes = $node['dataAttributes'] ?? [];
+        if (is_array($dataAttributes)) {
+            $state['dataAttributeCount'] += count($dataAttributes);
+            foreach (array_keys($dataAttributes) as $attributeName) {
+                if (is_string($attributeName)) {
+                    self::appendUniqueString($state['dataAttributeNames'], $attributeName);
+                }
+            }
+        }
+
+        $ariaAttributes = $node['ariaAttributes'] ?? [];
+        if (is_array($ariaAttributes)) {
+            $state['ariaAttributeCount'] += count($ariaAttributes);
+            foreach (array_keys($ariaAttributes) as $attributeName) {
+                if (is_string($attributeName)) {
+                    self::appendUniqueString($state['ariaAttributeNames'], $attributeName);
+                }
+            }
+        }
     }
 
     /**
