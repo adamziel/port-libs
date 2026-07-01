@@ -8876,7 +8876,9 @@ final class MarkdownReader
                 $nextIndent = $this->countIndentColumns($lines[$next]);
                 if ($this->isNestedListMarker($nextMarker, $baseIndent, $contentIndent) || $nextIndent >= $contentIndent) {
                     $this->flushListItemParagraph($paragraph, $parts);
-                    $loose = true;
+                    if (!$this->listItemBlankBoundaryKeepsGfmDetailsTight($parts, $lines[$next], $nextMarker, $baseIndent, $contentIndent)) {
+                        $loose = true;
+                    }
                     $cursor = $next;
                     continue;
                 }
@@ -8951,6 +8953,80 @@ final class MarkdownReader
             'number' => $marker['start'],
             'taskChecked' => $taskChecked,
         ];
+    }
+
+    /**
+     * @param list<array{type:string, text:string}|AstNode> $parts
+     * @param array{indent:int, ordered:bool, start:int|null, text:string, contentIndent:int, padding:int, style:string|null, delimiter:string|null}|null $nextMarker
+     */
+    private function listItemBlankBoundaryKeepsGfmDetailsTight(
+        array $parts,
+        string $nextLine,
+        ?array $nextMarker,
+        int $baseIndent,
+        int $contentIndent
+    ): bool {
+        if (!$this->gfmDetailsListBoundaryEnabled()) {
+            return false;
+        }
+
+        $previous = end($parts);
+        $continuation = $this->listItemContinuationSource($nextLine, $contentIndent);
+
+        if ($this->lineIsRawHtmlDetailsOpening($continuation)) {
+            return true;
+        }
+
+        if ($this->partIsRawHtmlDetailsOpening($previous) && $this->isNestedListMarker($nextMarker, $baseIndent, $contentIndent)) {
+            return true;
+        }
+
+        if ($previous instanceof AstNode && $this->isListBlock($previous) && $this->lineIsRawHtmlDetailsClosing($continuation)) {
+            return true;
+        }
+
+        return $this->partIsRawHtmlDetailsClosing($previous);
+    }
+
+    private function gfmDetailsListBoundaryEnabled(): bool
+    {
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $canonical = MarkdownFormatProfile::canonicalFormat(is_scalar($format) ? (string) $format : 'markdown');
+
+        return in_array($canonical, ['gfm', 'markdown_github'], true);
+    }
+
+    private function listItemContinuationSource(string $line, int $contentIndent): string
+    {
+        if ($this->countIndentColumns($line) >= $contentIndent) {
+            return rtrim($this->stripIndentColumns($line, $contentIndent));
+        }
+
+        return trim($line);
+    }
+
+    private function partIsRawHtmlDetailsOpening(mixed $part): bool
+    {
+        return $part instanceof AstNode
+            && $part->type === 'raw_html'
+            && $this->lineIsRawHtmlDetailsOpening((string) $part->attr('html', ''));
+    }
+
+    private function partIsRawHtmlDetailsClosing(mixed $part): bool
+    {
+        return $part instanceof AstNode
+            && $part->type === 'raw_html'
+            && $this->lineIsRawHtmlDetailsClosing((string) $part->attr('html', ''));
+    }
+
+    private function lineIsRawHtmlDetailsOpening(string $line): bool
+    {
+        return preg_match('/^\s*<details\b[^>]*>\s*$/i', $line) === 1;
+    }
+
+    private function lineIsRawHtmlDetailsClosing(string $line): bool
+    {
+        return preg_match('/^\s*<\/details\s*>\s*$/i', $line) === 1;
     }
 
     private function lineCanStartRawHtmlBlock(string $line): bool

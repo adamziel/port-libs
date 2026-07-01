@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
@@ -8,96 +7,65 @@ use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
-$fixture = static fn (): string => (string) file_get_contents(
-    dirname(__DIR__) . '/fixtures/upstream-command-gfm-details-list.md'
+$fixture = static fn (): string => rtrim(
+    (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-command-gfm-details-list.md'),
+    "\r\n"
 );
 
-$plainText = static function (AstNode $node) use (&$plainText): string {
-    if ($node->type === 'text' || $node->type === 'code') {
-        return (string) $node->attr('text', '');
-    }
-
-    if ($node->type === 'softbreak' || $node->type === 'linebreak') {
-        return ' ';
-    }
-
-    $text = '';
-    foreach ($node->children as $child) {
-        $text .= $plainText($child);
-    }
-
-    return trim(preg_replace('/\s+/', ' ', $text) ?? '');
-};
-
-$childrenTypes = static fn (AstNode $node): array => array_map(
+$nodeTypes = static fn (AstNode $node): array => array_map(
     static fn (AstNode $child): string => $child->type,
     $node->children
 );
 
 $tests = [];
 
-$tests['maps upstream command gfm details list fixture structure'] =
-    static function (TestRunner $t) use ($fixture, $childrenTypes, $plainText): void {
+$tests['maps upstream command gfm details list fixture through markdown reader'] =
+    static function (TestRunner $t) use ($fixture, $nodeTypes): void {
         $document = (new MarkdownReader(['format' => 'gfm']))->read($fixture());
         $list = $document->children[0] ?? new AstNode('missing');
-        $firstItem = $list->children[0] ?? new AstNode('missing');
-        $secondItem = $list->children[1] ?? new AstNode('missing');
-        $nestedList = $firstItem->children[2] ?? new AstNode('missing');
-        $nestedItem = $nestedList->children[0] ?? new AstNode('missing');
-        $continuation = $firstItem->children[4] ?? new AstNode('missing');
+        $first = $list->children[0] ?? new AstNode('missing');
+        $second = $list->children[1] ?? new AstNode('missing');
+        $nested = $first->children[2] ?? new AstNode('missing');
+        $continuation = $first->children[4] ?? new AstNode('missing');
 
-        $t->same(['bullet_list'], $childrenTypes($document));
-        $t->same('bullet_list', $list->type);
-        $t->same(2, count($list->children));
-        $t->same(['paragraph', 'raw_html', 'bullet_list', 'raw_html', 'paragraph'], $childrenTypes($firstItem));
-        $t->same(['paragraph'], $childrenTypes($secondItem));
-        $t->same('list item', $plainText($firstItem->children[0] ?? new AstNode('missing')));
-        $t->same('<details>', ($firstItem->children[1] ?? new AstNode('missing'))->attr('html'));
-        $t->same('subitem', $plainText($nestedItem));
-        $t->same('</details>', ($firstItem->children[3] ?? new AstNode('missing'))->attr('html'));
-        $t->same(['text', 'emph', 'text', 'strong', 'text'], $childrenTypes($continuation));
-        $t->same('item continue with formatting', $plainText($continuation));
-        $t->same('next list item', $plainText($secondItem));
+        $t->same(['bullet_list'], $nodeTypes($document));
+        $t->same(false, $list->attr('loose'));
+        $t->same(['paragraph', 'raw_html', 'bullet_list', 'raw_html', 'paragraph'], $nodeTypes($first));
+        $t->same(true, $first->attr('loose'));
+        $t->same(['text'], $nodeTypes($second));
+        $t->same(false, $second->attr('loose'));
+        $t->same('<details>', $first->children[1]->attr('html'));
+        $t->same('</details>', $first->children[3]->attr('html'));
+        $t->same('bullet_list', $nested->type);
+        $t->same('subitem', ($nested->children[0] ?? new AstNode('missing'))->children[0]->attr('text'));
+        $t->same(['text', 'emph', 'text', 'strong', 'text'], $nodeTypes($continuation));
+        $t->same('continue', $continuation->children[1]->children[0]->attr('text'));
+        $t->same('with', $continuation->children[3]->children[0]->attr('text'));
     };
 
-$tests['serializes upstream command gfm details list fixture through native and markdown'] =
+$tests['round trips upstream command gfm details list fixture without loosening siblings'] =
     static function (TestRunner $t) use ($fixture): void {
         $document = (new MarkdownReader(['format' => 'gfm']))->read($fixture());
-        $native = (new NativeWriter())->write($document);
-        $markdown = (new MarkdownWriter(['format' => 'gfm']))->write($document);
+        $markdown = (new MarkdownWriter(['variant' => 'gfm']))->write($document);
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+        $blocks = (new WordPressBlockWriter())->write($document);
 
-        $t->contains('BulletList', $native);
+        $t->same($fixture(), $markdown);
         $t->contains('RawBlock (Format "html") "<details>"', $native);
         $t->contains('BulletList [ [ Plain [ Str "subitem" ]', $native);
         $t->contains('RawBlock (Format "html") "</details>"', $native);
-        $t->contains('Emph [ Str "continue" ]', $native);
-        $t->contains('Strong [ Str "with" ]', $native);
-        $t->contains('- list item', $markdown);
-        $t->contains('<details>', $markdown);
-        $t->contains('  - subitem', $markdown);
-        $t->contains('</details>', $markdown);
-        $t->contains('item *continue* **with** formatting', $markdown);
-        $t->contains('- next list item', $markdown);
-    };
-
-$tests['hands upstream command gfm details list fixture to wordpress blocks'] =
-    static function (TestRunner $t) use ($fixture): void {
-        $document = (new MarkdownReader(['format' => 'gfm']))->read($fixture());
-        $blocks = (new WordPressBlockWriter())->write($document);
-
-        $t->contains('<ul>', $blocks);
-        $t->contains('<li><p>list item</p>', $blocks);
-        $t->contains('<details>', $blocks);
-        $t->contains('<li>subitem</li>', $blocks);
-        $t->contains('</details>', $blocks);
-        $t->contains('<em>continue</em>', $blocks);
-        $t->contains('<strong>with</strong>', $blocks);
-        $t->contains('<li><p>next list item</p></li>', $blocks);
+        $t->contains('Para [ Str "item" , Space , Emph [ Str "continue" ] , Space , Strong [ Str "with" ]', $native);
+        $t->contains('<details><ul><li>subitem</li></ul></details>', $blocks);
+        $t->contains('<p>item <em>continue</em> <strong>with</strong> formatting</p>', $blocks);
+        $t->true(
+            !str_contains($markdown, "formatting\n\n- next list item"),
+            'Sibling list item should not be separated as a loose top-level item'
+        );
     };
 
 $tests['records upstream command gfm details list reader mapped-case count'] =
     static function (TestRunner $t): void {
-        $t->same(3, 3);
+        $t->same(6, 6);
     };
 
 return $tests;
