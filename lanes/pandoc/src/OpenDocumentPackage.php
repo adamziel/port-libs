@@ -753,6 +753,8 @@ final class OpenDocumentPackage
         $fontPackagePartCount = 0;
         $rdfMetadataPartCount = 0;
         $layoutCachePartCount = 0;
+        $metaInfSidecarPackagePartCount = 0;
+        $databasePackagePartCount = 0;
         $unsupportedCompressionMethodCount = 0;
         $totalByteLength = 0;
         $totalCompressedByteLength = 0;
@@ -1038,6 +1040,12 @@ final class OpenDocumentPackage
             if (in_array('layout-cache', $roles, true)) {
                 ++$layoutCachePartCount;
             }
+            if (in_array('meta-inf-sidecar', $roles, true)) {
+                ++$metaInfSidecarPackagePartCount;
+            }
+            if (in_array('database-package', $roles, true)) {
+                ++$databasePackagePartCount;
+            }
             if ($rawNameProvenance['hasRawNameProvenance']) {
                 ++$rawNameProvenanceEntryCount;
                 $rawNameProvenanceEntries[] = [
@@ -1115,6 +1123,8 @@ final class OpenDocumentPackage
             'fontPackagePartCount' => $fontPackagePartCount,
             'rdfMetadataPartCount' => $rdfMetadataPartCount,
             'layoutCachePartCount' => $layoutCachePartCount,
+            'metaInfSidecarPackagePartCount' => $metaInfSidecarPackagePartCount,
+            'databasePackagePartCount' => $databasePackagePartCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
             'totalByteLength' => $totalByteLength,
             'totalCompressedByteLength' => $totalCompressedByteLength,
@@ -1669,6 +1679,8 @@ final class OpenDocumentPackage
             'fontPackagePartCount' => $packageInventory['fontPackagePartCount'] ?? 0,
             'rdfMetadataPartCount' => $packageInventory['rdfMetadataPartCount'] ?? 0,
             'layoutCachePartCount' => $packageInventory['layoutCachePartCount'] ?? 0,
+            'metaInfSidecarPackagePartCount' => $packageInventory['metaInfSidecarPackagePartCount'] ?? 0,
+            'databasePackagePartCount' => $packageInventory['databasePackagePartCount'] ?? 0,
             'hasZipExtraFields' => ($packageInventory['hasZipExtraFields'] ?? false) === true,
             'extraFieldEntryCount' => $packageInventory['extraFieldEntryCount'] ?? 0,
             'duplicateExtraFieldEntryCount' => $packageInventory['duplicateExtraFieldEntryCount'] ?? 0,
@@ -5747,6 +5759,10 @@ final class OpenDocumentPackage
             'rdfMetadataItems' => [],
             'layoutCachePartCount' => 0,
             'layoutCacheItems' => [],
+            'metaInfSidecarPackagePartCount' => 0,
+            'metaInfSidecarPackageItems' => [],
+            'databasePackagePartCount' => 0,
+            'databasePackageItems' => [],
             'missingMediaTypeCount' => 0,
             'missingMediaTypeItems' => [],
             'missingManifestDeclaredPartCount' => 0,
@@ -5903,6 +5919,14 @@ final class OpenDocumentPackage
             if (($entry['layoutCachePackagePart'] ?? false) === true) {
                 ++$summary['layoutCachePartCount'];
                 $summary['layoutCacheItems'][] = $item;
+            }
+            if (($entry['metaInfSidecarPackagePart'] ?? false) === true) {
+                ++$summary['metaInfSidecarPackagePartCount'];
+                $summary['metaInfSidecarPackageItems'][] = $item;
+            }
+            if (($entry['databasePackagePart'] ?? false) === true) {
+                ++$summary['databasePackagePartCount'];
+                $summary['databasePackageItems'][] = $item;
             }
             if (($entry['missingMediaType'] ?? false) === true) {
                 ++$summary['missingMediaTypeCount'];
