@@ -2039,7 +2039,7 @@ final class PandocJsonReader
 
         $attrs = [
             'attrConstructor' => 'Attr',
-            'attrNative' => $this->isTaggedConstructor($native, 'Attr') ? $native : $attrTuple,
+            'attrNative' => $native,
         ];
         if ($tuple[0] !== '') {
             $attrs['id'] = $tuple[0];
