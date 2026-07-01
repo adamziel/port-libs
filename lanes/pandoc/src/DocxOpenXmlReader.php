@@ -13113,6 +13113,18 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPackageAreaByteLengths'] = $packageIdentity['packageAreaByteLengths'];
         $summary['packageIdentityPackageAreaCompressedByteLengths'] =
             $packageIdentity['packageAreaCompressedByteLengths'];
+        $summary['packageIdentityDuplicatePartDigestGroupCount'] =
+            $packageIdentity['duplicatePartDigestGroupCount'];
+        $summary['packageIdentityDuplicatePartDigestPartCount'] =
+            $packageIdentity['duplicatePartDigestPartCount'];
+        $summary['packageIdentityDuplicatePartDigestByteLength'] =
+            $packageIdentity['duplicatePartDigestByteLength'];
+        $summary['packageIdentityDuplicatePartDigestSha256Values'] =
+            $packageIdentity['duplicatePartDigestSha256Values'];
+        $summary['packageIdentityDuplicatePartDigestPartNames'] =
+            $packageIdentity['duplicatePartDigestPartNames'];
+        $summary['packageIdentityDuplicatePartDigests'] =
+            $packageIdentity['duplicatePartDigests'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -44607,6 +44619,18 @@ final class DocxOpenXmlReader
             'entryNamesByPackageArea' => $this->packageIdentityStringListMap(
                 $summary['partNamesByPackageArea'] ?? []
             ),
+            'duplicatePartDigestGroupCount' => (int) ($summary['duplicatePartDigestGroupCount'] ?? 0),
+            'duplicatePartDigestPartCount' => (int) ($summary['duplicatePartDigestPartCount'] ?? 0),
+            'duplicatePartDigestByteLength' => (int) ($summary['duplicatePartDigestByteLength'] ?? 0),
+            'duplicatePartDigestSha256Values' => self::packageIdentityStringList(
+                $summary['duplicatePartDigestSha256Values'] ?? []
+            ),
+            'duplicatePartDigestPartNames' => self::packageIdentityStringList(
+                $summary['duplicatePartDigestPartNames'] ?? []
+            ),
+            'duplicatePartDigests' => is_array($summary['duplicatePartDigests'] ?? null)
+                ? array_values($summary['duplicatePartDigests'])
+                : [],
             'relationshipPartCount' => (int) ($summary['relationshipPartCount'] ?? 0),
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
