@@ -56,6 +56,7 @@ jobs:
           php -l lanes/pandoc/tests/DocxNativeComparisonSmokeHarnessTest.php
           php -l lanes/pandoc/tests/DocxParityCorpusAuditTest.php
           php -l lanes/pandoc/tests/DocxParityEvidenceStatusTest.php
+          php -l lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php
           php -l lanes/pandoc/tests/DocxUpstreamCacheManifestTest.php
           php -l lanes/pandoc/tests/DocxUpstreamRunnerPlanTest.php
           php -l lanes/pandoc/tests/DocxWriterTest.php
@@ -70,7 +71,7 @@ jobs:
           php -l tools/pandoc-docx-writer-golden-audit.php
 
       - name: Validate DOCX parity status metadata
-        run: jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json lanes/pandoc/lane-status.json porting-summary.json
+        run: jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json lanes/pandoc/UPSTREAM_DOCX_HASKELL_INVENTORY.json lanes/pandoc/lane-status.json porting-summary.json
 
       - name: Restore pinned Pandoc DOCX upstream cache
         id: pandoc-docx-upstream-cache
@@ -167,6 +168,7 @@ jobs:
         run: |
           php tools/run-tests.php \
             lanes/pandoc/tests/DocxParityEvidenceStatusTest.php \
+            lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php \
             lanes/pandoc/tests/DocxUpstreamCacheManifestTest.php \
             lanes/pandoc/tests/DocxUpstreamRunnerPlanTest.php \
             lanes/pandoc/tests/UpstreamRunnerDependencyAuditTest.php \
