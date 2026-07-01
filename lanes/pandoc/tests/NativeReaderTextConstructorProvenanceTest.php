@@ -45,6 +45,54 @@ NATIVE;
             (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
         );
     },
+    'preserves textual native nullary block constructor provenance' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ HorizontalRule
+, Null
+, BlockQuote [ HorizontalRule, Null ]
+]
+NATIVE;
+        $expectedBlocks = [
+            ['t' => 'HorizontalRule'],
+            ['t' => 'Null'],
+            ['t' => 'BlockQuote', 'c' => [
+                ['t' => 'HorizontalRule'],
+                ['t' => 'Null'],
+            ]],
+        ];
+
+        $nativeDocument = (new NativeReader())->read($native);
+        $rule = $nativeDocument->children[0];
+        $null = $nativeDocument->children[1];
+        $quote = $nativeDocument->children[2];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['horizontal_rule', 'null_block', 'blockquote'], array_map(static fn (AstNode $node): string => $node->type, $nativeDocument->children));
+        $t->same('HorizontalRule', $rule->attr('constructor'));
+        $t->same(['t' => 'HorizontalRule'], $rule->attr('native'));
+        $t->same('Null', $null->attr('constructor'));
+        $t->same(['t' => 'Null'], $null->attr('native'));
+        $t->same('HorizontalRule', $quote->children[0]->attr('constructor'));
+        $t->same(['t' => 'HorizontalRule'], $quote->children[0]->attr('native'));
+        $t->same('Null', $quote->children[1]->attr('constructor'));
+        $t->same(['t' => 'Null'], $quote->children[1]->attr('native'));
+        $t->same($expectedBlocks, $jsonPacket['blocks']);
+        $t->same($expectedBlocks, $nativePacket['blocks']);
+        $t->same(
+            '[ HorizontalRule' . "\n"
+            . ', Null' . "\n"
+            . ', BlockQuote [ HorizontalRule' . "\n"
+            . '  , Null' . "\n"
+            . '  ]' . "\n"
+            . ']',
+            (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
+        );
+    },
     'preserves textual native raw format constructor provenance' => static function (TestRunner $t): void {
         $native = <<<'NATIVE'
 [ RawBlock (Format "markdown+raw_tex") "$x$"

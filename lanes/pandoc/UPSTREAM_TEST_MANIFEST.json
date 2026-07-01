@@ -1838,6 +1838,8 @@
         "mappedJsonNativeTextRawFormatCases": 1,
         "mappedJsonNativeMixedTableBlockBoundaryCases": 1,
         "mappedJsonNativeTextualInlinePartCases": 2,
+        "mappedJsonNativeTextualNullaryBlockCases": 1,
+        "jsonNativeTextualNullaryBlockAssertions": 12,
         "mappedOdfReaderZipTimestampProvenanceCases": 1,
         "odfReaderZipTimestampProvenanceAssertions": 31,
         "legacyBiblatexAuxiliaryEditorialRoleCases": 1,

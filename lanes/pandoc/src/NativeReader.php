@@ -766,8 +766,8 @@ final class NativeReader
             'Plain' => new AstNode('plain', ['text' => $this->plainInlineText($inlines = $this->parseInlineList())], $inlines),
             'Para' => new AstNode('paragraph', ['text' => $this->plainInlineText($inlines = $this->parseInlineList())], $inlines),
             'Header' => $this->parseHeader(),
-            'HorizontalRule' => new AstNode('horizontal_rule'),
-            'Null' => new AstNode('null_block'),
+            'HorizontalRule' => $this->parseNullaryBlock('horizontal_rule', 'HorizontalRule'),
+            'Null' => $this->parseNullaryBlock('null_block', 'Null'),
             'CodeBlock' => $this->parseCodeBlock(),
             'BlockQuote' => new AstNode('blockquote', [], $this->parseBlockList()),
             'BulletList' => $this->parseBulletList(),
@@ -799,6 +799,14 @@ final class NativeReader
         $attrs['text'] = $this->expectString();
 
         return new AstNode('code_block', $attrs);
+    }
+
+    private function parseNullaryBlock(string $type, string $constructor): AstNode
+    {
+        return new AstNode($type, [
+            'constructor' => $constructor,
+            'native' => ['t' => $constructor],
+        ]);
     }
 
     private function parseBulletList(): AstNode
