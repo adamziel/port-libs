@@ -7101,11 +7101,24 @@ return [
             ],
         ], "package r\x82sum\x82"));
 
+        $packageBytes = $package->bytes();
+        $byteLayout = ZipPackage::packageByteLayoutPreflight($packageBytes);
+        $source = $package->packageCommentSourcePreflight();
         $summary = $package->commentPreflight();
 
         $t->same("package r\u{00e9}sum\u{00e9}", $summary['packageComment']);
         $t->same('cp437', $summary['packageCommentEncoding']);
         $t->same(strlen("package r\x82sum\x82"), $summary['packageCommentLength']);
+        $t->same($source, array_intersect_key($summary, $source));
+        $t->same(true, $summary['packageCommentSourceAvailable']);
+        $t->same($byteLayout['packageCommentOffset'], $summary['packageCommentOffset']);
+        $t->same(strlen("package r\x82sum\x82"), $summary['packageCommentBytes']);
+        $t->same($byteLayout['packageCommentEnd'], $summary['packageCommentEnd']);
+        $t->same(hash('sha256', "package r\x82sum\x82"), $summary['packageCommentSha256']);
+        $t->same(bin2hex("package r\x82sum\x82"), $summary['packageCommentPreviewHex']);
+        $t->same(strlen("package r\x82sum\x82"), $summary['packageCommentPreviewByteCount']);
+        $t->same('zip-package-comment-source-metadata-only', $summary['packageCommentByteExposurePolicy']);
+        $t->same(false, $summary['canExposePackageCommentBytes']);
         $t->same(2, $summary['entryCommentCount']);
         $t->same(3, count($summary['entries']));
         $t->same($unicodeName, $summary['commentedEntries'][0]['name']);
@@ -7338,6 +7351,8 @@ return [
                 'method' => 0,
             ],
         ], "source\u{202e}package");
+        $packageCommentBytes = "source\u{202e}package";
+        $commentSource = ZipPackage::rawPackageCommentSourcePreflight($zip);
 
         $summary = ZipPackage::commentPolicyPreflight($zip);
         $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
@@ -7353,6 +7368,14 @@ return [
         ], $summary['issues']);
         $t->same("source\u{202e}package", $summary['packageComment']);
         $t->same("source\u{202e}package", $summary['rawPackageComment']);
+        $t->same($commentSource, array_intersect_key($summary, $commentSource));
+        $t->same(true, $summary['packageCommentSourceAvailable']);
+        $t->same(strlen($packageCommentBytes), $summary['packageCommentBytes']);
+        $t->same(hash('sha256', $packageCommentBytes), $summary['packageCommentSha256']);
+        $t->same(bin2hex($packageCommentBytes), $summary['packageCommentPreviewHex']);
+        $t->same(strlen($packageCommentBytes), $summary['packageCommentPreviewByteCount']);
+        $t->same('zip-package-comment-source-metadata-only', $summary['packageCommentByteExposurePolicy']);
+        $t->same(false, $summary['canExposePackageCommentBytes']);
         $t->same(true, $summary['hasPackageComment']);
         $t->same(true, $summary['hasEntryComments']);
         $t->same(true, $summary['hasComments']);
@@ -7373,6 +7396,7 @@ return [
         $t->same(false, $rawStrict['canInstantiate']);
         $t->same(null, $rawStrict['strictImport']);
         $t->same($summary, $rawStrict['comments']);
+        $t->same($commentSource, array_intersect_key($rawStrict['comments'], $commentSource));
         $t->contains('local-header-name-issues', implode(',', $rawStrict['diagnostics']));
         $t->contains('package-or-entry-comments', implode(',', $rawStrict['diagnostics']));
         $t->contains('comment-control-bytes', implode(',', $rawStrict['diagnostics']));
