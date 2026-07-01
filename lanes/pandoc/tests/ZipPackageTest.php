@@ -1308,6 +1308,11 @@ return [
             'sourceRecordBytes' => array_sum(array_column($expectedEntries, 'sourceRecordBytes')),
             'centralExtraFieldEntryCount' => 0,
             'entryCommentCount' => 0,
+            'hasEntryComments' => false,
+            'commentedEntryNames' => [],
+            'entryCommentSummaryCount' => 0,
+            'entryCommentSourceRecordBytes' => 0,
+            'entryCommentSummaries' => [],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
@@ -1447,6 +1452,11 @@ return [
         $t->same(array_sum(array_column($expectedEntries, 'sourceRecordBytes')), $manifest['sourceRecordBytes']);
         $t->same(0, $manifest['centralExtraFieldEntryCount']);
         $t->same(0, $manifest['entryCommentCount']);
+        $t->same(false, $manifest['hasEntryComments']);
+        $t->same([], $manifest['commentedEntryNames']);
+        $t->same(0, $manifest['entryCommentSummaryCount']);
+        $t->same(0, $manifest['entryCommentSourceRecordBytes']);
+        $t->same([], $manifest['entryCommentSummaries']);
         $t->same(false, $manifest['hasCentralDirectoryReviewFields']);
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
@@ -2520,6 +2530,24 @@ return [
         $expectedRawNameBytes = strlen('word/document.xml') + strlen('word/media/review.bin');
         $expectedReviewFieldBytes = strlen($documentExtra) + strlen($documentComment);
         $expectedVariableFieldBytes = $expectedRawNameBytes + $expectedReviewFieldBytes;
+        $expectedEntryCommentSummaries = [
+            [
+                'name' => 'word/document.xml',
+                'centralDirectoryIndex' => 0,
+                'directoryRoot' => 'word/',
+                'packagePartExtensionKey' => 'xml',
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'centralDirectoryRawCommentOffset' => $documentEntry['centralDirectoryRawCommentOffset'],
+                'centralDirectoryRawCommentBytes' => strlen($documentComment),
+                'centralDirectoryRawCommentSha256' => hash('sha256', $documentComment),
+                'centralDirectoryRecordBytes' => $documentEntry['centralDirectoryRecordBytes'],
+                'centralDirectoryReviewFieldBytes' => $expectedReviewFieldBytes,
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
+                'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
+                'entryCommentCanExposeBytes' => false,
+            ],
+        ];
 
         $t->same(2, $manifest['entryCount']);
         $t->same(46 * 2, $manifest['centralDirectoryFixedHeaderBytes']);
@@ -2534,6 +2562,11 @@ return [
         $t->same($expectedReviewFieldBytes, $manifest['centralDirectoryReviewFieldBytes']);
         $t->same(1, $manifest['centralExtraFieldEntryCount']);
         $t->same(1, $manifest['entryCommentCount']);
+        $t->same(true, $manifest['hasEntryComments']);
+        $t->same(['word/document.xml'], $manifest['commentedEntryNames']);
+        $t->same(1, $manifest['entryCommentSummaryCount']);
+        $t->same($documentEntry['sourceRecordBytes'], $manifest['entryCommentSourceRecordBytes']);
+        $t->same($expectedEntryCommentSummaries, $manifest['entryCommentSummaries']);
         $t->same(true, $manifest['hasCentralDirectoryReviewFields']);
         $t->same($variableFields['centralDirectoryVariableFieldBytes'], $manifest['centralDirectoryVariableFieldBytes']);
         $t->same($variableFields['centralDirectoryReviewFieldBytes'], $manifest['centralDirectoryReviewFieldBytes']);
@@ -3011,6 +3044,11 @@ return [
             'sourceRecordBytes' => $manifest['sourceRecordBytes'],
             'centralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'],
             'entryCommentCount' => $manifest['entryCommentCount'],
+            'hasEntryComments' => $manifest['hasEntryComments'],
+            'commentedEntryNames' => $manifest['commentedEntryNames'],
+            'entryCommentSummaryCount' => $manifest['entryCommentSummaryCount'],
+            'entryCommentSourceRecordBytes' => $manifest['entryCommentSourceRecordBytes'],
+            'entryCommentSummaries' => $manifest['entryCommentSummaries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],

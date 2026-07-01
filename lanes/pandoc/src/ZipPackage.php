@@ -15613,6 +15613,15 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['expansionRatioBucket'],
             $expansionRatioBucketSummaries
         );
+        $entryCommentSummaries = self::packageManifestEntryCommentSummaries($entries);
+        $commentedEntryNames = array_map(
+            static fn (array $summary): string => (string) $summary['name'],
+            $entryCommentSummaries
+        );
+        $entryCommentSourceRecordBytes = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['sourceRecordBytes'],
+            $entryCommentSummaries
+        ));
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15683,6 +15692,11 @@ final class ZipPackage
             'sourceRecordBytes' => $sourceRecordBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
+            'hasEntryComments' => $entryCommentSummaries !== [],
+            'commentedEntryNames' => $commentedEntryNames,
+            'entryCommentSummaryCount' => count($entryCommentSummaries),
+            'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
+            'entryCommentSummaries' => $entryCommentSummaries,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
@@ -15850,6 +15864,11 @@ final class ZipPackage
             'sourceRecordBytes' => $sourceRecordBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
+            'hasEntryComments' => $entryCommentSummaries !== [],
+            'commentedEntryNames' => $commentedEntryNames,
+            'entryCommentSummaryCount' => count($entryCommentSummaries),
+            'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
+            'entryCommentSummaries' => $entryCommentSummaries,
             'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
@@ -16233,6 +16252,52 @@ final class ZipPackage
             'minExpansionRatio' => 100.0,
             'maxExpansionRatio' => null,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestEntryCommentSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $rawCommentBytes = (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+            if ($rawCommentBytes <= 0) {
+                continue;
+            }
+
+            $summaries[] = [
+                'name' => is_string($entry['name'] ?? null) ? $entry['name'] : '',
+                'centralDirectoryIndex' => is_int($entry['centralDirectoryIndex'] ?? null)
+                    ? $entry['centralDirectoryIndex']
+                    : null,
+                'directoryRoot' => is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '',
+                'packagePartExtensionKey' => is_string($entry['packagePartExtensionKey'] ?? null)
+                    ? $entry['packagePartExtensionKey']
+                    : '',
+                'compressionMethod' => is_int($entry['compressionMethod'] ?? null)
+                    ? $entry['compressionMethod']
+                    : null,
+                'compressionMethodName' => is_string($entry['compressionMethodName'] ?? null)
+                    ? $entry['compressionMethodName']
+                    : '',
+                'centralDirectoryRawCommentOffset' => is_int($entry['centralDirectoryRawCommentOffset'] ?? null)
+                    ? $entry['centralDirectoryRawCommentOffset']
+                    : null,
+                'centralDirectoryRawCommentBytes' => $rawCommentBytes,
+                'centralDirectoryRawCommentSha256' => is_string($entry['centralDirectoryRawCommentSha256'] ?? null)
+                    ? $entry['centralDirectoryRawCommentSha256']
+                    : null,
+                'centralDirectoryRecordBytes' => (int) ($entry['centralDirectoryRecordBytes'] ?? 0),
+                'centralDirectoryReviewFieldBytes' => (int) ($entry['centralDirectoryReviewFieldBytes'] ?? 0),
+                'sourceRecordBytes' => (int) ($entry['sourceRecordBytes'] ?? 0),
+                'entryCommentByteExposurePolicy' => 'zip-entry-comment-source-metadata-only',
+                'entryCommentCanExposeBytes' => false,
+            ];
+        }
+
+        return $summaries;
     }
 
     /**
