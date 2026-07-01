@@ -19285,6 +19285,16 @@ final class OdfReader
             self::attr($element, self::STYLE_NS, 'data-style-name'),
             $catalog['dataStyles']
         );
+        $this->appendMissingContentReferenceDiagnostic(
+            $diagnostics,
+            $seen,
+            'odf-content-missing-master-page',
+            $element,
+            'text:master-page-name',
+            'masterPageName',
+            self::attr($element, self::TEXT_NS, 'master-page-name'),
+            $catalog['masterPages']
+        );
 
         foreach (self::childElements($element) as $child) {
             $this->appendContentStyleReferenceDiagnostics($diagnostics, $seen, $child, $catalog);
