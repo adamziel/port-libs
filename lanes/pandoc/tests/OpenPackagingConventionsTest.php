@@ -1843,6 +1843,56 @@ XML;
         foreach ($manifest['entries'] as $entry) {
             $manifestEntries[$entry['entryName']] = $entry;
         }
+        $handoffSummaries = [];
+        foreach ($manifest['handoffKindSummaries'] as $summaryRow) {
+            $handoffSummaries[$summaryRow['handoffKind']] = $summaryRow;
+        }
+        $expectedHandoffSummary = static function (string $handoffKind, array $entryNames) use ($manifestEntries): array {
+            $summary = [
+                'handoffKind' => $handoffKind,
+                'entryCount' => count($entryNames),
+                'unknownSourceRecordEntryCount' => 0,
+                'byteCountsAreExact' => true,
+                'localRecordBytes' => 0,
+                'knownLocalRecordBytes' => 0,
+                'localHeaderBytes' => 0,
+                'knownLocalHeaderBytes' => 0,
+                'compressedDataBytes' => 0,
+                'knownCompressedDataBytes' => 0,
+                'dataDescriptorBytes' => 0,
+                'dataDescriptorEntryCount' => 0,
+                'centralDirectoryRecordBytes' => 0,
+                'knownCentralDirectoryRecordBytes' => 0,
+                'sourceRecordBytes' => 0,
+                'knownSourceRecordBytes' => 0,
+                'entryNames' => $entryNames,
+                'partNames' => [],
+            ];
+            foreach ($entryNames as $entryName) {
+                $entry = $manifestEntries[$entryName];
+                $summary['localRecordBytes'] += $entry['localRecordBytes'];
+                $summary['knownLocalRecordBytes'] += $entry['localRecordBytes'];
+                $summary['localHeaderBytes'] += $entry['localHeaderBytes'];
+                $summary['knownLocalHeaderBytes'] += $entry['localHeaderBytes'];
+                $summary['compressedDataBytes'] += $entry['compressedDataBytes'];
+                $summary['knownCompressedDataBytes'] += $entry['compressedDataBytes'];
+                $summary['dataDescriptorBytes'] += $entry['dataDescriptorBytes'];
+                $summary['centralDirectoryRecordBytes'] += $entry['centralDirectoryRecordBytes'];
+                $summary['knownCentralDirectoryRecordBytes'] += $entry['centralDirectoryRecordBytes'];
+                $summary['sourceRecordBytes'] += $entry['sourceRecordBytes'];
+                $summary['knownSourceRecordBytes'] += $entry['sourceRecordBytes'];
+                if ($entry['dataDescriptorBytes'] > 0) {
+                    $summary['dataDescriptorEntryCount']++;
+                }
+                if (is_string($entry['partName'])) {
+                    $summary['partNames'][] = $entry['partName'];
+                }
+            }
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+
+            return $summary;
+        };
 
         $payload = $manifest;
         unset($payload['manifestSha256']);
@@ -1876,7 +1926,16 @@ XML;
         $t->same($summary['zipSourceRecordBytes'], $summary['zipSourceRecordLocalRecordBytes'] + $summary['zipSourceRecordCentralDirectoryRecordBytes']);
         $t->same(16, $summary['zipSourceRecordDataDescriptorBytes']);
         $t->same(1, $summary['zipSourceRecordDataDescriptorEntryCount']);
+        $t->same(4, $summary['zipSourceRecordHandoffKindSummaryCount']);
+        $t->same($manifest['handoffKindSummaries'], $summary['zipSourceRecordHandoffKindSummaries']);
+        $t->same($summary['zipSourceRecordHandoffKindSummaries'], $centralSummary['zipSourceRecordHandoffKindSummaries']);
         $t->same($summary['zipSourceRecordManifest'], $centralSummary['zipSourceRecordManifest']);
+        $t->same($expectedHandoffSummary('content-types+xml', ['[Content_Types].xml']), $handoffSummaries['content-types+xml']);
+        $t->same($expectedHandoffSummary('relationships+xml', ['_rels/.rels']), $handoffSummaries['relationships+xml']);
+        $t->same($expectedHandoffSummary('xml', ['word/document.xml']), $handoffSummaries['xml']);
+        $t->same($expectedHandoffSummary('media', ['word/media/review.png']), $handoffSummaries['media']);
+        $t->same(16, $handoffSummaries['media']['dataDescriptorBytes']);
+        $t->same(1, $handoffSummaries['media']['dataDescriptorEntryCount']);
 
         $documentEntry = $manifestEntries['word/document.xml'];
         $imageEntry = $manifestEntries['word/media/review.png'];
