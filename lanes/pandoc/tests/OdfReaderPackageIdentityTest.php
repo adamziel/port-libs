@@ -73,6 +73,9 @@ return [
         $changedParts = $parts;
         $changedParts[7]['data'] = 'PRIVATE-NOTE-CHANGED';
         $changedIdentity = (new OdfReader())->readPackage(ZipPackage::fromParts($changedParts, 'odt identity review'))['importReport']['manifest']['packageProvenance']['packageIdentity'];
+        $changedReferenceParts = $parts;
+        $changedReferenceParts[1]['data'] = str_replace('cache=1#cover', 'cache=2#cover', $changedReferenceParts[1]['data']);
+        $changedReferenceIdentity = (new OdfReader())->readPackage(ZipPackage::fromParts($changedReferenceParts, 'odt identity review'))['importReport']['manifest']['packageProvenance']['packageIdentity'];
         $changedCommentIdentity = (new OdfReader())->readPackage(ZipPackage::fromParts($parts, 'odt identity review changed'))['importReport']['manifest']['packageProvenance']['packageIdentity'];
         $manifestEntries = [];
         foreach ($identity['manifestEntries'] as $item) {
@@ -88,6 +91,10 @@ return [
                 $manifestOrderByPart[$item['part']] = $item;
             }
         }
+        $suffixItems = [];
+        foreach ($identity['manifestPartReferenceSuffixItems'] as $item) {
+            $suffixItems[$item['fullPath']] = $item;
+        }
 
         $t->same($identity, $result['document']->attr('manifest')['packageProvenance']['packageIdentity']);
         $t->same(1, $identity['identityVersion']);
@@ -102,7 +109,16 @@ return [
         $t->true($identity['identityPayloadByteLength'] > 0);
         $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
         $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedReferenceIdentity['identitySha256']);
         $t->true($identity['identitySha256'] !== $changedCommentIdentity['identitySha256']);
+        $t->same(2, $identity['manifestPartReferenceSuffixCount']);
+        $t->same(2, $identity['manifestPartReferenceQueryCount']);
+        $t->same(2, $identity['manifestPartReferenceFragmentCount']);
+        $t->same($provenance['manifestPartReferenceSuffixItems'], $identity['manifestPartReferenceSuffixItems']);
+        $t->same([
+            'Pictures/hero.png?cache=1#cover',
+            'Basic/Standard/Review.xml?macro=approve#entry',
+        ], array_column($identity['manifestPartReferenceSuffixItems'], 'fullPath'));
 
         $t->same([
             '/',
@@ -139,6 +155,9 @@ return [
         $t->same('Pictures/hero.png', $manifestOrderByPart['Pictures/hero.png']['partReference']);
         $t->same('cache=1', $manifestOrderByPart['Pictures/hero.png']['partQuery']);
         $t->same('cover', $manifestOrderByPart['Pictures/hero.png']['partFragment']);
+        $t->same('cache=1', $suffixItems['Pictures/hero.png?cache=1#cover']['partQuery']);
+        $t->same('cover', $suffixItems['Pictures/hero.png?cache=1#cover']['partFragment']);
+        $t->same('package-bytes-exposable', $suffixItems['Pictures/hero.png?cache=1#cover']['byteExposurePolicy']);
 
         $t->same('Basic/Standard/Review.xml', $script['part']);
         $t->same('?macro=approve#entry', $script['partSuffix']);
@@ -147,6 +166,8 @@ return [
         $t->same(true, $script['scriptPackagePart']);
         $t->same(false, $script['canExposeBytes']);
         $t->same('script-package-bytes-blocked', $script['byteExposurePolicy']);
+        $t->same('macro=approve', $suffixItems['Basic/Standard/Review.xml?macro=approve#entry']['partQuery']);
+        $t->same('script-package-bytes-blocked', $suffixItems['Basic/Standard/Review.xml?macro=approve#entry']['byteExposurePolicy']);
         $t->same(['manifest-declared', 'script-package'], $packageEntries['Basic/Standard/Review.xml']['roles']);
         $t->same('script-package-bytes-blocked', $packageEntries['Basic/Standard/Review.xml']['byteExposurePolicy']);
 

@@ -2115,15 +2115,35 @@ XML;
         $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest))->summarize();
         $review = $summary['manifestReview'];
         $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
         $suffixItems = [];
         foreach ($review['manifestPartReferenceSuffixItems'] as $item) {
             $suffixItems[$item['fullPath']] = $item;
         }
+        $identityManifestEntries = [];
+        foreach ($identity['manifestEntries'] as $item) {
+            $identityManifestEntries[$item['path']] = $item;
+        }
+        $identityPackageEntries = [];
+        foreach ($identity['packageEntries'] as $item) {
+            $identityPackageEntries[$item['path']] = $item;
+        }
+        $changedIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: str_replace('content.xml?role=body#content', 'content.xml?role=sidebar#content', $manifest)
+        ))->summarize()['packageIdentity'];
 
         $t->same(6, $review['manifestFileEntryCount']);
         $t->same(3, $review['manifestPartReferenceSuffixCount']);
         $t->same(2, $review['manifestPartReferenceQueryCount']);
         $t->same(2, $review['manifestPartReferenceFragmentCount']);
+        $t->same($review['manifestPartReferenceSuffixCount'], $identity['manifestPartReferenceSuffixCount']);
+        $t->same($review['manifestPartReferenceQueryCount'], $identity['manifestPartReferenceQueryCount']);
+        $t->same($review['manifestPartReferenceFragmentCount'], $identity['manifestPartReferenceFragmentCount']);
+        $t->same(
+            array_column($review['manifestPartReferenceSuffixItems'], 'fullPath'),
+            array_column($identity['manifestPartReferenceSuffixItems'], 'fullPath')
+        );
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
         $t->same([
             '/',
             'content.xml?role=body#content',
@@ -2142,7 +2162,10 @@ XML;
         $t->same('content', $content['partFragment']);
         $t->same(true, $content['exists']);
         $t->same(true, $content['canExposeBytes']);
+        $t->same('package-bytes-exposable', $content['byteExposurePolicy']);
         $t->same(strlen($contentXml), $review['items'][1]['byteLength']);
+        $t->same('role=body', $identityManifestEntries['content.xml?role=body#content']['pathQuery']);
+        $t->same('content', $identityManifestEntries['content.xml?role=body#content']['pathFragment']);
 
         $styles = $suffixItems['styles.xml#styledefs'];
         $t->same(2, $styles['manifestIndex']);
@@ -2169,6 +2192,9 @@ XML;
         $t->same('content.xml?role=body#content', $inventory['parts']['content.xml']['manifestPath']);
         $t->same('?role=body#content', $inventory['parts']['content.xml']['manifestPathSuffix']);
         $t->same('content', $inventory['parts']['content.xml']['manifestPathFragment']);
+        $t->same('?role=body#content', $identityPackageEntries['content.xml']['manifestPathSuffix']);
+        $t->same('role=body', $identityPackageEntries['content.xml']['manifestPathQuery']);
+        $t->same('content', $identityPackageEntries['content.xml']['manifestPathFragment']);
     },
     'reports compact ODT ZIP inventory and undeclared package entries' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(

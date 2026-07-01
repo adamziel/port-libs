@@ -1613,6 +1613,9 @@ final class OpenDocumentPackage
             is_array($packageInventory['zipPackageManifest'] ?? null) ? $packageInventory['zipPackageManifest'] : []
         );
         $manifestEntries = [];
+        $manifestPartReferenceSuffixItems = [];
+        $manifestPartReferenceQueryCount = 0;
+        $manifestPartReferenceFragmentCount = 0;
         foreach ($this->manifestEntries as $entry) {
             $manifestEntries[] = self::withoutEmptyValues([
                 'manifestIndex' => $entry['manifestIndex'] ?? null,
@@ -1620,6 +1623,8 @@ final class OpenDocumentPackage
                 'packagePath' => $entry['packagePath'] ?? null,
                 'pathReference' => $entry['pathReference'] ?? null,
                 'pathSuffix' => $entry['pathSuffix'] ?? null,
+                'pathQuery' => $entry['pathQuery'] ?? null,
+                'pathFragment' => $entry['pathFragment'] ?? null,
                 'pathShape' => $entry['pathShape'] ?? [],
                 'packagePathShape' => $entry['packagePathShape'] ?? null,
                 'mediaType' => $entry['mediaType'] ?? null,
@@ -1658,6 +1663,15 @@ final class OpenDocumentPackage
                 'customManifestChildElementNames' => $entry['customManifestChildElementNames'] ?? [],
                 'diagnostics' => $entry['diagnostics'] ?? [],
             ]);
+            if (is_string($entry['pathSuffix'] ?? null)) {
+                $manifestPartReferenceSuffixItems[] = self::manifestPartReferenceSuffixItem($entry);
+            }
+            if (is_string($entry['pathQuery'] ?? null)) {
+                ++$manifestPartReferenceQueryCount;
+            }
+            if (is_string($entry['pathFragment'] ?? null)) {
+                ++$manifestPartReferenceFragmentCount;
+            }
         }
 
         $packageEntries = [];
@@ -1873,8 +1887,13 @@ final class OpenDocumentPackage
                 'manifestIndex' => $part['manifestIndex'] ?? null,
                 'manifestPath' => $part['manifestPath'] ?? null,
                 'manifestPackagePath' => $part['manifestPackagePath'] ?? null,
+                'manifestPathReference' => $part['manifestPathReference'] ?? null,
+                'manifestPathSuffix' => $part['manifestPathSuffix'] ?? null,
+                'manifestPathQuery' => $part['manifestPathQuery'] ?? null,
+                'manifestPathFragment' => $part['manifestPathFragment'] ?? null,
                 'manifestPathShape' => $part['manifestPathShape'] ?? null,
                 'manifestPackagePathShape' => $part['manifestPackagePathShape'] ?? null,
+                'manifestUriEncodedPackageReference' => ($part['manifestUriEncodedPackageReference'] ?? false) === true,
                 'manifestMediaTypeBase' => $part['manifestMediaTypeBase'] ?? null,
                 'manifestMediaFamily' => $part['manifestMediaFamily'] ?? null,
                 'manifestDeclaredSizeMismatch' => ($part['manifestDeclaredSizeMismatch'] ?? false) === true,
@@ -1923,6 +1942,10 @@ final class OpenDocumentPackage
             'manifestPaths' => array_column($manifestEntries, 'path'),
             'packagePaths' => array_column($packageEntries, 'path'),
             'manifestPackageCoverage' => $packageInventory['manifestPackageCoverage'] ?? [],
+            'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
+            'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
+            'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
+            'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'preferredViewModes' => $preferredViewModes,
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
@@ -8474,6 +8497,7 @@ final class OpenDocumentPackage
             'embeddedObjectRootPart' => $entry['embeddedObjectRootPart'] ?? null,
             'embeddedObjectType' => $entry['embeddedObjectType'] ?? null,
             'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+            'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
         ];
     }
 
