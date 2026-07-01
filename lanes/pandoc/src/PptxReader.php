@@ -250,7 +250,7 @@ final class PptxReader
             return [];
         }
 
-        $relationshipNamespace = $root->lookupNamespaceURI('r');
+        $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r');
         $slides = [];
         $index = 1;
         foreach ($this->presentationChildElements($slideIdList, 'sldId') as $slideIdElement) {
@@ -330,7 +330,7 @@ final class PptxReader
             return $blocks;
         }
 
-        $relationshipNamespace = $root->lookupNamespaceURI('r') ?? $spTree->lookupNamespaceURI('r');
+        $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r') ?? $this->localNamespaceForPrefix($spTree, 'r');
         $zOrder = 0;
         foreach ($this->childElements($spTree, null) as $shapeElement) {
             if (!$this->isDrawableShapeElement($shapeElement)) {
@@ -3376,12 +3376,26 @@ final class PptxReader
 
     private function relationshipAttributeForPrefix(\DOMElement $element, string $prefix, string $localName, ?string $outerNamespace): ?string
     {
-        $namespace = $outerNamespace ?? $element->lookupNamespaceURI($prefix);
+        $namespace = $outerNamespace ?? $this->localNamespaceForPrefix($element, $prefix);
         if ($namespace === null || !$element->hasAttributeNS($namespace, $localName)) {
             return null;
         }
 
         return $element->getAttributeNS($namespace, $localName);
+    }
+
+    private function localNamespaceForPrefix(\DOMElement $element, string $prefix): ?string
+    {
+        $attribute = $prefix === '' ? 'xmlns' : 'xmlns:' . $prefix;
+        if ($element->hasAttribute($attribute)) {
+            return $element->getAttribute($attribute);
+        }
+
+        if ($prefix !== '' && $element->hasAttributeNS('http://www.w3.org/2000/xmlns/', $prefix)) {
+            return $element->getAttributeNS('http://www.w3.org/2000/xmlns/', $prefix);
+        }
+
+        return null;
     }
 
     /**
