@@ -1161,6 +1161,26 @@ final class XmlHtmlDom
     /**
      * @return array<string, mixed>
      */
+    public static function summarizeHtmlFieldsetReviewPacket(\DOMDocument $dom): array
+    {
+        $root = self::requireFragmentRoot($dom);
+        $fieldsets = self::htmlFieldsetReviewPacketRecords($root);
+
+        return [
+            'formatFamily' => 'xml-html5-dom',
+            'format' => 'html',
+            'fieldsetReviewPacketPolicy' => 'html-fieldset-legend-control-review-packet',
+            'fieldsetReviewPolicy' => 'fieldset-legend-disabled-control-review',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => ['html-fieldset-legend-control-review-only'],
+            ...self::htmlFieldsetReviewPacketRollup($fieldsets),
+            'fieldsets' => $fieldsets,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function summarizeHtmlFragmentComments(\DOMDocument $dom): array
     {
         $root = self::requireFragmentRoot($dom);
@@ -33077,6 +33097,146 @@ final class XmlHtmlDom
         }
 
         return $options;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlFieldsetReviewPacketRecords(\DOMElement $root): array
+    {
+        $fieldsets = [];
+        foreach (self::descendantHtmlElements($root, 'fieldset') as $fieldset) {
+            $fieldsets[] = array_merge(
+                [
+                    'index' => count($fieldsets),
+                    'id' => self::attributeOrNull($fieldset, 'id'),
+                    'fieldsetName' => self::attributeOrNull($fieldset, 'name'),
+                ],
+                self::formOwnerSummary($fieldset),
+                self::fieldsetSummary($fieldset)
+            );
+        }
+
+        return $fieldsets;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $fieldsets
+     * @return array<string, mixed>
+     */
+    private static function htmlFieldsetReviewPacketRollup(array $fieldsets): array
+    {
+        $ids = [];
+        $names = [];
+        $legendTexts = [];
+        $controlNames = [];
+        $enabledControlNames = [];
+        $disabledControlNames = [];
+        $issueCodes = [];
+        $disabledFieldsetCount = 0;
+        $namedFieldsetCount = 0;
+        $formOwnedFieldsetCount = 0;
+        $legendCount = 0;
+        $controlReferenceCount = 0;
+        $enabledControlReferenceCount = 0;
+        $disabledControlReferenceCount = 0;
+        $nestedFieldsetReferenceCount = 0;
+        $fieldsetWithMissingLegendCount = 0;
+        $fieldsetWithMultipleLegendCount = 0;
+        $fieldsetWithNestedFieldsetCount = 0;
+        $issueCount = 0;
+
+        foreach ($fieldsets as $fieldset) {
+            $id = $fieldset['id'] ?? null;
+            if (is_string($id)) {
+                self::appendUniqueString($ids, $id);
+            }
+
+            $name = $fieldset['fieldsetName'] ?? null;
+            if (is_string($name) && $name !== '') {
+                ++$namedFieldsetCount;
+                self::appendUniqueString($names, $name);
+            }
+
+            if (($fieldset['disabled'] ?? false) === true) {
+                ++$disabledFieldsetCount;
+            }
+            if (($fieldset['formOwnerFound'] ?? false) === true) {
+                ++$formOwnedFieldsetCount;
+            }
+
+            $legendCount += (int) ($fieldset['legendCount'] ?? 0);
+            $controlReferenceCount += (int) ($fieldset['controlCount'] ?? 0);
+            $enabledControlReferenceCount += (int) ($fieldset['enabledControlCount'] ?? 0);
+            $disabledControlReferenceCount += (int) ($fieldset['disabledControlCount'] ?? 0);
+            $nestedCount = (int) ($fieldset['nestedFieldsetCount'] ?? 0);
+            $nestedFieldsetReferenceCount += $nestedCount;
+            if ($nestedCount > 0) {
+                ++$fieldsetWithNestedFieldsetCount;
+            }
+
+            foreach (($fieldset['legendTexts'] ?? []) as $legendText) {
+                if (is_string($legendText)) {
+                    self::appendUniqueString($legendTexts, $legendText);
+                }
+            }
+            foreach (($fieldset['controlNames'] ?? []) as $controlName) {
+                if (is_string($controlName)) {
+                    self::appendUniqueString($controlNames, $controlName);
+                }
+            }
+            foreach (($fieldset['enabledControlNames'] ?? []) as $controlName) {
+                if (is_string($controlName)) {
+                    self::appendUniqueString($enabledControlNames, $controlName);
+                }
+            }
+            foreach (($fieldset['disabledControlNames'] ?? []) as $controlName) {
+                if (is_string($controlName)) {
+                    self::appendUniqueString($disabledControlNames, $controlName);
+                }
+            }
+
+            $fieldsetIssueCodes = is_array($fieldset['fieldsetIssueCodes'] ?? null)
+                ? $fieldset['fieldsetIssueCodes']
+                : [];
+            $issueCount += (int) ($fieldset['fieldsetIssueCount'] ?? 0);
+            if (in_array('missing-fieldset-legend', $fieldsetIssueCodes, true)) {
+                ++$fieldsetWithMissingLegendCount;
+            }
+            if (in_array('multiple-fieldset-legends', $fieldsetIssueCodes, true)) {
+                ++$fieldsetWithMultipleLegendCount;
+            }
+            foreach ($fieldsetIssueCodes as $code) {
+                if (is_string($code)) {
+                    self::appendUniqueString($issueCodes, $code);
+                }
+            }
+        }
+
+        return [
+            'fieldsetCount' => count($fieldsets),
+            'disabledFieldsetCount' => $disabledFieldsetCount,
+            'enabledFieldsetCount' => count($fieldsets) - $disabledFieldsetCount,
+            'namedFieldsetCount' => $namedFieldsetCount,
+            'formOwnedFieldsetCount' => $formOwnedFieldsetCount,
+            'fieldsetIds' => $ids,
+            'fieldsetNames' => $names,
+            'legendCount' => $legendCount,
+            'fieldsetLegendTexts' => $legendTexts,
+            'controlReferenceCount' => $controlReferenceCount,
+            'enabledControlReferenceCount' => $enabledControlReferenceCount,
+            'disabledControlReferenceCount' => $disabledControlReferenceCount,
+            'fieldsetControlNames' => $controlNames,
+            'enabledFieldsetControlNames' => $enabledControlNames,
+            'disabledFieldsetControlNames' => $disabledControlNames,
+            'nestedFieldsetReferenceCount' => $nestedFieldsetReferenceCount,
+            'fieldsetWithMissingLegendCount' => $fieldsetWithMissingLegendCount,
+            'fieldsetWithMultipleLegendCount' => $fieldsetWithMultipleLegendCount,
+            'fieldsetWithNestedFieldsetCount' => $fieldsetWithNestedFieldsetCount,
+            'fieldsetIssueCount' => $issueCount,
+            'fieldsetIssueCodes' => $issueCodes,
+            'fieldsetReviewValid' => $issueCodes === [],
+        ];
     }
 
     /**
