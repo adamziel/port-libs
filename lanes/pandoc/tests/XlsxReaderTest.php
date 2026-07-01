@@ -570,6 +570,13 @@ XML,
 <?xml version="1.0" encoding="UTF-8"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"
            xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheetViews>
+    <sheetView workbookViewId="0" view="normal" tabSelected="1" showGridLines="0" showRowColHeaders="1" showZeros="0" rightToLeft="0" zoomScale="125" zoomScaleNormal="100" topLeftCell="A1">
+      <pane xSplit="1" ySplit="1" topLeftCell="B2" activePane="bottomRight" state="frozen"/>
+      <selection pane="topRight" activeCell="B1" sqref="B1:C1"/>
+      <selection pane="bottomRight" activeCell="B2" activeCellId="1" sqref="B2:C3"/>
+    </sheetView>
+  </sheetViews>
   <cols>
     <col min="2" max="2" width="18.5" style="4" hidden="1" customWidth="1" bestFit="1" outlineLevel="1" collapsed="1"/>
     <col min="3" max="3" width="10"/>
@@ -1229,6 +1236,41 @@ return [
         $t->same(1, $visibleSheet['hiddenColumnCount'] ?? null);
         $t->same(1, $visibleSheet['customRowHeightCount'] ?? null);
         $t->same(1, $visibleSheet['customColumnWidthCount'] ?? null);
+        $t->same('xlsx-sheet-view-metadata-only', $review['sheetViewPolicy'] ?? null);
+        $t->same(1, $review['sheetViewCount'] ?? null);
+        $t->same(1, $review['frozenPaneCount'] ?? null);
+        $t->same(0, $review['splitPaneCount'] ?? null);
+        $t->same(1, $visibleSheet['sheetViewCount'] ?? null);
+        $t->same(1, $visibleSheet['frozenPaneCount'] ?? null);
+        $t->same(0, $visibleSheet['splitPaneCount'] ?? null);
+        $sheetView = $visibleSheet['sheetViews'][0] ?? [];
+        $t->same(0, $sheetView['workbookViewId'] ?? null);
+        $t->same('normal', $sheetView['view'] ?? null);
+        $t->same('A1', $sheetView['topLeftCell'] ?? null);
+        $t->same(true, $sheetView['tabSelected'] ?? null);
+        $t->same(false, $sheetView['showGridLines'] ?? null);
+        $t->same(true, $sheetView['showRowColHeaders'] ?? null);
+        $t->same(false, $sheetView['showZeros'] ?? null);
+        $t->same(false, $sheetView['rightToLeft'] ?? null);
+        $t->same(125, $sheetView['zoomScale'] ?? null);
+        $t->same(100, $sheetView['zoomScaleNormal'] ?? null);
+        $t->same(true, $sheetView['hasFrozenPane'] ?? null);
+        $t->same(false, $sheetView['hasSplitPane'] ?? null);
+        $t->same(2, $sheetView['selectionCount'] ?? null);
+        $t->same([
+            'xSplit' => 1,
+            'ySplit' => 1,
+            'topLeftCell' => 'B2',
+            'activePane' => 'bottomRight',
+            'state' => 'frozen',
+        ], $sheetView['pane'] ?? null);
+        $t->same('topRight', $sheetView['selections'][0]['pane'] ?? null);
+        $t->same('B1', $sheetView['selections'][0]['activeCell'] ?? null);
+        $t->same('B1:C1', $sheetView['selections'][0]['sqref'] ?? null);
+        $t->same('bottomRight', $sheetView['selections'][1]['pane'] ?? null);
+        $t->same('B2', $sheetView['selections'][1]['activeCell'] ?? null);
+        $t->same(1, $sheetView['selections'][1]['activeCellId'] ?? null);
+        $t->same('B2:C3', $sheetView['selections'][1]['sqref'] ?? null);
         $t->same(2, count($visibleSheet['columnMetadata'] ?? []));
         $t->same('B', $visibleSheet['columnMetadata'][0]['range'] ?? null);
         $t->same(18.5, $visibleSheet['columnMetadata'][0]['width'] ?? null);

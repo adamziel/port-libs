@@ -131,6 +131,9 @@ final class XlsxReader
         $hiddenColumnCount = 0;
         $customRowHeightCount = 0;
         $customColumnWidthCount = 0;
+        $sheetViewCount = 0;
+        $frozenPaneCount = 0;
+        $splitPaneCount = 0;
         foreach ($sheets as $sheet) {
             $relationship = $workbookRelationships->byId($sheet['relationshipId']);
             if (!$relationship instanceof OpcRelationship) {
@@ -170,6 +173,9 @@ final class XlsxReader
             $hiddenColumnCount += $sheetLayout['hiddenColumnCount'];
             $customRowHeightCount += $sheetLayout['customRowHeightCount'];
             $customColumnWidthCount += $sheetLayout['customColumnWidthCount'];
+            $sheetViewCount += $sheetLayout['sheetViewCount'];
+            $frozenPaneCount += $sheetLayout['frozenPaneCount'];
+            $splitPaneCount += $sheetLayout['splitPaneCount'];
 
             $sheetReviews[] = [
                 'index' => $sheet['index'],
@@ -193,6 +199,10 @@ final class XlsxReader
                 'customColumnWidthCount' => $sheetLayout['customColumnWidthCount'],
                 'rowMetadata' => $sheetLayout['rows'],
                 'columnMetadata' => $sheetLayout['columnRanges'],
+                'sheetViewCount' => $sheetLayout['sheetViewCount'],
+                'sheetViews' => $sheetLayout['sheetViews'],
+                'frozenPaneCount' => $sheetLayout['frozenPaneCount'],
+                'splitPaneCount' => $sheetLayout['splitPaneCount'],
                 'commentCount' => $sheetComments['commentCount'],
                 'comments' => $sheetComments['comments'],
                 'commentDiagnostics' => $sheetComments['commentDiagnostics'],
@@ -239,6 +249,10 @@ final class XlsxReader
                 'hiddenColumnCount' => $hiddenColumnCount,
                 'customRowHeightCount' => $customRowHeightCount,
                 'customColumnWidthCount' => $customColumnWidthCount,
+                'sheetViewPolicy' => 'xlsx-sheet-view-metadata-only',
+                'sheetViewCount' => $sheetViewCount,
+                'frozenPaneCount' => $frozenPaneCount,
+                'splitPaneCount' => $splitPaneCount,
                 'tablePartCount' => $tablePartCount,
                 'autoFilterCount' => $autoFilterCount,
                 'autoFilterDetailCount' => $autoFilterDetailCount,
@@ -1920,7 +1934,11 @@ final class XlsxReader
      *     hiddenColumnCount:int,
      *     hiddenRowCount:int,
      *     customColumnWidthCount:int,
-     *     customRowHeightCount:int
+     *     customRowHeightCount:int,
+     *     sheetViews:list<array<string, mixed>>,
+     *     sheetViewCount:int,
+     *     frozenPaneCount:int,
+     *     splitPaneCount:int
      * }
      */
     private function parseSheetLayoutMetadata(\DOMDocument $document): array
@@ -1934,6 +1952,10 @@ final class XlsxReader
             'hiddenRowCount' => 0,
             'customColumnWidthCount' => 0,
             'customRowHeightCount' => 0,
+            'sheetViews' => [],
+            'sheetViewCount' => 0,
+            'frozenPaneCount' => 0,
+            'splitPaneCount' => 0,
         ];
 
         $root = XmlHtmlDom::rootElement($document, 'worksheet');
@@ -2026,6 +2048,10 @@ final class XlsxReader
             }
         }
 
+        $sheetViews = $this->parseSheetViews($root);
+        $frozenPaneCount = count(array_filter($sheetViews, static fn (array $view): bool => ($view['hasFrozenPane'] ?? false) === true));
+        $splitPaneCount = count(array_filter($sheetViews, static fn (array $view): bool => ($view['hasSplitPane'] ?? false) === true));
+
         return [
             'columnRanges' => $columnRanges,
             'columnsByIndex' => $columnsByIndex,
@@ -2035,6 +2061,75 @@ final class XlsxReader
             'hiddenRowCount' => $hiddenRowCount,
             'customColumnWidthCount' => $customColumnWidthCount,
             'customRowHeightCount' => $customRowHeightCount,
+            'sheetViews' => $sheetViews,
+            'sheetViewCount' => count($sheetViews),
+            'frozenPaneCount' => $frozenPaneCount,
+            'splitPaneCount' => $splitPaneCount,
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseSheetViews(\DOMElement $worksheet): array
+    {
+        $sheetViewsElement = $this->firstChildElement($worksheet, 'sheetViews');
+        if (!$sheetViewsElement instanceof \DOMElement) {
+            return [];
+        }
+
+        $views = [];
+        foreach ($this->childElements($sheetViewsElement, 'sheetView') as $sheetView) {
+            $pane = $this->parseSheetViewPane($this->firstChildElement($sheetView, 'pane'));
+            $selections = [];
+            foreach ($this->childElements($sheetView, 'selection') as $selection) {
+                $selections[] = [
+                    'pane' => $this->nonEmptyAttribute($selection, 'pane'),
+                    'activeCell' => $this->nonEmptyAttribute($selection, 'activeCell'),
+                    'activeCellId' => $this->integerAttribute($selection, 'activeCellId'),
+                    'sqref' => $this->nonEmptyAttribute($selection, 'sqref'),
+                ];
+            }
+
+            $views[] = [
+                'workbookViewId' => $this->integerAttribute($sheetView, 'workbookViewId'),
+                'view' => $this->nonEmptyAttribute($sheetView, 'view'),
+                'topLeftCell' => $this->nonEmptyAttribute($sheetView, 'topLeftCell'),
+                'tabSelected' => $this->booleanAttribute($sheetView, 'tabSelected'),
+                'showGridLines' => $this->booleanAttribute($sheetView, 'showGridLines'),
+                'showRowColHeaders' => $this->booleanAttribute($sheetView, 'showRowColHeaders'),
+                'showZeros' => $this->booleanAttribute($sheetView, 'showZeros'),
+                'rightToLeft' => $this->booleanAttribute($sheetView, 'rightToLeft'),
+                'zoomScale' => $this->integerAttribute($sheetView, 'zoomScale'),
+                'zoomScaleNormal' => $this->integerAttribute($sheetView, 'zoomScaleNormal'),
+                'zoomScalePageLayoutView' => $this->integerAttribute($sheetView, 'zoomScalePageLayoutView'),
+                'zoomScaleSheetLayoutView' => $this->integerAttribute($sheetView, 'zoomScaleSheetLayoutView'),
+                'pane' => $pane,
+                'hasFrozenPane' => is_array($pane) && (($pane['state'] ?? null) === 'frozen' || ($pane['state'] ?? null) === 'frozenSplit'),
+                'hasSplitPane' => is_array($pane) && (($pane['state'] ?? null) === 'split' || ($pane['state'] ?? null) === 'frozenSplit'),
+                'selectionCount' => count($selections),
+                'selections' => $selections,
+            ];
+        }
+
+        return $views;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseSheetViewPane(?\DOMElement $pane): ?array
+    {
+        if (!$pane instanceof \DOMElement) {
+            return null;
+        }
+
+        return [
+            'xSplit' => $this->numericAttribute($pane, 'xSplit'),
+            'ySplit' => $this->numericAttribute($pane, 'ySplit'),
+            'topLeftCell' => $this->nonEmptyAttribute($pane, 'topLeftCell'),
+            'activePane' => $this->nonEmptyAttribute($pane, 'activePane'),
+            'state' => $this->nonEmptyAttribute($pane, 'state'),
         ];
     }
 
@@ -4196,6 +4291,13 @@ final class XlsxReader
         }
 
         return str_contains($value, '.') || stripos($value, 'e') !== false ? (float) $value : (int) $value;
+    }
+
+    private function nonEmptyAttribute(\DOMElement $element, string $attribute): ?string
+    {
+        $value = trim($element->getAttribute($attribute));
+
+        return $value === '' ? null : $value;
     }
 
     /**
