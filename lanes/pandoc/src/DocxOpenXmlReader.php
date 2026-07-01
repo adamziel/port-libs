@@ -998,6 +998,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableEmbeddedFontExternalCount'] = (int) ($fontTable['embeddedFontExternalCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCount'] = (int) ($fontTable['embeddedFontIssueCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCodes'] = $fontTable['embeddedFontIssueCodes'] ?? [];
+        $packageProvenance['summary']['fontTableEmbeddedFontKeyPresentCount'] = (int) ($fontTable['embeddedFontKeyPresentCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontInvalidKeyCount'] = (int) ($fontTable['embeddedFontInvalidKeyCount'] ?? 0);
         $packageProvenance['summary']['fontTableInvalidXmlCount'] = (int) ($fontTable['invalidXmlCount'] ?? 0);
         $packageProvenance['summary']['fontTableIssueCount'] = (int) ($fontTable['issueCount'] ?? 0);
         $packageProvenance['summary']['fontTableIssueCodes'] = $fontTable['issueCodes'] ?? [];
@@ -29779,6 +29781,8 @@ final class DocxOpenXmlReader
                 'embeddedFontExternalCount' => 0,
                 'embeddedFontIssueCount' => 0,
                 'embeddedFontIssueCodes' => [],
+                'embeddedFontKeyPresentCount' => 0,
+                'embeddedFontInvalidKeyCount' => 0,
                 'notTrueTypeCount' => 0,
                 'signatureCount' => 0,
                 'signatureUnicodeRangeCount' => 0,
@@ -29798,6 +29802,8 @@ final class DocxOpenXmlReader
         $embeddedFontExternalCount = 0;
         $embeddedFontIssueCount = 0;
         $embeddedFontIssueCodes = [];
+        $embeddedFontKeyPresentCount = 0;
+        $embeddedFontInvalidKeyCount = 0;
         foreach ($this->elements($xpath, '/w:fonts/w:font') as $font) {
             $name = $font->getAttributeNS(self::NS_W, 'name');
             if ($name === '') {
@@ -29837,6 +29843,12 @@ final class DocxOpenXmlReader
                 if ($embeddedFont['issues'] !== []) {
                     ++$embeddedFontIssueCount;
                 }
+                if (($embeddedFont['fontKeyPresent'] ?? false) === true) {
+                    ++$embeddedFontKeyPresentCount;
+                }
+                if (($embeddedFont['fontKeyValidGuid'] ?? null) === false) {
+                    ++$embeddedFontInvalidKeyCount;
+                }
                 foreach ($embeddedFont['issues'] as $issue) {
                     if (is_string($issue) && $issue !== '') {
                         $embeddedFontIssueCodes[$issue] = true;
@@ -29864,6 +29876,8 @@ final class DocxOpenXmlReader
             'embeddedFontExternalCount' => $embeddedFontExternalCount,
             'embeddedFontIssueCount' => $embeddedFontIssueCount,
             'embeddedFontIssueCodes' => array_keys($embeddedFontIssueCodes),
+            'embeddedFontKeyPresentCount' => $embeddedFontKeyPresentCount,
+            'embeddedFontInvalidKeyCount' => $embeddedFontInvalidKeyCount,
             'notTrueTypeCount' => count(array_filter($fonts, static fn (array $font): bool => ($font['notTrueType'] ?? false) === true)),
             'signatureCount' => count(array_filter($fonts, static fn (array $font): bool => isset($font['signature']))),
             'signatureUnicodeRangeCount' => array_sum(array_map(static fn (array $font): int => (int) ($font['signature']['unicodeRangeCount'] ?? 0), $fonts)),
@@ -29978,6 +29992,13 @@ final class DocxOpenXmlReader
         return trim($embedded->getAttribute('fontKey'));
     }
 
+    private function fontTableEmbeddedFontKeyIsValid(string $fontKey): bool
+    {
+        $guid = '[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}';
+
+        return preg_match('/^(?:' . $guid . '|\{' . $guid . '\})$/', trim($fontKey)) === 1;
+    }
+
     /**
      * @param array<string, string> $parts
      * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}|null $relationship
@@ -30023,6 +30044,9 @@ final class DocxOpenXmlReader
             'crc32' => null,
             'sha256' => null,
             'fontKeyPresent' => $fontKey !== '',
+            'fontKeyByteLength' => $fontKey !== '' ? strlen($fontKey) : 0,
+            'fontKeyBraceWrapped' => $fontKey !== '' ? str_starts_with($fontKey, '{') && str_ends_with($fontKey, '}') : null,
+            'fontKeyValidGuid' => $fontKey !== '' ? $this->fontTableEmbeddedFontKeyIsValid($fontKey) : null,
             'fontKeySha256' => $fontKey !== '' ? hash('sha256', $fontKey) : null,
             'byteExposurePolicy' => 'embedded-font-bytes-blocked',
             'reviewPolicy' => 'embedded-font-metadata-only',
@@ -30033,11 +30057,19 @@ final class DocxOpenXmlReader
 
         if ($relationshipId === '') {
             $item['issues'][] = 'missing-relationship-id';
+            if ($item['fontKeyValidGuid'] === false) {
+                $item['issues'][] = 'invalid-font-key';
+            }
+
             return $item;
         }
 
         if (!is_array($relationship)) {
             $item['issues'][] = 'missing-relationship';
+            if ($item['fontKeyValidGuid'] === false) {
+                $item['issues'][] = 'invalid-font-key';
+            }
+
             return $item;
         }
 
@@ -30086,6 +30118,9 @@ final class DocxOpenXmlReader
             } elseif ($contentTypeBase !== self::CT_OBFUSCATED_FONT) {
                 $item['issues'][] = 'unexpected-embedded-font-content-type';
             }
+        }
+        if ($item['fontKeyValidGuid'] === false) {
+            $item['issues'][] = 'invalid-font-key';
         }
 
         $item['issues'] = array_values(array_unique($item['issues']));

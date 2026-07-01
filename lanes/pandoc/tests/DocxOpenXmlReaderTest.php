@@ -17915,7 +17915,7 @@ XML;
     <w:embedRegular r:id="rRegular" w:fontKey="{00112233-4455-6677-8899-AABBCCDDEEFF}"/>
     <w:embedBold r:id="rMissingBold" w:fontKey="{11112233-4455-6677-8899-AABBCCDDEEFF}"/>
     <w:embedItalic r:id="rExternalItalic"/>
-    <w:embedBoldItalic r:id="rWrongType"/>
+    <w:embedBoldItalic r:id="rWrongType" w:fontKey="not-a-guid"/>
   </w:font>
   <w:font w:name="No Relationship">
     <w:embedRegular w:fontKey="{22222222-4455-6677-8899-AABBCCDDEEFF}"/>
@@ -17958,12 +17958,15 @@ XML;
         $t->same(4, $fontTable['embeddedFontIssueCount']);
         $t->same([
             'external-embedded-font',
+            'invalid-font-key',
             'missing-content-type',
             'missing-in-package',
             'missing-relationship-id',
             'unexpected-embedded-font-content-type',
             'unexpected-relationship-type',
         ], $fontTable['embeddedFontIssueCodes']);
+        $t->same(4, $fontTable['embeddedFontKeyPresentCount']);
+        $t->same(1, $fontTable['embeddedFontInvalidKeyCount']);
         $t->same(4, $aptos['embeddedFontCount']);
 
         $t->same('regular', $regular['style']);
@@ -17985,6 +17988,9 @@ XML;
         $t->same(sprintf('%08x', crc32($fontBytes)), $regular['crc32']);
         $t->same(hash('sha256', $fontBytes), $regular['sha256']);
         $t->same(true, $regular['fontKeyPresent']);
+        $t->same(strlen($fontKey), $regular['fontKeyByteLength']);
+        $t->same(true, $regular['fontKeyBraceWrapped']);
+        $t->same(true, $regular['fontKeyValidGuid']);
         $t->same(hash('sha256', $fontKey), $regular['fontKeySha256']);
         $t->true(!isset($regular['fontKey']), 'Raw embedded font key should not be exposed');
         $t->same('embedded-font-bytes-blocked', $regular['byteExposurePolicy']);
@@ -18011,7 +18017,13 @@ XML;
         $t->same('word/fonts/bad.ttf', $wrongType['targetPart']);
         $t->same('font/ttf', $wrongType['contentType']);
         $t->same(hash('sha256', $badFontBytes), $wrongType['sha256']);
-        $t->same(['unexpected-relationship-type', 'unexpected-embedded-font-content-type'], $wrongType['issues']);
+        $t->same(true, $wrongType['fontKeyPresent']);
+        $t->same(strlen('not-a-guid'), $wrongType['fontKeyByteLength']);
+        $t->same(false, $wrongType['fontKeyBraceWrapped']);
+        $t->same(false, $wrongType['fontKeyValidGuid']);
+        $t->same(hash('sha256', 'not-a-guid'), $wrongType['fontKeySha256']);
+        $t->true(!isset($wrongType['fontKey']), 'Raw invalid embedded font key should not be exposed');
+        $t->same(['unexpected-relationship-type', 'unexpected-embedded-font-content-type', 'invalid-font-key'], $wrongType['issues']);
 
         $t->same('regular', $missingRelationship['style']);
         $t->same('', $missingRelationship['id']);
@@ -18028,6 +18040,8 @@ XML;
         $t->same(1, $summary['fontTableEmbeddedFontExternalCount']);
         $t->same(4, $summary['fontTableEmbeddedFontIssueCount']);
         $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
+        $t->same(4, $summary['fontTableEmbeddedFontKeyPresentCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontInvalidKeyCount']);
     },
     'recovers docx font table unqualified embedded font attributes for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
