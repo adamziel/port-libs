@@ -15537,19 +15537,40 @@ final class XmlHtmlDom
     private static function addressSummary(\DOMElement $address): array
     {
         $links = [];
-        foreach (self::descendantHtmlElements($address, 'a') as $link) {
+        $issues = [];
+        foreach (self::descendantHtmlElements($address, 'a') as $index => $link) {
+            $href = self::attributeOrNull($link, 'href');
+            $label = self::normalizedText($link);
             $relRaw = self::attributeOrNull($link, 'rel');
+            $hrefReview = self::hyperlinkUrlReviewSummary($href);
+            $contact = self::addressContactHrefSummary($href, $hrefReview);
+            array_push(
+                $issues,
+                ...self::addressContactLinkIssues($index, $href, $label, $hrefReview, $contact)
+            );
+
             $links[] = [
-                'href' => self::attributeOrNull($link, 'href'),
-                'label' => self::normalizedText($link),
+                'id' => self::attributeOrNull($link, 'id'),
+                'href' => $href,
+                'label' => $label,
                 'relRaw' => $relRaw,
                 'relTokens' => $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw),
+                'contactHrefKind' => $hrefReview['kind'],
+                'contactHrefScheme' => $hrefReview['scheme'],
+                'contactHrefUnsafe' => $hrefReview['unsafe'],
+                'contactKind' => $contact['kind'],
+                'contactValue' => $contact['value'],
             ];
+        }
+
+        $text = self::normalizedText($address);
+        if ($text === '' && $links === []) {
+            $issues[] = ['code' => 'empty-address-contact'];
         }
 
         return [
             'contactInfo' => 'address',
-            'contactText' => self::normalizedText($address),
+            'contactText' => $text,
             'contactLinkCount' => count($links),
             'contactLinks' => $links,
             'contactHrefs' => array_values(array_filter(
@@ -15560,7 +15581,140 @@ final class XmlHtmlDom
                 array_map(static fn (array $link): ?string => $link['href'], $links),
                 static fn (?string $href): bool => $href !== null && str_starts_with(strtolower($href), 'mailto:')
             )),
+            'contactTelephoneHrefs' => array_values(array_filter(
+                array_map(static fn (array $link): ?string => $link['href'], $links),
+                static fn (?string $href): bool => $href !== null && str_starts_with(strtolower($href), 'tel:')
+            )),
+            'addressContactReviewPolicy' => 'html-address-contact-link-review',
+            'contactLinkKinds' => array_values(array_map(
+                static fn (array $link): string => (string) $link['contactKind'],
+                $links
+            )),
+            'contactEmailAddresses' => self::addressContactValues($links, 'email'),
+            'contactTelephoneNumbers' => self::addressContactValues($links, 'telephone'),
+            'unsafeContactHrefs' => array_values(array_filter(
+                array_map(
+                    static fn (array $link): ?string => ($link['contactHrefUnsafe'] ?? false) === true ? $link['href'] : null,
+                    $links
+                ),
+                static fn (?string $href): bool => $href !== null
+            )),
+            'contactLinkIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            ))),
+            'contactLinkIssueCount' => count($issues),
+            'contactLinkIssues' => $issues,
+            'contactLinksValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @param array{kind:string, scheme:?string, unsafe:bool} $hrefReview
+     * @return array{kind:string, value:?string}
+     */
+    private static function addressContactHrefSummary(?string $href, array $hrefReview): array
+    {
+        if ($href === null) {
+            return ['kind' => 'missing', 'value' => null];
+        }
+
+        $trimmed = trim($href);
+        if ($trimmed === '') {
+            return ['kind' => 'empty', 'value' => null];
+        }
+
+        $scheme = $hrefReview['scheme'];
+        if ($scheme === 'mailto') {
+            return ['kind' => 'email', 'value' => self::addressContactHrefPayload($trimmed, strlen('mailto:'))];
+        }
+        if ($scheme === 'tel') {
+            return ['kind' => 'telephone', 'value' => self::addressContactHrefPayload($trimmed, strlen('tel:'))];
+        }
+
+        if ($hrefReview['kind'] === 'invalid') {
+            return ['kind' => 'invalid', 'value' => $trimmed];
+        }
+        if ($hrefReview['kind'] === 'fragment') {
+            return ['kind' => 'fragment', 'value' => $trimmed];
+        }
+
+        return ['kind' => 'url', 'value' => $trimmed];
+    }
+
+    private static function addressContactHrefPayload(string $href, int $prefixLength): ?string
+    {
+        $payload = substr($href, $prefixLength);
+        $queryOffset = strpos($payload, '?');
+        if ($queryOffset !== false) {
+            $payload = substr($payload, 0, $queryOffset);
+        }
+
+        $payload = trim(str_replace(["\r", "\n"], '', rawurldecode($payload)));
+
+        return $payload === '' ? null : $payload;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $links
+     * @return list<string>
+     */
+    private static function addressContactValues(array $links, string $kind): array
+    {
+        return array_values(array_filter(
+            array_map(
+                static fn (array $link): ?string => ($link['contactKind'] ?? null) === $kind
+                    ? ($link['contactValue'] ?? null)
+                    : null,
+                $links
+            ),
+            static fn (?string $value): bool => $value !== null
+        ));
+    }
+
+    /**
+     * @param array{kind:string, scheme:?string, unsafe:bool} $hrefReview
+     * @param array{kind:string, value:?string} $contact
+     * @return list<array<string, mixed>>
+     */
+    private static function addressContactLinkIssues(
+        int $index,
+        ?string $href,
+        string $label,
+        array $hrefReview,
+        array $contact
+    ): array {
+        $issues = [];
+        if ($href === null) {
+            $issues[] = ['code' => 'missing-address-contact-href', 'index' => $index];
+        } else {
+            $trimmed = trim($href);
+            if ($trimmed === '') {
+                $issues[] = ['code' => 'empty-address-contact-href', 'index' => $index];
+            } elseif ($hrefReview['unsafe']) {
+                $issues[] = [
+                    'code' => 'unsafe-address-contact-href',
+                    'index' => $index,
+                    'href' => $href,
+                    'scheme' => $hrefReview['scheme'],
+                ];
+            } elseif ($hrefReview['kind'] === 'invalid') {
+                $issues[] = ['code' => 'invalid-address-contact-href', 'index' => $index, 'href' => $href];
+            }
+
+            if ($contact['kind'] === 'email' && $contact['value'] === null) {
+                $issues[] = ['code' => 'missing-address-mailto-recipient', 'index' => $index, 'href' => $href];
+            }
+            if ($contact['kind'] === 'telephone' && $contact['value'] === null) {
+                $issues[] = ['code' => 'missing-address-tel-number', 'index' => $index, 'href' => $href];
+            }
+        }
+
+        if ($label === '') {
+            $issues[] = ['code' => 'empty-address-contact-label', 'index' => $index, 'href' => $href];
+        }
+
+        return $issues;
     }
 
     /**
