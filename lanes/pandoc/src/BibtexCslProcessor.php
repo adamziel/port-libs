@@ -1003,7 +1003,7 @@ final class BibtexCslProcessor
             'container-author-type' => ['bookauthortype', 'bookauthor-type', 'container-author-type'],
             'genre' => ['type', 'entrysubtype'],
             'entry-subtype' => ['entrysubtype', 'entry-subtype'],
-            'related' => ['related'],
+            'related' => ['related', 'related-keys', 'relatedkeys'],
             'related-type' => ['relatedtype', 'related-type'],
             'related-string' => ['relatedstring', 'related-string'],
             'related-options' => ['relatedoptions', 'related-options'],
@@ -1312,12 +1312,14 @@ final class BibtexCslProcessor
     {
         foreach ($entries as $key => $entry) {
             $fields = $entry['fields'];
-            $relatedKeys = $this->fieldKeyList($fields['related'] ?? '');
+            $relatedKeys = $this->fieldKeyList($this->firstRawField($fields, ['related', 'related-keys', 'relatedkeys']));
             if ($relatedKeys !== []) {
                 $references = $this->cslReferenceItemsForKeys($relatedKeys, $entries);
+                $entries[$key]['csl']['relatedKeys'] = $relatedKeys;
                 $entries[$key]['csl']['related-keys'] = $relatedKeys;
                 $entries[$key]['csl']['relatedItems'] = $references['items'];
                 if ($references['missing'] !== []) {
+                    $entries[$key]['csl']['missingRelatedKeys'] = $references['missing'];
                     $entries[$key]['csl']['missing-related-keys'] = $references['missing'];
                 }
 
@@ -1326,11 +1328,21 @@ final class BibtexCslProcessor
                     $entries[$key]['csl']['relatedOptions'] = $relatedOptions;
                 }
 
+                $relatedType = $this->firstRawField($fields, ['relatedtype', 'related-type']);
+                if ($relatedType !== '') {
+                    $entries[$key]['csl']['relatedType'] = $relatedType;
+                }
+
+                $relatedString = $this->firstRawField($fields, ['relatedstring', 'related-string']);
+                if ($relatedString !== '') {
+                    $entries[$key]['csl']['relatedString'] = $relatedString;
+                }
+
                 $summary = $this->biblatexRelatedSummary(
                     $references['items'],
                     $references['missing'],
-                    (string) ($entries[$key]['csl']['related-type'] ?? ''),
-                    (string) ($entries[$key]['csl']['related-string'] ?? '')
+                    (string) ($entries[$key]['csl']['relatedType'] ?? $entries[$key]['csl']['related-type'] ?? ''),
+                    (string) ($entries[$key]['csl']['relatedString'] ?? $entries[$key]['csl']['related-string'] ?? '')
                 );
                 if ($summary !== '') {
                     $entries[$key]['csl']['relatedSummary'] = $summary;
@@ -1344,9 +1356,11 @@ final class BibtexCslProcessor
             }
 
             $references = $this->cslReferenceItemsForKeys($xrefKeys, $entries);
+            $entries[$key]['csl']['xrefKeys'] = $xrefKeys;
             $entries[$key]['csl']['xref-keys'] = $xrefKeys;
             $entries[$key]['csl']['xrefItems'] = $references['items'];
             if ($references['missing'] !== []) {
+                $entries[$key]['csl']['missingXrefKeys'] = $references['missing'];
                 $entries[$key]['csl']['missing-xref-keys'] = $references['missing'];
             }
 
@@ -1382,7 +1396,7 @@ final class BibtexCslProcessor
                 continue;
             }
 
-            $items[] = $this->cslReferenceItemSummary($key, $entry['csl']);
+            $items[] = $this->cslReferenceItemSummary($key, $entry);
         }
 
         return ['items' => $items, 'missing' => $missing];
@@ -1415,11 +1429,12 @@ final class BibtexCslProcessor
     }
 
     /**
-     * @param array<string, mixed> $item
+     * @param array{id:string, type:string, fields:array<string, string>, csl:array<string, mixed>} $entry
      * @return array<string, mixed>
      */
-    private function cslReferenceItemSummary(string $requestedKey, array $item): array
+    private function cslReferenceItemSummary(string $requestedKey, array $entry): array
     {
+        $item = $entry['csl'];
         $summary = [
             'id' => (string) ($item['id'] ?? ''),
             'citationKey' => $requestedKey,
@@ -1429,6 +1444,9 @@ final class BibtexCslProcessor
 
         if (is_array($item['issued'] ?? null)) {
             $summary['issued'] = $item['issued'];
+        }
+        if (strtolower($entry['type']) === 'xdata' || $this->hasDataOnlyOption($entry['fields']['options'] ?? '')) {
+            $summary['dataOnly'] = true;
         }
 
         return $summary;
