@@ -871,6 +871,10 @@ return [
         foreach ($extracted['entries'] as $entry) {
             $entriesBySource[$entry['source']] = $entry;
         }
+        $resourceMapBySource = [];
+        foreach ($extracted['resourceMap'] as $mapping) {
+            $resourceMapBySource[$mapping['source']] = $mapping;
+        }
 
         $t->contains('media-resource-path-collision:' . $caseLowerSource, implode(',', $extracted['diagnostics']));
         $t->contains('media-resource-path-casefold-collision:' . $caseLowerSource, implode(',', $extracted['diagnostics']));
@@ -882,6 +886,26 @@ return [
         $t->same('media/' . $caseLowerPath, $mappedLower->attr('url'));
         $t->same($caseLowerPath, $entriesBySource[$caseLowerSource]['mediaPath']);
         $t->same('safe-relative-path,casefold-path-collision-disambiguated', $entriesBySource[$caseLowerSource]['extractionPathRepairSummary']);
+        $t->true($entriesBySource[$normalizedSource]['sourcePathRepaired']);
+        $t->true(!$entriesBySource[$normalizedSource]['extractionPathRepaired']);
+        $t->same('none', $entriesBySource[$normalizedSource]['pathCollision']);
+        $t->true($entriesBySource[$encodedSource]['sourcePathRepaired']);
+        $t->true(!$entriesBySource[$encodedSource]['extractionPathRepaired']);
+        $t->same('none', $entriesBySource[$encodedSource]['pathCollision']);
+        $t->true($entriesBySource[$mismatchedSource]['sourcePathRepaired']);
+        $t->true(!$entriesBySource[$mismatchedSource]['extractionPathRepaired']);
+        $t->same('none', $entriesBySource[$mismatchedSource]['pathCollision']);
+        $t->true(!$entriesBySource[$caseLowerSource]['sourcePathRepaired']);
+        $t->true($entriesBySource[$caseLowerSource]['extractionPathRepaired']);
+        $t->same('casefold', $entriesBySource[$caseLowerSource]['pathCollision']);
+        $t->same('normalized-path', $resourceMapBySource[$normalizedSource]['pathRepairSummary']);
+        $t->true($resourceMapBySource[$normalizedSource]['sourcePathRepaired']);
+        $t->true(!$resourceMapBySource[$normalizedSource]['extractionPathRepaired']);
+        $t->same('percent-decoded-path', $resourceMapBySource[$encodedSource]['pathRepairSummary']);
+        $t->true($resourceMapBySource[$encodedSource]['sourcePathRepaired']);
+        $t->same('casefold', $resourceMapBySource[$caseLowerSource]['pathCollision']);
+        $t->true(!$resourceMapBySource[$caseLowerSource]['sourcePathRepaired']);
+        $t->true($resourceMapBySource[$caseLowerSource]['extractionPathRepaired']);
         $t->same('application-pdf', $entriesBySource[$normalizedSource]['linkedMimeGroup']);
         $t->same(4, $entriesBySource[$normalizedSource]['linkedMimeGroupSize']);
         $t->true(!array_key_exists('linkedMimeGroup', $entriesBySource[$mismatchedSource]), 'Single CSS linked resource should not receive a duplicate MIME group');
@@ -895,20 +919,119 @@ return [
         $t->same('docs/Review.pdf', $normalizedAttrs['data-pandoc-media-source-path']);
         $t->same(sha1($normalizedSource), $normalizedAttrs['data-pandoc-media-source-sha1']);
         $t->same('normalized-path', $normalizedAttrs['data-pandoc-media-path-repair']);
+        $t->same('true', $normalizedAttrs['data-pandoc-media-source-path-repaired']);
+        $t->same('normalized-path', $normalizedAttrs['data-pandoc-media-source-path-repair']);
+        $t->same('false', $normalizedAttrs['data-pandoc-media-extraction-path-repaired']);
+        $t->same('none', $normalizedAttrs['data-pandoc-media-extraction-path-repair']);
+        $t->same('none', $normalizedAttrs['data-pandoc-media-path-collision']);
         $t->same('percent-decoded-path', $encodedAttrs['data-pandoc-media-path-repair']);
+        $t->same('true', $encodedAttrs['data-pandoc-media-source-path-repaired']);
+        $t->same('percent-decoded-path', $encodedAttrs['data-pandoc-media-source-path-repair']);
+        $t->same('false', $encodedAttrs['data-pandoc-media-extraction-path-repaired']);
+        $t->same('none', $encodedAttrs['data-pandoc-media-extraction-path-repair']);
         $t->same('application/pdf', $mismatchAttrs['data-pandoc-media-inferred-type']);
         $t->same('declared', $mismatchAttrs['data-pandoc-media-mime-source']);
         $t->same('extension-content-type-disagreement:.pdf:application/pdf=>text/css:path-extension-from-content-type', $mismatchAttrs['data-pandoc-media-mime-repair']);
+        $t->same('true', $mismatchAttrs['data-pandoc-media-source-path-repaired']);
+        $t->same('url-suffix-hash-path', $mismatchAttrs['data-pandoc-media-source-path-repair']);
+        $t->same('false', $mismatchAttrs['data-pandoc-media-extraction-path-repaired']);
+        $t->same('none', $mismatchAttrs['data-pandoc-media-path-collision']);
         $t->same('application-pdf', $lowerAttrs['data-pandoc-media-linked-mime-group']);
         $t->same('4', $lowerAttrs['data-pandoc-media-linked-mime-group-size']);
         $t->same('safe-relative-path,casefold-path-collision-disambiguated', $lowerAttrs['data-pandoc-media-path-repair']);
+        $t->same('false', $lowerAttrs['data-pandoc-media-source-path-repaired']);
+        $t->same('safe-relative-path', $lowerAttrs['data-pandoc-media-source-path-repair']);
+        $t->same('true', $lowerAttrs['data-pandoc-media-extraction-path-repaired']);
+        $t->same('casefold-path-collision-disambiguated', $lowerAttrs['data-pandoc-media-extraction-path-repair']);
+        $t->same('casefold', $lowerAttrs['data-pandoc-media-path-collision']);
 
         $markdown = (new MarkdownWriter())->write($extracted['document']);
         $blocks = (new WordPressBlockWriter())->write($extracted['document']);
         $roundTrip = (new PandocJsonReader())->read((new PandocJsonWriter())->write($extracted['document']));
         $t->contains('data-pandoc-media-path-repair="percent-decoded-path"', $markdown);
+        $t->contains('data-pandoc-media-source-path-repaired="true"', $markdown);
         $t->contains('data-pandoc-media-linked-mime-group="application-pdf"', $blocks);
+        $t->contains('data-pandoc-media-path-collision="casefold"', $blocks);
         $t->same('casefold-path-collision-disambiguated', explode(',', $roundTrip->children[0]->children[8]->attr('attributes')['data-pandoc-media-path-repair'])[1]);
+        $t->same('true', $roundTrip->children[0]->children[8]->attr('attributes')['data-pandoc-media-extraction-path-repaired']);
+    },
+
+    'separates linked media source and extraction path repair provenance' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $encodedSource = 'docs/review%20packet.pdf';
+        $caseUpperSource = 'Media/Case.PDF';
+        $caseLowerSource = 'media/case.pdf';
+        $encodedBytes = "%PDF encoded packet\n";
+        $caseUpperBytes = "%PDF upper case\n";
+        $caseLowerBytes = "%PDF lower case\n";
+        $link = static fn (string $url, string $label): AstNode => new AstNode('link', [
+            'url' => $url,
+            'title' => $label,
+        ], [new AstNode('text', ['text' => $label])]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                $link($encodedSource, 'encoded packet'),
+                new AstNode('space'),
+                $link($caseUpperSource, 'upper case packet'),
+                new AstNode('space'),
+                $link($caseLowerSource, 'lower case packet'),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            'docs/review packet.pdf' => [
+                'contents' => $encodedBytes,
+                'mimeType' => 'application/pdf',
+            ],
+            $caseUpperSource => [
+                'contents' => $caseUpperBytes,
+                'mimeType' => 'application/pdf',
+            ],
+            $caseLowerSource => [
+                'contents' => $caseLowerBytes,
+                'mimeType' => 'application/pdf',
+            ],
+        ]);
+        $caseLowerPath = 'media/case-' . substr(sha1($caseLowerSource . "\0" . sha1($caseLowerBytes)), 0, 12) . '.pdf';
+
+        $t->same([
+            'media-resource-link-loaded:' . $encodedSource,
+            'media-resource-link-loaded:' . $caseUpperSource,
+            'media-resource-link-loaded:' . $caseLowerSource,
+        ], $filled['diagnostics']);
+
+        $extracted = $bag->extractMedia($filled['document'], 'media');
+        $mappedParagraph = $extracted['document']->children[0];
+        $encodedAttrs = $mappedParagraph->children[0]->attr('attributes');
+        $lowerAttrs = $mappedParagraph->children[4]->attr('attributes');
+        $entriesBySource = [];
+        foreach ($extracted['entries'] as $entry) {
+            $entriesBySource[$entry['source']] = $entry;
+        }
+        $resourceMapBySource = [];
+        foreach ($extracted['resourceMap'] as $mapping) {
+            $resourceMapBySource[$mapping['source']] = $mapping;
+        }
+
+        $t->true($entriesBySource[$encodedSource]['sourcePathRepaired']);
+        $t->true(!$entriesBySource[$encodedSource]['extractionPathRepaired']);
+        $t->same('none', $entriesBySource[$encodedSource]['pathCollision']);
+        $t->same('percent-decoded-path', $encodedAttrs['data-pandoc-media-source-path-repair']);
+        $t->same('true', $encodedAttrs['data-pandoc-media-source-path-repaired']);
+        $t->same('false', $encodedAttrs['data-pandoc-media-extraction-path-repaired']);
+        $t->same('none', $encodedAttrs['data-pandoc-media-extraction-path-repair']);
+        $t->true(!$entriesBySource[$caseLowerSource]['sourcePathRepaired']);
+        $t->true($entriesBySource[$caseLowerSource]['extractionPathRepaired']);
+        $t->same('casefold', $entriesBySource[$caseLowerSource]['pathCollision']);
+        $t->same($caseLowerPath, $entriesBySource[$caseLowerSource]['mediaPath']);
+        $t->same('safe-relative-path', $lowerAttrs['data-pandoc-media-source-path-repair']);
+        $t->same('false', $lowerAttrs['data-pandoc-media-source-path-repaired']);
+        $t->same('true', $lowerAttrs['data-pandoc-media-extraction-path-repaired']);
+        $t->same('casefold-path-collision-disambiguated', $lowerAttrs['data-pandoc-media-extraction-path-repair']);
+        $t->same('casefold', $lowerAttrs['data-pandoc-media-path-collision']);
+        $t->same('casefold', $resourceMapBySource[$caseLowerSource]['pathCollision']);
+        $t->true($resourceMapBySource[$caseLowerSource]['extractionPathRepaired']);
     },
 
     'reports media bag resource mappings in document order' => static function (TestRunner $t): void {

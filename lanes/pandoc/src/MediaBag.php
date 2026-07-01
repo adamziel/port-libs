@@ -256,8 +256,8 @@ final class MediaBag
     /**
      * @return array{
      *     document:AstNode,
-     *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, extractionPathRepairSummary:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
-     *     resourceMap:list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
+     *     entries:list<array{path:string, mediaPath:string, mimeType:string, byteLength:int, sha1:string, source:string, canonicalSource:string, sourcePath:string, pathRepairSummary:string, extractionPathRepairSummary:string, sourcePathRepaired:bool, extractionPathRepaired:bool, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, contents:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
+     *     resourceMap:list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, sourcePathRepaired:bool, extractionPathRepaired:bool, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>,
      *     diagnostics:list<string>
      * }
      */
@@ -283,6 +283,9 @@ final class MediaBag
                 'sourcePath' => $item['sourcePath'],
                 'pathRepairSummary' => $item['pathRepairSummary'],
                 'extractionPathRepairSummary' => self::extractionPathRepairSummary($item, $plan),
+                'sourcePathRepaired' => self::sourcePathRepaired($item),
+                'extractionPathRepaired' => $mediaPath !== $item['path'],
+                'pathCollision' => $plan['collision'],
                 'mimeTypeSource' => $item['mimeTypeSource'],
                 'inferredMimeType' => $item['inferredMimeType'],
                 'mimeRepairSummary' => $item['mimeRepairSummary'],
@@ -375,7 +378,7 @@ final class MediaBag
     }
 
     /**
-     * @return list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
+     * @return list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, sourcePathRepaired:bool, extractionPathRepaired:bool, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
      */
     public function resourceMap(AstNode $document, string $destination): array
     {
@@ -393,7 +396,7 @@ final class MediaBag
     /**
      * @param array<string, array{path:string, collision:string}> $plannedPaths
      * @param array<string, array{group:string, size:int}> $linkedMimeGroups
-     * @return list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
+     * @return list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, sourcePathRepaired:bool, extractionPathRepaired:bool, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}>
      */
     private function resourceMapForDocument(
         AstNode $document,
@@ -410,7 +413,7 @@ final class MediaBag
     /**
      * @param array<string, array{path:string, collision:string}> $plannedPaths
      * @param array<string, array{group:string, size:int}> $linkedMimeGroups
-     * @param list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}> $mappings
+     * @param list<array{occurrence:int, nodeType:string, source:string, sourceLookupKey:string, sourceLookupRepair:string, canonicalSource:string, sourcePath:string, path:string, mediaPath:string, originalMediaPath:string, mappedUrl:string, mimeType:string, byteLength:int, sha1:string, pathRepairSummary:string, extractionPathRepairSummary:string, sourcePathRepaired:bool, extractionPathRepaired:bool, pathCollision:string, mimeTypeSource:string, inferredMimeType:string, mimeRepairSummary:string, linkedMimeGroup?:string, linkedMimeGroupSize?:int}> $mappings
      */
     private function collectResourceMap(
         AstNode $node,
@@ -444,6 +447,8 @@ final class MediaBag
                     'sha1' => $item['sha1'],
                     'pathRepairSummary' => $item['pathRepairSummary'],
                     'extractionPathRepairSummary' => self::extractionPathRepairSummary($item, $plan),
+                    'sourcePathRepaired' => self::sourcePathRepaired($item),
+                    'extractionPathRepaired' => $mediaPath !== $item['path'],
                     'pathCollision' => $plan['collision'],
                     'mimeTypeSource' => $item['mimeTypeSource'],
                     'inferredMimeType' => $item['inferredMimeType'],
@@ -513,6 +518,11 @@ final class MediaBag
             'data-pandoc-media-source-sha1' => sha1($item['source']),
             'data-pandoc-media-path-repaired' => $mediaPath === $item['path'] ? 'false' : 'true',
             'data-pandoc-media-path-repair' => self::extractionPathRepairSummary($item, $plan),
+            'data-pandoc-media-source-path-repaired' => self::sourcePathRepaired($item) ? 'true' : 'false',
+            'data-pandoc-media-source-path-repair' => $item['pathRepairSummary'],
+            'data-pandoc-media-extraction-path-repaired' => $mediaPath === $item['path'] ? 'false' : 'true',
+            'data-pandoc-media-extraction-path-repair' => self::extractionCollisionRepairSummary($plan),
+            'data-pandoc-media-path-collision' => $plan['collision'],
             'data-pandoc-media-mime-source' => $item['mimeTypeSource'],
             'data-pandoc-media-inferred-type' => $item['inferredMimeType'],
             'data-pandoc-media-mime-repair' => $item['mimeRepairSummary'],
@@ -1305,6 +1315,26 @@ final class MediaBag
         }
 
         return implode(',', array_values(array_unique($reasons)));
+    }
+
+    /**
+     * @param array{pathRepairSummary:string} $item
+     */
+    private static function sourcePathRepaired(array $item): bool
+    {
+        return $item['pathRepairSummary'] !== '' && $item['pathRepairSummary'] !== 'safe-relative-path';
+    }
+
+    /**
+     * @param array{collision:string} $plan
+     */
+    private static function extractionCollisionRepairSummary(array $plan): string
+    {
+        return match ($plan['collision']) {
+            'path' => 'path-collision-disambiguated',
+            'casefold' => 'casefold-path-collision-disambiguated',
+            default => 'none',
+        };
     }
 
     private static function decodedRelativeSourceKey(string $source): ?string
