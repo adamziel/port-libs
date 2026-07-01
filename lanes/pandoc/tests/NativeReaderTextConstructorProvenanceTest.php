@@ -522,4 +522,140 @@ NATIVE;
             $t->same(5, $editedPacket['blocks'][1]['c'][0][0], "{$writer} regenerates edited textual ordered-list start");
         }
     },
+    'preserves textual native figure and table constructor provenance' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ Figure ( "fig-text" , [ "review" ] , [ ( "data-source" , "native" ) ] ) (Caption (Just (ShortCaption [Str "Short", Space, Str "figure"])) [Plain [Str "Long", Space, Str "figure"]]) [Plain [Image ( "img-text" , [ "asset" ] , [  ] ) [Str "Alt", Space, Str "text"] ( "media/fig.png" , "Figure title" )]]
+, Table ( "tbl-text" , [ "grid" ] , [  ] ) (Caption Nothing [Plain [Str "Table", Space, Str "caption"]]) [(AlignLeft, ColWidth 0.4), (AlignDefault, ColWidthDefault)] (TableHead ( "" , [  ] , [  ] ) [Row ( "" , [  ] , [  ] ) [Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1) [Plain [Str "Metric"]]]]) [TableBody ( "" , [ "body" ] , [  ] ) (RowHeadColumns 1) [] [Row ( "" , [  ] , [  ] ) [Cell ( "" , [  ] , [  ] ) AlignLeft (RowSpan 1) (ColSpan 1) [Plain [Str "Posts"]], Cell ( "" , [  ] , [  ] ) AlignCenter (RowSpan 1) (ColSpan 1) [Plain [Str "Ready"]]]]] (TableFoot ( "" , [  ] , [  ] ) [])
+]
+NATIVE;
+        $figureAttr = ['fig-text', ['review'], [['data-source', 'native']]];
+        $imageAttr = ['img-text', ['asset'], []];
+        $imageTarget = ['media/fig.png', 'Figure title'];
+        $shortInlines = [
+            ['t' => 'Str', 'c' => 'Short'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'figure'],
+        ];
+        $figureCaption = ['t' => 'Caption', 'c' => [
+            ['t' => 'Just', 'c' => ['t' => 'ShortCaption', 'c' => [$shortInlines]]],
+            [['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Long'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'figure'],
+            ]]],
+        ]];
+        $imageNative = ['t' => 'Image', 'c' => [
+            $imageAttr,
+            [
+                ['t' => 'Str', 'c' => 'Alt'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'text'],
+            ],
+            $imageTarget,
+        ]];
+        $figureNative = ['t' => 'Figure', 'c' => [
+            $figureAttr,
+            $figureCaption,
+            [['t' => 'Plain', 'c' => [$imageNative]]],
+        ]];
+
+        $tableAttr = ['tbl-text', ['grid'], []];
+        $tableCaption = ['t' => 'Caption', 'c' => [
+            ['t' => 'Nothing'],
+            [['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Table'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'caption'],
+            ]]],
+        ]];
+        $tableHead = ['t' => 'TableHead', 'c' => [
+            ['', [], []],
+            [['t' => 'Row', 'c' => [
+                ['', [], []],
+                [['t' => 'Cell', 'c' => [
+                    ['', [], []],
+                    ['t' => 'AlignDefault'],
+                    ['t' => 'RowSpan', 'c' => 1],
+                    ['t' => 'ColSpan', 'c' => 1],
+                    [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Metric']]]],
+                ]]],
+            ]]],
+        ]];
+        $tableBody = ['t' => 'TableBody', 'c' => [
+            ['', ['body'], []],
+            ['t' => 'RowHeadColumns', 'c' => 1],
+            [],
+            [['t' => 'Row', 'c' => [
+                ['', [], []],
+                [
+                    ['t' => 'Cell', 'c' => [
+                        ['', [], []],
+                        ['t' => 'AlignLeft'],
+                        ['t' => 'RowSpan', 'c' => 1],
+                        ['t' => 'ColSpan', 'c' => 1],
+                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Posts']]]],
+                    ]],
+                    ['t' => 'Cell', 'c' => [
+                        ['', [], []],
+                        ['t' => 'AlignCenter'],
+                        ['t' => 'RowSpan', 'c' => 1],
+                        ['t' => 'ColSpan', 'c' => 1],
+                        [['t' => 'Plain', 'c' => [['t' => 'Str', 'c' => 'Ready']]]],
+                    ]],
+                ],
+            ]]],
+        ]];
+        $tableFoot = ['t' => 'TableFoot', 'c' => [['', [], []], []]];
+        $tableNative = ['t' => 'Table', 'c' => [
+            $tableAttr,
+            $tableCaption,
+            [
+                [['t' => 'AlignLeft'], ['t' => 'ColWidth', 'c' => 0.4]],
+                [['t' => 'AlignDefault'], ['t' => 'ColWidthDefault']],
+            ],
+            $tableHead,
+            [$tableBody],
+            $tableFoot,
+        ]];
+        $expectedBlocks = [$figureNative, $tableNative];
+
+        $nativeDocument = (new NativeReader())->read($native);
+        $figure = $nativeDocument->children[0];
+        $image = $figure->children[0];
+        $table = $nativeDocument->children[1];
+        $head = $table->children[0];
+        $body = $table->children[1];
+        $firstBodyCell = $body->children[0]->children[0];
+        $secondBodyCell = $body->children[0]->children[1];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('Figure', $figure->attr('constructor'));
+        $t->same($figureNative, $figure->attr('native'));
+        $t->same($figureAttr, $figure->attr('attrNative'));
+        $t->same($figureCaption, $figure->attr('captionNative'));
+        $t->same('ShortCaption', $figure->attr('shortCaptionConstructor'));
+        $t->same('image', $image->type);
+        $t->same($imageNative, $image->attr('native'));
+        $t->same($imageTarget, $image->attr('targetNative'));
+        $t->same('Table', $table->attr('constructor'));
+        $t->same($tableNative, $table->attr('native'));
+        $t->same($tableAttr, $table->attr('attrNative'));
+        $t->same($tableCaption, $table->attr('captionNative'));
+        $t->same(['left', 'default'], $table->attr('alignments'));
+        $t->same([0.4, null], $table->attr('widths'));
+        $t->same('TableHead', $head->attr('constructor'));
+        $t->same($tableHead, $head->attr('native'));
+        $t->same('TableBody', $body->attr('constructor'));
+        $t->same($tableBody, $body->attr('native'));
+        $t->same(1, $body->attr('rowHeadColumns'));
+        $t->same('AlignLeft', $firstBodyCell->attr('alignmentConstructor'));
+        $t->same('AlignCenter', $secondBodyCell->attr('alignmentConstructor'));
+        $t->same($expectedBlocks, $jsonPacket['blocks']);
+        $t->same($expectedBlocks, $nativePacket['blocks']);
+    },
 ];

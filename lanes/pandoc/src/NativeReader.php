@@ -1014,7 +1014,8 @@ final class NativeReader
     private function parseTable(): AstNode
     {
         [$attrs, $attrNative] = $this->parseAttrTuplePayload();
-        $attrs = array_replace($attrs, $this->parseCaptionAttrs());
+        [$captionAttrs, $captionNative] = $this->parseCaptionAttrsPayload(true);
+        $attrs = array_replace($attrs, $captionAttrs);
         [$colSpecAttrs, $colSpecNative] = $this->parseTableColSpecs();
         $attrs = array_replace($attrs, $colSpecAttrs);
 
@@ -1024,7 +1025,6 @@ final class NativeReader
         $children = [$head, ...$bodies, $foot];
 
         $attrs['constructor'] = 'Table';
-        $captionNative = $attrs['captionNative'] ?? null;
         $headNative = $head->attr('native');
         $footNative = $foot->attr('native');
         if (
@@ -1676,19 +1676,14 @@ final class NativeReader
         return [$attrs, $columnSpecNatives];
     }
 
-    private function parseColumnWidth(): float
-    {
-        return $this->parseColumnWidthPayload()[0];
-    }
-
     /**
-     * @return array{0:float, 1:string, 2:array<string, mixed>}
+     * @return array{0:float|null, 1:string, 2:array<string, mixed>}
      */
     private function parseColumnWidthPayload(): array
     {
         $type = $this->expectAnyIdentifier();
         if ($type === 'ColWidthDefault') {
-            return [0.0, $type, ['t' => $type]];
+            return [null, $type, ['t' => $type]];
         }
         if ($type !== 'ColWidth') {
             throw new \InvalidArgumentException("Unsupported Native column width '{$type}'");
