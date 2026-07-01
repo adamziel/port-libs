@@ -1476,6 +1476,7 @@ final class OdfReader
         $manifestMediaTypeSummary = $this->manifestMediaTypeSummary($manifest);
         $preferredViewModeSummary = self::manifestPreferredViewModeSummary($manifest);
         $manifestEncryptionSummary = self::manifestEncryptionSummary($manifest);
+        $manifestCustomAttributeNamespaces = self::manifestCustomAttributeNamespaceSummary($manifest);
         $packageDirectoryCount = 0;
         $manifestPartReferenceSuffixItems = [];
         $manifestPartReferenceQueryCount = 0;
@@ -2270,6 +2271,16 @@ final class OdfReader
             'manifestCustomAttributeCount' => $manifestCustomAttributeCount,
             'manifestCustomAttributeNames' => $manifestCustomAttributeNames,
             'manifestCustomAttributeItems' => $manifestCustomAttributeItems,
+            'manifestCustomAttributeNamespaceCount' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceCount'],
+            'manifestCustomAttributeNamespaceUris' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceUris'],
+            'manifestCustomAttributeNamespaceCounts' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceCounts'],
+            'manifestCustomAttributeNamespaceEntryCounts' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceEntryCounts'],
+            'manifestCustomAttributeNamespaceFullPaths' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceFullPaths'],
+            'manifestCustomAttributeNamespaceParts' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceParts'],
+            'manifestCustomAttributeNamespaceAttributeNames' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceAttributeNames'],
+            'manifestCustomAttributeNamespaceLocalNames' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceLocalNames'],
+            'manifestCustomAttributeNamespacePrefixes' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespacePrefixes'],
+            'manifestCustomAttributeNamespaceSummaries' => $manifestCustomAttributeNamespaces['manifestCustomAttributeNamespaceSummaries'],
             'manifestCustomChildElementEntryCount' => count($manifestCustomChildElementItems),
             'manifestCustomChildElementCount' => $manifestCustomChildElementCount,
             'manifestCustomChildElementNames' => $manifestCustomChildElementNames,
@@ -3681,6 +3692,16 @@ final class OdfReader
             'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
             'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
             'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
+            'manifestCustomAttributeNamespaceCount' => $provenance['manifestCustomAttributeNamespaceCount'] ?? 0,
+            'manifestCustomAttributeNamespaceUris' => $provenance['manifestCustomAttributeNamespaceUris'] ?? [],
+            'manifestCustomAttributeNamespaceCounts' => $provenance['manifestCustomAttributeNamespaceCounts'] ?? [],
+            'manifestCustomAttributeNamespaceEntryCounts' => $provenance['manifestCustomAttributeNamespaceEntryCounts'] ?? [],
+            'manifestCustomAttributeNamespaceFullPaths' => $provenance['manifestCustomAttributeNamespaceFullPaths'] ?? [],
+            'manifestCustomAttributeNamespaceParts' => $provenance['manifestCustomAttributeNamespaceParts'] ?? [],
+            'manifestCustomAttributeNamespaceAttributeNames' => $provenance['manifestCustomAttributeNamespaceAttributeNames'] ?? [],
+            'manifestCustomAttributeNamespaceLocalNames' => $provenance['manifestCustomAttributeNamespaceLocalNames'] ?? [],
+            'manifestCustomAttributeNamespacePrefixes' => $provenance['manifestCustomAttributeNamespacePrefixes'] ?? [],
+            'manifestCustomAttributeNamespaceSummaries' => $provenance['manifestCustomAttributeNamespaceSummaries'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
             'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
@@ -4043,6 +4064,16 @@ final class OdfReader
             'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
             'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
             'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
+            'manifestCustomAttributeNamespaceCount' => $provenance['manifestCustomAttributeNamespaceCount'] ?? 0,
+            'manifestCustomAttributeNamespaceUris' => $provenance['manifestCustomAttributeNamespaceUris'] ?? [],
+            'manifestCustomAttributeNamespaceCounts' => $provenance['manifestCustomAttributeNamespaceCounts'] ?? [],
+            'manifestCustomAttributeNamespaceEntryCounts' => $provenance['manifestCustomAttributeNamespaceEntryCounts'] ?? [],
+            'manifestCustomAttributeNamespaceFullPaths' => $provenance['manifestCustomAttributeNamespaceFullPaths'] ?? [],
+            'manifestCustomAttributeNamespaceParts' => $provenance['manifestCustomAttributeNamespaceParts'] ?? [],
+            'manifestCustomAttributeNamespaceAttributeNames' => $provenance['manifestCustomAttributeNamespaceAttributeNames'] ?? [],
+            'manifestCustomAttributeNamespaceLocalNames' => $provenance['manifestCustomAttributeNamespaceLocalNames'] ?? [],
+            'manifestCustomAttributeNamespacePrefixes' => $provenance['manifestCustomAttributeNamespacePrefixes'] ?? [],
+            'manifestCustomAttributeNamespaceSummaries' => $provenance['manifestCustomAttributeNamespaceSummaries'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
             'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
@@ -23523,6 +23554,140 @@ final class OdfReader
             $manifest,
             static fn (array $item): bool => ($item['isDirectory'] ?? false) === true
         ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private static function manifestCustomAttributeNamespaceSummary(array $manifest): array
+    {
+        $namespaceCounts = [];
+        $namespaceEntryCounts = [];
+        $namespaceFullPaths = [];
+        $namespaceParts = [];
+        $namespaceAttributeNames = [];
+        $namespaceLocalNames = [];
+        $namespacePrefixes = [];
+
+        foreach ($manifest as $item) {
+            $customAttributes = is_array($item['customManifestAttributes'] ?? null)
+                ? $item['customManifestAttributes']
+                : [];
+            if ($customAttributes === []) {
+                continue;
+            }
+
+            $itemNamespaces = [];
+            foreach ($customAttributes as $attribute) {
+                if (!is_array($attribute)) {
+                    continue;
+                }
+
+                $namespaceUri = is_string($attribute['namespaceUri'] ?? null) && $attribute['namespaceUri'] !== ''
+                    ? $attribute['namespaceUri']
+                    : '(none)';
+                $namespaceCounts[$namespaceUri] = ($namespaceCounts[$namespaceUri] ?? 0) + 1;
+                $itemNamespaces[$namespaceUri] = true;
+
+                $attributeName = is_string($attribute['name'] ?? null) ? $attribute['name'] : '';
+                if ($attributeName !== '') {
+                    $namespaceAttributeNames[$namespaceUri][$attributeName] = true;
+                }
+                $localName = is_string($attribute['localName'] ?? null) ? $attribute['localName'] : '';
+                if ($localName !== '') {
+                    $namespaceLocalNames[$namespaceUri][$localName] = true;
+                }
+                $prefix = is_string($attribute['prefix'] ?? null) ? $attribute['prefix'] : '';
+                if ($prefix !== '') {
+                    $namespacePrefixes[$namespaceUri][$prefix] = true;
+                }
+            }
+
+            foreach (array_keys($itemNamespaces) as $namespaceUri) {
+                $namespaceEntryCounts[$namespaceUri] = ($namespaceEntryCounts[$namespaceUri] ?? 0) + 1;
+                $fullPath = is_string($item['fullPath'] ?? null)
+                    ? $item['fullPath']
+                    : (is_string($item['path'] ?? null) ? $item['path'] : '');
+                if ($fullPath !== '') {
+                    $namespaceFullPaths[$namespaceUri][$fullPath] = true;
+                }
+                $part = is_string($item['part'] ?? null)
+                    ? $item['part']
+                    : (is_string($item['packagePath'] ?? null) ? $item['packagePath'] : null);
+                if (is_string($part) && $part !== '') {
+                    $namespaceParts[$namespaceUri][$part] = true;
+                }
+            }
+        }
+
+        ksort($namespaceCounts, SORT_STRING);
+        ksort($namespaceEntryCounts, SORT_STRING);
+        $summaries = [];
+        foreach (array_keys($namespaceCounts) as $namespaceUri) {
+            $attributeNames = self::sortedMapKeys($namespaceAttributeNames[$namespaceUri] ?? []);
+            $localNames = self::sortedMapKeys($namespaceLocalNames[$namespaceUri] ?? []);
+            $prefixes = self::sortedMapKeys($namespacePrefixes[$namespaceUri] ?? []);
+            $fullPaths = self::sortedMapKeys($namespaceFullPaths[$namespaceUri] ?? []);
+            $parts = self::sortedMapKeys($namespaceParts[$namespaceUri] ?? []);
+
+            $namespaceAttributeNames[$namespaceUri] = array_fill_keys($attributeNames, true);
+            $namespaceLocalNames[$namespaceUri] = array_fill_keys($localNames, true);
+            $namespacePrefixes[$namespaceUri] = array_fill_keys($prefixes, true);
+            $namespaceFullPaths[$namespaceUri] = array_fill_keys($fullPaths, true);
+            $namespaceParts[$namespaceUri] = array_fill_keys($parts, true);
+
+            $summaries[] = [
+                'namespaceUri' => $namespaceUri,
+                'attributeCount' => $namespaceCounts[$namespaceUri],
+                'entryCount' => $namespaceEntryCounts[$namespaceUri] ?? 0,
+                'attributeNames' => $attributeNames,
+                'localNames' => $localNames,
+                'prefixes' => $prefixes,
+                'fullPaths' => $fullPaths,
+                'parts' => $parts,
+            ];
+        }
+
+        return [
+            'manifestCustomAttributeNamespaceCount' => count($namespaceCounts),
+            'manifestCustomAttributeNamespaceUris' => array_keys($namespaceCounts),
+            'manifestCustomAttributeNamespaceCounts' => $namespaceCounts,
+            'manifestCustomAttributeNamespaceEntryCounts' => $namespaceEntryCounts,
+            'manifestCustomAttributeNamespaceFullPaths' => self::sortedNestedMapKeys($namespaceFullPaths),
+            'manifestCustomAttributeNamespaceParts' => self::sortedNestedMapKeys($namespaceParts),
+            'manifestCustomAttributeNamespaceAttributeNames' => self::sortedNestedMapKeys($namespaceAttributeNames),
+            'manifestCustomAttributeNamespaceLocalNames' => self::sortedNestedMapKeys($namespaceLocalNames),
+            'manifestCustomAttributeNamespacePrefixes' => self::sortedNestedMapKeys($namespacePrefixes),
+            'manifestCustomAttributeNamespaceSummaries' => $summaries,
+        ];
+    }
+
+    /**
+     * @param array<string, bool> $map
+     * @return list<string>
+     */
+    private static function sortedMapKeys(array $map): array
+    {
+        $keys = array_keys($map);
+        sort($keys, SORT_STRING);
+
+        return $keys;
+    }
+
+    /**
+     * @param array<string, array<string, bool>> $map
+     * @return array<string, list<string>>
+     */
+    private static function sortedNestedMapKeys(array $map): array
+    {
+        ksort($map, SORT_STRING);
+        $result = [];
+        foreach ($map as $key => $values) {
+            $result[$key] = self::sortedMapKeys($values);
+        }
+
+        return $result;
     }
 
     /**
