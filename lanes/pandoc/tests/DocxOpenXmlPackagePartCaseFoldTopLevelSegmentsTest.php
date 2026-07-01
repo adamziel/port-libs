@@ -16,6 +16,17 @@ return [
         }
 
         $t->same(6, $summary['partTopLevelSegmentCount']);
+        $t->same([
+            'WORD' => 1,
+            'Word' => 2,
+            '[Content_Types].xml' => 1,
+            '_rels' => 1,
+            'customXml' => 1,
+            'word' => 3,
+        ], $summary['partTopLevelSegmentCounts']);
+        $t->same(2, $summary['duplicatePartTopLevelSegmentCount']);
+        $t->same(5, $summary['duplicatePartTopLevelSegmentPartCount']);
+        $t->same(['Word', 'word'], $summary['duplicatePartTopLevelSegments']);
         $t->same(4, $summary['partCaseFoldTopLevelSegmentCount']);
         $t->same([
             '[content_types].xml' => 1,

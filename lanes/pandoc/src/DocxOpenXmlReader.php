@@ -15286,6 +15286,19 @@ final class DocxOpenXmlReader
         }
         ksort($partDirectoryDepthCounts, SORT_NUMERIC);
         $partTopLevelSegments = $this->packagePartTopLevelSegmentSummary($partInventory);
+        $partTopLevelSegmentCounts = [];
+        $duplicatePartTopLevelSegments = [];
+        $duplicatePartTopLevelSegmentPartCount = 0;
+        foreach ($partTopLevelSegments as $topLevelSegmentSummary) {
+            $topLevelSegment = (string) ($topLevelSegmentSummary['topLevelSegment'] ?? '');
+            $partCount = (int) ($topLevelSegmentSummary['partCount'] ?? 0);
+            $partTopLevelSegmentCounts[$topLevelSegment] = $partCount;
+            if ($partCount > 1) {
+                $duplicatePartTopLevelSegments[] = $topLevelSegment;
+                $duplicatePartTopLevelSegmentPartCount += $partCount;
+            }
+        }
+        ksort($partTopLevelSegmentCounts, SORT_STRING);
         $partCaseFoldTopLevelSegments = $this->packagePartCaseFoldTopLevelSegmentSummary($partInventory);
         $partCaseFoldTopLevelSegmentCounts = [];
         $duplicatePartCaseFoldTopLevelSegments = [];
@@ -18807,6 +18820,10 @@ final class DocxOpenXmlReader
             'partDirectoryDepthParameterizedPartCount' => $parameterizedPartDirectoryDepthCount,
             'partDirectoryDepthMissingContentTypeBucketCount' => $missingContentTypePartDirectoryDepthCount,
             'partTopLevelSegmentCount' => count($partTopLevelSegments),
+            'partTopLevelSegmentCounts' => $partTopLevelSegmentCounts,
+            'duplicatePartTopLevelSegmentCount' => count($duplicatePartTopLevelSegments),
+            'duplicatePartTopLevelSegmentPartCount' => $duplicatePartTopLevelSegmentPartCount,
+            'duplicatePartTopLevelSegments' => $duplicatePartTopLevelSegments,
             'partCaseFoldTopLevelSegmentCount' => count($partCaseFoldTopLevelSegments),
             'partCaseFoldTopLevelSegmentCounts' => $partCaseFoldTopLevelSegmentCounts,
             'duplicatePartCaseFoldTopLevelSegmentCount' => count($duplicatePartCaseFoldTopLevelSegments),
