@@ -52,7 +52,7 @@ final class PptxReader
         foreach ($slides as $slide) {
             $relationship = $presentationRelationships->byId($slide['relationshipId']);
             if (!$relationship instanceof OpcRelationship) {
-                throw new \RuntimeException('PPTX slide relationship not found: ' . $slide['relationshipId']);
+                throw new \RuntimeException('Relationship not found: ' . $slide['relationshipId']);
             }
 
             $slidePart = $this->upstreamPresentationSlidePart($relationship->target);
