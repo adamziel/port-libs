@@ -1437,6 +1437,7 @@ final class OdfReader
         $dosAttributes = $package->dosAttributePreflight();
         $internalAttributes = $package->internalAttributePreflight();
         $extraFields = $package->extraFieldPreflight();
+        $namePolicy = $this->zipNamePolicyProvenance($package);
         $packageManifest = $package->packageManifestPreflight();
         $zipPackageManifestSummary = self::zipPackageManifestAggregateProvenance($packageManifest);
         $packageManifestEntriesByName = self::zipPreflightEntriesByName($packageManifest);
@@ -2101,6 +2102,23 @@ final class OdfReader
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+            'namePolicy' => $namePolicy,
+            'zipNamePolicyValid' => ($namePolicy['valid'] ?? false) === true,
+            'zipNamePolicyIssueCount' => $namePolicy['issueCount'] ?? 0,
+            'zipNamePolicyIssueCodes' => $namePolicy['issueCodes'] ?? [],
+            'zipPathHierarchyCollisionEntryCount' => $namePolicy['pathHierarchyCollisionEntryCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionGroupCount' => $namePolicy['caseInsensitiveNameCollisionGroupCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionEntryCount' => $namePolicy['caseInsensitiveNameCollisionEntryCount'] ?? 0,
+            'zipRawNameCollisionGroupCount' => $namePolicy['rawNameCollisionGroupCount'] ?? 0,
+            'zipRawNameCollisionEntryCount' => $namePolicy['rawNameCollisionEntryCount'] ?? 0,
+            'zipRawNameProvenanceEntryCount' => $namePolicy['rawNameProvenanceEntryCount'] ?? 0,
+            'zipNameHygieneReviewEntryCount' => $namePolicy['nameHygieneReviewEntryCount'] ?? 0,
+            'zipNameHygieneLeadingOrTrailingWhitespaceEntryCount' => $namePolicy['nameHygieneLeadingOrTrailingWhitespaceEntryCount'] ?? 0,
+            'zipNameHygieneTrailingDotSegmentEntryCount' => $namePolicy['nameHygieneTrailingDotSegmentEntryCount'] ?? 0,
+            'zipNameHygieneWindowsReservedNameEntryCount' => $namePolicy['nameHygieneWindowsReservedNameEntryCount'] ?? 0,
+            'zipNameHygieneWindowsAlternateDataStreamEntryCount' => $namePolicy['nameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeFormatControlEntryCount' => $namePolicy['nameHygieneUnicodeFormatControlEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeBidiControlEntryCount' => $namePolicy['nameHygieneUnicodeBidiControlEntryCount'] ?? 0,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'zipPackageManifest' => $packageManifest,
             'zipPackageManifestSha256' => $packageManifest['manifestSha256'],
@@ -2187,6 +2205,66 @@ final class OdfReader
         $provenance['packageIdentity'] = $this->packageIdentityProvenance($provenance);
 
         return $provenance;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function zipNamePolicyProvenance(ZipPackage $package): array
+    {
+        $pathHierarchy = $package->pathHierarchyPreflight();
+        $caseInsensitiveNames = $package->caseInsensitiveNamePreflight();
+        $rawNames = $package->rawNamePreflight();
+        $nameHygiene = $package->nameHygienePreflight();
+        $issueCodes = [];
+        if ((int) ($pathHierarchy['collisionEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'path-hierarchy-collisions';
+        }
+        if ((int) ($caseInsensitiveNames['collisionEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'case-insensitive-name-collisions';
+        }
+        if ((int) ($rawNames['collisionEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'raw-name-collisions';
+        }
+        if ((int) ($rawNames['provenanceEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'raw-name-provenance-review-entries';
+        }
+        if ((int) ($nameHygiene['reviewEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'name-hygiene-review-entries';
+        }
+
+        return [
+            'present' => true,
+            'entryCount' => count($package->entries()),
+            'valid' => $issueCodes === [],
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'pathHierarchyCollisionEntryCount' => (int) ($pathHierarchy['collisionEntryCount'] ?? 0),
+            'pathHierarchyCollisionEntries' => $pathHierarchy['collisionEntries'] ?? [],
+            'caseInsensitiveNameCollisionGroupCount' => (int) ($caseInsensitiveNames['collisionGroupCount'] ?? 0),
+            'caseInsensitiveNameCollisionEntryCount' => (int) ($caseInsensitiveNames['collisionEntryCount'] ?? 0),
+            'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNames['collisionGroups'] ?? [],
+            'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNames['collisionEntries'] ?? [],
+            'rawNameCollisionGroupCount' => (int) ($rawNames['collisionGroupCount'] ?? 0),
+            'rawNameCollisionEntryCount' => (int) ($rawNames['collisionEntryCount'] ?? 0),
+            'rawNameProvenanceEntryCount' => (int) ($rawNames['provenanceEntryCount'] ?? 0),
+            'rawNameLegacyEncodedEntryCount' => (int) ($rawNames['legacyEncodedNameEntryCount'] ?? 0),
+            'rawNameUnicodePathExtraEntryCount' => (int) ($rawNames['unicodePathExtraEntryCount'] ?? 0),
+            'rawNameDecodedDiffersEntryCount' => (int) ($rawNames['decodedNameDiffersFromRawNameEntryCount'] ?? 0),
+            'rawNameCollisionGroups' => $rawNames['collisionGroups'] ?? [],
+            'rawNameCollisionEntries' => $rawNames['collisionEntries'] ?? [],
+            'rawNameProvenanceEntries' => $rawNames['provenanceEntries'] ?? [],
+            'nameHygieneReviewEntryCount' => (int) ($nameHygiene['reviewEntryCount'] ?? 0),
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => (int) ($nameHygiene['leadingOrTrailingWhitespaceEntryCount'] ?? 0),
+            'nameHygieneTrailingDotSegmentEntryCount' => (int) ($nameHygiene['trailingDotSegmentEntryCount'] ?? 0),
+            'nameHygieneWindowsReservedNameEntryCount' => (int) ($nameHygiene['windowsReservedNameEntryCount'] ?? 0),
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => (int) ($nameHygiene['windowsAlternateDataStreamEntryCount'] ?? 0),
+            'nameHygieneUnicodeFormatControlEntryCount' => (int) ($nameHygiene['unicodeFormatControlEntryCount'] ?? 0),
+            'nameHygieneUnicodeBidiControlEntryCount' => (int) ($nameHygiene['unicodeBidiControlEntryCount'] ?? 0),
+            'nameHygieneReviewEntries' => $nameHygiene['reviewEntries'] ?? [],
+            'byteExposurePolicy' => 'odf-zip-name-policy-metadata-only',
+            'canExposeBytes' => false,
+        ];
     }
 
     /**
@@ -2473,6 +2551,22 @@ final class OdfReader
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
             'manifestCustomAttributeNames' => $provenance['manifestCustomAttributeNames'] ?? [],
             'rawNameProvenanceEntries' => $provenance['rawNameProvenanceEntries'] ?? [],
+            'zipNamePolicyValid' => ($provenance['zipNamePolicyValid'] ?? false) === true,
+            'zipNamePolicyIssueCount' => $provenance['zipNamePolicyIssueCount'] ?? 0,
+            'zipNamePolicyIssueCodes' => $provenance['zipNamePolicyIssueCodes'] ?? [],
+            'zipPathHierarchyCollisionEntryCount' => $provenance['zipPathHierarchyCollisionEntryCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionGroupCount' => $provenance['zipCaseInsensitiveNameCollisionGroupCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionEntryCount' => $provenance['zipCaseInsensitiveNameCollisionEntryCount'] ?? 0,
+            'zipRawNameCollisionGroupCount' => $provenance['zipRawNameCollisionGroupCount'] ?? 0,
+            'zipRawNameCollisionEntryCount' => $provenance['zipRawNameCollisionEntryCount'] ?? 0,
+            'zipRawNameProvenanceEntryCount' => $provenance['zipRawNameProvenanceEntryCount'] ?? 0,
+            'zipNameHygieneReviewEntryCount' => $provenance['zipNameHygieneReviewEntryCount'] ?? 0,
+            'zipNameHygieneLeadingOrTrailingWhitespaceEntryCount' => $provenance['zipNameHygieneLeadingOrTrailingWhitespaceEntryCount'] ?? 0,
+            'zipNameHygieneTrailingDotSegmentEntryCount' => $provenance['zipNameHygieneTrailingDotSegmentEntryCount'] ?? 0,
+            'zipNameHygieneWindowsReservedNameEntryCount' => $provenance['zipNameHygieneWindowsReservedNameEntryCount'] ?? 0,
+            'zipNameHygieneWindowsAlternateDataStreamEntryCount' => $provenance['zipNameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeFormatControlEntryCount' => $provenance['zipNameHygieneUnicodeFormatControlEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeBidiControlEntryCount' => $provenance['zipNameHygieneUnicodeBidiControlEntryCount'] ?? 0,
             'localHeaderMetadataEntryCount' => $provenance['localHeaderMetadataEntryCount'] ?? 0,
             'localHeaderMetadataIsSupportedByBoundedReader' => ($provenance['localHeaderMetadataIsSupportedByBoundedReader'] ?? false) === true,
             'localHeaderMetadataIssueCodes' => $provenance['localHeaderMetadataIssueCodes'] ?? [],
@@ -2588,6 +2682,22 @@ final class OdfReader
             'packagePathExtensionCounts' => $provenance['packagePathExtensionCounts'] ?? [],
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
+            'zipNamePolicyValid' => ($provenance['zipNamePolicyValid'] ?? false) === true,
+            'zipNamePolicyIssueCount' => $provenance['zipNamePolicyIssueCount'] ?? 0,
+            'zipNamePolicyIssueCodes' => $provenance['zipNamePolicyIssueCodes'] ?? [],
+            'zipPathHierarchyCollisionEntryCount' => $provenance['zipPathHierarchyCollisionEntryCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionGroupCount' => $provenance['zipCaseInsensitiveNameCollisionGroupCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionEntryCount' => $provenance['zipCaseInsensitiveNameCollisionEntryCount'] ?? 0,
+            'zipRawNameCollisionGroupCount' => $provenance['zipRawNameCollisionGroupCount'] ?? 0,
+            'zipRawNameCollisionEntryCount' => $provenance['zipRawNameCollisionEntryCount'] ?? 0,
+            'zipRawNameProvenanceEntryCount' => $provenance['zipRawNameProvenanceEntryCount'] ?? 0,
+            'zipNameHygieneReviewEntryCount' => $provenance['zipNameHygieneReviewEntryCount'] ?? 0,
+            'zipNameHygieneLeadingOrTrailingWhitespaceEntryCount' => $provenance['zipNameHygieneLeadingOrTrailingWhitespaceEntryCount'] ?? 0,
+            'zipNameHygieneTrailingDotSegmentEntryCount' => $provenance['zipNameHygieneTrailingDotSegmentEntryCount'] ?? 0,
+            'zipNameHygieneWindowsReservedNameEntryCount' => $provenance['zipNameHygieneWindowsReservedNameEntryCount'] ?? 0,
+            'zipNameHygieneWindowsAlternateDataStreamEntryCount' => $provenance['zipNameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeFormatControlEntryCount' => $provenance['zipNameHygieneUnicodeFormatControlEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeBidiControlEntryCount' => $provenance['zipNameHygieneUnicodeBidiControlEntryCount'] ?? 0,
             'hasZipExtraFields' => ($provenance['hasZipExtraFields'] ?? false) === true,
             'extraFieldEntryCount' => $provenance['extraFieldEntryCount'] ?? 0,
             'duplicateExtraFieldEntryCount' => $provenance['duplicateExtraFieldEntryCount'] ?? 0,

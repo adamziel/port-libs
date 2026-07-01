@@ -703,6 +703,7 @@ final class OpenDocumentPackage
         $internalAttributes = $this->package->internalAttributePreflight();
         $internalAttributesByName = self::zipPreflightEntriesByName($internalAttributes);
         $extraFields = $this->package->extraFieldPreflight();
+        $namePolicy = self::zipNamePolicyProvenance($this->package);
         $packageManifest = $this->package->packageManifestPreflight();
         $zipPackageManifestSummary = self::zipPackageManifestAggregateProvenance($packageManifest);
         $localHeaderMetadata = ZipPackage::localHeaderMetadataPreflight($this->package->bytes());
@@ -1130,6 +1131,23 @@ final class OpenDocumentPackage
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+            'namePolicy' => $namePolicy,
+            'zipNamePolicyValid' => ($namePolicy['valid'] ?? false) === true,
+            'zipNamePolicyIssueCount' => $namePolicy['issueCount'] ?? 0,
+            'zipNamePolicyIssueCodes' => $namePolicy['issueCodes'] ?? [],
+            'zipPathHierarchyCollisionEntryCount' => $namePolicy['pathHierarchyCollisionEntryCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionGroupCount' => $namePolicy['caseInsensitiveNameCollisionGroupCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionEntryCount' => $namePolicy['caseInsensitiveNameCollisionEntryCount'] ?? 0,
+            'zipRawNameCollisionGroupCount' => $namePolicy['rawNameCollisionGroupCount'] ?? 0,
+            'zipRawNameCollisionEntryCount' => $namePolicy['rawNameCollisionEntryCount'] ?? 0,
+            'zipRawNameProvenanceEntryCount' => $namePolicy['rawNameProvenanceEntryCount'] ?? 0,
+            'zipNameHygieneReviewEntryCount' => $namePolicy['nameHygieneReviewEntryCount'] ?? 0,
+            'zipNameHygieneLeadingOrTrailingWhitespaceEntryCount' => $namePolicy['nameHygieneLeadingOrTrailingWhitespaceEntryCount'] ?? 0,
+            'zipNameHygieneTrailingDotSegmentEntryCount' => $namePolicy['nameHygieneTrailingDotSegmentEntryCount'] ?? 0,
+            'zipNameHygieneWindowsReservedNameEntryCount' => $namePolicy['nameHygieneWindowsReservedNameEntryCount'] ?? 0,
+            'zipNameHygieneWindowsAlternateDataStreamEntryCount' => $namePolicy['nameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeFormatControlEntryCount' => $namePolicy['nameHygieneUnicodeFormatControlEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeBidiControlEntryCount' => $namePolicy['nameHygieneUnicodeBidiControlEntryCount'] ?? 0,
             'byteExposurePolicy' => 'odf-package-inventory-metadata-only',
             'canExposeBytes' => false,
             'roles' => array_keys($roleCounts),
@@ -1216,6 +1234,66 @@ final class OpenDocumentPackage
             'internalAttributes' => $internalAttributes,
             'internalAttributeEntryCount' => $internalAttributes['internalAttributeEntryCount'],
             'parts' => $parts,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function zipNamePolicyProvenance(ZipPackage $package): array
+    {
+        $pathHierarchy = $package->pathHierarchyPreflight();
+        $caseInsensitiveNames = $package->caseInsensitiveNamePreflight();
+        $rawNames = $package->rawNamePreflight();
+        $nameHygiene = $package->nameHygienePreflight();
+        $issueCodes = [];
+        if ((int) ($pathHierarchy['collisionEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'path-hierarchy-collisions';
+        }
+        if ((int) ($caseInsensitiveNames['collisionEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'case-insensitive-name-collisions';
+        }
+        if ((int) ($rawNames['collisionEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'raw-name-collisions';
+        }
+        if ((int) ($rawNames['provenanceEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'raw-name-provenance-review-entries';
+        }
+        if ((int) ($nameHygiene['reviewEntryCount'] ?? 0) > 0) {
+            $issueCodes[] = 'name-hygiene-review-entries';
+        }
+
+        return [
+            'present' => true,
+            'entryCount' => count($package->entries()),
+            'valid' => $issueCodes === [],
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'pathHierarchyCollisionEntryCount' => (int) ($pathHierarchy['collisionEntryCount'] ?? 0),
+            'pathHierarchyCollisionEntries' => $pathHierarchy['collisionEntries'] ?? [],
+            'caseInsensitiveNameCollisionGroupCount' => (int) ($caseInsensitiveNames['collisionGroupCount'] ?? 0),
+            'caseInsensitiveNameCollisionEntryCount' => (int) ($caseInsensitiveNames['collisionEntryCount'] ?? 0),
+            'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNames['collisionGroups'] ?? [],
+            'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNames['collisionEntries'] ?? [],
+            'rawNameCollisionGroupCount' => (int) ($rawNames['collisionGroupCount'] ?? 0),
+            'rawNameCollisionEntryCount' => (int) ($rawNames['collisionEntryCount'] ?? 0),
+            'rawNameProvenanceEntryCount' => (int) ($rawNames['provenanceEntryCount'] ?? 0),
+            'rawNameLegacyEncodedEntryCount' => (int) ($rawNames['legacyEncodedNameEntryCount'] ?? 0),
+            'rawNameUnicodePathExtraEntryCount' => (int) ($rawNames['unicodePathExtraEntryCount'] ?? 0),
+            'rawNameDecodedDiffersEntryCount' => (int) ($rawNames['decodedNameDiffersFromRawNameEntryCount'] ?? 0),
+            'rawNameCollisionGroups' => $rawNames['collisionGroups'] ?? [],
+            'rawNameCollisionEntries' => $rawNames['collisionEntries'] ?? [],
+            'rawNameProvenanceEntries' => $rawNames['provenanceEntries'] ?? [],
+            'nameHygieneReviewEntryCount' => (int) ($nameHygiene['reviewEntryCount'] ?? 0),
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => (int) ($nameHygiene['leadingOrTrailingWhitespaceEntryCount'] ?? 0),
+            'nameHygieneTrailingDotSegmentEntryCount' => (int) ($nameHygiene['trailingDotSegmentEntryCount'] ?? 0),
+            'nameHygieneWindowsReservedNameEntryCount' => (int) ($nameHygiene['windowsReservedNameEntryCount'] ?? 0),
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => (int) ($nameHygiene['windowsAlternateDataStreamEntryCount'] ?? 0),
+            'nameHygieneUnicodeFormatControlEntryCount' => (int) ($nameHygiene['unicodeFormatControlEntryCount'] ?? 0),
+            'nameHygieneUnicodeBidiControlEntryCount' => (int) ($nameHygiene['unicodeBidiControlEntryCount'] ?? 0),
+            'nameHygieneReviewEntries' => $nameHygiene['reviewEntries'] ?? [],
+            'byteExposurePolicy' => 'odf-zip-name-policy-metadata-only',
+            'canExposeBytes' => false,
         ];
     }
 
@@ -1525,6 +1603,22 @@ final class OpenDocumentPackage
             'unicodePathExtraEntryCount' => $packageInventory['unicodePathExtraEntryCount'] ?? 0,
             'decodedNameDiffersFromRawNameEntryCount' => $packageInventory['decodedNameDiffersFromRawNameEntryCount'] ?? 0,
             'rawNameProvenanceEntries' => $packageInventory['rawNameProvenanceEntries'] ?? [],
+            'zipNamePolicyValid' => ($packageInventory['zipNamePolicyValid'] ?? false) === true,
+            'zipNamePolicyIssueCount' => $packageInventory['zipNamePolicyIssueCount'] ?? 0,
+            'zipNamePolicyIssueCodes' => $packageInventory['zipNamePolicyIssueCodes'] ?? [],
+            'zipPathHierarchyCollisionEntryCount' => $packageInventory['zipPathHierarchyCollisionEntryCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionGroupCount' => $packageInventory['zipCaseInsensitiveNameCollisionGroupCount'] ?? 0,
+            'zipCaseInsensitiveNameCollisionEntryCount' => $packageInventory['zipCaseInsensitiveNameCollisionEntryCount'] ?? 0,
+            'zipRawNameCollisionGroupCount' => $packageInventory['zipRawNameCollisionGroupCount'] ?? 0,
+            'zipRawNameCollisionEntryCount' => $packageInventory['zipRawNameCollisionEntryCount'] ?? 0,
+            'zipRawNameProvenanceEntryCount' => $packageInventory['zipRawNameProvenanceEntryCount'] ?? 0,
+            'zipNameHygieneReviewEntryCount' => $packageInventory['zipNameHygieneReviewEntryCount'] ?? 0,
+            'zipNameHygieneLeadingOrTrailingWhitespaceEntryCount' => $packageInventory['zipNameHygieneLeadingOrTrailingWhitespaceEntryCount'] ?? 0,
+            'zipNameHygieneTrailingDotSegmentEntryCount' => $packageInventory['zipNameHygieneTrailingDotSegmentEntryCount'] ?? 0,
+            'zipNameHygieneWindowsReservedNameEntryCount' => $packageInventory['zipNameHygieneWindowsReservedNameEntryCount'] ?? 0,
+            'zipNameHygieneWindowsAlternateDataStreamEntryCount' => $packageInventory['zipNameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeFormatControlEntryCount' => $packageInventory['zipNameHygieneUnicodeFormatControlEntryCount'] ?? 0,
+            'zipNameHygieneUnicodeBidiControlEntryCount' => $packageInventory['zipNameHygieneUnicodeBidiControlEntryCount'] ?? 0,
             'localHeaderMetadataEntryCount' => $packageInventory['localHeaderMetadataEntryCount'] ?? 0,
             'localHeaderMetadataIsSupportedByBoundedReader' => ($packageInventory['localHeaderMetadataIsSupportedByBoundedReader'] ?? false) === true,
             'localHeaderMetadataIssueCodes' => $packageInventory['localHeaderMetadataIssueCodes'] ?? [],
