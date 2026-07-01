@@ -2205,6 +2205,8 @@ final class OdfReader
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
         $packageZipSourceRecordPackagePartExtensions = self::packageZipSourceRecordPackagePartExtensionInventory($parts);
         $packageZipSourceRecordPackagePartBaseNameStems = self::packageZipSourceRecordPackagePartBaseNameStemInventory($parts);
+        $packageZipSourceRecordPackagePartDirectoryBaseNameStems =
+            self::packageZipSourceRecordPackagePartDirectoryBaseNameStemInventory($parts);
         $packageZipSourceRecordCompressionMethods = self::packageZipSourceRecordCompressionMethodInventory($parts);
         $packageZipSourceRecordRoles = self::packageZipSourceRecordRoleInventory($parts);
         $packageCrc32s = OdfPackageCrc32Inventory::summarize($parts);
@@ -2376,6 +2378,24 @@ final class OdfReader
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount'],
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordDuplicatePackagePartBaseNameStems'],
             'packageZipSourceRecordPackagePartBaseNameStems' => $packageZipSourceRecordPackagePartBaseNameStems['packageZipSourceRecordPackagePartBaseNameStems'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartDirectoryBaseNameStemCount'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemCounts' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartDirectoryBaseNameStemCounts'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemBytes' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartDirectoryBaseNameStemBytes'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemDataDescriptorEntryCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartDirectoryBaseNameStemDataDescriptorEntryCount'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemIssueEntryCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartDirectoryBaseNameStemIssueEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemCount'],
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemEntryCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStems' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStems'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStems' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartDirectoryBaseNameStems'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCount'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCounts' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCounts'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemBytes' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemBytes'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemDataDescriptorEntryCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemDataDescriptorEntryCount'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemIssueEntryCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemIssueEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemEntryCount' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStems' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStems'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStems' => $packageZipSourceRecordPackagePartDirectoryBaseNameStems['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStems'],
             'packageZipSourceRecordCompressionMethodCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCount'],
             'packageZipSourceRecordCompressionMethodCounts' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCounts'],
             'packageZipSourceRecordCompressionMethodBytes' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodBytes'],
@@ -3779,6 +3799,24 @@ final class OdfReader
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $provenance['packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount'] ?? 0,
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $provenance['packageZipSourceRecordDuplicatePackagePartBaseNameStems'] ?? [],
             'packageZipSourceRecordPackagePartBaseNameStems' => $provenance['packageZipSourceRecordPackagePartBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemCount' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemCounts' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemCounts'] ?? [],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemBytes' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemBytes'] ?? [],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemDataDescriptorEntryCount' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemIssueEntryCount' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemIssueEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemCount' => $provenance['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemEntryCount' => $provenance['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStems' => $provenance['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStems' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCount' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCounts' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCounts'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemBytes' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemBytes'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemDataDescriptorEntryCount' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemIssueEntryCount' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemIssueEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemCount' => $provenance['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemEntryCount' => $provenance['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStems' => $provenance['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStems' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStems'] ?? [],
             'packageZipSourceRecordCompressionMethodCount' => $provenance['packageZipSourceRecordCompressionMethodCount'] ?? 0,
             'packageZipSourceRecordCompressionMethodCounts' => $provenance['packageZipSourceRecordCompressionMethodCounts'] ?? [],
             'packageZipSourceRecordCompressionMethodBytes' => $provenance['packageZipSourceRecordCompressionMethodBytes'] ?? [],
@@ -4149,6 +4187,24 @@ final class OdfReader
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $provenance['packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount'] ?? 0,
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $provenance['packageZipSourceRecordDuplicatePackagePartBaseNameStems'] ?? [],
             'packageZipSourceRecordPackagePartBaseNameStems' => $provenance['packageZipSourceRecordPackagePartBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemCount' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemCounts' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemCounts'] ?? [],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemBytes' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemBytes'] ?? [],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemDataDescriptorEntryCount' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemIssueEntryCount' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStemIssueEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemCount' => $provenance['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemEntryCount' => $provenance['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStems' => $provenance['packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStems' => $provenance['packageZipSourceRecordPackagePartDirectoryBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCount' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCounts' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCounts'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemBytes' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemBytes'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemDataDescriptorEntryCount' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemIssueEntryCount' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemIssueEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemCount' => $provenance['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemEntryCount' => $provenance['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemEntryCount'] ?? 0,
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStems' => $provenance['packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStems'] ?? [],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStems' => $provenance['packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStems'] ?? [],
             'packageZipSourceRecordCompressionMethodCount' => $provenance['packageZipSourceRecordCompressionMethodCount'] ?? 0,
             'packageZipSourceRecordCompressionMethodCounts' => $provenance['packageZipSourceRecordCompressionMethodCounts'] ?? [],
             'packageZipSourceRecordCompressionMethodBytes' => $provenance['packageZipSourceRecordCompressionMethodBytes'] ?? [],
@@ -5691,6 +5747,424 @@ final class OdfReader
             'packageZipSourceRecordDuplicatePackagePartBaseNameStemEntryCount' => $duplicateBaseNameStemEntryCount,
             'packageZipSourceRecordDuplicatePackagePartBaseNameStems' => $duplicateBaseNameStems,
             'packageZipSourceRecordPackagePartBaseNameStems' => array_values($baseNameStems),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function packageZipSourceRecordPackagePartDirectoryBaseNameStemInventory(array $parts): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+        $directoryRootForDirectory = static function (?string $directory): string {
+            if (!is_string($directory) || $directory === '') {
+                return '/';
+            }
+
+            $trimmed = trim($directory, '/');
+            if ($trimmed === '' || !str_contains($trimmed, '/')) {
+                return '/';
+            }
+
+            return substr($trimmed, 0, (int) strpos($trimmed, '/') + 1);
+        };
+        $byteSummaryFields = [
+            'sourceRecordBytes',
+            'localRecordBytes',
+            'localHeaderBytes',
+            'localHeaderFixedHeaderBytes',
+            'localHeaderVariableFieldBytes',
+            'localHeaderRawNameBytes',
+            'localHeaderExtraFieldBytes',
+            'localHeaderReviewFieldBytes',
+            'compressedDataBytes',
+            'dataDescriptorBytes',
+            'centralDirectoryRecordBytes',
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryReviewFieldBytes',
+        ];
+        $createSummary = static function (string $stem, string $stemField): array {
+            return [
+                $stemField => $stem,
+                'entryCount' => 0,
+                'directoryCount' => 0,
+                'directoryBaseNameVariantCount' => 0,
+                'directoryBaseNameStemVariantCount' => 0,
+                'baseNameVariantCount' => 0,
+                'extensionVariantCount' => 0,
+                'extensionlessPackagePartCount' => 0,
+                'sourceRecordBytes' => 0,
+                'localRecordBytes' => 0,
+                'localHeaderBytes' => 0,
+                'localHeaderFixedHeaderBytes' => 0,
+                'localHeaderVariableFieldBytes' => 0,
+                'localHeaderRawNameBytes' => 0,
+                'localHeaderExtraFieldBytes' => 0,
+                'localHeaderReviewFieldBytes' => 0,
+                'compressedDataBytes' => 0,
+                'dataDescriptorBytes' => 0,
+                'dataDescriptorEntryCount' => 0,
+                'centralDirectoryRecordBytes' => 0,
+                'centralDirectoryFixedHeaderBytes' => 0,
+                'centralDirectoryVariableFieldBytes' => 0,
+                'centralDirectoryRawNameBytes' => 0,
+                'centralDirectoryExtraFieldBytes' => 0,
+                'centralDirectoryRawCommentBytes' => 0,
+                'centralDirectoryReviewFieldBytes' => 0,
+                'sourceRecordIssueEntryCount' => 0,
+                'sourceRecordIssueCount' => 0,
+                'exposableEntryCount' => 0,
+                'blockedEntryCount' => 0,
+                'directoryBaseNameStemCounts' => [],
+                'directoryBaseNameCounts' => [],
+                'directoryCounts' => [],
+                'directoryRootCounts' => [],
+                'baseNameCounts' => [],
+                'partExtensionCounts' => [],
+                'compressionMethodCounts' => [],
+                'byteExposurePolicyCounts' => [],
+                'manifestMediaFamilyCounts' => [],
+                'manifestMediaTypeBaseCounts' => [],
+                'roleCounts' => [],
+                'entryNames' => [],
+                'largestSourceRecordEntry' => null,
+            ];
+        };
+        $recordStem = static function (
+            array &$stems,
+            string $stem,
+            string $stemField,
+            array $entrySummary,
+            array $context
+        ) use ($byteSummaryFields, $createSummary): void {
+            if (!isset($stems[$stem])) {
+                $stems[$stem] = $createSummary($stem, $stemField);
+            }
+
+            ++$stems[$stem]['entryCount'];
+            foreach ($byteSummaryFields as $field) {
+                $stems[$stem][$field] += (int) ($context[$field] ?? 0);
+            }
+            $stems[$stem]['sourceRecordIssueCount'] += count($context['sourceRecordIssues']);
+            $stems[$stem]['entryNames'][] = $context['entryName'];
+            $stems[$stem]['directoryBaseNameStemCounts'][$context['directoryBaseNameStem']] =
+                ($stems[$stem]['directoryBaseNameStemCounts'][$context['directoryBaseNameStem']] ?? 0) + 1;
+            $stems[$stem]['directoryBaseNameCounts'][$context['directoryBaseName']] =
+                ($stems[$stem]['directoryBaseNameCounts'][$context['directoryBaseName']] ?? 0) + 1;
+            $stems[$stem]['directoryCounts'][$context['packageDirectory']] =
+                ($stems[$stem]['directoryCounts'][$context['packageDirectory']] ?? 0) + 1;
+            $stems[$stem]['directoryRootCounts'][$context['directoryRoot']] =
+                ($stems[$stem]['directoryRootCounts'][$context['directoryRoot']] ?? 0) + 1;
+            $stems[$stem]['baseNameCounts'][$context['baseName']] =
+                ($stems[$stem]['baseNameCounts'][$context['baseName']] ?? 0) + 1;
+            $stems[$stem]['partExtensionCounts'][$context['partExtensionKey']] =
+                ($stems[$stem]['partExtensionCounts'][$context['partExtensionKey']] ?? 0) + 1;
+            $stems[$stem]['compressionMethodCounts'][$context['compressionMethod']] =
+                ($stems[$stem]['compressionMethodCounts'][$context['compressionMethod']] ?? 0) + 1;
+            $stems[$stem]['byteExposurePolicyCounts'][$context['byteExposurePolicy']] =
+                ($stems[$stem]['byteExposurePolicyCounts'][$context['byteExposurePolicy']] ?? 0) + 1;
+            $stems[$stem]['manifestMediaFamilyCounts'][$context['manifestMediaFamily']] =
+                ($stems[$stem]['manifestMediaFamilyCounts'][$context['manifestMediaFamily']] ?? 0) + 1;
+            $stems[$stem]['manifestMediaTypeBaseCounts'][$context['manifestMediaTypeBase']] =
+                ($stems[$stem]['manifestMediaTypeBaseCounts'][$context['manifestMediaTypeBase']] ?? 0) + 1;
+            if ($context['partExtension'] === null) {
+                ++$stems[$stem]['extensionlessPackagePartCount'];
+            }
+            if ((int) $context['dataDescriptorBytes'] > 0 || $context['zipUsesDataDescriptor'] === true) {
+                ++$stems[$stem]['dataDescriptorEntryCount'];
+            }
+            if ($context['sourceRecordIssues'] !== []) {
+                ++$stems[$stem]['sourceRecordIssueEntryCount'];
+            }
+            if ($context['canExposeBytes'] === true) {
+                ++$stems[$stem]['exposableEntryCount'];
+            } else {
+                ++$stems[$stem]['blockedEntryCount'];
+            }
+            foreach ($context['roles'] as $role) {
+                $stems[$stem]['roleCounts'][$role] = ($stems[$stem]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $largestEntry = $stems[$stem]['largestSourceRecordEntry'];
+            if (
+                !is_array($largestEntry)
+                || (int) $context['sourceRecordBytes'] > (int) ($largestEntry['sourceRecordBytes'] ?? 0)
+                || (
+                    (int) $context['sourceRecordBytes'] === (int) ($largestEntry['sourceRecordBytes'] ?? 0)
+                    && strcmp((string) $context['entryName'], (string) ($largestEntry['entryName'] ?? '')) < 0
+                )
+            ) {
+                $stems[$stem]['largestSourceRecordEntry'] = $entrySummary;
+            }
+        };
+
+        $directoryBaseNameStems = [];
+        $caseFoldDirectoryBaseNameStems = [];
+
+        foreach ($parts as $name => $part) {
+            if (($part['zipHasSourceRecordProvenance'] ?? false) !== true || ($part['isDirectory'] ?? false) === true) {
+                continue;
+            }
+
+            $entryName = is_string($part['path'] ?? null)
+                ? $part['path']
+                : (is_string($part['part'] ?? null) ? $part['part'] : (string) $name);
+            $pathShape = is_array($part['pathShape'] ?? null)
+                ? $part['pathShape']
+                : (is_array($part['packagePathShape'] ?? null) ? $part['packagePathShape'] : []);
+            $packageDirectory = is_string($part['packageDirectory'] ?? null)
+                ? $part['packageDirectory']
+                : (is_string($pathShape['directory'] ?? null) ? $pathShape['directory'] : null);
+            if (!is_string($packageDirectory) || $packageDirectory === '') {
+                continue;
+            }
+
+            $directoryBaseName = is_string($part['packageDirectoryBaseName'] ?? null)
+                ? $part['packageDirectoryBaseName']
+                : (is_string($pathShape['directoryBaseName'] ?? null) ? $pathShape['directoryBaseName'] : null);
+            if ($directoryBaseName === null || $directoryBaseName === '') {
+                $directorySegments = explode('/', trim($packageDirectory, '/'));
+                $directoryBaseName = $directorySegments === [] ? '' : $directorySegments[count($directorySegments) - 1];
+            }
+            if ($directoryBaseName === '') {
+                continue;
+            }
+
+            $directoryBaseNameStem = is_string($part['packageDirectoryBaseNameStem'] ?? null)
+                ? $part['packageDirectoryBaseNameStem']
+                : (is_string($pathShape['directoryBaseNameStem'] ?? null) ? $pathShape['directoryBaseNameStem'] : null);
+            if ($directoryBaseNameStem === null || $directoryBaseNameStem === '') {
+                $directoryBaseNameStem = self::packagePartBasenameStem($directoryBaseName);
+            }
+            if ($directoryBaseNameStem === '') {
+                continue;
+            }
+
+            $caseFoldDirectoryBaseNameStem = is_string($part['packageCaseFoldDirectoryBaseNameStem'] ?? null)
+                ? $part['packageCaseFoldDirectoryBaseNameStem']
+                : (is_string($pathShape['caseFoldDirectoryBaseNameStem'] ?? null)
+                    ? $pathShape['caseFoldDirectoryBaseNameStem']
+                    : strtolower($directoryBaseNameStem));
+            if ($caseFoldDirectoryBaseNameStem === '') {
+                $caseFoldDirectoryBaseNameStem = strtolower($directoryBaseNameStem);
+            }
+
+            $baseName = is_string($part['zipPackageManifestPackagePartBaseName'] ?? null)
+                ? $part['zipPackageManifestPackagePartBaseName']
+                : (is_string($part['packageBasename'] ?? null)
+                    ? $part['packageBasename']
+                    : (is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : ''));
+            $partExtension = is_string($part['zipPackageManifestPackagePartExtension'] ?? null)
+                ? $part['zipPackageManifestPackagePartExtension']
+                : (is_string($part['packagePartExtension'] ?? null) ? $part['packagePartExtension'] : null);
+            $partExtensionKey = $partExtension ?? '(none)';
+            $directoryRoot = $directoryRootForDirectory($packageDirectory);
+            $sourceRecordBytes = $intField($part, 'zipSourceRecordBytes');
+            $localRecordBytes = $intField($part, 'zipLocalRecordBytes');
+            $localHeaderBytes = $intField($part, 'zipLocalHeaderBytes');
+            $localHeaderFixedHeaderBytes = $intField($part, 'zipLocalHeaderFixedHeaderBytes');
+            $localHeaderVariableFieldBytes = $intField($part, 'zipLocalHeaderVariableFieldBytes');
+            $localHeaderRawNameBytes = $intField($part, 'zipLocalHeaderRawNameBytes');
+            $localHeaderExtraFieldBytes = $intField($part, 'zipLocalHeaderExtraFieldBytes');
+            $localHeaderReviewFieldBytes = $intField($part, 'zipLocalHeaderReviewFieldBytes');
+            $compressedDataBytes = $intField($part, 'zipCompressedDataBytes');
+            $dataDescriptorBytes = $intField($part, 'zipDataDescriptorBytes');
+            $centralDirectoryRecordBytes = $intField($part, 'zipCentralDirectoryRecordBytes');
+            $centralDirectoryFixedHeaderBytes = $intField($part, 'zipCentralDirectoryFixedHeaderBytes');
+            $centralDirectoryVariableFieldBytes = $intField($part, 'zipCentralDirectoryVariableFieldBytes');
+            $centralDirectoryRawNameBytes = $intField($part, 'zipCentralDirectoryRawNameBytes');
+            $centralDirectoryExtraFieldBytes = $intField($part, 'zipCentralDirectoryExtraFieldBytes');
+            $centralDirectoryRawCommentBytes = $intField($part, 'zipCentralDirectoryRawCommentBytes');
+            $centralDirectoryReviewFieldBytes = $intField($part, 'zipCentralDirectoryReviewFieldBytes');
+            $sourceRecordIssues = self::zipSourceRecordIssueCodesForPart($part);
+            $compressionMethod = is_int($part['compressionMethod'] ?? null) ? (string) $part['compressionMethod'] : '(missing)';
+            $byteExposurePolicy = is_string($part['byteExposurePolicy'] ?? null) && $part['byteExposurePolicy'] !== ''
+                ? $part['byteExposurePolicy']
+                : '(missing)';
+            $manifestMediaFamily = is_string($part['manifestMediaFamily'] ?? null) && $part['manifestMediaFamily'] !== ''
+                ? $part['manifestMediaFamily']
+                : '(missing)';
+            $manifestMediaTypeBase = is_string($part['manifestMediaTypeBase'] ?? null) && $part['manifestMediaTypeBase'] !== ''
+                ? $part['manifestMediaTypeBase']
+                : '(missing)';
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            $entrySummary = [
+                'entryName' => $entryName,
+                'directoryBaseNameStem' => $directoryBaseNameStem,
+                'caseFoldDirectoryBaseNameStem' => $caseFoldDirectoryBaseNameStem,
+                'directoryBaseName' => $directoryBaseName,
+                'packageDirectory' => $packageDirectory,
+                'packageBasename' => $baseName,
+                'packagePartExtension' => $partExtension,
+                'extensionlessPackagePart' => $partExtension === null,
+                'directoryRoot' => $directoryRoot,
+                'packagePathDepth' => is_int($part['packagePathDepth'] ?? null) ? $part['packagePathDepth'] : null,
+                'byteLength' => $intField($part, 'byteLength'),
+                'compressedByteLength' => $intField($part, 'compressedByteLength'),
+                'compressionMethod' => is_int($part['compressionMethod'] ?? null) ? $part['compressionMethod'] : null,
+                'compressionMethodName' => is_string($part['compressionMethodName'] ?? null) ? $part['compressionMethodName'] : null,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'localHeaderBytes' => $localHeaderBytes,
+                'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+                'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+                'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
+                'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+                'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+                'compressedDataBytes' => $compressedDataBytes,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'sourceRecordIssueCount' => count($sourceRecordIssues),
+                'sourceRecordIssues' => $sourceRecordIssues,
+                'roles' => $roles,
+                'byteExposurePolicy' => $byteExposurePolicy === '(missing)' ? null : $byteExposurePolicy,
+                'manifestMediaFamily' => $manifestMediaFamily === '(missing)' ? null : $manifestMediaFamily,
+                'manifestMediaTypeBase' => $manifestMediaTypeBase === '(missing)' ? null : $manifestMediaTypeBase,
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'undeclared' => ($part['undeclared'] ?? false) === true,
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+            ];
+            $context = [
+                'entryName' => $entryName,
+                'directoryBaseNameStem' => $directoryBaseNameStem,
+                'caseFoldDirectoryBaseNameStem' => $caseFoldDirectoryBaseNameStem,
+                'directoryBaseName' => $directoryBaseName,
+                'packageDirectory' => $packageDirectory,
+                'directoryRoot' => $directoryRoot,
+                'baseName' => $baseName,
+                'partExtension' => $partExtension,
+                'partExtensionKey' => $partExtensionKey,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'localHeaderBytes' => $localHeaderBytes,
+                'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+                'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+                'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
+                'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+                'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+                'compressedDataBytes' => $compressedDataBytes,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'sourceRecordIssues' => $sourceRecordIssues,
+                'compressionMethod' => $compressionMethod,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'manifestMediaFamily' => $manifestMediaFamily,
+                'manifestMediaTypeBase' => $manifestMediaTypeBase,
+                'roles' => $roles,
+                'zipUsesDataDescriptor' => ($part['zipUsesDataDescriptor'] ?? false) === true,
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+            ];
+
+            $recordStem($directoryBaseNameStems, $directoryBaseNameStem, 'directoryBaseNameStem', $entrySummary, $context);
+            $recordStem($caseFoldDirectoryBaseNameStems, $caseFoldDirectoryBaseNameStem, 'caseFoldDirectoryBaseNameStem', $entrySummary, $context);
+        }
+
+        $finalizeStemSummaries = static function (array $stems): array {
+            $counts = [];
+            $bytes = [];
+            $dataDescriptorEntryCount = 0;
+            $issueEntryCount = 0;
+            $duplicateCount = 0;
+            $duplicateEntryCount = 0;
+            $duplicates = [];
+            $sortDirectoryRootCounts = static function (array &$counts): void {
+                ksort($counts, SORT_STRING);
+                if (array_key_exists('/', $counts)) {
+                    $rootCount = $counts['/'];
+                    unset($counts['/']);
+                    $counts['/'] = $rootCount;
+                }
+            };
+
+            ksort($stems, SORT_STRING);
+            foreach ($stems as $stem => $summary) {
+                sort($summary['entryNames'], SORT_STRING);
+                ksort($summary['directoryBaseNameStemCounts'], SORT_STRING);
+                ksort($summary['directoryBaseNameCounts'], SORT_STRING);
+                ksort($summary['directoryCounts'], SORT_STRING);
+                $sortDirectoryRootCounts($summary['directoryRootCounts']);
+                ksort($summary['baseNameCounts'], SORT_STRING);
+                ksort($summary['partExtensionCounts'], SORT_STRING);
+                ksort($summary['compressionMethodCounts'], SORT_STRING);
+                ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+                ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+                ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+                ksort($summary['roleCounts'], SORT_STRING);
+                $summary['directoryCount'] = count($summary['directoryCounts']);
+                $summary['directoryBaseNameVariantCount'] = count($summary['directoryBaseNameCounts']);
+                $summary['directoryBaseNameStemVariantCount'] = count($summary['directoryBaseNameStemCounts']);
+                $summary['baseNameVariantCount'] = count($summary['baseNameCounts']);
+                $summary['extensionVariantCount'] = count($summary['partExtensionCounts']);
+                $stems[$stem] = $summary;
+                $counts[$stem] = $summary['entryCount'];
+                $bytes[$stem] = $summary['sourceRecordBytes'];
+                $dataDescriptorEntryCount += $summary['dataDescriptorEntryCount'];
+                $issueEntryCount += $summary['sourceRecordIssueEntryCount'];
+                if ($summary['entryCount'] > 1) {
+                    ++$duplicateCount;
+                    $duplicateEntryCount += $summary['entryCount'];
+                    $duplicates[] = $stem;
+                }
+            }
+
+            return [
+                'stems' => $stems,
+                'counts' => $counts,
+                'bytes' => $bytes,
+                'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
+                'issueEntryCount' => $issueEntryCount,
+                'duplicateCount' => $duplicateCount,
+                'duplicateEntryCount' => $duplicateEntryCount,
+                'duplicates' => $duplicates,
+            ];
+        };
+
+        $directoryBaseNameStemSummary = $finalizeStemSummaries($directoryBaseNameStems);
+        $caseFoldDirectoryBaseNameStemSummary = $finalizeStemSummaries($caseFoldDirectoryBaseNameStems);
+
+        return [
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemCount' => count($directoryBaseNameStemSummary['stems']),
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemCounts' => $directoryBaseNameStemSummary['counts'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemBytes' => $directoryBaseNameStemSummary['bytes'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemDataDescriptorEntryCount' => $directoryBaseNameStemSummary['dataDescriptorEntryCount'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStemIssueEntryCount' => $directoryBaseNameStemSummary['issueEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemCount' => $directoryBaseNameStemSummary['duplicateCount'],
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStemEntryCount' => $directoryBaseNameStemSummary['duplicateEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartDirectoryBaseNameStems' => $directoryBaseNameStemSummary['duplicates'],
+            'packageZipSourceRecordPackagePartDirectoryBaseNameStems' => array_values($directoryBaseNameStemSummary['stems']),
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCount' => count($caseFoldDirectoryBaseNameStemSummary['stems']),
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemCounts' => $caseFoldDirectoryBaseNameStemSummary['counts'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemBytes' => $caseFoldDirectoryBaseNameStemSummary['bytes'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemDataDescriptorEntryCount' => $caseFoldDirectoryBaseNameStemSummary['dataDescriptorEntryCount'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStemIssueEntryCount' => $caseFoldDirectoryBaseNameStemSummary['issueEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemCount' => $caseFoldDirectoryBaseNameStemSummary['duplicateCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStemEntryCount' => $caseFoldDirectoryBaseNameStemSummary['duplicateEntryCount'],
+            'packageZipSourceRecordDuplicatePackagePartCaseFoldDirectoryBaseNameStems' => $caseFoldDirectoryBaseNameStemSummary['duplicates'],
+            'packageZipSourceRecordPackagePartCaseFoldDirectoryBaseNameStems' => array_values($caseFoldDirectoryBaseNameStemSummary['stems']),
         ];
     }
 
