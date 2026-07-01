@@ -34921,6 +34921,25 @@ final class DocxOpenXmlReader
             'partZipSourceRecordCompressionMethods' => is_array($summary['partZipSourceRecordCompressionMethods'] ?? null)
                 ? array_values($summary['partZipSourceRecordCompressionMethods'])
                 : [],
+            'partZipSourceRecordRoleCount' => (int) ($summary['partZipSourceRecordRoleCount'] ?? 0),
+            'partZipSourceRecordRoleCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordRoleCounts'] ?? []
+            ),
+            'partZipSourceRecordRoleBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordRoleBytes'] ?? []
+            ),
+            'partZipSourceRecordRoleOccurrenceCount' => (int) (
+                $summary['partZipSourceRecordRoleOccurrenceCount'] ?? 0
+            ),
+            'partZipSourceRecordRoleDataDescriptorOccurrenceCount' => (int) (
+                $summary['partZipSourceRecordRoleDataDescriptorOccurrenceCount'] ?? 0
+            ),
+            'partZipSourceRecordRoleIssueOccurrenceCount' => (int) (
+                $summary['partZipSourceRecordRoleIssueOccurrenceCount'] ?? 0
+            ),
+            'partZipSourceRecordRoles' => is_array($summary['partZipSourceRecordRoles'] ?? null)
+                ? array_values($summary['partZipSourceRecordRoles'])
+                : [],
             'packageBasenameCount' => (int) ($summary['partBaseNameCount'] ?? 0),
             'packageBasenameCounts' => $this->packageIdentityCountMap($summary['partBaseNameCounts'] ?? []),
             'entryNamesByPackageBasename' => $this->packageIdentityStringListMap(

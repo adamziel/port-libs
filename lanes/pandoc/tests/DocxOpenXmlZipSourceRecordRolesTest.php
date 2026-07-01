@@ -11,6 +11,7 @@ return [
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $roles = docx_zip_source_record_role_index_by($summary['partZipSourceRecordRoles'], 'role');
         $expectedRoleCounts = docx_zip_source_record_role_counts($inventory);
@@ -26,6 +27,12 @@ return [
             'relationship-part',
             'root-relationship-target',
         ];
+        $repeatIdentity = (new DocxOpenXmlReader())
+            ->readZipPackage(ZipPackage::fromParts(
+                docx_zip_source_record_role_fixture_parts(),
+                'docx source role review'
+            ))
+            ->attr('docx')['packageIdentity'];
 
         $t->same('Source role buckets.', $document->children[0]->attr('text'));
         $t->same(count($expectedRoles), $summary['partZipSourceRecordRoleCount']);
@@ -38,6 +45,25 @@ return [
         $t->same(array_sum($expectedRoleCounts), $summary['partZipSourceRecordRoleOccurrenceCount']);
         $t->same(0, $summary['partZipSourceRecordRoleDataDescriptorOccurrenceCount']);
         $t->same(0, $summary['partZipSourceRecordRoleIssueOccurrenceCount']);
+        $t->same($identity, $document->attr('docx')['packageIdentity']);
+        $t->same($summary['partZipSourceRecordRoleCount'], $identity['partZipSourceRecordRoleCount']);
+        $t->same($summary['partZipSourceRecordRoleCounts'], $identity['partZipSourceRecordRoleCounts']);
+        $t->same($summary['partZipSourceRecordRoleBytes'], $identity['partZipSourceRecordRoleBytes']);
+        $t->same(
+            $summary['partZipSourceRecordRoleOccurrenceCount'],
+            $identity['partZipSourceRecordRoleOccurrenceCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordRoleDataDescriptorOccurrenceCount'],
+            $identity['partZipSourceRecordRoleDataDescriptorOccurrenceCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordRoleIssueOccurrenceCount'],
+            $identity['partZipSourceRecordRoleIssueOccurrenceCount']
+        );
+        $t->same($summary['partZipSourceRecordRoles'], $identity['partZipSourceRecordRoles']);
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->same(false, array_key_exists('contents', $identity['partZipSourceRecordRoles'][0]['largestSourceRecordPart']));
 
         $documentTargets = $roles['document-relationship-target'];
         $t->same(2, $documentTargets['partCount']);
