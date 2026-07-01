@@ -209,6 +209,33 @@ $upstreamRemoveEmptySlidesNative = <<<'NATIVE'
 ,Para [Str "More",Space,Str "content"]]
 NATIVE;
 
+$upstreamBlankJustSpeakerNotesNative = <<<'NATIVE'
+[Header 1 ("first-slide",[],[]) [Str "First",Space,Str "slide"]
+,Para [Str "Nothing",Space,Str "to",Space,Str "see",Space,Str "here"]
+,Header 1 ("section",[],[]) []
+,Div ("",["notes"],[])
+ [Para [Str "Some",Space,Str "notes",Space,Str "here:",Space,Str "this",Space,Str "first",Space,Str "slide",Space,Str "should",Space,Str "use",Space,Str "the",Space,Str "Blank",Space,Str "template"]]
+,Header 1 ("third-slide",[],[]) [Str "Third",Space,Str "slide"]
+,Para [Str "The",Space,Str "second",Space,Str "slide",Space,Str "should",Space,Str "be",Space,Str "blank"]]
+NATIVE;
+
+$upstreamBlankNbspBodyNative = <<<'NATIVE'
+[Header 1 ("first-slide",[],[]) [Str "First",Space,Str "slide"]
+,Para [Str "Uninteresting,",Space,Str "normal"]
+,Header 1 ("section",[],[]) []
+,Para [Str "\160"]
+,Header 1 ("third-slide",[],[]) [Str "Third",Space,Str "slide"]
+,Para [Str "Was",Space,Str "the",Space,Str "previous",Space,Str "one",Space,Str "blank?"]]
+NATIVE;
+
+$upstreamBlankNbspHeadingNative = <<<'NATIVE'
+[Header 1 ("first-slide",[],[]) [Str "First",Space,Str "slide"]
+,Para [Str "Uninteresting,",Space,Str "normal"]
+,Header 1 ("section",[],[]) [Str "\160"]
+,Header 1 ("third-slide",[],[]) [Str "Third",Space,Str "slide"]
+,Para [Str "Was",Space,Str "the",Space,Str "previous",Space,Str "one",Space,Str "blank?"]]
+NATIVE;
+
 $upstreamImagesNative = <<<'NATIVE'
 Pandoc (Meta {unMeta = fromList []})
 [Para [Image ("",[],[]) [] ("lalune.jpg","")]
@@ -708,6 +735,56 @@ return [
         $slide2Text = trim(preg_replace('/\s+/u', ' ', strip_tags($package->read('ppt/slides/slide2.xml'))) ?? '');
         $t->contains('More content', $slide2Text);
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream blank layout fixtures to shape-free slides' => static function (TestRunner $t) use ($upstreamBlankJustSpeakerNotesNative, $upstreamBlankNbspBodyNative, $upstreamBlankNbspHeadingNative, $mediaOptions): void {
+        $cases = [
+            'speaker notes only' => [
+                'native' => $upstreamBlankJustSpeakerNotesNative,
+                'notes' => true,
+            ],
+            'nbsp body only' => [
+                'native' => $upstreamBlankNbspBodyNative,
+                'notes' => false,
+            ],
+            'nbsp heading only' => [
+                'native' => $upstreamBlankNbspHeadingNative,
+                'notes' => false,
+            ],
+        ];
+
+        foreach ($cases as $label => $case) {
+            $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write((new NativeReader())->read($case['native'])));
+            $names = $package->names();
+
+            foreach (['ppt/slides/slide1.xml', 'ppt/slides/slide2.xml', 'ppt/slides/slide3.xml'] as $partName) {
+                $t->true(in_array($partName, $names, true), "{$label}: missing {$partName}");
+            }
+            $t->true(!in_array('ppt/slides/slide4.xml', $names, true), "{$label}: blank fixture should produce exactly three slides");
+
+            $slide1 = $package->read('ppt/slides/slide1.xml');
+            $slide2 = $package->read('ppt/slides/slide2.xml');
+            $slide3 = $package->read('ppt/slides/slide3.xml');
+            $t->contains('<a:t>First slide</a:t>', $slide1);
+            $t->contains('<a:t>Third slide</a:t>', $slide3);
+            $t->true(!str_contains($slide2, '<p:sp>'), "{$label}: blank slide must not emit title/content shapes");
+            $t->true(!str_contains($slide2, '<p:pic>'), "{$label}: blank slide must not emit pictures");
+            $t->true(!str_contains($slide2, '<a:t>'), "{$label}: blank slide must not emit visible text runs");
+            $t->true(!str_contains($slide2, 'Slide 2'), "{$label}: blank heading must not fall back to a generated title");
+            $t->true(!str_contains($slide2, "\u{00A0}"), "{$label}: NBSP-only content must not render as visible slide text");
+
+            $slide2Rels = $package->read('ppt/slides/_rels/slide2.xml.rels');
+            if ($case['notes'] === true) {
+                $t->contains('relationships/notesSlide', $slide2Rels);
+                $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+                $t->contains('Some', $notes);
+                $t->contains('Blank', $notes);
+                $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+            } else {
+                $t->true(!str_contains($slide2Rels, 'relationships/notesSlide'), "{$label}: non-note blank slide must not emit notes relationships");
+            }
+            $t->contains('<Slides>3</Slides>', $package->read('docProps/app.xml'));
+        }
     },
 
     'maps upstream image-only and figure-caption slides' => static function (TestRunner $t) use ($upstreamImagesNative, $mediaOptions): void {

@@ -221,12 +221,7 @@ final class PptxWriter
                 if ($current !== null) {
                     $slides[] = $current;
                 }
-                $title = $this->blockText($block);
-                $current = $this->newSlide(
-                    $title !== '' ? $title : 'Slide ' . (count($slides) + 1),
-                    $this->backgroundImageForBlock($block),
-                    $title !== '' ? $block->children : null
-                );
+                $current = $this->headingSlide($block);
                 if ($pendingMetadataNotes !== []) {
                     array_push($current['notes'], ...$pendingMetadataNotes);
                     $pendingMetadataNotes = [];
@@ -235,12 +230,7 @@ final class PptxWriter
             }
 
             if ($slideLevel === 0 && $block->type === 'heading' && $current === null) {
-                $title = $this->blockText($block);
-                $current = $this->newSlide(
-                    $title !== '' ? $title : 'Slide ' . (count($slides) + 1),
-                    $this->backgroundImageForBlock($block),
-                    $title !== '' ? $block->children : null
-                );
+                $current = $this->headingSlide($block);
                 if ($pendingMetadataNotes !== []) {
                     array_push($current['notes'], ...$pendingMetadataNotes);
                     $pendingMetadataNotes = [];
@@ -285,6 +275,19 @@ final class PptxWriter
         $slides[] = $current;
 
         return $slides;
+    }
+
+    /**
+     * @return array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}
+     */
+    private function headingSlide(AstNode $heading): array
+    {
+        $title = $this->blockText($heading);
+        if ($title === '') {
+            return $this->newSlide('', $this->backgroundImageForBlock($heading), []);
+        }
+
+        return $this->newSlide($title, $this->backgroundImageForBlock($heading), $heading->children);
     }
 
     /**
