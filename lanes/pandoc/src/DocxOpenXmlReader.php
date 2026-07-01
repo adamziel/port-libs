@@ -12346,6 +12346,28 @@ final class DocxOpenXmlReader
         $summary['zipSourcePlatformAttributeIssueEntries'] = is_array($zipSourceRecords['platformAttributeIssueEntries'] ?? null)
             ? $zipSourceRecords['platformAttributeIssueEntries']
             : [];
+        $summary['zipSourceCreatorHostSystemEntryCount'] = (int) ($zipSourceRecords['creatorHostSystemEntryCount'] ?? 0);
+        $summary['zipSourceKnownCreatorHostSystemEntryCount'] = (int) ($zipSourceRecords['knownCreatorHostSystemEntryCount'] ?? 0);
+        $summary['zipSourceUnknownCreatorHostSystemEntryCount'] = (int) ($zipSourceRecords['unknownCreatorHostSystemEntryCount'] ?? 0);
+        $summary['zipSourceCreatorVersionMeetsNeededEntryCount'] = (int) ($zipSourceRecords['creatorVersionMeetsNeededEntryCount'] ?? 0);
+        $summary['zipSourceCreatorVersionBelowNeededEntryCount'] = (int) ($zipSourceRecords['creatorVersionBelowNeededEntryCount'] ?? 0);
+        $summary['zipSourceCreatorVersionEqualNeededEntryCount'] = (int) ($zipSourceRecords['creatorVersionEqualNeededEntryCount'] ?? 0);
+        $summary['zipSourceCreatorVersionAboveNeededEntryCount'] = (int) ($zipSourceRecords['creatorVersionAboveNeededEntryCount'] ?? 0);
+        $summary['zipSourceCreatorVersionComparisonCounts'] = is_array($zipSourceRecords['creatorVersionComparisonCounts'] ?? null)
+            ? $zipSourceRecords['creatorVersionComparisonCounts']
+            : [];
+        $summary['zipSourceCreatorHostSystems'] = is_array($zipSourceRecords['creatorHostSystems'] ?? null)
+            ? $zipSourceRecords['creatorHostSystems']
+            : [];
+        $summary['zipSourceUnknownCreatorHostSystemEntries'] = is_array($zipSourceRecords['unknownCreatorHostSystemEntries'] ?? null)
+            ? $zipSourceRecords['unknownCreatorHostSystemEntries']
+            : [];
+        $summary['zipSourceCreatorVersionBelowNeededEntries'] = is_array($zipSourceRecords['creatorVersionBelowNeededEntries'] ?? null)
+            ? $zipSourceRecords['creatorVersionBelowNeededEntries']
+            : [];
+        $summary['zipSourceCreatorVersionEntries'] = is_array($zipSourceRecords['creatorVersionEntries'] ?? null)
+            ? $zipSourceRecords['creatorVersionEntries']
+            : [];
         $summary['zipSourceLocalHeaderFixedFieldEntryCount'] = (int) ($zipSourceRecords['localHeaderFixedFieldEntryCount'] ?? 0);
         $summary['zipSourceLocalHeaderFixedFieldIssueEntryCount'] = (int) ($zipSourceRecords['localHeaderFixedFieldIssueEntryCount'] ?? 0);
         $summary['zipSourceLocalHeaderFixedFieldEntries'] = is_array($zipSourceRecords['localHeaderFixedFieldEntries'] ?? null)
@@ -12885,6 +12907,22 @@ final class DocxOpenXmlReader
             'platformAttributeIssues' => [],
             'platformAttributeProvenanceEntries' => [],
             'platformAttributeIssueEntries' => [],
+            'creatorHostSystemEntryCount' => 0,
+            'knownCreatorHostSystemEntryCount' => 0,
+            'unknownCreatorHostSystemEntryCount' => 0,
+            'creatorVersionMeetsNeededEntryCount' => 0,
+            'creatorVersionBelowNeededEntryCount' => 0,
+            'creatorVersionEqualNeededEntryCount' => 0,
+            'creatorVersionAboveNeededEntryCount' => 0,
+            'creatorVersionComparisonCounts' => [
+                'below-needed' => 0,
+                'equals-needed' => 0,
+                'above-needed' => 0,
+            ],
+            'creatorHostSystems' => [],
+            'unknownCreatorHostSystemEntries' => [],
+            'creatorVersionBelowNeededEntries' => [],
+            'creatorVersionEntries' => [],
             'localHeaderFixedFieldEntryCount' => 0,
             'localHeaderFixedFieldIssueEntryCount' => 0,
             'localHeaderFixedFieldEntries' => [],
@@ -12964,6 +13002,7 @@ final class DocxOpenXmlReader
             $entries[] = $sourceEntry;
             $byPackagePath[$entry['name']] = $sourceEntry;
         }
+        $creatorHostSystems = $this->zipSourceRecordCreatorHostSystemProvenance($entries, $sourcePackage);
 
         $issues = array_values(array_filter(
             is_array($preflight['selectedSourceByteSpanIssues'] ?? null)
@@ -13011,6 +13050,18 @@ final class DocxOpenXmlReader
             'platformAttributeIssueEntries' => is_array($preflight['selectedPlatformAttributeIssueEntries'] ?? null)
                 ? $preflight['selectedPlatformAttributeIssueEntries']
                 : [],
+            'creatorHostSystemEntryCount' => $creatorHostSystems['entryCount'],
+            'knownCreatorHostSystemEntryCount' => $creatorHostSystems['knownHostSystemEntryCount'],
+            'unknownCreatorHostSystemEntryCount' => $creatorHostSystems['unknownHostSystemEntryCount'],
+            'creatorVersionMeetsNeededEntryCount' => $creatorHostSystems['creatorVersionMeetsNeededEntryCount'],
+            'creatorVersionBelowNeededEntryCount' => $creatorHostSystems['creatorVersionBelowNeededEntryCount'],
+            'creatorVersionEqualNeededEntryCount' => $creatorHostSystems['creatorVersionEqualNeededEntryCount'],
+            'creatorVersionAboveNeededEntryCount' => $creatorHostSystems['creatorVersionAboveNeededEntryCount'],
+            'creatorVersionComparisonCounts' => $creatorHostSystems['creatorVersionComparisonCounts'],
+            'creatorHostSystems' => $creatorHostSystems['hostSystems'],
+            'unknownCreatorHostSystemEntries' => $creatorHostSystems['unknownEntries'],
+            'creatorVersionBelowNeededEntries' => $creatorHostSystems['creatorVersionBelowNeededEntries'],
+            'creatorVersionEntries' => $creatorHostSystems['entries'],
             'localHeaderFixedFieldEntryCount' => (int) ($preflight['selectedLocalHeaderFixedFieldEntryCount'] ?? 0),
             'localHeaderFixedFieldIssueEntryCount' => (int) ($preflight['selectedLocalHeaderFixedFieldIssueEntryCount'] ?? 0),
             'localHeaderFixedFieldEntries' => is_array($preflight['selectedLocalHeaderFixedFieldEntries'] ?? null)
@@ -13032,6 +13083,116 @@ final class DocxOpenXmlReader
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array<string, mixed>
+     */
+    private function zipSourceRecordCreatorHostSystemProvenance(array $entries, ZipPackage $sourcePackage): array
+    {
+        $creatorEntries = [];
+        $unknownEntries = [];
+        $creatorVersionBelowNeededEntries = [];
+        $hostSystems = [];
+        $creatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 0,
+            'above-needed' => 0,
+        ];
+        $packageCreatorEntriesByName = [];
+        $packageCreatorHosts = $sourcePackage->creatorHostSystemPreflight();
+        foreach (($packageCreatorHosts['entries'] ?? []) as $creatorEntry) {
+            if (is_array($creatorEntry) && is_string($creatorEntry['name'] ?? null)) {
+                $packageCreatorEntriesByName[$creatorEntry['name']] = $creatorEntry;
+            }
+        }
+
+        foreach ($entries as $entry) {
+            $entryName = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $creatorEntry = $packageCreatorEntriesByName[$entryName] ?? null;
+            if (is_array($creatorEntry)) {
+                $entry = $creatorEntry + $entry;
+            }
+
+            if (!is_int($entry['madeByHostSystem'] ?? null)) {
+                continue;
+            }
+
+            $hostSystem = (int) $entry['madeByHostSystem'];
+            $hostSystemName = is_string($entry['madeByHostSystemName'] ?? null)
+                ? $entry['madeByHostSystemName']
+                : 'unknown';
+            $madeByVersion = is_int($entry['madeByVersion'] ?? null) ? $entry['madeByVersion'] : null;
+            $versionNeededToExtract = is_int($entry['versionNeededToExtract'] ?? null)
+                ? $entry['versionNeededToExtract']
+                : null;
+            $creatorVersionDelta = $madeByVersion !== null && $versionNeededToExtract !== null
+                ? $madeByVersion - $versionNeededToExtract
+                : 0;
+            $creatorVersionComparison = $creatorVersionDelta < 0
+                ? 'below-needed'
+                : ($creatorVersionDelta === 0 ? 'equals-needed' : 'above-needed');
+            $creatorVersionComparisonCounts[$creatorVersionComparison]++;
+            $creatorVersionMeetsNeeded = $creatorVersionDelta >= 0;
+            $isKnown = $hostSystemName !== 'unknown';
+            $issues = [];
+            if (!$isKnown) {
+                $issues[] = 'unknown-creator-host-system';
+            }
+            if (!$creatorVersionMeetsNeeded) {
+                $issues[] = 'creator-version-below-version-needed';
+            }
+
+            $summary = [
+                'name' => $entryName,
+                'madeByHostSystem' => $hostSystem,
+                'madeByHostSystemName' => $hostSystemName,
+                'madeByVersion' => $madeByVersion,
+                'versionNeededToExtract' => $versionNeededToExtract,
+                'creatorVersionMeetsNeeded' => $creatorVersionMeetsNeeded,
+                'creatorVersionComparison' => $creatorVersionComparison,
+                'creatorVersionDelta' => $creatorVersionDelta,
+                'versionMadeBy' => is_int($entry['versionMadeBy'] ?? null) ? $entry['versionMadeBy'] : null,
+                'isKnown' => $isKnown,
+                'issues' => $issues,
+            ];
+            $creatorEntries[] = $summary;
+            if (!$isKnown) {
+                $unknownEntries[] = $summary;
+            }
+            if (!$creatorVersionMeetsNeeded) {
+                $creatorVersionBelowNeededEntries[] = $summary;
+            }
+
+            if (!isset($hostSystems[$hostSystem])) {
+                $hostSystems[$hostSystem] = [
+                    'id' => $hostSystem,
+                    'name' => $hostSystemName,
+                    'isKnown' => $isKnown,
+                    'entryCount' => 0,
+                ];
+            }
+            ++$hostSystems[$hostSystem]['entryCount'];
+        }
+
+        ksort($hostSystems, SORT_NUMERIC);
+
+        return [
+            'entryCount' => count($creatorEntries),
+            'knownHostSystemEntryCount' => count($creatorEntries) - count($unknownEntries),
+            'unknownHostSystemEntryCount' => count($unknownEntries),
+            'creatorVersionMeetsNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed']
+                + $creatorVersionComparisonCounts['above-needed'],
+            'creatorVersionBelowNeededEntryCount' => count($creatorVersionBelowNeededEntries),
+            'creatorVersionEqualNeededEntryCount' => $creatorVersionComparisonCounts['equals-needed'],
+            'creatorVersionAboveNeededEntryCount' => $creatorVersionComparisonCounts['above-needed'],
+            'creatorVersionComparisonCounts' => $creatorVersionComparisonCounts,
+            'hostSystems' => array_values($hostSystems),
+            'unknownEntries' => $unknownEntries,
+            'creatorVersionBelowNeededEntries' => $creatorVersionBelowNeededEntries,
+            'entries' => $creatorEntries,
         ];
     }
 

@@ -734,6 +734,11 @@ XML,
         $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
         $coreEntry = $zipPackage['byPackagePath']['docProps/core.xml'];
         $stylesEntry = $zipPackage['byPackagePath']['word/styles.xml'];
+        $sourceRecordCount = $sourceRecords['entryCount'];
+        $creatorEntriesByName = [];
+        foreach ($sourceRecords['creatorVersionEntries'] as $creatorEntry) {
+            $creatorEntriesByName[$creatorEntry['name']] = $creatorEntry;
+        }
 
         $t->same(4, $sourceRecords['platformAttributeProvenanceEntryCount']);
         $t->same(3, $sourceRecords['externalAttributeEntryCount']);
@@ -759,6 +764,36 @@ XML,
         $t->same($sourceRecords['platformAttributeIssues'], $summary['zipSourcePlatformAttributeIssues']);
         $t->same($sourceRecords['platformAttributeProvenanceEntries'], $summary['zipSourcePlatformAttributeProvenanceEntries']);
         $t->same($sourceRecords['platformAttributeIssueEntries'], $summary['zipSourcePlatformAttributeIssueEntries']);
+        $t->same($sourceRecordCount, $sourceRecords['creatorHostSystemEntryCount']);
+        $t->same($sourceRecordCount, $sourceRecords['knownCreatorHostSystemEntryCount']);
+        $t->same(0, $sourceRecords['unknownCreatorHostSystemEntryCount']);
+        $t->same($sourceRecordCount, $sourceRecords['creatorVersionMeetsNeededEntryCount']);
+        $t->same(0, $sourceRecords['creatorVersionBelowNeededEntryCount']);
+        $t->same($sourceRecordCount, $sourceRecords['creatorVersionEqualNeededEntryCount']);
+        $t->same(0, $sourceRecords['creatorVersionAboveNeededEntryCount']);
+        $t->same([
+            'below-needed' => 0,
+            'equals-needed' => $sourceRecordCount,
+            'above-needed' => 0,
+        ], $sourceRecords['creatorVersionComparisonCounts']);
+        $t->same([
+            ['id' => 3, 'name' => 'unix', 'isKnown' => true, 'entryCount' => $sourceRecordCount - 1],
+            ['id' => 10, 'name' => 'windows-ntfs', 'isKnown' => true, 'entryCount' => 1],
+        ], $sourceRecords['creatorHostSystems']);
+        $t->same([], $sourceRecords['unknownCreatorHostSystemEntries']);
+        $t->same([], $sourceRecords['creatorVersionBelowNeededEntries']);
+        $t->same($sourceRecords['creatorHostSystemEntryCount'], $summary['zipSourceCreatorHostSystemEntryCount']);
+        $t->same($sourceRecords['knownCreatorHostSystemEntryCount'], $summary['zipSourceKnownCreatorHostSystemEntryCount']);
+        $t->same($sourceRecords['unknownCreatorHostSystemEntryCount'], $summary['zipSourceUnknownCreatorHostSystemEntryCount']);
+        $t->same($sourceRecords['creatorVersionMeetsNeededEntryCount'], $summary['zipSourceCreatorVersionMeetsNeededEntryCount']);
+        $t->same($sourceRecords['creatorVersionBelowNeededEntryCount'], $summary['zipSourceCreatorVersionBelowNeededEntryCount']);
+        $t->same($sourceRecords['creatorVersionEqualNeededEntryCount'], $summary['zipSourceCreatorVersionEqualNeededEntryCount']);
+        $t->same($sourceRecords['creatorVersionAboveNeededEntryCount'], $summary['zipSourceCreatorVersionAboveNeededEntryCount']);
+        $t->same($sourceRecords['creatorVersionComparisonCounts'], $summary['zipSourceCreatorVersionComparisonCounts']);
+        $t->same($sourceRecords['creatorHostSystems'], $summary['zipSourceCreatorHostSystems']);
+        $t->same($sourceRecords['unknownCreatorHostSystemEntries'], $summary['zipSourceUnknownCreatorHostSystemEntries']);
+        $t->same($sourceRecords['creatorVersionBelowNeededEntries'], $summary['zipSourceCreatorVersionBelowNeededEntries']);
+        $t->same($sourceRecords['creatorVersionEntries'], $summary['zipSourceCreatorVersionEntries']);
 
         $t->same(3, $documentEntry['madeByHostSystem']);
         $t->same('unix', $documentEntry['madeByHostSystemName']);
@@ -780,6 +815,12 @@ XML,
 
         $t->same(10, $coreEntry['madeByHostSystem']);
         $t->same('windows-ntfs', $coreEntry['madeByHostSystemName']);
+        $t->same(10, $creatorEntriesByName['docProps/core.xml']['madeByHostSystem']);
+        $t->same('windows-ntfs', $creatorEntriesByName['docProps/core.xml']['madeByHostSystemName']);
+        $t->same('equals-needed', $creatorEntriesByName['docProps/core.xml']['creatorVersionComparison']);
+        $t->same(0, $creatorEntriesByName['docProps/core.xml']['creatorVersionDelta']);
+        $t->same(true, $creatorEntriesByName['docProps/core.xml']['creatorVersionMeetsNeeded']);
+        $t->same([], $creatorEntriesByName['docProps/core.xml']['issues']);
         $t->same(0x00000022, $coreEntry['externalAttributes']);
         $t->same('00000022', $coreEntry['externalAttributesHex']);
         $t->same(['hidden', 'archive'], $coreEntry['dosAttributeNames']);
