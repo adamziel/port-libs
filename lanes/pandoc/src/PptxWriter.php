@@ -255,8 +255,9 @@ final class PptxWriter
                 $slides[] = $current;
                 $current = null;
             }
+            [$block, $nestedSpeakerNotes] = $this->extractSpeakerNotesFromBlock($block);
             if ($current === null) {
-                $current = $this->isImageOnlyBlock($block)
+                $current = $block !== null && $this->isImageOnlyBlock($block)
                     ? $this->newSlide('', null, [])
                     : $this->newSlide($this->initialContentSlideTitle($metadata));
                 if ($pendingMetadataNotes !== []) {
@@ -264,7 +265,12 @@ final class PptxWriter
                     $pendingMetadataNotes = [];
                 }
             }
-            $current['blocks'][] = $block;
+            if ($nestedSpeakerNotes !== []) {
+                array_push($current['notes'], ...$nestedSpeakerNotes);
+            }
+            if ($block !== null) {
+                $current['blocks'][] = $block;
+            }
         }
 
         if ($current === null) {
@@ -2407,6 +2413,46 @@ final class PptxWriter
         $classes = $block->attr('classes', []);
 
         return is_array($classes) && in_array('notes', $classes, true);
+    }
+
+    /**
+     * @return array{0:?AstNode,1:list<AstNode>}
+     */
+    private function extractSpeakerNotesFromBlock(AstNode $block): array
+    {
+        if ($this->isSpeakerNotesBlock($block)) {
+            return [null, $block->children];
+        }
+        if ($block->children === []) {
+            return [$block, []];
+        }
+
+        $notes = [];
+        $children = [];
+        $changed = false;
+        foreach ($block->children as $child) {
+            [$cleanChild, $childNotes] = $this->extractSpeakerNotesFromBlock($child);
+            if ($childNotes !== []) {
+                array_push($notes, ...$childNotes);
+            }
+            if ($cleanChild === null) {
+                $changed = true;
+                continue;
+            }
+            if ($cleanChild !== $child) {
+                $changed = true;
+            }
+            $children[] = $cleanChild;
+        }
+
+        if (!$changed) {
+            return [$block, $notes];
+        }
+        if ($children === [] && in_array($block->type, ['div', 'block_quote', 'blockquote'], true)) {
+            return [null, $notes];
+        }
+
+        return [new AstNode($block->type, $block->attrs, $children), $notes];
     }
 
     /**

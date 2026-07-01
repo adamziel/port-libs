@@ -100,6 +100,72 @@ Pandoc (Meta {unMeta = fromList [("author",MetaInlines [Str "Jesse",Space,Str "R
 ,Para [Str "And",Space,Str "a",Space,Str "new",Space,Str "slide."]]
 NATIVE;
 
+$upstreamSpeakerNotesAfterSepsNative = <<<'NATIVE'
+[Para [Image ("",[],[]) [Str "The",Space,Str "moon"] ("lalune.jpg","fig:")]
+,Div ("",["notes"],[])
+ [Para [Str "chicken",Space,Str "and",Space,Str "dumplings"]]
+,Table ("",[],[]) (Caption Nothing
+ [Para [Str "Demonstration",Space,Str "of",Space,Str "simple",Space,Str "table",Space,Str "syntax,",Space,Str "with",Space,Str "alignment"]])
+ [(AlignRight,ColWidthDefault)
+ ,(AlignLeft,ColWidthDefault)
+ ,(AlignCenter,ColWidthDefault)
+ ,(AlignDefault,ColWidthDefault)]
+ (TableHead ("",[],[])
+ [Row ("",[],[])
+  [Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+   [Plain [Str "Right"]]
+  ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+   [Plain [Str "Left"]]
+  ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+   [Plain [Str "Center"]]
+  ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+   [Plain [Str "Default"]]]])
+ [(TableBody ("",[],[]) (RowHeadColumns 0)
+  []
+  [Row ("",[],[])
+   [Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "12"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "12"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "12"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "12"]]]
+  ,Row ("",[],[])
+   [Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "123"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "123"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "123"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "123"]]]
+  ,Row ("",[],[])
+   [Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "1"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "1"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "1"]]
+   ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+    [Plain [Str "1"]]]])]
+ (TableFoot ("",[],[])
+ [])
+,Div ("",["notes"],[])
+ [Para [Str "foo",Space,Str "bar"]]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[])
+  [BulletList
+   [[Para [Str "some",Space,Str "stuff"]]
+   ,[Para [Str "some",Space,Str "more",Space,Str "stuff"]]]
+  ,Div ("",["notes"],[])
+   [Para [Str "Some",Space,Str "notes",Space,Str "inside",Space,Str "a",Space,Str "column"]]]
+ ,Div ("",["column"],[])
+  [Para [Str "Some",Space,Str "other",Space,Emph [Str "stuff"]]]]
+,Div ("",["notes"],[])
+ [Para [Str "Some",Space,Str "notes",Space,Str "outside",Space,Str "the",Space,Str "column"]]]
+NATIVE;
+
 $upstreamRawOpenXmlNative = <<<'NATIVE'
 [Para [Str "Here",Space,Str "is",Space,Str "some",Space,Str "text,",Space,Str "written",Space,Str "as",Space,Str "a",Space,Str "raw",Space,Str "inline:",Space,RawInline (Format "openxml") "<a:r><a:rPr /><a:t>Here are examples of </a:t></a:r><a:r><a:rPr i=\"1\" /><a:t>italics</a:t></a:r><a:r><a:rPr /><a:t>, </a:t></a:r><a:r><a:rPr b=\"1\" /><a:t>bold</a:t></a:r>"]
 ,HorizontalRule
@@ -629,6 +695,50 @@ return [
         $t->contains('Some speaker notes', $notes1);
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream speaker notes after separators including nested column notes' => static function (TestRunner $t) use ($upstreamSpeakerNotesAfterSepsNative, $mediaOptions): void {
+        $imageOptions = $mediaOptions;
+        $imageOptions['mediaResources']['lalune.jpg'] = [
+            'data' => "\xff\xd8fake-jpeg",
+            'mimeType' => 'image/jpeg',
+        ];
+
+        $document = (new NativeReader())->read($upstreamSpeakerNotesAfterSepsNative);
+        $package = ZipPackage::fromString((new PptxWriter($imageOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected image-only slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected table and columns slide');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'Speaker-notes-afterseps fixture should produce exactly two slides');
+        $t->true(in_array('ppt/notesSlides/notesSlide1.xml', $names, true), 'Expected notes part for image slide');
+        $t->true(in_array('ppt/notesSlides/notesSlide2.xml', $names, true), 'Expected notes part for table/columns slide');
+        $t->true(!in_array('ppt/notesSlides/notesSlide3.xml', $names, true), 'Only two slides should have speaker notes');
+
+        $slide1Rels = $package->read('ppt/slides/_rels/slide1.xml.rels');
+        $slide2Rels = $package->read('ppt/slides/_rels/slide2.xml.rels');
+        $t->contains('../notesSlides/notesSlide1.xml', $slide1Rels);
+        $t->contains('../notesSlides/notesSlide2.xml', $slide2Rels);
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $t->contains('Right', $slide2);
+        $t->contains('some stuff', $slide2);
+        $t->contains('Some other', $slide2);
+        $t->true(!str_contains($slide2, 'Some notes inside a column'), 'Nested column speaker notes must not render as slide body text');
+        $t->true(!str_contains($slide2, 'Some notes outside the column'), 'Trailing speaker notes must not render as slide body text');
+
+        $notes1 = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $t->contains('chicken', $notes1);
+        $t->contains('dumplings', $notes1);
+
+        $notes2 = $package->read('ppt/notesSlides/notesSlide2.xml');
+        $t->contains('foo bar', $notes2);
+        $t->contains('Some notes inside a column', $notes2);
+        $t->contains('Some notes outside the column', $notes2);
+
+        $app = $package->read('docProps/app.xml');
+        $t->contains('<Slides>2</Slides>', $app);
+        $t->contains('<Notes>2</Notes>', $app);
     },
 
     'passes upstream raw OpenXML fixture through generated slide XML' => static function (TestRunner $t) use ($upstreamRawOpenXmlNative, $mediaOptions): void {
