@@ -3111,13 +3111,15 @@ final class PptxReader
         if (!$dataRoot instanceof \DOMElement || !$layoutRoot instanceof \DOMElement) {
             return $this->paragraph('[Diagram parse error: diagram-invalid-xml]');
         }
-        if (!$this->firstDiagramChildElement($dataRoot, 'ptLst') instanceof \DOMElement) {
+        $dataDiagramNamespace = $this->localNamespaceForPrefix($dataRoot, 'dgm');
+        $layoutDiagramNamespace = $this->localNamespaceForPrefix($layoutRoot, 'dgm');
+        if (!$this->firstDiagramChildElement($dataRoot, 'ptLst', $dataDiagramNamespace) instanceof \DOMElement) {
             return $this->paragraph('[Diagram parse error: Missing dgm:ptLst]');
         }
 
-        $layoutType = $this->diagramLayoutType($layoutRoot);
+        $layoutType = $this->diagramLayoutType($layoutRoot, $layoutDiagramNamespace);
         $children = [];
-        foreach ($this->diagramNodes($dataRoot) as $node) {
+        foreach ($this->diagramNodes($dataRoot, $dataDiagramNamespace) as $node) {
             $children[] = new AstNode('paragraph', [], [
                 new AstNode('strong', [], $this->textInlines($node['text'])),
             ]);
@@ -3146,7 +3148,7 @@ final class PptxReader
         return $target;
     }
 
-    private function diagramLayoutType(\DOMElement $layoutRoot): string
+    private function diagramLayoutType(\DOMElement $layoutRoot, ?string $diagramNamespace): string
     {
         $uniqueId = $layoutRoot->getAttribute('uniqueId');
         if ($uniqueId !== '') {
@@ -3155,7 +3157,7 @@ final class PptxReader
             return $position === false ? $uniqueId : substr($uniqueId, $position + 1);
         }
 
-        $title = $this->firstDiagramChildElement($layoutRoot, 'title');
+        $title = $this->firstDiagramChildElement($layoutRoot, 'title', $diagramNamespace);
 
         return $title instanceof \DOMElement && $title->hasAttribute('val') ? $title->getAttribute('val') : 'unknown';
     }
@@ -3163,20 +3165,20 @@ final class PptxReader
     /**
      * @return list<array{text:string, children:list<string>}>
      */
-    private function diagramNodes(\DOMElement $dataRoot): array
+    private function diagramNodes(\DOMElement $dataRoot, ?string $diagramNamespace): array
     {
-        $pointList = $this->firstDiagramChildElement($dataRoot, 'ptLst');
+        $pointList = $this->firstDiagramChildElement($dataRoot, 'ptLst', $diagramNamespace);
         if (!$pointList instanceof \DOMElement) {
             return [];
         }
 
         $nodeText = [];
-        foreach ($this->diagramChildElements($pointList, 'pt') as $pointElement) {
+        foreach ($this->diagramChildElements($pointList, 'pt', $diagramNamespace) as $pointElement) {
             if (!$pointElement->hasAttribute('modelId')) {
                 continue;
             }
             $modelId = $pointElement->getAttribute('modelId');
-            $textElement = $this->firstDiagramChildElement($pointElement, 't');
+            $textElement = $this->firstDiagramChildElement($pointElement, 't', $diagramNamespace);
             $text = $textElement instanceof \DOMElement ? $this->allDescendantText($textElement) : '';
             if (trim($text) !== '') {
                 $nodeText[$modelId] = $text;
@@ -3184,9 +3186,9 @@ final class PptxReader
         }
 
         $childrenByParent = [];
-        $connectionList = $this->firstDiagramChildElement($dataRoot, 'cxnLst');
+        $connectionList = $this->firstDiagramChildElement($dataRoot, 'cxnLst', $diagramNamespace);
         if ($connectionList instanceof \DOMElement) {
-            foreach ($this->diagramChildElements($connectionList, 'cxn') as $connectionElement) {
+            foreach ($this->diagramChildElements($connectionList, 'cxn', $diagramNamespace) as $connectionElement) {
                 if ($connectionElement->getAttribute('type') !== '') {
                     continue;
                 }
@@ -3222,9 +3224,9 @@ final class PptxReader
         return $nodes;
     }
 
-    private function firstDiagramChildElement(\DOMElement $parent, string $localName): ?\DOMElement
+    private function firstDiagramChildElement(\DOMElement $parent, string $localName, ?string $diagramNamespace): ?\DOMElement
     {
-        foreach ($this->diagramChildElements($parent, $localName) as $child) {
+        foreach ($this->diagramChildElements($parent, $localName, $diagramNamespace) as $child) {
             return $child;
         }
 
@@ -3234,11 +3236,12 @@ final class PptxReader
     /**
      * @return list<\DOMElement>
      */
-    private function diagramChildElements(\DOMElement $parent, string $localName): array
+    private function diagramChildElements(\DOMElement $parent, string $localName, ?string $diagramNamespace): array
     {
         return array_values(array_filter(
             $this->childElements($parent, $localName),
-            static fn (\DOMElement $child): bool => $child->namespaceURI === self::DIAGRAM_NAMESPACE
+            static fn (\DOMElement $child): bool => $child->namespaceURI === $diagramNamespace
+                && ($diagramNamespace !== null || $child->prefix === 'dgm')
         ));
     }
 
