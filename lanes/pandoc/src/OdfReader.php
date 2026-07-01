@@ -1492,6 +1492,9 @@ final class OdfReader
         $packageAreaCompressedByteLengths = [];
         $packageAreaSummaries = [];
         $packagePathsByPackageArea = [];
+        $packagePathKindCounts = [];
+        $packageTopLevelSegmentCounts = [];
+        $packagePathExtensionCounts = [];
         $packagePathDepthCounts = [];
         $packagePathsByPathDepth = [];
         $maxPackagePathDepth = 0;
@@ -1682,8 +1685,9 @@ final class OdfReader
             $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
-            $packageArea = self::packagePathArea($entry->name, $entry->isDirectory());
-            $packagePathDepth = self::packagePathDepth($entry->name);
+            $packagePathShape = self::packagePathShape($entry->name, $entry->isDirectory());
+            $packageArea = self::packagePathAreaFromShape($packagePathShape);
+            $packagePathDepth = self::packagePathDepthFromShape($packagePathShape);
             $packagePartExtension = self::packagePartExtension($entry->name);
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
@@ -1712,6 +1716,11 @@ final class OdfReader
 
             $parts[$entry->name] = [
                 'part' => $entry->name,
+                'packagePathShape' => $packagePathShape,
+                'packagePathKind' => $packagePathShape['kind'] ?? null,
+                'packageTopLevelSegment' => $packagePathShape['topLevelSegment'] ?? null,
+                'packageDirectory' => $packagePathShape['directory'] ?? null,
+                'packageBasename' => $packagePathShape['basename'] ?? null,
                 'packageArea' => $packageArea,
                 'packagePathDepth' => $packagePathDepth,
                 'packagePartExtension' => $packagePartExtension,
@@ -1838,6 +1847,18 @@ final class OdfReader
                     'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 ]);
             }
+            $pathKind = $packagePathShape['kind'] ?? null;
+            if (is_string($pathKind) && $pathKind !== '') {
+                $packagePathKindCounts[$pathKind] = ($packagePathKindCounts[$pathKind] ?? 0) + 1;
+            }
+            $topLevelSegment = $packagePathShape['topLevelSegment'] ?? null;
+            if (is_string($topLevelSegment) && $topLevelSegment !== '') {
+                $packageTopLevelSegmentCounts[$topLevelSegment] = ($packageTopLevelSegmentCounts[$topLevelSegment] ?? 0) + 1;
+            }
+            $pathExtension = $packagePathShape['extension'] ?? null;
+            if (is_string($pathExtension) && $pathExtension !== '') {
+                $packagePathExtensionCounts[$pathExtension] = ($packagePathExtensionCounts[$pathExtension] ?? 0) + 1;
+            }
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
                 $roleByteLengths[$role] = ($roleByteLengths[$role] ?? 0) + $entry->uncompressedSize;
@@ -1909,6 +1930,9 @@ final class OdfReader
         ksort($packageAreaByteLengths, SORT_STRING);
         ksort($packageAreaCompressedByteLengths, SORT_STRING);
         self::sortPackageStringListMap($packagePathsByPackageArea, SORT_STRING);
+        ksort($packagePathKindCounts, SORT_STRING);
+        ksort($packageTopLevelSegmentCounts, SORT_STRING);
+        ksort($packagePathExtensionCounts, SORT_STRING);
         ksort($packagePathDepthCounts, SORT_NUMERIC);
         self::sortPackageStringListMap($packagePathsByPathDepth, SORT_NUMERIC);
         $packageAreaSummaries = self::finalizePackageAreaSummaries($packageAreaSummaries);
@@ -1983,6 +2007,9 @@ final class OdfReader
             'packageAreaCompressedByteLengths' => $packageAreaCompressedByteLengths,
             'packageAreaSummaries' => $packageAreaSummaries,
             'packagePathsByPackageArea' => $packagePathsByPackageArea,
+            'packagePathKindCounts' => $packagePathKindCounts,
+            'packageTopLevelSegmentCounts' => $packageTopLevelSegmentCounts,
+            'packagePathExtensionCounts' => $packagePathExtensionCounts,
             'packagePathDepthCounts' => $packagePathDepthCounts,
             'packagePathsByPathDepth' => $packagePathsByPathDepth,
             'maxPackagePathDepth' => $maxPackagePathDepth,
@@ -2156,6 +2183,11 @@ final class OdfReader
 
             $packageEntries[] = self::withoutEmpty([
                 'part' => $item['part'] ?? null,
+                'packagePathShape' => $item['packagePathShape'] ?? [],
+                'packagePathKind' => $item['packagePathKind'] ?? null,
+                'packageTopLevelSegment' => $item['packageTopLevelSegment'] ?? null,
+                'packageDirectory' => $item['packageDirectory'] ?? null,
+                'packageBasename' => $item['packageBasename'] ?? null,
                 'packageArea' => $item['packageArea'] ?? null,
                 'packagePathDepth' => $item['packagePathDepth'] ?? null,
                 'packagePartExtension' => $item['packagePartExtension'] ?? null,
@@ -2309,6 +2341,9 @@ final class OdfReader
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
+            'packagePathKindCounts' => $provenance['packagePathKindCounts'] ?? [],
+            'packageTopLevelSegmentCounts' => $provenance['packageTopLevelSegmentCounts'] ?? [],
+            'packagePathExtensionCounts' => $provenance['packagePathExtensionCounts'] ?? [],
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
             'manifestCustomAttributeNames' => $provenance['manifestCustomAttributeNames'] ?? [],
@@ -2408,6 +2443,9 @@ final class OdfReader
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
+            'packagePathKindCounts' => $provenance['packagePathKindCounts'] ?? [],
+            'packageTopLevelSegmentCounts' => $provenance['packageTopLevelSegmentCounts'] ?? [],
+            'packagePathExtensionCounts' => $provenance['packagePathExtensionCounts'] ?? [],
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
             'hasZipExtraFields' => ($provenance['hasZipExtraFields'] ?? false) === true,
@@ -2630,43 +2668,87 @@ final class OdfReader
         ];
     }
 
-    private static function packagePathArea(string $path, bool $isDirectory): string
+    /**
+     * @return array<string, mixed>
+     */
+    private static function packagePathShape(string $path, bool $isDirectory): array
     {
-        $segments = self::packagePathSegments($path);
+        if ($path === '') {
+            return [
+                'kind' => 'missing',
+                'segments' => [],
+                'segmentCount' => 0,
+                'directorySegmentCount' => 0,
+            ];
+        }
+
+        if ($path === '/') {
+            return [
+                'kind' => 'root',
+                'segments' => [],
+                'segmentCount' => 0,
+                'directorySegmentCount' => 0,
+            ];
+        }
+
+        $pathIsDirectory = $isDirectory || str_ends_with($path, '/');
+        $trimmed = trim($path, '/');
+        $segments = $trimmed === '' ? [] : explode('/', $trimmed);
+        $basename = $segments === [] ? null : $segments[count($segments) - 1];
+        $directorySegments = $pathIsDirectory ? $segments : array_slice($segments, 0, -1);
+        $directory = $directorySegments === [] ? null : implode('/', $directorySegments) . '/';
+        $extension = null;
+
+        if (!$pathIsDirectory && is_string($basename) && $basename !== '') {
+            $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+            if ($extension === '') {
+                $extension = null;
+            }
+        }
+
+        return self::withoutEmpty([
+            'kind' => $pathIsDirectory ? 'directory' : 'file',
+            'topLevelSegment' => $segments[0] ?? null,
+            'directory' => $directory,
+            'basename' => $basename,
+            'extension' => $extension,
+            'segments' => $segments,
+            'segmentCount' => count($segments),
+            'directorySegmentCount' => count($directorySegments),
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $pathShape
+     */
+    private static function packagePathAreaFromShape(array $pathShape): string
+    {
+        $segments = is_array($pathShape['segments'] ?? null) ? $pathShape['segments'] : [];
         if ($segments === []) {
             return '/';
         }
 
-        if (count($segments) === 1 && !$isDirectory) {
+        if (($pathShape['kind'] ?? null) !== 'directory' && count($segments) === 1) {
             return '/';
         }
 
-        return $segments[0] . '/';
-    }
-
-    private static function packagePathDepth(string $path): int
-    {
-        return count(self::packagePathSegments($path));
+        $topLevelSegment = $segments[0] ?? null;
+        return is_string($topLevelSegment) && $topLevelSegment !== '' ? $topLevelSegment . '/' : '/';
     }
 
     /**
-     * @return list<string>
+     * @param array<string, mixed> $pathShape
      */
-    private static function packagePathSegments(string $path): array
+    private static function packagePathDepthFromShape(array $pathShape): int
     {
-        $trimmedPath = trim($path, '/');
-        if ($trimmedPath === '') {
-            return [];
+        $segmentCount = $pathShape['segmentCount'] ?? null;
+        if (is_int($segmentCount)) {
+            return $segmentCount;
         }
 
-        $segments = [];
-        foreach (explode('/', $trimmedPath) as $segment) {
-            if ($segment !== '') {
-                $segments[] = $segment;
-            }
-        }
+        $segments = is_array($pathShape['segments'] ?? null) ? $pathShape['segments'] : [];
 
-        return $segments;
+        return count($segments);
     }
 
     private static function recordPackageTopologySummary(

@@ -99,10 +99,38 @@ return [
             'png' => 1,
             'xml' => 6,
         ];
+        $expectedPathKindCounts = [
+            'file' => 11,
+        ];
+        $expectedTopLevelSegmentCounts = [
+            'Basic' => 1,
+            'Configurations2' => 1,
+            'META-INF' => 1,
+            'Notes' => 1,
+            'Pictures' => 2,
+            'content.xml' => 1,
+            'layout-cache' => 1,
+            'meta.xml' => 1,
+            'mimetype' => 1,
+            'styles.xml' => 1,
+        ];
+        $expectedPathExtensionCounts = [
+            'png' => 1,
+            'xml' => 6,
+        ];
 
         $t->same($expectedCounts, $compactInventory['packagePartExtensionCounts']);
         $t->same($expectedCounts, $richProvenance['packagePartExtensionCounts']);
         $t->same($expectedCounts, $identity['packagePartExtensionCounts']);
+        $t->same($expectedPathKindCounts, $compactInventory['packagePathKindCounts']);
+        $t->same($expectedPathKindCounts, $richProvenance['packagePathKindCounts']);
+        $t->same($expectedPathKindCounts, $identity['packagePathKindCounts']);
+        $t->same($expectedTopLevelSegmentCounts, $compactInventory['packageTopLevelSegmentCounts']);
+        $t->same($expectedTopLevelSegmentCounts, $richProvenance['packageTopLevelSegmentCounts']);
+        $t->same($expectedTopLevelSegmentCounts, $identity['packageTopLevelSegmentCounts']);
+        $t->same($expectedPathExtensionCounts, $compactInventory['packagePathExtensionCounts']);
+        $t->same($expectedPathExtensionCounts, $richProvenance['packagePathExtensionCounts']);
+        $t->same($expectedPathExtensionCounts, $identity['packagePathExtensionCounts']);
         $t->same(4, $compactInventory['extensionlessPackagePartCount']);
         $t->same(4, $richProvenance['extensionlessPackagePartCount']);
         $t->same(4, $identity['extensionlessPackagePartCount']);
@@ -121,6 +149,18 @@ return [
         $t->same('PNG', $compactParts['Pictures/HERO.PNG']['rawPackagePartExtension']);
         $t->same(true, $compactParts['Pictures/HERO.PNG']['packagePartExtensionHasUppercase']);
         $t->same(true, $compactParts['Pictures/HERO.PNG']['packagePartExtensionWasNormalized']);
+        $t->same('file', $richParts['Pictures/HERO.PNG']['packagePathShape']['kind']);
+        $t->same('Pictures', $richParts['Pictures/HERO.PNG']['packagePathShape']['topLevelSegment']);
+        $t->same('Pictures/', $richParts['Pictures/HERO.PNG']['packagePathShape']['directory']);
+        $t->same('HERO.PNG', $richParts['Pictures/HERO.PNG']['packagePathShape']['basename']);
+        $t->same('png', $richParts['Pictures/HERO.PNG']['packagePathShape']['extension']);
+        $t->same(['Pictures', 'HERO.PNG'], $richParts['Pictures/HERO.PNG']['packagePathShape']['segments']);
+        $t->same(2, $richParts['Pictures/HERO.PNG']['packagePathShape']['segmentCount']);
+        $t->same(1, $richParts['Pictures/HERO.PNG']['packagePathShape']['directorySegmentCount']);
+        $t->same('file', $richParts['Pictures/HERO.PNG']['packagePathKind']);
+        $t->same('Pictures', $richParts['Pictures/HERO.PNG']['packageTopLevelSegment']);
+        $t->same('Pictures/', $richParts['Pictures/HERO.PNG']['packageDirectory']);
+        $t->same('HERO.PNG', $richParts['Pictures/HERO.PNG']['packageBasename']);
         $t->same($compactParts['Pictures/HERO.PNG']['packagePartExtension'], $richParts['Pictures/HERO.PNG']['packagePartExtension']);
         $t->same($compactParts['Pictures/HERO.PNG']['rawPackagePartExtension'], $richParts['Pictures/HERO.PNG']['rawPackagePartExtension']);
 
@@ -176,6 +216,10 @@ return [
         $t->same('PNG', $identityParts['Pictures/HERO.PNG']['rawPackagePartExtension']);
         $t->same(true, $identityParts['Pictures/HERO.PNG']['packagePartExtensionWasNormalized']);
         $t->same(true, $identityParts['layout-cache']['extensionlessPackagePart']);
+        $t->same('layout-cache', $identityParts['layout-cache']['packagePathShape']['basename']);
+        $t->same('layout-cache', $identityParts['layout-cache']['packageBasename']);
+        $t->same('Notes', $identityParts['Notes/private']['packageTopLevelSegment']);
+        $t->same('private', $identityParts['Notes/private']['packagePathShape']['basename']);
         $t->same(true, $identityParts['Notes/private']['undeclared']);
         $t->same($richProvenance, $richResult['document']->attr('manifest')['packageProvenance']);
     },
