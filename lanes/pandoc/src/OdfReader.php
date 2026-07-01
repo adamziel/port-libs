@@ -2310,6 +2310,10 @@ final class OdfReader
             'packageDirectoryBaseNameCount' => $packageDirectoryBaseNames['packageDirectoryBaseNameCount'],
             'packageDirectoryBaseNameCounts' => $packageDirectoryBaseNames['packageDirectoryBaseNameCounts'],
             'entryNamesByPackageDirectoryBaseName' => $packageDirectoryBaseNames['entryNamesByPackageDirectoryBaseName'],
+            'packageDirectoryBaseNameRoleCounts' => $packageDirectoryBaseNames['packageDirectoryBaseNameRoleCounts'],
+            'entryNamesByPackageDirectoryBaseNameRole' => $packageDirectoryBaseNames['entryNamesByPackageDirectoryBaseNameRole'],
+            'packageDirectoryBaseNameByteExposurePolicyCounts' => $packageDirectoryBaseNames['packageDirectoryBaseNameByteExposurePolicyCounts'],
+            'entryNamesByPackageDirectoryBaseNameByteExposurePolicy' => $packageDirectoryBaseNames['entryNamesByPackageDirectoryBaseNameByteExposurePolicy'],
             'duplicatePackageDirectoryBaseNameCount' => $packageDirectoryBaseNames['duplicatePackageDirectoryBaseNameCount'],
             'duplicatePackageDirectoryBaseNames' => $packageDirectoryBaseNames['duplicatePackageDirectoryBaseNames'],
             'packageDirectoryBaseNames' => $packageDirectoryBaseNames['packageDirectoryBaseNames'],
@@ -3730,6 +3734,10 @@ final class OdfReader
             'packageDirectoryBaseNameCount' => $provenance['packageDirectoryBaseNameCount'] ?? 0,
             'packageDirectoryBaseNameCounts' => $provenance['packageDirectoryBaseNameCounts'] ?? [],
             'entryNamesByPackageDirectoryBaseName' => $provenance['entryNamesByPackageDirectoryBaseName'] ?? [],
+            'packageDirectoryBaseNameRoleCounts' => $provenance['packageDirectoryBaseNameRoleCounts'] ?? [],
+            'entryNamesByPackageDirectoryBaseNameRole' => $provenance['entryNamesByPackageDirectoryBaseNameRole'] ?? [],
+            'packageDirectoryBaseNameByteExposurePolicyCounts' => $provenance['packageDirectoryBaseNameByteExposurePolicyCounts'] ?? [],
+            'entryNamesByPackageDirectoryBaseNameByteExposurePolicy' => $provenance['entryNamesByPackageDirectoryBaseNameByteExposurePolicy'] ?? [],
             'duplicatePackageDirectoryBaseNameCount' => $provenance['duplicatePackageDirectoryBaseNameCount'] ?? 0,
             'duplicatePackageDirectoryBaseNames' => $provenance['duplicatePackageDirectoryBaseNames'] ?? [],
             'packageDirectoryBaseNames' => $provenance['packageDirectoryBaseNames'] ?? [],
@@ -4100,6 +4108,10 @@ final class OdfReader
             'packageDirectoryBaseNameCount' => $provenance['packageDirectoryBaseNameCount'] ?? 0,
             'packageDirectoryBaseNameCounts' => $provenance['packageDirectoryBaseNameCounts'] ?? [],
             'entryNamesByPackageDirectoryBaseName' => $provenance['entryNamesByPackageDirectoryBaseName'] ?? [],
+            'packageDirectoryBaseNameRoleCounts' => $provenance['packageDirectoryBaseNameRoleCounts'] ?? [],
+            'entryNamesByPackageDirectoryBaseNameRole' => $provenance['entryNamesByPackageDirectoryBaseNameRole'] ?? [],
+            'packageDirectoryBaseNameByteExposurePolicyCounts' => $provenance['packageDirectoryBaseNameByteExposurePolicyCounts'] ?? [],
+            'entryNamesByPackageDirectoryBaseNameByteExposurePolicy' => $provenance['entryNamesByPackageDirectoryBaseNameByteExposurePolicy'] ?? [],
             'duplicatePackageDirectoryBaseNameCount' => $provenance['duplicatePackageDirectoryBaseNameCount'] ?? 0,
             'duplicatePackageDirectoryBaseNames' => $provenance['duplicatePackageDirectoryBaseNames'] ?? [],
             'packageDirectoryBaseNames' => $provenance['packageDirectoryBaseNames'] ?? [],
@@ -6352,6 +6364,10 @@ final class OdfReader
      *     packageDirectoryBaseNameCount:int,
      *     packageDirectoryBaseNameCounts:array<string, int>,
      *     entryNamesByPackageDirectoryBaseName:array<string, list<string>>,
+     *     packageDirectoryBaseNameRoleCounts:array<string, array<string, int>>,
+     *     entryNamesByPackageDirectoryBaseNameRole:array<string, array<string, list<string>>>,
+     *     packageDirectoryBaseNameByteExposurePolicyCounts:array<string, array<string, int>>,
+     *     entryNamesByPackageDirectoryBaseNameByteExposurePolicy:array<string, array<string, list<string>>>,
      *     duplicatePackageDirectoryBaseNameCount:int,
      *     duplicatePackageDirectoryBaseNames:list<string>,
      *     packageDirectoryBaseNames:list<array<string, mixed>>,
@@ -6379,6 +6395,10 @@ final class OdfReader
     {
         $directoryBaseNameCounts = [];
         $entryNamesByDirectoryBaseName = [];
+        $directoryBaseNameRoleCounts = [];
+        $entryNamesByDirectoryBaseNameRole = [];
+        $directoryBaseNameByteExposurePolicyCounts = [];
+        $entryNamesByDirectoryBaseNameByteExposurePolicy = [];
         $directoryBaseNames = [];
         $caseFoldDirectoryBaseNameCounts = [];
         $entryNamesByCaseFoldDirectoryBaseName = [];
@@ -6504,10 +6524,26 @@ final class OdfReader
                 ++$directoryBaseNames[$directoryBaseName]['blockedPartCount'];
             }
             foreach ($roles as $role) {
+                if ($role === '') {
+                    continue;
+                }
+
+                $directoryBaseNameRoleCounts[$directoryBaseName] ??= [];
+                $directoryBaseNameRoleCounts[$directoryBaseName][$role] =
+                    ($directoryBaseNameRoleCounts[$directoryBaseName][$role] ?? 0) + 1;
+                $entryNamesByDirectoryBaseNameRole[$directoryBaseName] ??= [];
+                $entryNamesByDirectoryBaseNameRole[$directoryBaseName][$role] ??= [];
+                $entryNamesByDirectoryBaseNameRole[$directoryBaseName][$role][$entryName] = true;
                 $directoryBaseNames[$directoryBaseName]['roleCounts'][$role] =
                     ($directoryBaseNames[$directoryBaseName]['roleCounts'][$role] ?? 0) + 1;
             }
             if ($byteExposurePolicy !== '') {
+                $directoryBaseNameByteExposurePolicyCounts[$directoryBaseName] ??= [];
+                $directoryBaseNameByteExposurePolicyCounts[$directoryBaseName][$byteExposurePolicy] =
+                    ($directoryBaseNameByteExposurePolicyCounts[$directoryBaseName][$byteExposurePolicy] ?? 0) + 1;
+                $entryNamesByDirectoryBaseNameByteExposurePolicy[$directoryBaseName] ??= [];
+                $entryNamesByDirectoryBaseNameByteExposurePolicy[$directoryBaseName][$byteExposurePolicy] ??= [];
+                $entryNamesByDirectoryBaseNameByteExposurePolicy[$directoryBaseName][$byteExposurePolicy][$entryName] = true;
                 $directoryBaseNames[$directoryBaseName]['byteExposurePolicyCounts'][$byteExposurePolicy] =
                     ($directoryBaseNames[$directoryBaseName]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
             }
@@ -6748,6 +6784,10 @@ final class OdfReader
             sort($entryNames, SORT_STRING);
             $entryNamesByDirectoryBaseName[$directoryBaseName] = $entryNames;
         }
+        self::sortPackageNestedCountMap($directoryBaseNameRoleCounts);
+        self::sortPackageNestedStringListMap($entryNamesByDirectoryBaseNameRole);
+        self::sortPackageNestedCountMap($directoryBaseNameByteExposurePolicyCounts);
+        self::sortPackageNestedStringListMap($entryNamesByDirectoryBaseNameByteExposurePolicy);
         ksort($caseFoldDirectoryBaseNameCounts, SORT_STRING);
         ksort($entryNamesByCaseFoldDirectoryBaseName, SORT_STRING);
         foreach ($entryNamesByCaseFoldDirectoryBaseName as $caseFoldDirectoryBaseName => $entryNames) {
@@ -6851,6 +6891,10 @@ final class OdfReader
             'packageDirectoryBaseNameCount' => count($directoryBaseNameCounts),
             'packageDirectoryBaseNameCounts' => $directoryBaseNameCounts,
             'entryNamesByPackageDirectoryBaseName' => $entryNamesByDirectoryBaseName,
+            'packageDirectoryBaseNameRoleCounts' => $directoryBaseNameRoleCounts,
+            'entryNamesByPackageDirectoryBaseNameRole' => $entryNamesByDirectoryBaseNameRole,
+            'packageDirectoryBaseNameByteExposurePolicyCounts' => $directoryBaseNameByteExposurePolicyCounts,
+            'entryNamesByPackageDirectoryBaseNameByteExposurePolicy' => $entryNamesByDirectoryBaseNameByteExposurePolicy,
             'duplicatePackageDirectoryBaseNameCount' => count($duplicateDirectoryBaseNames),
             'duplicatePackageDirectoryBaseNames' => $duplicateDirectoryBaseNames,
             'packageDirectoryBaseNames' => array_values($directoryBaseNames),
