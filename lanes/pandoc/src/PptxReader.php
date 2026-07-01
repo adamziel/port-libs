@@ -2164,6 +2164,23 @@ final class PptxReader
             return null;
         }
 
+        if ($relationshipAttribute === 'link') {
+            $issue = [
+                'issue' => $relationship->isExternal() ? 'external-image-target' : 'linked-image-target',
+                'relationshipId' => $relationshipId,
+                'relationshipAttribute' => $relationshipAttribute,
+                'target' => $relationship->target,
+            ];
+            if ($relationship->isExternal()) {
+                $issue['externalTargetPolicy'] = $relationship->externalTargetPreflight();
+            } else {
+                $issue['partName'] = ltrim(OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship)), '/');
+            }
+            $imageIssues[] = $issue;
+
+            return null;
+        }
+
         if ($relationship->isExternal()) {
             $imageIssues[] = [
                 'issue' => 'external-image-target',
