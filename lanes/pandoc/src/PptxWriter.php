@@ -200,7 +200,7 @@ final class PptxWriter
 
     /**
      * @param array<string, mixed> $metadata
-     * @return list<array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}>
+     * @return list<array{title:string, titleInlines:list<AstNode>, subtitleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}>
      */
     private function slides(AstNode $document, array $metadata): array
     {
@@ -241,7 +241,7 @@ final class PptxWriter
 
             if ($this->isSpeakerNotesBlock($block)) {
                 if ($current === null) {
-                    $current = $this->newSlide($this->initialContentSlideTitle($metadata));
+                    $current = $this->metadataTitleSlide($metadata);
                     if ($pendingMetadataNotes !== []) {
                         array_push($current['notes'], ...$pendingMetadataNotes);
                         $pendingMetadataNotes = [];
@@ -268,7 +268,7 @@ final class PptxWriter
         }
 
         if ($current === null) {
-            $current = $this->newSlide($this->initialContentSlideTitle($metadata));
+            $current = $this->metadataTitleSlide($metadata);
         }
         if ($pendingMetadataNotes !== []) {
             array_push($current['notes'], ...$pendingMetadataNotes);
@@ -287,7 +287,21 @@ final class PptxWriter
     }
 
     /**
-     * @return array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}
+     * @param array<string, mixed> $metadata
+     * @return array{title:string, titleInlines:list<AstNode>, subtitleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}
+     */
+    private function metadataTitleSlide(array $metadata): array
+    {
+        $slide = $this->newSlide($this->initialContentSlideTitle($metadata));
+        if (($metadata['titleIsExplicit'] ?? false) === true && ($metadata['creatorIsExplicit'] ?? false) === true) {
+            $slide['subtitleInlines'] = $this->textInlines((string) $metadata['creator']);
+        }
+
+        return $slide;
+    }
+
+    /**
+     * @return array{title:string, titleInlines:list<AstNode>, subtitleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}
      */
     private function headingSlide(AstNode $heading): array
     {
@@ -301,13 +315,14 @@ final class PptxWriter
 
     /**
      * @param list<AstNode>|null $titleInlines
-     * @return array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}
+     * @return array{title:string, titleInlines:list<AstNode>, subtitleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}
      */
     private function newSlide(string $title, ?string $backgroundImage = null, ?array $titleInlines = null, ?int $headingLevel = null): array
     {
         return [
             'title' => $title,
             'titleInlines' => $titleInlines ?? $this->textInlines($title),
+            'subtitleInlines' => [],
             'blocks' => [],
             'notes' => [],
             'backgroundImage' => $backgroundImage,
@@ -346,7 +361,7 @@ final class PptxWriter
     }
 
     /**
-     * @param list<array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}> $slides
+     * @param list<array{title:string, titleInlines:list<AstNode>, subtitleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}> $slides
      */
     private function prependTableOfContentsSlide(array &$slides): void
     {
@@ -393,7 +408,7 @@ final class PptxWriter
     }
 
     /**
-     * @param list<array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}> $slides
+     * @param list<array{title:string, titleInlines:list<AstNode>, subtitleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}> $slides
      */
     private function appendEndnotesSlide(array &$slides, AstNode $document): void
     {
@@ -409,7 +424,7 @@ final class PptxWriter
     }
 
     /**
-     * @param list<array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}> $slides
+     * @param list<array{title:string, titleInlines:list<AstNode>, subtitleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int}> $slides
      */
     private function collectEndnotesFromSlides(array $slides): void
     {
@@ -516,7 +531,7 @@ final class PptxWriter
     }
 
     /**
-     * @param array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int} $slide
+     * @param array{title:string, titleInlines:list<AstNode>, subtitleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string, headingLevel:?int} $slide
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      */
     private function slideXml(array $slide, int $slideNumber, array &$relationships): string
@@ -536,6 +551,19 @@ final class PptxWriter
                 914400,
                 'title'
             );
+        }
+        if ($slide['subtitleInlines'] !== []) {
+            $shapes[] = $this->textShapeXml(
+                $shapeId++,
+                'Subtitle ' . $slideNumber,
+                [$this->paragraphXml($slide['subtitleInlines'], ['noBullet' => true, 'indent' => 0, 'marginLeft' => 0], $relationships)],
+                1371600,
+                1295400,
+                9448800,
+                609600,
+                'subTitle'
+            );
+            $slot = 1;
         }
 
         foreach ($slide['blocks'] as $block) {
@@ -2023,19 +2051,21 @@ final class PptxWriter
     }
 
     /**
-     * @return array{title:string, titleIsExplicit:bool, creator:string, subject:string, description:string, category:string, modified:string, keywords:list<string>, customProperties:array<string, string>}
+     * @return array{title:string, titleIsExplicit:bool, creator:string, creatorIsExplicit:bool, subject:string, description:string, category:string, modified:string, keywords:list<string>, customProperties:array<string, string>}
      */
     private function metadata(AstNode $document): array
     {
         $meta = $document->attr('meta', []);
         $meta = is_array($meta) && !array_is_list($meta) ? $meta : [];
         $explicitTitle = $this->optionString('title') ?? $this->metaString($meta, ['title']);
+        $explicitCreator = $this->optionString('author') ?? $this->metaString($meta, ['author', 'creator']);
         $title = $explicitTitle ?? $this->firstHeadingText($document) ?? '';
 
         return [
             'title' => $title,
             'titleIsExplicit' => $explicitTitle !== null,
-            'creator' => $this->optionString('author') ?? $this->metaString($meta, ['author', 'creator']) ?? 'Port Libs',
+            'creator' => $explicitCreator ?? 'Port Libs',
+            'creatorIsExplicit' => $explicitCreator !== null,
             'subject' => $this->optionString('subject') ?? $this->metaString($meta, ['subject']) ?? '',
             'description' => $this->optionString('description') ?? $this->metaString($meta, ['description']) ?? '',
             'category' => $this->optionString('category') ?? $this->metaString($meta, ['category']) ?? '',

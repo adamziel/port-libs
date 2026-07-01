@@ -92,6 +92,14 @@ Pandoc (Meta {unMeta = fromList [("author",MetaInlines [Str "Jesse",Space,Str "R
 ,Para [Str "And",Space,Str "a",Space,Str "new",Space,Str "slide."]]
 NATIVE;
 
+$upstreamSpeakerNotesAfterMetadataNative = <<<'NATIVE'
+Pandoc (Meta {unMeta = fromList [("author",MetaInlines [Str "Jesse",Space,Str "Rosenthal"]),("title",MetaInlines [Str "Testing"])]})
+[Div ("",["notes"],[])
+ [Para [Str "Some",Space,Str "speaker",Space,Str "notes"]]
+,Header 1 ("a-header",[],[]) [Str "A",Space,Str "header"]
+,Para [Str "And",Space,Str "a",Space,Str "new",Space,Str "slide."]]
+NATIVE;
+
 $upstreamRawOpenXmlNative = <<<'NATIVE'
 [Para [Str "Here",Space,Str "is",Space,Str "some",Space,Str "text,",Space,Str "written",Space,Str "as",Space,Str "a",Space,Str "raw",Space,Str "inline:",Space,RawInline (Format "openxml") "<a:r><a:rPr /><a:t>Here are examples of </a:t></a:r><a:r><a:rPr i=\"1\" /><a:t>italics</a:t></a:r><a:r><a:rPr /><a:t>, </a:t></a:r><a:r><a:rPr b=\"1\" /><a:t>bold</a:t></a:r>"]
 ,HorizontalRule
@@ -492,6 +500,38 @@ return [
         $t->contains('speaker', $notes);
         $t->contains('metadata.', $notes);
         $t->contains('relationships/notesSlide', $package->read('ppt/slides/_rels/slide1.xml.rels'));
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'maps leading speaker notes after metadata onto a metadata title slide' => static function (TestRunner $t) use ($upstreamSpeakerNotesAfterMetadataNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamSpeakerNotesAfterMetadataNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected metadata title slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected content slide after metadata notes');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'Fixture should produce exactly two slides');
+        $t->true(in_array('ppt/notesSlides/notesSlide1.xml', $names, true), 'Expected notes part for metadata title slide');
+        $t->true(!in_array('ppt/notesSlides/notesSlide2.xml', $names, true), 'Only the metadata title slide should have speaker notes');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $t->contains('Testing', $slide1);
+        $t->contains('Jesse Rosenthal', $slide1);
+        $t->contains('type="subTitle"', $slide1);
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $t->contains('A header', $slide2);
+        $t->contains('And a new slide.', $slide2);
+
+        $slide1Rels = $package->read('ppt/slides/_rels/slide1.xml.rels');
+        $slide2Rels = $package->read('ppt/slides/_rels/slide2.xml.rels');
+        $t->contains('relationships/notesSlide', $slide1Rels);
+        $t->contains('../notesSlides/notesSlide1.xml', $slide1Rels);
+        $t->true(!str_contains($slide2Rels, 'relationships/notesSlide'), 'Content slide should not point at the title-slide notes');
+
+        $notes1 = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $t->contains('Some speaker notes', $notes1);
+        $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 
