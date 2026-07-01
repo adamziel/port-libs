@@ -7515,7 +7515,7 @@ final class MarkdownWriter
             return false;
         }
 
-        if ($next->type === 'softbreak' || $next->type === 'linebreak') {
+        if ($next->type === 'space' || $next->type === 'softbreak' || $next->type === 'linebreak') {
             return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
         }
 
@@ -7563,6 +7563,10 @@ final class MarkdownWriter
 
         if ($next->type === 'link' || $next->type === 'citation') {
             return false;
+        }
+
+        if ($next->type === 'space' || $next->type === 'softbreak' || $next->type === 'linebreak') {
+            return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
         }
 
         if ($next->type === 'text') {
