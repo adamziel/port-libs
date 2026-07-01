@@ -532,6 +532,10 @@ return [
         foreach ($manifest['entries'] as $manifestEntry) {
             $manifestEntriesByName[$manifestEntry['name']] = $manifestEntry;
         }
+        $manifestDirectoryRootSummariesByRoot = [];
+        foreach ($manifest['directoryRootSummaries'] as $rootSummary) {
+            $manifestDirectoryRootSummariesByRoot[$rootSummary['directoryRoot']] = $rootSummary;
+        }
 
         $documentCompressed = gzdeflate($parts['word/document.xml']);
         $t->true(is_string($documentCompressed), 'fixture document XML should deflate');
@@ -548,9 +552,15 @@ return [
         $contentTypesPart = $package['parts']['[Content_Types].xml'];
 
         $t->same($manifest, $zipPackage['packageManifest']);
+        $t->same($manifest['directoryRootCount'], $zipPackage['packageManifestDirectoryRootCount']);
+        $t->same($manifest['directoryRoots'], $zipPackage['packageManifestDirectoryRoots']);
+        $t->same($manifest['directoryRootSummaries'], $zipPackage['packageManifestDirectoryRootSummaries']);
         $t->same('zip-package-manifest-v1', $summary['zipPackageManifestVersion']);
         $t->same($manifest['manifestSha256'], $summary['zipPackageManifestSha256']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestEntryCount']);
+        $t->same($manifest['directoryRootCount'], $summary['zipPackageManifestDirectoryRootCount']);
+        $t->same($manifest['directoryRoots'], $summary['zipPackageManifestDirectoryRoots']);
+        $t->same($manifest['directoryRootSummaries'], $summary['zipPackageManifestDirectoryRootSummaries']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalHeaderHashCount']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestCompressedDataHashCount']);
         $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryRecordHashCount']);
@@ -600,6 +610,24 @@ return [
         $t->same($manifest['localHeaderOrderNames'], $summary['zipPackageManifestLocalHeaderOrderNames']);
         $t->same($manifest['centralDirectoryOrderMatchesLocalHeaderOrder'], $summary['zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder']);
 
+        $t->same(4, $summary['zipPackageManifestDirectoryRootCount']);
+        $t->same(['/', '_rels/', 'docProps/', 'word/'], $summary['zipPackageManifestDirectoryRoots']);
+        $t->same(5, $manifestDirectoryRootSummariesByRoot['word/']['entryCount']);
+        $t->same(5, $manifestDirectoryRootSummariesByRoot['word/']['fileEntryCount']);
+        $t->same(0, $manifestDirectoryRootSummariesByRoot['word/']['directoryEntryCount']);
+        $t->same(
+            [
+                'word/styles.xml',
+                'word/numbering.xml',
+                'word/_rels/document.xml.rels',
+                'word/document.xml',
+                'word/media/review.png',
+            ],
+            $manifestDirectoryRootSummariesByRoot['word/']['entryNames']
+        );
+
+        $t->same($documentManifest['directoryRoot'], $documentEntry['directoryRoot']);
+        $t->same('word/', $documentEntry['directoryRoot']);
         $t->same($documentManifest['localHeaderLength'], $documentEntry['localHeaderLength']);
         $t->same($documentManifest['localHeaderSha256'], $documentEntry['localHeaderSha256']);
         $t->same($documentManifest['compressedDataOffset'], $documentEntry['compressedDataOffset']);
@@ -610,12 +638,16 @@ return [
         $t->same($documentManifest['centralDirectoryRecordEnd'], $documentEntry['centralDirectoryRecordEnd']);
         $t->same($documentManifest['centralDirectoryRecordSha256'], $documentEntry['centralDirectoryRecordSha256']);
 
+        $t->same($documentEntry['directoryRoot'], $documentPart['zipDirectoryRoot']);
         $t->same($documentEntry['localHeaderSha256'], $documentPart['localHeaderSha256']);
         $t->same($documentEntry['compressedDataSha256'], $documentPart['compressedDataSha256']);
         $t->same($documentEntry['centralDirectoryRecordSha256'], $documentPart['centralDirectoryRecordSha256']);
         $t->same($documentEntry['compressedDataOffset'], $documentPart['compressedDataOffset']);
         $t->same($documentEntry['compressedDataEnd'], $documentPart['compressedDataEnd']);
 
+        $t->same($contentTypesManifest['directoryRoot'], $contentTypesEntry['directoryRoot']);
+        $t->same('/', $contentTypesEntry['directoryRoot']);
+        $t->same($contentTypesEntry['directoryRoot'], $contentTypesPart['zipDirectoryRoot']);
         $t->same(0, $contentTypesEntry['compressionMethod']);
         $t->same(hash('sha256', $parts['[Content_Types].xml']), $contentTypesEntry['compressedDataSha256']);
         $t->same($contentTypesManifest['localHeaderSha256'], $contentTypesPart['localHeaderSha256']);

@@ -11088,6 +11088,13 @@ final class DocxOpenXmlReader
             ? $zipPackageManifest['manifestSha256']
             : null;
         $summary['zipPackageManifestEntryCount'] = (int) ($zipPackageManifest['entryCount'] ?? 0);
+        $summary['zipPackageManifestDirectoryRootCount'] = (int) ($zipPackageManifest['directoryRootCount'] ?? 0);
+        $summary['zipPackageManifestDirectoryRoots'] = is_array($zipPackageManifest['directoryRoots'] ?? null)
+            ? $zipPackageManifest['directoryRoots']
+            : [];
+        $summary['zipPackageManifestDirectoryRootSummaries'] = is_array($zipPackageManifest['directoryRootSummaries'] ?? null)
+            ? $zipPackageManifest['directoryRootSummaries']
+            : [];
         $summary['zipPackageManifestLocalHeaderHashCount'] = $zipManifestHashCounts['localHeaderHashCount'];
         $summary['zipPackageManifestCompressedDataHashCount'] = $zipManifestHashCounts['compressedDataHashCount'];
         $summary['zipPackageManifestCentralDirectoryRecordHashCount'] = $zipManifestHashCounts['centralDirectoryRecordHashCount'];
@@ -11327,6 +11334,9 @@ final class DocxOpenXmlReader
                 'extraFields' => $this->emptyZipExtraFieldProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'comments' => $this->emptyZipCommentProvenance(),
+                'packageManifestDirectoryRootCount' => 0,
+                'packageManifestDirectoryRoots' => [],
+                'packageManifestDirectoryRootSummaries' => [],
                 'packageManifest' => $this->emptyZipPackageManifestProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
@@ -11422,6 +11432,7 @@ final class DocxOpenXmlReader
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
+                'directoryRoot' => is_array($manifestEntry) ? ($manifestEntry['directoryRoot'] ?? null) : null,
                 'roles' => $this->zipPackageEntryRoles($entry, $loadedPart),
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
@@ -11508,6 +11519,13 @@ final class DocxOpenXmlReader
             'extraFields' => $extraFields,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'comments' => $comments,
+            'packageManifestDirectoryRootCount' => (int) ($packageManifest['directoryRootCount'] ?? 0),
+            'packageManifestDirectoryRoots' => is_array($packageManifest['directoryRoots'] ?? null)
+                ? $packageManifest['directoryRoots']
+                : [],
+            'packageManifestDirectoryRootSummaries' => is_array($packageManifest['directoryRootSummaries'] ?? null)
+                ? $packageManifest['directoryRootSummaries']
+                : [],
             'packageManifest' => $packageManifest,
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
@@ -11648,6 +11666,9 @@ final class DocxOpenXmlReader
             'storedEntryCount' => 0,
             'deflatedEntryCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
+            'directoryRootCount' => 0,
+            'directoryRoots' => [],
+            'directoryRootSummaries' => [],
             'centralDirectoryOrderNames' => [],
             'localHeaderOrderNames' => [],
             'centralDirectoryOrderMatchesLocalHeaderOrder' => null,
@@ -12076,6 +12097,7 @@ final class DocxOpenXmlReader
             }
 
             $partInventory[$partName]['zipEntryPresent'] = true;
+            $partInventory[$partName]['zipDirectoryRoot'] = $entry['directoryRoot'] ?? null;
             $partInventory[$partName]['centralDirectoryIndex'] = $entry['centralDirectoryIndex'] ?? null;
             $partInventory[$partName]['localHeaderOrder'] = $entry['localHeaderOrder'] ?? null;
             $partInventory[$partName]['localHeaderOffset'] = $entry['localHeaderOffset'] ?? null;
