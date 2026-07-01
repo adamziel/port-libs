@@ -14782,10 +14782,10 @@ final class XmlHtmlDom
             ));
         }
         if ($name === 'input') {
-            $inputType = self::inputType($node);
+            $inputType = self::inputTypeSummary($node);
             $summary['formControl'] = 'input';
             $summary += self::formOwnerSummary($node);
-            $summary['inputType'] = $inputType;
+            $summary += $inputType;
             $summary['labels'] = self::formControlLabels($node);
             $summary['value'] = $node->getAttribute('value');
             $summary['checked'] = $node->hasAttribute('checked');
@@ -14793,8 +14793,8 @@ final class XmlHtmlDom
             $summary['effectiveDisabled'] = self::isEffectivelyDisabledFormControl($node);
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
-            if ($inputType === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
-                $summary += self::fileInputReviewSummary($node, $inputType);
+            if ($inputType['inputType'] === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
+                $summary += self::fileInputReviewSummary($node, $inputType['inputType']);
             }
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
@@ -14803,11 +14803,11 @@ final class XmlHtmlDom
                 $summary['list'] = $node->getAttribute('list');
                 $summary += self::datalistAssociationSummary($node, $node->getAttribute('list'));
             }
-            if (self::isInputSubmitterType($inputType)) {
+            if (self::isInputSubmitterType($inputType['inputType'])) {
                 $summary['submitter'] = self::formSubmitterSummary($node);
                 $summary += self::formSubmitterActionReviewSummary($node);
             }
-            if ($inputType === 'reset') {
+            if ($inputType['inputType'] === 'reset') {
                 $summary += self::formResetControlSummary($node);
             }
         }
@@ -22716,9 +22716,64 @@ final class XmlHtmlDom
 
     private static function inputType(\DOMElement $input): string
     {
-        $type = strtolower(trim($input->getAttribute('type')));
+        return self::inputTypeSummary($input)['inputType'];
+    }
 
-        return $type === '' ? 'text' : $type;
+    /**
+     * @return array{
+     *     inputTypeRaw:?string,
+     *     inputType:string,
+     *     inputTypeState:string,
+     *     inputTypeValid:bool,
+     *     inputTypeKnown:bool,
+     *     inputTypeDefaulted:bool,
+     *     inputTypeMissingDefaulted:bool,
+     *     inputTypeInvalidValueDefaulted:bool
+     * }
+     */
+    private static function inputTypeSummary(\DOMElement $input): array
+    {
+        $raw = self::attributeOrNull($input, 'type');
+        $token = $raw === null ? null : strtolower(trim($raw));
+        $knownTypes = [
+            'hidden' => true,
+            'text' => true,
+            'search' => true,
+            'tel' => true,
+            'url' => true,
+            'email' => true,
+            'password' => true,
+            'date' => true,
+            'month' => true,
+            'week' => true,
+            'time' => true,
+            'datetime-local' => true,
+            'number' => true,
+            'range' => true,
+            'color' => true,
+            'checkbox' => true,
+            'radio' => true,
+            'file' => true,
+            'submit' => true,
+            'image' => true,
+            'reset' => true,
+            'button' => true,
+        ];
+        $known = is_string($token) && isset($knownTypes[$token]);
+        $missing = $raw === null;
+        $empty = $raw !== null && $token === '';
+        $type = $known ? (string) $token : 'text';
+
+        return [
+            'inputTypeRaw' => $raw,
+            'inputType' => $type,
+            'inputTypeState' => $missing ? 'missing' : ($empty ? 'empty' : ($known ? $type : 'invalid')),
+            'inputTypeValid' => $missing || $known,
+            'inputTypeKnown' => $known,
+            'inputTypeDefaulted' => !$known,
+            'inputTypeMissingDefaulted' => $missing,
+            'inputTypeInvalidValueDefaulted' => !$missing && !$known,
+        ];
     }
 
     /**
