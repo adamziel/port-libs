@@ -6981,6 +6981,110 @@ XML;
             'source-a.xml' => 2,
         ], $xmlExtension['sourceBaseNameCounts']);
     },
+    'summarizes docx relationship source case folded path segment positions for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $upperSource = '<source-position>upper</source-position>';
+        $lowerSource = '<source-position>lower</source-position>';
+
+        $parts['Word/Source/Alpha.XML'] = $upperSource;
+        $parts['word/source/alpha.xml'] = $lowerSource;
+        $parts['word/media/source-position-upper.png'] = 'source position upper image bytes';
+        $parts['word/media/source-position-lower.png'] = 'source position lower image bytes';
+        $parts['Word/Source/_rels/Alpha.XML.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rUpperSourcePosition" Type="{$imageRel}" Target="/word/media/source-position-upper.png"/>
+</Relationships>
+XML;
+        $parts['word/source/_rels/alpha.xml.rels'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rLowerSourcePosition" Type="{$imageRel}" Target="/word/media/source-position-lower.png"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $positions = [];
+        foreach ($summary['relationshipSourceCaseFoldPathSegmentPositions'] as $position) {
+            $positions[$position['position']] = $position;
+        }
+
+        $t->same(3, $summary['relationshipSourceCaseFoldPathSegmentPositionBucketCount']);
+        $t->same(8, $summary['relationshipSourceCaseFoldPathSegmentPositionOccurrenceCount']);
+        $t->same($summary['relationshipSourcePathSegmentPositionOccurrenceCount'], $summary['relationshipSourceCaseFoldPathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 3, 'last' => 3, 'middle' => 2], $summary['relationshipSourceCaseFoldPathSegmentPositionCounts']);
+        $t->same(['first' => 3, 'last' => 3, 'middle' => 2], $summary['relationshipSourceCaseFoldPathSegmentPositionSourceCounts']);
+        $t->same(0, $summary['relationshipSourceCaseFoldPathSegmentPositionParameterizedBucketCount']);
+        $t->same(0, $summary['relationshipSourceCaseFoldPathSegmentPositionParameterizedSourceCount']);
+        $t->same(0, $summary['relationshipSourceCaseFoldPathSegmentPositionMissingContentTypeBucketCount']);
+        $t->same(3, $summary['duplicateRelationshipSourceCaseFoldPathSegmentPositionCount']);
+        $t->same(3, $summary['duplicateRelationshipSourceCaseFoldPathSegmentPositionCaseFoldSegmentCount']);
+        $t->same(['first', 'last', 'middle'], $summary['duplicateRelationshipSourceCaseFoldPathSegmentPositions']);
+        $t->same(['first', 'last', 'middle'], array_column($summary['relationshipSourceCaseFoldPathSegmentPositions'], 'position'));
+
+        $first = $positions['first'];
+        $t->same(3, $first['occurrenceCount']);
+        $t->same(3, $first['sourceCount']);
+        $t->same(4, $first['relationshipCount']);
+        $t->same(1, $first['uniqueCaseFoldSegmentCount']);
+        $t->same(2, $first['segmentVariantCount']);
+        $t->same(1, $first['duplicateCaseFoldSegmentCount']);
+        $t->same(['word' => 3], $first['caseFoldSegmentCounts']);
+        $t->same(['Word' => 1, 'word' => 2], $first['segmentCounts']);
+        $t->same(['word' => 2], $first['caseFoldSegmentVariantCounts']);
+        $t->same(['word'], $first['duplicateCaseFoldSegments']);
+        $t->same([0 => 3], $first['pathSegmentIndexCounts']);
+        $t->same(['package-part' => 3], $first['relationshipSourceKindCounts']);
+        $t->same([
+            'office-document' => 1,
+            'package-part' => 2,
+            'root-relationship-target' => 1,
+        ], $first['sourceRoleCounts']);
+        $t->same(['default' => 2, 'override' => 1], $first['sourceContentTypeSourceCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/xml' => 2,
+        ], $first['sourceContentTypeBaseCounts']);
+        $t->same(['Word/Source' => 1, 'word' => 1, 'word/source' => 1], $first['sourceDirectoryCounts']);
+        $t->same(['Alpha.XML' => 1, 'alpha.xml' => 1, 'document.xml' => 1], $first['sourceBaseNameCounts']);
+        $t->same(['xml' => 3], $first['sourcePartExtensionCounts']);
+        $t->same(['Word/Source/Alpha.XML', 'word/document.xml', 'word/source/alpha.xml'], $first['sourceParts']);
+        $t->same([
+            'Word/Source/_rels/Alpha.XML.rels',
+            'word/_rels/document.xml.rels',
+            'word/source/_rels/alpha.xml.rels',
+        ], $first['relationshipParts']);
+        $t->same('word/document.xml', $first['largestExistingSourcePart']['sourcePart']);
+        $t->same(['word', 'document.xml'], $first['largestExistingSourcePart']['sourcePathSegments']);
+
+        $middle = $positions['middle'];
+        $t->same(2, $middle['occurrenceCount']);
+        $t->same(2, $middle['sourceCount']);
+        $t->same(2, $middle['relationshipCount']);
+        $t->same(['source' => 2], $middle['caseFoldSegmentCounts']);
+        $t->same(['Source' => 1, 'source' => 1], $middle['segmentCounts']);
+        $t->same(['source' => 2], $middle['caseFoldSegmentVariantCounts']);
+        $t->same(['source'], $middle['duplicateCaseFoldSegments']);
+        $t->same([1 => 2], $middle['pathSegmentIndexCounts']);
+        $t->same(['package-part' => 2], $middle['relationshipSourceKindCounts']);
+        $t->same(['Word/Source/Alpha.XML', 'word/source/alpha.xml'], $middle['sourceParts']);
+
+        $last = $positions['last'];
+        $t->same(3, $last['occurrenceCount']);
+        $t->same(3, $last['sourceCount']);
+        $t->same(4, $last['relationshipCount']);
+        $t->same(2, $last['uniqueCaseFoldSegmentCount']);
+        $t->same(3, $last['segmentVariantCount']);
+        $t->same(1, $last['duplicateCaseFoldSegmentCount']);
+        $t->same(['alpha.xml' => 2, 'document.xml' => 1], $last['caseFoldSegmentCounts']);
+        $t->same(['Alpha.XML' => 1, 'alpha.xml' => 1, 'document.xml' => 1], $last['segmentCounts']);
+        $t->same(['alpha.xml' => 2, 'document.xml' => 1], $last['caseFoldSegmentVariantCounts']);
+        $t->same(['alpha.xml'], $last['duplicateCaseFoldSegments']);
+        $t->same([1 => 1, 2 => 2], $last['pathSegmentIndexCounts']);
+        $t->same(['package-part' => 3], $last['relationshipSourceKindCounts']);
+        $t->same('word/document.xml', $last['largestExistingSourcePart']['sourcePart']);
+    },
     'summarizes docx relationship source base name digests for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $wordSource = '<sourceDigest>word</sourceDigest>';
