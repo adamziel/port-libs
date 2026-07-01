@@ -615,10 +615,12 @@ final class BibtexCslProcessor
             'volume-title' => 'Volume title',
             'volume-title-short' => 'Volume title abbreviation',
             'part-title' => 'Part title',
+            'part-title-short' => 'Part title abbreviation',
+            'part-title-addon' => 'Part title addendum',
         ] as $field => $label) {
             if (($item[$field] ?? '') !== '') {
                 $value = (string) $item[$field];
-                if ($field === 'volume-title-short') {
+                if ($field === 'volume-title-short' || $field === 'part-title-short') {
                     $value = rtrim($value, '.');
                 }
                 $parts[] = $label . ': ' . $value;
@@ -890,6 +892,8 @@ final class BibtexCslProcessor
             'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
             'reviewed-genre' => ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre'],
             'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
+            'part-title-short' => ['shortparttitle', 'short-part-title', 'parttitleshort', 'parttitle-short', 'part-title-short'],
+            'part-title-addon' => ['parttitleaddon', 'part-title-addon', 'parttitle-addon'],
             'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
             'container-title-short' => [
                 'shortjournal',
