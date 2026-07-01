@@ -6,6 +6,8 @@ namespace PortLibs\Pandoc;
 
 final class PlainWriter
 {
+    private const WRAPPED_SOURCE_LINE_SAMPLE_LIMIT = 16;
+
     /**
      * @param array{columns?: int, wrap?: string, ambiguousWidth?: string} $options
      */
@@ -31,6 +33,9 @@ final class PlainWriter
      *     wrapSplitLineCount:int,
      *     generatedWrapBreakCount:int,
      *     maxGeneratedWrapBreaksPerSourceLine:int,
+     *     wrappedSourceLineCount:int,
+     *     wrappedSourceLineSampleLimit:int,
+     *     wrappedSourceLinesTruncated:bool,
      *     wrappedSourceLines:list<array{
      *       blockIndex:int,
      *       lineIndex:int,
@@ -125,6 +130,7 @@ final class PlainWriter
         $wrapSplitLineCount = 0;
         $generatedWrapBreakCount = 0;
         $maxGeneratedWrapBreaksPerSourceLine = 0;
+        $wrappedSourceLineCount = 0;
         $wrappedSourceLines = [];
         $outputLineCount = 0;
         $blankSourceLineCount = 0;
@@ -186,8 +192,9 @@ final class PlainWriter
                 $maxGeneratedWrapBreaksPerSourceLine,
                 $wrapMetrics['maxGeneratedBreaksPerSourceLine']
             );
+            $wrappedSourceLineCount += $wrapMetrics['splitLineCount'];
             foreach ($wrapMetrics['wrappedSourceLines'] as $lineDiagnostic) {
-                if (count($wrappedSourceLines) >= 16) {
+                if (count($wrappedSourceLines) >= self::WRAPPED_SOURCE_LINE_SAMPLE_LIMIT) {
                     break;
                 }
 
@@ -286,6 +293,9 @@ final class PlainWriter
                 'wrapSplitLineCount' => $wrapSplitLineCount,
                 'generatedWrapBreakCount' => $generatedWrapBreakCount,
                 'maxGeneratedWrapBreaksPerSourceLine' => $maxGeneratedWrapBreaksPerSourceLine,
+                'wrappedSourceLineCount' => $wrappedSourceLineCount,
+                'wrappedSourceLineSampleLimit' => self::WRAPPED_SOURCE_LINE_SAMPLE_LIMIT,
+                'wrappedSourceLinesTruncated' => $wrappedSourceLineCount > count($wrappedSourceLines),
                 'wrappedSourceLines' => $wrappedSourceLines,
                 'outputLineCount' => $outputLineCount,
                 'blankSourceLineCount' => $blankSourceLineCount,
@@ -823,7 +833,7 @@ final class PlainWriter
             ++$splitLineCount;
             $generatedBreakCount += $generatedBreaks;
             $maxGeneratedBreaksPerSourceLine = max($maxGeneratedBreaksPerSourceLine, $generatedBreaks);
-            if (count($wrappedSourceLines) >= 16) {
+            if (count($wrappedSourceLines) >= self::WRAPPED_SOURCE_LINE_SAMPLE_LIMIT) {
                 continue;
             }
 

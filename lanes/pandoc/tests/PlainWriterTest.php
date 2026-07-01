@@ -236,6 +236,9 @@ return [
         $t->same(2, $result['diagnostics']['wrapSplitLineCount']);
         $t->same(3, $result['diagnostics']['generatedWrapBreakCount']);
         $t->same(2, $result['diagnostics']['maxGeneratedWrapBreaksPerSourceLine']);
+        $t->same(2, $result['diagnostics']['wrappedSourceLineCount']);
+        $t->same(16, $result['diagnostics']['wrappedSourceLineSampleLimit']);
+        $t->same(false, $result['diagnostics']['wrappedSourceLinesTruncated']);
         $t->same([
             [
                 'blockIndex' => 0,
@@ -260,6 +263,27 @@ return [
                 'truncated' => false,
             ],
         ], $result['diagnostics']['wrappedSourceLines']);
+    },
+    'reports wrapped source line sample truncation in plain writer diagnostics' => static function (TestRunner $t): void {
+        $sourceLines = array_fill(0, 18, 'Alpha beta gamma delta');
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', ['text' => implode("\n", $sourceLines)]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 10]))->writeWithDiagnostics($document);
+
+        $t->same(18, $result['diagnostics']['wrapSplitLineCount']);
+        $t->same(36, $result['diagnostics']['generatedWrapBreakCount']);
+        $t->same(2, $result['diagnostics']['maxGeneratedWrapBreaksPerSourceLine']);
+        $t->same(18, $result['diagnostics']['wrappedSourceLineCount']);
+        $t->same(16, $result['diagnostics']['wrappedSourceLineSampleLimit']);
+        $t->same(true, $result['diagnostics']['wrappedSourceLinesTruncated']);
+        $t->same(16, count($result['diagnostics']['wrappedSourceLines']));
+        $t->same(0, $result['diagnostics']['wrappedSourceLines'][0]['lineIndex']);
+        $t->same(15, $result['diagnostics']['wrappedSourceLines'][15]['lineIndex']);
+        $t->same(2, $result['diagnostics']['wrappedSourceLines'][15]['generatedBreakCount']);
+        $t->same(18, $result['diagnostics']['blocks'][0]['wrapSplitLineCount']);
+        $t->same(36, $result['diagnostics']['blocks'][0]['generatedWrapBreakCount']);
     },
     'reports over column lines in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
