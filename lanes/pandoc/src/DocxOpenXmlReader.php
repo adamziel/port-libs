@@ -13708,6 +13708,10 @@ final class DocxOpenXmlReader
             $packageIdentity['relationshipTargetByteLengthBucketUniqueTargetCounts'];
         $summary['packageIdentityRelationshipTargetByteLengthBucketByteLengths'] =
             $packageIdentity['relationshipTargetByteLengthBucketByteLengths'];
+        $summary['packageIdentityZipTimestampedEntryCount'] = $packageIdentity['zipTimestampedEntryCount'];
+        $summary['packageIdentityZipTimestampSourceCounts'] = $packageIdentity['zipTimestampSourceCounts'];
+        $summary['packageIdentityZipTimestampedEntryNames'] = $packageIdentity['zipTimestampedEntryNames'];
+        $summary['packageIdentityZipTimestampReviewPolicy'] = $packageIdentity['zipTimestampReviewPolicy'];
         $summary['packageIdentityByteExposurePolicy'] = $packageIdentity['byteExposurePolicy'];
 
         return [
@@ -13798,8 +13802,28 @@ final class DocxOpenXmlReader
                 'compressionMethodName' => $part['compressionMethodName'] ?? null,
                 'compressedByteLength' => $part['compressedByteLength'] ?? null,
                 'zipCrc32' => $part['zipCrc32'] ?? null,
+                'zipModifiedDosTime' => $part['zipModifiedDosTime'] ?? null,
+                'zipModifiedDosDate' => $part['zipModifiedDosDate'] ?? null,
+                'zipModifiedDosTimeHex' => $part['zipModifiedDosTimeHex'] ?? null,
+                'zipModifiedDosDateHex' => $part['zipModifiedDosDateHex'] ?? null,
+                'zipHasDosLastModifiedTimestamp' =>
+                    ($part['zipHasDosLastModifiedTimestamp'] ?? false) === true,
+                'zipDosLastModifiedTimestamp' => $part['zipDosLastModifiedTimestamp'] ?? null,
+                'zipDosLastModifiedIso8601' => $part['zipDosLastModifiedIso8601'] ?? null,
+                'zipHasExtendedTimestamp' => ($part['zipHasExtendedTimestamp'] ?? false) === true,
+                'zipExtendedModifiedTimestamp' => $part['zipExtendedModifiedTimestamp'] ?? null,
+                'zipExtendedAccessedTimestamp' => $part['zipExtendedAccessedTimestamp'] ?? null,
+                'zipExtendedCreatedTimestamp' => $part['zipExtendedCreatedTimestamp'] ?? null,
+                'zipHasNtfsTimestamp' => ($part['zipHasNtfsTimestamp'] ?? false) === true,
+                'zipNtfsModifiedTimestamp' => $part['zipNtfsModifiedTimestamp'] ?? null,
+                'zipNtfsAccessedTimestamp' => $part['zipNtfsAccessedTimestamp'] ?? null,
+                'zipNtfsCreatedTimestamp' => $part['zipNtfsCreatedTimestamp'] ?? null,
+                'zipHasLastModifiedTimestamp' => ($part['zipHasLastModifiedTimestamp'] ?? false) === true,
                 'zipLastModifiedTimestamp' => $part['zipLastModifiedTimestamp'] ?? null,
+                'zipLastModifiedIso8601' => $part['zipLastModifiedIso8601'] ?? null,
                 'zipLastModifiedSource' => $part['zipLastModifiedSource'] ?? null,
+                'zipTimestampReviewPolicy' =>
+                    $part['zipTimestampReviewPolicy'] ?? 'docx-zip-timestamp-metadata-only',
                 'zipEntryCommentPresent' => (bool) ($part['zipEntryCommentPresent'] ?? false),
                 'zipEntryCommentLength' => (int) ($part['zipEntryCommentLength'] ?? 0),
                 'centralUnixOwner' => is_array($part['centralUnixOwner'] ?? null) ? $part['centralUnixOwner'] : null,
@@ -13868,6 +13892,9 @@ final class DocxOpenXmlReader
 
         $documentEntry = $partInventory[$documentPart] ?? [];
         $zipComments = is_array($zipPackage['comments'] ?? null) ? $zipPackage['comments'] : [];
+        $zipTimestamps = is_array($zipPackage['timestamps'] ?? null)
+            ? $zipPackage['timestamps']
+            : $this->emptyZipTimestampProvenance();
         $payload = [
             'identityVersion' => 1,
             'packageType' => $this->docxPackageType(
@@ -14011,6 +14038,28 @@ final class DocxOpenXmlReader
             'zipUnsupportedCompressionMethodCount' => (int) ($zipPackage['unsupportedCompressionMethodCount'] ?? 0),
             'zipCentralDirectoryOrderMatchesLocalHeaderOrder' =>
                 $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null,
+            'zipTimestamps' => $zipTimestamps,
+            'zipTimestampPreflightPresent' => (bool) ($zipTimestamps['present'] ?? false),
+            'zipTimestampEntryCount' => (int) ($zipTimestamps['entryCount'] ?? 0),
+            'zipTimestampedEntryCount' => (int) ($zipTimestamps['timestampedEntryCount'] ?? 0),
+            'zipDosTimestampEntryCount' => (int) ($zipTimestamps['dosTimestampEntryCount'] ?? 0),
+            'zipExtendedTimestampEntryCount' => (int) ($zipTimestamps['extendedTimestampEntryCount'] ?? 0),
+            'zipNtfsTimestampEntryCount' => (int) ($zipTimestamps['ntfsTimestampEntryCount'] ?? 0),
+            'zipAccessedTimestampEntryCount' => (int) ($zipTimestamps['accessedTimestampEntryCount'] ?? 0),
+            'zipCreatedTimestampEntryCount' => (int) ($zipTimestamps['createdTimestampEntryCount'] ?? 0),
+            'zipTimestampSourceCounts' => is_array($zipTimestamps['sourceCounts'] ?? null)
+                ? $zipTimestamps['sourceCounts']
+                : [],
+            'zipTimestampedEntryNames' => is_array($zipTimestamps['timestampedEntryNames'] ?? null)
+                ? $zipTimestamps['timestampedEntryNames']
+                : [],
+            'zipEarliestModifiedEntry' => $zipTimestamps['earliestModifiedEntry'] ?? null,
+            'zipLatestModifiedEntry' => $zipTimestamps['latestModifiedEntry'] ?? null,
+            'zipTimestampReviewPolicy' =>
+                $zipTimestamps['reviewPolicy'] ?? 'docx-zip-timestamp-metadata-only',
+            'zipTimestampReviewEntries' => is_array($zipTimestamps['timestampedEntries'] ?? null)
+                ? $zipTimestamps['timestampedEntries']
+                : [],
             'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
                 ? $summary['zipUnixOwners']
                 : $this->emptyZipUnixOwnerProvenance(),
