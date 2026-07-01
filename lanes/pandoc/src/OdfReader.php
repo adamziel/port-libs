@@ -1412,6 +1412,12 @@ final class OdfReader
         $rootNamespaceDeclarationCount = 0;
         $rootNamespaceDeclarationNames = [];
         $rootNamespaceDeclarationItems = [];
+        $xmlDeclarationPartCount = 0;
+        $xmlDeclarationAttributeCount = 0;
+        $xmlDeclarationVersionCounts = [];
+        $xmlDeclarationEncodingCounts = [];
+        $xmlDeclarationStandaloneCounts = [];
+        $xmlDeclarationItems = [];
         $manifestPartReferenceSuffixItems = [];
         $manifestMediaTypeMismatches = [];
         $byteExposurePolicyCounts = [];
@@ -1427,6 +1433,7 @@ final class OdfReader
             $officeVersion = null;
             $validRoot = false;
             $diagnostics = [];
+            $xmlDeclaration = self::emptyXmlDeclarationProvenance();
             $rootAttributeProvenance = [
                 'attributeCount' => 0,
                 'attributeNames' => [],
@@ -1444,7 +1451,9 @@ final class OdfReader
             if (!$entry instanceof ZipPackageEntry) {
                 $diagnostics[] = 'odf-xml-part-missing-package-part';
             } else {
-                $dom = self::loadXml($package->read($part), 'ODT ' . $part);
+                $xml = $package->read($part);
+                $xmlDeclaration = self::xmlDeclarationProvenance($xml);
+                $dom = self::loadXml($xml, 'ODT ' . $part);
                 $root = $dom->documentElement;
                 if ($root instanceof \DOMElement) {
                     $rootName = $root->localName;
@@ -1469,6 +1478,26 @@ final class OdfReader
                             'manifestVersion' => $manifestVersion,
                         ];
                     }
+                }
+                if ($xmlDeclaration['present']) {
+                    ++$xmlDeclarationPartCount;
+                    $xmlDeclarationAttributeCount += $xmlDeclaration['attributeCount'];
+                    $version = $xmlDeclaration['version'] ?? '(missing)';
+                    $xmlDeclarationVersionCounts[$version] = ($xmlDeclarationVersionCounts[$version] ?? 0) + 1;
+                    $encoding = $xmlDeclaration['encoding'] ?? '(missing)';
+                    $xmlDeclarationEncodingCounts[$encoding] = ($xmlDeclarationEncodingCounts[$encoding] ?? 0) + 1;
+                    $standalone = $xmlDeclaration['standalone'];
+                    $standaloneKey = $standalone === true ? 'yes' : ($standalone === false ? 'no' : 'omitted');
+                    $xmlDeclarationStandaloneCounts[$standaloneKey] = ($xmlDeclarationStandaloneCounts[$standaloneKey] ?? 0) + 1;
+                    $xmlDeclarationItems[] = [
+                        'part' => $part,
+                        'expectedRoot' => $expectedRoot,
+                        'rootName' => $rootName,
+                        'version' => $xmlDeclaration['version'],
+                        'encoding' => $xmlDeclaration['encoding'],
+                        'standalone' => $xmlDeclaration['standalone'],
+                        'attributeCount' => $xmlDeclaration['attributeCount'],
+                    ];
                 }
             }
 
@@ -1561,6 +1590,11 @@ final class OdfReader
                 'rootName' => $rootName,
                 'validRoot' => $validRoot,
                 'officeVersion' => $officeVersion,
+                'xmlDeclarationPresent' => $xmlDeclaration['present'],
+                'xmlDeclarationVersion' => $xmlDeclaration['version'],
+                'xmlDeclarationEncoding' => $xmlDeclaration['encoding'],
+                'xmlDeclarationStandalone' => $xmlDeclaration['standalone'],
+                'xmlDeclarationAttributeCount' => $xmlDeclaration['attributeCount'],
                 'rootAttributeCount' => $rootAttributeProvenance['attributeCount'] ?? 0,
                 'rootAttributeNames' => $rootAttributeProvenance['attributeNames'] ?? [],
                 'rootAttributes' => $rootAttributeProvenance['attributes'] ?? [],
@@ -1614,6 +1648,9 @@ final class OdfReader
         ksort($versionCounts, SORT_STRING);
         sort($rootCustomAttributeNames, SORT_STRING);
         sort($rootNamespaceDeclarationNames, SORT_STRING);
+        ksort($xmlDeclarationVersionCounts, SORT_STRING);
+        ksort($xmlDeclarationEncodingCounts, SORT_STRING);
+        ksort($xmlDeclarationStandaloneCounts, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
 
         return [
@@ -1633,6 +1670,12 @@ final class OdfReader
             'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
             'rootNamespaceDeclarationNames' => $rootNamespaceDeclarationNames,
             'rootNamespaceDeclarationItems' => $rootNamespaceDeclarationItems,
+            'xmlDeclarationPartCount' => $xmlDeclarationPartCount,
+            'xmlDeclarationAttributeCount' => $xmlDeclarationAttributeCount,
+            'xmlDeclarationVersionCounts' => $xmlDeclarationVersionCounts,
+            'xmlDeclarationEncodingCounts' => $xmlDeclarationEncodingCounts,
+            'xmlDeclarationStandaloneCounts' => $xmlDeclarationStandaloneCounts,
+            'xmlDeclarationItems' => $xmlDeclarationItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => count(array_filter(
                 $manifestPartReferenceSuffixItems,
@@ -1651,6 +1694,55 @@ final class OdfReader
             'manifestMediaTypeMismatches' => $manifestMediaTypeMismatches,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array{present:bool, version:?string, encoding:?string, standalone:?bool, attributeCount:int}
+     */
+    private static function emptyXmlDeclarationProvenance(): array
+    {
+        return [
+            'present' => false,
+            'version' => null,
+            'encoding' => null,
+            'standalone' => null,
+            'attributeCount' => 0,
+        ];
+    }
+
+    /**
+     * @return array{present:bool, version:?string, encoding:?string, standalone:?bool, attributeCount:int}
+     */
+    private static function xmlDeclarationProvenance(string $xml): array
+    {
+        if (preg_match('/^(?:\xEF\xBB\xBF)?\s*<\?xml\s+([^?]*?)\?>/i', $xml, $match) !== 1) {
+            return self::emptyXmlDeclarationProvenance();
+        }
+
+        $attributes = [];
+        preg_match_all('/([A-Za-z_][A-Za-z0-9_.:-]*)\s*=\s*(["\'])(.*?)\2/s', (string) $match[1], $matches, PREG_SET_ORDER);
+        foreach ($matches as $attribute) {
+            $name = strtolower((string) $attribute[1]);
+            if (!isset($attributes[$name])) {
+                $attributes[$name] = (string) $attribute[3];
+            }
+        }
+
+        $standalone = null;
+        $standaloneValue = strtolower($attributes['standalone'] ?? '');
+        if ($standaloneValue === 'yes') {
+            $standalone = true;
+        } elseif ($standaloneValue === 'no') {
+            $standalone = false;
+        }
+
+        return [
+            'present' => true,
+            'version' => isset($attributes['version']) && $attributes['version'] !== '' ? $attributes['version'] : null,
+            'encoding' => isset($attributes['encoding']) && $attributes['encoding'] !== '' ? $attributes['encoding'] : null,
+            'standalone' => $standalone,
+            'attributeCount' => count($attributes),
         ];
     }
 
@@ -2461,6 +2553,13 @@ final class OdfReader
             $directory = self::packagePartDirectory($entry->name);
             $packagePartExtension = self::packagePartExtension($entry->name);
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
+            $manifestMediaFamily = $this->packagePartManifestMediaFamily(
+                $entry->name,
+                $manifestItem,
+                $entry->isDirectory(),
+                $embeddedObjectPackage,
+                $roles
+            );
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
             $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
@@ -2540,6 +2639,7 @@ final class OdfReader
                 'manifestPartFragment' => is_array($manifestItem) ? $manifestItem['partFragment'] : null,
                 'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
                 'manifestMediaTypeBase' => is_array($manifestItem) ? $manifestItem['mediaTypeBase'] : null,
+                'manifestMediaFamily' => $manifestMediaFamily,
                 'manifestMediaTypeHasParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeHasParameters'] : false,
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
@@ -3953,6 +4053,7 @@ final class OdfReader
                 'manifestPartQuery' => $item['manifestPartQuery'] ?? null,
                 'manifestPartFragment' => $item['manifestPartFragment'] ?? null,
                 'manifestMediaTypeBase' => $item['manifestMediaTypeBase'] ?? null,
+                'manifestMediaFamily' => $item['manifestMediaFamily'] ?? null,
                 'manifestVersion' => $item['manifestVersion'] ?? null,
                 'manifestPreferredViewMode' => $item['manifestPreferredViewMode'] ?? null,
                 'manifestDeclaredSize' => $item['manifestDeclaredSize'] ?? null,
@@ -4022,6 +4123,9 @@ final class OdfReader
             'undeclaredRoleCounts' => $provenance['undeclaredRoleCounts'] ?? [],
             'extensionlessPackagePartCount' => $provenance['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
+            'entryNamesByPackagePartExtension' => $provenance['entryNamesByPackagePartExtension'] ?? [],
+            'packagePartExtensionSummaryCount' => $provenance['packagePartExtensionSummaryCount'] ?? 0,
+            'packagePartExtensionSummaries' => $provenance['packagePartExtensionSummaries'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'packageCoreParts' => $provenance['packageCoreParts'] ?? [],
             'corePackageIssueCount' => is_array($provenance['packageCoreParts'] ?? null)
@@ -4153,6 +4257,9 @@ final class OdfReader
             'roleCounts' => $provenance['roleCounts'] ?? [],
             'extensionlessPackagePartCount' => $provenance['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
+            'entryNamesByPackagePartExtension' => $provenance['entryNamesByPackagePartExtension'] ?? [],
+            'packagePartExtensionSummaryCount' => $provenance['packagePartExtensionSummaryCount'] ?? 0,
+            'packagePartExtensionSummaries' => $provenance['packagePartExtensionSummaries'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'packageCoreParts' => $provenance['packageCoreParts'] ?? [],
             'corePackageIssueCount' => is_array($provenance['packageCoreParts'] ?? null)
@@ -5616,6 +5723,87 @@ final class OdfReader
         }
 
         return $roles === [] ? ['package-part'] : array_values(array_unique($roles));
+    }
+
+    /**
+     * @param array<string, mixed>|null $manifestItem
+     * @param list<string> $roles
+     */
+    private function packagePartManifestMediaFamily(
+        string $part,
+        ?array $manifestItem,
+        bool $isDirectory,
+        ?array $embeddedObjectPackage,
+        array $roles
+    ): ?string {
+        if (!is_array($manifestItem)) {
+            return null;
+        }
+
+        if (($manifestItem['fullPath'] ?? null) === '/' || ($manifestItem['part'] ?? null) === '/') {
+            return 'opendocument-text-package';
+        }
+        if ($isDirectory && is_array($embeddedObjectPackage) && ($embeddedObjectPackage['isRoot'] ?? false) === true) {
+            return 'opendocument-object-package';
+        }
+        if ($isDirectory) {
+            return 'directory';
+        }
+
+        $roleFamilies = [
+            'script-package' => 'script',
+            'configuration-package' => 'configuration',
+            'package-thumbnail' => 'thumbnail',
+            'package-signature' => 'signature',
+            'object-replacement' => 'object-replacement',
+            'layout-cache' => 'layout-cache',
+            'meta-inf-sidecar' => 'meta-inf-sidecar',
+            'linked-resource-package' => 'linked-resource',
+            'database-package' => 'database',
+            'version-package' => 'version-history',
+            'gallery-package' => 'gallery',
+            'form-package' => 'form',
+            'report-package' => 'report',
+            'attachment-package' => 'attachment',
+            'template-package' => 'template',
+            'dictionary-package' => 'dictionary',
+            'event-package' => 'event',
+            'extension-package' => 'extension',
+            'font-package' => 'font',
+            'rdf-metadata' => 'rdf',
+            'embedded-object-root' => 'opendocument-object-package',
+        ];
+        foreach ($roleFamilies as $role => $family) {
+            if (in_array($role, $roles, true)) {
+                return $family;
+            }
+        }
+
+        $mediaTypeBase = strtolower(trim((string) ($manifestItem['mediaTypeBase'] ?? '')));
+        if ($mediaTypeBase !== '' && $this->isEmbeddedObjectPackageMediaType($mediaTypeBase)) {
+            return 'opendocument-object-package';
+        }
+
+        $mediaResourceFamily = self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase);
+        if ($mediaResourceFamily !== null) {
+            return $mediaResourceFamily;
+        }
+
+        $packageMediaResourceFamily = self::mediaResourceFamilyFromPackagePart($part);
+        if ($mediaTypeBase === 'application/octet-stream' && $packageMediaResourceFamily !== null) {
+            return $packageMediaResourceFamily;
+        }
+        if (self::isXmlMediaTypeBase($mediaTypeBase)) {
+            return 'xml';
+        }
+        if (($manifestItem['missingMediaType'] ?? false) === true || $mediaTypeBase === '') {
+            return 'missing-media-type';
+        }
+        if ($mediaTypeBase === 'application/octet-stream' || str_starts_with($mediaTypeBase, 'application/vnd.')) {
+            return 'binary';
+        }
+
+        return 'other';
     }
 
     /**
@@ -23685,6 +23873,10 @@ final class OdfReader
         $encryptedReferenceCount = 0;
         $exposableReferenceCount = 0;
         $blockedReferenceCount = 0;
+        $embeddedObjectReferenceCount = 0;
+        $mediaResourceReferenceCount = 0;
+        $packageRolePrecedenceReferenceCount = 0;
+        $mediaFamilyCounts = [];
 
         foreach ($items as $item) {
             $role = (string) ($item['referenceRole'] ?? '');
@@ -23715,11 +23907,25 @@ final class OdfReader
             } else {
                 ++$blockedReferenceCount;
             }
+            if (($item['embeddedObjectPackagePart'] ?? false) === true) {
+                ++$embeddedObjectReferenceCount;
+            }
+            if (($item['mediaResource'] ?? false) === true) {
+                ++$mediaResourceReferenceCount;
+            }
+            if (is_array($item['packageRolePrecedence'] ?? null) && $item['packageRolePrecedence'] !== []) {
+                ++$packageRolePrecedenceReferenceCount;
+            }
+            $family = $item['effectiveMediaFamily'] ?? null;
+            if (is_string($family) && $family !== '') {
+                $mediaFamilyCounts[$family] = ($mediaFamilyCounts[$family] ?? 0) + 1;
+            }
         }
 
         ksort($referenceRoleCounts, SORT_STRING);
         ksort($partReferenceCounts, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($mediaFamilyCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -23734,7 +23940,11 @@ final class OdfReader
             'encryptedReferenceCount' => $encryptedReferenceCount,
             'exposableReferenceCount' => $exposableReferenceCount,
             'blockedReferenceCount' => $blockedReferenceCount,
+            'embeddedObjectReferenceCount' => $embeddedObjectReferenceCount,
+            'mediaResourceReferenceCount' => $mediaResourceReferenceCount,
+            'packageRolePrecedenceReferenceCount' => $packageRolePrecedenceReferenceCount,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'mediaFamilyCounts' => $mediaFamilyCounts,
             'byteExposurePolicy' => 'odf-content-package-reference-metadata-only',
             'canExposeBytes' => false,
             'items' => $items,
@@ -23805,6 +24015,19 @@ final class OdfReader
         $byteExposurePolicy = $declared
             ? ($manifestItem['byteExposurePolicy'] ?? null)
             : ($canExposeBytes ? 'package-bytes-exposable' : 'content-reference-metadata-only');
+        $mediaType = is_array($manifestItem) ? ($manifestItem['mediaType'] ?? null) : $node->attr('mediaType');
+        $mediaTypeText = is_string($mediaType) ? $mediaType : '';
+        $mediaTypeBase = is_array($manifestItem)
+            ? (string) ($manifestItem['mediaTypeBase'] ?? self::mediaTypeReport($mediaTypeText)['mediaTypeBase'])
+            : self::mediaTypeReport($mediaTypeText)['mediaTypeBase'];
+        $declaredMediaFamily = self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase);
+        $packagePathMediaFamily = self::mediaResourceFamilyFromPackagePart($sourcePart);
+        $packageRolePrecedence = is_array($manifestItem) ? $this->mediaResourcePackagePrecedenceRoles($manifestItem) : [];
+        $mediaResource = $packageRolePrecedence === []
+            && ($referenceRole === 'draw:image' || self::isManifestMediaResourceCandidate($sourcePart, $mediaTypeBase));
+        $effectiveMediaFamily = ($mediaResource || $declaredMediaFamily !== null || $packagePathMediaFamily !== null)
+            ? ($declaredMediaFamily ?? $packagePathMediaFamily ?? 'other')
+            : null;
 
         return self::withoutEmpty([
             'index' => $index,
@@ -23821,8 +24044,19 @@ final class OdfReader
             'manifestPartSuffix' => is_array($manifestItem) ? ($manifestItem['partSuffix'] ?? null) : null,
             'manifestPartQuery' => is_array($manifestItem) ? ($manifestItem['partQuery'] ?? null) : null,
             'manifestPartFragment' => is_array($manifestItem) ? ($manifestItem['partFragment'] ?? null) : null,
-            'mediaType' => is_array($manifestItem) ? ($manifestItem['mediaType'] ?? null) : $node->attr('mediaType'),
-            'mediaTypeBase' => is_array($manifestItem) ? ($manifestItem['mediaTypeBase'] ?? null) : null,
+            'mediaType' => $mediaType,
+            'mediaTypeBase' => $mediaTypeBase === '' ? null : $mediaTypeBase,
+            'declaredMediaFamily' => $declaredMediaFamily,
+            'packagePathMediaFamily' => $packagePathMediaFamily,
+            'effectiveMediaFamily' => $effectiveMediaFamily,
+            'mediaResource' => $mediaResource,
+            'packageRolePrecedence' => $packageRolePrecedence,
+            'embeddedObjectPackagePart' => is_array($manifestItem) && ($manifestItem['embeddedObjectPackagePart'] ?? false) === true,
+            'embeddedObjectRoot' => is_array($manifestItem) && ($manifestItem['embeddedObjectRoot'] ?? false) === true,
+            'embeddedObjectContainedPart' => is_array($manifestItem) && ($manifestItem['embeddedObjectContainedPart'] ?? false) === true,
+            'embeddedObjectRootPart' => is_array($manifestItem) ? ($manifestItem['embeddedObjectRootPart'] ?? null) : null,
+            'embeddedObjectPath' => is_array($manifestItem) ? ($manifestItem['embeddedObjectPath'] ?? null) : null,
+            'embeddedObjectType' => is_array($manifestItem) ? ($manifestItem['embeddedObjectType'] ?? null) : null,
             'exists' => $exists,
             'encrypted' => $encrypted,
             'canExposeBytes' => $canExposeBytes,
