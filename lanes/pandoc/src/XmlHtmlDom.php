@@ -26169,23 +26169,30 @@ final class XmlHtmlDom
     {
         $forRaw = self::attributeOrNull($label, 'for');
         $forId = $forRaw === null ? null : trim($forRaw);
+        $forId = $forId === '' ? null : $forId;
+        $forTargets = $forId === null ? [] : self::htmlElementsById($label, $forId);
+        $labelableForTargets = array_values(array_filter(
+            $forTargets,
+            static fn (\DOMElement $target): bool => self::isLabelableElement($target)
+        ));
         $nestedControls = self::descendantLabelableElements($label);
+        $nestedLabels = self::descendantHtmlElements($label, 'label');
         $control = null;
         $source = 'missing';
         if ($forRaw !== null) {
             $source = 'for-attribute';
-            $candidate = $forId === '' ? null : self::htmlElementById($label, $forId);
+            $candidate = $forId === null ? null : ($forTargets[0] ?? null);
             $control = $candidate instanceof \DOMElement && self::isLabelableElement($candidate) ? $candidate : null;
         } elseif ($nestedControls !== []) {
             $source = 'descendant';
             $control = $nestedControls[0];
         }
 
-        return [
+        $summary = [
             'formLabel' => 'label',
             'labelText' => self::normalizedText($label),
             'forRaw' => $forRaw,
-            'forId' => $forId === '' ? null : $forId,
+            'forId' => $forId,
             'labeledControlSource' => $control instanceof \DOMElement ? $source : ($source === 'for-attribute' ? 'missing-for-target' : 'missing'),
             'labeledControl' => $control instanceof \DOMElement ? self::labelableElementSummary($control) : null,
             'nestedControlCount' => count($nestedControls),
@@ -26193,6 +26200,251 @@ final class XmlHtmlDom
                 static fn (\DOMElement $control): array => self::labelableElementSummary($control),
                 $nestedControls
             ),
+        ];
+
+        return $summary + self::labelAssociationReviewSummary(
+            $forRaw,
+            $forId,
+            $forTargets,
+            $labelableForTargets,
+            $nestedControls,
+            $nestedLabels,
+            $control,
+            $source
+        );
+    }
+
+    /**
+     * @param list<\DOMElement> $forTargets
+     * @param list<\DOMElement> $labelableForTargets
+     * @param list<\DOMElement> $nestedControls
+     * @param list<\DOMElement> $nestedLabels
+     * @return array<string, mixed>
+     */
+    private static function labelAssociationReviewSummary(
+        ?string $forRaw,
+        ?string $forId,
+        array $forTargets,
+        array $labelableForTargets,
+        array $nestedControls,
+        array $nestedLabels,
+        ?\DOMElement $control,
+        string $source
+    ): array {
+        $forReferenceValid = $forRaw === null ? null : ($forId !== null && self::isHtmlIdReferenceToken($forRaw));
+        $firstForTarget = $forTargets[0] ?? null;
+        $firstForTargetLabelable = $firstForTarget instanceof \DOMElement && self::isLabelableElement($firstForTarget);
+        $nestedUnassociatedControls = [];
+        foreach ($nestedControls as $nestedControl) {
+            if (!$control instanceof \DOMElement || !$nestedControl->isSameNode($control)) {
+                $nestedUnassociatedControls[] = $nestedControl;
+            }
+        }
+
+        $issues = [];
+        if ($forRaw !== null) {
+            if ($forId === null) {
+                $issues[] = [
+                    'code' => 'empty-label-for-reference',
+                    'forRaw' => $forRaw,
+                ];
+            } elseif ($forReferenceValid === false) {
+                $issues[] = [
+                    'code' => 'invalid-label-for-reference',
+                    'forRaw' => $forRaw,
+                    'forId' => $forId,
+                ];
+            }
+
+            if ($forId !== null && $forTargets === []) {
+                $issues[] = [
+                    'code' => 'missing-label-for-target',
+                    'forId' => $forId,
+                ];
+            } elseif ($forTargets !== [] && !$firstForTargetLabelable) {
+                $issues[] = [
+                    'code' => 'non-labelable-label-for-target',
+                    'forId' => $forId,
+                    'targetName' => self::htmlElementName($forTargets[0]),
+                ];
+            }
+
+            if (count($forTargets) > 1) {
+                $issues[] = [
+                    'code' => 'duplicate-label-for-target-id',
+                    'forId' => $forId,
+                    'targetCount' => count($forTargets),
+                    'labelableTargetCount' => count($labelableForTargets),
+                ];
+            }
+
+            if ($nestedUnassociatedControls !== []) {
+                $issues[] = [
+                    'code' => 'label-for-with-nested-unassociated-control',
+                    'nestedControlCount' => count($nestedUnassociatedControls),
+                    'nestedControlIds' => self::labelElementIds($nestedUnassociatedControls),
+                ];
+            }
+        } elseif ($nestedControls === []) {
+            $issues[] = ['code' => 'missing-label-control'];
+        }
+
+        if (count($nestedControls) > 1) {
+            $issues[] = [
+                'code' => 'multiple-nested-labelable-controls',
+                'nestedControlCount' => count($nestedControls),
+                'nestedControlIds' => self::labelElementIds($nestedControls),
+            ];
+        }
+
+        if ($nestedLabels !== []) {
+            $issues[] = [
+                'code' => 'nested-label-element',
+                'nestedLabelCount' => count($nestedLabels),
+                'nestedLabelIds' => self::labelElementIds($nestedLabels),
+            ];
+        }
+
+        return [
+            'labelAssociationReviewPolicy' => 'html-label-control-association-review',
+            'labelAssociationMode' => $forRaw !== null ? 'explicit' : ($nestedControls === [] ? 'none' : 'implicit'),
+            'labelAssociationSource' => $source,
+            'labelAssociationState' => self::labelAssociationState(
+                $forRaw,
+                $forId,
+                $forReferenceValid,
+                $forTargets,
+                $firstForTargetLabelable,
+                $nestedControls,
+                $control
+            ),
+            'labelAssociationResolved' => $control instanceof \DOMElement,
+            'labelAssociatedControlId' => $control instanceof \DOMElement ? self::attributeOrNull($control, 'id') : null,
+            'labelForReferenceRaw' => $forRaw,
+            'labelForReferenceId' => $forId,
+            'labelForReferenceValid' => $forReferenceValid,
+            'labelForTargetCount' => count($forTargets),
+            'labelForLabelableTargetCount' => count($labelableForTargets),
+            'labelForFirstTargetLabelable' => $forTargets === [] ? null : $firstForTargetLabelable,
+            'labelForTargetElementNames' => array_values(array_map(
+                static fn (\DOMElement $target): string => self::htmlElementName($target),
+                $forTargets
+            )),
+            'labelForTargets' => array_values(array_map(
+                static fn (\DOMElement $target, int $index): array => self::labelForTargetSummary($target, $control, $index),
+                $forTargets,
+                array_keys($forTargets)
+            )),
+            'labelNestedControlCount' => count($nestedControls),
+            'labelNestedControlIds' => self::labelElementIds($nestedControls),
+            'labelNestedControls' => array_values(array_map(
+                static fn (\DOMElement $nestedControl): array => self::labelableElementSummary($nestedControl),
+                $nestedControls
+            )),
+            'labelNestedUnassociatedControlCount' => count($nestedUnassociatedControls),
+            'labelNestedUnassociatedControls' => array_values(array_map(
+                static fn (\DOMElement $nestedControl): array => self::labelableElementSummary($nestedControl),
+                $nestedUnassociatedControls
+            )),
+            'labelNestedLabelCount' => count($nestedLabels),
+            'labelNestedLabels' => array_values(array_map(
+                static fn (\DOMElement $nestedLabel): array => self::nestedLabelSummary($nestedLabel),
+                $nestedLabels
+            )),
+            'labelAssociationIssues' => $issues,
+            'labelAssociationIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'labelAssociationValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @param list<\DOMElement> $forTargets
+     * @param list<\DOMElement> $nestedControls
+     */
+    private static function labelAssociationState(
+        ?string $forRaw,
+        ?string $forId,
+        ?bool $forReferenceValid,
+        array $forTargets,
+        bool $firstForTargetLabelable,
+        array $nestedControls,
+        ?\DOMElement $control
+    ): string {
+        if ($control instanceof \DOMElement) {
+            return $forRaw === null ? 'resolved-implicit' : 'resolved-explicit';
+        }
+
+        if ($forRaw !== null) {
+            if ($forId === null) {
+                return 'empty-reference';
+            }
+            if ($forReferenceValid === false) {
+                return 'invalid-reference';
+            }
+            if ($forTargets === []) {
+                return 'missing-target';
+            }
+            if (!$firstForTargetLabelable) {
+                return 'non-labelable-target';
+            }
+
+            return 'unresolved-explicit';
+        }
+
+        return $nestedControls === [] ? 'missing-control' : 'unresolved-implicit';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function labelForTargetSummary(\DOMElement $target, ?\DOMElement $control, int $index): array
+    {
+        $labelable = self::isLabelableElement($target);
+        $summary = $labelable
+            ? self::labelableElementSummary($target)
+            : [
+                'tag' => self::htmlElementName($target),
+                'id' => self::attributeOrNull($target, 'id'),
+            ];
+
+        $summary['index'] = $index;
+        $summary['labelable'] = $labelable;
+        $summary['selectedForAssociation'] = $control instanceof \DOMElement && $target->isSameNode($control);
+        $summary['text'] = self::normalizedText($target);
+
+        return $summary;
+    }
+
+    /**
+     * @param list<\DOMElement> $controls
+     * @return list<string>
+     */
+    private static function labelElementIds(array $elements): array
+    {
+        $ids = [];
+        foreach ($elements as $element) {
+            $id = self::attributeOrNull($element, 'id');
+            if ($id !== null && $id !== '' && !in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function nestedLabelSummary(\DOMElement $label): array
+    {
+        return [
+            'tag' => 'label',
+            'id' => self::attributeOrNull($label, 'id'),
+            'forRaw' => self::attributeOrNull($label, 'for'),
+            'text' => self::normalizedText($label),
         ];
     }
 
