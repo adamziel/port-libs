@@ -26052,6 +26052,12 @@ final class XmlHtmlDom
             $summary['constraintStep'] = $step;
             $summary['constraintStepValid'] = $step !== null;
         }
+        if ($name === 'input') {
+            $inputType = self::inputType($control);
+            if (in_array($inputType, ['number', 'range'], true)) {
+                $summary += self::formControlNumericConstraintReviewSummary($control, $inputType);
+            }
+        }
         if ($control->hasAttribute('pattern')) {
             $pattern = $control->getAttribute('pattern');
             $summary['patternRaw'] = $pattern;
@@ -26095,6 +26101,162 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formControlNumericConstraintReviewSummary(\DOMElement $control, string $inputType): array
+    {
+        $applies = in_array($inputType, ['number', 'range'], true);
+        $minRaw = self::attributeOrNull($control, 'min');
+        $maxRaw = self::attributeOrNull($control, 'max');
+        $stepRaw = self::attributeOrNull($control, 'step');
+        $valueRaw = self::attributeOrNull($control, 'value');
+        $min = $minRaw === null ? null : self::finiteNumericToken($minRaw);
+        $max = $maxRaw === null ? null : self::finiteNumericToken($maxRaw);
+        $step = $stepRaw === null ? null : self::stepConstraintToken($stepRaw);
+        $stepAny = $step === 'any';
+        $effectiveStep = $stepAny ? null : (is_float($step) ? $step : 1.0);
+        $stepBase = is_float($min) ? $min : 0.0;
+        $value = $valueRaw === null ? null : self::finiteNumericToken($valueRaw);
+        $rangeValid = is_float($min) && is_float($max) ? $max >= $min : null;
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+        $readonly = self::inputTypeSupportsReadonlyValue($inputType) && $control->hasAttribute('readonly');
+        $belowMin = $applies && is_float($value) && is_float($min) && $value < $min;
+        $aboveMax = $applies && is_float($value) && is_float($max) && $value > $max;
+        $stepMismatch = $applies
+            && is_float($value)
+            && is_float($effectiveStep)
+            && self::numericStepMismatch($value, $stepBase, $effectiveStep);
+        $issues = [];
+
+        if (!$applies) {
+            $issues[] = [
+                'code' => 'numeric-constraint-unsupported-control',
+                'inputType' => $inputType,
+            ];
+        }
+        if ($minRaw !== null && $min === null) {
+            $issues[] = [
+                'code' => 'invalid-min-numeric-constraint',
+                'raw' => $minRaw,
+            ];
+        }
+        if ($maxRaw !== null && $max === null) {
+            $issues[] = [
+                'code' => 'invalid-max-numeric-constraint',
+                'raw' => $maxRaw,
+            ];
+        }
+        if ($rangeValid === false) {
+            $issues[] = [
+                'code' => 'invalid-numeric-constraint-range',
+                'min' => $min,
+                'max' => $max,
+            ];
+        }
+        if ($stepRaw !== null && $step === null) {
+            $issues[] = [
+                'code' => 'invalid-step-numeric-constraint',
+                'raw' => $stepRaw,
+            ];
+        }
+        if ($valueRaw !== null && $value === null) {
+            $issues[] = [
+                'code' => 'invalid-static-numeric-value',
+                'raw' => $valueRaw,
+            ];
+        }
+        if ($effectiveDisabled) {
+            $issues[] = ['code' => 'numeric-constraint-disabled-control'];
+        }
+        if ($readonly) {
+            $issues[] = ['code' => 'numeric-constraint-readonly-control'];
+        }
+        if (!$effectiveDisabled && !$readonly) {
+            if ($belowMin) {
+                $issues[] = [
+                    'code' => 'static-numeric-value-below-min',
+                    'value' => $value,
+                    'min' => $min,
+                ];
+            }
+            if ($aboveMax) {
+                $issues[] = [
+                    'code' => 'static-numeric-value-above-max',
+                    'value' => $value,
+                    'max' => $max,
+                ];
+            }
+            if ($stepMismatch) {
+                $issues[] = [
+                    'code' => 'static-numeric-value-step-mismatch',
+                    'value' => $value,
+                    'stepBase' => $stepBase,
+                    'step' => $effectiveStep,
+                ];
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'numericConstraintReviewPolicy' => 'form-control-numeric-constraint-review',
+            'numericConstraintInputType' => $inputType,
+            'numericConstraintControlId' => self::attributeOrNull($control, 'id'),
+            'numericConstraintControlName' => self::attributeOrNull($control, 'name'),
+            'numericConstraintApplies' => $applies,
+            'numericMinRaw' => $minRaw,
+            'numericMin' => $min,
+            'numericMinValid' => $minRaw === null ? null : $min !== null,
+            'numericMaxRaw' => $maxRaw,
+            'numericMax' => $max,
+            'numericMaxValid' => $maxRaw === null ? null : $max !== null,
+            'numericRangeValid' => $rangeValid,
+            'numericStepRaw' => $stepRaw,
+            'numericStep' => $stepRaw === null ? null : $step,
+            'numericStepValid' => $stepRaw === null ? null : $step !== null,
+            'numericStepAny' => $stepAny,
+            'numericStepDefaulted' => $stepRaw === null,
+            'numericEffectiveStep' => $effectiveStep,
+            'numericStepBase' => $stepBase,
+            'numericStaticValueRaw' => $valueRaw,
+            'numericStaticValue' => $value,
+            'numericStaticValuePresent' => $valueRaw !== null,
+            'numericStaticValueValid' => $valueRaw === null ? null : $value !== null,
+            'numericStaticValueSource' => $valueRaw === null ? 'missing-value-attribute' : 'value-attribute',
+            'numericValueBelowMin' => $belowMin,
+            'numericValueAboveMax' => $aboveMax,
+            'numericStepMismatch' => $stepMismatch,
+            'numericEffectiveDisabled' => $effectiveDisabled,
+            'numericReadonly' => $readonly,
+            'numericWouldBlockStaticSubmission' => $applies
+                && !$effectiveDisabled
+                && !$readonly
+                && ($belowMin || $aboveMax || $stepMismatch || ($valueRaw !== null && $value === null)),
+            'numericReviewOnlyNoFormSubmission' => true,
+            'numericIssues' => $issues,
+            'numericIssueCodes' => $issueCodes,
+            'numericValid' => $issues === [],
+        ];
+    }
+
+    private static function numericStepMismatch(float $value, float $base, float $step): bool
+    {
+        if ($step <= 0.0) {
+            return false;
+        }
+
+        $quotient = ($value - $base) / $step;
+        if (!is_finite($quotient)) {
+            return false;
+        }
+
+        return abs($quotient - round($quotient)) > 1.0E-9;
     }
 
     /**
