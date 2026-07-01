@@ -333,6 +333,7 @@ final class PptxReader
         }
 
         $relationshipNamespace = $this->localNamespaceForPrefix($root, 'r') ?? $this->localNamespaceForPrefix($spTree, 'r');
+        $drawingNamespace = $this->localNamespaceForPrefix($root, 'a');
         $zOrder = 0;
         foreach ($this->childElements($spTree, null) as $shapeElement) {
             if (!$this->isDrawableShapeElement($shapeElement)) {
@@ -342,7 +343,7 @@ final class PptxReader
             if ($this->isTitlePlaceholder($shapeElement)) {
                 continue;
             }
-            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $relationshipNamespace, $zOrder, $imageIssues, $shapeIssues, $richMedia) as $block) {
+            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $relationshipNamespace, $drawingNamespace, $zOrder, $imageIssues, $shapeIssues, $richMedia) as $block) {
                 $blocks[] = $block;
             }
         }
@@ -1547,7 +1548,7 @@ final class PptxReader
      * @param list<array<string, string|bool|array<string, mixed>>> $richMedia
      * @return list<AstNode>
      */
-    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $relationshipNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
+    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $relationshipNamespace, ?string $drawingNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
     {
         if ($shapeElement->localName === 'sp') {
             $textBody = $this->firstPresentationChildElement($shapeElement, 'txBody');
@@ -1555,7 +1556,7 @@ final class PptxReader
                 return [];
             }
 
-            $paragraphs = $this->parseParagraphs($textBody, $slideRelationships);
+            $paragraphs = $this->parseParagraphs($textBody, $slideRelationships, $drawingNamespace);
 
             return $this->withShapeMetadata(
                 $this->paragraphsToBlocks($paragraphs),
@@ -2011,8 +2012,10 @@ final class PptxReader
     /**
      * @return list<array{level:int, bullet:bool, listType:string, text:string, continuation?:bool, inlines?:list<AstNode>}>
      */
-    private function parseParagraphs(\DOMElement $textBody, ?OpcRelationships $relationships = null): array
+    private function parseParagraphs(\DOMElement $textBody, ?OpcRelationships $relationships = null, ?string $drawingNamespace = self::DRAWING_NAMESPACE): array
     {
+        $paragraphNamespace = $drawingNamespace ?? $this->localNamespaceForPrefix($textBody, 'a');
+
         return array_map(
             function (\DOMElement $paragraphElement) use ($relationships): array {
                 $paragraph = array_replace([
@@ -2032,7 +2035,7 @@ final class PptxReader
 
                 return $paragraph;
             },
-            $this->drawingChildElements($textBody, 'p')
+            $this->childElementsForPrefix($textBody, 'a', 'p', $paragraphNamespace)
         );
     }
 
