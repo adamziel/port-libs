@@ -11741,6 +11741,75 @@ XML;
         $t->same(1, $roles['office-document-relationships']['partCount']);
         $t->same(1, $roles['package-relationships']['partCount']);
     },
+    'summarizes docx package part role top-level and depth buckets for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $embeddedPackageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+        $embeddedContentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        $embeddedBytes = str_repeat('E', 64);
+        $deepCustomBytes = str_repeat('D', 37);
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/word/embeddings/review.xlsx" ContentType="' . $embeddedContentType . '; profile=role-area"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rEmbeddedWorkbook" Type="' . $embeddedPackageRel . '" Target="embeddings/review.xlsx?sheet=1#ole"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/embeddings/review.xlsx'] = $embeddedBytes;
+        $parts['customXml/deep/store/raw.bin'] = $deepCustomBytes;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $roles = [];
+        foreach ($summary['partRoles'] as $role) {
+            $roles[$role['role']] = $role;
+        }
+
+        $documentTargets = $roles['document-relationship-target'];
+        $t->same(['word' => 2], $documentTargets['topLevelSegmentCounts']);
+        $t->same(['word'], $documentTargets['topLevelSegments']);
+        $t->same(['2' => 2], $documentTargets['directoryDepthCounts']);
+        $t->same('word/embeddings/review.xlsx', $documentTargets['deepestPart']['partName']);
+        $t->same(2, $documentTargets['deepestPart']['directoryDepth']);
+        $t->same('word', $documentTargets['deepestPart']['topLevelSegment']);
+
+        $embedded = $roles['embedded-package'];
+        $t->same(['word' => 1], $embedded['topLevelSegmentCounts']);
+        $t->same(['2' => 1], $embedded['directoryDepthCounts']);
+        $t->same('word/embeddings/review.xlsx', $embedded['largestPart']['partName']);
+        $t->same('word/embeddings/review.xlsx', $embedded['deepestPart']['partName']);
+        $t->same(['document-relationship-target', 'embedded-package'], $embedded['deepestPart']['roles']);
+
+        $packagePart = $roles['package-part'];
+        $t->same(['customXml' => 1, 'word' => 2], $packagePart['topLevelSegmentCounts']);
+        $t->same(['customXml', 'word'], $packagePart['topLevelSegments']);
+        $t->same(['1' => 2, '3' => 1], $packagePart['directoryDepthCounts']);
+        $t->same('customXml/deep/store/raw.bin', $packagePart['deepestPart']['partName']);
+        $t->same('customXml/deep/store', $packagePart['deepestPart']['directory']);
+        $t->same(3, $packagePart['deepestPart']['directoryDepth']);
+        $t->same('customXml', $packagePart['deepestPart']['topLevelSegment']);
+        $t->same('missing', $packagePart['deepestPart']['contentTypeSource']);
+
+        $relationshipPart = $roles['relationship-part'];
+        $t->same(['_rels' => 1, 'word' => 1], $relationshipPart['topLevelSegmentCounts']);
+        $t->same(['_rels', 'word'], $relationshipPart['topLevelSegments']);
+        $t->same(['1' => 1, '2' => 1], $relationshipPart['directoryDepthCounts']);
+        $t->same('word/_rels/document.xml.rels', $relationshipPart['deepestPart']['partName']);
+        $t->same(2, $relationshipPart['deepestPart']['directoryDepth']);
+
+        $rootTargets = $roles['root-relationship-target'];
+        $t->same(['docProps' => 1, 'word' => 1], $rootTargets['topLevelSegmentCounts']);
+        $t->same(['docProps', 'word'], $rootTargets['topLevelSegments']);
+        $t->same(['1' => 2], $rootTargets['directoryDepthCounts']);
+
+        $contentTypes = $roles['content-types'];
+        $t->same(['[Content_Types].xml' => 1], $contentTypes['topLevelSegmentCounts']);
+        $t->same(['0' => 1], $contentTypes['directoryDepthCounts']);
+        $t->same('[Content_Types].xml', $contentTypes['deepestPart']['partName']);
+    },
     'summarizes docx embedded object package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $packageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';

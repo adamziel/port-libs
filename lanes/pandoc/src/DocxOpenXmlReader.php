@@ -16154,6 +16154,12 @@ final class DocxOpenXmlReader
             $directory = is_string($part['directory'] ?? null)
                 ? $part['directory']
                 : $this->packagePartDirectory((string) $partName);
+            $directoryDepth = is_int($part['directoryDepth'] ?? null)
+                ? (int) $part['directoryDepth']
+                : $this->packagePartDirectoryDepth($directory);
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : $this->packagePartTopLevelSegment((string) $partName);
             $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
                 ? $part['contentTypeSource']
                 : 'missing';
@@ -16167,6 +16173,8 @@ final class DocxOpenXmlReader
             $partSummary = [
                 'partName' => (string) ($part['partName'] ?? $partName),
                 'directory' => $directory,
+                'directoryDepth' => $directoryDepth,
+                'topLevelSegment' => $topLevelSegment,
                 'bytes' => $bytes,
                 'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
                 'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
@@ -16188,8 +16196,12 @@ final class DocxOpenXmlReader
                         'contentTypeSourceCounts' => [],
                         'contentTypeBaseCounts' => [],
                         'directories' => [],
+                        'directoryDepthCounts' => [],
+                        'topLevelSegmentCounts' => [],
+                        'topLevelSegments' => [],
                         'partNames' => [],
                         'largestPart' => null,
+                        'deepestPart' => null,
                     ];
                 }
 
@@ -16197,6 +16209,11 @@ final class DocxOpenXmlReader
                 $roles[$role]['byteLength'] += $bytes;
                 $roles[$role]['partNames'][] = (string) $partName;
                 $roles[$role]['directories'][$directory] = true;
+                $roles[$role]['directoryDepthCounts'][(string) $directoryDepth] =
+                    ($roles[$role]['directoryDepthCounts'][(string) $directoryDepth] ?? 0) + 1;
+                $roles[$role]['topLevelSegments'][$topLevelSegment] = true;
+                $roles[$role]['topLevelSegmentCounts'][$topLevelSegment] =
+                    ($roles[$role]['topLevelSegmentCounts'][$topLevelSegment] ?? 0) + 1;
                 $roles[$role]['contentTypeSourceCounts'][$contentTypeSource] =
                     ($roles[$role]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
                 $roles[$role]['contentTypeBaseCounts'][$contentTypeBaseKey] =
@@ -16223,17 +16240,34 @@ final class DocxOpenXmlReader
                 ) {
                     $roles[$role]['largestPart'] = $partSummary;
                 }
+
+                $deepestPart = $roles[$role]['deepestPart'];
+                if (
+                    !is_array($deepestPart)
+                    || $partSummary['directoryDepth'] > (int) ($deepestPart['directoryDepth'] ?? -1)
+                    || (
+                        $partSummary['directoryDepth'] === (int) ($deepestPart['directoryDepth'] ?? -1)
+                        && strcmp($partSummary['partName'], (string) ($deepestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $roles[$role]['deepestPart'] = $partSummary;
+                }
             }
         }
 
         ksort($roles, SORT_STRING);
         foreach ($roles as $role => $summary) {
             $directories = array_keys($summary['directories']);
+            $topLevelSegments = array_keys($summary['topLevelSegments']);
             sort($directories, SORT_STRING);
+            sort($topLevelSegments, SORT_STRING);
             sort($summary['partNames'], SORT_STRING);
+            ksort($summary['directoryDepthCounts'], SORT_NUMERIC);
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
             ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             $summary['directories'] = $directories;
+            $summary['topLevelSegments'] = $topLevelSegments;
             $roles[$role] = $summary;
         }
 
