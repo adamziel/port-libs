@@ -1421,6 +1421,7 @@ final class OdfReader
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
         $comments = $package->commentPreflight();
+        $modificationTimes = $package->modificationTimePreflight();
         $platformMetadata = $package->platformMetadataPreflight();
         $permissions = $package->permissionPreflight();
         $creatorHostSystems = $package->creatorHostSystemPreflight();
@@ -1638,6 +1639,7 @@ final class OdfReader
                 $commentEntriesByName[$name] = $entry;
             }
         }
+        $modificationTimeByName = self::zipPreflightEntriesByName($modificationTimes);
         $platformMetadataByName = self::zipPreflightEntriesByName($platformMetadata);
         $permissionsByName = self::zipPreflightEntriesByName($permissions);
         $creatorHostSystemsByName = self::zipPreflightEntriesByName($creatorHostSystems);
@@ -1657,6 +1659,7 @@ final class OdfReader
             $embeddedObjectPackage = $this->embeddedObjectPackageMembership($entry->name, $objectPackageRootParts);
             $roles = $this->packagePartRoles($entry, $manifestItem, $isUndeclared, $objectPackageRootParts);
             $rawNameProvenance = $this->zipEntryRawNameProvenance($entry);
+            $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -1761,7 +1764,7 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $timestampProvenance + $platformAttributeProvenance;
 
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
                 $packagePartByteExposurePolicyCounts[$byteExposurePolicy] = ($packagePartByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
@@ -1943,6 +1946,13 @@ final class OdfReader
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+            'modificationTimes' => $modificationTimes,
+            'zipTimestampEntryCount' => $modificationTimes['timestampEntryCount'],
+            'zipDosTimestampEntryCount' => $modificationTimes['dosTimestampEntryCount'],
+            'zipExtendedTimestampEntryCount' => $modificationTimes['extendedTimestampEntryCount'],
+            'zipNtfsTimestampEntryCount' => $modificationTimes['ntfsTimestampEntryCount'],
+            'zipInvalidDosTimestampEntryCount' => $modificationTimes['invalidDosTimestampEntryCount'],
+            'zipInvalidDosTimestampEntries' => $modificationTimes['invalidDosTimestampEntries'],
             'platformMetadata' => $platformMetadata,
             'platformMetadataEntryCount' => $platformMetadata['platformMetadataEntryCount'],
             'creatorHostSystems' => $creatorHostSystems,
@@ -2033,6 +2043,22 @@ final class OdfReader
                 'compressedByteLength' => $item['compressedByteLength'] ?? null,
                 'crc32' => $item['crc32'] ?? null,
                 'byteSha256' => $item['byteSha256'] ?? null,
+                'zipModifiedAt' => $item['zipModifiedAt'] ?? null,
+                'zipTimestampSource' => $item['zipTimestampSource'] ?? null,
+                'zipModifiedDosTime' => $item['zipModifiedDosTime'] ?? null,
+                'zipModifiedDosDate' => $item['zipModifiedDosDate'] ?? null,
+                'zipHasDosTimestamp' => ($item['zipHasDosTimestamp'] ?? false) === true,
+                'zipIsDosTimestampValid' => ($item['zipIsDosTimestampValid'] ?? true) === true,
+                'zipDosModifiedAt' => $item['zipDosModifiedAt'] ?? null,
+                'zipExtendedModifiedAt' => $item['zipExtendedModifiedAt'] ?? null,
+                'zipNtfsModifiedAt' => $item['zipNtfsModifiedAt'] ?? null,
+                'zipCentralModifiedAt' => $item['zipCentralModifiedAt'] ?? null,
+                'zipCentralTimestampSource' => $item['zipCentralTimestampSource'] ?? null,
+                'zipLocalExtendedModifiedAt' => $item['zipLocalExtendedModifiedAt'] ?? null,
+                'zipLocalNtfsModifiedAt' => $item['zipLocalNtfsModifiedAt'] ?? null,
+                'zipLocalModifiedAt' => $item['zipLocalModifiedAt'] ?? null,
+                'zipLocalTimestampSource' => $item['zipLocalTimestampSource'] ?? null,
+                'zipTimestampIssues' => $item['zipTimestampIssues'] ?? [],
                 'madeByHostSystem' => $item['madeByHostSystem'] ?? null,
                 'madeByHostSystemName' => $item['madeByHostSystemName'] ?? null,
                 'madeByVersion' => $item['madeByVersion'] ?? null,
@@ -2133,6 +2159,11 @@ final class OdfReader
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
             'manifestCustomAttributeNames' => $provenance['manifestCustomAttributeNames'] ?? [],
             'rawNameProvenanceEntries' => $provenance['rawNameProvenanceEntries'] ?? [],
+            'zipTimestampEntryCount' => $provenance['zipTimestampEntryCount'] ?? 0,
+            'zipDosTimestampEntryCount' => $provenance['zipDosTimestampEntryCount'] ?? 0,
+            'zipExtendedTimestampEntryCount' => $provenance['zipExtendedTimestampEntryCount'] ?? 0,
+            'zipNtfsTimestampEntryCount' => $provenance['zipNtfsTimestampEntryCount'] ?? 0,
+            'zipInvalidDosTimestampEntryCount' => $provenance['zipInvalidDosTimestampEntryCount'] ?? 0,
             'platformMetadataEntryCount' => $provenance['platformMetadataEntryCount'] ?? 0,
             'knownCreatorHostSystemEntryCount' => $provenance['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $provenance['unknownCreatorHostSystemEntryCount'] ?? 0,
@@ -2186,6 +2217,11 @@ final class OdfReader
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'roleCounts' => $provenance['roleCounts'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
+            'zipTimestampEntryCount' => $provenance['zipTimestampEntryCount'] ?? 0,
+            'zipDosTimestampEntryCount' => $provenance['zipDosTimestampEntryCount'] ?? 0,
+            'zipExtendedTimestampEntryCount' => $provenance['zipExtendedTimestampEntryCount'] ?? 0,
+            'zipNtfsTimestampEntryCount' => $provenance['zipNtfsTimestampEntryCount'] ?? 0,
+            'zipInvalidDosTimestampEntryCount' => $provenance['zipInvalidDosTimestampEntryCount'] ?? 0,
             'platformMetadataEntryCount' => $provenance['platformMetadataEntryCount'] ?? 0,
             'knownCreatorHostSystemEntryCount' => $provenance['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $provenance['unknownCreatorHostSystemEntryCount'] ?? 0,
@@ -2821,6 +2857,32 @@ final class OdfReader
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $timestamp
+     * @return array<string, mixed>
+     */
+    private static function zipTimestampProvenance(?array $timestamp): array
+    {
+        return [
+            'zipModifiedAt' => $timestamp['modifiedAt'] ?? null,
+            'zipTimestampSource' => $timestamp['timestampSource'] ?? null,
+            'zipModifiedDosTime' => $timestamp['modifiedDosTime'] ?? null,
+            'zipModifiedDosDate' => $timestamp['modifiedDosDate'] ?? null,
+            'zipHasDosTimestamp' => ($timestamp['hasDosTimestamp'] ?? false) === true,
+            'zipIsDosTimestampValid' => ($timestamp['isDosTimestampValid'] ?? true) === true,
+            'zipDosModifiedAt' => $timestamp['dosModifiedAt'] ?? null,
+            'zipExtendedModifiedAt' => $timestamp['extendedModifiedAt'] ?? null,
+            'zipNtfsModifiedAt' => $timestamp['ntfsModifiedAt'] ?? null,
+            'zipCentralModifiedAt' => $timestamp['centralModifiedAt'] ?? null,
+            'zipCentralTimestampSource' => $timestamp['centralTimestampSource'] ?? null,
+            'zipLocalExtendedModifiedAt' => $timestamp['localExtendedModifiedAt'] ?? null,
+            'zipLocalNtfsModifiedAt' => $timestamp['localNtfsModifiedAt'] ?? null,
+            'zipLocalModifiedAt' => $timestamp['localModifiedAt'] ?? null,
+            'zipLocalTimestampSource' => $timestamp['localTimestampSource'] ?? null,
+            'zipTimestampIssues' => is_array($timestamp['issues'] ?? null) ? $timestamp['issues'] : [],
+        ];
     }
 
     /**

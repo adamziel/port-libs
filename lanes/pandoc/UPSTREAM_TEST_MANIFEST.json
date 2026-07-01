@@ -2,6 +2,10 @@
     "schemaVersion": 1,
     "lane": "pandoc",
     "priority": 6,
+    "mappedOdfManifestMissingMediaTypeCases": 1,
+    "odfManifestMissingMediaTypeAssertions": 22,
+    "mappedOdfReaderZipTimestampProvenanceCases": 1,
+    "odfReaderZipTimestampProvenanceAssertions": 31,
     "upstream": {
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",
@@ -1611,7 +1615,9 @@
         "mappedLegacyBiblatexLiteralListCases": 1,
         "mappedJsonNativeTextRawFormatCases": 1,
         "mappedJsonNativeMixedTableBlockBoundaryCases": 1,
-        "mappedJsonNativeTextualInlinePartCases": 1
+        "mappedJsonNativeTextualInlinePartCases": 1,
+        "mappedOdfReaderZipTimestampProvenanceCases": 1,
+        "odfReaderZipTimestampProvenanceAssertions": 31
     },
     "nativeImplementation": {
         "language": "PHP",

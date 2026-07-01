@@ -1,12 +1,12 @@
 # Pandoc Status
 
-Updated: 2026-06-26 UTC
+Updated: 2026-06-30 UTC
 
 Current registry audit: 51 upstream input formats tracked; 33 have partial native PHP readers; 18 remain unsupported. Output registry audit: 75 upstream output formats tracked; 17 have partial native PHP writers; 58 remain unsupported. Project-local inputs `pdf` and `doc` are tracked separately from upstream Pandoc inputs. The latest format-dispatch work keeps bounded `xml`, `jats`, and `bits` readers on `PortLibs\Pandoc\XmlReader`, keeps `docbook` on direct `PortLibs\Pandoc\DocBookReader` dispatch, moves `html` onto dedicated `PortLibs\Pandoc\HtmlReader` dispatch while preserving the current HTML-capable reader bridge, adds bounded `opml` dispatch through `PortLibs\Pandoc\OpmlReader` plus `PortLibs\Pandoc\OpmlWriter`, adds bounded EPUB/EPUB3 output through `PortLibs\Pandoc\EpubWriter`, closes the pinned upstream CSV/TSV parser evidence through `PortLibs\Pandoc\DelimitedTextReader`, closes the pinned upstream XLSX reader fixture through `PortLibs\Pandoc\XlsxReader`, closes the pinned upstream PPTX reader fixture through `PortLibs\Pandoc\PptxReader`, adds bounded Jira wiki reader unit semantics through `PortLibs\Pandoc\JiraReader`, exposes wiki-family registry metadata for 7 upstream input tokens and 5 upstream output tokens without claiming direct wiki parity, and covers the six pinned upstream FB2 golden fixture semantics through `PortLibs\Pandoc\Fb2Reader`; full Pandoc parity remains open for the larger unsupported/partial format surface.
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
-ODF/ODT is marked ship-ready: 90 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+ODF/ODT is marked ship-ready: 91 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |

@@ -12,3 +12,8 @@
 | [rclone](lanes/rclone/lane-status.json) | Backlog | High coverage | 98.0% | 512 pass / 0 fail | [512 / 2,553 (20.1%)](lanes/rclone/UPSTREAM_TEST_MANIFEST.json) | 2,041 | No local blocker | cd2e8a0 |
 | [esbuild](lanes/esbuild/lane-status.json) | Backlog | Needs catch-up | 77.0% | 259 pass / 0 fail | [259 / 2,567 (10.1%)](lanes/esbuild/UPSTREAM_TEST_MANIFEST.json) | 2,308 | Release-extra upstream `make test-all` coverage remains static-only. | cd2e8a0 |
 | [dolt](lanes/dolt/lane-status.json) | Parked | Parked | 69.0% | 249 pass / 0 fail | [315 / 613 (51.4%)](lanes/dolt/UPSTREAM_TEST_MANIFEST.json) | 298 | Parked | cd2e8a0 |
+
+| Area | Format | Verdict | Local mapped cases | Upstream cases | Remaining critical gaps |
+| --- | --- | --- | ---: | ---: | --- |
+| ODF/ODT/OpenDocument | `odt` | ship-ready | 91 | 20 | 0 critical gaps |
+| Ship verdict | Shippable for native PHP ODT package import |  |  |  |  |
