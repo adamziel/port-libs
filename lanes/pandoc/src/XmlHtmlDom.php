@@ -25805,6 +25805,7 @@ final class XmlHtmlDom
         ];
         $summary += self::mediaTextTrackReviewSummary($element);
         $summary += self::mediaPolicyReviewSummary($element);
+        $summary += self::mediaPreloadReviewSummary($element);
 
         if ($name === 'video') {
             $summary['poster'] = self::attributeOrNull($element, 'poster');
@@ -26975,6 +26976,41 @@ final class XmlHtmlDom
         $preload = strtolower(trim($media->getAttribute('preload')));
 
         return in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : 'auto';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaPreloadReviewSummary(\DOMElement $media): array
+    {
+        $raw = self::attributeOrNull($media, 'preload');
+        $normalized = $raw === null ? null : strtolower(trim($raw));
+        $keyword = match ($normalized) {
+            null => null,
+            '', 'auto' => 'auto',
+            'metadata' => 'metadata',
+            'none' => 'none',
+            default => null,
+        };
+        $issueCodes = $raw !== null && $keyword === null ? ['invalid-media-preload-token'] : [];
+
+        return [
+            'mediaPreloadReviewPolicy' => 'media-preload-state-review',
+            'preloadRaw' => $raw,
+            'preloadKeyword' => $keyword,
+            'preloadState' => $keyword ?? 'auto',
+            'preloadValid' => $raw === null ? null : $keyword !== null,
+            'preloadDefaulted' => $raw === null || $normalized === '' || $keyword === null,
+            'preloadDefaultReason' => match (true) {
+                $raw === null => 'missing-attribute',
+                $normalized === '' => 'empty-attribute',
+                $keyword === null => 'invalid-token',
+                default => null,
+            },
+            'preloadAutoplayOverride' => $media->hasAttribute('autoplay'),
+            'mediaPreloadIssueCodes' => $issueCodes,
+            'mediaPreloadIssueCount' => count($issueCodes),
+        ];
     }
 
     /**
