@@ -17,7 +17,12 @@ final class BibtexCslProcessor
 
     /** @var list<string> */
     private const BIBLATEX_NAME_ANNOTATION_FIELDS = [
+        'afterword',
+        'annotator',
         'author',
+        'authority',
+        'authority-list',
+        'authoritylist',
         'bookauthor',
         'chair',
         'collaborator',
@@ -26,16 +31,20 @@ final class BibtexCslProcessor
         'commentator',
         'compiler',
         'composer',
+        'container-author',
         'continuator',
         'contributor',
         'curator',
         'director',
         'editor',
+        'editor-translator',
         'editorial-director',
         'editorialdirector',
+        'editortranslator',
         'editora',
         'editorb',
         'editorc',
+        'event-organizer',
         'eventorganizer',
         'executive-producer',
         'executiveproducer',
@@ -46,11 +55,18 @@ final class BibtexCslProcessor
         'host',
         'illustrator',
         'introduction',
+        'interviewer',
+        'issuing-authority',
+        'issuing-authority-list',
+        'issuingauthority',
+        'issuingauthoritylist',
         'namea',
         'nameb',
         'namec',
         'narrator',
         'origauthor',
+        'organizer',
+        'organization',
         'original-author',
         'originalauthor',
         'performer',
@@ -66,7 +82,9 @@ final class BibtexCslProcessor
         'seriescreator',
         'series-editor',
         'serieseditor',
+        'short-author',
         'shortauthor',
+        'short-editor',
         'shorteditor',
         'translator',
     ];
@@ -1046,10 +1064,10 @@ final class BibtexCslProcessor
             'translator' => ['translator'],
             'chair' => ['chair'],
             'container-author' => ['bookauthor', 'container-author'],
+            'editor-translator' => ['editortranslator', 'editor-translator'],
             'original-author' => ['origauthor', 'originalauthor', 'original-author'],
             'recipient' => ['recipient'],
             'reviewed-author' => ['reviewedauthor', 'reviewed-author'],
-            'event-organizer' => ['eventorganizer', 'event-organizer', 'organizer'],
             'interviewer' => ['interviewer'],
             'compiler' => ['compiler'],
             'composer' => ['composer'],
@@ -1080,10 +1098,15 @@ final class BibtexCslProcessor
         ];
 
         foreach ($nameFields as $target => $names) {
-            $value = $this->firstField($fields, $names);
-            if ($value !== null && $value !== '') {
-                $item[$target] = $this->parseNames($value);
+            $value = $this->namesFromFirstField($fields, $names);
+            if ($value !== []) {
+                $item[$target] = $value;
             }
+        }
+
+        $eventOrganizer = $this->eventOrganizerNames($type, $fields);
+        if ($eventOrganizer !== []) {
+            $item['event-organizer'] = $eventOrganizer;
         }
 
         $editorialRoles = $this->editorialRolesFromFields($fields);
@@ -1880,14 +1903,14 @@ final class BibtexCslProcessor
 
     /**
      * @param array<string, string> $fields
-     * @return list<array{field:string, type:string, label:string, names:list<array<string, string>>}>
+     * @return list<array{field:string, type:string, label:string, names:list<array<string, mixed>>}>
      */
     private function editorialRolesFromFields(array $fields): array
     {
         $roles = [];
         $primaryEditorType = $this->normalizedEditorialRoleType($fields['editortype'] ?? '');
         if ($primaryEditorType !== '' && $primaryEditorType !== 'editor') {
-            $editorNames = $this->parseNames($fields['editor'] ?? '');
+            $editorNames = $this->namesFromField($fields, 'editor');
             if ($editorNames !== []) {
                 $roles[] = [
                     'field' => 'editor',
@@ -1903,7 +1926,7 @@ final class BibtexCslProcessor
             ['editorb', 'editorbtype'],
             ['editorc', 'editorctype'],
         ] as [$nameField, $typeField]) {
-            $names = $this->parseNames($fields[$nameField] ?? '');
+            $names = $this->namesFromField($fields, $nameField);
             if ($names === []) {
                 continue;
             }
@@ -1918,6 +1941,24 @@ final class BibtexCslProcessor
         }
 
         return $roles;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function eventOrganizerNames(string $type, array $fields): array
+    {
+        $organizer = $this->namesFromFirstField($fields, ['eventorganizer', 'event-organizer', 'organizer']);
+        if ($organizer !== []) {
+            return $organizer;
+        }
+
+        if (!in_array(strtolower($type), ['conference', 'inproceedings', 'proceedings'], true)) {
+            return [];
+        }
+
+        return $this->namesFromField($fields, 'organization');
     }
 
     private function normalizedEditorialRoleType(string $type): string
@@ -2736,7 +2777,7 @@ final class BibtexCslProcessor
 
     /**
      * @param array<string, string> $fields
-     * @return array<string, list<array<string, string>>>
+     * @return array<string, list<array<string, mixed>>>
      */
     private function biblatexCustomNamesFromFields(array $fields): array
     {
@@ -2747,7 +2788,7 @@ final class BibtexCslProcessor
                 continue;
             }
 
-            $names = $this->parseNames($value);
+            $names = $this->namesFromField($fields, $field);
             if ($names !== []) {
                 $custom[$field] = $names;
             }
@@ -2843,6 +2884,129 @@ final class BibtexCslProcessor
     private function normalizedBiblatexFieldAnnotationName(string $name): string
     {
         return strtolower(str_replace('_', '-', trim($name)));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string> $fieldNames
+     * @return list<array<string, mixed>>
+     */
+    private function namesFromFirstField(array $fields, array $fieldNames): array
+    {
+        foreach ($fieldNames as $field) {
+            if (!isset($fields[$field]) || trim($fields[$field]) === '') {
+                continue;
+            }
+
+            return $this->namesFromField($fields, $field);
+        }
+
+        return [];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function namesFromField(array $fields, string $field): array
+    {
+        $names = $this->parseNames($fields[$field] ?? '');
+        if ($names === []) {
+            return [];
+        }
+
+        return $this->withBiblatexNameAnnotations($names, $this->biblatexNameAnnotationsForField($fields, $field));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<array{index:int, part:string, value:string}>
+     */
+    private function biblatexNameAnnotationsForField(array $fields, string $field): array
+    {
+        $annotations = [];
+        $pattern = '/^' . preg_quote($field, '/') . '\\+an(?::([A-Za-z][A-Za-z0-9_-]*))?$/u';
+        foreach ($fields as $name => $value) {
+            if (preg_match($pattern, $name, $matches) !== 1) {
+                continue;
+            }
+
+            $defaultPart = strtolower(str_replace('_', '-', trim((string) ($matches[1] ?? ''))));
+            foreach ($this->biblatexNameAnnotationEntries($value, $defaultPart) as $annotation) {
+                $annotations[] = $annotation;
+            }
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @return list<array{index:int, part:string, value:string}>
+     */
+    private function biblatexNameAnnotationEntries(string $value, string $defaultPart = ''): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $defaultPart = strtolower(str_replace('_', '-', trim($defaultPart)));
+        $separator = str_contains($value, ';') ? ';' : ',';
+        $annotations = [];
+        foreach ($this->splitTopLevel($value, $separator) as $entry) {
+            $entry = trim($entry);
+            if ($entry === '') {
+                continue;
+            }
+
+            if (preg_match('/^(\d+)\s*(?::\s*([A-Za-z][A-Za-z0-9_-]*))?\s*=\s*(.+)$/u', $entry, $matches) !== 1) {
+                throw new \InvalidArgumentException('BibLaTeX name annotation is malformed: ' . $this->cleanValue($entry));
+            }
+
+            $index = (int) $matches[1];
+            if ($index < 1) {
+                throw new \InvalidArgumentException('BibLaTeX name annotation index must be one-based');
+            }
+
+            $text = $this->cleanValue($matches[3]);
+            if ($text === '') {
+                continue;
+            }
+
+            $part = strtolower(str_replace('_', '-', trim((string) ($matches[2] ?? ''))));
+            $annotations[] = [
+                'index' => $index,
+                'part' => $part === '' ? ($defaultPart === '' ? 'name' : $defaultPart) : $part,
+                'value' => $text,
+            ];
+        }
+
+        return $annotations;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $names
+     * @param list<array{index:int, part:string, value:string}> $annotations
+     * @return list<array<string, mixed>>
+     */
+    private function withBiblatexNameAnnotations(array $names, array $annotations): array
+    {
+        foreach ($annotations as $annotation) {
+            $index = $annotation['index'] - 1;
+            if (!isset($names[$index])) {
+                continue;
+            }
+
+            $existing = $names[$index]['annotations'] ?? [];
+            $names[$index]['annotations'] = [
+                ...(is_array($existing) ? $existing : []),
+                [
+                    'part' => $annotation['part'],
+                    'value' => $annotation['value'],
+                ],
+            ];
+        }
+
+        return $names;
     }
 
     /**
@@ -3085,7 +3249,7 @@ final class BibtexCslProcessor
     }
 
     /**
-     * @return list<array<string, string>>
+     * @return list<array<string, mixed>>
      */
     private function parseNames(string $value): array
     {
