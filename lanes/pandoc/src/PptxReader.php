@@ -45,7 +45,8 @@ final class PptxReader
             $slideRelationships = $this->relationshipsOrEmpty($package, $slidePart);
             $slideContext = $this->slideContext($package, $slideRelationships);
             $slideComments = $this->slideComments($package, $slideRelationships, $commentAuthors);
-            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $tableStyles);
+            $imageIssues = [];
+            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $tableStyles, $imageIssues);
             foreach ($slideBlocks as $block) {
                 $blocks[] = $block;
             }
@@ -60,6 +61,8 @@ final class PptxReader
                 'context' => $this->slideContextReview($slideContext),
                 'commentCount' => count($slideComments),
                 'comments' => $slideComments,
+                'imageIssueCount' => count($imageIssues),
+                'imageIssues' => $imageIssues,
                 'richMediaCount' => count($richMedia),
                 'richMedia' => $richMedia,
                 'chartCount' => count($charts),
@@ -159,9 +162,10 @@ final class PptxReader
      * @param array<string, mixed> $slideContext
      * @param list<array<string, mixed>> $slideComments
      * @param array<string, mixed> $tableStyles
+     * @param list<array<string, mixed>> $imageIssues
      * @return list<AstNode>
      */
-    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $tableStyles): array
+    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $tableStyles, array &$imageIssues): array
     {
         $root = XmlHtmlDom::rootElement($document, 'sld');
         if (!$root instanceof \DOMElement) {
@@ -193,7 +197,7 @@ final class PptxReader
             if ($this->isTitlePlaceholder($shapeElement)) {
                 continue;
             }
-            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder) as $block) {
+            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder, $imageIssues) as $block) {
                 $blocks[] = $block;
             }
         }
@@ -940,9 +944,10 @@ final class PptxReader
     /**
      * @param array<string, mixed> $slideContext
      * @param array<string, mixed> $tableStyles
+     * @param list<array<string, mixed>> $imageIssues
      * @return list<AstNode>
      */
-    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder): array
+    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder, array &$imageIssues): array
     {
         if ($shapeElement->localName === 'sp') {
             $textBody = $this->firstChildElement($shapeElement, 'txBody');
@@ -970,7 +975,7 @@ final class PptxReader
         }
 
         if ($shapeElement->localName === 'pic') {
-            $image = $this->pictureNode($shapeElement, $slideRelationships);
+            $image = $this->pictureNode($package, $shapeElement, $slideRelationships, $imageIssues);
             $blocks = $image instanceof AstNode ? [new AstNode('paragraph', [], [$image])] : [];
             foreach ($this->richMediaBlocks($shapeElement, $slideRelationships) as $mediaBlock) {
                 $blocks[] = $mediaBlock;
@@ -1442,7 +1447,10 @@ final class PptxReader
         return false;
     }
 
-    private function pictureNode(\DOMElement $pictureElement, OpcRelationships $slideRelationships): ?AstNode
+    /**
+     * @param list<array<string, mixed>> $imageIssues
+     */
+    private function pictureNode(ZipPackage $package, \DOMElement $pictureElement, OpcRelationships $slideRelationships, array &$imageIssues): ?AstNode
     {
         $nonVisual = $this->firstChildElement($pictureElement, 'nvPicPr');
         $properties = $nonVisual instanceof \DOMElement ? $this->firstChildElement($nonVisual, 'cNvPr') : null;
@@ -1456,21 +1464,51 @@ final class PptxReader
 
         $relationshipId = $this->relationshipId($blip, 'embed');
         if ($relationshipId === '') {
+            $imageIssues[] = ['issue' => 'missing-image-relationship-id'];
+
             return null;
         }
 
         $relationship = $slideRelationships->byId($relationshipId);
-        if (!$relationship instanceof OpcRelationship || $relationship->isExternal()) {
+        if (!$relationship instanceof OpcRelationship) {
+            $imageIssues[] = [
+                'issue' => 'unknown-image-relationship',
+                'relationshipId' => $relationshipId,
+            ];
+
+            return null;
+        }
+
+        if ($relationship->isExternal()) {
+            $imageIssues[] = [
+                'issue' => 'external-image-target',
+                'relationshipId' => $relationshipId,
+                'target' => $relationship->target,
+                'externalTargetPolicy' => $relationship->externalTargetPreflight(),
+            ];
+
             return null;
         }
 
         $mediaPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+        $partName = ltrim($mediaPart, '/');
+        if (!$package->has($mediaPart)) {
+            $imageIssues[] = [
+                'issue' => 'missing-image-part',
+                'relationshipId' => $relationshipId,
+                'target' => $relationship->target,
+                'partName' => $partName,
+            ];
+
+            return null;
+        }
 
         return new AstNode('image', [
-            'url' => ltrim($mediaPart, '/'),
-            'src' => ltrim($mediaPart, '/'),
+            'url' => $partName,
+            'src' => $partName,
             'title' => $title,
             'alt' => $alt,
+            'relationshipId' => $relationshipId,
         ], $this->textInlines($alt));
     }
 
