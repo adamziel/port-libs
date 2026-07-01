@@ -15119,6 +15119,12 @@ XML;
         $t->same(['word/vbaProject.bin', 'word/missingVbaProject.bin'], $vba['partNames']);
         $t->same(['word/vbaProjectSignature.bin', 'word/missingVbaProjectSignature.bin'], $vba['signaturePartNames']);
         $t->same(['word/vbaData.xml', 'word/badVbaData.xml'], $vba['dataPartNames']);
+        $t->same(['?macro=1#project', '?remote=1#project'], $vba['targetReferenceSuffixes']);
+        $t->same(2, $vba['targetReferenceSuffixCount']);
+        $t->same(['?sig=1#signature'], $vba['signatureTargetReferenceSuffixes']);
+        $t->same(1, $vba['signatureTargetReferenceSuffixCount']);
+        $t->same(['?slot=1#data'], $vba['dataPartTargetReferenceSuffixes']);
+        $t->same(1, $vba['dataPartTargetReferenceSuffixCount']);
         $t->same('vba-project-bytes-blocked', $vba['byteExposurePolicy']);
         $t->same('vba-project-metadata-only', $vba['reviewPolicy']);
 
@@ -15171,8 +15177,14 @@ XML;
         $t->same(['external-vba-project'], $remoteProject['issues']);
         $t->same(3, $summary['vbaProjectCount']);
         $t->same(3, $summary['vbaProjectRelationshipCount']);
+        $t->same(2, $summary['vbaProjectTargetReferenceSuffixCount']);
+        $t->same(['?macro=1#project', '?remote=1#project'], $summary['vbaProjectTargetReferenceSuffixes']);
         $t->same(3, $summary['vbaProjectSignatureCount']);
+        $t->same(1, $summary['vbaProjectSignatureTargetReferenceSuffixCount']);
+        $t->same(['?sig=1#signature'], $summary['vbaProjectSignatureTargetReferenceSuffixes']);
         $t->same(2, $summary['vbaDataPartCount']);
+        $t->same(1, $summary['vbaDataTargetReferenceSuffixCount']);
+        $t->same(['?slot=1#data'], $summary['vbaDataTargetReferenceSuffixes']);
         $t->same($vba['issueCodes'], $summary['vbaProjectIssueCodes']);
 
         $t->same('vbaProject', $relationshipTypes[$projectRel]['label']);
@@ -19673,6 +19685,8 @@ XML;
         $t->same(['rExternalTemplate'], $attached['unreferencedRelationshipIds']);
         $t->same(['docSettings/templates/review-template.dotx'], $attached['partNames']);
         $t->same(['file:///C:/Templates/team.dotx'], $attached['externalTargets']);
+        $t->same(['?rev=7#template'], $attached['targetReferenceSuffixes']);
+        $t->same(1, $attached['targetReferenceSuffixCount']);
         $t->same('attached-template-bytes-blocked', $attached['byteExposurePolicy']);
         $t->same('attached-template-metadata-only', $attached['reviewPolicy']);
 
@@ -19747,6 +19761,8 @@ XML;
         $t->same(['absolute-uri' => 1], $package['summary']['attachedTemplateExternalTargetKindCounts']);
         $t->same(['file' => 1], $package['summary']['attachedTemplateExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $package['summary']['attachedTemplateExternalTargetIssueCodes']);
+        $t->same(1, $package['summary']['attachedTemplateTargetReferenceSuffixCount']);
+        $t->same(['?rev=7#template'], $package['summary']['attachedTemplateTargetReferenceSuffixes']);
         $t->same(1, $package['summary']['attachedTemplateExistingCount']);
         $t->same(0, $package['summary']['attachedTemplateMissingCount']);
         $t->same(1, $package['summary']['attachedTemplateUnresolvedCount']);
@@ -19840,6 +19856,8 @@ XML;
             'file:///C:/Templates/review-template.dotm',
             'https://example.test/templates/review-template.dotx?channel=stable#remote',
         ], $attached['externalTargets']);
+        $t->same(['?version=2#attached', '?channel=stable#remote'], $attached['targetReferenceSuffixes']);
+        $t->same(2, $attached['targetReferenceSuffixCount']);
         $t->same('attached-template-bytes-blocked', $attached['byteExposurePolicy']);
         $t->same('attached-template-metadata-only', $attached['reviewPolicy']);
 
@@ -19890,6 +19908,8 @@ XML;
         $t->same(['absolute-uri' => 2], $summary['attachedTemplateExternalTargetKindCounts']);
         $t->same(['file' => 1, 'https' => 1], $summary['attachedTemplateExternalTargetSchemeCounts']);
         $t->same(['external-target-unsafe-scheme'], $summary['attachedTemplateExternalTargetIssueCodes']);
+        $t->same(2, $summary['attachedTemplateTargetReferenceSuffixCount']);
+        $t->same(['?version=2#attached', '?channel=stable#remote'], $summary['attachedTemplateTargetReferenceSuffixes']);
         $t->same(1, $summary['attachedTemplateExistingCount']);
         $t->same(1, $summary['attachedTemplateMissingCount']);
         $t->same(1, $summary['attachedTemplateUnresolvedCount']);
