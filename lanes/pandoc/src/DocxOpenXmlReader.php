@@ -15557,6 +15557,7 @@ final class DocxOpenXmlReader
         }
         ksort($partCaseFoldPathSegmentPositionCounts, SORT_STRING);
         ksort($partCaseFoldPathSegmentPositionPartCounts, SORT_STRING);
+        $partPathByteLengths = $this->packagePartPathByteLengthBucketSummary($partInventory);
         $partPathDepths = $this->packagePartPathDepthSummary($partInventory);
         $partPathDepthRoleBuckets = $this->packagePartPathDepthRoleBucketSummary($partInventory);
         $parameterizedPartPathDepthCount = 0;
@@ -19262,6 +19263,15 @@ final class DocxOpenXmlReader
             'duplicatePartCaseFoldPathSegmentPositionCount' => count($duplicatePartCaseFoldPathSegmentPositions),
             'duplicatePartCaseFoldPathSegmentPositionCaseFoldSegmentCount' => $duplicatePartCaseFoldPathSegmentPositionCaseFoldSegmentCount,
             'duplicatePartCaseFoldPathSegmentPositions' => $duplicatePartCaseFoldPathSegmentPositions,
+            'packagePathByteLengthBucketCount' => $partPathByteLengths['packagePathByteLengthBucketCount'],
+            'packagePathByteLengthBuckets' => $partPathByteLengths['packagePathByteLengthBuckets'],
+            'packagePathByteLengthBucketCounts' => $partPathByteLengths['packagePathByteLengthBucketCounts'],
+            'entryNamesByPackagePathByteLengthBucket' => $partPathByteLengths['entryNamesByPackagePathByteLengthBucket'],
+            'packagePathByteLengthRoleCounts' => $partPathByteLengths['packagePathByteLengthRoleCounts'],
+            'entryNamesByPackagePathByteLengthRole' => $partPathByteLengths['entryNamesByPackagePathByteLengthRole'],
+            'packagePathByteLengthByteExposurePolicyCounts' => $partPathByteLengths['packagePathByteLengthByteExposurePolicyCounts'],
+            'entryNamesByPackagePathByteLengthByteExposurePolicy' => $partPathByteLengths['entryNamesByPackagePathByteLengthByteExposurePolicy'],
+            'packagePathByteLengthBucketSummaries' => $partPathByteLengths['packagePathByteLengthBucketSummaries'],
             'partPathDepthCount' => count($partPathDepths),
             'partPathDepthParameterizedBucketCount' => $parameterizedPartPathDepthBucketCount,
             'partPathDepthParameterizedPartCount' => $parameterizedPartPathDepthCount,
@@ -32600,6 +32610,201 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array{packagePathByteLengthBucket:string,minPackagePathByteLength:int,maxPackagePathByteLength:int|null}
+     */
+    private static function packagePathByteLengthBucket(int $byteLength): array
+    {
+        if ($byteLength <= 8) {
+            return [
+                'packagePathByteLengthBucket' => 'up-to-8-bytes',
+                'minPackagePathByteLength' => 0,
+                'maxPackagePathByteLength' => 8,
+            ];
+        }
+
+        if ($byteLength <= 16) {
+            return [
+                'packagePathByteLengthBucket' => '9-to-16-bytes',
+                'minPackagePathByteLength' => 9,
+                'maxPackagePathByteLength' => 16,
+            ];
+        }
+
+        if ($byteLength <= 32) {
+            return [
+                'packagePathByteLengthBucket' => '17-to-32-bytes',
+                'minPackagePathByteLength' => 17,
+                'maxPackagePathByteLength' => 32,
+            ];
+        }
+
+        if ($byteLength <= 64) {
+            return [
+                'packagePathByteLengthBucket' => '33-to-64-bytes',
+                'minPackagePathByteLength' => 33,
+                'maxPackagePathByteLength' => 64,
+            ];
+        }
+
+        return [
+            'packagePathByteLengthBucket' => 'over-64-bytes',
+            'minPackagePathByteLength' => 65,
+            'maxPackagePathByteLength' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function packagePartPathByteLengthBucketSummary(array $partInventory): array
+    {
+        $summaries = [];
+        $bucketCounts = [];
+        $entryNamesByBucket = [];
+        $roleCounts = [];
+        $entryNamesByRole = [];
+        $byteExposurePolicyCounts = [];
+        $entryNamesByByteExposurePolicy = [];
+
+        foreach ($partInventory as $fallbackName => $part) {
+            $partName = is_string($part['partName'] ?? null) && $part['partName'] !== ''
+                ? $part['partName']
+                : (string) $fallbackName;
+            if ($partName === '') {
+                continue;
+            }
+
+            $byteLength = is_int($part['packagePathByteLength'] ?? null)
+                ? $part['packagePathByteLength']
+                : strlen($partName);
+            $bucket = self::packagePathByteLengthBucket($byteLength);
+            $bucketKey = $bucket['packagePathByteLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'packagePathByteLengthBucket' => $bucketKey,
+                    'minPackagePathByteLength' => $bucket['minPackagePathByteLength'],
+                    'maxPackagePathByteLength' => $bucket['maxPackagePathByteLength'],
+                    'entryCount' => 0,
+                    'partCount' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'byteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'sourceRecordBytes' => 0,
+                    'longestPackagePathByteLength' => 0,
+                    'longestEntryName' => null,
+                    'entryNames' => [],
+                    'partNames' => [],
+                    'contentTypeSourceCounts' => [],
+                    'roleCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                ];
+            }
+
+            ++$summaries[$bucketKey]['entryCount'];
+            ++$summaries[$bucketKey]['partCount'];
+            $bucketCounts[$bucketKey] = ($bucketCounts[$bucketKey] ?? 0) + 1;
+            $entryNamesByBucket[$bucketKey][$partName] = true;
+            $summaries[$bucketKey]['entryNames'][$partName] = true;
+            $summaries[$bucketKey]['partNames'][$partName] = true;
+            $summaries[$bucketKey]['byteLength'] += (int) ($part['bytes'] ?? 0);
+            $summaries[$bucketKey]['compressedByteLength'] += (int) ($part['compressedByteLength'] ?? 0);
+            $summaries[$bucketKey]['sourceRecordBytes'] += (int) ($part['sourceRecordBytes'] ?? 0);
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$summaries[$bucketKey]['relationshipPartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$summaries[$bucketKey]['parameterizedPartCount'];
+            }
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $summaries[$bucketKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($summaries[$bucketKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            if ($contentTypeSource === 'missing') {
+                ++$summaries[$bucketKey]['missingContentTypePartCount'];
+            }
+
+            if ($byteLength > (int) $summaries[$bucketKey]['longestPackagePathByteLength']) {
+                $summaries[$bucketKey]['longestPackagePathByteLength'] = $byteLength;
+                $summaries[$bucketKey]['longestEntryName'] = $partName;
+            }
+
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            if ($roles === []) {
+                $roles = ['package-part'];
+            }
+            foreach ($roles as $role) {
+                $summaries[$bucketKey]['roleCounts'][$role] =
+                    ($summaries[$bucketKey]['roleCounts'][$role] ?? 0) + 1;
+                $roleCounts[$bucketKey][$role] = ($roleCounts[$bucketKey][$role] ?? 0) + 1;
+                $entryNamesByRole[$bucketKey][$role][$partName] = true;
+            }
+
+            $byteExposurePolicy = $this->packagePartByteExposurePolicy($part);
+            $summaries[$bucketKey]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($summaries[$bucketKey]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            $byteExposurePolicyCounts[$bucketKey][$byteExposurePolicy] =
+                ($byteExposurePolicyCounts[$bucketKey][$byteExposurePolicy] ?? 0) + 1;
+            $entryNamesByByteExposurePolicy[$bucketKey][$byteExposurePolicy][$partName] = true;
+        }
+
+        $orderedSummaries = [];
+        $orderedBuckets = [];
+        $orderedBucketCounts = [];
+        foreach (['up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes', '33-to-64-bytes', 'over-64-bytes'] as $bucketKey) {
+            if (!isset($summaries[$bucketKey])) {
+                continue;
+            }
+
+            $summary = $summaries[$bucketKey];
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            $summary['entryNames'] = array_keys($summary['entryNames']);
+            sort($summary['entryNames'], SORT_STRING);
+            $summary['partNames'] = array_keys($summary['partNames']);
+            sort($summary['partNames'], SORT_STRING);
+            $summary['contentTypeSourceCount'] = count($summary['contentTypeSourceCounts']);
+            $summary['contentTypeSources'] = array_keys($summary['contentTypeSourceCounts']);
+            $summary['roleCount'] = count($summary['roleCounts']);
+            $summary['roles'] = array_keys($summary['roleCounts']);
+            $summary['byteExposurePolicyCount'] = count($summary['byteExposurePolicyCounts']);
+            $summary['byteExposurePolicies'] = array_keys($summary['byteExposurePolicyCounts']);
+            $orderedSummaries[] = $summary;
+            $orderedBuckets[] = $bucketKey;
+            $orderedBucketCounts[$bucketKey] = $bucketCounts[$bucketKey] ?? 0;
+        }
+
+        $this->sortStringSetMap($entryNamesByBucket);
+        $this->sortNestedCountMap($roleCounts, SORT_STRING);
+        $this->sortNestedStringSetMap($entryNamesByRole);
+        $this->sortNestedCountMap($byteExposurePolicyCounts, SORT_STRING);
+        $this->sortNestedStringSetMap($entryNamesByByteExposurePolicy);
+
+        return [
+            'packagePathByteLengthBucketCount' => count($orderedSummaries),
+            'packagePathByteLengthBuckets' => $orderedBuckets,
+            'packagePathByteLengthBucketCounts' => $orderedBucketCounts,
+            'entryNamesByPackagePathByteLengthBucket' => $entryNamesByBucket,
+            'packagePathByteLengthRoleCounts' => $roleCounts,
+            'entryNamesByPackagePathByteLengthRole' => $entryNamesByRole,
+            'packagePathByteLengthByteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'entryNamesByPackagePathByteLengthByteExposurePolicy' => $entryNamesByByteExposurePolicy,
+            'packagePathByteLengthBucketSummaries' => $orderedSummaries,
+        ];
+    }
+
+    /**
      * @param array<string, array<string, mixed>> $partInventory
      * @return list<array<string, mixed>>
      */
@@ -32819,6 +33024,36 @@ final class DocxOpenXmlReader
             ksort($groups, SORT_STRING);
             foreach ($groups as &$names) {
                 $names = array_values(array_unique(array_map('strval', $names)));
+                sort($names, SORT_STRING);
+            }
+            unset($names);
+        }
+        unset($groups);
+    }
+
+    /**
+     * @param array<string, array<string, true>> $map
+     */
+    private function sortStringSetMap(array &$map): void
+    {
+        ksort($map, SORT_STRING);
+        foreach ($map as &$names) {
+            $names = array_keys($names);
+            sort($names, SORT_STRING);
+        }
+        unset($names);
+    }
+
+    /**
+     * @param array<string, array<string, array<string, true>>> $map
+     */
+    private function sortNestedStringSetMap(array &$map): void
+    {
+        ksort($map, SORT_STRING);
+        foreach ($map as &$groups) {
+            ksort($groups, SORT_STRING);
+            foreach ($groups as &$names) {
+                $names = array_keys($names);
                 sort($names, SORT_STRING);
             }
             unset($names);
@@ -42926,6 +43161,8 @@ final class DocxOpenXmlReader
             $baseName = $this->packagePartBaseName($partName);
             $baseNameStem = $this->packagePartBaseNameStem($partName);
             $pathSegments = $this->packagePartPathSegments($partName);
+            $packagePathByteLength = strlen($partName);
+            $packagePathByteLengthBucket = self::packagePathByteLengthBucket($packagePathByteLength);
             $roles = array_keys($rolesByPart[$partName] ?? []);
             if ($roles === []) {
                 $roles = ['package-part'];
@@ -42971,6 +43208,10 @@ final class DocxOpenXmlReader
                 'pathSegmentPositionReviews' => $this->packagePartPathSegmentPositionReviews($pathSegments),
                 'topLevelSegment' => $pathSegments[0] ?? '',
                 'pathSegmentCount' => count($pathSegments),
+                'packagePathByteLength' => $packagePathByteLength,
+                'packagePathByteLengthBucket' => $packagePathByteLengthBucket['packagePathByteLengthBucket'],
+                'packagePathByteLengthBucketMin' => $packagePathByteLengthBucket['minPackagePathByteLength'],
+                'packagePathByteLengthBucketMax' => $packagePathByteLengthBucket['maxPackagePathByteLength'],
                 'partExtension' => $partExtension,
                 'rawPartExtension' => $rawPartExtension,
                 'partExtensionHasUppercase' => $rawPartExtension !== null && preg_match('/[A-Z]/', $rawPartExtension) === 1,
@@ -43759,6 +44000,41 @@ final class DocxOpenXmlReader
             'packageDirectoryBaseNameCounts' => $this->packageIdentityCountMap(
                 $summary['partDirectoryBaseNameCounts'] ?? []
             ),
+            'packagePathByteLengthBucketCount' => (int) ($summary['packagePathByteLengthBucketCount'] ?? 0),
+            'packagePathByteLengthBuckets' => self::packageIdentityStringList(
+                $summary['packagePathByteLengthBuckets'] ?? []
+            ),
+            'packagePathByteLengthBucketCounts' => is_array($summary['packagePathByteLengthBucketCounts'] ?? null)
+                ? $summary['packagePathByteLengthBucketCounts']
+                : [],
+            'entryNamesByPackagePathByteLengthBucket' => is_array(
+                $summary['entryNamesByPackagePathByteLengthBucket'] ?? null
+            )
+                ? $summary['entryNamesByPackagePathByteLengthBucket']
+                : [],
+            'packagePathByteLengthRoleCounts' => is_array($summary['packagePathByteLengthRoleCounts'] ?? null)
+                ? $summary['packagePathByteLengthRoleCounts']
+                : [],
+            'entryNamesByPackagePathByteLengthRole' => is_array(
+                $summary['entryNamesByPackagePathByteLengthRole'] ?? null
+            )
+                ? $summary['entryNamesByPackagePathByteLengthRole']
+                : [],
+            'packagePathByteLengthByteExposurePolicyCounts' => is_array(
+                $summary['packagePathByteLengthByteExposurePolicyCounts'] ?? null
+            )
+                ? $summary['packagePathByteLengthByteExposurePolicyCounts']
+                : [],
+            'entryNamesByPackagePathByteLengthByteExposurePolicy' => is_array(
+                $summary['entryNamesByPackagePathByteLengthByteExposurePolicy'] ?? null
+            )
+                ? $summary['entryNamesByPackagePathByteLengthByteExposurePolicy']
+                : [],
+            'packagePathByteLengthBucketSummaries' => is_array(
+                $summary['packagePathByteLengthBucketSummaries'] ?? null
+            )
+                ? array_values($summary['packagePathByteLengthBucketSummaries'])
+                : [],
             'packagePathDepthCount' => (int) ($summary['partPathDepthCount'] ?? 0),
             'packagePathDepthRoleBucketCount' => (int) ($summary['partPathDepthRoleBucketCount'] ?? 0),
             'packagePathDepthRoleCounts' => $this->packageIdentityNestedCountMap(
@@ -43844,6 +44120,10 @@ final class DocxOpenXmlReader
                 ? $part['directoryBaseNameStem']
                 : $this->packagePartDirectoryBaseNameStem($directory);
             $roles = $this->packageIdentitySortedStringList($part['roles'] ?? []);
+            $packagePathByteLength = is_int($part['packagePathByteLength'] ?? null)
+                ? $part['packagePathByteLength']
+                : strlen($partName);
+            $packagePathByteLengthBucket = self::packagePathByteLengthBucket($packagePathByteLength);
             $entries[] = [
                 'partName' => $partName,
                 'directory' => $directory,
@@ -43906,6 +44186,16 @@ final class DocxOpenXmlReader
                 'pathSegmentCount' => is_int($part['pathSegmentCount'] ?? null)
                     ? $part['pathSegmentCount']
                     : count($this->packagePartPathSegments($partName)),
+                'packagePathByteLength' => $packagePathByteLength,
+                'packagePathByteLengthBucket' => is_string($part['packagePathByteLengthBucket'] ?? null)
+                    ? $part['packagePathByteLengthBucket']
+                    : $packagePathByteLengthBucket['packagePathByteLengthBucket'],
+                'packagePathByteLengthBucketMin' => is_int($part['packagePathByteLengthBucketMin'] ?? null)
+                    ? $part['packagePathByteLengthBucketMin']
+                    : $packagePathByteLengthBucket['minPackagePathByteLength'],
+                'packagePathByteLengthBucketMax' => is_int($part['packagePathByteLengthBucketMax'] ?? null)
+                    ? $part['packagePathByteLengthBucketMax']
+                    : $packagePathByteLengthBucket['maxPackagePathByteLength'],
                 'directoryDepth' => is_int($part['directoryDepth'] ?? null)
                     ? $part['directoryDepth']
                     : $this->packagePartDirectoryDepth($directory),
