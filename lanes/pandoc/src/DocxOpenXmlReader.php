@@ -15558,6 +15558,28 @@ final class DocxOpenXmlReader
         }
         ksort($partZipCompressionMethodCounts, SORT_STRING);
         sort($partZipUnknownExpansionRatioPartNames, SORT_STRING);
+        $partZipTimestampSources = $this->packagePartZipTimestampSourceSummary($partInventory);
+        $partZipTimestampSourceCounts = [];
+        $partZipTimestampSourceByteLengths = [];
+        $partZipTimestampSourceRecordBytes = [];
+        $partZipTimestampSourceModifiedPartCount = 0;
+        $partZipTimestampSourceIssuePartCount = 0;
+        foreach ($partZipTimestampSources as $timestampSourceSummary) {
+            $timestampSourceKey = (string) ($timestampSourceSummary['timestampSourceKey'] ?? '(missing)');
+            $partZipTimestampSourceCounts[$timestampSourceKey] =
+                (int) ($timestampSourceSummary['partCount'] ?? 0);
+            $partZipTimestampSourceByteLengths[$timestampSourceKey] =
+                (int) ($timestampSourceSummary['bytes'] ?? 0);
+            $partZipTimestampSourceRecordBytes[$timestampSourceKey] =
+                (int) ($timestampSourceSummary['sourceRecordBytes'] ?? 0);
+            $partZipTimestampSourceModifiedPartCount +=
+                (int) ($timestampSourceSummary['modifiedPartCount'] ?? 0);
+            $partZipTimestampSourceIssuePartCount +=
+                (int) ($timestampSourceSummary['zipModificationTimeIssuePartCount'] ?? 0);
+        }
+        ksort($partZipTimestampSourceCounts, SORT_STRING);
+        ksort($partZipTimestampSourceByteLengths, SORT_STRING);
+        ksort($partZipTimestampSourceRecordBytes, SORT_STRING);
         $partZipSourceRecordDirectoryRoots = $this->packagePartZipSourceRecordDirectoryRootSummary($partInventory);
         $partZipSourceRecordDirectoryRootCounts = [];
         $partZipSourceRecordDirectoryRootBytes = [];
@@ -18549,6 +18571,12 @@ final class DocxOpenXmlReader
             'partZipUnsupportedCompressionPartCount' => $partZipUnsupportedCompressionPartCount,
             'partZipUnknownExpansionRatioPartCount' => $partZipUnknownExpansionRatioPartCount,
             'partZipUnknownExpansionRatioPartNames' => $partZipUnknownExpansionRatioPartNames,
+            'partZipTimestampSourceCount' => count($partZipTimestampSources),
+            'partZipTimestampSourceCounts' => $partZipTimestampSourceCounts,
+            'partZipTimestampSourceByteLengths' => $partZipTimestampSourceByteLengths,
+            'partZipTimestampSourceRecordBytes' => $partZipTimestampSourceRecordBytes,
+            'partZipTimestampSourceModifiedPartCount' => $partZipTimestampSourceModifiedPartCount,
+            'partZipTimestampSourceIssuePartCount' => $partZipTimestampSourceIssuePartCount,
             'partZipSourceRecordDirectoryRootCount' => count($partZipSourceRecordDirectoryRoots),
             'partZipSourceRecordDirectoryRootCounts' => $partZipSourceRecordDirectoryRootCounts,
             'partZipSourceRecordDirectoryRootBytes' => $partZipSourceRecordDirectoryRootBytes,
@@ -19046,6 +19074,7 @@ final class DocxOpenXmlReader
             'largestParts' => $largestParts,
             'duplicatePartDigests' => $duplicatePartDigests,
             'partZipCompressionMethods' => $partZipCompressionMethods,
+            'partZipTimestampSources' => $partZipTimestampSources,
             'partZipSourceRecordDirectoryRoots' => $partZipSourceRecordDirectoryRoots,
             'partZipSourceRecordCompressionMethods' => $partZipSourceRecordCompressionMethods,
             'partZipSourceRecordRoles' => $partZipSourceRecordRoles,
@@ -19882,6 +19911,203 @@ final class DocxOpenXmlReader
         }
 
         return array_values($methods);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartZipTimestampSourceSummary(array $partInventory): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+
+        $sources = [];
+        foreach ($partInventory as $partName => $part) {
+            if (($part['zipEntryPresent'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $timestampSource = is_string($part['zipTimestampSource'] ?? null) && $part['zipTimestampSource'] !== ''
+                ? $part['zipTimestampSource']
+                : null;
+            $timestampSourceKey = $timestampSource ?? '(missing)';
+            if (!isset($sources[$timestampSourceKey])) {
+                $sources[$timestampSourceKey] = [
+                    'timestampSourceKey' => $timestampSourceKey,
+                    'timestampSource' => $timestampSource,
+                    'partCount' => 0,
+                    'modifiedPartCount' => 0,
+                    'bytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'dosTimestampPartCount' => 0,
+                    'extendedTimestampPartCount' => 0,
+                    'ntfsTimestampPartCount' => 0,
+                    'invalidDosTimestampPartCount' => 0,
+                    'zipModificationTimeIssuePartCount' => 0,
+                    'zipModificationTimeIssueCount' => 0,
+                    'directoryRootCounts' => [],
+                    'localTimestampSourceCounts' => [],
+                    'centralTimestampSourceCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'earliestModifiedAt' => null,
+                    'latestModifiedAt' => null,
+                    'earliestModifiedPart' => null,
+                    'latestModifiedPart' => null,
+                    'largestSourceRecordPart' => null,
+                ];
+            }
+
+            $directoryRoot = is_string($part['zipDirectoryRoot'] ?? null)
+                ? $part['zipDirectoryRoot']
+                : $this->packagePartTopLevelSegment($partName);
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+            $localTimestampSource = is_string($part['zipLocalTimestampSource'] ?? null)
+                && $part['zipLocalTimestampSource'] !== ''
+                ? $part['zipLocalTimestampSource']
+                : '(missing)';
+            $centralTimestampSource = is_string($part['zipCentralTimestampSource'] ?? null)
+                && $part['zipCentralTimestampSource'] !== ''
+                ? $part['zipCentralTimestampSource']
+                : '(missing)';
+            $sourceRecordBytes = $intField($part, 'sourceRecordBytes');
+            $localRecordBytes = $intField($part, 'localRecordBytes');
+            $centralDirectoryRecordBytes = $intField($part, 'centralDirectoryRecordBytes');
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $modifiedAt = is_int($part['zipModifiedAt'] ?? null) ? (int) $part['zipModifiedAt'] : null;
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partRoles = array_values(array_unique(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            )));
+            if ($partRoles === []) {
+                $partRoles = ['package-part'];
+            }
+            $issues = is_array($part['zipModificationTimeIssues'] ?? null)
+                ? array_values(array_filter(
+                    $part['zipModificationTimeIssues'],
+                    static fn (mixed $issue): bool => is_string($issue)
+                ))
+                : [];
+
+            $partSummary = [
+                'partName' => $partName,
+                'directoryRoot' => $directoryRoot,
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                'bytes' => $bytes,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'zipModifiedAt' => $modifiedAt,
+                'zipTimestampSource' => $timestampSource,
+                'zipLocalTimestampSource' => $localTimestampSource === '(missing)' ? null : $localTimestampSource,
+                'zipCentralTimestampSource' => $centralTimestampSource === '(missing)' ? null : $centralTimestampSource,
+                'zipHasDosTimestamp' => ($part['zipHasDosTimestamp'] ?? false) === true,
+                'zipIsDosTimestampValid' => ($part['zipIsDosTimestampValid'] ?? true) === true,
+                'zipExtendedModifiedAt' => $part['zipExtendedModifiedAt'] ?? null,
+                'zipNtfsModifiedAt' => $part['zipNtfsModifiedAt'] ?? null,
+                'zipModificationTimeIssueCount' => count($issues),
+                'zipModificationTimeIssues' => $issues,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => $partRoles,
+            ];
+
+            ++$sources[$timestampSourceKey]['partCount'];
+            $sources[$timestampSourceKey]['bytes'] += $bytes;
+            $sources[$timestampSourceKey]['sourceRecordBytes'] += $sourceRecordBytes;
+            $sources[$timestampSourceKey]['localRecordBytes'] += $localRecordBytes;
+            $sources[$timestampSourceKey]['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes;
+            $sources[$timestampSourceKey]['partNames'][] = $partName;
+            $sources[$timestampSourceKey]['directoryRootCounts'][$directoryRoot] =
+                ($sources[$timestampSourceKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $sources[$timestampSourceKey]['localTimestampSourceCounts'][$localTimestampSource] =
+                ($sources[$timestampSourceKey]['localTimestampSourceCounts'][$localTimestampSource] ?? 0) + 1;
+            $sources[$timestampSourceKey]['centralTimestampSourceCounts'][$centralTimestampSource] =
+                ($sources[$timestampSourceKey]['centralTimestampSourceCounts'][$centralTimestampSource] ?? 0) + 1;
+            $sources[$timestampSourceKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($sources[$timestampSourceKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $sources[$timestampSourceKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($sources[$timestampSourceKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            foreach ($partRoles as $role) {
+                $sources[$timestampSourceKey]['roleCounts'][$role] =
+                    ($sources[$timestampSourceKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            if ($modifiedAt !== null) {
+                ++$sources[$timestampSourceKey]['modifiedPartCount'];
+                $earliestModifiedAt = $sources[$timestampSourceKey]['earliestModifiedAt'];
+                if (!is_int($earliestModifiedAt) || $modifiedAt < $earliestModifiedAt) {
+                    $sources[$timestampSourceKey]['earliestModifiedAt'] = $modifiedAt;
+                    $sources[$timestampSourceKey]['earliestModifiedPart'] = $partSummary;
+                }
+                $latestModifiedAt = $sources[$timestampSourceKey]['latestModifiedAt'];
+                if (!is_int($latestModifiedAt) || $modifiedAt > $latestModifiedAt) {
+                    $sources[$timestampSourceKey]['latestModifiedAt'] = $modifiedAt;
+                    $sources[$timestampSourceKey]['latestModifiedPart'] = $partSummary;
+                }
+            }
+            if (($part['zipHasDosTimestamp'] ?? false) === true) {
+                ++$sources[$timestampSourceKey]['dosTimestampPartCount'];
+            }
+            if (($part['zipIsDosTimestampValid'] ?? true) !== true) {
+                ++$sources[$timestampSourceKey]['invalidDosTimestampPartCount'];
+            }
+            if (is_int($part['zipExtendedModifiedAt'] ?? null)) {
+                ++$sources[$timestampSourceKey]['extendedTimestampPartCount'];
+            }
+            if (is_int($part['zipNtfsModifiedAt'] ?? null)) {
+                ++$sources[$timestampSourceKey]['ntfsTimestampPartCount'];
+            }
+            if ($issues !== []) {
+                ++$sources[$timestampSourceKey]['zipModificationTimeIssuePartCount'];
+                $sources[$timestampSourceKey]['zipModificationTimeIssueCount'] += count($issues);
+            }
+
+            $largestPart = $sources[$timestampSourceKey]['largestSourceRecordPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['sourceRecordBytes'] > (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                || (
+                    $partSummary['sourceRecordBytes'] === (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $sources[$timestampSourceKey]['largestSourceRecordPart'] = $partSummary;
+            }
+        }
+
+        ksort($sources, SORT_STRING);
+        foreach ($sources as $sourceKey => $summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['localTimestampSourceCounts'], SORT_STRING);
+            ksort($summary['centralTimestampSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $sources[$sourceKey] = $summary;
+        }
+
+        return array_values($sources);
     }
 
     /**
