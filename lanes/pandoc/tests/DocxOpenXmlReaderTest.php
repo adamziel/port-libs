@@ -3806,6 +3806,92 @@ XML;
         $t->same(['(missing)' => 1], $untyped['contentTypeBaseCounts']);
         $t->same(['missing' => 1], $untyped['contentTypeSourceCounts']);
     },
+    'summarizes docx package part case-folded base name stems for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['customXml/Review.PNG'] = 'custom review png bytes';
+        $parts['word/media/REVIEW.XML'] = '<upperReview/>';
+        $parts['word/review.bin'] = str_repeat('B', 41);
+        $parts['customXml/review'] = 'extensionless review bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $byCaseFoldStem = [];
+        foreach ($summary['partCaseFoldBaseNameStems'] as $stem) {
+            $byCaseFoldStem[$stem['caseFoldBaseNameStem']] = $stem;
+        }
+
+        $reviewBytes = strlen($parts['word/media/review.png'])
+            + strlen($parts['customXml/Review.PNG'])
+            + strlen($parts['word/media/REVIEW.XML'])
+            + strlen($parts['word/review.bin'])
+            + strlen($parts['customXml/review']);
+
+        $t->same(8, $summary['partCaseFoldBaseNameStemCount']);
+        $t->same(1, $summary['duplicatePartCaseFoldBaseNameStemCount']);
+        $t->same(['review'], $summary['duplicatePartCaseFoldBaseNameStems']);
+        $t->same('review', $inventory['word/media/review.png']['caseFoldBaseNameStem']);
+        $t->same('review', $inventory['customXml/Review.PNG']['caseFoldBaseNameStem']);
+        $t->same('review', $inventory['word/media/REVIEW.XML']['caseFoldBaseNameStem']);
+        $t->same('review', $inventory['word/review.bin']['caseFoldBaseNameStem']);
+        $t->same('review', $inventory['customXml/review']['caseFoldBaseNameStem']);
+        $t->same('document.xml', $inventory['word/_rels/document.xml.rels']['caseFoldBaseNameStem']);
+
+        $review = $byCaseFoldStem['review'];
+        $t->same(5, $review['partCount']);
+        $t->same($reviewBytes, $review['byteLength']);
+        $t->same(3, $review['stemVariantCount']);
+        $t->same(4, $review['extensionVariantCount']);
+        $t->same(0, $review['relationshipPartCount']);
+        $t->same(1, $review['missingContentTypePartCount']);
+        $t->same(0, $review['parameterizedPartCount']);
+        $t->same(1, $review['extensionlessPartCount']);
+        $t->same(['REVIEW' => 1, 'Review' => 1, 'review' => 3], $review['baseNameStemCounts']);
+        $t->same([
+            'REVIEW.XML' => 1,
+            'Review.PNG' => 1,
+            'review' => 1,
+            'review.bin' => 1,
+            'review.png' => 1,
+        ], $review['baseNameCounts']);
+        $t->same(['(none)' => 1, 'bin' => 1, 'png' => 2, 'xml' => 1], $review['partExtensionCounts']);
+        $t->same(['customXml', 'word', 'word/media'], $review['directories']);
+        $t->same([
+            'customXml/Review.PNG',
+            'customXml/review',
+            'word/media/REVIEW.XML',
+            'word/media/review.png',
+            'word/review.bin',
+        ], $review['partNames']);
+        $t->same(
+            [
+                '(missing)' => 1,
+                'application/octet-stream' => 1,
+                'application/xml' => 1,
+                'image/png' => 2,
+            ],
+            $review['contentTypeBaseCounts']
+        );
+        $t->same(['default' => 4, 'missing' => 1], $review['contentTypeSourceCounts']);
+        $t->same(['document-relationship-target' => 1, 'package-part' => 4], $review['roleCounts']);
+        $t->same('word/review.bin', $review['largestPart']['partName']);
+        $t->same('review.bin', $review['largestPart']['baseName']);
+        $t->same('review', $review['largestPart']['baseNameStem']);
+        $t->same('review', $review['largestPart']['caseFoldBaseNameStem']);
+        $t->same('bin', $review['largestPart']['partExtension']);
+        $t->same(41, $review['largestPart']['bytes']);
+        $t->same(hash('sha256', $parts['word/review.bin']), $review['largestPart']['sha256']);
+        $t->same('application/octet-stream', $review['largestPart']['contentTypeBase']);
+        $t->same('default', $review['largestPart']['contentTypeSource']);
+        $t->same(['package-part'], $review['largestPart']['roles']);
+    },
     'summarizes docx package part path segments for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

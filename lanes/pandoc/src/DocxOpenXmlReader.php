@@ -14492,6 +14492,7 @@ final class DocxOpenXmlReader
         $partBaseNameStems = $this->packagePartBaseNameStemSummary($partInventory);
         $partCaseFoldPaths = $this->packagePartCaseFoldPathSummary($partInventory);
         $partCaseFoldBaseNames = $this->packagePartCaseFoldBaseNameSummary($partInventory);
+        $partCaseFoldBaseNameStems = $this->packagePartCaseFoldBaseNameStemSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
@@ -14533,6 +14534,12 @@ final class DocxOpenXmlReader
         foreach ($partCaseFoldBaseNames as $caseFoldBaseNameSummary) {
             if ((int) ($caseFoldBaseNameSummary['caseVariantCount'] ?? 0) > 1) {
                 $duplicatePartCaseFoldBaseNames[] = (string) ($caseFoldBaseNameSummary['caseFoldBaseName'] ?? '');
+            }
+        }
+        $duplicatePartCaseFoldBaseNameStems = [];
+        foreach ($partCaseFoldBaseNameStems as $caseFoldBaseNameStemSummary) {
+            if ((int) ($caseFoldBaseNameStemSummary['stemVariantCount'] ?? 0) > 1) {
+                $duplicatePartCaseFoldBaseNameStems[] = (string) ($caseFoldBaseNameStemSummary['caseFoldBaseNameStem'] ?? '');
             }
         }
         $partContentTypes = $this->packagePartContentTypeSummary($partInventory);
@@ -17127,6 +17134,9 @@ final class DocxOpenXmlReader
             'partCaseFoldBaseNameCount' => count($partCaseFoldBaseNames),
             'duplicatePartCaseFoldBaseNameCount' => count($duplicatePartCaseFoldBaseNames),
             'duplicatePartCaseFoldBaseNames' => $duplicatePartCaseFoldBaseNames,
+            'partCaseFoldBaseNameStemCount' => count($partCaseFoldBaseNameStems),
+            'duplicatePartCaseFoldBaseNameStemCount' => count($duplicatePartCaseFoldBaseNameStems),
+            'duplicatePartCaseFoldBaseNameStems' => $duplicatePartCaseFoldBaseNameStems,
             'partNameCharacterReviewPartCount' => $partNameCharacters['partCount'],
             'partNameUppercasePartCount' => count($partNameCharacters['flagPartNames']['uppercase'] ?? []),
             'partNameWhitespacePartCount' => count($partNameCharacters['flagPartNames']['whitespace'] ?? []),
@@ -17499,6 +17509,7 @@ final class DocxOpenXmlReader
             'partBaseNameStems' => $partBaseNameStems,
             'partCaseFoldPaths' => $partCaseFoldPaths,
             'partCaseFoldBaseNames' => $partCaseFoldBaseNames,
+            'partCaseFoldBaseNameStems' => $partCaseFoldBaseNameStems,
             'partNameCharacterReviewParts' => $partNameCharacters['parts'],
             'partContentTypeSyntaxSuffixes' => $partContentTypeSyntaxSuffixes,
             'partContentTypeSources' => $partContentTypeSources,
@@ -22030,6 +22041,142 @@ final class DocxOpenXmlReader
         }
 
         return array_values($baseNames);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartCaseFoldBaseNameStemSummary(array $partInventory): array
+    {
+        $baseNameStems = [];
+        foreach ($partInventory as $partName => $part) {
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName((string) $partName);
+            $baseNameStem = is_string($part['baseNameStem'] ?? null)
+                ? $part['baseNameStem']
+                : $this->packagePartBaseNameStem((string) $partName);
+            $caseFoldBaseNameStem = is_string($part['caseFoldBaseNameStem'] ?? null)
+                ? $part['caseFoldBaseNameStem']
+                : $this->packagePartCaseFoldKey($baseNameStem);
+            if (!isset($baseNameStems[$caseFoldBaseNameStem])) {
+                $baseNameStems[$caseFoldBaseNameStem] = [
+                    'caseFoldBaseNameStem' => $caseFoldBaseNameStem,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'stemVariantCount' => 0,
+                    'extensionVariantCount' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'extensionlessPartCount' => 0,
+                    'baseNameStemCounts' => [],
+                    'baseNameCounts' => [],
+                    'partExtensionCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'directories' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$baseNameStems[$caseFoldBaseNameStem]['partCount'];
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $baseNameStems[$caseFoldBaseNameStem]['byteLength'] += $bytes;
+            $baseNameStems[$caseFoldBaseNameStem]['partNames'][] = (string) ($part['partName'] ?? $partName);
+            $baseNameStems[$caseFoldBaseNameStem]['baseNameStemCounts'][$baseNameStem] =
+                ($baseNameStems[$caseFoldBaseNameStem]['baseNameStemCounts'][$baseNameStem] ?? 0) + 1;
+            $baseNameStems[$caseFoldBaseNameStem]['baseNameCounts'][$baseName] =
+                ($baseNameStems[$caseFoldBaseNameStem]['baseNameCounts'][$baseName] ?? 0) + 1;
+            $this->appendUniqueString(
+                $baseNameStems[$caseFoldBaseNameStem]['directories'],
+                is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+            );
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$baseNameStems[$caseFoldBaseNameStem]['relationshipPartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$baseNameStems[$caseFoldBaseNameStem]['parameterizedPartCount'];
+            }
+
+            $partExtension = is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null;
+            $partExtensionKey = $partExtension ?? '(none)';
+            $baseNameStems[$caseFoldBaseNameStem]['partExtensionCounts'][$partExtensionKey] =
+                ($baseNameStems[$caseFoldBaseNameStem]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+            if ($partExtension === null) {
+                ++$baseNameStems[$caseFoldBaseNameStem]['extensionlessPartCount'];
+            }
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            if ($contentTypeSource === 'missing') {
+                ++$baseNameStems[$caseFoldBaseNameStem]['missingContentTypePartCount'];
+            }
+            $baseNameStems[$caseFoldBaseNameStem]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($baseNameStems[$caseFoldBaseNameStem]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $baseNameStems[$caseFoldBaseNameStem]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($baseNameStems[$caseFoldBaseNameStem]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            foreach (($part['roles'] ?? []) as $role) {
+                $role = (string) $role;
+                $baseNameStems[$caseFoldBaseNameStem]['roleCounts'][$role] =
+                    ($baseNameStems[$caseFoldBaseNameStem]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => (string) ($part['partName'] ?? $partName),
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory((string) $partName),
+                'baseName' => $baseName,
+                'baseNameStem' => $baseNameStem,
+                'caseFoldBaseNameStem' => $caseFoldBaseNameStem,
+                'partExtension' => $partExtension,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => array_values(array_map('strval', $part['roles'] ?? [])),
+            ];
+            $largestPart = $baseNameStems[$caseFoldBaseNameStem]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $baseNameStems[$caseFoldBaseNameStem]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($baseNameStems, SORT_STRING);
+        foreach ($baseNameStems as $caseFoldBaseNameStem => $summary) {
+            sort($summary['directories'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['baseNameStemCounts'], SORT_STRING);
+            ksort($summary['baseNameCounts'], SORT_STRING);
+            ksort($summary['partExtensionCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['stemVariantCount'] = count($summary['baseNameStemCounts']);
+            $summary['extensionVariantCount'] = count($summary['partExtensionCounts']);
+            $baseNameStems[$caseFoldBaseNameStem] = $summary;
+        }
+
+        return array_values($baseNameStems);
     }
 
     /**
