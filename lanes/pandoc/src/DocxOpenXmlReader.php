@@ -18884,6 +18884,8 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetExistingPartExtensionCounts, SORT_STRING);
         ksort($relationshipTargetMissingPartExtensionCounts, SORT_STRING);
         $relationshipTargetNameCharacters = $this->relationshipTargetNameCharacterSummary($relationshipTargets);
+        $relationshipTargetDirectoryNameCharacters =
+            $this->relationshipTargetDirectoryNameCharacterSummary($relationshipTargets);
         $relationshipSourceRoles = $this->relationshipSourceRoleSummary($relationshipSources);
         $relationshipSourceRoleBucketCounts = [];
         foreach ($relationshipSourceRoles as $sourceRoleSummary) {
@@ -19503,6 +19505,18 @@ final class DocxOpenXmlReader
             'relationshipTargetNameCharacterFlagTargetParts' => $relationshipTargetNameCharacters['flagTargetParts'],
             'relationshipTargetNameCharacterReviewTargetParts' => $relationshipTargetNameCharacters['targetParts'],
             'relationshipTargetNameCharacterReviewTargets' => $relationshipTargetNameCharacters['targets'],
+            'relationshipTargetDirectoryNameCharacterReviewDirectoryCount' => $relationshipTargetDirectoryNameCharacters['directoryCount'],
+            'relationshipTargetDirectoryNameCharacterReviewRelationshipCount' => $relationshipTargetDirectoryNameCharacters['relationshipCount'],
+            'relationshipTargetDirectoryNameCharacterReviewTargetPartCount' => $relationshipTargetDirectoryNameCharacters['targetPartCount'],
+            'relationshipTargetDirectoryNameUppercaseRelationshipCount' => (int) ($relationshipTargetDirectoryNameCharacters['flagRelationshipCounts']['uppercase'] ?? 0),
+            'relationshipTargetDirectoryNameWhitespaceRelationshipCount' => (int) ($relationshipTargetDirectoryNameCharacters['flagRelationshipCounts']['whitespace'] ?? 0),
+            'relationshipTargetDirectoryNamePercentEncodedOctetRelationshipCount' => (int) ($relationshipTargetDirectoryNameCharacters['flagRelationshipCounts']['percent-encoded-octet'] ?? 0),
+            'relationshipTargetDirectoryNameNonAsciiRelationshipCount' => (int) ($relationshipTargetDirectoryNameCharacters['flagRelationshipCounts']['non-ascii'] ?? 0),
+            'relationshipTargetDirectoryNameCharacterFlagRelationshipCounts' => $relationshipTargetDirectoryNameCharacters['flagRelationshipCounts'],
+            'relationshipTargetDirectoryNameCharacterFlagDirectories' => $relationshipTargetDirectoryNameCharacters['flagDirectories'],
+            'relationshipTargetDirectoryNameCharacterFlagTargetParts' => $relationshipTargetDirectoryNameCharacters['flagTargetParts'],
+            'relationshipTargetDirectoryNameCharacterReviewDirectories' => $relationshipTargetDirectoryNameCharacters['directories'],
+            'relationshipTargetDirectoryNameCharacterReviewDirectoryNames' => $relationshipTargetDirectoryNameCharacters['directoryNames'],
             'relationshipTargetContentTypeCounts' => $relationshipTargetContentTypeCounts,
             'relationshipTargetContentTypeSourceCounts' => $relationshipTargetContentTypeSourceCounts,
             'relationshipTargetContentTypeSourceBucketCount' => count($relationshipTargetContentTypeSources),
@@ -34649,6 +34663,255 @@ final class DocxOpenXmlReader
             'flagRelationshipCounts' => $flagRelationshipCounts,
             'flagTargetParts' => $flagTargetParts,
             'targets' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipTargets
+     * @return array{directoryCount:int, relationshipCount:int, targetPartCount:int, directoryNames:list<string>, flagRelationshipCounts:array<string, int>, flagDirectories:array<string, list<string>>, flagTargetParts:array<string, list<string>>, directories:list<array<string, mixed>>}
+     */
+    private function relationshipTargetDirectoryNameCharacterSummary(array $relationshipTargets): array
+    {
+        $directories = [];
+        $flagRelationshipCounts = [];
+        $flagDirectories = [];
+        $flagTargetParts = [];
+        $targetParts = [];
+        $relationshipCount = 0;
+
+        foreach ($relationshipTargets as $target) {
+            $targetPart = is_string($target['targetPart'] ?? null) ? $target['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $targetDirectory = is_string($target['targetDirectory'] ?? null)
+                ? $target['targetDirectory']
+                : $this->packagePartDirectory($targetPart);
+            if ($targetDirectory === '' || $targetDirectory === '/') {
+                continue;
+            }
+
+            $flags = $this->packagePartNameCharacterFlags($targetDirectory);
+            if ($flags === []) {
+                continue;
+            }
+
+            $targetExists = ($target['targetExists'] ?? false) === true;
+            $targetContentType = is_string($target['targetContentType'] ?? null)
+                ? $target['targetContentType']
+                : '';
+            $targetContentTypeBase = is_string($target['targetContentTypeBase'] ?? null)
+                ? $target['targetContentTypeBase']
+                : '';
+            $targetContentTypeBaseKey = $targetContentTypeBase === '' ? '(missing)' : $targetContentTypeBase;
+            $targetContentTypeSource = is_string($target['targetContentTypeSource'] ?? null)
+                ? $target['targetContentTypeSource']
+                : 'missing';
+            if ($targetContentTypeSource === '') {
+                $targetContentTypeSource = 'missing';
+            }
+            $targetBaseName = is_string($target['targetBaseName'] ?? null)
+                ? $target['targetBaseName']
+                : $this->packagePartBaseName($targetPart);
+            $targetPartExtension = array_key_exists('targetPartExtension', $target) && $target['targetPartExtension'] !== null
+                ? (string) $target['targetPartExtension']
+                : $this->packagePartExtension($targetPart);
+            $targetPartExtensionKey = $targetPartExtension === '' ? '(none)' : $targetPartExtension;
+            $relationshipType = is_string($target['relationshipType'] ?? null) ? $target['relationshipType'] : '';
+            $relationshipTypeKey = is_string($target['relationshipTypeKey'] ?? null)
+                ? $target['relationshipTypeKey']
+                : ($relationshipType === '' ? '(missing-type)' : $relationshipType);
+            $targetRoles = is_array($target['targetRoles'] ?? null)
+                ? array_values(array_filter(
+                    array_map('strval', $target['targetRoles']),
+                    static fn (string $role): bool => $role !== '',
+                ))
+                : [];
+
+            if (!isset($directories[$targetDirectory])) {
+                $directories[$targetDirectory] = [
+                    'targetDirectory' => $targetDirectory,
+                    'relationshipCount' => 0,
+                    'targetPartCount' => 0,
+                    'existingTargetCount' => 0,
+                    'missingTargetCount' => 0,
+                    'missingContentTypeTargetCount' => 0,
+                    'parameterizedTargetCount' => 0,
+                    'existingTargetByteLength' => 0,
+                    'flags' => $flags,
+                    'flagRelationshipCounts' => [],
+                    'targetBaseNameCounts' => [],
+                    'targetPartExtensionCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'relationshipTypeCounts' => [],
+                    'roleCounts' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'relationshipIds' => [],
+                    'relationshipTypes' => [],
+                    'contentTypes' => [],
+                    'targetParts' => [],
+                    'existingTargetParts' => [],
+                    'missingTargetParts' => [],
+                    'largestExistingTargetPart' => null,
+                    'reviewPolicy' => 'relationship-target-directory-name-character-metadata-only',
+                    '_seenTargetParts' => [],
+                    '_seenExistingTargetParts' => [],
+                ];
+            }
+
+            ++$relationshipCount;
+            ++$directories[$targetDirectory]['relationshipCount'];
+            if (!isset($directories[$targetDirectory]['_seenTargetParts'][$targetPart])) {
+                $directories[$targetDirectory]['_seenTargetParts'][$targetPart] = true;
+                ++$directories[$targetDirectory]['targetPartCount'];
+            }
+            $targetParts[$targetPart] = true;
+
+            foreach ($flags as $flag) {
+                if ($flag === '') {
+                    continue;
+                }
+
+                $flagRelationshipCounts[$flag] = ($flagRelationshipCounts[$flag] ?? 0) + 1;
+                $flagDirectories[$flag][$targetDirectory] = true;
+                $flagTargetParts[$flag][$targetPart] = true;
+                $directories[$targetDirectory]['flagRelationshipCounts'][$flag] =
+                    ($directories[$targetDirectory]['flagRelationshipCounts'][$flag] ?? 0) + 1;
+            }
+
+            $directories[$targetDirectory]['targetBaseNameCounts'][$targetBaseName] =
+                ($directories[$targetDirectory]['targetBaseNameCounts'][$targetBaseName] ?? 0) + 1;
+            $directories[$targetDirectory]['targetPartExtensionCounts'][$targetPartExtensionKey] =
+                ($directories[$targetDirectory]['targetPartExtensionCounts'][$targetPartExtensionKey] ?? 0) + 1;
+            $directories[$targetDirectory]['contentTypeBaseCounts'][$targetContentTypeBaseKey] =
+                ($directories[$targetDirectory]['contentTypeBaseCounts'][$targetContentTypeBaseKey] ?? 0) + 1;
+            $directories[$targetDirectory]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                ($directories[$targetDirectory]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+            $directories[$targetDirectory]['relationshipTypeCounts'][$relationshipTypeKey] =
+                ($directories[$targetDirectory]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+
+            foreach ($targetRoles as $role) {
+                $directories[$targetDirectory]['roleCounts'][$role] =
+                    ($directories[$targetDirectory]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString(
+                $directories[$targetDirectory]['sourceParts'],
+                is_string($target['sourcePart'] ?? null) ? $target['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $directories[$targetDirectory]['relationshipParts'],
+                is_string($target['relationshipsPart'] ?? null) ? $target['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString(
+                $directories[$targetDirectory]['relationshipIds'],
+                is_string($target['relationshipId'] ?? null) ? $target['relationshipId'] : null,
+            );
+            $this->appendUniqueString($directories[$targetDirectory]['relationshipTypes'], $relationshipType);
+            $this->appendUniqueString($directories[$targetDirectory]['contentTypes'], $targetContentType);
+            $this->appendUniqueString($directories[$targetDirectory]['targetParts'], $targetPart);
+
+            if ($targetExists) {
+                ++$directories[$targetDirectory]['existingTargetCount'];
+                $this->appendUniqueString($directories[$targetDirectory]['existingTargetParts'], $targetPart);
+            } else {
+                ++$directories[$targetDirectory]['missingTargetCount'];
+                $this->appendUniqueString($directories[$targetDirectory]['missingTargetParts'], $targetPart);
+            }
+            if ($targetContentTypeSource === 'missing') {
+                ++$directories[$targetDirectory]['missingContentTypeTargetCount'];
+            }
+            if (($target['targetContentTypeHasParameters'] ?? false) === true) {
+                ++$directories[$targetDirectory]['parameterizedTargetCount'];
+            }
+
+            if (
+                $targetExists
+                && is_int($target['targetBytes'] ?? null)
+                && !isset($directories[$targetDirectory]['_seenExistingTargetParts'][$targetPart])
+            ) {
+                $directories[$targetDirectory]['_seenExistingTargetParts'][$targetPart] = true;
+                $targetSummary = [
+                    'partName' => $targetPart,
+                    'directory' => $targetDirectory,
+                    'baseName' => $targetBaseName,
+                    'partExtension' => $targetPartExtension,
+                    'bytes' => (int) $target['targetBytes'],
+                    'crc32' => is_string($target['targetCrc32'] ?? null) ? $target['targetCrc32'] : null,
+                    'sha256' => is_string($target['targetSha256'] ?? null) ? $target['targetSha256'] : null,
+                    'contentType' => $targetContentType,
+                    'contentTypeBase' => $targetContentTypeBase,
+                    'contentTypeSource' => $targetContentTypeSource,
+                    'roles' => $targetRoles,
+                ];
+                $directories[$targetDirectory]['existingTargetByteLength'] += $targetSummary['bytes'];
+                $largestTarget = $directories[$targetDirectory]['largestExistingTargetPart'];
+                if (
+                    !is_array($largestTarget)
+                    || $targetSummary['bytes'] > (int) ($largestTarget['bytes'] ?? 0)
+                    || (
+                        $targetSummary['bytes'] === (int) ($largestTarget['bytes'] ?? 0)
+                        && strcmp($targetSummary['partName'], (string) ($largestTarget['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $directories[$targetDirectory]['largestExistingTargetPart'] = $targetSummary;
+                }
+            }
+        }
+
+        ksort($flagRelationshipCounts, SORT_STRING);
+        ksort($flagDirectories, SORT_STRING);
+        foreach ($flagDirectories as &$directoryNames) {
+            $directoryNames = array_keys($directoryNames);
+            sort($directoryNames, SORT_STRING);
+        }
+        unset($directoryNames);
+
+        ksort($flagTargetParts, SORT_STRING);
+        foreach ($flagTargetParts as &$flagParts) {
+            $flagParts = array_keys($flagParts);
+            sort($flagParts, SORT_STRING);
+        }
+        unset($flagParts);
+
+        ksort($directories, SORT_STRING);
+        foreach ($directories as &$directory) {
+            ksort($directory['flagRelationshipCounts'], SORT_STRING);
+            ksort($directory['targetBaseNameCounts'], SORT_STRING);
+            ksort($directory['targetPartExtensionCounts'], SORT_STRING);
+            ksort($directory['contentTypeBaseCounts'], SORT_STRING);
+            ksort($directory['contentTypeSourceCounts'], SORT_STRING);
+            ksort($directory['relationshipTypeCounts'], SORT_STRING);
+            ksort($directory['roleCounts'], SORT_STRING);
+            sort($directory['flags'], SORT_STRING);
+            sort($directory['sourceParts'], SORT_STRING);
+            sort($directory['relationshipParts'], SORT_STRING);
+            sort($directory['relationshipIds'], SORT_STRING);
+            sort($directory['relationshipTypes'], SORT_STRING);
+            sort($directory['contentTypes'], SORT_STRING);
+            sort($directory['targetParts'], SORT_STRING);
+            sort($directory['existingTargetParts'], SORT_STRING);
+            sort($directory['missingTargetParts'], SORT_STRING);
+            unset($directory['_seenTargetParts'], $directory['_seenExistingTargetParts']);
+        }
+        unset($directory);
+
+        $targetParts = array_keys($targetParts);
+        sort($targetParts, SORT_STRING);
+        $directoryNames = array_keys($directories);
+
+        return [
+            'directoryCount' => count($directories),
+            'relationshipCount' => $relationshipCount,
+            'targetPartCount' => count($targetParts),
+            'directoryNames' => $directoryNames,
+            'flagRelationshipCounts' => $flagRelationshipCounts,
+            'flagDirectories' => $flagDirectories,
+            'flagTargetParts' => $flagTargetParts,
+            'directories' => array_values($directories),
         ];
     }
 
