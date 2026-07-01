@@ -49,15 +49,32 @@ XML;
 $manifestXml .= '  <manifest:file-entry manifest:full-path="Pictures/review.png" manifest:media-type="image/png" manifest:size="' . strlen($mediaBytes) . '"/>' . "\n"
     . '</manifest:manifest>';
 
+$addCentralDirectorySignatureRecord = static function (ZipPackage $package, string $signatureData): ZipPackage {
+    $bytes = $package->bytes();
+    $eocdOffset = strrpos($bytes, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('Unable to locate ZIP end of central directory record');
+    }
+
+    $signatureRecord = "PK\x05\x05" . pack('v', strlen($signatureData)) . $signatureData;
+
+    return ZipPackage::fromString(
+        substr($bytes, 0, $eocdOffset)
+        . $signatureRecord
+        . substr($bytes, $eocdOffset)
+    );
+};
+
 $extraField = pack('vva*', 0xcafe, strlen('odf-aggregate'), 'odf-aggregate');
-$package = ZipPackage::fromParts([
+$signatureData = 'odf-aggregate-central-directory-signature';
+$package = $addCentralDirectorySignatureRecord(ZipPackage::fromParts([
     ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0, 'comment' => 'manifest aggregate'],
     ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8, 'comment' => 'content aggregate'],
     ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
     ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
     ['name' => 'Pictures/review.png', 'data' => $mediaBytes, 'compressionMethod' => 0, 'extraFieldData' => $extraField, 'comment' => 'media aggregate'],
-], 'odt aggregate package manifest');
+], 'odt aggregate package manifest'), $signatureData);
 
 $aggregateFields = [
     'manifestVersion' => 'zipPackageManifestVersion',
@@ -92,6 +109,19 @@ $aggregateFields = [
     'centralExtraFieldEntryCount' => 'zipPackageManifestCentralExtraFieldEntryCount',
     'entryCommentCount' => 'zipPackageManifestEntryCommentCount',
     'hasPackageComment' => 'zipPackageManifestHasPackageComment',
+    'hasCentralDirectorySignature' => 'zipPackageManifestHasCentralDirectorySignature',
+    'centralDirectorySignatureOffset' => 'zipPackageManifestCentralDirectorySignatureOffset',
+    'centralDirectorySignatureDataOffset' => 'zipPackageManifestCentralDirectorySignatureDataOffset',
+    'centralDirectorySignatureEnd' => 'zipPackageManifestCentralDirectorySignatureEnd',
+    'centralDirectorySignatureBytes' => 'zipPackageManifestCentralDirectorySignatureBytes',
+    'centralDirectorySignatureRecordBytes' => 'zipPackageManifestCentralDirectorySignatureRecordBytes',
+    'centralDirectorySignaturePreviewHex' => 'zipPackageManifestCentralDirectorySignaturePreviewHex',
+    'centralDirectorySignaturePreviewByteCount' => 'zipPackageManifestCentralDirectorySignaturePreviewByteCount',
+    'centralDirectorySignatureSha256' => 'zipPackageManifestCentralDirectorySignatureSha256',
+    'centralDirectorySignatureLocation' => 'zipPackageManifestCentralDirectorySignatureLocation',
+    'centralDirectorySignatureVerification' => 'zipPackageManifestCentralDirectorySignatureVerification',
+    'centralDirectorySignatureByteExposurePolicy' => 'zipPackageManifestCentralDirectorySignatureByteExposurePolicy',
+    'centralDirectorySignatureCanExposeBytes' => 'zipPackageManifestCentralDirectorySignatureCanExposeBytes',
     'hasCentralDirectoryReviewFields' => 'zipPackageManifestHasCentralDirectoryReviewFields',
     'maxPathSegmentCount' => 'zipPackageManifestMaxPathSegmentCount',
     'maxDirectoryDepth' => 'zipPackageManifestMaxDirectoryDepth',
@@ -133,6 +163,11 @@ return [
         $t->same($zipManifest['manifestSha256'], $richIdentity['zipPackageManifestSha256']);
         $t->same(true, $richIdentity['zipPackageManifestHasLocalHeaderReviewFields']);
         $t->same(true, $richIdentity['zipPackageManifestHasCentralDirectoryReviewFields']);
+        $t->same(true, $richIdentity['zipPackageManifestHasCentralDirectorySignature']);
+        $t->same('central-directory-signature-metadata-only', $richIdentity['zipPackageManifestCentralDirectorySignatureByteExposurePolicy']);
+        $t->same(false, $richIdentity['zipPackageManifestCentralDirectorySignatureCanExposeBytes']);
+        $t->same(false, array_key_exists('centralDirectorySignatureData', $richIdentity));
+        $t->same(false, array_key_exists('zipPackageManifestCentralDirectorySignatureData', $richIdentity));
         $t->same(false, $richIdentity['canExposeBytes']);
         $t->same('odf-package-identity-metadata-only', $richIdentity['byteExposurePolicy']);
     },
