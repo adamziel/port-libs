@@ -20084,16 +20084,22 @@ final class XmlHtmlDom
 
         if (array_key_exists('accesskey', $attributes)) {
             $accessKey = self::accessKeySummary($attributes['accesskey']);
+            $accessKeyDocument = self::accessKeyDocumentSummary($element, $accessKey['keys']);
+            $accessKeyCollision = $accessKey['keys'] === []
+                ? []
+                : self::accessKeyCollisionSummary($element, $accessKey['keys']);
+            $accessKeyIssueCodes = self::accessKeyIssueCodes($accessKey, $accessKeyDocument, $accessKeyCollision);
             $summary['accessKeyRaw'] = $attributes['accesskey'];
             $summary['accessKeyTokens'] = $accessKey['tokens'];
             $summary['accessKeys'] = $accessKey['keys'];
             $summary['invalidAccessKeyTokens'] = $accessKey['invalid'];
             $summary['duplicateAccessKeyTokens'] = $accessKey['duplicates'];
             $summary['accessKeyValid'] = $accessKey['valid'];
-            $summary += self::accessKeyDocumentSummary($element, $accessKey['keys']);
-            if ($accessKey['keys'] !== []) {
-                $summary += self::accessKeyCollisionSummary($element, $accessKey['keys']);
-            }
+            $summary += $accessKeyDocument;
+            $summary += $accessKeyCollision;
+            $summary['accessKeyReviewStatus'] = $accessKeyIssueCodes === [] ? 'ok' : 'review';
+            $summary['accessKeyIssueCodes'] = $accessKeyIssueCodes;
+            $summary['accessKeyIssueCount'] = count($accessKeyIssueCodes);
         }
 
         if (array_key_exists('autofocus', $attributes)) {
@@ -23456,6 +23462,34 @@ final class XmlHtmlDom
         }
 
         return preg_match_all('/./us', $token) === 1;
+    }
+
+    /**
+     * @param array{tokens:list<string>, keys:list<string>, invalid:list<string>, duplicates:list<string>, valid:bool} $accessKey
+     * @param array<string, mixed> $documentSummary
+     * @param array<string, mixed> $collisionSummary
+     * @return list<string>
+     */
+    private static function accessKeyIssueCodes(array $accessKey, array $documentSummary, array $collisionSummary): array
+    {
+        $issueCodes = [];
+        if (($accessKey['tokens'] ?? []) === []) {
+            $issueCodes[] = 'empty-accesskey-token-list';
+        }
+        if (($accessKey['invalid'] ?? []) !== []) {
+            $issueCodes[] = 'invalid-accesskey-token';
+        }
+        if (($accessKey['duplicates'] ?? []) !== []) {
+            $issueCodes[] = 'duplicate-accesskey-token';
+        }
+        if (($documentSummary['accessKeyConflictKeys'] ?? []) !== []) {
+            $issueCodes[] = 'document-accesskey-conflict';
+        }
+        if (($collisionSummary['accessKeyCollisionKeys'] ?? []) !== []) {
+            $issueCodes[] = 'html-accesskey-collision';
+        }
+
+        return array_values(array_unique($issueCodes));
     }
 
     /**
