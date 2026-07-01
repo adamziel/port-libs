@@ -650,6 +650,19 @@ final class PptxWriter
                 )];
         }
 
+        if ($block->type === 'line_block') {
+            $inlines = $this->lineBlockInlines($block);
+
+            return $inlines === []
+                ? []
+                : [$this->textShapeXml(
+                    $shapeId++,
+                    $this->shapeName($block, 'Line Block'),
+                    [$this->paragraphXml($inlines, [], $relationships)],
+                    ...$this->bodyRect($slot++)
+                )];
+        }
+
         if ($block->type === 'table') {
             return [$this->tableShapeXml($block, $shapeId++, $slot++)];
         }
@@ -1021,6 +1034,15 @@ final class PptxWriter
                 }
                 continue;
             }
+            if ($block->type === 'line_block') {
+                $inlines = $this->lineBlockInlines($block);
+                if ($inlines !== []) {
+                    $height = min(609600, max(304800, $bottom - $cursorY));
+                    $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, 'Line Block'), [$this->paragraphXml($inlines, [], $relationships)], $x, $cursorY, $cx, $height, null, $placeholderIndex);
+                    $cursorY += $height + 152400;
+                }
+                continue;
+            }
 
             $text = $this->blockText($block);
             if ($text !== '') {
@@ -1149,6 +1171,13 @@ final class PptxWriter
                 $text = (string) $block->attr('text', '');
                 if ($text !== '') {
                     $paragraphs[] = $this->paragraphXml([$this->codeInline($text)], [], $relationships);
+                }
+                continue;
+            }
+            if ($block->type === 'line_block') {
+                $inlines = $this->lineBlockInlines($block);
+                if ($inlines !== []) {
+                    $paragraphs[] = $this->paragraphXml($inlines, [], $relationships);
                 }
                 continue;
             }
@@ -1384,8 +1413,11 @@ final class PptxWriter
                     }
                     break;
                 case 'softbreak':
-                case 'linebreak':
                     $textBuffer .= ' ';
+                    break;
+                case 'linebreak':
+                    $flushText();
+                    $runs[] = '<a:br/>';
                     break;
                 case 'strong':
                     $flushText();
@@ -1572,6 +1604,18 @@ final class PptxWriter
                 if ($text !== '') {
                     $paragraphs[] = $this->paragraphXml(
                         [$this->codeInline($text)],
+                        $this->listParagraphProperties($ordered, $listStart, $itemStart, $level, $first, $autoNumType),
+                        $relationships
+                    );
+                    $first = false;
+                }
+                continue;
+            }
+            if ($block->type === 'line_block') {
+                $inlines = $this->lineBlockInlines($block);
+                if ($inlines !== []) {
+                    $paragraphs[] = $this->paragraphXml(
+                        $inlines,
                         $this->listParagraphProperties($ordered, $listStart, $itemStart, $level, $first, $autoNumType),
                         $relationships
                     );
@@ -2466,6 +2510,13 @@ final class PptxWriter
                 $paragraphs[] = $this->notesParagraphXml($block->children);
                 continue;
             }
+            if ($block->type === 'line_block') {
+                $inlines = $this->lineBlockInlines($block);
+                if ($inlines !== []) {
+                    $paragraphs[] = $this->notesParagraphXml($inlines);
+                }
+                continue;
+            }
             if ($block->type === 'bullet_list' || $block->type === 'ordered_list') {
                 $relationships = [];
                 foreach ($this->listParagraphXmls($block, $block->type === 'ordered_list', $relationships) as $paragraph) {
@@ -2526,8 +2577,11 @@ final class PptxWriter
                     }
                     break;
                 case 'softbreak':
-                case 'linebreak':
                     $textBuffer .= ' ';
+                    break;
+                case 'linebreak':
+                    $flushText();
+                    $runs[] = '<a:br/>';
                     break;
                 case 'strong':
                     $flushText();
@@ -2872,6 +2926,29 @@ final class PptxWriter
     }
 
     /**
+     * @return list<AstNode>
+     */
+    private function lineBlockInlines(AstNode $lineBlock): array
+    {
+        $inlines = [];
+        foreach ($lineBlock->children as $index => $line) {
+            if ($index > 0) {
+                $inlines[] = new AstNode('linebreak');
+            }
+            if ($line->children !== []) {
+                array_push($inlines, ...$line->children);
+                continue;
+            }
+            $text = (string) $line->attr('text', '');
+            if ($text !== '') {
+                array_push($inlines, ...$this->textInlines($text));
+            }
+        }
+
+        return $inlines;
+    }
+
+    /**
      * @param list<AstNode> $blocks
      */
     private function blockListText(array $blocks): string
@@ -2900,6 +2977,9 @@ final class PptxWriter
         }
         if ($node->type === 'softbreak' || $node->type === 'linebreak') {
             return ' ';
+        }
+        if ($node->type === 'line_block') {
+            return $this->inlineText($this->lineBlockInlines($node));
         }
         if ($node->type === 'image') {
             return $this->imageFallbackText($node);

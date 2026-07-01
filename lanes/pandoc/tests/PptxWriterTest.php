@@ -204,6 +204,14 @@ $upstreamCodeNative = <<<'NATIVE'
   [CodeBlock ("",[],[]) "safeHead :: [a] -> Maybe a\nsafeHead [] = Nothing\nsafeHead (x:_) = Just x"]]]
 NATIVE;
 
+$upstreamLineBlocksNative = <<<'NATIVE'
+[Header 2 ("line-blocks",[],[]) [Str "Line",Space,Str "blocks"]
+,LineBlock [[Str "Alpha"],[Emph [Str "Beta"]],[Str "Gamma"]]
+,Para [Str "Hard",LineBreak,Str "break"]
+,Div ("",["notes"],[])
+ [LineBlock [[Str "Note",Space,Str "one"],[Str "Note",Space,Str "two"]]]]
+NATIVE;
+
 $upstreamStartNumberingAtNative = <<<'NATIVE'
 [Header 2 ("example-numbering-mwe",[],[]) [Str "Example",Space,Str "numbering",Space,Str "MWE"]
 ,Para [Str "This",Space,Str "is",Space,Str "a",Space,Str "slide",Space,Str "with",Space,Str "examples",Space,Str "in",Space,Str "(1)",Space,Str "and",Space,Str "(2)"]
@@ -788,6 +796,28 @@ return [
         $t->contains('baseline="30000"', $slide);
         $t->true(!str_contains($slide, "Comments don't show up."), 'Raw HTML comments must not render as slide text');
         $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream line blocks and hard line breaks to DrawingML breaks' => static function (TestRunner $t) use ($upstreamLineBlocksNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamLineBlocksNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected line-block slide');
+        $t->true(!in_array('ppt/slides/slide2.xml', $names, true), 'Line-block fixture should produce exactly one visible slide');
+        $t->true(in_array('ppt/notesSlides/notesSlide1.xml', $names, true), 'Expected notes part for line-block speaker notes');
+
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Line blocks</a:t>', $slide);
+        $t->contains('<a:t>Alpha</a:t></a:r><a:br/><a:r><a:rPr lang="en-US" i="1"/><a:t>Beta</a:t></a:r><a:br/><a:r><a:rPr lang="en-US"/><a:t>Gamma</a:t>', $slide);
+        $t->contains('<a:t>Hard</a:t></a:r><a:br/><a:r><a:rPr lang="en-US"/><a:t>break</a:t>', $slide);
+        $t->same(3, substr_count($slide, '<a:br/>'));
+        $t->true(!str_contains($slide, '<a:t>AlphaBetaGamma</a:t>'), 'LineBlock lines must not be collapsed into one text run');
+
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $t->contains('<a:t>Note one</a:t></a:r><a:br/><a:r><a:rPr lang="en-US"/><a:t>Note two</a:t>', $notes);
+        $t->same(1, substr_count($notes, '<a:br/>'));
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 
     'maps upstream code fixture into monospace runs' => static function (TestRunner $t) use ($upstreamCodeNative, $mediaOptions): void {
