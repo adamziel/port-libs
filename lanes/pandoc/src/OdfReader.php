@@ -17180,6 +17180,10 @@ final class OdfReader
         $missingPartCount = 0;
         $encryptedPartCount = 0;
         $referencedPartCount = 0;
+        $invalidDeclaredSizeCount = 0;
+        $declaredSizeMismatchCount = 0;
+        $diagnosticCount = 0;
+        $diagnosticCodeCounts = [];
         foreach ($parts as $partMetadata) {
             if (($partMetadata['declared'] ?? false) === true) {
                 $declaredPartCount++;
@@ -17196,6 +17200,27 @@ final class OdfReader
                 $referencedPartCount++;
             }
         }
+        foreach (array_merge($directories, $parts) as $scriptMetadataItem) {
+            if (($scriptMetadataItem['declaredSizeInvalid'] ?? false) === true) {
+                $invalidDeclaredSizeCount++;
+            }
+            if (($scriptMetadataItem['declaredSizeMismatch'] ?? false) === true) {
+                $declaredSizeMismatchCount++;
+            }
+
+            $diagnostics = is_array($scriptMetadataItem['diagnostics'] ?? null)
+                ? $scriptMetadataItem['diagnostics']
+                : [];
+            foreach ($diagnostics as $diagnostic) {
+                if (!is_string($diagnostic) || $diagnostic === '') {
+                    continue;
+                }
+
+                $diagnosticCount++;
+                $diagnosticCodeCounts[$diagnostic] = ($diagnosticCodeCounts[$diagnostic] ?? 0) + 1;
+            }
+        }
+        ksort($diagnosticCodeCounts, SORT_STRING);
 
         return [
             'count' => count($parts),
@@ -17208,6 +17233,11 @@ final class OdfReader
             'referencedPartCount' => $referencedPartCount,
             'unreferencedPartCount' => count($parts) - $referencedPartCount,
             'referenceCount' => count($references),
+            'invalidDeclaredSizeCount' => $invalidDeclaredSizeCount,
+            'declaredSizeMismatchCount' => $declaredSizeMismatchCount,
+            'diagnosticCount' => $diagnosticCount,
+            'diagnosticCodeCounts' => $diagnosticCodeCounts,
+            'diagnosticCodes' => array_keys($diagnosticCodeCounts),
             'kindCounts' => $kindCounts,
             'languageCounts' => $languageCounts,
             'directories' => $directories,
@@ -17222,6 +17252,11 @@ final class OdfReader
      */
     private function scriptDirectoryMetadata(array $item): array
     {
+        $diagnostics = [];
+        if (($item['declaredSizeInvalid'] ?? false) === true) {
+            $diagnostics[] = 'odf-script-package-invalid-declared-size';
+        }
+
         return self::withoutEmpty([
             'fullPath' => $item['fullPath'] ?? null,
             'part' => $item['part'] ?? null,
@@ -17230,7 +17265,15 @@ final class OdfReader
             'declared' => true,
             'encrypted' => ($item['encrypted'] ?? false) === true,
             'canExposeBytes' => false,
+            'byteLength' => null,
+            'storedByteLength' => $item['storedByteLength'] ?? null,
+            'declaredSize' => $item['declaredSize'] ?? null,
+            'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+            'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+            'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
+            'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
             'encryption' => $item['encryption'] ?? null,
+            'diagnostics' => $diagnostics,
         ]);
     }
 
