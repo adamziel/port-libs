@@ -1202,6 +1202,7 @@ final class OpenDocumentPackage
             'partCount' => 0,
             'instructionCount' => 0,
             'dataByteLength' => 0,
+            'parentDepthCounts' => [],
             'targets' => [],
             'partNames' => [],
             'instructions' => [],
@@ -1328,6 +1329,7 @@ final class OpenDocumentPackage
                 'xmlCommentsTruncated' => $xmlComments['truncated'],
                 'xmlProcessingInstructionCount' => $xmlProcessingInstructions['count'],
                 'xmlProcessingInstructionDataByteLength' => $xmlProcessingInstructions['dataByteLength'],
+                'xmlProcessingInstructionParentDepthCounts' => $xmlProcessingInstructions['parentDepthCounts'],
                 'xmlProcessingInstructionTargets' => $xmlProcessingInstructions['targets'],
                 'xmlProcessingInstructions' => $xmlProcessingInstructions['instructions'],
                 'xmlProcessingInstructionsTruncated' => $xmlProcessingInstructions['truncated'],
@@ -1846,6 +1848,7 @@ final class OpenDocumentPackage
             'packagePartXmlProcessingInstructionPartCount' => $packagePartXmlProcessingInstructions['partCount'],
             'packagePartXmlProcessingInstructionCount' => $packagePartXmlProcessingInstructions['instructionCount'],
             'packagePartXmlProcessingInstructionDataByteLength' => $packagePartXmlProcessingInstructions['dataByteLength'],
+            'packagePartXmlProcessingInstructionParentDepthCounts' => $packagePartXmlProcessingInstructions['parentDepthCounts'],
             'packagePartXmlProcessingInstructionTargets' => $packagePartXmlProcessingInstructions['targets'],
             'packagePartXmlProcessingInstructionPartNames' => $packagePartXmlProcessingInstructions['partNames'],
             'packagePartXmlProcessingInstructions' => $packagePartXmlProcessingInstructions['instructions'],
@@ -2482,8 +2485,8 @@ final class OpenDocumentPackage
     }
 
     /**
-     * @param array{partCount:int, instructionCount:int, dataByteLength:int, targets:list<string>, partNames:list<string>, instructions:list<array<string, mixed>>, truncated:bool} $summary
-     * @param array{count:int, dataByteLength:int, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool} $metadata
+     * @param array{partCount:int, instructionCount:int, dataByteLength:int, parentDepthCounts:array<int, int>, targets:list<string>, partNames:list<string>, instructions:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{count:int, dataByteLength:int, parentDepthCounts:array<int, int>, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool} $metadata
      */
     private static function recordPackagePartXmlProcessingInstructionSummary(array &$summary, string $partName, array $metadata): void
     {
@@ -2496,6 +2499,14 @@ final class OpenDocumentPackage
         $summary['instructionCount'] += $instructionCount;
         $summary['dataByteLength'] += (int) ($metadata['dataByteLength'] ?? 0);
         $summary['partNames'][] = $partName;
+        foreach (($metadata['parentDepthCounts'] ?? []) as $depth => $count) {
+            if (!is_int($depth) && !(is_string($depth) && ctype_digit($depth))) {
+                continue;
+            }
+
+            $depth = (int) $depth;
+            $summary['parentDepthCounts'][$depth] = ($summary['parentDepthCounts'][$depth] ?? 0) + (int) $count;
+        }
         foreach (($metadata['targets'] ?? []) as $target) {
             if (is_string($target) && $target !== '' && !in_array($target, $summary['targets'], true)) {
                 $summary['targets'][] = $target;
@@ -2519,11 +2530,12 @@ final class OpenDocumentPackage
         }
 
         sort($summary['partNames'], SORT_STRING);
+        ksort($summary['parentDepthCounts'], SORT_NUMERIC);
         sort($summary['targets'], SORT_STRING);
     }
 
     /**
-     * @return array{count:int, dataByteLength:int, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
+     * @return array{count:int, dataByteLength:int, parentDepthCounts:array<int, int>, targets:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
      */
     private static function packagePartXmlProcessingInstructionMetadata(
         ZipPackage $package,
@@ -2533,6 +2545,7 @@ final class OpenDocumentPackage
         $empty = [
             'count' => 0,
             'dataByteLength' => 0,
+            'parentDepthCounts' => [],
             'targets' => [],
             'instructions' => [],
             'truncated' => false,
@@ -2558,9 +2571,10 @@ final class OpenDocumentPackage
         $targets = [];
         $count = 0;
         $dataByteLength = 0;
+        $parentDepthCounts = [];
         $truncated = false;
         $itemLimit = 32;
-        $walk = static function (\DOMNode $node) use (&$walk, &$instructions, &$targets, &$count, &$dataByteLength, &$truncated, $itemLimit): void {
+        $walk = static function (\DOMNode $node) use (&$walk, &$instructions, &$targets, &$count, &$dataByteLength, &$parentDepthCounts, &$truncated, $itemLimit): void {
             if ($node instanceof \DOMProcessingInstruction) {
                 $target = (string) $node->target;
                 if ($target !== '' && strtolower($target) !== 'xml') {
@@ -2571,16 +2585,18 @@ final class OpenDocumentPackage
                     if (!in_array($target, $targets, true)) {
                         $targets[] = $target;
                     }
+                    $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+                    $parentPath = self::domElementPath($parent);
+                    $parentDepth = self::domElementPathDepth($parentPath);
+                    $parentDepthCounts[$parentDepth] = ($parentDepthCounts[$parentDepth] ?? 0) + 1;
                     if (count($instructions) >= $itemLimit) {
                         $truncated = true;
                     } else {
-                        $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
-                        $parentPath = self::domElementPath($parent);
                         $instructions[] = [
                             'index' => $count - 1,
                             'target' => $target,
                             'parentPath' => $parentPath,
-                            'parentDepth' => self::domElementPathDepth($parentPath),
+                            'parentDepth' => $parentDepth,
                             'dataByteLength' => $dataLength,
                             'dataCrc32' => sprintf('%08x', crc32($data)),
                             'dataSha256' => hash('sha256', $data),
@@ -2596,11 +2612,13 @@ final class OpenDocumentPackage
             }
         };
         $walk($dom);
+        ksort($parentDepthCounts, SORT_NUMERIC);
         sort($targets, SORT_STRING);
 
         return [
             'count' => $count,
             'dataByteLength' => $dataByteLength,
+            'parentDepthCounts' => $parentDepthCounts,
             'targets' => $targets,
             'instructions' => $instructions,
             'truncated' => $truncated,
