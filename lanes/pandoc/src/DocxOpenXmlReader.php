@@ -15874,6 +15874,7 @@ final class DocxOpenXmlReader
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partBaseNameCharacters = $this->packagePartBaseNameCharacterSummary($partInventory);
         $partDirectoryNameCharacters = $this->packagePartDirectoryNameCharacterSummary($partInventory);
+        $partXmlDeclarations = $this->packagePartXmlDeclarationSummary($partInventory);
         $partXmlCdataSections = $this->packagePartXmlCdataSectionSummary($partInventory);
         $partXmlComments = $this->packagePartXmlCommentSummary($partInventory);
         $partXmlProcessingInstructions = $this->packagePartXmlProcessingInstructionSummary($partInventory);
@@ -19707,6 +19708,17 @@ final class DocxOpenXmlReader
             'partDirectoryNameCharacterFlagPartNames' => $partDirectoryNameCharacters['flagPartNames'],
             'partDirectoryNameCharacterReviewDirectories' => $partDirectoryNameCharacters['directories'],
             'partDirectoryNameCharacterReviewDirectoryNames' => $partDirectoryNameCharacters['directoryNames'],
+            'partXmlDeclarationCheckedPartCount' => $partXmlDeclarations['checkedPartCount'],
+            'partXmlDeclarationPartCount' => $partXmlDeclarations['partCount'],
+            'partXmlDeclarationMissingPartCount' => $partXmlDeclarations['missingPartCount'],
+            'partXmlDeclarationAttributeCount' => $partXmlDeclarations['attributeCount'],
+            'partXmlDeclarationVersionCounts' => $partXmlDeclarations['versionCounts'],
+            'partXmlDeclarationEncodingCounts' => $partXmlDeclarations['encodingCounts'],
+            'partXmlDeclarationStandaloneCounts' => $partXmlDeclarations['standaloneCounts'],
+            'partXmlDeclarationPartNames' => $partXmlDeclarations['partNames'],
+            'partXmlDeclarationMissingPartNames' => $partXmlDeclarations['missingPartNames'],
+            'partXmlDeclarations' => $partXmlDeclarations['declarations'],
+            'partXmlDeclarationsTruncated' => $partXmlDeclarations['truncated'],
             'partXmlCdataSectionPartCount' => $partXmlCdataSections['partCount'],
             'partXmlCdataSectionCount' => $partXmlCdataSections['sectionCount'],
             'partXmlCdataSectionByteLength' => $partXmlCdataSections['byteLength'],
@@ -37486,6 +37498,96 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
+     * @return array{checkedPartCount:int, partCount:int, missingPartCount:int, attributeCount:int, versionCounts:array<string, int>, encodingCounts:array<string, int>, standaloneCounts:array<string, int>, partNames:list<string>, missingPartNames:list<string>, declarations:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlDeclarationSummary(array $partInventory): array
+    {
+        $partNames = [];
+        $missingPartNames = [];
+        $declarations = [];
+        $versionCounts = [];
+        $encodingCounts = [];
+        $standaloneCounts = [
+            'no' => 0,
+            'omitted' => 0,
+            'yes' => 0,
+        ];
+        $checkedPartCount = 0;
+        $attributeCount = 0;
+        $truncated = false;
+        $summaryLimit = 128;
+
+        foreach ($partInventory as $partName => $part) {
+            if (($part['xmlDeclarationChecked'] ?? false) !== true) {
+                continue;
+            }
+
+            ++$checkedPartCount;
+            $partName = (string) ($part['partName'] ?? $partName);
+            if (($part['xmlDeclarationPresent'] ?? false) !== true) {
+                $this->appendUniqueString($missingPartNames, $partName);
+                continue;
+            }
+
+            $this->appendUniqueString($partNames, $partName);
+            $attributeCount += (int) ($part['xmlDeclarationAttributeCount'] ?? 0);
+            $version = is_string($part['xmlDeclarationVersion'] ?? null) ? (string) $part['xmlDeclarationVersion'] : '';
+            if ($version !== '') {
+                $versionCounts[$version] = ($versionCounts[$version] ?? 0) + 1;
+            }
+            $encoding = is_string($part['xmlDeclarationEncoding'] ?? null) ? (string) $part['xmlDeclarationEncoding'] : '';
+            if ($encoding !== '') {
+                $encodingCounts[$encoding] = ($encodingCounts[$encoding] ?? 0) + 1;
+            }
+            if (($part['xmlDeclarationStandalone'] ?? null) === true) {
+                ++$standaloneCounts['yes'];
+            } elseif (($part['xmlDeclarationStandalone'] ?? null) === false) {
+                ++$standaloneCounts['no'];
+            } else {
+                ++$standaloneCounts['omitted'];
+            }
+
+            if (count($declarations) >= $summaryLimit) {
+                $truncated = true;
+                continue;
+            }
+
+            $declarations[] = [
+                'partName' => $partName,
+                'version' => $version === '' ? null : $version,
+                'encoding' => $encoding === '' ? null : $encoding,
+                'standalone' => is_bool($part['xmlDeclarationStandalone'] ?? null)
+                    ? (bool) $part['xmlDeclarationStandalone']
+                    : null,
+                'attributeCount' => (int) ($part['xmlDeclarationAttributeCount'] ?? 0),
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? (string) $part['contentTypeBase'] : '',
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? (string) $part['contentTypeSource'] : 'missing',
+            ];
+        }
+
+        sort($partNames, SORT_STRING);
+        sort($missingPartNames, SORT_STRING);
+        ksort($versionCounts, SORT_STRING);
+        ksort($encodingCounts, SORT_STRING);
+        ksort($standaloneCounts, SORT_STRING);
+
+        return [
+            'checkedPartCount' => $checkedPartCount,
+            'partCount' => count($partNames),
+            'missingPartCount' => count($missingPartNames),
+            'attributeCount' => $attributeCount,
+            'versionCounts' => $versionCounts,
+            'encodingCounts' => $encodingCounts,
+            'standaloneCounts' => $standaloneCounts,
+            'partNames' => $partNames,
+            'missingPartNames' => $missingPartNames,
+            'declarations' => $declarations,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
      * @return array{partCount:int, sectionCount:int, byteLength:int, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCdataSectionSummary(array $partInventory): array
@@ -37645,6 +37747,39 @@ final class DocxOpenXmlReader
             'partNames' => $partNames,
             'instructions' => $instructions,
             'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @return array{checked:bool, present:bool, version:?string, encoding:?string, standalone:?bool, attributeCount:int}
+     */
+    private function packagePartXmlDeclarationMetadata(
+        string $xml,
+        string $partName,
+        string $contentTypeBase,
+        ?string $partExtension,
+    ): array {
+        $empty = [
+            'checked' => false,
+            'present' => false,
+            'version' => null,
+            'encoding' => null,
+            'standalone' => null,
+            'attributeCount' => 0,
+        ];
+        if (!$this->isXmlPackagePart($partName, $contentTypeBase, $partExtension)) {
+            return $empty;
+        }
+
+        $declaration = $this->xmlDeclarationProvenance($xml);
+
+        return [
+            'checked' => true,
+            'present' => $declaration['present'],
+            'version' => $declaration['version'],
+            'encoding' => $declaration['encoding'],
+            'standalone' => $declaration['standalone'],
+            'attributeCount' => $declaration['attributeCount'],
         ];
     }
 
@@ -44098,6 +44233,12 @@ final class DocxOpenXmlReader
             $directoryNameCharacterFlags = ($directory === '' || $directory === '/')
                 ? []
                 : $this->packagePartNameCharacterFlags($directory);
+            $xmlDeclaration = $this->packagePartXmlDeclarationMetadata(
+                $contents,
+                $partName,
+                (string) $contentTypeResolution['contentTypeBase'],
+                $partExtension,
+            );
             $xmlCdataSections = $this->packagePartXmlCdataSectionMetadata(
                 $contents,
                 $partName,
@@ -44157,6 +44298,12 @@ final class DocxOpenXmlReader
                 'contentTypeSource' => $contentTypeResolution['contentTypeSource'],
                 'defaultExtension' => $contentTypeResolution['defaultExtension'],
                 'overridePartName' => $contentTypeResolution['overridePartName'],
+                'xmlDeclarationChecked' => $xmlDeclaration['checked'],
+                'xmlDeclarationPresent' => $xmlDeclaration['present'],
+                'xmlDeclarationVersion' => $xmlDeclaration['version'],
+                'xmlDeclarationEncoding' => $xmlDeclaration['encoding'],
+                'xmlDeclarationStandalone' => $xmlDeclaration['standalone'],
+                'xmlDeclarationAttributeCount' => $xmlDeclaration['attributeCount'],
                 'xmlCdataSectionCount' => $xmlCdataSections['count'],
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
