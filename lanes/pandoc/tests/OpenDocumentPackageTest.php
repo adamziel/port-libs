@@ -1512,6 +1512,110 @@ XML;
         $t->same('Pictures/source hero.png', $inventoryPart['manifestPackagePath']);
         $t->same('image/png', $inventoryPart['manifestMediaType']);
     },
+    'preflights compact ODT manifest and package path shapes without exposing bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $audioBytes = 'OGGDATA';
+        $payloadBytes = 'PAYLOAD';
+        $privateBytes = 'PRIVATE';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/"/>'
+            . '<manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/source%20audio.ogg" manifest:size="' . strlen($audioBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Payloads/review.bin" manifest:size="' . strlen($payloadBytes) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Media/source audio.ogg', 'data' => $audioBytes, 'compressionMethod' => 0],
+                ['name' => 'Payloads/review.bin', 'data' => $payloadBytes, 'compressionMethod' => 0],
+                ['name' => 'Notes/private.txt', 'data' => $privateBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
+        $reviewByPath = [];
+        foreach ($review['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $item) {
+            $mediaByPath[$item['path']] = $item;
+        }
+
+        $t->same([
+            'directory' => 1,
+            'file' => 6,
+            'root' => 1,
+        ], $review['manifestPathKindCounts']);
+        $t->same([
+            'Media' => 1,
+            'Payloads' => 1,
+            'Pictures' => 2,
+            'content.xml' => 1,
+            'meta.xml' => 1,
+            'styles.xml' => 1,
+        ], $review['manifestTopLevelSegmentCounts']);
+        $t->same([
+            'bin' => 1,
+            'ogg' => 1,
+            'png' => 1,
+            'xml' => 3,
+        ], $review['manifestPathExtensionCounts']);
+
+        $t->same('root', $reviewByPath['/']['pathShape']['kind']);
+        $t->same('file', $reviewByPath['Pictures/hero.png']['pathShape']['kind']);
+        $t->same('Pictures', $reviewByPath['Pictures/hero.png']['pathShape']['topLevelSegment']);
+        $t->same('Pictures/', $reviewByPath['Pictures/hero.png']['pathShape']['directory']);
+        $t->same('hero.png', $reviewByPath['Pictures/hero.png']['pathShape']['basename']);
+        $t->same('png', $reviewByPath['Pictures/hero.png']['pathShape']['extension']);
+        $t->same(['Pictures', 'hero.png'], $reviewByPath['Pictures/hero.png']['pathShape']['segments']);
+        $t->same(2, $reviewByPath['Pictures/hero.png']['pathShape']['segmentCount']);
+        $t->same(1, $reviewByPath['Pictures/hero.png']['pathShape']['directorySegmentCount']);
+        $t->same('directory', $reviewByPath['Pictures/']['pathShape']['kind']);
+        $t->same('Pictures/', $reviewByPath['Pictures/']['pathShape']['directory']);
+        $t->same(1, $reviewByPath['Pictures/']['pathShape']['directorySegmentCount']);
+        $t->same('source%20audio.ogg', $reviewByPath['Media/source%20audio.ogg']['pathShape']['basename']);
+        $t->same('source audio.ogg', $reviewByPath['Media/source%20audio.ogg']['packagePathShape']['basename']);
+        $t->same('source audio.ogg', $mediaByPath['Media/source%20audio.ogg']['packagePathShape']['basename']);
+        $t->same('file', $review['manifestFileEntryOrder'][6]['pathShape']['kind']);
+        $t->same('source audio.ogg', $review['manifestPathShapeItems'][6]['packagePathShape']['basename']);
+
+        $t->same([
+            'directory' => 1,
+            'file' => 9,
+        ], $inventory['packagePathKindCounts']);
+        $t->same([
+            'META-INF' => 1,
+            'Media' => 1,
+            'Notes' => 1,
+            'Payloads' => 1,
+            'Pictures' => 2,
+            'content.xml' => 1,
+            'meta.xml' => 1,
+            'mimetype' => 1,
+            'styles.xml' => 1,
+        ], $inventory['packageTopLevelSegmentCounts']);
+        $t->same([
+            'bin' => 1,
+            'ogg' => 1,
+            'png' => 1,
+            'txt' => 1,
+            'xml' => 4,
+        ], $inventory['packagePathExtensionCounts']);
+        $t->same('private.txt', $inventory['parts']['Notes/private.txt']['pathShape']['basename']);
+        $t->same('file', $identity['manifestEntries'][6]['pathShape']['kind']);
+        $t->same('source audio.ogg', $identity['manifestEntries'][6]['packagePathShape']['basename']);
+        $t->same('private.txt', $identity['packageEntries'][9]['pathShape']['basename']);
+        $t->same($inventory['packagePathKindCounts'], $identity['packagePathKindCounts']);
+        $t->same($inventory['packageTopLevelSegmentCounts'], $identity['packageTopLevelSegmentCounts']);
+        $t->same($inventory['packagePathExtensionCounts'], $identity['packagePathExtensionCounts']);
+        $t->same('undeclared-package-entry-no-bytes', $inventory['parts']['Notes/private.txt']['byteExposurePolicy']);
+        $t->same(null, $inventory['parts']['Notes/private.txt']['byteSha256']);
+    },
     'preserves compact ODT raw ZIP entry name provenance in package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
         $rawName = "Pictures/caf\x82.png";
@@ -4238,20 +4342,34 @@ XML;
         $t->same(1, count($summary['mediaParts']), 'settings.xml must remain outside media handoff');
     },
     'surfaces compact ODT ZIP package comments as metadata-only provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml): void {
-        $package = ZipPackage::fromParts([
+        $commentedParts = [
             ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
             ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'comment' => 'manifest review'],
             ['name' => 'content.xml', 'data' => $contentXml, 'comment' => 'body review'],
             ['name' => 'styles.xml', 'data' => $stylesXml],
             ['name' => 'meta.xml', 'data' => $metaXml],
             ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0, 'comment' => 'media review'],
-        ], 'odt package review');
+        ];
+        $package = ZipPackage::fromParts($commentedParts, 'odt package review');
 
         $summary = OpenDocumentPackage::fromPackage($package)->summarize();
         $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
         $comments = $inventory['comments'];
         $content = $inventory['parts']['content.xml'];
         $hero = $inventory['parts']['Pictures/hero.png'];
+        $identityParts = [];
+        foreach ($identity['packageEntries'] as $packageEntry) {
+            $identityParts[$packageEntry['path']] = $packageEntry;
+        }
+        $changedPackageCommentIdentity = OpenDocumentPackage::fromPackage(
+            ZipPackage::fromParts($commentedParts, 'odt package review changed')
+        )->summarize()['packageIdentity'];
+        $changedEntryCommentParts = $commentedParts;
+        $changedEntryCommentParts[2]['comment'] = 'body review changed';
+        $changedEntryCommentIdentity = OpenDocumentPackage::fromPackage(
+            ZipPackage::fromParts($changedEntryCommentParts, 'odt package review')
+        )->summarize()['packageIdentity'];
 
         $t->same($comments, $package->commentPreflight());
         $t->same($comments, $summary['packageInventory']['comments']);
@@ -4266,6 +4384,10 @@ XML;
         $t->same(true, $inventory['hasEntryComments']);
         $t->same(3, $inventory['entryCommentCount']);
         $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $inventory['commentedEntryNames']);
+        $t->same(true, $identity['hasPackageComment']);
+        $t->same(true, $identity['hasEntryComments']);
+        $t->same(3, $identity['entryCommentCount']);
+        $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $identity['commentedEntryNames']);
 
         $t->same('body review', $content['zipEntryComment']);
         $t->same(strlen('body review'), $content['zipEntryCommentLength']);
@@ -4275,6 +4397,18 @@ XML;
         $t->same('media review', $hero['zipEntryComment']);
         $t->same(true, $hero['zipEntryHasComment']);
         $t->same('package-bytes-exposable', $hero['byteExposurePolicy']);
+        $t->same('manifest review', $identityParts['META-INF/manifest.xml']['zipEntryComment']);
+        $t->same('body review', $identityParts['content.xml']['zipEntryComment']);
+        $t->same(strlen('body review'), $identityParts['content.xml']['zipEntryCommentLength']);
+        $t->same('utf-8', $identityParts['content.xml']['zipEntryCommentEncoding']);
+        $t->same(true, $identityParts['content.xml']['zipEntryHasComment']);
+        $t->same([], $identityParts['content.xml']['zipEntryCommentIssues'] ?? []);
+        $t->same('media review', $identityParts['Pictures/hero.png']['zipEntryComment']);
+        $t->same(false, $identityParts['styles.xml']['zipEntryHasComment']);
+        $t->same('odf-package-identity-metadata-only', $identity['byteExposurePolicy']);
+        $t->same(false, $identity['canExposeBytes']);
+        $t->true($identity['identitySha256'] !== $changedPackageCommentIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedEntryCommentIdentity['identitySha256']);
         $t->same(1, count($summary['mediaParts']));
         $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
         $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);

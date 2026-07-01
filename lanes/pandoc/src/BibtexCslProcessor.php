@@ -147,7 +147,11 @@ final class BibtexCslProcessor
                 'id' => $entry['id'],
                 'type' => $entry['type'],
                 'fields' => $fields,
-                'csl' => $this->toCslItem($key, $entry['type'], $fields),
+                'csl' => $this->withBiblatexRelationMetadata(
+                    $this->toCslItem($key, $entry['type'], $fields),
+                    $fields,
+                    $rawEntries
+                ),
             ];
         }
 
@@ -419,6 +423,15 @@ final class BibtexCslProcessor
         );
         if ($referenceContextSummary !== '') {
             $parts[] = 'BibLaTeX reference context: ' . $referenceContextSummary;
+        }
+        if (($item['entrySetSummary'] ?? '') !== '') {
+            $parts[] = 'BibLaTeX entry set: ' . (string) $item['entrySetSummary'];
+        }
+        if (($item['crossrefSummary'] ?? '') !== '') {
+            $parts[] = 'BibLaTeX crossref parent: ' . (string) $item['crossrefSummary'];
+        }
+        if (($item['xdataSummary'] ?? '') !== '') {
+            $parts[] = 'BibLaTeX xdata packets: ' . (string) $item['xdataSummary'];
         }
         if (($item['gender'] ?? '') !== '') {
             $parts[] = 'BibLaTeX gender: ' . (string) $item['gender'];
@@ -1020,6 +1033,189 @@ final class BibtexCslProcessor
     }
 
     /**
+     * @param array<string, mixed> $item
+     * @param array<string, string> $fields
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @return array<string, mixed>
+     */
+    private function withBiblatexRelationMetadata(array $item, array $fields, array $entriesByKey): array
+    {
+        $xdata = $this->fieldKeyList($fields['xdata'] ?? '');
+        if ($xdata !== []) {
+            $xdataItems = $this->referencedXdataEntrySummaries($xdata, $entriesByKey);
+            $missing = $this->missingXdataReferenceKeys($xdata, $entriesByKey);
+
+            $item['xdataKeys'] = $xdata;
+            $item['xdataItems'] = $xdataItems;
+            $item['xdataSummary'] = $this->summarizedReferenceValues($xdataItems, $missing);
+            if ($missing !== []) {
+                $item['missingXdataKeys'] = $missing;
+            }
+        }
+
+        $entrySet = $this->fieldKeyList($fields['entryset'] ?? '');
+        if ($entrySet !== []) {
+            $entrySetItems = $this->referencedEntrySummaries($entrySet, $entriesByKey);
+            $missing = $this->missingReferenceKeys($entrySet, $entriesByKey);
+
+            $item['entrySet'] = $entrySet;
+            $item['entrySetItems'] = $entrySetItems;
+            $item['entrySetSummary'] = $this->summarizedReferenceValues($entrySetItems, $missing);
+            if ($missing !== []) {
+                $item['missingEntrySetKeys'] = $missing;
+            }
+        }
+
+        $crossref = $this->fieldKeyList($fields['crossref'] ?? '');
+        if ($crossref !== []) {
+            $crossrefItems = $this->referencedEntrySummaries($crossref, $entriesByKey);
+            $missing = $this->missingReferenceKeys($crossref, $entriesByKey);
+
+            $item['crossrefKeys'] = $crossref;
+            $item['crossrefItems'] = $crossrefItems;
+            $item['crossrefSummary'] = $this->summarizedReferenceValues($crossrefItems, $missing);
+            if ($missing !== []) {
+                $item['missingCrossrefKeys'] = $missing;
+            }
+        }
+
+        return $item;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @return list<array<string, mixed>>
+     */
+    private function referencedEntrySummaries(array $keys, array $entriesByKey): array
+    {
+        $summaries = [];
+        foreach ($keys as $key) {
+            $entry = $entriesByKey[$key] ?? null;
+            if ($entry === null) {
+                continue;
+            }
+
+            $fields = $this->resolveInheritedFields($entry, $entriesByKey);
+            $summary = $this->toCslItem($entry['id'], $entry['type'], $fields);
+            unset($summary['rawBibtex']);
+            if ($entry['type'] === 'xdata' || $this->hasDataOnlyOption($entry['fields']['options'] ?? '')) {
+                $summary['dataOnly'] = true;
+            }
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @return list<array<string, mixed>>
+     */
+    private function referencedXdataEntrySummaries(array $keys, array $entriesByKey): array
+    {
+        $summaries = [];
+        foreach ($keys as $key) {
+            $entry = $entriesByKey[$key] ?? null;
+            if ($entry === null || $entry['type'] !== 'xdata') {
+                continue;
+            }
+
+            $fields = $this->resolveInheritedFields($entry, $entriesByKey);
+            $summary = $this->toCslItem($entry['id'], $entry['type'], $fields);
+            unset($summary['rawBibtex']);
+            $summary['dataOnly'] = true;
+            $summaries[] = $summary;
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @return list<string>
+     */
+    private function missingReferenceKeys(array $keys, array $entriesByKey): array
+    {
+        return array_values(array_filter(
+            $keys,
+            static fn (string $key): bool => !isset($entriesByKey[$key])
+        ));
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
+     * @return list<string>
+     */
+    private function missingXdataReferenceKeys(array $keys, array $entriesByKey): array
+    {
+        return array_values(array_filter(
+            $keys,
+            static fn (string $key): bool => !isset($entriesByKey[$key]) || $entriesByKey[$key]['type'] !== 'xdata'
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $missing
+     */
+    private function summarizedReferenceValues(array $items, array $missing): string
+    {
+        $values = [];
+        foreach ($items as $item) {
+            $label = trim((string) ($item['title'] ?? $item['id'] ?? ''));
+            if ($label === '') {
+                continue;
+            }
+
+            $date = $this->referenceDateLabel($item);
+            $values[] = $date === '' ? $label : $label . ' (' . $date . ')';
+        }
+
+        foreach ($missing as $key) {
+            $values[] = 'missing: ' . $key;
+        }
+
+        return implode('; ', $values);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function referenceDateLabel(array $item): string
+    {
+        $parts = $item['issued']['date-parts'][0] ?? null;
+        if (!is_array($parts) || $parts === []) {
+            return '';
+        }
+
+        $formatted = [];
+        foreach (array_values($parts) as $index => $part) {
+            if (!is_int($part) && !is_numeric($part)) {
+                continue;
+            }
+            $formatted[] = $index === 0 ? (string) (int) $part : str_pad((string) (int) $part, 2, '0', STR_PAD_LEFT);
+        }
+
+        return implode('-', $formatted);
+    }
+
+    private function hasDataOnlyOption(string $options): bool
+    {
+        foreach ($this->biblatexOptionList($options) as $option) {
+            $name = strtolower(trim(explode('=', $option, 2)[0]));
+            if ($name === 'dataonly') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * @param array{id:string, type:string, fields:array<string, string>} $entry
      * @param array<string, array{id:string, type:string, fields:array<string, string>}> $entriesByKey
      * @param list<string> $stack
@@ -1253,6 +1449,7 @@ final class BibtexCslProcessor
             'audio', 'music' => 'song',
             'report', 'techreport' => 'report',
             'patent' => 'patent',
+            'set' => 'entry',
             'legislation', 'legal' => 'legislation',
             'jurisdiction' => 'legal_case',
             'unpublished' => 'manuscript',

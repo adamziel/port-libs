@@ -324,6 +324,8 @@ final class OpenDocumentPackage
                     'pathSuffix' => $entry['pathSuffix'],
                     'pathQuery' => $entry['pathQuery'],
                     'pathFragment' => $entry['pathFragment'],
+                    'pathShape' => $entry['pathShape'],
+                    'packagePathShape' => $entry['packagePathShape'],
                     'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
                     'manifestMediaFamily' => $entry['manifestMediaFamily'],
                     'mediaType' => $entry['mediaType'],
@@ -567,6 +569,9 @@ final class OpenDocumentPackage
         $manifestMediaFamilyCounts = [];
         $manifestMediaFamilyByteLengths = [];
         $manifestMediaFamilyCompressedByteLengths = [];
+        $packagePathKindCounts = [];
+        $packageTopLevelSegmentCounts = [];
+        $packagePathExtensionCounts = [];
         $rawNameProvenanceEntryCount = 0;
         $legacyEncodedNameEntryCount = 0;
         $unicodePathExtraEntryCount = 0;
@@ -592,6 +597,7 @@ final class OpenDocumentPackage
                 ++$packageDirectoryCount;
             }
 
+            $pathShape = self::pathShape($entry->name);
             $roles = self::packageEntryRoles($entry, $manifestEntry, $isUndeclared, $embeddedObjectPackage);
             $byteExposurePolicy = null;
             if (is_array($manifestEntry)) {
@@ -603,6 +609,7 @@ final class OpenDocumentPackage
             }
             $item = [
                 'path' => $entry->name,
+                'pathShape' => $pathShape,
                 'roles' => $roles,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
@@ -630,6 +637,8 @@ final class OpenDocumentPackage
                 'manifestPathSuffix' => is_array($manifestEntry) ? $manifestEntry['pathSuffix'] : null,
                 'manifestPathQuery' => is_array($manifestEntry) ? $manifestEntry['pathQuery'] : null,
                 'manifestPathFragment' => is_array($manifestEntry) ? $manifestEntry['pathFragment'] : null,
+                'manifestPathShape' => is_array($manifestEntry) ? ($manifestEntry['pathShape'] ?? null) : null,
+                'manifestPackagePathShape' => is_array($manifestEntry) ? ($manifestEntry['packagePathShape'] ?? null) : null,
                 'manifestUriEncodedPackageReference' => is_array($manifestEntry) && ($manifestEntry['uriEncodedPackageReference'] ?? false) === true,
                 'manifestMediaFamily' => is_array($manifestEntry) ? ($manifestEntry['manifestMediaFamily'] ?? null) : null,
                 'manifestMediaType' => is_array($manifestEntry) ? $manifestEntry['mediaType'] : null,
@@ -733,6 +742,18 @@ final class OpenDocumentPackage
                 $manifestMediaFamilyByteLengths[$family] = ($manifestMediaFamilyByteLengths[$family] ?? 0) + $entry->uncompressedSize;
                 $manifestMediaFamilyCompressedByteLengths[$family] = ($manifestMediaFamilyCompressedByteLengths[$family] ?? 0) + $entry->compressedSize;
             }
+            $pathKind = $pathShape['kind'] ?? null;
+            if (is_string($pathKind) && $pathKind !== '') {
+                $packagePathKindCounts[$pathKind] = ($packagePathKindCounts[$pathKind] ?? 0) + 1;
+            }
+            $topLevelSegment = $pathShape['topLevelSegment'] ?? null;
+            if (is_string($topLevelSegment) && $topLevelSegment !== '') {
+                $packageTopLevelSegmentCounts[$topLevelSegment] = ($packageTopLevelSegmentCounts[$topLevelSegment] ?? 0) + 1;
+            }
+            $pathExtension = $pathShape['extension'] ?? null;
+            if (is_string($pathExtension) && $pathExtension !== '') {
+                $packagePathExtensionCounts[$pathExtension] = ($packagePathExtensionCounts[$pathExtension] ?? 0) + 1;
+            }
             if (array_intersect($roles, ['odf-mimetype', 'odf-manifest', 'odf-content', 'odf-styles', 'odf-meta', 'odf-settings']) !== []) {
                 ++$corePackagePartCount;
             }
@@ -801,6 +822,9 @@ final class OpenDocumentPackage
         ksort($manifestMediaFamilyCounts, SORT_STRING);
         ksort($manifestMediaFamilyByteLengths, SORT_STRING);
         ksort($manifestMediaFamilyCompressedByteLengths, SORT_STRING);
+        ksort($packagePathKindCounts, SORT_STRING);
+        ksort($packageTopLevelSegmentCounts, SORT_STRING);
+        ksort($packagePathExtensionCounts, SORT_STRING);
 
         return [
             'entryCount' => count($parts),
@@ -841,6 +865,9 @@ final class OpenDocumentPackage
             'manifestMediaFamilyCounts' => $manifestMediaFamilyCounts,
             'manifestMediaFamilyByteLengths' => $manifestMediaFamilyByteLengths,
             'manifestMediaFamilyCompressedByteLengths' => $manifestMediaFamilyCompressedByteLengths,
+            'packagePathKindCounts' => $packagePathKindCounts,
+            'packageTopLevelSegmentCounts' => $packageTopLevelSegmentCounts,
+            'packagePathExtensionCounts' => $packagePathExtensionCounts,
             'rawNameProvenanceEntryCount' => $rawNameProvenanceEntryCount,
             'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
@@ -900,6 +927,8 @@ final class OpenDocumentPackage
                 'packagePath' => $entry['packagePath'] ?? null,
                 'pathReference' => $entry['pathReference'] ?? null,
                 'pathSuffix' => $entry['pathSuffix'] ?? null,
+                'pathShape' => $entry['pathShape'] ?? [],
+                'packagePathShape' => $entry['packagePathShape'] ?? null,
                 'mediaType' => $entry['mediaType'] ?? null,
                 'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
                 'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
@@ -931,6 +960,7 @@ final class OpenDocumentPackage
 
             $packageEntries[] = self::withoutEmptyValues([
                 'path' => $part['path'] ?? null,
+                'pathShape' => $part['pathShape'] ?? [],
                 'roles' => $part['roles'] ?? [],
                 'centralDirectoryIndex' => $part['centralDirectoryIndex'] ?? null,
                 'localHeaderOrder' => $part['localHeaderOrder'] ?? null,
@@ -983,10 +1013,17 @@ final class OpenDocumentPackage
                 'platformMetadataIssues' => $part['platformMetadataIssues'] ?? [],
                 'platformAttributeIssues' => $part['platformAttributeIssues'] ?? [],
                 'hasPlatformAttributeProvenance' => ($part['hasPlatformAttributeProvenance'] ?? false) === true,
+                'zipEntryComment' => $part['zipEntryComment'] ?? null,
+                'zipEntryCommentLength' => $part['zipEntryCommentLength'] ?? null,
+                'zipEntryCommentEncoding' => $part['zipEntryCommentEncoding'] ?? null,
+                'zipEntryHasComment' => ($part['zipEntryHasComment'] ?? false) === true,
+                'zipEntryCommentIssues' => $part['zipEntryCommentIssues'] ?? [],
                 'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
                 'manifestIndex' => $part['manifestIndex'] ?? null,
                 'manifestPath' => $part['manifestPath'] ?? null,
                 'manifestPackagePath' => $part['manifestPackagePath'] ?? null,
+                'manifestPathShape' => $part['manifestPathShape'] ?? null,
+                'manifestPackagePathShape' => $part['manifestPackagePathShape'] ?? null,
                 'manifestMediaTypeBase' => $part['manifestMediaTypeBase'] ?? null,
                 'manifestMediaFamily' => $part['manifestMediaFamily'] ?? null,
                 'manifestDeclaredSizeMismatch' => ($part['manifestDeclaredSizeMismatch'] ?? false) === true,
@@ -999,6 +1036,7 @@ final class OpenDocumentPackage
             ]);
         }
 
+        $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -1011,9 +1049,16 @@ final class OpenDocumentPackage
             'manifestRootExtensionElements' => $this->manifestRootExtensionElements['extensionElements'] ?? [],
             'manifestPaths' => array_column($manifestEntries, 'path'),
             'packagePaths' => array_column($packageEntries, 'path'),
+            'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+            'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
+            'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
+            'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'manifestEntries' => $manifestEntries,
             'packageEntries' => $packageEntries,
             'manifestMediaFamilyCounts' => $packageInventory['manifestMediaFamilyCounts'] ?? [],
+            'packagePathKindCounts' => $packageInventory['packagePathKindCounts'] ?? [],
+            'packageTopLevelSegmentCounts' => $packageInventory['packageTopLevelSegmentCounts'] ?? [],
+            'packagePathExtensionCounts' => $packageInventory['packagePathExtensionCounts'] ?? [],
             'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
             'roleCounts' => $packageInventory['roleCounts'] ?? [],
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
@@ -1034,8 +1079,17 @@ final class OpenDocumentPackage
             'exposableByteLength' => $packageInventory['exposableByteLength'] ?? 0,
             'blockedByteLength' => $packageInventory['blockedByteLength'] ?? 0,
         ];
+        $identityPayload = $payload + [
+            'comments' => [
+                'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
+                'packageComment' => $comments['packageComment'] ?? null,
+                'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
+                'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
+                'entries' => is_array($comments['entries'] ?? null) ? $comments['entries'] : [],
+            ],
+        ];
         $identityJson = json_encode(
-            self::canonicalIdentityValue($payload),
+            self::canonicalIdentityValue($identityPayload),
             JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
         );
 
@@ -1861,6 +1915,7 @@ final class OpenDocumentPackage
 
             $entries[] = [
                 'path' => $path,
+                'pathShape' => self::pathShape($path),
                 'isDirectory' => str_ends_with($path, '/'),
                 'storedByteLength' => $entry->uncompressedSize,
                 'compressedByteLength' => $entry->compressedSize,
@@ -3983,6 +4038,10 @@ final class OpenDocumentPackage
             'manifestPartReferenceQueryCount' => 0,
             'manifestPartReferenceFragmentCount' => 0,
             'manifestPartReferenceSuffixItems' => [],
+            'manifestPathKindCounts' => [],
+            'manifestTopLevelSegmentCounts' => [],
+            'manifestPathExtensionCounts' => [],
+            'manifestPathShapeItems' => [],
             'manifestMediaFamilyCounts' => [],
             'manifestMediaFamilyByteLengths' => [],
             'manifestMediaFamilyCompressedByteLengths' => [],
@@ -4050,6 +4109,20 @@ final class OpenDocumentPackage
             $item = self::manifestReviewItem($entry);
             $summary['items'][] = $item;
             $summary['manifestFileEntryOrder'][] = self::manifestFileEntryOrderItem($entry);
+            $summary['manifestPathShapeItems'][] = self::manifestPathShapeItem($entry);
+            $pathShape = is_array($entry['pathShape'] ?? null) ? $entry['pathShape'] : [];
+            $pathKind = $pathShape['kind'] ?? null;
+            if (is_string($pathKind) && $pathKind !== '') {
+                $summary['manifestPathKindCounts'][$pathKind] = ($summary['manifestPathKindCounts'][$pathKind] ?? 0) + 1;
+            }
+            $topLevelSegment = $pathShape['topLevelSegment'] ?? null;
+            if (is_string($topLevelSegment) && $topLevelSegment !== '') {
+                $summary['manifestTopLevelSegmentCounts'][$topLevelSegment] = ($summary['manifestTopLevelSegmentCounts'][$topLevelSegment] ?? 0) + 1;
+            }
+            $pathExtension = $pathShape['extension'] ?? null;
+            if (is_string($pathExtension) && $pathExtension !== '') {
+                $summary['manifestPathExtensionCounts'][$pathExtension] = ($summary['manifestPathExtensionCounts'][$pathExtension] ?? 0) + 1;
+            }
             if (is_string($entry['pathSuffix'] ?? null)) {
                 $summary['manifestPartReferenceSuffixItems'][] = self::manifestPartReferenceSuffixItem($entry);
             }
@@ -4238,6 +4311,9 @@ final class OpenDocumentPackage
         $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
         sort($summary['manifestCustomAttributeNames'], SORT_STRING);
         sort($summary['manifestCustomChildElementNames'], SORT_STRING);
+        ksort($summary['manifestPathKindCounts'], SORT_STRING);
+        ksort($summary['manifestTopLevelSegmentCounts'], SORT_STRING);
+        ksort($summary['manifestPathExtensionCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
         ksort($summary['manifestMediaFamilyByteLengths'], SORT_STRING);
         ksort($summary['manifestMediaFamilyCompressedByteLengths'], SORT_STRING);
@@ -4577,6 +4653,28 @@ final class OpenDocumentPackage
      * @param array<string, mixed> $entry
      * @return array<string, mixed>
      */
+    private static function manifestPathShapeItem(array $entry): array
+    {
+        return [
+            'manifestIndex' => $entry['manifestIndex'] ?? null,
+            'fullPath' => $entry['path'],
+            'path' => $entry['path'],
+            'part' => $entry['packagePath'] ?? null,
+            'packagePath' => $entry['packagePath'] ?? null,
+            'pathShape' => $entry['pathShape'] ?? [],
+            'packagePathShape' => $entry['packagePathShape'] ?? null,
+            'mediaType' => $entry['mediaType'],
+            'exists' => ($entry['exists'] ?? false) === true,
+            'isDirectory' => ($entry['isDirectory'] ?? false) === true,
+            'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+            'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
     private static function manifestMediaFamilyItem(array $entry): array
     {
         return [
@@ -4617,6 +4715,8 @@ final class OpenDocumentPackage
             'pathSuffix' => $entry['pathSuffix'] ?? null,
             'pathQuery' => $entry['pathQuery'] ?? null,
             'pathFragment' => $entry['pathFragment'] ?? null,
+            'pathShape' => $entry['pathShape'] ?? [],
+            'packagePathShape' => $entry['packagePathShape'] ?? null,
             'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
             'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
             'mediaType' => $entry['mediaType'],
@@ -4712,6 +4812,8 @@ final class OpenDocumentPackage
             'partSuffix' => $entry['pathSuffix'] ?? null,
             'partQuery' => $entry['pathQuery'] ?? null,
             'partFragment' => $entry['pathFragment'] ?? null,
+            'pathShape' => $entry['pathShape'] ?? [],
+            'packagePathShape' => $entry['packagePathShape'] ?? null,
             'uriEncodedPackageReference' => ($entry['uriEncodedPackageReference'] ?? false) === true,
             'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
             'mediaType' => $entry['mediaType'],
@@ -4942,6 +5044,8 @@ final class OpenDocumentPackage
             $packageReference = self::manifestPackageReference($path);
             $pathReference = $packageReference['pathReference'];
             $packagePath = $packageReference['packagePath'];
+            $pathShape = self::pathShape($pathReference ?? $path);
+            $packagePathShape = is_string($packagePath) ? self::pathShape($packagePath) : null;
             $uriEncodedPackageReference = is_string($pathReference) && is_string($packagePath) && $pathReference !== $packagePath;
             $mediaType = self::namespacedAttribute($child, self::MANIFEST_NAMESPACE, 'media-type') ?? '';
             $missingMediaType = $mediaType === '' && !str_ends_with($pathReference ?? $path, '/');
@@ -4963,6 +5067,8 @@ final class OpenDocumentPackage
                 'pathSuffix' => $packageReference['pathSuffix'],
                 'pathQuery' => $packageReference['pathQuery'],
                 'pathFragment' => $packageReference['pathFragment'],
+                'pathShape' => $pathShape,
+                'packagePathShape' => $packagePathShape,
                 'uriEncodedPackageReference' => $uriEncodedPackageReference,
                 'mediaType' => $mediaType,
                 'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
@@ -6221,6 +6327,56 @@ final class OpenDocumentPackage
         }
 
         return max(1, (int) $value);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function pathShape(?string $path): array
+    {
+        if ($path === null || $path === '') {
+            return [
+                'kind' => 'missing',
+                'segments' => [],
+                'segmentCount' => 0,
+                'directorySegmentCount' => 0,
+            ];
+        }
+
+        if ($path === '/') {
+            return [
+                'kind' => 'root',
+                'segments' => [],
+                'segmentCount' => 0,
+                'directorySegmentCount' => 0,
+            ];
+        }
+
+        $isDirectory = str_ends_with($path, '/');
+        $trimmed = trim($path, '/');
+        $segments = $trimmed === '' ? [] : explode('/', $trimmed);
+        $basename = $segments === [] ? null : $segments[count($segments) - 1];
+        $directorySegments = $isDirectory ? $segments : array_slice($segments, 0, -1);
+        $directory = $directorySegments === [] ? null : implode('/', $directorySegments) . '/';
+        $extension = null;
+
+        if (!$isDirectory && is_string($basename) && $basename !== '') {
+            $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+            if ($extension === '') {
+                $extension = null;
+            }
+        }
+
+        return self::withoutNulls([
+            'kind' => $isDirectory ? 'directory' : 'file',
+            'topLevelSegment' => $segments[0] ?? null,
+            'directory' => $directory,
+            'basename' => $basename,
+            'extension' => $extension,
+            'segments' => $segments,
+            'segmentCount' => count($segments),
+            'directorySegmentCount' => count($directorySegments),
+        ]);
     }
 
     private static function normalizeManifestPath(string $path): string

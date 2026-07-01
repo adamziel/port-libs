@@ -39,6 +39,7 @@ final class DocxOpenXmlReader
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const ATTACHED_TEMPLATE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+    private const PRINTER_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings';
     private const MAIL_MERGE_SOURCE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource';
     private const MAIL_MERGE_HEADER_SOURCE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource';
     private const MAIL_MERGE_RECIPIENT_DATA_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData';
@@ -99,6 +100,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_STYLES_WITH_EFFECTS = 'application/vnd.ms-word.styleswitheffects+xml';
     private const CT_WORD_NUMBERING = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
     private const CT_WORD_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+    private const CT_WORD_PRINTER_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.printersettings';
     private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
     private const CT_WORD_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml';
     private const CT_OBFUSCATED_FONT = 'application/vnd.openxmlformats-officedocument.obfuscatedfont';
@@ -281,6 +283,14 @@ final class DocxOpenXmlReader
             $parts,
             $settingsPart['xml'],
             $settingsPart['partName'],
+            $settingsRelationshipsPart,
+            $settingsRelationships,
+            $contentTypes,
+        );
+        $printerSettings = $this->readPrinterSettings(
+            $parts,
+            $settingsPart['partName'],
+            $settingsPart['exists'],
             $settingsRelationshipsPart,
             $settingsRelationships,
             $contentTypes,
@@ -762,6 +772,13 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneYesCount'] = $selectedXmlParts['xmlStandaloneYesCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneNoCount'] = $selectedXmlParts['xmlStandaloneNoCount'];
+        $packageProvenance['summary']['selectedXmlPartProcessingInstructionCount'] = $selectedXmlParts['processingInstructionCount'];
+        $packageProvenance['summary']['selectedXmlPartProcessingInstructionTargets'] = $selectedXmlParts['processingInstructionTargets'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeCount'] = $selectedXmlParts['doctypeCount'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeExternalReferenceCount'] = $selectedXmlParts['doctypeExternalReferenceCount'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeInternalSubsetCount'] = $selectedXmlParts['doctypeInternalSubsetCount'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeEntityDeclarationCount'] = $selectedXmlParts['doctypeEntityDeclarationCount'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeIssueCodes'] = $selectedXmlParts['doctypeIssueCodes'];
         $packageProvenance['summary']['stylesWithEffectsPart'] = $stylesWithEffectsPart['partName'];
         $packageProvenance['summary']['stylesWithEffectsExists'] = $stylesWithEffectsPart['exists'];
         $packageProvenance['summary']['stylesWithEffectsRelationshipId'] = $stylesWithEffectsPart['relationship']['id'] ?? null;
@@ -898,6 +915,22 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateMissingContentTypeCount'] = $attachedTemplates['missingContentTypeCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
         $packageProvenance['summary']['attachedTemplateIssueCodes'] = $attachedTemplates['issueCodes'];
+        $packageProvenance['printerSettings'] = $printerSettings;
+        $packageProvenance['summary']['printerSettingsCount'] = $printerSettings['count'];
+        $packageProvenance['summary']['printerSettingsRelationshipCount'] = $printerSettings['relationshipCount'];
+        $packageProvenance['summary']['printerSettingsInternalCount'] = $printerSettings['internalCount'];
+        $packageProvenance['summary']['printerSettingsExternalCount'] = $printerSettings['externalCount'];
+        $packageProvenance['summary']['printerSettingsAllowedExternalTargetCount'] = $printerSettings['allowedExternalTargetCount'];
+        $packageProvenance['summary']['printerSettingsUnsafeExternalTargetCount'] = $printerSettings['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['printerSettingsExternalTargetKindCounts'] = $printerSettings['externalTargetKindCounts'];
+        $packageProvenance['summary']['printerSettingsExternalTargetSchemeCounts'] = $printerSettings['externalTargetSchemeCounts'];
+        $packageProvenance['summary']['printerSettingsExternalTargetIssueCodes'] = $printerSettings['externalTargetIssueCodes'];
+        $packageProvenance['summary']['printerSettingsExistingCount'] = $printerSettings['existingCount'];
+        $packageProvenance['summary']['printerSettingsMissingCount'] = $printerSettings['missingCount'];
+        $packageProvenance['summary']['printerSettingsMissingContentTypeCount'] = $printerSettings['missingContentTypeCount'];
+        $packageProvenance['summary']['printerSettingsUnexpectedContentTypeCount'] = $printerSettings['unexpectedContentTypeCount'];
+        $packageProvenance['summary']['printerSettingsIssueCount'] = $printerSettings['issueCount'];
+        $packageProvenance['summary']['printerSettingsIssueCodes'] = $printerSettings['issueCodes'];
         $packageProvenance['summary']['fontTableEmbeddedFontCount'] = (int) ($fontTable['embeddedFontRelationshipCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontExistingCount'] = (int) ($fontTable['embeddedFontExistingCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontMissingCount'] = (int) ($fontTable['embeddedFontMissingCount'] ?? 0);
@@ -1193,6 +1226,7 @@ final class DocxOpenXmlReader
                 'settingsRelationships' => $settingsRelationships,
                 'settingsRelationshipInventory' => $settingsRelationshipInventory,
                 'attachedTemplates' => $attachedTemplates,
+                'printerSettings' => $printerSettings,
                 'webSettingsPart' => $webSettingsPart['partName'],
                 'webSettings' => $webSettings,
                 'fontTablePart' => $fontTablePart['partName'],
@@ -8857,6 +8891,210 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $settingsRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readPrinterSettings(
+        array $parts,
+        string $settingsPart,
+        bool $settingsExists,
+        string $settingsRelationshipsPart,
+        array $settingsRelationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $byPartName = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $existingPartNames = [];
+        $missingPartNames = [];
+        $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $targetReferenceSuffixes = [];
+        $contentTypesSeen = [];
+        $contentTypeBaseCounts = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
+        $issueCodes = [];
+        $issueCount = 0;
+
+        foreach ($settingsRelationships as $relationship) {
+            if ($relationship['type'] !== self::PRINTER_SETTINGS_REL) {
+                continue;
+            }
+
+            $summary = $this->relationshipInventorySummary(
+                $parts,
+                $relationship,
+                $settingsPart,
+                $settingsRelationshipsPart,
+                $contentTypes,
+            );
+            $relationshipId = is_string($summary['id'] ?? null) ? $summary['id'] : '';
+            $external = (bool) ($summary['external'] ?? false);
+            $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $exists = (bool) ($summary['exists'] ?? false);
+            $contentType = is_string($summary['contentType'] ?? null) ? $summary['contentType'] : '';
+            $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+            $targetReferenceSuffix = is_string($summary['targetReferenceSuffix'] ?? null) ? $summary['targetReferenceSuffix'] : '';
+            $issues = [];
+
+            if ($external) {
+                $issues[] = 'external-printer-settings';
+                foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issues[] = $issue;
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
+            } else {
+                if (!$exists) {
+                    $issues[] = 'missing-printer-settings';
+                }
+                if (($summary['contentTypeSource'] ?? 'missing') === 'missing') {
+                    $issues[] = 'missing-printer-settings-content-type';
+                } elseif ($contentTypeBase !== self::CT_WORD_PRINTER_SETTINGS) {
+                    $issues[] = 'unexpected-printer-settings-content-type';
+                }
+            }
+
+            $issues = array_values(array_unique($issues));
+            sort($issues, SORT_STRING);
+
+            $item = [
+                'index' => count($items),
+                'relationshipId' => $relationshipId,
+                'relationshipKey' => $settingsRelationshipsPart . '#' . $relationshipId,
+                'sourcePart' => $settingsPart,
+                'sourcePartExists' => $settingsExists,
+                'relationshipsPart' => $settingsRelationshipsPart,
+                'relationshipsPartExists' => isset($parts[$settingsRelationshipsPart]),
+                'relationshipType' => $summary['type'],
+                'target' => $summary['target'],
+                'targetMode' => $summary['targetMode'],
+                'external' => $external,
+                'resolvedTarget' => $summary['resolvedTarget'],
+                'partName' => $targetPart,
+                'targetPart' => $targetPart,
+                'targetQuery' => $summary['targetQuery'],
+                'targetFragment' => $summary['targetFragment'],
+                'targetReferenceSuffix' => $targetReferenceSuffix,
+                'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
+                'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
+                'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
+                'sameSourcePart' => $summary['sameSourcePart'],
+                'externalTargetKind' => $summary['externalTargetKind'],
+                'externalTargetScheme' => $summary['externalTargetScheme'],
+                'externalTargetAllowed' => $summary['externalTargetAllowed'],
+                'externalTargetIssues' => $summary['externalTargetIssues'],
+                'exists' => $exists,
+                'byteLength' => !$external && $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+                'crc32' => !$external && $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+                'sha256' => !$external && $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'expectedContentTypeBase' => self::CT_WORD_PRINTER_SETTINGS,
+                'contentTypeMatchesExpected' => $contentTypeBase === self::CT_WORD_PRINTER_SETTINGS,
+                'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+                'contentTypeParameters' => $summary['contentTypeParameters'],
+                'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+                'contentTypeSource' => $summary['contentTypeSource'],
+                'defaultExtension' => $summary['defaultExtension'],
+                'overridePartName' => $summary['overridePartName'],
+                'byteExposurePolicy' => 'printer-settings-bytes-blocked',
+                'reviewPolicy' => 'printer-settings-metadata-only',
+                'valid' => $issues === [],
+                'issues' => $issues,
+                'relationship' => $summary,
+            ];
+
+            $items[] = $item;
+            if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+            if ($targetPart !== null && !isset($byPartName[$targetPart])) {
+                $byPartName[$targetPart] = $item;
+            }
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($partNames, $targetPart);
+            $this->appendUniqueString($targetReferenceSuffixes, $targetReferenceSuffix);
+            if ($contentType !== '') {
+                $this->appendUniqueString($contentTypesSeen, $contentType);
+            }
+            if ($contentTypeBase !== '') {
+                $contentTypeBaseCounts[$contentTypeBase] = ($contentTypeBaseCounts[$contentTypeBase] ?? 0) + 1;
+            }
+            if ($external) {
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                if (($summary['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                }
+                $kind = is_string($summary['externalTargetKind'] ?? null) ? $summary['externalTargetKind'] : '(unknown)';
+                $scheme = is_string($summary['externalTargetScheme'] ?? null) ? $summary['externalTargetScheme'] : '(none)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+            } elseif ($exists) {
+                $this->appendUniqueString($existingPartNames, $targetPart);
+            } else {
+                $this->appendUniqueString($missingPartNames, $targetPart);
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+            $issueCount += count($issues);
+        }
+
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'sourcePart' => $settingsPart,
+            'sourcePartExists' => $settingsExists,
+            'relationshipsPart' => $settingsRelationshipsPart,
+            'relationshipsPartExists' => isset($parts[$settingsRelationshipsPart]),
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'internalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false)),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-printer-settings', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-printer-settings-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-printer-settings-content-type', $item['issues'], true))),
+            'issueCount' => $issueCount,
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'existingPartNames' => $existingPartNames,
+            'missingPartNames' => $missingPartNames,
+            'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'contentTypes' => $contentTypesSeen,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'expectedContentTypeBase' => self::CT_WORD_PRINTER_SETTINGS,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'byPartName' => $byPartName,
+            'items' => $items,
+            'byteExposurePolicy' => 'printer-settings-bytes-blocked',
+            'reviewPolicy' => 'printer-settings-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
      * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
      * @return array<string, mixed>
@@ -10687,6 +10925,20 @@ final class DocxOpenXmlReader
         $summary['zipDeflatedUncompressedByteLength'] = (int) ($compressionMethods['deflatedUncompressedBytes'] ?? 0);
         $summary['zipUnsupportedCompressedByteLength'] = (int) ($compressionMethods['unsupportedCompressedBytes'] ?? 0);
         $summary['zipUnsupportedUncompressedByteLength'] = (int) ($compressionMethods['unsupportedUncompressedBytes'] ?? 0);
+        $zipPackageManifest = is_array($zipPackage['packageManifest'] ?? null)
+            ? $zipPackage['packageManifest']
+            : $this->emptyZipPackageManifestProvenance();
+        $zipManifestHashCounts = $this->zipPackageManifestHashCounts($zipPackageManifest);
+        $summary['zipPackageManifestVersion'] = is_string($zipPackageManifest['manifestVersion'] ?? null)
+            ? $zipPackageManifest['manifestVersion']
+            : null;
+        $summary['zipPackageManifestSha256'] = is_string($zipPackageManifest['manifestSha256'] ?? null)
+            ? $zipPackageManifest['manifestSha256']
+            : null;
+        $summary['zipPackageManifestEntryCount'] = (int) ($zipPackageManifest['entryCount'] ?? 0);
+        $summary['zipPackageManifestLocalHeaderHashCount'] = $zipManifestHashCounts['localHeaderHashCount'];
+        $summary['zipPackageManifestCompressedDataHashCount'] = $zipManifestHashCounts['compressedDataHashCount'];
+        $summary['zipPackageManifestCentralDirectoryRecordHashCount'] = $zipManifestHashCounts['centralDirectoryRecordHashCount'];
         $zipDataDescriptors = $zipPackage['dataDescriptors'];
         $summary['zipDataDescriptorEntryCount'] = $zipDataDescriptors['descriptorEntryCount'];
         $summary['zipSignedDataDescriptorEntryCount'] = $zipDataDescriptors['signedDescriptorEntryCount'];
@@ -10813,6 +11065,7 @@ final class DocxOpenXmlReader
                 'extraFields' => $this->emptyZipExtraFieldProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'comments' => $this->emptyZipCommentProvenance(),
+                'packageManifest' => $this->emptyZipPackageManifestProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
                 'entries' => [],
@@ -10825,6 +11078,13 @@ final class DocxOpenXmlReader
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
         $extraFields = $sourcePackage->extraFieldPreflight();
         $comments = $sourcePackage->commentPreflight();
+        $packageManifest = $sourcePackage->packageManifestPreflight();
+        $manifestEntriesByName = [];
+        foreach (($packageManifest['entries'] ?? []) as $manifestEntry) {
+            if (is_array($manifestEntry) && is_string($manifestEntry['name'] ?? null)) {
+                $manifestEntriesByName[$manifestEntry['name']] = $manifestEntry;
+            }
+        }
         $extraFieldEntriesByName = [];
         foreach (($extraFields['entries'] ?? []) as $extraFieldEntry) {
             if (is_array($extraFieldEntry) && is_string($extraFieldEntry['name'] ?? null)) {
@@ -10872,6 +11132,7 @@ final class DocxOpenXmlReader
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $extraFieldEntry = $extraFieldEntriesByName[$entry->name] ?? null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
+            $manifestEntry = $manifestEntriesByName[$entry->name] ?? null;
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
@@ -10879,6 +11140,14 @@ final class DocxOpenXmlReader
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
                 'localHeaderOffset' => $entry->localHeaderOffset,
+                'localHeaderLength' => is_array($manifestEntry) ? ($manifestEntry['localHeaderLength'] ?? null) : null,
+                'localHeaderSha256' => is_array($manifestEntry) ? ($manifestEntry['localHeaderSha256'] ?? null) : null,
+                'compressedDataOffset' => is_array($manifestEntry) ? ($manifestEntry['compressedDataOffset'] ?? null) : null,
+                'compressedDataEnd' => is_array($manifestEntry) ? ($manifestEntry['compressedDataEnd'] ?? null) : null,
+                'compressedDataSha256' => is_array($manifestEntry) ? ($manifestEntry['compressedDataSha256'] ?? null) : null,
+                'centralDirectoryRecordOffset' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordOffset'] ?? null) : null,
+                'centralDirectoryRecordEnd' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordEnd'] ?? null) : null,
+                'centralDirectoryRecordSha256' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordSha256'] ?? null) : null,
                 'matchesCentralDirectoryOrder' => is_array($localOrder)
                     ? $localOrder['matchesCentralDirectoryOrder']
                     : null,
@@ -10934,11 +11203,73 @@ final class DocxOpenXmlReader
             'extraFields' => $extraFields,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'comments' => $comments,
+            'packageManifest' => $packageManifest,
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipPackageManifestProvenance(): array
+    {
+        return [
+            'manifestVersion' => null,
+            'manifestSha256' => null,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'storedEntryCount' => 0,
+            'deflatedEntryCount' => 0,
+            'unsupportedCompressionMethodCount' => 0,
+            'centralDirectoryOrderNames' => [],
+            'localHeaderOrderNames' => [],
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => null,
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageManifest
+     * @return array{localHeaderHashCount:int, compressedDataHashCount:int, centralDirectoryRecordHashCount:int}
+     */
+    private function zipPackageManifestHashCounts(array $packageManifest): array
+    {
+        $localHeaderHashCount = 0;
+        $compressedDataHashCount = 0;
+        $centralDirectoryRecordHashCount = 0;
+
+        foreach (($packageManifest['entries'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (is_string($entry['localHeaderSha256'] ?? null) && $entry['localHeaderSha256'] !== '') {
+                ++$localHeaderHashCount;
+            }
+
+            if (is_string($entry['compressedDataSha256'] ?? null) && $entry['compressedDataSha256'] !== '') {
+                ++$compressedDataHashCount;
+            }
+
+            if (
+                is_string($entry['centralDirectoryRecordSha256'] ?? null)
+                && $entry['centralDirectoryRecordSha256'] !== ''
+            ) {
+                ++$centralDirectoryRecordHashCount;
+            }
+        }
+
+        return [
+            'localHeaderHashCount' => $localHeaderHashCount,
+            'compressedDataHashCount' => $compressedDataHashCount,
+            'centralDirectoryRecordHashCount' => $centralDirectoryRecordHashCount,
         ];
     }
 
@@ -11261,6 +11592,14 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['centralDirectoryIndex'] = $entry['centralDirectoryIndex'] ?? null;
             $partInventory[$partName]['localHeaderOrder'] = $entry['localHeaderOrder'] ?? null;
             $partInventory[$partName]['localHeaderOffset'] = $entry['localHeaderOffset'] ?? null;
+            $partInventory[$partName]['localHeaderLength'] = $entry['localHeaderLength'] ?? null;
+            $partInventory[$partName]['localHeaderSha256'] = $entry['localHeaderSha256'] ?? null;
+            $partInventory[$partName]['compressedDataOffset'] = $entry['compressedDataOffset'] ?? null;
+            $partInventory[$partName]['compressedDataEnd'] = $entry['compressedDataEnd'] ?? null;
+            $partInventory[$partName]['compressedDataSha256'] = $entry['compressedDataSha256'] ?? null;
+            $partInventory[$partName]['centralDirectoryRecordOffset'] = $entry['centralDirectoryRecordOffset'] ?? null;
+            $partInventory[$partName]['centralDirectoryRecordEnd'] = $entry['centralDirectoryRecordEnd'] ?? null;
+            $partInventory[$partName]['centralDirectoryRecordSha256'] = $entry['centralDirectoryRecordSha256'] ?? null;
             $partInventory[$partName]['matchesCentralDirectoryOrder'] = $entry['matchesCentralDirectoryOrder'] ?? null;
             $partInventory[$partName]['compressionMethod'] = $entry['compressionMethod'] ?? null;
             $partInventory[$partName]['compressionMethodName'] = $entry['compressionMethodName'] ?? null;
@@ -20563,6 +20902,13 @@ final class DocxOpenXmlReader
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
+        $processingInstructionCount = 0;
+        $processingInstructionTargets = [];
+        $doctypeCount = 0;
+        $doctypeExternalReferenceCount = 0;
+        $doctypeInternalSubsetCount = 0;
+        $doctypeEntityDeclarationCount = 0;
+        $doctypeIssueCodes = [];
         foreach ($items as $item) {
             $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
             $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
@@ -20587,6 +20933,27 @@ final class DocxOpenXmlReader
             foreach (($item['rootNamespacePrefixes'] ?? []) as $prefix) {
                 if (is_string($prefix)) {
                     $this->appendUniqueString($rootNamespacePrefixes, $prefix);
+                }
+            }
+            $processingInstructionCount += (int) ($item['processingInstructionCount'] ?? 0);
+            foreach (($item['processingInstructionTargets'] ?? []) as $target) {
+                if (is_string($target)) {
+                    $this->appendUniqueString($processingInstructionTargets, $target);
+                }
+            }
+            if (($item['doctypePresent'] ?? false) === true) {
+                ++$doctypeCount;
+            }
+            if (is_string($item['doctypeSystemId'] ?? null) || is_string($item['doctypePublicId'] ?? null)) {
+                ++$doctypeExternalReferenceCount;
+            }
+            if (($item['doctypeInternalSubsetPresent'] ?? false) === true) {
+                ++$doctypeInternalSubsetCount;
+            }
+            $doctypeEntityDeclarationCount += (int) ($item['doctypeEntityDeclarationCount'] ?? 0);
+            foreach (($item['doctypeIssueCodes'] ?? []) as $issueCode) {
+                if (is_string($issueCode) && $issueCode !== '') {
+                    $doctypeIssueCodes[$issueCode] = true;
                 }
             }
         }
@@ -20616,6 +20983,13 @@ final class DocxOpenXmlReader
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
             'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
             'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
+            'processingInstructionCount' => $processingInstructionCount,
+            'processingInstructionTargets' => $processingInstructionTargets,
+            'doctypeCount' => $doctypeCount,
+            'doctypeExternalReferenceCount' => $doctypeExternalReferenceCount,
+            'doctypeInternalSubsetCount' => $doctypeInternalSubsetCount,
+            'doctypeEntityDeclarationCount' => $doctypeEntityDeclarationCount,
+            'doctypeIssueCodes' => array_keys($doctypeIssueCodes),
             'issueCount' => $issueCount,
             'issueKinds' => $issueKinds,
             'byKind' => $byKind,
@@ -20683,6 +21057,19 @@ final class DocxOpenXmlReader
             'xmlDeclarationEncoding' => null,
             'xmlDeclarationStandalone' => null,
             'xmlDeclarationAttributeCount' => 0,
+            'processingInstructionCount' => 0,
+            'processingInstructionTargets' => [],
+            'processingInstructions' => [],
+            'doctypePresent' => false,
+            'doctypeName' => null,
+            'doctypePublicId' => null,
+            'doctypeSystemId' => null,
+            'doctypeInternalSubsetPresent' => false,
+            'doctypeInternalSubsetByteLength' => 0,
+            'doctypeEntityDeclarationCount' => 0,
+            'doctypeByteLength' => 0,
+            'doctypeSha256' => null,
+            'doctypeIssueCodes' => [],
             'validRoot' => null,
             'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
@@ -20733,6 +21120,23 @@ final class DocxOpenXmlReader
         $item['xmlDeclarationEncoding'] = $xmlDeclaration['encoding'];
         $item['xmlDeclarationStandalone'] = $xmlDeclaration['standalone'];
         $item['xmlDeclarationAttributeCount'] = $xmlDeclaration['attributeCount'];
+        $prolog = $this->xmlPrologProvenance($xml);
+        $item['processingInstructionCount'] = $prolog['processingInstructionCount'];
+        $item['processingInstructionTargets'] = $prolog['processingInstructionTargets'];
+        $item['processingInstructions'] = $prolog['processingInstructions'];
+        $item['doctypePresent'] = $prolog['doctypePresent'];
+        $item['doctypeName'] = $prolog['doctypeName'];
+        $item['doctypePublicId'] = $prolog['doctypePublicId'];
+        $item['doctypeSystemId'] = $prolog['doctypeSystemId'];
+        $item['doctypeInternalSubsetPresent'] = $prolog['doctypeInternalSubsetPresent'];
+        $item['doctypeInternalSubsetByteLength'] = $prolog['doctypeInternalSubsetByteLength'];
+        $item['doctypeEntityDeclarationCount'] = $prolog['doctypeEntityDeclarationCount'];
+        $item['doctypeByteLength'] = $prolog['doctypeByteLength'];
+        $item['doctypeSha256'] = $prolog['doctypeSha256'];
+        $item['doctypeIssueCodes'] = $prolog['doctypeIssueCodes'];
+        foreach ($prolog['doctypeIssueCodes'] as $issueCode) {
+            $item['issues'][] = $issueCode;
+        }
         if ($xml === '') {
             $item['validRoot'] = false;
             $item['issues'][] = 'empty-xml-part';
@@ -20805,6 +21209,165 @@ final class DocxOpenXmlReader
             'standalone' => $standalone,
             'attributeCount' => count($attributes),
         ];
+    }
+
+    /**
+     * @return array{processingInstructionCount:int, processingInstructionTargets:list<string>, processingInstructions:list<array{target:string, dataPreview:string, dataByteLength:int, dataTruncated:bool}>, doctypePresent:bool, doctypeName:?string, doctypePublicId:?string, doctypeSystemId:?string, doctypeInternalSubsetPresent:bool, doctypeInternalSubsetByteLength:int, doctypeEntityDeclarationCount:int, doctypeByteLength:int, doctypeSha256:?string, doctypeIssueCodes:list<string>}
+     */
+    private function xmlPrologProvenance(string $xml): array
+    {
+        $processingInstructions = [];
+        $processingInstructionTargets = [];
+        preg_match_all('/<\?\s*([A-Za-z_][A-Za-z0-9_.:-]*)(.*?)\?>/s', $xml, $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $target = (string) $match[1];
+            if (strtolower($target) === 'xml') {
+                continue;
+            }
+
+            $data = trim((string) ($match[2] ?? ''));
+            $this->appendUniqueString($processingInstructionTargets, $target);
+            if (count($processingInstructions) >= 16) {
+                continue;
+            }
+
+            $processingInstructions[] = [
+                'target' => $target,
+                'dataPreview' => $this->boundedMetadataString($data),
+                'dataByteLength' => strlen($data),
+                'dataTruncated' => strlen($data) > 120,
+            ];
+        }
+
+        $doctype = $this->xmlDoctypeProvenance($xml);
+
+        return [
+            'processingInstructionCount' => count($matches) - count(array_filter(
+                $matches,
+                static fn (array $match): bool => strtolower((string) $match[1]) === 'xml',
+            )),
+            'processingInstructionTargets' => $processingInstructionTargets,
+            'processingInstructions' => $processingInstructions,
+            'doctypePresent' => $doctype['present'],
+            'doctypeName' => $doctype['name'],
+            'doctypePublicId' => $doctype['publicId'],
+            'doctypeSystemId' => $doctype['systemId'],
+            'doctypeInternalSubsetPresent' => $doctype['internalSubsetPresent'],
+            'doctypeInternalSubsetByteLength' => $doctype['internalSubsetByteLength'],
+            'doctypeEntityDeclarationCount' => $doctype['entityDeclarationCount'],
+            'doctypeByteLength' => $doctype['byteLength'],
+            'doctypeSha256' => $doctype['sha256'],
+            'doctypeIssueCodes' => $doctype['issueCodes'],
+        ];
+    }
+
+    /**
+     * @return array{present:bool, name:?string, publicId:?string, systemId:?string, internalSubsetPresent:bool, internalSubsetByteLength:int, entityDeclarationCount:int, byteLength:int, sha256:?string, issueCodes:list<string>}
+     */
+    private function xmlDoctypeProvenance(string $xml): array
+    {
+        $start = stripos($xml, '<!DOCTYPE');
+        if ($start === false) {
+            return [
+                'present' => false,
+                'name' => null,
+                'publicId' => null,
+                'systemId' => null,
+                'internalSubsetPresent' => false,
+                'internalSubsetByteLength' => 0,
+                'entityDeclarationCount' => 0,
+                'byteLength' => 0,
+                'sha256' => null,
+                'issueCodes' => [],
+            ];
+        }
+
+        $end = $this->xmlDoctypeEndOffset($xml, $start);
+        $declaration = $end === null ? substr($xml, $start) : substr($xml, $start, $end - $start + 1);
+        $body = trim(preg_replace('/^<!DOCTYPE\s*/i', '', rtrim($declaration, '>')) ?? '');
+        $name = null;
+        $publicId = null;
+        $systemId = null;
+        $internalSubset = null;
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_.:-]*)\b(.*)$/s', $body, $match) === 1) {
+            $name = (string) $match[1];
+            $remainder = trim((string) $match[2]);
+            if (preg_match('/\bPUBLIC\s+(["\'])(.*?)\1\s+(["\'])(.*?)\3/is', $remainder, $publicMatch) === 1) {
+                $publicId = (string) $publicMatch[2];
+                $systemId = (string) $publicMatch[4];
+            } elseif (preg_match('/\bSYSTEM\s+(["\'])(.*?)\1/is', $remainder, $systemMatch) === 1) {
+                $systemId = (string) $systemMatch[2];
+            }
+        }
+
+        $subsetStart = strpos($declaration, '[');
+        $subsetEnd = strrpos($declaration, ']');
+        if ($subsetStart !== false && $subsetEnd !== false && $subsetEnd > $subsetStart) {
+            $internalSubset = substr($declaration, $subsetStart + 1, $subsetEnd - $subsetStart - 1);
+        }
+
+        $entityDeclarationCount = 0;
+        if (is_string($internalSubset)) {
+            preg_match_all('/<!ENTITY\b/i', $internalSubset, $entityMatches);
+            $entityDeclarationCount = count($entityMatches[0]);
+        }
+
+        $issueCodes = ['xml-doctype-declaration'];
+        if ($publicId !== null || $systemId !== null) {
+            $issueCodes[] = 'xml-external-doctype-reference';
+        }
+        if ($entityDeclarationCount > 0) {
+            $issueCodes[] = 'xml-entity-declaration';
+        }
+        if ($end === null) {
+            $issueCodes[] = 'xml-doctype-unclosed';
+        }
+
+        return [
+            'present' => true,
+            'name' => $name,
+            'publicId' => $publicId,
+            'systemId' => $systemId,
+            'internalSubsetPresent' => is_string($internalSubset),
+            'internalSubsetByteLength' => is_string($internalSubset) ? strlen($internalSubset) : 0,
+            'entityDeclarationCount' => $entityDeclarationCount,
+            'byteLength' => strlen($declaration),
+            'sha256' => hash('sha256', $declaration),
+            'issueCodes' => array_values(array_unique($issueCodes)),
+        ];
+    }
+
+    private function xmlDoctypeEndOffset(string $xml, int $start): ?int
+    {
+        $length = strlen($xml);
+        $quote = null;
+        $bracketDepth = 0;
+        for ($offset = $start; $offset < $length; ++$offset) {
+            $char = $xml[$offset];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                ++$bracketDepth;
+                continue;
+            }
+            if ($char === ']' && $bracketDepth > 0) {
+                --$bracketDepth;
+                continue;
+            }
+            if ($char === '>' && $bracketDepth === 0) {
+                return $offset;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -22575,6 +23138,7 @@ final class DocxOpenXmlReader
             self::PEOPLE_REL => 'people',
             self::SETTINGS_REL => 'settings',
             self::ATTACHED_TEMPLATE_REL => 'attached-template',
+            self::PRINTER_SETTINGS_REL => 'printer-settings',
             self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
             self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',
             self::MAIL_MERGE_RECIPIENT_DATA_REL, self::MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL => 'mail-merge-recipient-data',

@@ -626,6 +626,67 @@ XML,
         $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][1]['centralEntryNames']);
         $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][1]['localEntryNames']);
     },
+    'preserves docx source zip package manifest hashes across package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === '[Content_Types].xml' || $zipPart['name'] === 'word/media/review.png') {
+                $zipPart['compressionMethod'] = 0;
+            }
+        }
+        unset($zipPart);
+
+        $zip = ZipPackage::fromParts($zipParts, 'docx manifest review');
+        $manifest = $zip->packageManifestPreflight();
+        $manifestEntriesByName = [];
+        foreach ($manifest['entries'] as $manifestEntry) {
+            $manifestEntriesByName[$manifestEntry['name']] = $manifestEntry;
+        }
+
+        $documentCompressed = gzdeflate($parts['word/document.xml']);
+        $t->true(is_string($documentCompressed), 'fixture document XML should deflate');
+
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $zipPackage = $package['zipPackage'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+        $documentManifest = $manifestEntriesByName['word/document.xml'];
+        $contentTypesManifest = $manifestEntriesByName['[Content_Types].xml'];
+        $documentPart = $package['parts']['word/document.xml'];
+        $contentTypesPart = $package['parts']['[Content_Types].xml'];
+
+        $t->same($manifest, $zipPackage['packageManifest']);
+        $t->same('zip-package-manifest-v1', $summary['zipPackageManifestVersion']);
+        $t->same($manifest['manifestSha256'], $summary['zipPackageManifestSha256']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestEntryCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalHeaderHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCompressedDataHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryRecordHashCount']);
+
+        $t->same($documentManifest['localHeaderLength'], $documentEntry['localHeaderLength']);
+        $t->same($documentManifest['localHeaderSha256'], $documentEntry['localHeaderSha256']);
+        $t->same($documentManifest['compressedDataOffset'], $documentEntry['compressedDataOffset']);
+        $t->same($documentManifest['compressedDataEnd'], $documentEntry['compressedDataEnd']);
+        $t->same($documentManifest['compressedDataSha256'], $documentEntry['compressedDataSha256']);
+        $t->same(hash('sha256', $documentCompressed), $documentEntry['compressedDataSha256']);
+        $t->same($documentManifest['centralDirectoryRecordOffset'], $documentEntry['centralDirectoryRecordOffset']);
+        $t->same($documentManifest['centralDirectoryRecordEnd'], $documentEntry['centralDirectoryRecordEnd']);
+        $t->same($documentManifest['centralDirectoryRecordSha256'], $documentEntry['centralDirectoryRecordSha256']);
+
+        $t->same($documentEntry['localHeaderSha256'], $documentPart['localHeaderSha256']);
+        $t->same($documentEntry['compressedDataSha256'], $documentPart['compressedDataSha256']);
+        $t->same($documentEntry['centralDirectoryRecordSha256'], $documentPart['centralDirectoryRecordSha256']);
+        $t->same($documentEntry['compressedDataOffset'], $documentPart['compressedDataOffset']);
+        $t->same($documentEntry['compressedDataEnd'], $documentPart['compressedDataEnd']);
+
+        $t->same(0, $contentTypesEntry['compressionMethod']);
+        $t->same(hash('sha256', $parts['[Content_Types].xml']), $contentTypesEntry['compressedDataSha256']);
+        $t->same($contentTypesManifest['localHeaderSha256'], $contentTypesPart['localHeaderSha256']);
+        $t->same($contentTypesManifest['compressedDataSha256'], $contentTypesPart['compressedDataSha256']);
+        $t->same($contentTypesManifest['centralDirectoryRecordSha256'], $contentTypesPart['centralDirectoryRecordSha256']);
+    },
     'preserves docx unsupported zip compression provenance without aborting ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $unsupportedPart = 'word/media/review-bzip2.bin';
@@ -14768,6 +14829,207 @@ XML;
         $t->true(in_array('mail-merge-recipient-data', $packageInventory['word/settings/untyped']['roles'], true), 'settings recipient data inventory role missing');
         $t->true(!isset($docx['media']['word/templates/local-template.dotx']), 'Settings relationship targets must remain metadata-only');
     },
+    'summarizes docx printer settings package relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $printerSettingsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings';
+        $printerSettingsContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.printerSettings';
+        $printerSettingsContentTypeBase = 'application/vnd.openxmlformats-officedocument.wordprocessingml.printersettings';
+        $printerBytes = "printer settings bytes\x00\x01";
+        $untypedBytes = 'printer settings without a content type';
+        $wrongBytes = 'not actually printer settings';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/printerSettings/printerSettings1.bin" ContentType="' . $printerSettingsContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/printerSettings/missing.bin" ContentType="' . $printerSettingsContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/printerSettings/wrong.bin" ContentType="application/octet-stream"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<'XML'
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+XML;
+        $parts['word/_rels/settings.xml.rels'] = <<<XML
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPrinter" Type="{$printerSettingsRel}" Target="printerSettings/printerSettings1.bin?device=office#settings"/>
+  <Relationship Id="rPrinterMissing" Type="{$printerSettingsRel}" Target="printerSettings/missing.bin"/>
+  <Relationship Id="rPrinterUntyped" Type="{$printerSettingsRel}" Target="printerSettings/untyped"/>
+  <Relationship Id="rPrinterWrong" Type="{$printerSettingsRel}" Target="printerSettings/wrong.bin"/>
+  <Relationship Id="rPrinterExternalSafe" Type="{$printerSettingsRel}" Target="https://example.test/printer-settings.bin?remote=1#settings" TargetMode="External"/>
+  <Relationship Id="rPrinterExternalUnsafe" Type="{$printerSettingsRel}" Target="file:///C:/review/printer-settings.bin" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/printerSettings/printerSettings1.bin'] = $printerBytes;
+        $parts['word/printerSettings/untyped'] = $untypedBytes;
+        $parts['word/printerSettings/wrong.bin'] = $wrongBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $printerSettings = $docx['printerSettings'];
+        $package = $docx['packageProvenance'];
+        $summary = $package['summary'];
+        $packageInventory = $package['parts'];
+        $relationshipTypes = $package['relationshipTypes'];
+
+        $t->same($printerSettings, $package['printerSettings']);
+        $t->same('word/settings.xml', $printerSettings['sourcePart']);
+        $t->same(true, $printerSettings['sourcePartExists']);
+        $t->same('word/_rels/settings.xml.rels', $printerSettings['relationshipsPart']);
+        $t->same(true, $printerSettings['relationshipsPartExists']);
+        $t->same(6, $printerSettings['count']);
+        $t->same(6, $printerSettings['relationshipCount']);
+        $t->same(4, $printerSettings['internalCount']);
+        $t->same(2, $printerSettings['externalCount']);
+        $t->same(1, $printerSettings['allowedExternalTargetCount']);
+        $t->same(1, $printerSettings['unsafeExternalTargetCount']);
+        $t->same(3, $printerSettings['existingCount']);
+        $t->same(1, $printerSettings['missingCount']);
+        $t->same(1, $printerSettings['missingContentTypeCount']);
+        $t->same(1, $printerSettings['unexpectedContentTypeCount']);
+        $t->same(6, $printerSettings['issueCount']);
+        $t->same([
+            'external-printer-settings',
+            'external-target-unsafe-scheme',
+            'missing-printer-settings',
+            'missing-printer-settings-content-type',
+            'unexpected-printer-settings-content-type',
+        ], $printerSettings['issueCodes']);
+        $t->same([
+            'rPrinter',
+            'rPrinterMissing',
+            'rPrinterUntyped',
+            'rPrinterWrong',
+            'rPrinterExternalSafe',
+            'rPrinterExternalUnsafe',
+        ], $printerSettings['relationshipIds']);
+        $t->same([
+            'word/printerSettings/printerSettings1.bin',
+            'word/printerSettings/missing.bin',
+            'word/printerSettings/untyped',
+            'word/printerSettings/wrong.bin',
+        ], $printerSettings['partNames']);
+        $t->same([
+            'word/printerSettings/printerSettings1.bin',
+            'word/printerSettings/untyped',
+            'word/printerSettings/wrong.bin',
+        ], $printerSettings['existingPartNames']);
+        $t->same(['word/printerSettings/missing.bin'], $printerSettings['missingPartNames']);
+        $t->same([
+            'https://example.test/printer-settings.bin?remote=1#settings',
+            'file:///C:/review/printer-settings.bin',
+        ], $printerSettings['externalTargets']);
+        $t->same(['file:///C:/review/printer-settings.bin'], $printerSettings['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $printerSettings['externalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $printerSettings['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $printerSettings['externalTargetIssueCodes']);
+        $t->same(['?device=office#settings', '?remote=1#settings'], $printerSettings['targetReferenceSuffixes']);
+        $t->same([$printerSettingsContentType, 'application/octet-stream'], $printerSettings['contentTypes']);
+        $t->same([
+            'application/octet-stream' => 1,
+            $printerSettingsContentTypeBase => 2,
+        ], $printerSettings['contentTypeBaseCounts']);
+        $t->same($printerSettingsContentTypeBase, $printerSettings['expectedContentTypeBase']);
+        $t->same('printer-settings-bytes-blocked', $printerSettings['byteExposurePolicy']);
+        $t->same('printer-settings-metadata-only', $printerSettings['reviewPolicy']);
+
+        $valid = $printerSettings['byRelationshipId']['rPrinter'];
+        $t->same($printerSettingsRel, $valid['relationshipType']);
+        $t->same('printerSettings/printerSettings1.bin?device=office#settings', $valid['target']);
+        $t->same('word/printerSettings/printerSettings1.bin?device=office#settings', $valid['resolvedTarget']);
+        $t->same('word/printerSettings/printerSettings1.bin', $valid['targetPart']);
+        $t->same('device=office', $valid['targetQuery']);
+        $t->same('settings', $valid['targetFragment']);
+        $t->same('?device=office#settings', $valid['targetReferenceSuffix']);
+        $t->same(true, $valid['exists']);
+        $t->same(strlen($printerBytes), $valid['byteLength']);
+        $t->same(sprintf('%08x', crc32($printerBytes)), $valid['crc32']);
+        $t->same(hash('sha256', $printerBytes), $valid['sha256']);
+        $t->same($printerSettingsContentType, $valid['contentType']);
+        $t->same($printerSettingsContentTypeBase, $valid['contentTypeBase']);
+        $t->same(true, $valid['contentTypeMatchesExpected']);
+        $t->same('override', $valid['contentTypeSource']);
+        $t->same([], $valid['issues']);
+        $t->same(true, $valid['valid']);
+        $t->same('printer-settings-bytes-blocked', $valid['byteExposurePolicy']);
+        $t->same('printer-settings-metadata-only', $valid['reviewPolicy']);
+        $t->true(!isset($valid['bytes']), 'printer settings inventory must not expose target bytes');
+
+        $missing = $printerSettings['byRelationshipId']['rPrinterMissing'];
+        $t->same(false, $missing['exists']);
+        $t->same('word/printerSettings/missing.bin', $missing['targetPart']);
+        $t->same($printerSettingsContentType, $missing['contentType']);
+        $t->same(['missing-printer-settings'], $missing['issues']);
+
+        $untyped = $printerSettings['byRelationshipId']['rPrinterUntyped'];
+        $t->same(true, $untyped['exists']);
+        $t->same('word/printerSettings/untyped', $untyped['targetPart']);
+        $t->same(strlen($untypedBytes), $untyped['byteLength']);
+        $t->same('missing', $untyped['contentTypeSource']);
+        $t->same(['missing-printer-settings-content-type'], $untyped['issues']);
+
+        $wrong = $printerSettings['byRelationshipId']['rPrinterWrong'];
+        $t->same(true, $wrong['exists']);
+        $t->same('application/octet-stream', $wrong['contentTypeBase']);
+        $t->same(false, $wrong['contentTypeMatchesExpected']);
+        $t->same(['unexpected-printer-settings-content-type'], $wrong['issues']);
+
+        $safe = $printerSettings['byRelationshipId']['rPrinterExternalSafe'];
+        $t->same(true, $safe['external']);
+        $t->same('absolute-uri', $safe['externalTargetKind']);
+        $t->same('https', $safe['externalTargetScheme']);
+        $t->same(true, $safe['externalTargetAllowed']);
+        $t->same('remote=1', $safe['targetQuery']);
+        $t->same('settings', $safe['targetFragment']);
+        $t->same(null, $safe['byteLength']);
+        $t->same(['external-printer-settings'], $safe['issues']);
+
+        $unsafe = $printerSettings['byRelationshipId']['rPrinterExternalUnsafe'];
+        $t->same(true, $unsafe['external']);
+        $t->same('file', $unsafe['externalTargetScheme']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-printer-settings', 'external-target-unsafe-scheme'], $unsafe['issues']);
+
+        $t->same($valid, $printerSettings['byPartName']['word/printerSettings/printerSettings1.bin']);
+        $t->same(6, $summary['settingsRelationshipCount']);
+        $t->same(4, $summary['settingsRelationshipInternalCount']);
+        $t->same(2, $summary['settingsRelationshipExternalCount']);
+        $t->same(1, $summary['settingsRelationshipAllowedExternalCount']);
+        $t->same(1, $summary['settingsRelationshipUnsafeExternalCount']);
+        $t->same(3, $summary['settingsRelationshipExistingTargetCount']);
+        $t->same(1, $summary['settingsRelationshipMissingTargetCount']);
+        $t->same(1, $summary['settingsRelationshipMissingContentTypeCount']);
+        $t->same(6, $summary['printerSettingsCount']);
+        $t->same(6, $summary['printerSettingsRelationshipCount']);
+        $t->same(4, $summary['printerSettingsInternalCount']);
+        $t->same(2, $summary['printerSettingsExternalCount']);
+        $t->same(1, $summary['printerSettingsAllowedExternalTargetCount']);
+        $t->same(1, $summary['printerSettingsUnsafeExternalTargetCount']);
+        $t->same(['absolute-uri' => 2], $summary['printerSettingsExternalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $summary['printerSettingsExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['printerSettingsExternalTargetIssueCodes']);
+        $t->same(3, $summary['printerSettingsExistingCount']);
+        $t->same(1, $summary['printerSettingsMissingCount']);
+        $t->same(1, $summary['printerSettingsMissingContentTypeCount']);
+        $t->same(1, $summary['printerSettingsUnexpectedContentTypeCount']);
+        $t->same(6, $summary['printerSettingsIssueCount']);
+        $t->same($printerSettings['issueCodes'], $summary['printerSettingsIssueCodes']);
+        $t->same('printerSettings', $relationshipTypes[$printerSettingsRel]['label']);
+        $t->same(6, $relationshipTypes[$printerSettingsRel]['count']);
+        $t->same(4, $relationshipTypes[$printerSettingsRel]['internalCount']);
+        $t->same(2, $relationshipTypes[$printerSettingsRel]['externalCount']);
+        $t->true(in_array('printer-settings', $packageInventory['word/printerSettings/printerSettings1.bin']['roles'], true), 'printer settings inventory role missing');
+        $t->true(in_array('printer-settings', $packageInventory['word/printerSettings/untyped']['roles'], true), 'untyped printer settings inventory role missing');
+        $t->true(in_array('printer-settings', $packageInventory['word/printerSettings/wrong.bin']['roles'], true), 'wrong printer settings inventory role missing');
+        $t->true(!isset($docx['media']['word/printerSettings/printerSettings1.bin']), 'Printer settings targets must remain metadata-only');
+    },
     'reports docx mail merge settings package relationships for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(
@@ -16951,6 +17213,80 @@ XML;
         $t->same(null, $byKind['theme']['xmlDeclarationStandalone']);
         $t->same('UTF-8', $byKind['document']['xmlDeclarationEncoding']);
         $t->same(null, $byKind['document']['xmlDeclarationStandalone']);
+    },
+    'preserves docx selected openxml processing instruction and doctype provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $doctype = '<!DOCTYPE w:settings SYSTEM "https://example.test/review-settings.dtd" [ <!ENTITY review "blocked"> ]>';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Word.Document"?>
+{$doctype}
+<?review-policy package="metadata-only"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+
+        $t->same(2, $settings['processingInstructionCount']);
+        $t->same(['mso-application', 'review-policy'], $settings['processingInstructionTargets']);
+        $t->same('mso-application', $settings['processingInstructions'][0]['target']);
+        $t->same('progid="Word.Document"', $settings['processingInstructions'][0]['dataPreview']);
+        $t->same(strlen('progid="Word.Document"'), $settings['processingInstructions'][0]['dataByteLength']);
+        $t->same('review-policy', $settings['processingInstructions'][1]['target']);
+        $t->same('package="metadata-only"', $settings['processingInstructions'][1]['dataPreview']);
+        $t->same(true, $settings['doctypePresent']);
+        $t->same('w:settings', $settings['doctypeName']);
+        $t->same(null, $settings['doctypePublicId']);
+        $t->same('https://example.test/review-settings.dtd', $settings['doctypeSystemId']);
+        $t->same(true, $settings['doctypeInternalSubsetPresent']);
+        $t->same(strlen(' <!ENTITY review "blocked"> '), $settings['doctypeInternalSubsetByteLength']);
+        $t->same(1, $settings['doctypeEntityDeclarationCount']);
+        $t->same(strlen($doctype), $settings['doctypeByteLength']);
+        $t->same(hash('sha256', $doctype), $settings['doctypeSha256']);
+        $t->same([
+            'xml-doctype-declaration',
+            'xml-external-doctype-reference',
+            'xml-entity-declaration',
+        ], $settings['doctypeIssueCodes']);
+        $t->same($settings['doctypeIssueCodes'], $settings['issues']);
+
+        $t->same(2, $selected['processingInstructionCount']);
+        $t->same(['mso-application', 'review-policy'], $selected['processingInstructionTargets']);
+        $t->same(1, $selected['doctypeCount']);
+        $t->same(1, $selected['doctypeExternalReferenceCount']);
+        $t->same(1, $selected['doctypeInternalSubsetCount']);
+        $t->same(1, $selected['doctypeEntityDeclarationCount']);
+        $t->same($settings['doctypeIssueCodes'], $selected['doctypeIssueCodes']);
+        $t->same(['settings'], $selected['issueKinds']);
+        $t->same(3, $selected['issueCount']);
+        $t->same(2, $summary['selectedXmlPartProcessingInstructionCount']);
+        $t->same($selected['processingInstructionTargets'], $summary['selectedXmlPartProcessingInstructionTargets']);
+        $t->same(1, $summary['selectedXmlPartDoctypeCount']);
+        $t->same(1, $summary['selectedXmlPartDoctypeExternalReferenceCount']);
+        $t->same(1, $summary['selectedXmlPartDoctypeInternalSubsetCount']);
+        $t->same(1, $summary['selectedXmlPartDoctypeEntityDeclarationCount']);
+        $t->same($settings['doctypeIssueCodes'], $summary['selectedXmlPartDoctypeIssueCodes']);
+        $t->same(['settings'], $summary['selectedXmlPartIssueKinds']);
     },
     'accepts docx main document template and macro-enabled content types' => static function (TestRunner $t): void {
         $acceptedDocumentContentTypes = [

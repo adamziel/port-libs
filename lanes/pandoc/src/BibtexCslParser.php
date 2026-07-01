@@ -1295,6 +1295,16 @@ final class BibtexCslParser
             }
         }
 
+        $crossref = self::biblatexKeyList($fields['crossref'] ?? '');
+        if ($crossref !== []) {
+            $item['crossrefKeys'] = $crossref;
+            $item['crossrefItems'] = self::referencedEntrySummaries($crossref, $entriesByKey);
+            $missing = self::missingReferenceKeys($crossref, $entriesByKey);
+            if ($missing !== []) {
+                $item['missingCrossrefKeys'] = $missing;
+            }
+        }
+
         $xref = self::biblatexKeyList($fields['xref'] ?? '');
         if ($xref !== []) {
             $item['xrefKeys'] = $xref;

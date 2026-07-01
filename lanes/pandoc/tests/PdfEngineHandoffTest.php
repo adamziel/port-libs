@@ -38,7 +38,7 @@ return [
         $t->same('build/review-packet.tex', $plan['sourceFile']);
         $t->same('build/review-packet.pdf', $plan['outputFile']);
         $t->same(['xelatex', '-halt-on-error', '-interaction=nonstopmode', '-file-line-error', 'build/review-packet.tex'], $plan['argv']);
-        $t->contains('Reviewer formula \\(E = mc^2\\) keeps raw source \\cite{packet}.', (string) $plan['sourceBytes']);
+        $t->contains('Reviewer formula $E = mc^2$ keeps raw source \\cite{packet}.', (string) $plan['sourceBytes']);
         $t->same(hash('sha256', (string) $plan['sourceBytes']), $plan['sourceSha256']);
         $t->same('PDF Handoff Packet', $plan['metadata']['title']);
         $t->same(['Migration Desk', 'Content Reviewer'], $plan['metadata']['author']);
@@ -142,12 +142,17 @@ return [
         $t->same('-', $plan['sourceFile']);
         $t->same(['typst', 'compile', '--root=workspace', '--deps=build/stdin-source.d', '-', 'build/stdin-source.pdf'], $plan['argv']);
         $t->same($expectedSourceInput, $plan['sourceInput']);
+        $t->same('review', $plan['handoffInputProvenance']['reviewStatus']);
+        $t->same($expectedSourceInput, $plan['handoffInputProvenance']['sourceInput']);
+        $t->contains('source-input:review', implode(',', $plan['handoffInputProvenance']['issues']));
         $t->contains('typst-source-input:stdin', implode(',', $plan['diagnostics']));
         $t->contains('typst-source-input-issues:1', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same(hash('sha256', $source), $result['sourceSha256']);
         $t->same($expectedSourceInput, $result['sourceInput']);
         $t->same($expectedSourceInput, $result['artifactProvenanceReview']['sourceInput']);
+        $t->same('ok', $result['handoffInputProvenance']['validationStatus']);
+        $t->same($result['handoffInputProvenance'], $result['artifactProvenanceReview']['handoffInputProvenance']);
         $t->same($expectedReadPolicy, $result['typstReadBoundaryPolicy']);
         $t->same(['workspace/data/review.yml'], $result['engineInputFiles']);
         $t->same([], $result['engineBoundaryViolations']);
@@ -8944,7 +8949,23 @@ return [
         $t->same('templates/review.tex', $plan['templateFile']);
         $t->same(['templates/header.tex', 'templates/fonts.tex'], $plan['includeInHeaderFiles']);
         $t->same(['templates/review.tex', 'templates/header.tex', 'templates/fonts.tex'], $plan['sourceArtifacts']);
+        $t->same('ok', $plan['handoffInputProvenance']['reviewStatus']);
+        $t->same('xelatex', $plan['handoffInputProvenance']['engine']);
+        $t->same('latex', $plan['handoffInputProvenance']['engineFamily']);
+        $t->same('latex', $plan['handoffInputProvenance']['intermediateFormat']);
+        $t->same('handoff/review.tex', $plan['handoffInputProvenance']['sourceFile']);
+        $t->same(strlen((string) $plan['sourceBytes']), $plan['handoffInputProvenance']['sourceByteLength']);
+        $t->same($plan['sourceSha256'], $plan['handoffInputProvenance']['sourceSha256']);
+        $t->same('templates/review.tex', $plan['handoffInputProvenance']['templateFile']);
+        $t->same(['templates/header.tex', 'templates/fonts.tex'], $plan['handoffInputProvenance']['includeInHeaderFiles']);
+        $t->same(2, $plan['handoffInputProvenance']['includeInHeaderCount']);
+        $t->same(['templates/review.tex', 'templates/header.tex', 'templates/fonts.tex'], $plan['handoffInputProvenance']['sourceArtifacts']);
+        $t->same(3, $plan['handoffInputProvenance']['sourceArtifactCount']);
         $t->same(['media', 'shared assets'], $plan['resourcePaths']);
+        $t->same(['media', 'shared assets'], $plan['handoffInputProvenance']['resourcePaths']);
+        $t->same(2, $plan['handoffInputProvenance']['resourcePathCount']);
+        $t->same(0, $plan['handoffInputProvenance']['resourceFileCount']);
+        $t->same(8, $plan['handoffInputProvenance']['templateVariableCount']);
         $t->same('PDF Handoff Packet', $plan['templateVariables']['title']);
         $t->same(['Migration Desk', 'Content Reviewer'], $plan['templateVariables']['author']);
         $t->same('scrartcl', $plan['templateVariables']['documentclass']);
@@ -9010,6 +9031,9 @@ MARKDOWN);
         ], $plan['resourceFileManifest']);
         $t->same(['https://example.test/media/chart.png'], $plan['remoteResourceReferences']);
         $t->same([], $plan['skippedResourceReferences']);
+        $t->same(2, $plan['handoffInputProvenance']['resourceFileCount']);
+        $t->same(1, $plan['handoffInputProvenance']['remoteResourceReferenceCount']);
+        $t->same($plan['resourceFileManifest'], $plan['handoffInputProvenance']['resourceFileManifest']);
         $t->contains('pdf-resource-files:2', implode(',', $plan['diagnostics']));
         $t->contains('pdf-remote-resources:1', implode(',', $plan['diagnostics']));
 
@@ -9030,12 +9054,22 @@ MARKDOWN);
         $t->same(false, $missing['ok']);
         $t->same('missing-resource-file', $missing['reason']);
         $t->same(['media/cover.png', 'refs/migration-log.bib'], $missing['missingResourceFiles']);
+        $t->same('failed', $missing['handoffInputProvenance']['validationStatus']);
+        $t->same(['media/cover.png', 'refs/migration-log.bib'], $missing['handoffInputProvenance']['missingResourceFiles']);
+        $t->same([
+            'missing-resource-file:media/cover.png',
+            'missing-resource-file:refs/migration-log.bib',
+        ], $missing['handoffInputProvenance']['validationIssues']);
         $t->contains('missing-resource-file:media/cover.png', implode(',', $missing['diagnostics']));
         $t->same(true, $ok['ok']);
         $t->same([
             'media/cover.png' => hash('sha256', 'fake cover bytes'),
             'refs/migration-log.bib' => hash('sha256', '@book{migration-log,title={Migration Log}}'),
         ], $ok['resourceArtifactsSha256']);
+        $t->same($ok['resourceArtifactsSha256'], $ok['handoffInputProvenance']['resourceArtifactsSha256']);
+        $t->same('ok', $ok['handoffInputProvenance']['validationStatus']);
+        $t->same([], $ok['handoffInputProvenance']['validationIssues']);
+        $t->same($ok['handoffInputProvenance'], $ok['artifactProvenanceReview']['handoffInputProvenance']);
         $t->same([], $ok['missingResourceFiles']);
         $t->contains('resource-files-validated:2', implode(',', $ok['diagnostics']));
     },
@@ -9375,10 +9409,13 @@ MARKDOWN);
 
         $t->same(false, $missing['ok']);
         $t->same('missing-source-artifact', $missing['reason']);
+        $t->same('failed', $missing['handoffInputProvenance']['validationStatus']);
+        $t->same(['templates/review.tex', 'templates/header.tex'], $missing['handoffInputProvenance']['missingSourceArtifacts']);
         $t->contains('missing-source-artifact:templates/review.tex', implode(',', $missing['diagnostics']));
         $t->same(true, $ok['ok']);
         $t->same(hash('sha256', '$body$'), $ok['sourceArtifactsSha256']['templates/review.tex']);
         $t->same(hash('sha256', '\usepackage{fontspec}'), $ok['sourceArtifactsSha256']['templates/header.tex']);
+        $t->same($ok['sourceArtifactsSha256'], $ok['handoffInputProvenance']['sourceArtifactsSha256']);
     },
 
     'fake runner classifies engine logs sidecars warnings and rerun signals' => static function (TestRunner $t) use ($document): void {

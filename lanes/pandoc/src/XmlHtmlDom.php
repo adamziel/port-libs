@@ -18611,18 +18611,15 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('hidden', $attributes)) {
-            $hidden = strtolower(trim($attributes['hidden']));
-            $hiddenKeyword = match ($hidden) {
-                '', 'hidden' => 'hidden',
-                'until-found' => 'until-found',
-                default => null,
-            };
+            $hiddenKeyword = self::hiddenKeyword($attributes['hidden']);
             $summary['hiddenRaw'] = $attributes['hidden'];
             $summary['hiddenKeyword'] = $hiddenKeyword;
             $summary['hiddenState'] = $hiddenKeyword ?? 'hidden';
             $summary['hiddenValid'] = $hiddenKeyword !== null;
             $summary['hiddenInvalidValueDefaulted'] = $hiddenKeyword === null;
         }
+
+        $summary += self::effectiveHiddenSummary($element, $attributes);
 
         if (array_key_exists('inert', $attributes)) {
             $summary['inertRaw'] = $attributes['inert'];
@@ -18882,6 +18879,65 @@ final class XmlHtmlDom
             'classHasDuplicateTokens' => $duplicates !== [],
             'classIssueCodes' => $issueCodes,
         ];
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function effectiveHiddenSummary(\DOMElement $element, array $attributes): array
+    {
+        if (array_key_exists('hidden', $attributes)) {
+            return self::hiddenProvenanceSummary($element, $attributes['hidden'], false);
+        }
+
+        for ($ancestor = $element->parentNode; $ancestor instanceof \DOMElement; $ancestor = $ancestor->parentNode) {
+            $ancestorAttributes = self::htmlAttributes($ancestor);
+            if (array_key_exists('hidden', $ancestorAttributes)) {
+                return self::hiddenProvenanceSummary($ancestor, $ancestorAttributes['hidden'], true);
+            }
+        }
+
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function hiddenProvenanceSummary(\DOMElement $source, string $raw, bool $inherited): array
+    {
+        $keyword = self::hiddenKeyword($raw);
+        $state = $keyword ?? 'hidden';
+        $summary = [
+            'hiddenReviewPolicy' => 'html-hidden-state-inheritance-review',
+            'effectiveHiddenRaw' => $raw,
+            'effectiveHiddenKeyword' => $keyword,
+            'effectiveHiddenState' => $state,
+            'effectiveHidden' => true,
+            'effectiveHiddenUntilFound' => $state === 'until-found',
+            'effectiveHiddenInvalidValueDefaulted' => $keyword === null,
+            'hiddenInherited' => $inherited,
+            'hiddenSource' => $inherited ? 'ancestor-hidden' : 'self-hidden',
+            'hiddenSourceElement' => self::htmlElementName($source),
+        ];
+
+        $sourceId = self::attributeOrNull($source, 'id');
+        if ($sourceId !== null && $sourceId !== '') {
+            $summary['hiddenSourceElementId'] = $sourceId;
+        }
+
+        return $summary;
+    }
+
+    private static function hiddenKeyword(string $value): ?string
+    {
+        $hidden = strtolower(trim($value));
+
+        return match ($hidden) {
+            '', 'hidden' => 'hidden',
+            'until-found' => 'until-found',
+            default => null,
+        };
     }
 
     /**
@@ -24322,6 +24378,7 @@ final class XmlHtmlDom
         $unsafePingUrls = [];
         $nonHttpPingUrls = [];
         $issues = [];
+        $pingRequested = $pingRaw !== null;
 
         if (($hrefSummary['unsafe'] ?? false) === true) {
             $issues[] = [
@@ -24348,6 +24405,10 @@ final class XmlHtmlDom
 
         if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
             $issues[] = ['code' => 'invalid-referrer-policy', 'referrerPolicyRaw' => $referrerPolicyRaw];
+        }
+
+        if ($pingRequested && trim($pingRaw) === '') {
+            $issues[] = ['code' => 'empty-ping-url-list'];
         }
 
         foreach ($pingUrls as $url) {
@@ -24377,6 +24438,10 @@ final class XmlHtmlDom
                 ];
             }
         }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         return [
             'hyperlinkNavigationReview' => $name,
@@ -24404,12 +24469,17 @@ final class XmlHtmlDom
             'referrerPolicyRaw' => $referrerPolicyRaw,
             'referrerPolicy' => $referrerPolicy,
             'referrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
+            'pingRequested' => $pingRequested,
+            'pingRawEmpty' => $pingRequested ? trim($pingRaw) === '' : null,
             'pingSideEffect' => $pingUrls !== [],
             'pingUrlCount' => count($pingUrls),
             'pingUrlRecords' => $pingRecords,
             'unsafePingUrls' => $unsafePingUrls,
             'nonHttpPingUrls' => $nonHttpPingUrls,
             'navigationIssues' => $issues,
+            'navigationIssueCodes' => $issueCodes,
+            'navigationIssueCount' => count($issues),
+            'hyperlinkNavigationValid' => $issues === [],
         ] + $fragmentTarget;
     }
 

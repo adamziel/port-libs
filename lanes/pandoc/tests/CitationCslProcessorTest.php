@@ -849,6 +849,9 @@ BIB;
         $t->same('Migration Futures Conference', $items[1]['container-title']);
         $t->same('Review Press', $items[1]['publisher']);
         $t->same([['family' => 'Curator', 'given' => 'Eli'], ['family' => 'Cruz', 'given' => 'Ana Maria', 'non-dropping-particle' => 'de la']], $items[1]['editor']);
+        $t->same(['conf2026'], $items[1]['crossrefKeys']);
+        $t->same('Migration Futures Conference', $items[1]['crossrefItems'][0]['title'] ?? null);
+        $t->same([2026], $items[1]['crossrefItems'][0]['issued']['date-parts'][0] ?? null);
         $t->same('chapter', $items[2]['type']);
         $t->same('Manual Override', $items[2]['container-title']);
         $t->same(2027, $items[2]['issued']['date-parts'][0][0] ?? null);
@@ -858,19 +861,22 @@ BIB;
         $t->same('Packet Audit Trails', $audit['title'] ?? null);
         $t->same('Migration Futures Conference', $audit['containerTitle'] ?? null);
         $t->same('Review Press', $audit['publisher'] ?? null);
+        $t->same(['conf2026'], $audit['crossrefKeys'] ?? null);
+        $t->same('Migration Futures Conference', $audit['crossrefItems'][0]['title'] ?? null);
+        $t->same('Migration Futures Conference (2026)', $audit['crossrefSummary'] ?? null);
         $t->same([2026], $audit['issuedDate']['parts'] ?? null);
         $t->same('Eli', $audit['editors'][0]['given'] ?? null);
         $t->same('(Smith 2026; Roe 2027)', $processor->renderCitationCluster([
             $citation('source-audit', '[@source-audit]'),
             $citation('chapter-review', '[@chapter-review]'),
         ]));
-        $t->same('Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.', $processor->renderBibliographyEntry('source-audit'));
+        $t->same('Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18. Crossref: Migration Futures Conference (2026).', $processor->renderBibliographyEntry('source-audit'));
 
         $document = (new MarkdownReader())->read('Review cites @source-audit and [@chapter-review].');
         $markdown = (new MarkdownWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('Review cites Smith (2026) and (Roe 2027).', $markdown);
-        $t->contains('Smith 2026' . "\n" . ':   Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18.', $markdown);
-        $t->contains('Roe 2027' . "\n" . ':   Roe, Pat. Chapter Review Notes. Manual Override. Review Press, 2027.', $markdown);
+        $t->contains('Smith 2026' . "\n" . ':   Smith, Ada. Packet Audit Trails. Migration Futures Conference. Review Press, 2026. 12-18. Crossref: Migration Futures Conference (2026).', $markdown);
+        $t->contains('Roe 2027' . "\n" . ':   Roe, Pat. Chapter Review Notes. Manual Override. Review Press, 2027. Crossref: Migration Futures Conference (2026).', $markdown);
     },
     'maps bounded crossref parent subtitle and title addon into child containers' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -937,8 +943,8 @@ BIB;
             $citation('crossref-subtitle-paper', '[@crossref-subtitle-paper]'),
             $citation('crossref-subtitle-article', '[@crossref-subtitle-article]'),
         ]));
-        $t->same('Ng, Nia. Packet Audit Trails. Source Review Proceedings: Reviewer Packet Track. Proceedings supplement. Review Press, 2026. 12-18.', $processor->renderBibliographyEntry('crossref-subtitle-paper'));
-        $t->same('Roe, Pat. Journal Child Packet. Journal of Import Reviews: Source Desk Notes. Online supplement. 2025. 7-9.', $processor->renderBibliographyEntry('crossref-subtitle-article'));
+        $t->same('Ng, Nia. Packet Audit Trails. Source Review Proceedings: Reviewer Packet Track. Proceedings supplement. Review Press, 2026. 12-18. Crossref: Source Review Proceedings: Reviewer Packet Track (2026).', $processor->renderBibliographyEntry('crossref-subtitle-paper'));
+        $t->same('Roe, Pat. Journal Child Packet. Journal of Import Reviews: Source Desk Notes. Online supplement. 2025. 7-9. Crossref: Journal of Import Reviews: Source Desk Notes (2025).', $processor->renderBibliographyEntry('crossref-subtitle-article'));
 
         $styled = $processor->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -970,8 +976,8 @@ XML);
         $document = (new MarkdownReader())->read('Crossref subtitle source @crossref-subtitle-paper and journal packet [@crossref-subtitle-article] keep parent container titles intact.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Crossref subtitle source Ng (2026) and journal packet (Roe 2025) keep parent container titles intact.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Packet Audit Trails. Source Review Proceedings: Reviewer Packet Track. Proceedings supplement. Review Press, 2026. 12-18.</dd>', $blocks);
-        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Journal Child Packet. Journal of Import Reviews: Source Desk Notes. Online supplement. 2025. 7-9.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Packet Audit Trails. Source Review Proceedings: Reviewer Packet Track. Proceedings supplement. Review Press, 2026. 12-18. Crossref: Source Review Proceedings: Reviewer Packet Track (2026).</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Roe, Pat. Journal Child Packet. Journal of Import Reviews: Source Desk Notes. Online supplement. 2025. 7-9. Crossref: Journal of Import Reviews: Source Desk Notes (2025).</dd>', $blocks);
     },
     'inherits bounded biblatex reference crossref titles into child containers' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -1024,8 +1030,8 @@ BIB;
             $citation('source-term', '[@source-term]'),
             $citation('embedded-source', '[@embedded-source]'),
         ]));
-        $t->same('Ng, Nia. Import Source Term. Migration Reference Desk. Review Press, 2026. 42-43.', $processor->renderBibliographyEntry('source-term'));
-        $t->same('Roe, Pat. Embedded Audit Leaf. Migration Reference Desk. Review Press, 2026. 9-11.', $processor->renderBibliographyEntry('embedded-source'));
+        $t->same('Ng, Nia. Import Source Term. Migration Reference Desk. Review Press, 2026. 42-43. Crossref: Migration Reference Desk (2026).', $processor->renderBibliographyEntry('source-term'));
+        $t->same('Roe, Pat. Embedded Audit Leaf. Migration Reference Desk. Review Press, 2026. 9-11. Crossref: Migration Reference Desk (2026).', $processor->renderBibliographyEntry('embedded-source'));
 
         $styled = $processor->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -1057,8 +1063,8 @@ XML);
         $document = (new MarkdownReader())->read('Reference children cite @source-term and [@embedded-source] with inherited container context.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Reference children cite Ng (2026) and (Roe 2026) with inherited container context.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Import Source Term. Migration Reference Desk. Review Press, 2026. 42-43.</dd>', $blocks);
-        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Embedded Audit Leaf. Migration Reference Desk. Review Press, 2026. 9-11.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Import Source Term. Migration Reference Desk. Review Press, 2026. 42-43. Crossref: Migration Reference Desk (2026).</dd>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Roe, Pat. Embedded Audit Leaf. Migration Reference Desk. Review Press, 2026. 9-11. Crossref: Migration Reference Desk (2026).</dd>', $blocks);
     },
     'inherits bounded biblatex xdata fields and preserves reviewer metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -2161,6 +2167,124 @@ XML);
             'id' => 'bad-xref',
             'title' => 'Bad Xref',
             'xrefItems' => ['source-a'],
+        ]]));
+    },
+    'preserves bounded biblatex crossref provenance alongside inheritance' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@collection{crossref-dossier,
+  options   = {dataonly},
+  editor    = {Curator, Eli},
+  title     = {Migration Source Dossier},
+  date      = {2026},
+  publisher = {Review Press}
+}
+
+@incollection{crossref-chapter,
+  author   = {Ng, Nia},
+  title    = {Crossref Chapter Review},
+  date     = {2025},
+  pages    = {7--9},
+  crossref = {crossref-dossier}
+}
+
+@incollection{missing-crossref-chapter,
+  author   = {Roe, Pat},
+  title    = {Missing Crossref Chapter},
+  date     = {2024},
+  crossref = {missing-dossier}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('crossref-chapter', $items[0]['id']);
+        $t->same('chapter', $items[0]['type']);
+        $t->same('Migration Source Dossier', $items[0]['container-title']);
+        $t->same('Review Press', $items[0]['publisher']);
+        $t->same(['crossref-dossier'], $items[0]['crossrefKeys']);
+        $t->same('crossref-dossier', $items[0]['crossrefItems'][0]['id'] ?? null);
+        $t->same('Migration Source Dossier', $items[0]['crossrefItems'][0]['title'] ?? null);
+        $t->same(true, $items[0]['crossrefItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-dossier'], $items[1]['missingCrossrefKeys']);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $chapter = $processor->item('crossref-chapter');
+        $missing = $processor->item('missing-crossref-chapter');
+        $t->same(['crossref-dossier'], $chapter['crossrefKeys'] ?? null);
+        $t->same('Migration Source Dossier', $chapter['crossrefItems'][0]['title'] ?? null);
+        $t->same('2026', $chapter['crossrefItems'][0]['issuedDate']['display'] ?? null);
+        $t->same('Migration Source Dossier (2026)', $chapter['crossrefSummary'] ?? null);
+        $t->same('', $missing['containerTitle'] ?? null);
+        $t->same(['missing-dossier'], $missing['missingCrossrefKeys'] ?? null);
+        $t->same('missing: missing-dossier', $missing['crossrefSummary'] ?? null);
+        $t->same(
+            'Ng, Nia. Crossref Chapter Review. Migration Source Dossier. Review Press, 2025. 7-9. Crossref: Migration Source Dossier (2026).',
+            $processor->renderBibliographyEntry('crossref-chapter')
+        );
+        $t->same(
+            'Roe, Pat. Missing Crossref Chapter. 2024. Crossref: missing: missing-dossier.',
+            $processor->renderBibliographyEntry('missing-crossref-chapter')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="crossref-keys"/>
+        <text variable="crossref-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="crossref"/>
+      <text variable="missing-crossref-keys"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same(
+            '[Crossref Chapter Review | crossref-dossier | Crossref: Migration Source Dossier (2026); Missing Crossref Chapter | missing-dossier | Crossref: missing: missing-dossier]',
+            $styled->renderCitationCluster([
+                $citation('crossref-chapter', '[@crossref-chapter]'),
+                $citation('missing-crossref-chapter', '[@missing-crossref-chapter]'),
+            ])
+        );
+        $t->same('Crossref Chapter Review :: Migration Source Dossier (2026)', $styled->renderBibliographyEntry('crossref-chapter'));
+        $t->same('Missing Crossref Chapter :: missing: missing-dossier :: missing-dossier', $styled->renderBibliographyEntry('missing-crossref-chapter'));
+
+        $direct = CitationCslProcessor::fromItems([[
+            'id' => 'manual-crossref',
+            'title' => 'Manual Crossref Source',
+            'crossref-keys' => ['source-a', 'missing-source'],
+            'crossrefItems' => [
+                [
+                    'id' => 'source-a',
+                    'title' => 'Source A',
+                    'issued' => ['date-parts' => [[2024]]],
+                ],
+            ],
+            'missingCrossrefKeys' => ['missing-source'],
+        ]])->item('manual-crossref');
+        $t->same(['source-a', 'missing-source'], $direct['crossrefKeys'] ?? null);
+        $t->same('Source A', $direct['crossrefItems'][0]['title'] ?? null);
+        $t->same('2024', $direct['crossrefItems'][0]['issuedDate']['display'] ?? null);
+        $t->same(['missing-source'], $direct['missingCrossrefKeys'] ?? null);
+
+        $document = (new MarkdownReader())->read('Crossref source @crossref-chapter and @missing-crossref-chapter keep parent provenance visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Crossref source Ng (2025) and Roe (2024) keep parent provenance visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Ng, Nia. Crossref Chapter Review. Migration Source Dossier. Review Press, 2025. 7-9. Crossref: Migration Source Dossier (2026).</dd>', $blocks);
+        $t->contains('<dt>Roe 2024</dt><dd>Roe, Pat. Missing Crossref Chapter. 2024. Crossref: missing: missing-dossier.</dd>', $blocks);
+
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([[
+            'id' => 'bad-crossref',
+            'title' => 'Bad Crossref',
+            'crossrefItems' => ['source-a'],
         ]]));
     },
     'labels bounded biblatex license related entries for csl review metadata' => static function (TestRunner $t) use ($citation): void {
@@ -11034,7 +11158,7 @@ BIB;
             $processor->renderBibliographyEntry('event-proceedings')
         );
         $t->same(
-            'Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48.',
+            'Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48. Crossref: WordPress Import Conference Proceedings (2026).',
             $processor->renderBibliographyEntry('event-paper')
         );
 
@@ -11074,7 +11198,7 @@ XML);
         $document = (new MarkdownReader())->read('Event paper @event-paper and proceedings [@event-proceedings] preserve conference metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Event paper Ng (2026) and proceedings (Curator 2026) preserve conference metadata.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Event Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event addendum: Reviewer track. Event type: conference. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 44-48. Crossref: WordPress Import Conference Proceedings (2026).</dd>', $blocks);
 
         $manual = CitationCslProcessor::fromItems([[
             'id' => 'manual-event',
@@ -11126,7 +11250,7 @@ BIB;
             $citation('multi-venue-paper', '[@multi-venue-paper]'),
         ]));
         $t->same(
-            'Ng, Nia. Distributed Venue Review. Multi Venue Proceedings. Event: WordCamp Review Summit. Event places: Portland Convention Center; Remote Stream. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 60-64.',
+            'Ng, Nia. Distributed Venue Review. Multi Venue Proceedings. Event: WordCamp Review Summit. Event places: Portland Convention Center; Remote Stream. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 60-64. Crossref: Multi Venue Proceedings (2026).',
             $processor->renderBibliographyEntry('multi-venue-paper')
         );
 
@@ -11168,7 +11292,7 @@ XML);
         $document = (new MarkdownReader())->read('Venue source @multi-venue-paper and proceedings [@multi-venue-proceedings] keep distributed event places visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Venue source Ng (2026) and proceedings (Curator 2026) keep distributed event places visible.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Distributed Venue Review. Multi Venue Proceedings. Event: WordCamp Review Summit. Event places: Portland Convention Center; Remote Stream. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 60-64.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Distributed Venue Review. Multi Venue Proceedings. Event: WordCamp Review Summit. Event places: Portland Convention Center; Remote Stream. Event date 2026-06-04/2026-06-05. Migration Desk, 2026. 60-64. Crossref: Multi Venue Proceedings (2026).</dd>', $blocks);
     },
     'maps bounded biblatex event organizer metadata into csl handoff' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -11222,7 +11346,7 @@ BIB;
             $citation('organizer-webinar', '[@organizer-webinar]'),
         ]));
         $t->same(
-            'Ng, Nia. Source Packet Organizer Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 44-48.',
+            'Ng, Nia. Source Packet Organizer Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 44-48. Crossref: WordPress Import Conference Proceedings (2026).',
             $processor->renderBibliographyEntry('organized-paper')
         );
         $t->same(
@@ -11262,7 +11386,7 @@ XML);
         $document = (new MarkdownReader())->read('Organizer paper @organized-paper and webinar [@organizer-webinar] keep event review owners.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Organizer paper Ng (2026) and webinar (Smith 2025) keep event review owners.</p>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Organizer Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 44-48.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Packet Organizer Review. WordPress Import Conference Proceedings. Event: WordCamp Migration Summit. Event organizer: WordCamp Foundation; Migration Desk. Event place: Portland. Event date 2026-06-04/2026-06-05. Migration Desk Publications, 2026. 44-48. Crossref: WordPress Import Conference Proceedings (2026).</dd>', $blocks);
         $t->contains('<dt>Smith 2025</dt><dd>Smith, Ada. Remote Review Webinar. Event: Remote Import Clinic. Event organizer: Review Team; Curator, Eli. 2025. https://example.test/organizer-webinar.</dd>', $blocks);
 
         $manual = CitationCslProcessor::fromItems([[
@@ -11347,14 +11471,14 @@ XML);
             $citation('localized-event-paper', '[@localized-event-paper]'),
         ]));
         $t->same(
-            "Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d'événement: Import track. Type d'événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montréal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54.",
+            "Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d'événement: Import track. Type d'événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montréal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54. Crossref: Localized Proceedings (2026).",
             $processor->renderBibliographyEntry('localized-event-paper')
         );
 
         $document = (new MarkdownReader())->read('Localized event source @localized-event-paper keeps custom event labels visible.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Localized event source Ng (2026) keeps custom event labels visible.</p>', $blocks);
-        $t->contains("<dt>Ng 2026</dt><dd>Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d&#039;événement: Import track. Type d&#039;événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montréal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54.</dd>", $blocks);
+        $t->contains("<dt>Ng 2026</dt><dd>Ng, Nia. Localized Event Paper. Localized Proceedings. Événement: Source Review Summit. Supplément d&#039;événement: Import track. Type d&#039;événement: atelier. Organisateur: Bureau de revue; Curator, Eli. Lieu: Montréal. Dates 2026-06-04/2026-06-05. Migration Desk, 2026. 50-54. Crossref: Localized Proceedings (2026).</dd>", $blocks);
     },
     'maps bounded biblatex ids aliases into canonical csl citations' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -21553,7 +21677,7 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
         $t->contains('<p>Index-title source Smith (2026) and chapter (Ng 2026) keep generated source indexes reviewable.</p>', $blocks);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. The Source Audit Companion. Review Press, 2026. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion.</dd>', $blocks);
-        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Checklist Chapter. The Source Audit Companion. Review Press, 2026. 12-18. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion.</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Checklist Chapter. The Source Audit Companion. Review Press, 2026. 12-18. Index title: Source Audit Companion, The. Index sort title: Source Audit Companion. Crossref: The Source Audit Companion (2026).</dd>', $blocks);
     },
     'maps bounded biblatex pagination fields into csl page labels' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
