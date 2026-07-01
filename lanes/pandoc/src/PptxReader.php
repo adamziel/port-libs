@@ -155,14 +155,14 @@ final class PptxReader
             throw new \RuntimeException('PPTX presentation XML must have a presentation root');
         }
 
-        $slideIdList = $this->firstChildElement($root, 'sldIdLst');
+        $slideIdList = $this->firstPresentationChildElement($root, 'sldIdLst');
         if (!$slideIdList instanceof \DOMElement) {
             return [];
         }
 
         $slides = [];
         $index = 1;
-        foreach ($this->childElements($slideIdList, 'sldId') as $slideIdElement) {
+        foreach ($this->presentationChildElements($slideIdList, 'sldId') as $slideIdElement) {
             $relationshipId = $this->relationshipId($slideIdElement, 'id');
             if ($relationshipId === '') {
                 throw new \RuntimeException('PPTX presentation slide is missing r:id');
@@ -185,7 +185,7 @@ final class PptxReader
             throw new \RuntimeException('PPTX presentation XML must have a presentation root');
         }
 
-        $sizeElement = $this->firstChildElement($root, 'sldSz');
+        $sizeElement = $this->firstPresentationChildElement($root, 'sldSz');
         $source = 'default';
         $widthEmu = self::DEFAULT_SLIDE_WIDTH_EMU;
         $heightEmu = self::DEFAULT_SLIDE_HEIGHT_EMU;
@@ -2755,6 +2755,14 @@ final class PptxReader
     /**
      * @return list<\DOMElement>
      */
+    private function presentationChildElements(\DOMElement $parent, string $localName): array
+    {
+        return $this->namespacedChildElements($parent, $localName, self::PRESENTATION_NAMESPACE);
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
     private function drawingChildElements(\DOMElement $parent, string $localName): array
     {
         return $this->namespacedChildElements($parent, $localName, self::DRAWING_NAMESPACE);
@@ -2865,18 +2873,7 @@ final class PptxReader
 
     private function relationshipId(\DOMElement $element, string $localName): string
     {
-        $value = $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName);
-        if ($value !== '') {
-            return $value;
-        }
-
-        foreach ($element->attributes ?? [] as $attribute) {
-            if ($attribute instanceof \DOMAttr && $attribute->localName === $localName) {
-                return $attribute->value;
-            }
-        }
-
-        return '';
+        return $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName);
     }
 
     /**
