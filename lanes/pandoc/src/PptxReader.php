@@ -1683,13 +1683,15 @@ final class PptxReader
             return null;
         }
 
-        $hyperlink = null;
-        foreach ($this->childElements($runProperties, null) as $candidate) {
-            if (in_array($candidate->localName, ['hlinkClick', 'hlinkMouseOver'], true)) {
-                $hyperlink = $candidate;
-                break;
-            }
-        }
+        return $this->drawingHyperlinkAttrsFromContainer($runProperties, $relationships);
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function drawingHyperlinkAttrsFromContainer(\DOMElement $container, OpcRelationships $relationships): ?array
+    {
+        $hyperlink = $this->firstDrawingHyperlinkElement($container);
         if (!$hyperlink instanceof \DOMElement) {
             return null;
         }
@@ -1741,6 +1743,17 @@ final class PptxReader
         }
 
         return $attrs;
+    }
+
+    private function firstDrawingHyperlinkElement(\DOMElement $container): ?\DOMElement
+    {
+        foreach ($this->childElements($container, null) as $candidate) {
+            if (in_array($candidate->localName, ['hlinkClick', 'hlinkMouseOver'], true)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function paragraphLevel(\DOMElement $paragraphElement): int
@@ -1849,7 +1862,7 @@ final class PptxReader
             return null;
         }
 
-        return new AstNode('image', [
+        $image = new AstNode('image', [
             'url' => $partName,
             'src' => $partName,
             'title' => $title,
@@ -1857,6 +1870,9 @@ final class PptxReader
             'relationshipId' => $relationshipId,
             'relationshipAttribute' => $relationshipAttribute,
         ], $this->textInlines($alt));
+        $hyperlinkAttrs = $properties instanceof \DOMElement ? $this->drawingHyperlinkAttrsFromContainer($properties, $slideRelationships) : null;
+
+        return $hyperlinkAttrs !== null ? new AstNode('link', $hyperlinkAttrs, [$image]) : $image;
     }
 
     private function graphicDataElement(\DOMElement $graphicFrame): ?\DOMElement
