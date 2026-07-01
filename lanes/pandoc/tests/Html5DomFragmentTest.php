@@ -6387,6 +6387,68 @@ return [
         $t->true(!str_contains($html, 'data-pandoc-image-map-shape'), 'Expected invalid area shape to stay diagnostic-only');
         $t->true(!str_contains($html, 'data-pandoc-image-map-coords'), 'Expected invalid area coords to stay diagnostic-only');
     },
+    'converts iframe loading credentialless and csp policy into inert reviewer metadata before WordPress handoff' => static function (TestRunner $t): void {
+        $fragment = Html5DomFragment::fromHtml(
+            "<article>\n"
+            . "<iframe src=\"./frame.html\" title=\"Policy\" loading=\" Lazy \" credentialless csp=\"default-src &#039;self&#039;; img-src https: data:; report-uri https://tracker.example.test/csp\"></iframe>\n"
+            . "<iframe src=\"./bad.html\" title=\"Bad policy\" loading=\"soon\" credentialless=\"maybe\" csp=\"script-src java&#10;script:alert(1); default-src &#039;self&#039;\"></iframe>\n"
+            . "<iframe srcdoc=\"&lt;p&gt;Inline &lt;a href=&quot;./note.html&quot;&gt;note&lt;/a&gt;&lt;/p&gt;\" title=\"Inline\" loading=\"eager\" credentialless=\"credentialless\" csp=\"default-src &#039;none&#039;; frame-ancestors &#039;self&#039;\"></iframe>\n"
+            . '</article>',
+            'https://source.example.test/import/posts/post.html'
+        );
+        $summary = $fragment->summary();
+        $nodes = $fragment->nodes();
+        $html = $fragment->serialize();
+        $document = new AstNode('document', ['source' => 'html5-dom-fragment'], [
+            $fragment->toRawHtmlAst(['part' => '/migration/iframe-policy-review.html']),
+        ]);
+        $blocks = (new WordPressBlockWriter())->write($document);
+        $policyDiagnostics = array_values(array_filter(
+            $fragment->diagnostics(),
+            static function (array $diagnostic): bool {
+                $code = (string) ($diagnostic['code'] ?? '');
+                $tag = (string) ($diagnostic['tag'] ?? '');
+                $attribute = (string) ($diagnostic['attribute'] ?? '');
+
+                return $tag === 'iframe'
+                    && in_array($attribute, ['loading', 'credentialless', 'csp'], true)
+                    && in_array($code, ['iframe-policy-review', 'unsafe-attribute'], true);
+            }
+        ));
+        $articleElementChildren = array_values(array_filter(
+            $nodes[0]['children'],
+            static fn (array $node): bool => ($node['type'] ?? '') === 'element'
+        ));
+
+        $t->contains('<a href="https://source.example.test/import/posts/frame.html" data-pandoc-iframe-src="true" title="Policy" data-pandoc-iframe-loading="lazy" data-pandoc-iframe-credentialless="true" data-pandoc-iframe-csp="default-src &#039;self&#039;; img-src https: data:">Policy</a>', $html);
+        $t->contains('<a href="https://source.example.test/import/posts/bad.html" data-pandoc-iframe-src="true" title="Bad policy" data-pandoc-iframe-credentialless="true" data-pandoc-iframe-credentialless-canonical="false" data-pandoc-iframe-csp="default-src &#039;self&#039;">Bad policy</a>', $html);
+        $t->contains('<div data-pandoc-iframe-srcdoc="true" title="Inline" data-pandoc-iframe-srcdoc-base-url="https://source.example.test/import/posts/post.html" data-pandoc-iframe-loading="eager" data-pandoc-iframe-credentialless="true" data-pandoc-iframe-csp="default-src &#039;none&#039;; frame-ancestors &#039;self&#039;"><p>Inline <a href="https://source.example.test/import/posts/note.html">note</a></p></div>', $html);
+        $t->contains($html, $blocks);
+        $t->same(['a', 'article', 'div', 'p'], $summary['elementNames']);
+        $t->same(['iframe'], $summary['blockedTags']);
+        $t->same(['credentialless', 'csp', 'loading', 'srcdoc'], $summary['filteredAttributes']);
+        $t->same('/migration/iframe-policy-review.html', $document->children[0]->attr('part'));
+        $t->same(12, count($policyDiagnostics));
+        $t->same(
+            ['iframe-policy-review', 'iframe-policy-review', 'unsafe-attribute', 'iframe-policy-review', 'unsafe-attribute', 'iframe-policy-review', 'iframe-policy-review', 'unsafe-attribute', 'iframe-policy-review', 'iframe-policy-review', 'iframe-policy-review', 'iframe-policy-review'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''), $policyDiagnostics)
+        );
+        $t->same(
+            ['loading', 'credentialless', 'csp', 'csp', 'loading', 'credentialless', 'credentialless', 'csp', 'csp', 'loading', 'credentialless', 'csp'],
+            array_map(static fn (array $diagnostic): string => (string) ($diagnostic['attribute'] ?? ''), $policyDiagnostics)
+        );
+        $t->same('article', $nodes[0]['name']);
+        $t->same('a', $articleElementChildren[0]['name']);
+        $t->same('div', $articleElementChildren[2]['name']);
+        $t->same('eager', $articleElementChildren[2]['attrs']['data-pandoc-iframe-loading']);
+        $t->true(!str_contains($html, '<iframe'), 'Expected iframe elements to become inert policy review nodes');
+        $t->true(!str_contains($html, ' loading='), 'Expected live iframe loading attributes to be stripped');
+        $t->true(!str_contains($html, ' credentialless'), 'Expected live iframe credentialless attributes to be stripped');
+        $t->true(!str_contains($html, ' csp='), 'Expected live iframe CSP attributes to be stripped');
+        $t->true(!str_contains($html, 'report-uri'), 'Expected report endpoints to stay out of inert CSP metadata');
+        $t->true(!str_contains($html, 'javascript:'), 'Expected active CSP source tokens to stay diagnostic-only');
+        $t->true(!str_contains($html, 'soon'), 'Expected invalid iframe loading state to stay diagnostic-only');
+    },
     'converts base target defaults into inert browsing-context metadata' => static function (TestRunner $t): void {
         $fragment = Html5DomFragment::fromHtml(
             '<template><base target="inactive-frame"><a href="template-note.html">template note</a></template>'

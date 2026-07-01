@@ -759,15 +759,38 @@ return [
         $t->same([3, 3, 4, 2], $repairSummary['originalColumnCounts'] ?? null);
         $t->same(4, $repairSummary['repairedColumnCount'] ?? null);
         $t->same(3, $repairSummary['changedRowCount'] ?? null);
+        $t->same(1, $repairSummary['unchangedRowCount'] ?? null);
         $t->same(3, $repairSummary['paddedRowCount'] ?? null);
         $t->same(0, $repairSummary['truncatedRowCount'] ?? null);
+        $t->same(0, $repairSummary['skippedBlankRowCount'] ?? null);
+        $t->same(0, $repairSummary['trailingEmptyFieldRowCount'] ?? null);
+        $t->same('pad-to-wide-row', $repairSummary['relaxed']['policy'] ?? null);
+        $t->same(4, $repairSummary['relaxed']['columnCount'] ?? null);
+        $t->same(3, $repairSummary['relaxed']['paddedRowCount'] ?? null);
+        $t->same(0, $repairSummary['relaxed']['truncatedRowCount'] ?? null);
+        $t->same('header-row', $repairSummary['strict']['policy'] ?? null);
+        $t->same('repair-to-first-row-width', $repairSummary['strict']['projection'] ?? null);
+        $t->same(3, $repairSummary['strict']['expectedColumnCount'] ?? null);
+        $t->same(2, $repairSummary['strict']['changedRowCount'] ?? null);
+        $t->same(1, $repairSummary['strict']['paddedRowCount'] ?? null);
+        $t->same(1, $repairSummary['strict']['truncatedRowCount'] ?? null);
+        $t->same('source-row-3', $repairSummary['strict']['paddedRows'][0]['rowLabel'] ?? null);
+        $t->same([2], $repairSummary['strict']['paddedRows'][0]['generatedColumnsAdded'] ?? null);
+        $t->same('source-row-2', $repairSummary['strict']['truncatedRows'][0]['rowLabel'] ?? null);
+        $t->same(1, $repairSummary['strict']['truncatedRows'][0]['extraFieldsDropped'] ?? null);
+        $t->same([3], $repairSummary['strict']['truncatedRows'][0]['sourceColumnsDropped'] ?? null);
         $t->same('padded', $repairSummary['rows'][0]['repair'] ?? null);
         $t->same(3, $repairSummary['rows'][0]['originalColumnCount'] ?? null);
         $t->same(4, $repairSummary['rows'][0]['repairedColumnCount'] ?? null);
         $t->same(1, $repairSummary['rows'][0]['missingFieldsAdded'] ?? null);
+        $t->same([3], $repairSummary['rows'][0]['generatedColumnsAdded'] ?? null);
         $t->same('unchanged', $repairSummary['rows'][2]['repair'] ?? null);
         $t->same('padded', $repairSummary['rows'][3]['repair'] ?? null);
         $t->same(2, $repairSummary['rows'][3]['missingFieldsAdded'] ?? null);
+        $t->same([2, 3], $repairSummary['rows'][3]['generatedColumnsAdded'] ?? null);
+        $t->same('truncated', $repairSummary['strict']['rows'][2]['repair'] ?? null);
+        $t->same(4, $repairSummary['strict']['rows'][2]['originalColumnCount'] ?? null);
+        $t->same(3, $repairSummary['strict']['rows'][2]['repairedColumnCount'] ?? null);
         $t->same([
             'delimited-text-input-prefix-utf8-bom',
             'delimited-text-multiline-quoted-field',
@@ -836,12 +859,35 @@ return [
         $t->same([3, 3, 2, 3], $repairSummary['originalColumnCounts'] ?? null);
         $t->same(3, $repairSummary['repairedColumnCount'] ?? null);
         $t->same(1, $repairSummary['changedRowCount'] ?? null);
+        $t->same(3, $repairSummary['unchangedRowCount'] ?? null);
         $t->same(1, $repairSummary['paddedRowCount'] ?? null);
         $t->same(0, $repairSummary['truncatedRowCount'] ?? null);
+        $t->same(1, $repairSummary['skippedBlankRowCount'] ?? null);
+        $t->same([1], $repairSummary['blankRows'] ?? null);
+        $t->same('source-row-1', $repairSummary['skippedBlankRows'][0]['rowLabel'] ?? null);
+        $t->same('skipped', $repairSummary['skippedBlankRows'][0]['repair'] ?? null);
+        $t->same('blank-row', $repairSummary['skippedBlankRows'][0]['reason'] ?? null);
+        $t->same(3, $repairSummary['trailingEmptyFieldRowCount'] ?? null);
+        $t->same([0, 2, 4], $repairSummary['trailingEmptyFieldRows'] ?? null);
+        $t->same(['source-row-0', 'source-row-2', 'source-row-4'], array_column($repairSummary['trailingEmptyFieldRepairRows'] ?? [], 'rowLabel'));
+        $t->same('pad-to-wide-row', $repairSummary['relaxed']['policy'] ?? null);
+        $t->same(3, $repairSummary['relaxed']['columnCount'] ?? null);
+        $t->same(1, $repairSummary['relaxed']['paddedRowCount'] ?? null);
+        $t->same(0, $repairSummary['relaxed']['truncatedRowCount'] ?? null);
+        $t->same('header-row', $repairSummary['strict']['policy'] ?? null);
+        $t->same('repair-to-first-row-width', $repairSummary['strict']['projection'] ?? null);
+        $t->same(3, $repairSummary['strict']['expectedColumnCount'] ?? null);
+        $t->same(1, $repairSummary['strict']['paddedRowCount'] ?? null);
+        $t->same(0, $repairSummary['strict']['truncatedRowCount'] ?? null);
+        $t->same('source-row-3', $repairSummary['strict']['paddedRows'][0]['rowLabel'] ?? null);
         $t->same('padded', $repairSummary['paddedRows'][0]['repair'] ?? null);
         $t->same(2, $repairSummary['paddedRows'][0]['originalColumnCount'] ?? null);
         $t->same(3, $repairSummary['paddedRows'][0]['repairedColumnCount'] ?? null);
         $t->same(1, $repairSummary['paddedRows'][0]['missingFieldsAdded'] ?? null);
+        $t->same(true, $repairSummary['rows'][0]['trailingEmptyField'] ?? null);
+        $t->same(2, $repairSummary['rows'][0]['trailingEmptyFieldColumn'] ?? null);
+        $t->same(false, $repairSummary['rows'][2]['trailingEmptyField'] ?? null);
+        $t->same([2], $repairSummary['rows'][2]['generatedColumnsAdded'] ?? null);
         $t->same([
             'delimited-text-trailing-delimiter-empty-field',
             'delimited-text-blank-rows-skipped',

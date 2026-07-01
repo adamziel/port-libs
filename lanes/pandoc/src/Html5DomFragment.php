@@ -304,7 +304,7 @@ final class Html5DomFragment
             if (($diagnostic['code'] ?? '') === 'blocked-tag') {
                 $blockedTags[] = (string) ($diagnostic['tag'] ?? '');
             }
-            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'text-input-hint-review', 'writing-assistance-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'label-metadata-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
+            if (in_array(($diagnostic['code'] ?? ''), ['unsafe-attribute', 'unsafe-url', 'invalid-srcset-descriptor', 'hidden-content-review', 'inert-content-review', 'dialog-review', 'popover-review', 'editing-state-review', 'translation-state-review', 'focus-navigation-review', 'text-input-hint-review', 'writing-assistance-review', 'revision-metadata-review', 'quote-cite-review', 'language-direction-review', 'aria-metadata-review', 'custom-element-review', 'shadowroot-template-review', 'slot-review', 'figure-metadata-review', 'fieldset-review', 'label-metadata-review', 'form-metadata-review', 'button-metadata-review', 'datalist-review', 'select-metadata-review', 'value-metadata-review', 'output-metadata-review', 'math-annotation-review', 'referrer-policy-review', 'image-resource-policy-review', 'media-resource-policy-review', 'portal-source-review', 'embedded-source-review', 'object-param-review', 'iframe-policy-review', 'iframe-srcdoc-review', 'link-browsing-review'], true)) {
                 $filteredAttributes[] = (string) ($diagnostic['attribute'] ?? '');
             }
         }
@@ -3810,6 +3810,96 @@ final class Html5DomFragment
         if ($element->hasAttribute('allowfullscreen')) {
             $attrs['data-pandoc-iframe-allowfullscreen'] = 'true';
         }
+
+        if ($element->hasAttribute('loading')) {
+            $loading = self::normalizeIframeLoadingAttribute($element->getAttribute('loading'), $diagnostics, $element);
+            if ($loading !== null) {
+                $attrs['data-pandoc-iframe-loading'] = $loading;
+                self::addIframePolicyReviewDiagnostic($diagnostics, $element, 'loading', 'data-pandoc-iframe-loading', $loading);
+            }
+        }
+
+        if ($element->hasAttribute('credentialless')) {
+            $attrs['data-pandoc-iframe-credentialless'] = 'true';
+            self::addIframePolicyReviewDiagnostic($diagnostics, $element, 'credentialless', 'data-pandoc-iframe-credentialless', 'true');
+
+            $raw = self::cleanHtmlMetadataAttribute($element->getAttribute('credentialless'));
+            if ($raw !== '' && strcasecmp($raw, 'credentialless') !== 0) {
+                $attrs['data-pandoc-iframe-credentialless-canonical'] = 'false';
+                self::addIframePolicyReviewDiagnostic(
+                    $diagnostics,
+                    $element,
+                    'credentialless',
+                    'data-pandoc-iframe-credentialless-canonical',
+                    'false',
+                    'iframe-credentialless-noncanonical-boolean-value'
+                );
+            }
+        }
+
+        if ($element->hasAttribute('csp')) {
+            $csp = self::normalizeIframeCspAttribute($element->getAttribute('csp'), $diagnostics, $element);
+            if ($csp !== null) {
+                $attrs['data-pandoc-iframe-csp'] = $csp;
+                self::addIframePolicyReviewDiagnostic($diagnostics, $element, 'csp', 'data-pandoc-iframe-csp', $csp);
+            }
+        }
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeIframeLoadingAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        $loading = strtolower(self::cleanHtmlMetadataAttribute($value));
+        if (in_array($loading, ['eager', 'lazy'], true)) {
+            return $loading;
+        }
+
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'unsafe-attribute',
+            'tag' => 'iframe',
+            'attribute' => 'loading',
+            'value' => $loading,
+            'reason' => 'invalid-iframe-loading-state',
+        ], $element);
+
+        return null;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function normalizeIframeCspAttribute(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element
+    ): ?string {
+        return self::normalizeHtmlContentSecurityPolicy($value, $diagnostics, $element, 'iframe', 'csp');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private static function addIframePolicyReviewDiagnostic(
+        array &$diagnostics,
+        \DOMElement $element,
+        string $attribute,
+        string $metadataAttribute,
+        string $value,
+        string $reason = 'iframe-policy-preserved-as-review-metadata'
+    ): void {
+        $diagnostics[] = self::diagnosticWithSourceLine([
+            'code' => 'iframe-policy-review',
+            'tag' => 'iframe',
+            'attribute' => $attribute,
+            'metadataAttribute' => $metadataAttribute,
+            'value' => $value,
+            'reason' => $reason,
+        ], $element);
     }
 
     /**
@@ -5798,7 +5888,13 @@ final class Html5DomFragment
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
-    private static function normalizeHtmlContentSecurityPolicy(string $value, array &$diagnostics, \DOMElement $element): ?string
+    private static function normalizeHtmlContentSecurityPolicy(
+        string $value,
+        array &$diagnostics,
+        \DOMElement $element,
+        string $tagName = 'meta',
+        string $attributeName = 'content'
+    ): ?string
     {
         $content = self::cleanHtmlMetadataAttribute($value);
         if ($content === '') {
@@ -5816,8 +5912,8 @@ final class Html5DomFragment
             if (!self::isReviewableHtmlContentSecurityPolicyDirective($name, $sources)) {
                 $diagnostics[] = self::diagnosticWithSourceLine([
                     'code' => 'unsafe-attribute',
-                    'tag' => 'meta',
-                    'attribute' => 'content',
+                    'tag' => $tagName,
+                    'attribute' => $attributeName,
                     'directive' => $name,
                 ], $element);
                 continue;

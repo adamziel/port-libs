@@ -1439,50 +1439,128 @@ final class DelimitedTextReader
     private function rowRepairSummary(array $rows, array $widths, array $sourceRowIndexes, array $blankRows, bool $hasHeader): array
     {
         $columnCount = $widths === [] ? 0 : max($widths);
+        $strictColumnCount = $widths[0] ?? 0;
+        $strictPolicy = $hasHeader && $widths !== [] ? 'header-row' : 'first-row';
         $rowsSummary = [];
+        $strictRowsSummary = [];
         $paddedRows = [];
         $truncatedRows = [];
+        $strictPaddedRows = [];
+        $strictTruncatedRows = [];
+        $trailingEmptyFieldRows = [];
+        $trailingEmptyFieldRepairRows = [];
 
         foreach ($widths as $index => $width) {
             $sourceRow = $sourceRowIndexes[$index] ?? $index;
             $rowRole = $hasHeader && $index === 0 ? 'header' : 'body';
-            $missingFields = max(0, $columnCount - $width);
-            $extraFields = max(0, $width - $columnCount);
-            $repair = $missingFields > 0 ? 'padded' : ($extraFields > 0 ? 'truncated' : 'unchanged');
-            $rowSummary = [
-                'row' => $index,
-                'sourceRow' => $sourceRow,
-                'rowLabel' => 'source-row-' . $sourceRow,
-                'rowRole' => $rowRole,
-                'repair' => $repair,
-                'originalColumnCount' => $width,
-                'repairedColumnCount' => $columnCount,
-                'missingFieldsAdded' => $missingFields,
-                'extraFieldsDropped' => $extraFields,
-            ];
+            $sourceRowFields = $rows[$index] ?? [];
+            $rowSummary = $this->rowRepairRecord($index, $sourceRow, $rowRole, $width, $columnCount, $sourceRowFields);
             $rowsSummary[] = $rowSummary;
-            if ($repair === 'padded') {
+            if ($rowSummary['repair'] === 'padded') {
                 $paddedRows[] = $rowSummary;
             }
-            if ($repair === 'truncated') {
+            if ($rowSummary['repair'] === 'truncated') {
                 $truncatedRows[] = $rowSummary;
             }
+            if ($rowSummary['trailingEmptyField']) {
+                $trailingEmptyFieldRows[] = $sourceRow;
+                $trailingEmptyFieldRepairRows[] = $rowSummary;
+            }
+
+            $strictRowSummary = $this->rowRepairRecord($index, $sourceRow, $rowRole, $width, $strictColumnCount, $sourceRowFields);
+            $strictRowsSummary[] = $strictRowSummary;
+            if ($strictRowSummary['repair'] === 'padded') {
+                $strictPaddedRows[] = $strictRowSummary;
+            }
+            if ($strictRowSummary['repair'] === 'truncated') {
+                $strictTruncatedRows[] = $strictRowSummary;
+            }
+        }
+
+        $skippedBlankRows = [];
+        foreach ($blankRows as $sourceRow) {
+            $skippedBlankRows[] = [
+                'sourceRow' => $sourceRow,
+                'rowLabel' => 'source-row-' . $sourceRow,
+                'repair' => 'skipped',
+                'reason' => 'blank-row',
+                'repairedColumnCount' => $columnCount,
+            ];
         }
 
         return [
             'policy' => 'relaxed-pad-to-wide-row',
-            'strictPolicy' => $hasHeader && $widths !== [] ? 'header-row' : 'first-row',
+            'strictPolicy' => $strictPolicy,
             'originalColumnCounts' => $widths,
             'repairedColumnCount' => $columnCount,
+            'strictExpectedColumnCount' => $strictColumnCount,
             'sourceRowIndexes' => $sourceRowIndexes,
             'blankRowCount' => count($blankRows),
             'blankRows' => $blankRows,
+            'skippedBlankRowCount' => count($skippedBlankRows),
+            'skippedBlankRows' => $skippedBlankRows,
+            'trailingEmptyFieldRowCount' => count($trailingEmptyFieldRows),
+            'trailingEmptyFieldRows' => $trailingEmptyFieldRows,
+            'trailingEmptyFieldRepairRows' => $trailingEmptyFieldRepairRows,
             'changedRowCount' => count($paddedRows) + count($truncatedRows),
+            'unchangedRowCount' => count($rowsSummary) - count($paddedRows) - count($truncatedRows),
             'paddedRowCount' => count($paddedRows),
             'truncatedRowCount' => count($truncatedRows),
             'paddedRows' => $paddedRows,
             'truncatedRows' => $truncatedRows,
             'rows' => $rowsSummary,
+            'relaxed' => [
+                'policy' => 'pad-to-wide-row',
+                'columnCount' => $columnCount,
+                'changedRowCount' => count($paddedRows) + count($truncatedRows),
+                'unchangedRowCount' => count($rowsSummary) - count($paddedRows) - count($truncatedRows),
+                'paddedRowCount' => count($paddedRows),
+                'truncatedRowCount' => count($truncatedRows),
+                'paddedRows' => $paddedRows,
+                'truncatedRows' => $truncatedRows,
+                'rows' => $rowsSummary,
+            ],
+            'strict' => [
+                'policy' => $strictPolicy,
+                'projection' => 'repair-to-first-row-width',
+                'expectedColumnCount' => $strictColumnCount,
+                'changedRowCount' => count($strictPaddedRows) + count($strictTruncatedRows),
+                'unchangedRowCount' => count($strictRowsSummary) - count($strictPaddedRows) - count($strictTruncatedRows),
+                'paddedRowCount' => count($strictPaddedRows),
+                'truncatedRowCount' => count($strictTruncatedRows),
+                'paddedRows' => $strictPaddedRows,
+                'truncatedRows' => $strictTruncatedRows,
+                'rows' => $strictRowsSummary,
+            ],
+        ];
+    }
+
+    /**
+     * @param list<string> $sourceRowFields
+     * @return array<string, mixed>
+     */
+    private function rowRepairRecord(int $row, int $sourceRow, string $rowRole, int $originalColumnCount, int $repairedColumnCount, array $sourceRowFields): array
+    {
+        $missingFields = max(0, $repairedColumnCount - $originalColumnCount);
+        $extraFields = max(0, $originalColumnCount - $repairedColumnCount);
+        $repair = $missingFields > 0 ? 'padded' : ($extraFields > 0 ? 'truncated' : 'unchanged');
+        $trailingEmptyField = $sourceRowFields !== [] && $sourceRowFields[array_key_last($sourceRowFields)] === '';
+
+        return [
+            'row' => $row,
+            'sourceRow' => $sourceRow,
+            'rowLabel' => 'source-row-' . $sourceRow,
+            'rowRole' => $rowRole,
+            'repair' => $repair,
+            'originalColumnCount' => $originalColumnCount,
+            'repairedColumnCount' => $repairedColumnCount,
+            'missingFieldsAdded' => $missingFields,
+            'extraFieldsDropped' => $extraFields,
+            'sourceColumnsPreserved' => min($originalColumnCount, $repairedColumnCount),
+            'generatedColumnsAdded' => $missingFields === 0 ? [] : range($originalColumnCount, $repairedColumnCount - 1),
+            'sourceColumnsDropped' => $extraFields === 0 ? [] : range($repairedColumnCount, $originalColumnCount - 1),
+            'trailingEmptyField' => $trailingEmptyField,
+            'trailingEmptyFieldColumn' => $trailingEmptyField ? $originalColumnCount - 1 : null,
         ];
     }
 
