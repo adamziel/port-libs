@@ -264,6 +264,84 @@ return [
         $t->same(5, $result['importReport']['manifest']['count']);
         $t->same(0, count($result['importReport']['manifest']['missingItems']));
     },
+    'accepts office document roots in ODT package XML parts' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $contentWithDocumentRoot = <<<'XML'
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p text:style-name="BodyText">Full-root package paragraph.</text:p>
+    </office:text>
+  </office:body>
+</office:document>
+XML;
+        $stylesWithDocumentRoot = <<<'XML'
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="BodyText" style:family="paragraph" style:display-name="Body Text"/>
+  </office:styles>
+</office:document>
+XML;
+        $metaWithDocumentRoot = <<<'XML'
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:dc="http://purl.org/dc/elements/1.1/"
+  xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0">
+  <office:meta>
+    <dc:title>Full Root ODT Packet</dc:title>
+    <dc:creator>Package Desk</dc:creator>
+    <meta:keyword>full-root</meta:keyword>
+  </office:meta>
+</office:document>
+XML;
+        $settingsWithDocumentRoot = <<<'XML'
+<office:document
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:config="urn:oasis:names:tc:opendocument:xmlns:config:1.0">
+  <office:settings>
+    <config:config-item-set config:name="ooo:view-settings">
+      <config:config-item config:name="ZoomValue" config:type="int">125</config:config-item>
+    </config:config-item-set>
+  </office:settings>
+</office:document>
+XML;
+        $manifestWithSettings = str_replace(
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>',
+            '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="settings.xml" manifest:media-type="text/xml"/>',
+            $manifestXml
+        );
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithDocumentRoot,
+            $manifestWithSettings,
+            $stylesWithDocumentRoot,
+            $metaWithDocumentRoot,
+            [['name' => 'settings.xml', 'data' => $settingsWithDocumentRoot]]
+        ));
+        $paragraph = $result['document']->children[0];
+        $versionsByPart = [];
+        foreach ($result['documentPartVersions']['items'] as $item) {
+            $versionsByPart[$item['part']] = $item;
+        }
+
+        $t->same('Full-root package paragraph.', $paragraph->attr('text'));
+        $t->same('BodyText', $paragraph->attr('styleName'));
+        $t->same('paragraph', $result['styles']['BodyText']['family']);
+        $t->same('Body Text', $result['styles']['BodyText']['displayName']);
+        $t->same('Full Root ODT Packet', $result['metadata']['title']);
+        $t->same('Package Desk', $result['metadata']['creator']);
+        $t->same(['full-root'], $result['metadata']['keywords']);
+        $t->same(1, $result['settings']['count']);
+        $t->same(125, $result['settings']['setsByName']['ooo:view-settings']['itemsByName']['ZoomValue']['typedValue']);
+        $t->same('document', $versionsByPart['content.xml']['rootName']);
+        $t->same('document', $versionsByPart['styles.xml']['rootName']);
+        $t->same('document', $versionsByPart['meta.xml']['rootName']);
+        $t->same('document', $versionsByPart['settings.xml']['rootName']);
+        $t->same('settings.xml', $result['importReport']['manifest']['packageProvenance']['parts']['settings.xml']['part']);
+    },
     'reports ODT style reference diagnostics for reviewer handoff' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $contentWithPlainParagraph = <<<'XML'
 <office:document-content

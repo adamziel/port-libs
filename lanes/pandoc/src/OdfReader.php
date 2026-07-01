@@ -4208,8 +4208,8 @@ final class OdfReader
 
         $dom = self::loadXml($package->read('styles.xml'), 'ODT styles XML');
         $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || $root->localName !== 'document-styles' || $root->namespaceURI !== self::OFFICE_NS) {
-            throw new \InvalidArgumentException('ODT styles.xml must use office:document-styles as its root element');
+        if (!$root instanceof \DOMElement || !self::isOfficeDocumentPartRoot($root, 'document-styles')) {
+            throw new \InvalidArgumentException('ODT styles.xml must use office:document-styles or office:document as its root element');
         }
 
         $this->mergeStyleCollections($catalog, $this->styleCollectionsFromRoot($root, [], 'styles.xml'));
@@ -4230,8 +4230,8 @@ final class OdfReader
 
         $dom = self::loadXml($package->read('content.xml'), 'ODT content XML');
         $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || $root->localName !== 'document-content' || $root->namespaceURI !== self::OFFICE_NS) {
-            throw new \InvalidArgumentException('ODT content.xml must use office:document-content as its root element');
+        if (!$root instanceof \DOMElement || !self::isOfficeDocumentPartRoot($root, 'document-content')) {
+            throw new \InvalidArgumentException('ODT content.xml must use office:document-content or office:document as its root element');
         }
 
         $contentStyles = $this->styleCollectionsFromRoot($root, $styleCatalog['fontFaces'], 'content.xml');
@@ -4275,8 +4275,8 @@ final class OdfReader
 
         $dom = self::loadXml($package->read('meta.xml'), 'ODT meta XML');
         $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || $root->localName !== 'document-meta' || $root->namespaceURI !== self::OFFICE_NS) {
-            throw new \InvalidArgumentException('ODT meta.xml must use office:document-meta as its root element');
+        if (!$root instanceof \DOMElement || !self::isOfficeDocumentPartRoot($root, 'document-meta')) {
+            throw new \InvalidArgumentException('ODT meta.xml must use office:document-meta or office:document as its root element');
         }
 
         $metaElement = self::firstChildElement($root, 'meta', self::OFFICE_NS);
@@ -4402,8 +4402,8 @@ final class OdfReader
 
         $dom = self::loadXml($package->read('settings.xml'), 'ODT settings.xml');
         $root = $dom->documentElement;
-        if (!$root instanceof \DOMElement || $root->localName !== 'document-settings' || $root->namespaceURI !== self::OFFICE_NS) {
-            throw new \InvalidArgumentException('ODT settings.xml must use office:document-settings as its root element');
+        if (!$root instanceof \DOMElement || !self::isOfficeDocumentPartRoot($root, 'document-settings')) {
+            throw new \InvalidArgumentException('ODT settings.xml must use office:document-settings or office:document as its root element');
         }
 
         $settingsElement = self::firstChildElement($root, 'settings', self::OFFICE_NS);
@@ -18755,6 +18755,12 @@ final class OdfReader
     private function isElement(\DOMElement $element, string $namespace, string $localName): bool
     {
         return $element->namespaceURI === $namespace && $element->localName === $localName;
+    }
+
+    private static function isOfficeDocumentPartRoot(\DOMElement $root, string $specificLocalName): bool
+    {
+        return $root->namespaceURI === self::OFFICE_NS
+            && ($root->localName === $specificLocalName || $root->localName === 'document');
     }
 
     private static function loadXml(string $xml, string $label): \DOMDocument
