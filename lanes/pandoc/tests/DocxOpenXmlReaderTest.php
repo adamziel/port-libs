@@ -539,6 +539,139 @@ return [
             'word/media/review.png',
         ], array_column($sourceRecords['platformAttributeIssueEntries'], 'name'));
     },
+    'preserves docx source zip fixed-field provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $documentExtraPayload = 'docx-fixed-field-review';
+        $documentExtraField = pack('vva*', 0xcafe, strlen($documentExtraPayload), $documentExtraPayload);
+        $documentComment = 'document fixed fields';
+        $zipParts = [];
+        foreach ($parts as $name => $data) {
+            $zipPart = [
+                'name' => $name,
+                'data' => $data,
+                'compressionMethod' => $name === '[Content_Types].xml' ? 0 : 8,
+            ];
+            if ($name === 'word/document.xml') {
+                $zipPart['modifiedDosTime'] = 0x2222;
+                $zipPart['modifiedDosDate'] = 0x4444;
+                $zipPart['extraFieldData'] = $documentExtraField;
+                $zipPart['comment'] = $documentComment;
+                $zipPart['creatorHostSystem'] = 3;
+                $zipPart['externalAttributes'] = 0x81a40020;
+                $zipPart['internalAttributes'] = 0x0001;
+            }
+            $zipParts[] = $zipPart;
+        }
+
+        $zip = ZipPackage::fromParts($zipParts, 'docx fixed field review');
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $zipPackage = $package['zipPackage'];
+        $sourceRecords = $zipPackage['sourceRecords'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+        $localFixedEntries = [];
+        foreach ($sourceRecords['localHeaderFixedFieldEntries'] as $entry) {
+            $localFixedEntries[$entry['name']] = $entry;
+        }
+        $centralFixedEntries = [];
+        foreach ($sourceRecords['centralDirectoryFixedFieldEntries'] as $entry) {
+            $centralFixedEntries[$entry['name']] = $entry;
+        }
+        $documentLocalFixed = $localFixedEntries['word/document.xml'];
+        $documentCentralFixed = $centralFixedEntries['word/document.xml'];
+        $contentTypesLocalFixed = $localFixedEntries['[Content_Types].xml'];
+        $contentTypesCentralFixed = $centralFixedEntries['[Content_Types].xml'];
+        $deflatedDocument = gzdeflate($parts['word/document.xml']);
+
+        $t->true(is_string($deflatedDocument), 'fixture document XML should deflate');
+        $t->same(count($parts), $sourceRecords['localHeaderFixedFieldEntryCount']);
+        $t->same(0, $sourceRecords['localHeaderFixedFieldIssueEntryCount']);
+        $t->same([], $sourceRecords['localHeaderFixedFieldIssueEntries']);
+        $t->same(count($parts), $sourceRecords['centralDirectoryFixedFieldEntryCount']);
+        $t->same(0, $sourceRecords['centralDirectoryFixedFieldIssueEntryCount']);
+        $t->same([], $sourceRecords['centralDirectoryFixedFieldIssueEntries']);
+        $t->same(array_keys($parts), array_column($sourceRecords['localHeaderFixedFieldEntries'], 'name'));
+        $t->same(array_keys($parts), array_column($sourceRecords['centralDirectoryFixedFieldEntries'], 'name'));
+        $t->same($sourceRecords['localHeaderFixedFieldEntryCount'], $summary['zipSourceLocalHeaderFixedFieldEntryCount']);
+        $t->same($sourceRecords['localHeaderFixedFieldIssueEntryCount'], $summary['zipSourceLocalHeaderFixedFieldIssueEntryCount']);
+        $t->same($sourceRecords['localHeaderFixedFieldEntries'], $summary['zipSourceLocalHeaderFixedFieldEntries']);
+        $t->same($sourceRecords['localHeaderFixedFieldIssueEntries'], $summary['zipSourceLocalHeaderFixedFieldIssueEntries']);
+        $t->same($sourceRecords['centralDirectoryFixedFieldEntryCount'], $summary['zipSourceCentralDirectoryFixedFieldEntryCount']);
+        $t->same($sourceRecords['centralDirectoryFixedFieldIssueEntryCount'], $summary['zipSourceCentralDirectoryFixedFieldIssueEntryCount']);
+        $t->same($sourceRecords['centralDirectoryFixedFieldEntries'], $summary['zipSourceCentralDirectoryFixedFieldEntries']);
+        $t->same($sourceRecords['centralDirectoryFixedFieldIssueEntries'], $summary['zipSourceCentralDirectoryFixedFieldIssueEntries']);
+
+        $t->same($documentEntry['localHeaderOffset'], $documentLocalFixed['localFixedHeaderOffset']);
+        $t->same(30, $documentLocalFixed['localFixedHeaderLength']);
+        $t->same($documentEntry['localHeaderOffset'] + 30, $documentLocalFixed['localFixedHeaderEnd']);
+        $t->same(4, $documentLocalFixed['localSignatureLength']);
+        $t->same($documentEntry['localHeaderOffset'] + 14, $documentLocalFixed['localCrc32Offset']);
+        $t->same(20, $documentLocalFixed['centralVersionNeededToExtract']);
+        $t->same(20, $documentLocalFixed['localVersionNeededToExtract']);
+        $t->same(0x0800, $documentLocalFixed['centralGeneralPurposeFlags']);
+        $t->same(0x0800, $documentLocalFixed['localGeneralPurposeFlags']);
+        $t->same(8, $documentLocalFixed['centralCompressionMethod']);
+        $t->same(8, $documentLocalFixed['localCompressionMethod']);
+        $t->same(0x2222, $documentLocalFixed['centralModifiedDosTime']);
+        $t->same(0x2222, $documentLocalFixed['localModifiedDosTime']);
+        $t->same(0x4444, $documentLocalFixed['centralModifiedDosDate']);
+        $t->same(0x4444, $documentLocalFixed['localModifiedDosDate']);
+        $t->same(sprintf('%08x', crc32($parts['word/document.xml'])), $documentLocalFixed['centralCrc32Hex']);
+        $t->same($documentLocalFixed['centralCrc32Hex'], $documentLocalFixed['localFixedHeaderCrc32Hex']);
+        $t->same(strlen($deflatedDocument), $documentLocalFixed['centralCompressedSize']);
+        $t->same(strlen($deflatedDocument), $documentLocalFixed['localFixedHeaderCompressedSize']);
+        $t->same(strlen($parts['word/document.xml']), $documentLocalFixed['centralUncompressedSize']);
+        $t->same(strlen($parts['word/document.xml']), $documentLocalFixed['localFixedHeaderUncompressedSize']);
+        $t->same(strlen('word/document.xml'), $documentLocalFixed['localFixedHeaderNameLength']);
+        $t->same(strlen($documentExtraField), $documentLocalFixed['localFixedHeaderExtraFieldLength']);
+        $t->same(null, $documentLocalFixed['localFixedHeaderHasZeroDataDescriptorPlaceholders']);
+        $t->same(true, $documentLocalFixed['localHeaderFixedFieldsMatchCentralDirectory']);
+        $t->same([], $documentLocalFixed['localHeaderFixedFieldIssues']);
+
+        $t->same($documentEntry['centralDirectoryRecordOffset'], $documentCentralFixed['centralDirectoryFixedHeaderOffset']);
+        $t->same(46, $documentCentralFixed['centralDirectoryFixedHeaderLength']);
+        $t->same($documentEntry['centralDirectoryRecordOffset'] + 46, $documentCentralFixed['centralDirectoryFixedHeaderEnd']);
+        $t->same(4, $documentCentralFixed['centralDirectorySignatureLength']);
+        $t->same(0x0314, $documentCentralFixed['centralDirectoryVersionMadeBy']);
+        $t->same(3, $documentCentralFixed['centralDirectoryCreatorHostSystem']);
+        $t->same(20, $documentCentralFixed['centralDirectoryCreatorVersion']);
+        $t->same(20, $documentCentralFixed['centralDirectoryVersionNeededToExtract']);
+        $t->same(0x0800, $documentCentralFixed['centralDirectoryGeneralPurposeFlags']);
+        $t->same(8, $documentCentralFixed['centralDirectoryCompressionMethod']);
+        $t->same($documentLocalFixed['centralCrc32Hex'], $documentCentralFixed['centralDirectoryCrc32Hex']);
+        $t->same(strlen($deflatedDocument), $documentCentralFixed['centralDirectoryCompressedSize']);
+        $t->same(strlen($parts['word/document.xml']), $documentCentralFixed['centralDirectoryUncompressedSize']);
+        $t->same(strlen('word/document.xml'), $documentCentralFixed['centralDirectoryRawNameLength']);
+        $t->same(strlen($documentExtraField), $documentCentralFixed['centralDirectoryExtraFieldLength']);
+        $t->same(strlen($documentComment), $documentCentralFixed['centralDirectoryRawCommentLength']);
+        $t->same(0, $documentCentralFixed['centralDirectoryDiskStart']);
+        $t->same(0x0001, $documentCentralFixed['centralDirectoryInternalAttributes']);
+        $t->same(0x81a40020, $documentCentralFixed['centralDirectoryExternalAttributes']);
+        $t->same($documentEntry['localHeaderOffset'], $documentCentralFixed['centralDirectoryLocalHeaderOffset']);
+        $t->same(true, $documentCentralFixed['centralDirectoryFixedFieldsMatchEntryMetadata']);
+        $t->same([], $documentCentralFixed['centralDirectoryFixedFieldIssues']);
+
+        $t->same($documentLocalFixed['localFixedHeaderOffset'], $documentEntry['localFixedHeaderOffset']);
+        $t->same($documentLocalFixed['localCompressionMethod'], $documentEntry['localCompressionMethod']);
+        $t->same($documentLocalFixed['localFixedHeaderExtraFieldLength'], $documentEntry['localFixedHeaderExtraFieldLength']);
+        $t->same($documentLocalFixed['localHeaderFixedFieldsMatchCentralDirectory'], $documentEntry['localHeaderFixedFieldsMatchCentralDirectory']);
+        $t->same(0, $documentEntry['localHeaderFixedFieldIssueCount']);
+        $t->same($documentCentralFixed['centralDirectoryVersionMadeBy'], $documentEntry['centralDirectoryVersionMadeBy']);
+        $t->same($documentCentralFixed['centralDirectoryExternalAttributes'], $documentEntry['centralDirectoryExternalAttributes']);
+        $t->same($documentCentralFixed['centralDirectoryFixedFieldsMatchEntryMetadata'], $documentEntry['centralDirectoryFixedFieldsMatchEntryMetadata']);
+        $t->same(0, $documentEntry['centralDirectoryFixedFieldIssueCount']);
+
+        $t->same(0, $contentTypesLocalFixed['localCompressionMethod']);
+        $t->same(strlen($parts['[Content_Types].xml']), $contentTypesLocalFixed['localFixedHeaderCompressedSize']);
+        $t->same(strlen($parts['[Content_Types].xml']), $contentTypesLocalFixed['localFixedHeaderUncompressedSize']);
+        $t->same(0, $contentTypesCentralFixed['centralDirectoryCompressionMethod']);
+        $t->same(strlen($parts['[Content_Types].xml']), $contentTypesCentralFixed['centralDirectoryCompressedSize']);
+        $t->same(strlen($parts['[Content_Types].xml']), $contentTypesCentralFixed['centralDirectoryUncompressedSize']);
+        $t->same($contentTypesLocalFixed['localCompressionMethod'], $contentTypesEntry['localCompressionMethod']);
+        $t->same($contentTypesCentralFixed['centralDirectoryCompressionMethod'], $contentTypesEntry['centralDirectoryCompressionMethod']);
+    },
     'preserves docx source zip extra-field provenance across package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customExtraPayload = 'docx-extra-field-review';

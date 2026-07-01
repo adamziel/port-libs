@@ -11297,6 +11297,22 @@ final class DocxOpenXmlReader
         $summary['zipSourcePlatformAttributeIssueEntries'] = is_array($zipSourceRecords['platformAttributeIssueEntries'] ?? null)
             ? $zipSourceRecords['platformAttributeIssueEntries']
             : [];
+        $summary['zipSourceLocalHeaderFixedFieldEntryCount'] = (int) ($zipSourceRecords['localHeaderFixedFieldEntryCount'] ?? 0);
+        $summary['zipSourceLocalHeaderFixedFieldIssueEntryCount'] = (int) ($zipSourceRecords['localHeaderFixedFieldIssueEntryCount'] ?? 0);
+        $summary['zipSourceLocalHeaderFixedFieldEntries'] = is_array($zipSourceRecords['localHeaderFixedFieldEntries'] ?? null)
+            ? $zipSourceRecords['localHeaderFixedFieldEntries']
+            : [];
+        $summary['zipSourceLocalHeaderFixedFieldIssueEntries'] = is_array($zipSourceRecords['localHeaderFixedFieldIssueEntries'] ?? null)
+            ? $zipSourceRecords['localHeaderFixedFieldIssueEntries']
+            : [];
+        $summary['zipSourceCentralDirectoryFixedFieldEntryCount'] = (int) ($zipSourceRecords['centralDirectoryFixedFieldEntryCount'] ?? 0);
+        $summary['zipSourceCentralDirectoryFixedFieldIssueEntryCount'] = (int) ($zipSourceRecords['centralDirectoryFixedFieldIssueEntryCount'] ?? 0);
+        $summary['zipSourceCentralDirectoryFixedFieldEntries'] = is_array($zipSourceRecords['centralDirectoryFixedFieldEntries'] ?? null)
+            ? $zipSourceRecords['centralDirectoryFixedFieldEntries']
+            : [];
+        $summary['zipSourceCentralDirectoryFixedFieldIssueEntries'] = is_array($zipSourceRecords['centralDirectoryFixedFieldIssueEntries'] ?? null)
+            ? $zipSourceRecords['centralDirectoryFixedFieldIssueEntries']
+            : [];
         $summary['zipSourceTotalRecordBytes'] = (int) ($zipSourceRecords['totalRecordBytes'] ?? 0);
         $zipExtraFields = is_array($zipPackage['extraFields'] ?? null)
             ? $zipPackage['extraFields']
@@ -11673,6 +11689,14 @@ final class DocxOpenXmlReader
             'platformAttributeIssues' => [],
             'platformAttributeProvenanceEntries' => [],
             'platformAttributeIssueEntries' => [],
+            'localHeaderFixedFieldEntryCount' => 0,
+            'localHeaderFixedFieldIssueEntryCount' => 0,
+            'localHeaderFixedFieldEntries' => [],
+            'localHeaderFixedFieldIssueEntries' => [],
+            'centralDirectoryFixedFieldEntryCount' => 0,
+            'centralDirectoryFixedFieldIssueEntryCount' => 0,
+            'centralDirectoryFixedFieldEntries' => [],
+            'centralDirectoryFixedFieldIssueEntries' => [],
             'totalRecordBytes' => 0,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
@@ -11713,6 +11737,18 @@ final class DocxOpenXmlReader
                 $platformAttributeEntriesByName[$platformAttributeEntry['name']] = $platformAttributeEntry;
             }
         }
+        $localHeaderFixedFieldEntriesByName = [];
+        foreach (($preflight['selectedLocalHeaderFixedFieldEntries'] ?? []) as $localHeaderFixedFieldEntry) {
+            if (is_array($localHeaderFixedFieldEntry) && is_string($localHeaderFixedFieldEntry['name'] ?? null)) {
+                $localHeaderFixedFieldEntriesByName[$localHeaderFixedFieldEntry['name']] = $localHeaderFixedFieldEntry;
+            }
+        }
+        $centralDirectoryFixedFieldEntriesByName = [];
+        foreach (($preflight['selectedCentralDirectoryFixedFieldEntries'] ?? []) as $centralDirectoryFixedFieldEntry) {
+            if (is_array($centralDirectoryFixedFieldEntry) && is_string($centralDirectoryFixedFieldEntry['name'] ?? null)) {
+                $centralDirectoryFixedFieldEntriesByName[$centralDirectoryFixedFieldEntry['name']] = $centralDirectoryFixedFieldEntry;
+            }
+        }
         $entries = [];
         $byPackagePath = [];
         foreach ($sourceEntries as $entry) {
@@ -11725,7 +11761,10 @@ final class DocxOpenXmlReader
                 'partName' => $entry['name'],
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
-            ] + $entry + ($platformAttributeEntriesByName[$entry['name']] ?? []);
+            ] + $entry
+                + ($platformAttributeEntriesByName[$entry['name']] ?? [])
+                + ($localHeaderFixedFieldEntriesByName[$entry['name']] ?? [])
+                + ($centralDirectoryFixedFieldEntriesByName[$entry['name']] ?? []);
             $entries[] = $sourceEntry;
             $byPackagePath[$entry['name']] = $sourceEntry;
         }
@@ -11775,6 +11814,22 @@ final class DocxOpenXmlReader
                 : [],
             'platformAttributeIssueEntries' => is_array($preflight['selectedPlatformAttributeIssueEntries'] ?? null)
                 ? $preflight['selectedPlatformAttributeIssueEntries']
+                : [],
+            'localHeaderFixedFieldEntryCount' => (int) ($preflight['selectedLocalHeaderFixedFieldEntryCount'] ?? 0),
+            'localHeaderFixedFieldIssueEntryCount' => (int) ($preflight['selectedLocalHeaderFixedFieldIssueEntryCount'] ?? 0),
+            'localHeaderFixedFieldEntries' => is_array($preflight['selectedLocalHeaderFixedFieldEntries'] ?? null)
+                ? $preflight['selectedLocalHeaderFixedFieldEntries']
+                : [],
+            'localHeaderFixedFieldIssueEntries' => is_array($preflight['selectedLocalHeaderFixedFieldIssueEntries'] ?? null)
+                ? $preflight['selectedLocalHeaderFixedFieldIssueEntries']
+                : [],
+            'centralDirectoryFixedFieldEntryCount' => (int) ($preflight['selectedCentralDirectoryFixedFieldEntryCount'] ?? 0),
+            'centralDirectoryFixedFieldIssueEntryCount' => (int) ($preflight['selectedCentralDirectoryFixedFieldIssueEntryCount'] ?? 0),
+            'centralDirectoryFixedFieldEntries' => is_array($preflight['selectedCentralDirectoryFixedFieldEntries'] ?? null)
+                ? $preflight['selectedCentralDirectoryFixedFieldEntries']
+                : [],
+            'centralDirectoryFixedFieldIssueEntries' => is_array($preflight['selectedCentralDirectoryFixedFieldIssueEntries'] ?? null)
+                ? $preflight['selectedCentralDirectoryFixedFieldIssueEntries']
                 : [],
             'totalRecordBytes' => (int) ($preflight['selectedSourceTotalRecordBytes'] ?? 0),
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
@@ -12116,6 +12171,88 @@ final class DocxOpenXmlReader
             'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'] ?? null,
             'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'] ?? null,
             'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'] ?? null,
+            'localFixedHeaderOffset' => $entry['localFixedHeaderOffset'] ?? null,
+            'localFixedHeaderLength' => $entry['localFixedHeaderLength'] ?? null,
+            'localFixedHeaderEnd' => $entry['localFixedHeaderEnd'] ?? null,
+            'localSignatureOffset' => $entry['localSignatureOffset'] ?? null,
+            'localSignatureLength' => $entry['localSignatureLength'] ?? null,
+            'localVersionNeededToExtractOffset' => $entry['localVersionNeededToExtractOffset'] ?? null,
+            'localGeneralPurposeFlagsOffset' => $entry['localGeneralPurposeFlagsOffset'] ?? null,
+            'localCompressionMethodOffset' => $entry['localCompressionMethodOffset'] ?? null,
+            'localModifiedDosTimeOffset' => $entry['localModifiedDosTimeOffset'] ?? null,
+            'localModifiedDosDateOffset' => $entry['localModifiedDosDateOffset'] ?? null,
+            'localCrc32Offset' => $entry['localCrc32Offset'] ?? null,
+            'localCompressedSizeOffset' => $entry['localCompressedSizeOffset'] ?? null,
+            'localUncompressedSizeOffset' => $entry['localUncompressedSizeOffset'] ?? null,
+            'localNameLengthOffset' => $entry['localNameLengthOffset'] ?? null,
+            'localExtraFieldLengthOffset' => $entry['localExtraFieldLengthOffset'] ?? null,
+            'centralVersionNeededToExtract' => $entry['centralVersionNeededToExtract'] ?? null,
+            'localVersionNeededToExtract' => $entry['localVersionNeededToExtract'] ?? null,
+            'centralGeneralPurposeFlags' => $entry['centralGeneralPurposeFlags'] ?? null,
+            'localGeneralPurposeFlags' => $entry['localGeneralPurposeFlags'] ?? null,
+            'centralCompressionMethod' => $entry['centralCompressionMethod'] ?? null,
+            'localCompressionMethod' => $entry['localCompressionMethod'] ?? null,
+            'centralModifiedDosTime' => $entry['centralModifiedDosTime'] ?? null,
+            'localModifiedDosTime' => $entry['localModifiedDosTime'] ?? null,
+            'centralModifiedDosDate' => $entry['centralModifiedDosDate'] ?? null,
+            'localModifiedDosDate' => $entry['localModifiedDosDate'] ?? null,
+            'centralCrc32' => $entry['centralCrc32'] ?? null,
+            'centralCrc32Hex' => $entry['centralCrc32Hex'] ?? null,
+            'localFixedHeaderCrc32' => $entry['localFixedHeaderCrc32'] ?? null,
+            'localFixedHeaderCrc32Hex' => $entry['localFixedHeaderCrc32Hex'] ?? null,
+            'centralCompressedSize' => $entry['centralCompressedSize'] ?? null,
+            'localFixedHeaderCompressedSize' => $entry['localFixedHeaderCompressedSize'] ?? null,
+            'centralUncompressedSize' => $entry['centralUncompressedSize'] ?? null,
+            'localFixedHeaderUncompressedSize' => $entry['localFixedHeaderUncompressedSize'] ?? null,
+            'localFixedHeaderNameLength' => $entry['localFixedHeaderNameLength'] ?? null,
+            'localFixedHeaderExtraFieldLength' => $entry['localFixedHeaderExtraFieldLength'] ?? null,
+            'localFixedHeaderHasZeroDataDescriptorPlaceholders' => $entry['localFixedHeaderHasZeroDataDescriptorPlaceholders'] ?? null,
+            'localHeaderFixedFieldsMatchCentralDirectory' => $entry['localHeaderFixedFieldsMatchCentralDirectory'] ?? null,
+            'localHeaderFixedFieldIssueCount' => is_array($entry['localHeaderFixedFieldIssues'] ?? null) ? count($entry['localHeaderFixedFieldIssues']) : 0,
+            'localHeaderFixedFieldIssues' => is_array($entry['localHeaderFixedFieldIssues'] ?? null) ? $entry['localHeaderFixedFieldIssues'] : [],
+            'centralDirectoryFixedHeaderOffset' => $entry['centralDirectoryFixedHeaderOffset'] ?? null,
+            'centralDirectoryFixedHeaderLength' => $entry['centralDirectoryFixedHeaderLength'] ?? null,
+            'centralDirectoryFixedHeaderEnd' => $entry['centralDirectoryFixedHeaderEnd'] ?? null,
+            'centralDirectorySignatureOffset' => $entry['centralDirectorySignatureOffset'] ?? null,
+            'centralDirectorySignatureLength' => $entry['centralDirectorySignatureLength'] ?? null,
+            'centralDirectoryVersionMadeByOffset' => $entry['centralDirectoryVersionMadeByOffset'] ?? null,
+            'centralDirectoryVersionNeededToExtractOffset' => $entry['centralDirectoryVersionNeededToExtractOffset'] ?? null,
+            'centralDirectoryGeneralPurposeFlagsOffset' => $entry['centralDirectoryGeneralPurposeFlagsOffset'] ?? null,
+            'centralDirectoryCompressionMethodOffset' => $entry['centralDirectoryCompressionMethodOffset'] ?? null,
+            'centralDirectoryModifiedDosTimeOffset' => $entry['centralDirectoryModifiedDosTimeOffset'] ?? null,
+            'centralDirectoryModifiedDosDateOffset' => $entry['centralDirectoryModifiedDosDateOffset'] ?? null,
+            'centralDirectoryCrc32Offset' => $entry['centralDirectoryCrc32Offset'] ?? null,
+            'centralDirectoryCompressedSizeOffset' => $entry['centralDirectoryCompressedSizeOffset'] ?? null,
+            'centralDirectoryUncompressedSizeOffset' => $entry['centralDirectoryUncompressedSizeOffset'] ?? null,
+            'centralDirectoryNameLengthOffset' => $entry['centralDirectoryNameLengthOffset'] ?? null,
+            'centralDirectoryExtraFieldLengthOffset' => $entry['centralDirectoryExtraFieldLengthOffset'] ?? null,
+            'centralDirectoryCommentLengthOffset' => $entry['centralDirectoryCommentLengthOffset'] ?? null,
+            'centralDirectoryDiskStartOffset' => $entry['centralDirectoryDiskStartOffset'] ?? null,
+            'centralDirectoryInternalAttributesOffset' => $entry['centralDirectoryInternalAttributesOffset'] ?? null,
+            'centralDirectoryExternalAttributesOffset' => $entry['centralDirectoryExternalAttributesOffset'] ?? null,
+            'centralDirectoryLocalHeaderOffsetFieldOffset' => $entry['centralDirectoryLocalHeaderOffsetFieldOffset'] ?? null,
+            'centralDirectoryVersionMadeBy' => $entry['centralDirectoryVersionMadeBy'] ?? null,
+            'centralDirectoryCreatorHostSystem' => $entry['centralDirectoryCreatorHostSystem'] ?? null,
+            'centralDirectoryCreatorVersion' => $entry['centralDirectoryCreatorVersion'] ?? null,
+            'centralDirectoryVersionNeededToExtract' => $entry['centralDirectoryVersionNeededToExtract'] ?? null,
+            'centralDirectoryGeneralPurposeFlags' => $entry['centralDirectoryGeneralPurposeFlags'] ?? null,
+            'centralDirectoryCompressionMethod' => $entry['centralDirectoryCompressionMethod'] ?? null,
+            'centralDirectoryModifiedDosTime' => $entry['centralDirectoryModifiedDosTime'] ?? null,
+            'centralDirectoryModifiedDosDate' => $entry['centralDirectoryModifiedDosDate'] ?? null,
+            'centralDirectoryCrc32' => $entry['centralDirectoryCrc32'] ?? null,
+            'centralDirectoryCrc32Hex' => $entry['centralDirectoryCrc32Hex'] ?? null,
+            'centralDirectoryCompressedSize' => $entry['centralDirectoryCompressedSize'] ?? null,
+            'centralDirectoryUncompressedSize' => $entry['centralDirectoryUncompressedSize'] ?? null,
+            'centralDirectoryRawNameLength' => $entry['centralDirectoryRawNameLength'] ?? null,
+            'centralDirectoryExtraFieldLength' => $entry['centralDirectoryExtraFieldLength'] ?? null,
+            'centralDirectoryRawCommentLength' => $entry['centralDirectoryRawCommentLength'] ?? null,
+            'centralDirectoryDiskStart' => $entry['centralDirectoryDiskStart'] ?? null,
+            'centralDirectoryInternalAttributes' => $entry['centralDirectoryInternalAttributes'] ?? null,
+            'centralDirectoryExternalAttributes' => $entry['centralDirectoryExternalAttributes'] ?? null,
+            'centralDirectoryLocalHeaderOffset' => $entry['centralDirectoryLocalHeaderOffset'] ?? null,
+            'centralDirectoryFixedFieldsMatchEntryMetadata' => $entry['centralDirectoryFixedFieldsMatchEntryMetadata'] ?? null,
+            'centralDirectoryFixedFieldIssueCount' => is_array($entry['centralDirectoryFixedFieldIssues'] ?? null) ? count($entry['centralDirectoryFixedFieldIssues']) : 0,
+            'centralDirectoryFixedFieldIssues' => is_array($entry['centralDirectoryFixedFieldIssues'] ?? null) ? $entry['centralDirectoryFixedFieldIssues'] : [],
             'madeByHostSystem' => $entry['madeByHostSystem'] ?? null,
             'madeByHostSystemName' => $entry['madeByHostSystemName'] ?? null,
             'madeByVersion' => $entry['madeByVersion'] ?? null,
