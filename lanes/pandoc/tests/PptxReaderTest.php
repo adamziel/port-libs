@@ -147,6 +147,7 @@ XML);
     <p:spTree>
     <p:sp>
       <p:nvSpPr><p:cNvPr id="1" name="Layout body"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="7"/></p:nvPr></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="1219200" y="1524000"/><a:ext cx="9144000" cy="3657600"/></a:xfrm></p:spPr>
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Inherited Layout Body</a:t></a:r></a:p></p:txBody>
     </p:sp>
   </p:spTree></p:cSld>
@@ -168,6 +169,7 @@ XML);
     <p:spTree>
     <p:sp>
       <p:nvSpPr><p:cNvPr id="1" name="Master footer"/><p:cNvSpPr/><p:nvPr><p:ph type="ftr" idx="8"/></p:nvPr></p:nvSpPr>
+      <p:spPr><a:xfrm><a:off x="457200" y="6400800"/><a:ext cx="11277600" cy="274320"/></a:xfrm></p:spPr>
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Inherited Master Footer</a:t></a:r></a:p></p:txBody>
     </p:sp>
   </p:spTree></p:cSld>
@@ -595,14 +597,46 @@ return [
             'sourcePart' => 'ppt/slideLayouts/slideLayout1.xml',
             'lookupKey' => 'type:body;idx:7',
             'lookupKeys' => ['type:body;idx:7', 'idx:7', 'type:body'],
+            'sourceShape' => [
+                'element' => 'sp',
+                'zOrder' => 1,
+                'id' => '1',
+                'name' => 'Layout body',
+                'placeholderType' => 'body',
+                'placeholderIndex' => '7',
+                'layout' => [
+                    'x' => 1219200,
+                    'y' => 1524000,
+                    'cx' => 9144000,
+                    'cy' => 3657600,
+                ],
+            ],
         ], $layoutInheritedParagraphs[0]->attr('pptxPlaceholderInheritance'));
+        $t->same('Inherited body', $layoutInheritedParagraphs[0]->attr('pptxShape')['name'] ?? null);
+        $t->same('body', $layoutInheritedParagraphs[0]->attr('pptxShape')['placeholderType'] ?? null);
         $t->same(1, count($masterInheritedParagraphs));
         $t->same([
             'source' => 'master',
             'sourcePart' => 'ppt/slideMasters/slideMaster1.xml',
             'lookupKey' => 'type:ftr;idx:8',
             'lookupKeys' => ['type:ftr;idx:8', 'idx:8', 'type:ftr'],
+            'sourceShape' => [
+                'element' => 'sp',
+                'zOrder' => 1,
+                'id' => '1',
+                'name' => 'Master footer',
+                'placeholderType' => 'ftr',
+                'placeholderIndex' => '8',
+                'layout' => [
+                    'x' => 457200,
+                    'y' => 6400800,
+                    'cx' => 11277600,
+                    'cy' => 274320,
+                ],
+            ],
         ], $masterInheritedParagraphs[0]->attr('pptxPlaceholderInheritance'));
+        $t->same('Inherited footer', $masterInheritedParagraphs[0]->attr('pptxShape')['name'] ?? null);
+        $t->same('ftr', $masterInheritedParagraphs[0]->attr('pptxShape')['placeholderType'] ?? null);
         $t->same(1, $review['slides'][2]['chartCount'] ?? null);
         $t->same('ppt/charts/chart1.xml', $review['slides'][2]['charts'][0]['partName'] ?? null);
         $t->same('ppt/tableStyles.xml', $review['tableStyles']['partName'] ?? null);

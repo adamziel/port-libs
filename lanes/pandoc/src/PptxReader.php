@@ -1080,7 +1080,7 @@ final class PptxReader
     }
 
     /**
-     * @return array<string, list<AstNode>>
+     * @return array<string, array{blocks:list<AstNode>, sourceShape:array<string, mixed>}>
      */
     private function placeholderBlocksByKey(\DOMElement $root): array
     {
@@ -1090,7 +1090,9 @@ final class PptxReader
         }
 
         $placeholders = [];
+        $zOrder = 0;
         foreach ($this->childElements($spTree, 'sp') as $shapeElement) {
+            $zOrder++;
             $keys = $this->placeholderLookupKeys($shapeElement);
             if ($keys === []) {
                 continue;
@@ -1107,8 +1109,12 @@ final class PptxReader
             if ($blocks === []) {
                 continue;
             }
+            $record = [
+                'blocks' => $blocks,
+                'sourceShape' => $this->shapeMetadata($shapeElement, $zOrder),
+            ];
             foreach ($keys as $key) {
-                $placeholders[$key] ??= $blocks;
+                $placeholders[$key] ??= $record;
             }
         }
 
@@ -1134,13 +1140,16 @@ final class PptxReader
                 continue;
             }
             foreach ($keys as $key) {
-                $blocks = $placeholders[$key] ?? null;
-                if (is_array($blocks) && $blocks !== []) {
+                $record = $placeholders[$key] ?? null;
+                $blocks = is_array($record) && is_array($record['blocks'] ?? null) ? $record['blocks'] : [];
+                if ($blocks !== []) {
+                    $sourceShape = is_array($record['sourceShape'] ?? null) ? $record['sourceShape'] : [];
                     return $this->withInheritedPlaceholderMetadata($blocks, [
                         'source' => $source['source'],
                         'sourcePart' => (string) ($slideContext[$source['sourcePartKey']] ?? ''),
                         'lookupKey' => $key,
                         'lookupKeys' => $keys,
+                        'sourceShape' => $sourceShape,
                     ]);
                 }
             }
