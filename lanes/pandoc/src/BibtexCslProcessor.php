@@ -1192,12 +1192,22 @@ final class BibtexCslProcessor
             $item['available-date'] = $availableDate;
         }
 
-        $acceptedDate = $this->dateVariableFromFields($fields, ['accepteddate', 'accepted-date', 'dateaccepted', 'date-accepted'], ['acceptedyear', 'acceptedmonth', 'acceptedday']);
+        $acceptedDate = $this->dateVariableFromFields(
+            $fields,
+            ['accepteddate', 'accepted-date', 'dateaccepted', 'date-accepted'],
+            [['acceptedyear', 'accepted-year'], ['acceptedmonth', 'accepted-month'], ['acceptedday', 'accepted-day']],
+            [['acceptedendyear', 'accepted-end-year'], ['acceptedendmonth', 'accepted-end-month'], ['acceptedendday', 'accepted-end-day']]
+        );
         if ($acceptedDate !== null) {
             $item['accepted-date'] = $acceptedDate;
         }
 
-        $revisedDate = $this->dateVariableFromFields($fields, ['reviseddate', 'revised-date', 'revisiondate', 'revision-date', 'daterevised', 'date-revised', 'revdate'], ['revisedyear', 'revisedmonth', 'revisedday']);
+        $revisedDate = $this->dateVariableFromFields(
+            $fields,
+            ['reviseddate', 'revised-date', 'revisiondate', 'revision-date', 'daterevised', 'date-revised', 'revdate'],
+            [['revisedyear', 'revised-year'], ['revisedmonth', 'revised-month'], ['revisedday', 'revised-day']],
+            [['revisedendyear', 'revised-end-year'], ['revisedendmonth', 'revised-end-month'], ['revisedendday', 'revised-end-day']]
+        );
         if ($revisedDate !== null) {
             $item['revised-date'] = $revisedDate;
         }
