@@ -329,15 +329,37 @@ XML);
         <c:axId val="10"/><c:axId val="20"/>
       </c:lineChart>
       <c:catAx>
-        <c:axId val="10"/><c:axPos val="b"/>
+        <c:axId val="10"/>
+        <c:scaling><c:orientation val="minMax"/></c:scaling>
+        <c:delete val="0"/>
+        <c:axPos val="b"/>
         <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Quarter</a:t></a:r></a:p></c:rich></c:tx></c:title>
+        <c:numFmt formatCode="General" sourceLinked="1"/>
+        <c:majorTickMark val="out"/>
+        <c:minorTickMark val="none"/>
+        <c:tickLblPos val="nextTo"/>
         <c:crossAx val="20"/>
+        <c:crosses val="autoZero"/>
+        <c:auto val="1"/>
+        <c:lblAlgn val="ctr"/>
+        <c:lblOffset val="100"/>
+        <c:noMultiLvlLbl val="0"/>
       </c:catAx>
       <c:valAx>
-        <c:axId val="20"/><c:axPos val="l"/>
+        <c:axId val="20"/>
+        <c:scaling><c:orientation val="minMax"/><c:min val="0"/><c:max val="20"/></c:scaling>
+        <c:axPos val="l"/>
+        <c:majorGridlines><c:spPr><a:ln w="12700"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:prstDash val="dash"/></a:ln></c:spPr></c:majorGridlines>
         <c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Revenue</a:t></a:r></a:p></c:rich></c:tx></c:title>
         <c:numFmt formatCode="$#,##0" sourceLinked="0"/>
+        <c:majorTickMark val="cross"/>
+        <c:minorTickMark val="in"/>
+        <c:tickLblPos val="low"/>
         <c:crossAx val="10"/>
+        <c:crossBetween val="between"/>
+        <c:crossesAt val="0"/>
+        <c:majorUnit val="5"/>
+        <c:minorUnit val="1"/>
       </c:valAx>
     </c:plotArea>
     <c:legend><c:legendPos val="r"/><c:overlay val="0"/><c:layout><c:manualLayout><c:x val="0.82"/><c:y val="0.18"/><c:w val="0.16"/><c:h val="0.22"/></c:manualLayout></c:layout></c:legend>
@@ -930,10 +952,46 @@ return [
         $t->same('r', $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['position'] ?? null);
         $t->same(false, $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['showValue'] ?? null);
         $t->same(true, $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['showCategoryName'] ?? null);
-        $t->same('Quarter', $chartDivs[0]->attr('pptxChart')['axes'][0]['title'] ?? null);
-        $t->same('Revenue', $chartDivs[0]->attr('pptxChart')['axes'][1]['title'] ?? null);
-        $t->same('$#,##0', $chartDivs[0]->attr('pptxChart')['axes'][1]['numberFormat'] ?? null);
-        $t->same(false, $chartDivs[0]->attr('pptxChart')['axes'][1]['sourceLinked'] ?? null);
+        $axes = $chartDivs[0]->attr('pptxChart')['axes'] ?? [];
+        $t->same(2, count($axes));
+        $t->same('catAx', $axes[0]['type'] ?? null);
+        $t->same('10', $axes[0]['id'] ?? null);
+        $t->same('20', $axes[0]['crossAxisId'] ?? null);
+        $t->same('Quarter', $axes[0]['title'] ?? null);
+        $t->same('General', $axes[0]['numberFormat'] ?? null);
+        $t->same(true, $axes[0]['sourceLinked'] ?? null);
+        $t->same(['orientation' => 'minMax'], $axes[0]['scaling'] ?? null);
+        $t->same(false, $axes[0]['deleted'] ?? null);
+        $t->same(true, $axes[0]['auto'] ?? null);
+        $t->same('out', $axes[0]['majorTickMark'] ?? null);
+        $t->same('none', $axes[0]['minorTickMark'] ?? null);
+        $t->same('nextTo', $axes[0]['tickLabelPosition'] ?? null);
+        $t->same('autoZero', $axes[0]['crosses'] ?? null);
+        $t->same('ctr', $axes[0]['labelAlignment'] ?? null);
+        $t->same(100, $axes[0]['labelOffset'] ?? null);
+        $t->same(false, $axes[0]['noMultiLevelLabels'] ?? null);
+        $t->same('valAx', $axes[1]['type'] ?? null);
+        $t->same('Revenue', $axes[1]['title'] ?? null);
+        $t->same('$#,##0', $axes[1]['numberFormat'] ?? null);
+        $t->same(false, $axes[1]['sourceLinked'] ?? null);
+        $t->same(['orientation' => 'minMax', 'min' => 0.0, 'max' => 20.0], $axes[1]['scaling'] ?? null);
+        $t->same('cross', $axes[1]['majorTickMark'] ?? null);
+        $t->same('in', $axes[1]['minorTickMark'] ?? null);
+        $t->same('low', $axes[1]['tickLabelPosition'] ?? null);
+        $t->same('between', $axes[1]['crossBetween'] ?? null);
+        $t->same(0.0, $axes[1]['crossesAt'] ?? null);
+        $t->same(5.0, $axes[1]['majorUnit'] ?? null);
+        $t->same(1.0, $axes[1]['minorUnit'] ?? null);
+        $t->same([
+            'present' => true,
+            'shape' => [
+                'line' => [
+                    'color' => 'theme:accent1',
+                    'width' => 12700,
+                    'dash' => 'dash',
+                ],
+            ],
+        ], $axes[1]['majorGridlines'] ?? null);
         $t->same(['rIdWorkbook'], $chartDivs[0]->attr('pptxChart')['externalDataRelationshipIds'] ?? null);
         $t->same('ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx', $chartDivs[0]->attr('pptxChart')['externalDataRelationships'][0]['partName'] ?? null);
         $t->same('North: Q1=12; Q2=18', $chartDivs[0]->children[1]->attr('text'));

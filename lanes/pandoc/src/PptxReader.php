@@ -2225,10 +2225,141 @@ final class PptxReader
                 }
             }
 
+            $scaling = $this->chartAxisScaling($axisElement);
+            if ($scaling !== []) {
+                $axis['scaling'] = $scaling;
+            }
+
+            foreach ([
+                'delete' => 'deleted',
+                'auto' => 'auto',
+                'noMultiLvlLbl' => 'noMultiLevelLabels',
+            ] as $source => $target) {
+                $value = $this->chartBooleanChildValue($axisElement, $source);
+                if ($value !== null) {
+                    $axis[$target] = $value;
+                }
+            }
+
+            foreach ([
+                'majorTickMark' => 'majorTickMark',
+                'minorTickMark' => 'minorTickMark',
+                'tickLblPos' => 'tickLabelPosition',
+                'crosses' => 'crosses',
+                'crossBetween' => 'crossBetween',
+                'lblAlgn' => 'labelAlignment',
+                'baseTimeUnit' => 'baseTimeUnit',
+                'majorTimeUnit' => 'majorTimeUnit',
+                'minorTimeUnit' => 'minorTimeUnit',
+            ] as $source => $target) {
+                $value = $this->chartStringChildValue($axisElement, $source);
+                if ($value !== null) {
+                    $axis[$target] = $value;
+                }
+            }
+
+            $labelOffset = $this->chartIntChildValue($axisElement, 'lblOffset');
+            if ($labelOffset !== null) {
+                $axis['labelOffset'] = $labelOffset;
+            }
+
+            foreach ([
+                'majorUnit' => 'majorUnit',
+                'minorUnit' => 'minorUnit',
+                'crossesAt' => 'crossesAt',
+            ] as $source => $target) {
+                $value = $this->chartFloatChildValue($axisElement, $source);
+                if ($value !== null) {
+                    $axis[$target] = $value;
+                }
+            }
+
+            foreach (['majorGridlines' => 'majorGridlines', 'minorGridlines' => 'minorGridlines'] as $source => $target) {
+                $gridlines = $this->chartAxisGridlines($axisElement, $source);
+                if ($gridlines !== []) {
+                    $axis[$target] = $gridlines;
+                }
+            }
+
             $axes[] = $axis;
         }
 
         return $axes;
+    }
+
+    private function chartStringChildValue(\DOMElement $parent, string $localName): ?string
+    {
+        $child = $this->firstChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($child->getAttribute('val'));
+
+        return $value !== '' ? $value : null;
+    }
+
+    private function chartFloatChildValue(\DOMElement $parent, string $localName): ?float
+    {
+        $child = $this->firstChildElement($parent, $localName);
+        if (!$child instanceof \DOMElement) {
+            return null;
+        }
+
+        $value = trim($child->getAttribute('val'));
+        if ($value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartAxisScaling(\DOMElement $axisElement): array
+    {
+        $scaling = $this->firstChildElement($axisElement, 'scaling');
+        if (!$scaling instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $orientation = $this->chartStringChildValue($scaling, 'orientation');
+        if ($orientation !== null) {
+            $metadata['orientation'] = $orientation;
+        }
+
+        foreach (['logBase' => 'logBase', 'min' => 'min', 'max' => 'max'] as $source => $target) {
+            $value = $this->chartFloatChildValue($scaling, $source);
+            if ($value !== null) {
+                $metadata[$target] = $value;
+            }
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartAxisGridlines(\DOMElement $axisElement, string $localName): array
+    {
+        $gridlines = $this->firstChildElement($axisElement, $localName);
+        if (!$gridlines instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = ['present' => true];
+        $shapeProperties = $this->firstChildElement($gridlines, 'spPr');
+        if ($shapeProperties instanceof \DOMElement) {
+            $shape = $this->chartShapePropertiesMetadata($shapeProperties);
+            if ($shape !== []) {
+                $metadata['shape'] = $shape;
+            }
+        }
+
+        return $metadata;
     }
 
     /**
