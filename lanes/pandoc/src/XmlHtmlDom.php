@@ -29538,17 +29538,75 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{src:?string, kind:string, srclang:?string, label:?string, default:bool}
+     * @return array<string, mixed>
      */
     private static function trackElementSummary(\DOMElement $track): array
     {
-        return [
-            'src' => self::attributeOrNull($track, 'src'),
-            'kind' => self::trackKind($track),
-            'srclang' => self::attributeOrNull($track, 'srclang'),
-            'label' => self::attributeOrNull($track, 'label'),
-            'default' => $track->hasAttribute('default'),
+        $review = self::textTrackReviewSummary($track, self::trackElementIndex($track));
+        $issues = self::textTrackReviewIssues($review);
+
+        return $review + [
+            'textTrackReviewPolicy' => 'html-track-element-review',
+            'textTrackIssues' => $issues,
+            'textTrackIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'textTrackIssueCount' => count($issues),
+            'textTrackValid' => $issues === [],
         ];
+    }
+
+    private static function trackElementIndex(\DOMElement $track): int
+    {
+        $index = 0;
+        for ($sibling = $track->previousSibling; $sibling instanceof \DOMNode; $sibling = $sibling->previousSibling) {
+            if ($sibling instanceof \DOMElement && strtolower(self::htmlElementName($sibling)) === 'track') {
+                ++$index;
+            }
+        }
+
+        return $index;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return list<array<string, mixed>>
+     */
+    private static function textTrackReviewIssues(array $summary): array
+    {
+        $issues = [];
+        $index = (int) ($summary['index'] ?? 0);
+        $kind = (string) ($summary['kind'] ?? 'subtitles');
+
+        if (($summary['kindValid'] ?? true) !== true) {
+            $issues[] = [
+                'code' => 'invalid-text-track-kind',
+                'trackIndex' => $index,
+                'kindRaw' => $summary['kindRaw'] ?? null,
+                'normalizedKind' => $kind,
+            ];
+        }
+
+        if (($summary['srclangRaw'] ?? null) !== null && ($summary['srclangValid'] ?? false) !== true) {
+            $issues[] = [
+                'code' => 'invalid-text-track-language',
+                'trackIndex' => $index,
+                'srclangRaw' => $summary['srclangRaw'],
+            ];
+        }
+
+        if (($summary['languageMissing'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'missing-text-track-language',
+                'trackIndex' => $index,
+                'kind' => $kind,
+                'label' => $summary['label'] ?? null,
+                'src' => $summary['src'] ?? null,
+            ];
+        }
+
+        return $issues;
     }
 
     /**
