@@ -1111,6 +1111,103 @@ XML);
     }
 };
 
+$buildSpeakerNotesPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-speaker-notes-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Notes slide</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Visible body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Visible slide body</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target="../notesSlides/notesSlide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/notesSlides/notesSlide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:notes xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+         xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+         xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr/><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:r><a:t>Remember the launch date.</a:t></a:r></a:p>
+        <a:p><a:r><a:t>Ask about migration risks.</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="4" name="Slide Number Placeholder 3"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" idx="2"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>1</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:notes>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $nodesOfType = static function (AstNode $node, string $type) use (&$nodesOfType): array {
     $nodes = $node->type === $type ? [$node] : [];
     foreach ($node->children as $child) {
@@ -1642,6 +1739,32 @@ return [
         $t->same('Alpha item', $itemText($orderedLists[1]->children[0]));
         $t->contains('OrderedList ( 3 , Decimal , Period )', $native);
         $t->contains('OrderedList ( 1 , UpperAlpha , OneParen )', $native);
+    },
+
+    'preserves pptx speaker notes as notes divs' => static function (TestRunner $t) use ($buildSpeakerNotesPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildSpeakerNotesPptxPackage());
+        $review = $document->attr('pptx');
+        $notesDivs = $nodesWithClass($nodesOfType($document, 'div'), 'notes');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($notesDivs));
+        $t->same('pptx', $notesDivs[0]->attr('attributes')['source'] ?? null);
+        $t->same('ppt/notesSlides/notesSlide1.xml', $notesDivs[0]->attr('attributes')['part'] ?? null);
+        $t->same('rIdNotes', $notesDivs[0]->attr('attributes')['relationship-id'] ?? null);
+        $t->same('ppt/notesSlides/notesSlide1.xml', $notesDivs[0]->attr('pptxSpeakerNote')['partName'] ?? null);
+        $t->same('Remember the launch date.' . "\n" . 'Ask about migration risks.', $notesDivs[0]->attr('pptxSpeakerNote')['text'] ?? null);
+        $t->same(1, $review['slides'][0]['speakerNoteCount'] ?? null);
+        $t->same('rIdNotes', $review['slides'][0]['speakerNotes'][0]['relationshipId'] ?? null);
+        $t->same('ppt/notesSlides/notesSlide1.xml', $review['slides'][0]['speakerNotes'][0]['partName'] ?? null);
+        $t->same(2, $review['slides'][0]['speakerNotes'][0]['blockCount'] ?? null);
+        $t->true(!isset($review['slides'][0]['speakerNotes'][0]['blocks']), 'Review metadata must not embed AST note blocks');
+
+        $noteParagraphs = $nodesOfType($notesDivs[0], 'paragraph');
+        $t->same(['Remember the launch date.', 'Ask about migration risks.'], array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $noteParagraphs));
+        $t->same(false, in_array('1', array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $noteParagraphs), true));
+        $t->contains('Div ( "" , [ "notes" ]', $native);
+        $t->contains('Para [ Str "Remember" , Space , Str "the" , Space , Str "launch" , Space , Str "date." ]', $native);
+        $t->contains('Para [ Str "Ask" , Space , Str "about" , Space , Str "migration" , Space , Str "risks." ]', $native);
     },
 
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {

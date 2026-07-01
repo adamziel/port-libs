@@ -49,9 +49,10 @@ final class PptxReader
             $slideRelationships = $this->relationshipsOrEmpty($package, $slidePart);
             $slideContext = $this->slideContext($package, $slideRelationships);
             $slideComments = $this->slideComments($package, $slideRelationships, $commentAuthors);
+            $slideSpeakerNotes = $this->slideSpeakerNotes($package, $slideRelationships);
             $imageIssues = [];
             $shapeIssues = [];
-            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $tableStyles, $imageIssues, $shapeIssues);
+            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $slideSpeakerNotes, $tableStyles, $imageIssues, $shapeIssues);
             foreach ($slideBlocks as $block) {
                 $blocks[] = $block;
             }
@@ -67,6 +68,8 @@ final class PptxReader
                 'context' => $this->slideContextReview($slideContext),
                 'commentCount' => count($slideComments),
                 'comments' => $slideComments,
+                'speakerNoteCount' => count($slideSpeakerNotes),
+                'speakerNotes' => $this->speakerNoteReviews($slideSpeakerNotes),
                 'imageIssueCount' => count($imageIssues),
                 'imageIssues' => $imageIssues,
                 'shapeIssueCount' => count($shapeIssues),
@@ -212,7 +215,7 @@ final class PptxReader
      * @param list<array<string, mixed>> $shapeIssues
      * @return list<AstNode>
      */
-    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $tableStyles, array &$imageIssues, array &$shapeIssues): array
+    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $slideSpeakerNotes, array $tableStyles, array &$imageIssues, array &$shapeIssues): array
     {
         $root = XmlHtmlDom::rootElement($document, 'sld');
         if (!$root instanceof \DOMElement) {
@@ -247,6 +250,10 @@ final class PptxReader
             foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder, $imageIssues, $shapeIssues) as $block) {
                 $blocks[] = $block;
             }
+        }
+
+        foreach ($this->speakerNotesToBlocks($slideSpeakerNotes) as $noteBlock) {
+            $blocks[] = $noteBlock;
         }
 
         foreach ($this->commentsToBlocks($slideComments) as $commentBlock) {
@@ -757,6 +764,137 @@ final class PptxReader
         }
 
         return trim($this->drawingText($commentElement));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function slideSpeakerNotes(ZipPackage $package, OpcRelationships $slideRelationships): array
+    {
+        $notes = [];
+        foreach ($slideRelationships->all() as $relationship) {
+            if (!str_ends_with($relationship->type, '/notesSlide') || $relationship->isExternal()) {
+                continue;
+            }
+
+            $partName = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+            $document = $this->optionalPackageXml($package, $partName, 'PPTX notes slide');
+            if (!$document instanceof \DOMDocument) {
+                continue;
+            }
+
+            $root = XmlHtmlDom::rootElement($document, 'notes');
+            if (!$root instanceof \DOMElement) {
+                continue;
+            }
+
+            $noteRelationships = $this->relationshipsOrEmpty($package, $partName);
+            $blocks = [];
+            $texts = [];
+            $spTree = $this->shapeTree($root);
+            if ($spTree instanceof \DOMElement) {
+                foreach ($this->childElements($spTree, 'sp') as $shapeElement) {
+                    if ($this->isNotesNonBodyPlaceholder($shapeElement)) {
+                        continue;
+                    }
+
+                    $textBody = $this->firstChildElement($shapeElement, 'txBody');
+                    if (!$textBody instanceof \DOMElement) {
+                        continue;
+                    }
+
+                    $paragraphs = $this->parseParagraphs($textBody, $noteRelationships);
+                    if (!$this->paragraphsContainText($paragraphs)) {
+                        continue;
+                    }
+
+                    foreach ($paragraphs as $paragraph) {
+                        $text = trim((string) ($paragraph['text'] ?? ''));
+                        if ($text !== '') {
+                            $texts[] = $text;
+                        }
+                    }
+                    array_push($blocks, ...$this->paragraphsToBlocks($paragraphs));
+                }
+            }
+
+            if ($blocks === []) {
+                continue;
+            }
+
+            $notes[] = [
+                'relationshipId' => $relationship->id,
+                'relationshipType' => $relationship->type,
+                'target' => $relationship->target,
+                'partName' => ltrim($partName, '/'),
+                'text' => implode("\n", $texts),
+                'blockCount' => count($blocks),
+                'blocks' => $blocks,
+            ];
+        }
+
+        return $notes;
+    }
+
+    private function isNotesNonBodyPlaceholder(\DOMElement $shapeElement): bool
+    {
+        $placeholder = $this->placeholderElement($shapeElement);
+        if (!$placeholder instanceof \DOMElement) {
+            return false;
+        }
+
+        $type = $placeholder->getAttribute('type') !== '' ? $placeholder->getAttribute('type') : 'obj';
+
+        return in_array($type, ['sldImg', 'sldNum', 'dt', 'hdr', 'ftr'], true);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $notes
+     * @return list<array<string, mixed>>
+     */
+    private function speakerNoteReviews(array $notes): array
+    {
+        return array_map(fn (array $note): array => $this->speakerNoteReview($note), $notes);
+    }
+
+    /**
+     * @param array<string, mixed> $note
+     * @return array<string, mixed>
+     */
+    private function speakerNoteReview(array $note): array
+    {
+        unset($note['blocks']);
+
+        return $note;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $notes
+     * @return list<AstNode>
+     */
+    private function speakerNotesToBlocks(array $notes): array
+    {
+        $blocks = [];
+        foreach ($notes as $note) {
+            $children = is_array($note['blocks'] ?? null) ? $note['blocks'] : [];
+            if ($children === []) {
+                continue;
+            }
+
+            $attributes = array_filter([
+                'source' => 'pptx',
+                'part' => (string) ($note['partName'] ?? ''),
+                'relationship-id' => (string) ($note['relationshipId'] ?? ''),
+            ], static fn (string $value): bool => $value !== '');
+
+            $blocks[] = new AstNode('div', [
+                'classes' => ['notes'],
+                'attributes' => $attributes,
+                'pptxSpeakerNote' => $this->speakerNoteReview($note),
+            ], $children);
+        }
+
+        return $blocks;
     }
 
     /**
