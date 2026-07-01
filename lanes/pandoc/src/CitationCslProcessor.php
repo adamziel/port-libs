@@ -1359,7 +1359,8 @@ final class CitationCslProcessor
         $crossrefItems = self::relatedItemSummaries($item['crossrefItems'] ?? $item['crossref-items'] ?? [], $id, 'crossrefItems');
         $missingCrossrefKeys = self::stringListFromFirstField($item, ['missingCrossrefKeys', 'missing-crossref-keys']);
         $itemType = self::stringField($item, 'type');
-        $genre = self::stringField($item, 'genre');
+        $entrySubtype = self::firstStringField($item, ['entry-subtype', 'entrySubtype', 'entrysubtype']);
+        $genre = self::stringField($item, 'genre') ?: $entrySubtype;
         $patentType = self::firstStringField($item, ['patent-type', 'patentType', 'patenttype']);
         if ($patentType === '' && $itemType === 'patent') {
             $patentType = $genre;
@@ -1550,7 +1551,7 @@ final class CitationCslProcessor
             'genre' => $genre,
             'patentType' => $patentType,
             'patentTypeLabel' => $patentTypeLabel,
-            'entrySubtype' => self::firstStringField($item, ['entry-subtype', 'entrySubtype', 'entrysubtype']),
+            'entrySubtype' => $entrySubtype,
             'gender' => $biblatexGender,
             'biblatexGender' => $biblatexGender,
             'biblatexGenderSummary' => $biblatexGender,
