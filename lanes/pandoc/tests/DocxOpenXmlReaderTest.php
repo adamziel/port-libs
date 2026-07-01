@@ -23501,6 +23501,12 @@ XML;
         $t->same(2, $selected['xmlCdataSectionPartCount']);
         $t->same(2, $selected['xmlCdataSectionCount']);
         $t->same(strlen($settingsCdata) + strlen($themeCdata), $selected['xmlCdataSectionByteLength']);
+        $t->same(max(strlen($settingsCdata), strlen($themeCdata)), $selected['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 2], $selected['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $selected['xmlCdataSectionByteLengthBuckets']);
+        $t->same([
+            'medium' => ['word/settings.xml', 'word/theme/text-theme.xml'],
+        ], $selected['xmlCdataSectionByteLengthBucketPartNames']);
         $t->same(['word/settings.xml', 'word/theme/text-theme.xml'], $selected['xmlCdataSectionPartNames']);
         $t->same([
             '/a:theme/a:themeElements' => 1,
@@ -23513,15 +23519,23 @@ XML;
 
         $t->same(1, $settings['xmlCdataSectionCount']);
         $t->same(strlen($settingsCdata), $settings['xmlCdataSectionByteLength']);
+        $t->same(strlen($settingsCdata), $settings['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 1], $settings['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $settings['xmlCdataSectionByteLengthBuckets']);
         $t->same('/w:settings/w:compat', $settings['xmlCdataSections'][0]['parentPath']);
         $t->same('w:compat', $settings['xmlCdataSections'][0]['parentQualifiedName']);
+        $t->same('medium', $settings['xmlCdataSections'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($settingsCdata)), $settings['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $settingsCdata), $settings['xmlCdataSections'][0]['sha256']);
 
         $t->same(1, $theme['xmlCdataSectionCount']);
         $t->same(strlen($themeCdata), $theme['xmlCdataSectionByteLength']);
+        $t->same(strlen($themeCdata), $theme['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 1], $theme['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $theme['xmlCdataSectionByteLengthBuckets']);
         $t->same('/a:theme/a:themeElements', $theme['xmlCdataSections'][0]['parentPath']);
         $t->same('a:themeElements', $theme['xmlCdataSections'][0]['parentQualifiedName']);
+        $t->same('medium', $theme['xmlCdataSections'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($themeCdata)), $theme['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $themeCdata), $theme['xmlCdataSections'][0]['sha256']);
 
@@ -23539,7 +23553,12 @@ XML;
         $t->same($selected['xmlCdataSectionPartCount'], $summary['selectedXmlPartXmlCdataSectionPartCount']);
         $t->same($selected['xmlCdataSectionCount'], $summary['selectedXmlPartXmlCdataSectionCount']);
         $t->same($selected['xmlCdataSectionByteLength'], $summary['selectedXmlPartXmlCdataSectionByteLength']);
+        $t->same($selected['xmlCdataSectionMaxByteLength'], $summary['selectedXmlPartXmlCdataSectionMaxByteLength']);
         $t->same($selected['xmlCdataSectionPartNames'], $summary['selectedXmlPartXmlCdataSectionPartNames']);
+        $t->same($selected['xmlCdataSectionByteLengthBucketCount'], $summary['selectedXmlPartXmlCdataSectionByteLengthBucketCount']);
+        $t->same($selected['xmlCdataSectionByteLengthBucketCounts'], $summary['selectedXmlPartXmlCdataSectionByteLengthBucketCounts']);
+        $t->same($selected['xmlCdataSectionByteLengthBuckets'], $summary['selectedXmlPartXmlCdataSectionByteLengthBuckets']);
+        $t->same($selected['xmlCdataSectionByteLengthBucketPartNames'], $summary['selectedXmlPartXmlCdataSectionByteLengthBucketPartNames']);
         $t->same($selected['xmlCdataSectionParentPathCounts'], $summary['selectedXmlPartXmlCdataSectionParentPathCounts']);
         $t->same($selected['xmlCdataSections'], $summary['selectedXmlPartXmlCdataSections']);
         $t->same($selected['xmlTextNodeCount'], $summary['selectedXmlPartXmlTextNodeCount']);
@@ -25730,11 +25749,18 @@ XML;
         $settingsPart = $package['parts']['word/settings-cdata.xml'];
         $sections = $summary['partXmlCdataSections'];
         $sectionByteLength = strlen($rootCdata) + strlen($itemCdata) + strlen($settingsCdata);
+        $sectionMaxByteLength = max(strlen($rootCdata), strlen($itemCdata), strlen($settingsCdata));
 
         $t->same(9, $summary['partXmlInspectableCount']);
         $t->same(2, $summary['partXmlCdataSectionPartCount']);
         $t->same(3, $summary['partXmlCdataSectionCount']);
         $t->same($sectionByteLength, $summary['partXmlCdataSectionByteLength']);
+        $t->same($sectionMaxByteLength, $summary['partXmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 3], $summary['partXmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $summary['partXmlCdataSectionByteLengthBuckets']);
+        $t->same([
+            'medium' => ['customXml/cdata-review.xml', 'word/settings-cdata.xml'],
+        ], $summary['partXmlCdataSectionByteLengthBucketPartNames']);
         $t->same(['customXml/cdata-review.xml', 'word/settings-cdata.xml'], $summary['partXmlCdataSectionPartNames']);
         $t->same([
             '/review:packet/review:item' => 1,
@@ -25759,6 +25785,9 @@ XML;
         $t->same(true, $reviewPart['xmlInspectable']);
         $t->same(2, $reviewPart['xmlCdataSectionCount']);
         $t->same(strlen($rootCdata) + strlen($itemCdata), $reviewPart['xmlCdataSectionByteLength']);
+        $t->same(max(strlen($rootCdata), strlen($itemCdata)), $reviewPart['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 2], $reviewPart['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $reviewPart['xmlCdataSectionByteLengthBuckets']);
         $t->same([
             '/review:packet/review:item' => 1,
             '/review:packet/review:raw' => 1,
@@ -25772,15 +25801,20 @@ XML;
         $t->same('raw', $reviewPart['xmlCdataSections'][0]['parentLocalName']);
         $t->same('review:raw', $reviewPart['xmlCdataSections'][0]['parentQualifiedName']);
         $t->same(strlen($rootCdata), $reviewPart['xmlCdataSections'][0]['byteLength']);
+        $t->same('medium', $reviewPart['xmlCdataSections'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($rootCdata)), $reviewPart['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $rootCdata), $reviewPart['xmlCdataSections'][0]['sha256']);
         $t->same('/review:packet/review:item', $reviewPart['xmlCdataSections'][1]['parentPath']);
         $t->same('review:item', $reviewPart['xmlCdataSections'][1]['parentQualifiedName']);
         $t->same(strlen($itemCdata), $reviewPart['xmlCdataSections'][1]['byteLength']);
+        $t->same('medium', $reviewPart['xmlCdataSections'][1]['byteLengthBucket']);
         $t->same(hash('sha256', $itemCdata), $reviewPart['xmlCdataSections'][1]['sha256']);
 
         $t->same(1, $settingsPart['xmlCdataSectionCount']);
         $t->same(strlen($settingsCdata), $settingsPart['xmlCdataSectionByteLength']);
+        $t->same(strlen($settingsCdata), $settingsPart['xmlCdataSectionMaxByteLength']);
+        $t->same(['medium' => 1], $settingsPart['xmlCdataSectionByteLengthBucketCounts']);
+        $t->same(['medium'], $settingsPart['xmlCdataSectionByteLengthBuckets']);
         $t->same(['http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1], $settingsPart['xmlCdataSectionParentNamespaceCounts']);
         $t->same(['docVar' => 1], $settingsPart['xmlCdataSectionParentLocalNameCounts']);
         $t->same(['w:docVar' => 1], $settingsPart['xmlCdataSectionParentQualifiedNameCounts']);
@@ -25789,6 +25823,7 @@ XML;
         $t->same('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $settingsPart['xmlCdataSections'][0]['parentNamespace']);
         $t->same('docVar', $settingsPart['xmlCdataSections'][0]['parentLocalName']);
         $t->same('w:docVar', $settingsPart['xmlCdataSections'][0]['parentQualifiedName']);
+        $t->same('medium', $settingsPart['xmlCdataSections'][0]['byteLengthBucket']);
         $t->same(sprintf('%08x', crc32($settingsCdata)), $settingsPart['xmlCdataSections'][0]['crc32']);
         $t->same(hash('sha256', $settingsCdata), $settingsPart['xmlCdataSections'][0]['sha256']);
 

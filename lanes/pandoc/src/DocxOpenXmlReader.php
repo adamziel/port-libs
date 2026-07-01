@@ -956,7 +956,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlCdataSectionPartCount'] = $selectedXmlParts['xmlCdataSectionPartCount'];
         $packageProvenance['summary']['selectedXmlPartXmlCdataSectionCount'] = $selectedXmlParts['xmlCdataSectionCount'];
         $packageProvenance['summary']['selectedXmlPartXmlCdataSectionByteLength'] = $selectedXmlParts['xmlCdataSectionByteLength'];
+        $packageProvenance['summary']['selectedXmlPartXmlCdataSectionMaxByteLength'] = $selectedXmlParts['xmlCdataSectionMaxByteLength'];
         $packageProvenance['summary']['selectedXmlPartXmlCdataSectionPartNames'] = $selectedXmlParts['xmlCdataSectionPartNames'];
+        $packageProvenance['summary']['selectedXmlPartXmlCdataSectionByteLengthBucketCount'] = $selectedXmlParts['xmlCdataSectionByteLengthBucketCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlCdataSectionByteLengthBucketCounts'] = $selectedXmlParts['xmlCdataSectionByteLengthBucketCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlCdataSectionByteLengthBuckets'] = $selectedXmlParts['xmlCdataSectionByteLengthBuckets'];
+        $packageProvenance['summary']['selectedXmlPartXmlCdataSectionByteLengthBucketPartNames'] = $selectedXmlParts['xmlCdataSectionByteLengthBucketPartNames'];
         $packageProvenance['summary']['selectedXmlPartXmlCdataSectionParentPathCount'] = $selectedXmlParts['xmlCdataSectionParentPathCount'];
         $packageProvenance['summary']['selectedXmlPartXmlCdataSectionParentPathCounts'] = $selectedXmlParts['xmlCdataSectionParentPathCounts'];
         $packageProvenance['summary']['selectedXmlPartXmlCdataSectionParentPaths'] = $selectedXmlParts['xmlCdataSectionParentPaths'];
@@ -19726,7 +19731,12 @@ final class DocxOpenXmlReader
             'partXmlCdataSectionPartCount' => $partXmlRoots['xmlCdataSectionPartCount'],
             'partXmlCdataSectionCount' => $partXmlRoots['xmlCdataSectionCount'],
             'partXmlCdataSectionByteLength' => $partXmlRoots['xmlCdataSectionByteLength'],
+            'partXmlCdataSectionMaxByteLength' => $partXmlRoots['xmlCdataSectionMaxByteLength'],
             'partXmlCdataSectionPartNames' => $partXmlRoots['xmlCdataSectionPartNames'],
+            'partXmlCdataSectionByteLengthBucketCount' => $partXmlRoots['xmlCdataSectionByteLengthBucketCount'],
+            'partXmlCdataSectionByteLengthBucketCounts' => $partXmlRoots['xmlCdataSectionByteLengthBucketCounts'],
+            'partXmlCdataSectionByteLengthBuckets' => $partXmlRoots['xmlCdataSectionByteLengthBuckets'],
+            'partXmlCdataSectionByteLengthBucketPartNames' => $partXmlRoots['xmlCdataSectionByteLengthBucketPartNames'],
             'partXmlCdataSectionParentPathCount' => $partXmlRoots['xmlCdataSectionParentPathCount'],
             'partXmlCdataSectionParentPathCounts' => $partXmlRoots['xmlCdataSectionParentPathCounts'],
             'partXmlCdataSectionParentPaths' => $partXmlRoots['xmlCdataSectionParentPaths'],
@@ -27712,6 +27722,9 @@ final class DocxOpenXmlReader
         $xmlCommentByteLengthBucketPartNames = [];
         $xmlComments = [];
         $xmlCdataSectionPartNames = [];
+        $xmlCdataSectionByteLengthBucketCounts = [];
+        $xmlCdataSectionByteLengthBuckets = [];
+        $xmlCdataSectionByteLengthBucketPartNames = [];
         $xmlCdataSectionParentPathCounts = [];
         $xmlCdataSectionParentPaths = [];
         $xmlCdataSectionParentNamespaceCounts = [];
@@ -27992,6 +28005,7 @@ final class DocxOpenXmlReader
         $xmlCdataSectionPartCount = 0;
         $xmlCdataSectionCount = 0;
         $xmlCdataSectionByteLength = 0;
+        $xmlCdataSectionMaxByteLength = 0;
         $xmlTextNodePartCount = 0;
         $xmlTextNodeCount = 0;
         $xmlTextNodeByteLength = 0;
@@ -28655,7 +28669,22 @@ final class DocxOpenXmlReader
                 ++$xmlCdataSectionPartCount;
                 $xmlCdataSectionCount += $partCdataSectionCount;
                 $xmlCdataSectionByteLength += (int) ($part['xmlCdataSectionByteLength'] ?? 0);
+                $xmlCdataSectionMaxByteLength = max(
+                    $xmlCdataSectionMaxByteLength,
+                    (int) ($part['xmlCdataSectionMaxByteLength'] ?? 0),
+                );
                 $xmlCdataSectionPartNames[] = $partName;
+            }
+            foreach (($part['xmlCdataSectionByteLengthBucketCounts'] ?? []) as $bucket => $count) {
+                if (!is_string($bucket) || $bucket === '') {
+                    continue;
+                }
+
+                $xmlCdataSectionByteLengthBucketCounts[$bucket] =
+                    ($xmlCdataSectionByteLengthBucketCounts[$bucket] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlCdataSectionByteLengthBuckets, $bucket);
+                $xmlCdataSectionByteLengthBucketPartNames[$bucket] ??= [];
+                $this->appendUniqueString($xmlCdataSectionByteLengthBucketPartNames[$bucket], $partName);
             }
             foreach (($part['xmlCdataSectionParentPathCounts'] ?? []) as $parentPath => $count) {
                 if (!is_string($parentPath) || $parentPath === '') {
@@ -28715,6 +28744,9 @@ final class DocxOpenXmlReader
                         ? $section['parentQualifiedName']
                         : null,
                     'byteLength' => (int) ($section['byteLength'] ?? 0),
+                    'byteLengthBucket' => is_string($section['byteLengthBucket'] ?? null)
+                        ? $section['byteLengthBucket']
+                        : $this->xmlTextByteLengthBucket((int) ($section['byteLength'] ?? 0)),
                     'crc32' => is_string($section['crc32'] ?? null) ? $section['crc32'] : null,
                     'sha256' => is_string($section['sha256'] ?? null) ? $section['sha256'] : null,
                 ];
@@ -31164,6 +31196,11 @@ final class DocxOpenXmlReader
                     : [],
                 'xmlCdataSectionCount' => $partCdataSectionCount,
                 'xmlCdataSectionByteLength' => (int) ($part['xmlCdataSectionByteLength'] ?? 0),
+                'xmlCdataSectionMaxByteLength' => (int) ($part['xmlCdataSectionMaxByteLength'] ?? 0),
+                'xmlCdataSectionByteLengthBucketCounts' => is_array($part['xmlCdataSectionByteLengthBucketCounts'] ?? null)
+                    ? $part['xmlCdataSectionByteLengthBucketCounts']
+                    : [],
+                'xmlCdataSectionByteLengthBuckets' => array_values(array_map('strval', $part['xmlCdataSectionByteLengthBuckets'] ?? [])),
                 'xmlCdataSectionParentPathCounts' => is_array($part['xmlCdataSectionParentPathCounts'] ?? null)
                     ? $part['xmlCdataSectionParentPathCounts']
                     : [],
@@ -31969,10 +32006,17 @@ final class DocxOpenXmlReader
             sort($xmlCommentBucketPartNames, SORT_STRING);
         }
         unset($xmlCommentBucketPartNames);
+        ksort($xmlCdataSectionByteLengthBucketCounts, SORT_STRING);
+        ksort($xmlCdataSectionByteLengthBucketPartNames, SORT_STRING);
+        foreach ($xmlCdataSectionByteLengthBucketPartNames as &$xmlCdataBucketPartNames) {
+            sort($xmlCdataBucketPartNames, SORT_STRING);
+        }
+        unset($xmlCdataBucketPartNames);
         sort($xmlCommentPartNames, SORT_STRING);
         sort($xmlCommentByteLengthBuckets, SORT_STRING);
         sort($xmlCommentParentPaths, SORT_STRING);
         sort($xmlCdataSectionPartNames, SORT_STRING);
+        sort($xmlCdataSectionByteLengthBuckets, SORT_STRING);
         sort($xmlCdataSectionParentPaths, SORT_STRING);
         sort($xmlTextNodePartNames, SORT_STRING);
         sort($xmlTextNodeParentPaths, SORT_STRING);
@@ -32278,7 +32322,12 @@ final class DocxOpenXmlReader
             'xmlCdataSectionPartCount' => $xmlCdataSectionPartCount,
             'xmlCdataSectionCount' => $xmlCdataSectionCount,
             'xmlCdataSectionByteLength' => $xmlCdataSectionByteLength,
+            'xmlCdataSectionMaxByteLength' => $xmlCdataSectionMaxByteLength,
             'xmlCdataSectionPartNames' => $xmlCdataSectionPartNames,
+            'xmlCdataSectionByteLengthBucketCount' => count($xmlCdataSectionByteLengthBucketCounts),
+            'xmlCdataSectionByteLengthBucketCounts' => $xmlCdataSectionByteLengthBucketCounts,
+            'xmlCdataSectionByteLengthBuckets' => $xmlCdataSectionByteLengthBuckets,
+            'xmlCdataSectionByteLengthBucketPartNames' => $xmlCdataSectionByteLengthBucketPartNames,
             'xmlCdataSectionParentPathCount' => count($xmlCdataSectionParentPathCounts),
             'xmlCdataSectionParentPathCounts' => $xmlCdataSectionParentPathCounts,
             'xmlCdataSectionParentPaths' => $xmlCdataSectionParentPaths,
@@ -34714,7 +34763,11 @@ final class DocxOpenXmlReader
         $xmlCdataSectionPartCount = 0;
         $xmlCdataSectionCount = 0;
         $xmlCdataSectionByteLength = 0;
+        $xmlCdataSectionMaxByteLength = 0;
         $xmlCdataSectionPartNames = [];
+        $xmlCdataSectionByteLengthBucketCounts = [];
+        $xmlCdataSectionByteLengthBuckets = [];
+        $xmlCdataSectionByteLengthBucketPartNames = [];
         $xmlCdataSectionParentPathCounts = [];
         $xmlCdataSectionParentPaths = [];
         $xmlCdataSectionParentNamespaceCounts = [];
@@ -35334,8 +35387,26 @@ final class DocxOpenXmlReader
                 ++$xmlCdataSectionPartCount;
                 $xmlCdataSectionCount += $itemXmlCdataSectionCount;
                 $xmlCdataSectionByteLength += (int) ($item['xmlCdataSectionByteLength'] ?? 0);
+                $xmlCdataSectionMaxByteLength = max(
+                    $xmlCdataSectionMaxByteLength,
+                    (int) ($item['xmlCdataSectionMaxByteLength'] ?? 0),
+                );
                 $this->appendUniqueString(
                     $xmlCdataSectionPartNames,
+                    is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                );
+            }
+            foreach (($item['xmlCdataSectionByteLengthBucketCounts'] ?? []) as $bucket => $count) {
+                if (!is_string($bucket) || $bucket === '') {
+                    continue;
+                }
+
+                $xmlCdataSectionByteLengthBucketCounts[$bucket] =
+                    ($xmlCdataSectionByteLengthBucketCounts[$bucket] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlCdataSectionByteLengthBuckets, $bucket);
+                $xmlCdataSectionByteLengthBucketPartNames[$bucket] ??= [];
+                $this->appendUniqueString(
+                    $xmlCdataSectionByteLengthBucketPartNames[$bucket],
                     is_string($item['partName'] ?? null) ? $item['partName'] : null,
                 );
             }
@@ -35387,6 +35458,9 @@ final class DocxOpenXmlReader
                     'parentLocalName' => is_string($section['parentLocalName'] ?? null) ? $section['parentLocalName'] : null,
                     'parentQualifiedName' => is_string($section['parentQualifiedName'] ?? null) ? $section['parentQualifiedName'] : null,
                     'byteLength' => (int) ($section['byteLength'] ?? 0),
+                    'byteLengthBucket' => is_string($section['byteLengthBucket'] ?? null)
+                        ? $section['byteLengthBucket']
+                        : $this->xmlTextByteLengthBucket((int) ($section['byteLength'] ?? 0)),
                     'crc32' => is_string($section['crc32'] ?? null) ? $section['crc32'] : null,
                     'sha256' => is_string($section['sha256'] ?? null) ? $section['sha256'] : null,
                 ];
@@ -35525,6 +35599,12 @@ final class DocxOpenXmlReader
         ksort($xmlEntityReferenceParentNamespaceCounts, SORT_STRING);
         ksort($xmlEntityReferenceParentLocalNameCounts, SORT_STRING);
         ksort($xmlEntityReferenceParentQualifiedNameCounts, SORT_STRING);
+        ksort($xmlCdataSectionByteLengthBucketCounts, SORT_STRING);
+        ksort($xmlCdataSectionByteLengthBucketPartNames, SORT_STRING);
+        foreach ($xmlCdataSectionByteLengthBucketPartNames as &$xmlCdataBucketPartNames) {
+            sort($xmlCdataBucketPartNames, SORT_STRING);
+        }
+        unset($xmlCdataBucketPartNames);
         ksort($xmlCdataSectionParentPathCounts, SORT_STRING);
         ksort($xmlCdataSectionParentNamespaceCounts, SORT_STRING);
         ksort($xmlCdataSectionParentLocalNameCounts, SORT_STRING);
@@ -35560,6 +35640,7 @@ final class DocxOpenXmlReader
         sort($xmlEntityReferenceNames, SORT_STRING);
         sort($xmlEntityReferenceParentPaths, SORT_STRING);
         sort($xmlCdataSectionPartNames, SORT_STRING);
+        sort($xmlCdataSectionByteLengthBuckets, SORT_STRING);
         sort($xmlCdataSectionParentPaths, SORT_STRING);
         sort($xmlTextNodePartNames, SORT_STRING);
         sort($xmlTextNodeParentPaths, SORT_STRING);
@@ -35714,7 +35795,12 @@ final class DocxOpenXmlReader
             'xmlCdataSectionPartCount' => $xmlCdataSectionPartCount,
             'xmlCdataSectionCount' => $xmlCdataSectionCount,
             'xmlCdataSectionByteLength' => $xmlCdataSectionByteLength,
+            'xmlCdataSectionMaxByteLength' => $xmlCdataSectionMaxByteLength,
             'xmlCdataSectionPartNames' => $xmlCdataSectionPartNames,
+            'xmlCdataSectionByteLengthBucketCount' => count($xmlCdataSectionByteLengthBucketCounts),
+            'xmlCdataSectionByteLengthBucketCounts' => $xmlCdataSectionByteLengthBucketCounts,
+            'xmlCdataSectionByteLengthBuckets' => $xmlCdataSectionByteLengthBuckets,
+            'xmlCdataSectionByteLengthBucketPartNames' => $xmlCdataSectionByteLengthBucketPartNames,
             'xmlCdataSectionParentPathCount' => count($xmlCdataSectionParentPathCounts),
             'xmlCdataSectionParentPathCounts' => $xmlCdataSectionParentPathCounts,
             'xmlCdataSectionParentPaths' => $xmlCdataSectionParentPaths,
@@ -35889,6 +35975,9 @@ final class DocxOpenXmlReader
             'xmlEntityReferences' => [],
             'xmlCdataSectionCount' => 0,
             'xmlCdataSectionByteLength' => 0,
+            'xmlCdataSectionMaxByteLength' => 0,
+            'xmlCdataSectionByteLengthBucketCounts' => [],
+            'xmlCdataSectionByteLengthBuckets' => [],
             'xmlCdataSectionParentPathCounts' => [],
             'xmlCdataSectionParentPaths' => [],
             'xmlCdataSectionParentNamespaceCounts' => [],
@@ -36063,6 +36152,9 @@ final class DocxOpenXmlReader
         $cdataSections = $this->xmlCdataSectionProvenance($xml, $partName);
         $item['xmlCdataSectionCount'] = $cdataSections['count'];
         $item['xmlCdataSectionByteLength'] = $cdataSections['byteLength'];
+        $item['xmlCdataSectionMaxByteLength'] = $cdataSections['maxByteLength'];
+        $item['xmlCdataSectionByteLengthBucketCounts'] = $cdataSections['byteLengthBucketCounts'];
+        $item['xmlCdataSectionByteLengthBuckets'] = $cdataSections['byteLengthBuckets'];
         $item['xmlCdataSectionParentPathCounts'] = $cdataSections['parentPathCounts'];
         $item['xmlCdataSectionParentPaths'] = $cdataSections['parentPaths'];
         $item['xmlCdataSectionParentNamespaceCounts'] = $cdataSections['parentNamespaceCounts'];
@@ -36509,7 +36601,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, byteLength:int, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
+     * @return array{count:int, byteLength:int, maxByteLength:int, byteLengthBucketCounts:array<string, int>, byteLengthBuckets:list<string>, parentPathCounts:array<string, int>, parentPaths:list<string>, parentNamespaceCounts:array<string, int>, parentLocalNameCounts:array<string, int>, parentQualifiedNameCounts:array<string, int>, items:list<array<string, mixed>>}
      */
     private function xmlCdataSectionProvenance(string $xml, string $partName): array
     {
@@ -36518,6 +36610,9 @@ final class DocxOpenXmlReader
             return [
                 'count' => 0,
                 'byteLength' => 0,
+                'maxByteLength' => 0,
+                'byteLengthBucketCounts' => [],
+                'byteLengthBuckets' => [],
                 'parentPathCounts' => [],
                 'parentPaths' => [],
                 'parentNamespaceCounts' => [],
@@ -36535,6 +36630,9 @@ final class DocxOpenXmlReader
         $parentQualifiedNameCounts = [];
         $ordinal = 0;
         $byteLength = 0;
+        $maxByteLength = 0;
+        $byteLengthBucketCounts = [];
+        $byteLengthBuckets = [];
         $walk = function (\DOMNode $node) use (
             &$walk,
             &$items,
@@ -36545,6 +36643,9 @@ final class DocxOpenXmlReader
             &$parentQualifiedNameCounts,
             &$ordinal,
             &$byteLength,
+            &$maxByteLength,
+            &$byteLengthBucketCounts,
+            &$byteLengthBuckets,
         ): void {
             foreach ($node->childNodes as $child) {
                 if ($child instanceof \DOMCdataSection) {
@@ -36566,7 +36667,12 @@ final class DocxOpenXmlReader
                     $parentQualifiedNameKey = $parentQualifiedName ?? '(none)';
                     ++$ordinal;
                     $sectionByteLength = strlen($data);
+                    $sectionByteLengthBucket = $this->xmlTextByteLengthBucket($sectionByteLength);
                     $byteLength += $sectionByteLength;
+                    $maxByteLength = max($maxByteLength, $sectionByteLength);
+                    $byteLengthBucketCounts[$sectionByteLengthBucket] =
+                        ($byteLengthBucketCounts[$sectionByteLengthBucket] ?? 0) + 1;
+                    $this->appendUniqueString($byteLengthBuckets, $sectionByteLengthBucket);
                     $parentPathCounts[$sectionParentPath] = ($parentPathCounts[$sectionParentPath] ?? 0) + 1;
                     $this->appendUniqueString($parentPaths, $sectionParentPath);
                     $parentNamespaceCounts[$parentNamespaceKey] = ($parentNamespaceCounts[$parentNamespaceKey] ?? 0) + 1;
@@ -36580,6 +36686,7 @@ final class DocxOpenXmlReader
                         'parentLocalName' => $parentLocalName,
                         'parentQualifiedName' => $parentQualifiedName,
                         'byteLength' => $sectionByteLength,
+                        'byteLengthBucket' => $sectionByteLengthBucket,
                         'crc32' => $data === '' ? null : sprintf('%08x', crc32($data)),
                         'sha256' => $data === '' ? null : hash('sha256', $data),
                     ];
@@ -36592,15 +36699,20 @@ final class DocxOpenXmlReader
         };
         $walk($dom);
 
+        ksort($byteLengthBucketCounts, SORT_STRING);
         ksort($parentPathCounts, SORT_STRING);
         ksort($parentNamespaceCounts, SORT_STRING);
         ksort($parentLocalNameCounts, SORT_STRING);
         ksort($parentQualifiedNameCounts, SORT_STRING);
+        sort($byteLengthBuckets, SORT_STRING);
         sort($parentPaths, SORT_STRING);
 
         return [
             'count' => count($items),
             'byteLength' => $byteLength,
+            'maxByteLength' => $maxByteLength,
+            'byteLengthBucketCounts' => $byteLengthBucketCounts,
+            'byteLengthBuckets' => $byteLengthBuckets,
             'parentPathCounts' => $parentPathCounts,
             'parentPaths' => $parentPaths,
             'parentNamespaceCounts' => $parentNamespaceCounts,
@@ -44100,6 +44212,9 @@ final class DocxOpenXmlReader
                 'xmlComments' => [],
                 'xmlCdataSectionCount' => 0,
                 'xmlCdataSectionByteLength' => 0,
+                'xmlCdataSectionMaxByteLength' => 0,
+                'xmlCdataSectionByteLengthBucketCounts' => [],
+                'xmlCdataSectionByteLengthBuckets' => [],
                 'xmlCdataSectionParentPathCounts' => [],
                 'xmlCdataSectionParentPaths' => [],
                 'xmlCdataSectionParentNamespaceCounts' => [],
@@ -44620,6 +44735,9 @@ final class DocxOpenXmlReader
             'xmlComments' => $comments['items'],
             'xmlCdataSectionCount' => $cdataSections['count'],
             'xmlCdataSectionByteLength' => $cdataSections['byteLength'],
+            'xmlCdataSectionMaxByteLength' => $cdataSections['maxByteLength'],
+            'xmlCdataSectionByteLengthBucketCounts' => $cdataSections['byteLengthBucketCounts'],
+            'xmlCdataSectionByteLengthBuckets' => $cdataSections['byteLengthBuckets'],
             'xmlCdataSectionParentPathCounts' => $cdataSections['parentPathCounts'],
             'xmlCdataSectionParentPaths' => $cdataSections['parentPaths'],
             'xmlCdataSectionParentNamespaceCounts' => $cdataSections['parentNamespaceCounts'],
