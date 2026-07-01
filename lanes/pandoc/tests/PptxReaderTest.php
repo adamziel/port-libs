@@ -1182,6 +1182,78 @@ XML);
     }
 };
 
+$buildListContinuationPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-list-continuation-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Continuation slide</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Continuation body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Top-level</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="1" indent="0" marL="342900"><a:buNone/></a:pPr><a:r><a:t>With continuation</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="1"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Nested bullet</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="2" indent="0" marL="685800"><a:buNone/></a:pPr><a:r><a:t>Nested continuation</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Second top-level</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildSpeakerNotesPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-speaker-notes-');
     if ($path === false) {
@@ -1845,6 +1917,45 @@ return [
         $t->same(2, $topLevelLists[0]->children[0]->children[2]->attr('start'));
         $t->same('Numbered child', $itemText($topLevelLists[0]->children[0]->children[2]->children[0]));
         $t->contains('OrderedList ( 2 , Decimal , Period )', $native);
+    },
+
+    'keeps pptx buNone paragraphs as list item continuations' => static function (TestRunner $t) use ($buildListContinuationPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildListContinuationPptxPackage());
+        $topLevelLists = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => in_array($node->type, ['bullet_list', 'ordered_list'], true)
+        ));
+        $itemText = static function (AstNode $item): string {
+            $plain = $item->children[0] ?? new AstNode('plain');
+            $text = '';
+            foreach ($plain->children as $inline) {
+                if ($inline->type === 'text') {
+                    $text .= (string) $inline->attr('text');
+                } elseif ($inline->type === 'space') {
+                    $text .= ' ';
+                }
+            }
+
+            return $text;
+        };
+        $paragraphText = static fn (AstNode $paragraph): string => (string) $paragraph->attr('text');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($topLevelLists));
+        $t->same(['Top-level', 'Second top-level'], array_map($itemText, $topLevelLists[0]->children));
+        $t->same(['plain', 'paragraph', 'bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $topLevelLists[0]->children[0]->children));
+        $t->same('With continuation', $paragraphText($topLevelLists[0]->children[0]->children[1]));
+        $nested = $topLevelLists[0]->children[0]->children[2];
+        $t->same('bullet_list', $nested->type);
+        $t->same(['plain', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $nested->children[0]->children));
+        $t->same('Nested bullet', $itemText($nested->children[0]));
+        $t->same('Nested continuation', $paragraphText($nested->children[0]->children[1]));
+        $t->same([], array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => $node->type === 'paragraph' && in_array($node->attr('text'), ['With continuation', 'Nested continuation'], true)
+        )));
+        $t->contains('Para [ Str "With" , Space , Str "continuation" ]', $native);
+        $t->contains('Para [ Str "Nested" , Space , Str "continuation" ]', $native);
     },
 
     'preserves pptx speaker notes as notes divs' => static function (TestRunner $t) use ($buildSpeakerNotesPptxPackage, $nodesOfType, $nodesWithClass): void {
