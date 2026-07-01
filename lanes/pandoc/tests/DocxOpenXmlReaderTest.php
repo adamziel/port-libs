@@ -12466,6 +12466,75 @@ XML;
         $t->true(in_array('root-relationship-target', $package['parts']['docProps/review-audit.xml']['roles'], true), 'package root resource target role missing');
         $t->true(!isset($docx['media']['docProps/review-audit.xml']), 'package root resource bytes should not be exposed as document media');
     },
+    'summarizes docx package root resource basename lookup maps for review handoff' => static function (TestRunner $t): void {
+        $resourceType = 'http://example.test/openxml/relationships/reviewResource';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootAudit" Type="' . $resourceType . '" Target="docProps/review/root-audit.xml"/>' . "\n" .
+            '  <Relationship Id="rMissingRootAudit" Type="' . $resourceType . '" Target="docProps/review/root-copy.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/review/root-audit.xml'] = '<root-audit/>';
+        $parts['docProps/review/_rels/root-audit.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/preview.png?asset=main#fig"/>
+  <Relationship Id="rMissingPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/missing-preview.png"/>
+</Relationships>
+XML;
+        $parts['docProps/review/images/preview.png'] = 'preview image bytes';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $resources = $docx['packageProvenance']['packageRootRelationshipResources'];
+        $summary = $docx['packageProvenance']['summary'];
+
+        $t->same(['review' => 2], $resources['targetDirectoryBaseNameCounts']);
+        $t->same(['root-audit' => 1, 'root-copy' => 1], $resources['targetBaseNameStemCounts']);
+        $t->same(['root-audit' => 1, 'root-copy' => 1], $resources['targetCaseFoldBaseNameStemCounts']);
+        $t->same([
+            'docProps/review' => [
+                'docProps/review/root-audit.xml',
+                'docProps/review/root-copy.xml',
+            ],
+        ], $resources['targetPartsByDirectory']);
+        $t->same([
+            'root-audit' => ['docProps/review/root-audit.xml'],
+            'root-copy' => ['docProps/review/root-copy.xml'],
+        ], $resources['targetPartsByBaseNameStem']);
+        $t->same($resources['targetPartsByBaseNameStem'], $resources['targetPartsByCaseFoldBaseNameStem']);
+
+        $t->same(['images' => 2], $resources['targetRelationshipTargetDirectoryBaseNameCounts']);
+        $t->same(['missing-preview' => 1, 'preview' => 1], $resources['targetRelationshipTargetBaseNameStemCounts']);
+        $t->same(['missing-preview' => 1, 'preview' => 1], $resources['targetRelationshipTargetCaseFoldBaseNameStemCounts']);
+        $t->same([
+            'docProps/review/images' => [
+                'docProps/review/images/missing-preview.png',
+                'docProps/review/images/preview.png',
+            ],
+        ], $resources['targetRelationshipTargetPartsByDirectory']);
+        $t->same([
+            'missing-preview' => ['docProps/review/images/missing-preview.png'],
+            'preview' => ['docProps/review/images/preview.png'],
+        ], $resources['targetRelationshipTargetPartsByBaseNameStem']);
+        $t->same(
+            $resources['targetRelationshipTargetPartsByBaseNameStem'],
+            $resources['targetRelationshipTargetPartsByCaseFoldBaseNameStem']
+        );
+
+        $t->same($resources['targetDirectoryBaseNameCounts'], $summary['packageRootRelationshipResourceTargetDirectoryBaseNameCounts']);
+        $t->same($resources['targetBaseNameStemCounts'], $summary['packageRootRelationshipResourceTargetBaseNameStemCounts']);
+        $t->same($resources['targetCaseFoldBaseNameStemCounts'], $summary['packageRootRelationshipResourceTargetCaseFoldBaseNameStemCounts']);
+        $t->same($resources['targetPartsByDirectory'], $summary['packageRootRelationshipResourceTargetPartsByDirectory']);
+        $t->same($resources['targetPartsByBaseNameStem'], $summary['packageRootRelationshipResourceTargetPartsByBaseNameStem']);
+        $t->same($resources['targetPartsByCaseFoldBaseNameStem'], $summary['packageRootRelationshipResourceTargetPartsByCaseFoldBaseNameStem']);
+        $t->same($resources['targetRelationshipTargetDirectoryBaseNameCounts'], $summary['packageRootRelationshipResourceTargetRelationshipTargetDirectoryBaseNameCounts']);
+        $t->same($resources['targetRelationshipTargetBaseNameStemCounts'], $summary['packageRootRelationshipResourceTargetRelationshipTargetBaseNameStemCounts']);
+        $t->same($resources['targetRelationshipTargetCaseFoldBaseNameStemCounts'], $summary['packageRootRelationshipResourceTargetRelationshipTargetCaseFoldBaseNameStemCounts']);
+        $t->same($resources['targetRelationshipTargetPartsByDirectory'], $summary['packageRootRelationshipResourceTargetRelationshipTargetPartsByDirectory']);
+        $t->same($resources['targetRelationshipTargetPartsByBaseNameStem'], $summary['packageRootRelationshipResourceTargetRelationshipTargetPartsByBaseNameStem']);
+        $t->same($resources['targetRelationshipTargetPartsByCaseFoldBaseNameStem'], $summary['packageRootRelationshipResourceTargetRelationshipTargetPartsByCaseFoldBaseNameStem']);
+    },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
         $thumbnailBytes = 'jpeg thumbnail bytes';

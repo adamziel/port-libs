@@ -163,6 +163,7 @@ final class OpenDocumentPackage
             : null;
         $rawCentralDirectoryExpansionRatio = self::rawCentralDirectoryExpansionRatioBucketPreflight($zipPreflight);
         $rawCentralDirectoryNameByteLength = self::rawCentralDirectoryNameByteLengthBucketPreflight($zipPreflight);
+        $rawCentralDirectoryReviewFieldByteLength = self::rawCentralDirectoryReviewFieldByteLengthBucketPreflight($zipPreflight);
         $diagnostics = [];
         $addDiagnostic = static function (string $diagnostic) use (&$diagnostics): void {
             if (!in_array($diagnostic, $diagnostics, true)) {
@@ -258,11 +259,166 @@ final class OpenDocumentPackage
             'rawCentralDirectoryNameByteLengthDecodedNameDiffersFromRawNameCount' => $rawCentralDirectoryNameByteLength['decodedNameDiffersFromRawNameCount'],
             'rawCentralDirectoryNameByteLengthByteExposurePolicy' => 'odf-raw-central-directory-name-byte-length-metadata-only',
             'rawCentralDirectoryNameByteLengthCanExposeBytes' => false,
+            'rawCentralDirectoryReviewFieldByteLengthBucketSummaryCount' => $rawCentralDirectoryReviewFieldByteLength['summaryCount'],
+            'rawCentralDirectoryReviewFieldByteLengthBuckets' => $rawCentralDirectoryReviewFieldByteLength['buckets'],
+            'rawCentralDirectoryReviewFieldByteLengthBucketCounts' => $rawCentralDirectoryReviewFieldByteLength['bucketCounts'],
+            'rawCentralDirectoryReviewFieldByteLengthBucketSummaries' => $rawCentralDirectoryReviewFieldByteLength['summaries'],
+            'rawCentralDirectoryReviewFieldByteLengthEntryCount' => $rawCentralDirectoryReviewFieldByteLength['entryCount'],
+            'rawCentralDirectoryReviewFieldByteLengthReviewEntryCount' => $rawCentralDirectoryReviewFieldByteLength['reviewFieldEntryCount'],
+            'rawCentralDirectoryReviewFieldByteLengthReviewBytes' => $rawCentralDirectoryReviewFieldByteLength['reviewFieldBytes'],
+            'rawCentralDirectoryReviewFieldByteLengthExtraFieldBytes' => $rawCentralDirectoryReviewFieldByteLength['centralExtraFieldBytes'],
+            'rawCentralDirectoryReviewFieldByteLengthCommentBytes' => $rawCentralDirectoryReviewFieldByteLength['rawCommentBytes'],
+            'rawCentralDirectoryReviewFieldByteLengthExtraFieldEntryCount' => $rawCentralDirectoryReviewFieldByteLength['centralExtraFieldEntryCount'],
+            'rawCentralDirectoryReviewFieldByteLengthCommentEntryCount' => $rawCentralDirectoryReviewFieldByteLength['entryCommentCount'],
+            'rawCentralDirectoryReviewFieldByteLengthByteExposurePolicy' => 'odf-raw-central-directory-review-field-byte-length-metadata-only',
+            'rawCentralDirectoryReviewFieldByteLengthCanExposeBytes' => false,
             'zipRawStrictImport' => $zipPreflight,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
             'byteExposurePolicy' => 'odf-raw-package-import-metadata-only',
             'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $zipPreflight
+     * @return array{
+     *     summaryCount:int,
+     *     buckets:list<string>,
+     *     bucketCounts:array<string, int>,
+     *     summaries:list<array<string, mixed>>,
+     *     entryCount:int,
+     *     reviewFieldEntryCount:int,
+     *     reviewFieldBytes:int,
+     *     centralExtraFieldBytes:int,
+     *     rawCommentBytes:int,
+     *     centralExtraFieldEntryCount:int,
+     *     entryCommentCount:int
+     * }
+     */
+    private static function rawCentralDirectoryReviewFieldByteLengthBucketPreflight(array $zipPreflight): array
+    {
+        $variableFields = is_array($zipPreflight['centralDirectoryVariableFields'] ?? null)
+            ? $zipPreflight['centralDirectoryVariableFields']
+            : [];
+        $entries = is_array($variableFields['entries'] ?? null) ? $variableFields['entries'] : [];
+        $summaries = [];
+        $entryCount = 0;
+        $reviewFieldEntryCount = 0;
+        $reviewFieldBytes = 0;
+        $centralExtraFieldBytes = 0;
+        $rawCommentBytes = 0;
+        $centralExtraFieldEntryCount = 0;
+        $entryCommentCount = 0;
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $entryExtraFieldBytes = is_int($entry['centralExtraFieldLength'] ?? null)
+                ? $entry['centralExtraFieldLength']
+                : 0;
+            $entryCommentBytes = is_int($entry['rawCommentLength'] ?? null)
+                ? $entry['rawCommentLength']
+                : 0;
+            $entryReviewFieldBytes = is_int($entry['reviewFieldBytes'] ?? null)
+                ? $entry['reviewFieldBytes']
+                : $entryExtraFieldBytes + $entryCommentBytes;
+            $bucket = self::rawCentralDirectoryReviewFieldByteLengthBucket($entryReviewFieldBytes);
+            $bucketKey = $bucket['rawCentralDirectoryReviewFieldByteLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'rawCentralDirectoryReviewFieldByteLengthBucket' => $bucketKey,
+                    'minRawCentralDirectoryReviewFieldByteLength' => $bucket['minRawCentralDirectoryReviewFieldByteLength'],
+                    'maxRawCentralDirectoryReviewFieldByteLength' => $bucket['maxRawCentralDirectoryReviewFieldByteLength'],
+                    'entryCount' => 0,
+                    'reviewFieldEntryCount' => 0,
+                    'centralExtraFieldEntryCount' => 0,
+                    'entryCommentCount' => 0,
+                    'reviewFieldBytes' => 0,
+                    'centralExtraFieldBytes' => 0,
+                    'rawCommentBytes' => 0,
+                    'directoryRoots' => [],
+                    'entryNames' => [],
+                    'longestReviewFieldEntryName' => null,
+                    'longestReviewFieldByteLength' => 0,
+                ];
+            }
+
+            ++$entryCount;
+            ++$summaries[$bucketKey]['entryCount'];
+            $summaries[$bucketKey]['reviewFieldBytes'] += $entryReviewFieldBytes;
+            $summaries[$bucketKey]['centralExtraFieldBytes'] += $entryExtraFieldBytes;
+            $summaries[$bucketKey]['rawCommentBytes'] += $entryCommentBytes;
+            $reviewFieldBytes += $entryReviewFieldBytes;
+            $centralExtraFieldBytes += $entryExtraFieldBytes;
+            $rawCommentBytes += $entryCommentBytes;
+            if ($entryReviewFieldBytes > 0) {
+                ++$reviewFieldEntryCount;
+                ++$summaries[$bucketKey]['reviewFieldEntryCount'];
+            }
+            if ($entryExtraFieldBytes > 0) {
+                ++$centralExtraFieldEntryCount;
+                ++$summaries[$bucketKey]['centralExtraFieldEntryCount'];
+            }
+            if ($entryCommentBytes > 0) {
+                ++$entryCommentCount;
+                ++$summaries[$bucketKey]['entryCommentCount'];
+            }
+
+            $summaries[$bucketKey]['entryNames'][] = $name;
+            $directoryRoot = self::packageDirectoryRoot($name);
+            if (!in_array($directoryRoot, $summaries[$bucketKey]['directoryRoots'], true)) {
+                $summaries[$bucketKey]['directoryRoots'][] = $directoryRoot;
+            }
+            if (
+                $entryReviewFieldBytes > $summaries[$bucketKey]['longestReviewFieldByteLength']
+                || (
+                    $entryReviewFieldBytes === $summaries[$bucketKey]['longestReviewFieldByteLength']
+                    && (
+                        $summaries[$bucketKey]['longestReviewFieldEntryName'] === null
+                        || strcmp($name, (string) $summaries[$bucketKey]['longestReviewFieldEntryName']) < 0
+                    )
+                )
+            ) {
+                $summaries[$bucketKey]['longestReviewFieldEntryName'] = $name;
+                $summaries[$bucketKey]['longestReviewFieldByteLength'] = $entryReviewFieldBytes;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        $bucketCounts = [];
+        foreach (['none', 'up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes', '33-to-64-bytes', 'over-64-bytes'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+                $bucketCounts[$bucket] = $summaries[$bucket]['entryCount'];
+            }
+        }
+
+        return [
+            'summaryCount' => count($ordered),
+            'buckets' => array_keys($bucketCounts),
+            'bucketCounts' => $bucketCounts,
+            'summaries' => $ordered,
+            'entryCount' => $entryCount,
+            'reviewFieldEntryCount' => $reviewFieldEntryCount,
+            'reviewFieldBytes' => $reviewFieldBytes,
+            'centralExtraFieldBytes' => $centralExtraFieldBytes,
+            'rawCommentBytes' => $rawCommentBytes,
+            'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'entryCommentCount' => $entryCommentCount,
         ];
     }
 
@@ -6777,6 +6933,58 @@ final class OpenDocumentPackage
             'packagePathByteLengthBucket' => 'over-64-bytes',
             'minPackagePathByteLength' => 65,
             'maxPackagePathByteLength' => null,
+        ];
+    }
+
+    /**
+     * @return array{rawCentralDirectoryReviewFieldByteLengthBucket:string,minRawCentralDirectoryReviewFieldByteLength:int,maxRawCentralDirectoryReviewFieldByteLength:int|null}
+     */
+    private static function rawCentralDirectoryReviewFieldByteLengthBucket(int $byteLength): array
+    {
+        if ($byteLength <= 0) {
+            return [
+                'rawCentralDirectoryReviewFieldByteLengthBucket' => 'none',
+                'minRawCentralDirectoryReviewFieldByteLength' => 0,
+                'maxRawCentralDirectoryReviewFieldByteLength' => 0,
+            ];
+        }
+
+        if ($byteLength <= 8) {
+            return [
+                'rawCentralDirectoryReviewFieldByteLengthBucket' => 'up-to-8-bytes',
+                'minRawCentralDirectoryReviewFieldByteLength' => 1,
+                'maxRawCentralDirectoryReviewFieldByteLength' => 8,
+            ];
+        }
+
+        if ($byteLength <= 16) {
+            return [
+                'rawCentralDirectoryReviewFieldByteLengthBucket' => '9-to-16-bytes',
+                'minRawCentralDirectoryReviewFieldByteLength' => 9,
+                'maxRawCentralDirectoryReviewFieldByteLength' => 16,
+            ];
+        }
+
+        if ($byteLength <= 32) {
+            return [
+                'rawCentralDirectoryReviewFieldByteLengthBucket' => '17-to-32-bytes',
+                'minRawCentralDirectoryReviewFieldByteLength' => 17,
+                'maxRawCentralDirectoryReviewFieldByteLength' => 32,
+            ];
+        }
+
+        if ($byteLength <= 64) {
+            return [
+                'rawCentralDirectoryReviewFieldByteLengthBucket' => '33-to-64-bytes',
+                'minRawCentralDirectoryReviewFieldByteLength' => 33,
+                'maxRawCentralDirectoryReviewFieldByteLength' => 64,
+            ];
+        }
+
+        return [
+            'rawCentralDirectoryReviewFieldByteLengthBucket' => 'over-64-bytes',
+            'minRawCentralDirectoryReviewFieldByteLength' => 65,
+            'maxRawCentralDirectoryReviewFieldByteLength' => null,
         ];
     }
 

@@ -123,6 +123,30 @@ $buildOdtZipBytesWithCentralDirectoryRatioBuckets = static function () use ($man
         . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), $centralOffset, 0);
 };
 
+$buildOdtZipBytesWithCentralDirectoryReviewFields = static function () use ($manifestXml, $contentXml): string {
+    return ZipPackage::fromParts([
+        ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+        [
+            'name' => 'META-INF/manifest.xml',
+            'data' => $manifestXml,
+            'compressionMethod' => 0,
+            'comment' => 'manifest-audit',
+        ],
+        [
+            'name' => 'content.xml',
+            'data' => $contentXml,
+            'compressionMethod' => 0,
+            'extraFieldData' => pack('vva*', 0xcafe, strlen('odf'), 'odf'),
+        ],
+        [
+            'name' => 'Pictures/hero.png',
+            'data' => 'PNGDATA',
+            'compressionMethod' => 0,
+            'comment' => 'image-review-notes',
+        ],
+    ])->bytes();
+};
+
 $addZip64EndOfCentralDirectory = static function (string $zip) use ($packUInt64): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -276,6 +300,81 @@ return [
         $t->same(strlen('Payloads/zero-compressed.bin'), $indexByBucket['17-to-32-bytes']['longestRawNameByteLength']);
         $encodedSummary = json_encode($summary['rawCentralDirectoryNameByteLengthBucketSummaries'], JSON_THROW_ON_ERROR);
         $t->true(!str_contains($encodedSummary, str_repeat('H', 32)));
+    },
+
+    'summarizes raw ODT central directory review field byte length buckets before package instantiation' => static function (TestRunner $t) use ($buildOdtZipBytesWithCentralDirectoryReviewFields): void {
+        $summary = OpenDocumentPackage::rawImportPreflight(
+            $buildOdtZipBytesWithCentralDirectoryReviewFields()
+        );
+
+        $indexByBucket = [];
+        foreach ($summary['rawCentralDirectoryReviewFieldByteLengthBucketSummaries'] as $bucketSummary) {
+            $indexByBucket[$bucketSummary['rawCentralDirectoryReviewFieldByteLengthBucket']] = $bucketSummary;
+        }
+
+        $contentExtraBytes = strlen(pack('vva*', 0xcafe, strlen('odf'), 'odf'));
+        $manifestCommentBytes = strlen('manifest-audit');
+        $imageCommentBytes = strlen('image-review-notes');
+
+        $t->same(4, $summary['rawCentralDirectoryReviewFieldByteLengthBucketSummaryCount']);
+        $t->same([
+            'none',
+            'up-to-8-bytes',
+            '9-to-16-bytes',
+            '17-to-32-bytes',
+        ], $summary['rawCentralDirectoryReviewFieldByteLengthBuckets']);
+        $t->same([
+            'none' => 1,
+            'up-to-8-bytes' => 1,
+            '9-to-16-bytes' => 1,
+            '17-to-32-bytes' => 1,
+        ], $summary['rawCentralDirectoryReviewFieldByteLengthBucketCounts']);
+        $t->same(4, $summary['rawCentralDirectoryReviewFieldByteLengthEntryCount']);
+        $t->same(3, $summary['rawCentralDirectoryReviewFieldByteLengthReviewEntryCount']);
+        $t->same(
+            $contentExtraBytes + $manifestCommentBytes + $imageCommentBytes,
+            $summary['rawCentralDirectoryReviewFieldByteLengthReviewBytes']
+        );
+        $t->same($contentExtraBytes, $summary['rawCentralDirectoryReviewFieldByteLengthExtraFieldBytes']);
+        $t->same(
+            $manifestCommentBytes + $imageCommentBytes,
+            $summary['rawCentralDirectoryReviewFieldByteLengthCommentBytes']
+        );
+        $t->same(1, $summary['rawCentralDirectoryReviewFieldByteLengthExtraFieldEntryCount']);
+        $t->same(2, $summary['rawCentralDirectoryReviewFieldByteLengthCommentEntryCount']);
+        $t->same('odf-raw-central-directory-review-field-byte-length-metadata-only', $summary['rawCentralDirectoryReviewFieldByteLengthByteExposurePolicy']);
+        $t->same(false, $summary['rawCentralDirectoryReviewFieldByteLengthCanExposeBytes']);
+        $t->same(
+            $summary['zipRawStrictImport']['centralDirectoryVariableFields']['centralDirectoryReviewFieldBytes'],
+            $summary['rawCentralDirectoryReviewFieldByteLengthReviewBytes']
+        );
+        $t->same(
+            $summary['zipRawStrictImport']['centralDirectoryVariableFields']['centralDirectoryExtraFieldBytes'],
+            $summary['rawCentralDirectoryReviewFieldByteLengthExtraFieldBytes']
+        );
+        $t->same(
+            $summary['zipRawStrictImport']['centralDirectoryVariableFields']['centralDirectoryCommentBytes'],
+            $summary['rawCentralDirectoryReviewFieldByteLengthCommentBytes']
+        );
+
+        $t->same(['mimetype'], $indexByBucket['none']['entryNames']);
+        $t->same(['content.xml'], $indexByBucket['up-to-8-bytes']['entryNames']);
+        $t->same(['META-INF/manifest.xml'], $indexByBucket['9-to-16-bytes']['entryNames']);
+        $t->same(['Pictures/hero.png'], $indexByBucket['17-to-32-bytes']['entryNames']);
+        $t->same(['/'], $indexByBucket['none']['directoryRoots']);
+        $t->same(['/'], $indexByBucket['up-to-8-bytes']['directoryRoots']);
+        $t->same(['META-INF/'], $indexByBucket['9-to-16-bytes']['directoryRoots']);
+        $t->same(['Pictures/'], $indexByBucket['17-to-32-bytes']['directoryRoots']);
+        $t->same(0, $indexByBucket['none']['reviewFieldBytes']);
+        $t->same($contentExtraBytes, $indexByBucket['up-to-8-bytes']['centralExtraFieldBytes']);
+        $t->same($manifestCommentBytes, $indexByBucket['9-to-16-bytes']['rawCommentBytes']);
+        $t->same($imageCommentBytes, $indexByBucket['17-to-32-bytes']['rawCommentBytes']);
+        $t->same('Pictures/hero.png', $indexByBucket['17-to-32-bytes']['longestReviewFieldEntryName']);
+        $t->same($imageCommentBytes, $indexByBucket['17-to-32-bytes']['longestReviewFieldByteLength']);
+
+        $encodedSummary = json_encode($summary['rawCentralDirectoryReviewFieldByteLengthBucketSummaries'], JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedSummary, 'manifest-audit'));
+        $t->true(!str_contains($encodedSummary, 'image-review-notes'));
     },
 
     'preflights ZIP64 EOCD ODT packages before bounded package instantiation' => static function (TestRunner $t) use ($buildOdtZipBytes, $addZip64EndOfCentralDirectory): void {
