@@ -21797,6 +21797,197 @@ XML;
         $t->true(in_array('relationship-target', $inventory['word/embeddings/unreferenced-diagram-model.xlsx']['roles'], true), 'unreferenced diagram workbook target role missing');
         $t->true(!isset($docx['media']['word/embeddings/diagram-model.xlsx']), 'Diagram workbook package should not be exposed as document media');
     },
+    'summarizes docx package custom ui parts and image relationships for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customUiRel = 'http://schemas.microsoft.com/office/2006/relationships/ui/extensibility';
+        $customUi2Rel = 'http://schemas.microsoft.com/office/2007/relationships/ui/extensibility';
+        $qatRel = 'http://schemas.microsoft.com/office/2006/relationships/ui/userCustomization';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $customLogoBytes = 'custom ui logo png bytes';
+
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCustomUi" Type="' . $customUiRel . '" Target="customUI/customUI.xml?ui=classic#ribbon"/>' . "\n" .
+            '  <Relationship Id="rCustomUi2" Type="' . $customUi2Rel . '" Target="customUI/customUI14.xml"/>' . "\n" .
+            '  <Relationship Id="rQatExternal" Type="' . $qatRel . '" Target="https://example.test/customUI.xml?addin=1#ui" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['customUI/customUI.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<customUI xmlns="http://schemas.microsoft.com/office/2006/01/customui">
+  <ribbon>
+    <tabs>
+      <tab id="reviewTab" label="Review">
+        <group id="reviewGroup" label="Review tools">
+          <button id="importButton" label="Import" image="rLogo"/>
+        </group>
+      </tab>
+    </tabs>
+  </ribbon>
+</customUI>
+XML;
+        $parts['customUI/customUI14.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<customUI xmlns="http://schemas.microsoft.com/office/2009/07/customui">
+  <ribbon startFromScratch="false"/>
+</customUI>
+XML;
+        $parts['customUI/_rels/customUI.xml.rels'] = <<<'XML'
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/custom-logo.png?theme=dark#ribbon"/>
+  <Relationship Id="rMissingLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="images/missing-logo.png"/>
+  <Relationship Id="rUnexpected" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/custom-ui-help" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['customUI/images/custom-logo.png'] = $customLogoBytes;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $customUi = $docx['customUiParts'];
+        $summary = $package['summary'];
+        $ribbon = $customUi['byRelationshipId']['rCustomUi'];
+        $customUi2 = $customUi['byRelationshipId']['rCustomUi2'];
+        $externalQat = $customUi['byRelationshipId']['rQatExternal'];
+        $ribbonImages = $ribbon['imageRelationships'];
+        $logo = $ribbonImages['byRelationshipId']['rLogo'];
+        $missingLogo = $ribbonImages['byRelationshipId']['rMissingLogo'];
+        $inventory = $package['parts'];
+        $rootResources = $package['packageRootRelationshipResources'];
+
+        $t->same($customUi, $package['customUiParts']);
+        $t->same(3, $customUi['count']);
+        $t->same(3, $customUi['relationshipCount']);
+        $t->same(2, $customUi['existingCount']);
+        $t->same(0, $customUi['missingCount']);
+        $t->same(1, $customUi['externalCount']);
+        $t->same(2, $customUi['validRootCount']);
+        $t->same(0, $customUi['invalidRootCount']);
+        $t->same(0, $customUi['invalidXmlCount']);
+        $t->same(2, $customUi['imageRelationshipCount']);
+        $t->same(1, $customUi['imageExistingCount']);
+        $t->same(1, $customUi['imageMissingCount']);
+        $t->same(0, $customUi['imageExternalCount']);
+        $t->same(2, $customUi['imageIssueCount']);
+        $t->same(3, $customUi['issueCount']);
+        $t->same([
+            'external-custom-ui-target',
+            'missing-custom-ui-image',
+            'unexpected-custom-ui-relationship-type',
+        ], $customUi['issueCodes']);
+        $t->same(['rCustomUi', 'rCustomUi2', 'rQatExternal'], $customUi['relationshipIds']);
+        $t->same([$customUiRel, $customUi2Rel, $qatRel], $customUi['relationshipTypes']);
+        $t->same(['customUI/customUI.xml', 'customUI/customUI14.xml'], $customUi['targetParts']);
+        $t->same(['https://example.test/customUI.xml?addin=1#ui'], $customUi['externalTargets']);
+        $t->same(['application/xml'], $customUi['contentTypes']);
+        $t->same([
+            'http://schemas.microsoft.com/office/2006/01/customui',
+            'http://schemas.microsoft.com/office/2009/07/customui',
+        ], $customUi['rootNamespaces']);
+        $t->same(['ribbon-custom-ui', 'ribbon-custom-ui2', 'quick-access-toolbar'], $customUi['kinds']);
+        $t->same('custom-ui-bytes-blocked', $customUi['byteExposurePolicy']);
+        $t->same('custom-ui-metadata-only', $customUi['reviewPolicy']);
+
+        $t->same('ribbon-custom-ui', $ribbon['kind']);
+        $t->same($customUiRel, $ribbon['type']);
+        $t->same('customUI/customUI.xml?ui=classic#ribbon', $ribbon['resolvedTarget']);
+        $t->same('customUI/customUI.xml', $ribbon['targetPart']);
+        $t->same('ui=classic', $ribbon['targetQuery']);
+        $t->same('ribbon', $ribbon['targetFragment']);
+        $t->same('?ui=classic#ribbon', $ribbon['targetReferenceSuffix']);
+        $t->same('application/xml', $ribbon['contentTypeBase']);
+        $t->same('default', $ribbon['contentTypeSource']);
+        $t->same('application/xml', $ribbon['expectedContentTypeBase']);
+        $t->same('http://schemas.microsoft.com/office/2006/01/customui', $ribbon['expectedRootNamespace']);
+        $t->same('customUI', $ribbon['expectedRootLocalName']);
+        $t->same(true, $ribbon['validXml']);
+        $t->same(true, $ribbon['validRoot']);
+        $t->same('http://schemas.microsoft.com/office/2006/01/customui', $ribbon['rootNamespace']);
+        $t->same('customUI', $ribbon['rootLocalName']);
+        $t->same(['default'], $ribbon['rootNamespacePrefixes']);
+        $t->same('customUI/_rels/customUI.xml.rels', $ribbon['targetRelationshipsPart']);
+        $t->same(3, $ribbon['targetRelationshipCount']);
+        $t->same(strlen($parts['customUI/customUI.xml']), $ribbon['byteLength']);
+        $t->same(sprintf('%08x', crc32($parts['customUI/customUI.xml'])), $ribbon['crc32']);
+        $t->same(hash('sha256', $parts['customUI/customUI.xml']), $ribbon['sha256']);
+        $t->same([], $ribbon['issues']);
+        $t->same(false, $ribbon['valid']);
+
+        $t->same('ribbon-custom-ui2', $customUi2['kind']);
+        $t->same($customUi2Rel, $customUi2['type']);
+        $t->same('customUI/customUI14.xml', $customUi2['targetPart']);
+        $t->same('http://schemas.microsoft.com/office/2009/07/customui', $customUi2['expectedRootNamespace']);
+        $t->same('http://schemas.microsoft.com/office/2009/07/customui', $customUi2['rootNamespace']);
+        $t->same(true, $customUi2['validXml']);
+        $t->same(true, $customUi2['validRoot']);
+        $t->same(true, $customUi2['valid']);
+
+        $t->same('quick-access-toolbar', $externalQat['kind']);
+        $t->same($qatRel, $externalQat['type']);
+        $t->same(true, $externalQat['external']);
+        $t->same(null, $externalQat['targetPart']);
+        $t->same('addin=1', $externalQat['targetQuery']);
+        $t->same('ui', $externalQat['targetFragment']);
+        $t->same(['external-custom-ui-target'], $externalQat['issues']);
+        $t->same(false, $externalQat['valid']);
+
+        $t->same(3, $ribbonImages['relationshipCount']);
+        $t->same(2, $ribbonImages['count']);
+        $t->same(1, $ribbonImages['existingCount']);
+        $t->same(1, $ribbonImages['missingCount']);
+        $t->same(0, $ribbonImages['externalCount']);
+        $t->same(1, $ribbonImages['unexpectedRelationshipTypeCount']);
+        $t->same(2, $ribbonImages['issueCount']);
+        $t->same(['missing-custom-ui-image', 'unexpected-custom-ui-relationship-type'], $ribbonImages['issueCodes']);
+        $t->same(['rLogo', 'rMissingLogo'], $ribbonImages['relationshipIds']);
+        $t->same(['customUI/images/custom-logo.png', 'customUI/images/missing-logo.png'], $ribbonImages['targetParts']);
+        $t->same('custom-ui-image-bytes-blocked', $ribbonImages['byteExposurePolicy']);
+        $t->same('custom-ui-image-metadata-only', $ribbonImages['reviewPolicy']);
+
+        $t->same('customUI/customUI.xml', $logo['sourcePart']);
+        $t->same('customUI/_rels/customUI.xml.rels', $logo['relationshipsPart']);
+        $t->same('rLogo', $logo['relationshipId']);
+        $t->same($imageRel, $logo['type']);
+        $t->same('images/custom-logo.png?theme=dark#ribbon', $logo['target']);
+        $t->same('customUI/images/custom-logo.png?theme=dark#ribbon', $logo['resolvedTarget']);
+        $t->same('customUI/images/custom-logo.png', $logo['targetPart']);
+        $t->same('theme=dark', $logo['targetQuery']);
+        $t->same('ribbon', $logo['targetFragment']);
+        $t->same('?theme=dark#ribbon', $logo['targetReferenceSuffix']);
+        $t->same('image/png', $logo['contentTypeBase']);
+        $t->same('default', $logo['contentTypeSource']);
+        $t->same(strlen($customLogoBytes), $logo['byteLength']);
+        $t->same(sprintf('%08x', crc32($customLogoBytes)), $logo['crc32']);
+        $t->same(hash('sha256', $customLogoBytes), $logo['sha256']);
+        $t->same([], $logo['issues']);
+        $t->same(true, $logo['valid']);
+
+        $t->same($imageRel, $missingLogo['type']);
+        $t->same('customUI/images/missing-logo.png', $missingLogo['targetPart']);
+        $t->same(false, $missingLogo['exists']);
+        $t->same(['missing-custom-ui-image'], $missingLogo['issues']);
+        $t->same(false, $missingLogo['valid']);
+
+        $t->same(3, $summary['customUiPartCount']);
+        $t->same(2, $summary['customUiPartExistingCount']);
+        $t->same(1, $summary['customUiPartExternalCount']);
+        $t->same(2, $summary['customUiPartValidRootCount']);
+        $t->same(2, $summary['customUiImageRelationshipCount']);
+        $t->same(1, $summary['customUiImageRelationshipExistingCount']);
+        $t->same(1, $summary['customUiImageRelationshipMissingCount']);
+        $t->same(3, $summary['customUiIssueCount']);
+        $t->same($customUi['issueCodes'], $summary['customUiIssueCodes']);
+        $t->same(3, $rootResources['count']);
+        $t->true(in_array($customUiRel, $rootResources['relationshipTypes'], true), 'custom UI root relationship resource missing');
+        $t->true(in_array('custom-ui', $inventory['customUI/customUI.xml']['roles'], true), 'custom UI inventory role missing');
+        $t->true(in_array('custom-ui2', $inventory['customUI/customUI14.xml']['roles'], true), 'custom UI2 inventory role missing');
+        $t->true(in_array('custom-ui-image', $inventory['customUI/images/custom-logo.png']['roles'], true), 'custom UI image inventory role missing');
+        $t->true(!isset($inventory['customUI/images/missing-logo.png']), 'missing custom UI image should not have package inventory entry');
+        $t->true(!isset($docx['media']['customUI/images/custom-logo.png']), 'custom UI image should not be exposed as document media');
+        $t->same($hyperlinkRel, $rootResources['targetRelationshipTypes'][1]);
+    },
     'reads a native zip docx package without shelling out' => static function (TestRunner $t): void {
         $path = docx_openxml_reader_temp_docx(docx_openxml_reader_fixture_parts());
         try {
