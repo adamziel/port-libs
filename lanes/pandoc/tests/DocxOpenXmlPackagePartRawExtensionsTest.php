@@ -40,6 +40,9 @@ return [
         $t->same(['word/media/icon.PnG'], $summary['partNamesByPartRawExtension']['PnG']);
         $t->same(['customXml/item.XML'], $summary['partNamesByPartRawExtension']['XML']);
         $t->same(['customXml/extensionless'], $summary['partNamesByPartRawExtension']['(none)']);
+        $t->same(2, $summary['partExtensionCaseVariantCount']);
+        $t->same(['png', 'xml'], $summary['partExtensionCaseVariantExtensions']);
+        $t->same(3, $summary['partExtensionUppercasePartCount']);
 
         $t->same($summary['partRawExtensionCount'], $identity['partRawExtensionCount']);
         $t->same($summary['partRawExtensionCounts'], $identity['partRawExtensionCounts']);
@@ -48,6 +51,21 @@ return [
         $t->same($summary['partRawExtensionUppercasePartCount'], $identity['partRawExtensionUppercasePartCount']);
         $t->same($summary['partRawExtensionNormalizedPartCount'], $identity['partRawExtensionNormalizedPartCount']);
         $t->same($summary['partRawExtensions'], $identity['partRawExtensions']);
+        $t->same($summary['partExtensionCaseVariantCount'], $identity['partExtensionCaseVariantCount']);
+        $t->same($summary['partExtensionCaseVariantExtensions'], $identity['partExtensionCaseVariantExtensions']);
+        $t->same($summary['partExtensionUppercasePartCount'], $identity['partExtensionUppercasePartCount']);
+        $t->same(
+            $identity['partExtensionCaseVariantCount'],
+            $summary['packageIdentityPartExtensionCaseVariantCount']
+        );
+        $t->same(
+            $identity['partExtensionCaseVariantExtensions'],
+            $summary['packageIdentityPartExtensionCaseVariantExtensions']
+        );
+        $t->same(
+            $identity['partExtensionUppercasePartCount'],
+            $summary['packageIdentityPartExtensionUppercasePartCount']
+        );
 
         $png = $rawExtensions['PNG'];
         $t->same('PNG', $png['rawPartExtension']);

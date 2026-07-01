@@ -720,9 +720,30 @@ XML;
             'centralDirectoryRawCommentSha256',
             'centralDirectoryReviewFieldBytes',
         ];
+        $entryCommentRollupFields = [
+            'hasEntryComments',
+            'commentedEntryNames',
+            'entryCommentSummaryCount',
+            'entryCommentSourceRecordBytes',
+            'entryCommentSummaries',
+        ];
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
+        foreach ($entryCommentRollupFields as $field) {
+            $t->same($packageManifest[$field], $summary[$field], "{$field} package manifest rollup handoff");
+            $t->same($summary[$field], $rawSummary[$field], "{$field} raw manifest rollup handoff");
+        }
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same(['word/document.xml'], $summary['commentedEntryNames']);
+        $t->same(1, $summary['entryCommentSummaryCount']);
+        $t->same($summary['entryCommentSourceRecordBytes'], $sourceRecordDocumentEntry['sourceRecordBytes']);
+        $t->same(strlen($documentComment), $summary['entryCommentSummaries'][0]['centralDirectoryRawCommentBytes']);
+        $t->same(
+            'zip-entry-comment-source-metadata-only',
+            $summary['entryCommentSummaries'][0]['entryCommentByteExposurePolicy']
+        );
+        $t->same(false, $summary['entryCommentSummaries'][0]['entryCommentCanExposeBytes']);
         $t->same($documentEntry['entryIndex'], $documentEntry['centralDirectoryIndex']);
         $t->same(2, $documentEntry['centralDirectoryIndex']);
         $t->same($rawDocumentEntry['centralDirectoryOffset'], $rawDocumentEntry['centralDirectoryRecordOffset']);
