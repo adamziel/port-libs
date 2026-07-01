@@ -1237,7 +1237,7 @@ final class BibtexCslProcessor
             $item['citation-aliases'] = $citationAliases;
         }
 
-        $date = $this->dateObjectFromFields($fields, ['date'], ['year', 'month', 'day'], [
+        $date = $this->dateObjectFromFields($fields, ['date'], [['year'], ['month'], ['day']], [
             'hour' => 'hour',
             'minute' => 'minute',
             'second' => 'second',
@@ -1246,12 +1246,12 @@ final class BibtexCslProcessor
             'endminute' => 'endminute',
             'endsecond' => 'endsecond',
             'endtimezone' => 'endtimezone',
-        ], ['endyear', 'endmonth', 'endday']);
+        ], [['endyear', 'end-year'], ['endmonth', 'end-month'], ['endday', 'end-day']]);
         if ($date !== null) {
             $item['issued'] = $this->dateWithEra($date, $fields, ['dateera']);
         }
 
-        $accessed = $this->dateObjectFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday'], [
+        $accessed = $this->dateObjectFromFields($fields, ['urldate', 'accessed', 'accessdate'], [['urlyear', 'url-year'], ['urlmonth', 'url-month'], ['urlday', 'url-day']], [
             'hour' => 'urlhour',
             'minute' => 'urlminute',
             'second' => 'urlsecond',
@@ -1260,7 +1260,7 @@ final class BibtexCslProcessor
             'endminute' => 'urlendminute',
             'endsecond' => 'urlendsecond',
             'endtimezone' => 'urlendtimezone',
-        ], ['urlendyear', 'urlendmonth', 'urlendday']);
+        ], [['urlendyear', 'url-end-year'], ['urlendmonth', 'url-end-month'], ['urlendday', 'url-end-day']]);
         if ($accessed !== null) {
             $item['accessed'] = $this->dateWithEra($accessed, $fields, ['urldateera', 'url-date-era', 'accesseddateera', 'accessed-date-era']);
         }
@@ -1268,7 +1268,7 @@ final class BibtexCslProcessor
         $originalDate = $this->dateObjectFromFields(
             $fields,
             ['origdate', 'originaldate', 'original-date'],
-            ['origyear', 'origmonth', 'origday'],
+            [['origyear', 'orig-year'], ['origmonth', 'orig-month'], ['origday', 'orig-day']],
             [
                 'hour' => 'orighour',
                 'minute' => 'origminute',
@@ -1279,19 +1279,19 @@ final class BibtexCslProcessor
                 'endsecond' => 'origendsecond',
                 'endtimezone' => 'origendtimezone',
             ],
-            ['origendyear', 'origendmonth', 'origendday']
+            [['origendyear', 'orig-end-year'], ['origendmonth', 'orig-end-month'], ['origendday', 'orig-end-day']]
         ) ?? $this->dateObjectFromFields(
             $fields,
             [],
-            ['originalyear', 'originalmonth', 'originalday'],
+            [['originalyear', 'original-year'], ['originalmonth', 'original-month'], ['originalday', 'original-day']],
             [],
-            ['originalendyear', 'originalendmonth', 'originalendday']
+            [['originalendyear', 'original-end-year'], ['originalendmonth', 'original-end-month'], ['originalendday', 'original-end-day']]
         );
         if ($originalDate !== null) {
             $item['original-date'] = $this->dateWithEra($originalDate, $fields, ['origdateera', 'originaldateera', 'original-date-era']);
         }
 
-        $reprintDate = $this->dateObjectFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday'], [
+        $reprintDate = $this->dateObjectFromFields($fields, ['reprintdate', 'reprint-date'], [['reprintyear', 'reprint-year'], ['reprintmonth', 'reprint-month'], ['reprintday', 'reprint-day']], [
             'hour' => 'reprinthour',
             'minute' => 'reprintminute',
             'second' => 'reprintsecond',
@@ -1300,18 +1300,23 @@ final class BibtexCslProcessor
             'endminute' => 'reprintendminute',
             'endsecond' => 'reprintendsecond',
             'endtimezone' => 'reprintendtimezone',
-        ], ['reprintendyear', 'reprintendmonth', 'reprintendday']);
+        ], [['reprintendyear', 'reprint-end-year'], ['reprintendmonth', 'reprint-end-month'], ['reprintendday', 'reprint-end-day']]);
         if ($reprintDate !== null) {
             $item['reprint-date'] = $this->dateWithEra($reprintDate, $fields, ['reprintdateera', 'reprint-date-era']);
         }
 
-        $labelDate = $this->dateObjectFromFields($fields, ['labeldate', 'label-date'], ['labelyear', 'labelmonth', 'labelday'], [], ['labelendyear', 'labelendmonth', 'labelendday'])
-            ?? $this->dateObjectFromFields($fields, [], ['label-year', 'label-month', 'label-day']);
+        $labelDate = $this->dateObjectFromFields(
+            $fields,
+            ['labeldate', 'label-date'],
+            [['labelyear', 'label-year'], ['labelmonth', 'label-month'], ['labelday', 'label-day']],
+            [],
+            [['labelendyear', 'label-end-year'], ['labelendmonth', 'label-end-month'], ['labelendday', 'label-end-day']]
+        );
         if ($labelDate !== null) {
             $item['label-date'] = $this->dateWithEra($labelDate, $fields, ['labeldateera', 'label-date-era']);
         }
 
-        $eventDate = $this->dateObjectFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday'], [
+        $eventDate = $this->dateObjectFromFields($fields, ['eventdate', 'event-date'], [['eventyear', 'event-year'], ['eventmonth', 'event-month'], ['eventday', 'event-day']], [
             'hour' => 'eventhour',
             'minute' => 'eventminute',
             'second' => 'eventsecond',
@@ -1320,15 +1325,15 @@ final class BibtexCslProcessor
             'endminute' => 'eventendminute',
             'endsecond' => 'eventendsecond',
             'endtimezone' => 'eventendtimezone',
-        ], ['eventendyear', 'eventendmonth', 'eventendday']);
+        ], [['eventendyear', 'event-end-year'], ['eventendmonth', 'event-end-month'], ['eventendday', 'event-end-day']]);
         if ($eventDate !== null) {
             $item['event-date'] = $this->dateWithEra($eventDate, $fields, ['eventdateera', 'event-date-era']);
         }
 
         $availableDate = $this->dateObjectFromFields(
             $fields,
-            ['availabledate', 'available-date'],
-            ['availableyear', 'availablemonth', 'availableday'],
+            ['availabledate', 'available-date', 'available'],
+            [['availableyear', 'available-year'], ['availablemonth', 'available-month'], ['availableday', 'available-day']],
             [
                 'hour' => 'availablehour',
                 'minute' => 'availableminute',
@@ -1339,7 +1344,7 @@ final class BibtexCslProcessor
                 'endsecond' => 'availableendsecond',
                 'endtimezone' => 'availableendtimezone',
             ],
-            ['availableendyear', 'availableendmonth', 'availableendday'],
+            [['availableendyear', 'available-end-year'], ['availableendmonth', 'available-end-month'], ['availableendday', 'available-end-day']],
             ['availableenddate', 'available-end-date']
         );
         if ($availableDate !== null) {
@@ -1349,7 +1354,7 @@ final class BibtexCslProcessor
         $submittedDate = $this->dateObjectFromFields(
             $fields,
             ['submitted', 'submitteddate', 'submitted-date', 'submissiondate', 'submission-date'],
-            ['submittedyear', 'submittedmonth', 'submittedday'],
+            [['submittedyear', 'submitted-year'], ['submittedmonth', 'submitted-month'], ['submittedday', 'submitted-day']],
             [
                 'hour' => 'submittedhour',
                 'minute' => 'submittedminute',
@@ -1360,7 +1365,7 @@ final class BibtexCslProcessor
                 'endsecond' => 'submittedendsecond',
                 'endtimezone' => 'submittedendtimezone',
             ],
-            ['submittedendyear', 'submittedendmonth', 'submittedendday'],
+            [['submittedendyear', 'submitted-end-year'], ['submittedendmonth', 'submitted-end-month'], ['submittedendday', 'submitted-end-day']],
             ['submittedenddate', 'submitted-end-date', 'submissionenddate', 'submission-end-date']
         );
         if ($submittedDate !== null) {
@@ -2193,9 +2198,9 @@ final class BibtexCslProcessor
     /**
      * @param array<string, string> $fields
      * @param list<string> $dateFields
-     * @param list<string> $partFields
+     * @param list<string|list<string>> $partFields
      * @param array<string, string> $timeFields
-     * @param list<string> $endPartFields
+     * @param list<string|list<string>> $endPartFields
      * @param list<string> $endDateFields
      * @return array<string, mixed>|null
      */
@@ -2229,7 +2234,8 @@ final class BibtexCslProcessor
             return $this->dateWithTimeParts($date, $fields, $timeFields, $field);
         }
 
-        if ($partFields === [] || trim((string) ($fields[$partFields[0]] ?? '')) === '') {
+        $startField = $this->datePartFieldName($fields, $partFields, 0);
+        if ($partFields === [] || $startField === null) {
             return null;
         }
 
@@ -2253,13 +2259,13 @@ final class BibtexCslProcessor
             $date['season'] = $season;
         }
 
-        return $this->dateWithTimeParts($date, $fields, $timeFields, $partFields[0]);
+        return $this->dateWithTimeParts($date, $fields, $timeFields, $startField);
     }
 
     /**
      * @param array<string, string> $fields
      * @param list<string> $dateFields
-     * @param list<string> $partFields
+     * @param list<string|list<string>> $partFields
      * @return array<string, mixed>|null
      */
     private function dateObjectFromEndFields(array $fields, array $dateFields, array $partFields): ?array
@@ -2273,7 +2279,7 @@ final class BibtexCslProcessor
             return $this->dateObjectFromValue($value, $field);
         }
 
-        if ($partFields === [] || trim((string) ($fields[$partFields[0]] ?? '')) === '') {
+        if ($partFields === [] || $this->datePartFieldName($fields, $partFields, 0) === null) {
             return null;
         }
 
@@ -2403,21 +2409,21 @@ final class BibtexCslProcessor
 
     /**
      * @param array<string, string> $fields
-     * @param list<string> $partFields
+     * @param list<string|list<string>> $partFields
      * @return array{parts:list<int>, season:int|null}|null
      */
     private function datePartInfoFromSplitFields(array $fields, array $partFields): ?array
     {
-        $yearField = $partFields[0] ?? null;
-        if ($yearField === null || trim((string) ($fields[$yearField] ?? '')) === '') {
+        $year = $this->datePartFieldValue($fields, $partFields, 0);
+        if ($year === null) {
             return null;
         }
 
-        $parts = [(int) $fields[$yearField]];
+        $parts = [(int) $year];
         $season = null;
-        $monthField = $partFields[1] ?? null;
-        if ($monthField !== null && trim((string) ($fields[$monthField] ?? '')) !== '') {
-            $month = $this->biblatexMonthNumber((string) $fields[$monthField]);
+        $monthValue = $this->datePartFieldValue($fields, $partFields, 1);
+        if ($monthValue !== null) {
+            $month = $this->biblatexMonthNumber($monthValue);
             if ($month === null) {
                 return ['parts' => $parts, 'season' => null];
             }
@@ -2430,12 +2436,62 @@ final class BibtexCslProcessor
             $parts[] = $month;
         }
 
-        $dayField = $partFields[2] ?? null;
-        if ($dayField !== null && trim((string) ($fields[$dayField] ?? '')) !== '') {
-            $parts[] = (int) $fields[$dayField];
+        $day = $this->datePartFieldValue($fields, $partFields, 2);
+        if ($day !== null) {
+            $parts[] = (int) $day;
         }
 
         return ['parts' => $parts, 'season' => $season];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string|list<string>> $partFields
+     */
+    private function datePartFieldName(array $fields, array $partFields, int $index): ?string
+    {
+        foreach ($this->datePartFieldNames($partFields, $index) as $name) {
+            if (trim((string) ($fields[$name] ?? '')) !== '') {
+                return $name;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @param list<string|list<string>> $partFields
+     */
+    private function datePartFieldValue(array $fields, array $partFields, int $index): ?string
+    {
+        $name = $this->datePartFieldName($fields, $partFields, $index);
+        if ($name === null) {
+            return null;
+        }
+
+        return trim((string) $fields[$name]);
+    }
+
+    /**
+     * @param list<string|list<string>> $partFields
+     * @return list<string>
+     */
+    private function datePartFieldNames(array $partFields, int $index): array
+    {
+        $names = $partFields[$index] ?? [];
+        if (is_string($names)) {
+            return [$names];
+        }
+
+        if (!is_array($names)) {
+            return [];
+        }
+
+        return array_values(array_filter(
+            array_map(static fn (mixed $name): string => is_scalar($name) ? trim((string) $name) : '', $names),
+            static fn (string $name): bool => $name !== ''
+        ));
     }
 
     /**
@@ -4251,27 +4307,7 @@ final class BibtexCslProcessor
 
     private function datePartsText(mixed $date): string
     {
-        if (!is_array($date)) {
-            return '';
-        }
-
-        $parts = $date['date-parts'][0] ?? null;
-        if (!is_array($parts) || $parts === []) {
-            return '';
-        }
-
-        $formatted = [];
-        foreach (array_values($parts) as $index => $part) {
-            if (!is_int($part) && !is_numeric($part)) {
-                return '';
-            }
-
-            $formatted[] = $index === 0
-                ? (string) (int) $part
-                : str_pad((string) (int) $part, 2, '0', STR_PAD_LEFT);
-        }
-
-        return implode('-', $formatted);
+        return $this->dateDisplay($date);
     }
 
     private function readFieldName(string $source, int &$cursor): string
