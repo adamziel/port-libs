@@ -13230,6 +13230,14 @@ final class DocxOpenXmlReader
             (bool) ($zipComments['hasCommentUnicodeFormatControls'] ?? false);
         $summary['zipHasCommentBidiControls'] = (bool) ($zipComments['hasCommentBidiControls'] ?? false);
         $summary['zipPackageCommentLength'] = (int) ($zipComments['packageCommentLength'] ?? 0);
+        $summary['zipPackageCommentSourceAvailable'] =
+            (bool) ($zipComments['packageCommentSourceAvailable'] ?? false);
+        $summary['zipPackageCommentOffset'] = $zipComments['packageCommentOffset'] ?? null;
+        $summary['zipPackageCommentBytes'] = (int) ($zipComments['packageCommentBytes'] ?? 0);
+        $summary['zipPackageCommentEnd'] = $zipComments['packageCommentEnd'] ?? null;
+        $summary['zipPackageCommentSha256'] = is_string($zipComments['packageCommentSha256'] ?? null)
+            ? $zipComments['packageCommentSha256']
+            : null;
         $summary['zipPackageCommentEncoding'] = $zipComments['packageCommentEncoding'] ?? null;
         $summary['zipPackageCommentHasControlBytes'] =
             (bool) ($zipComments['packageCommentHasControlBytes'] ?? false);
@@ -14747,6 +14755,11 @@ final class DocxOpenXmlReader
             'hasCommentBidiControls' => false,
             'packageCommentLength' => 0,
             'packageCommentEncoding' => null,
+            'packageCommentSourceAvailable' => false,
+            'packageCommentOffset' => null,
+            'packageCommentBytes' => 0,
+            'packageCommentEnd' => null,
+            'packageCommentSha256' => null,
             'packageCommentHasControlBytes' => false,
             'packageCommentControlByteOffsets' => [],
             'packageCommentHasUnicodeFormatControls' => false,
@@ -14842,6 +14855,13 @@ final class DocxOpenXmlReader
             'packageCommentLength' => (int) ($comments['packageCommentLength'] ?? 0),
             'packageCommentEncoding' => is_string($comments['packageCommentEncoding'] ?? null)
                 ? $comments['packageCommentEncoding']
+                : null,
+            'packageCommentSourceAvailable' => (bool) ($comments['packageCommentSourceAvailable'] ?? false),
+            'packageCommentOffset' => $comments['packageCommentOffset'] ?? null,
+            'packageCommentBytes' => (int) ($comments['packageCommentBytes'] ?? 0),
+            'packageCommentEnd' => $comments['packageCommentEnd'] ?? null,
+            'packageCommentSha256' => is_string($comments['packageCommentSha256'] ?? null)
+                ? $comments['packageCommentSha256']
                 : null,
             'packageCommentHasControlBytes' => (bool) ($comments['packageCommentHasControlBytes'] ?? false),
             'packageCommentControlByteOffsets' => is_array($comments['packageCommentControlByteOffsets'] ?? null)

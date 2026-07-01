@@ -2273,6 +2273,15 @@ final class ZipPackage
      *     packageCommentUnicodeFormatControlNames:list<string>,
      *     packageCommentBidiControlNames:list<string>,
      *     packageCommentIssues:list<string>,
+     *     packageCommentSourceAvailable:bool,
+     *     packageCommentOffset:int,
+     *     packageCommentBytes:int,
+     *     packageCommentEnd:int,
+     *     packageCommentSha256:?string,
+     *     packageCommentPreviewHex:string,
+     *     packageCommentPreviewByteCount:int,
+     *     packageCommentByteExposurePolicy:string,
+     *     canExposePackageCommentBytes:bool,
      *     hasPackageComment:bool,
      *     hasEntryComments:bool,
      *     hasComments:bool,
@@ -2303,7 +2312,66 @@ final class ZipPackage
             ];
         }
 
-        return self::commentPreflightSummary($this->packageComment, $entryComments);
+        return self::commentPreflightSummary($this->packageComment, $entryComments)
+            + $this->packageCommentSourcePreflight();
+    }
+
+    /**
+     * @return array{
+     *     packageCommentSourceAvailable:bool,
+     *     packageCommentOffset:int,
+     *     packageCommentBytes:int,
+     *     packageCommentEnd:int,
+     *     packageCommentSha256:?string,
+     *     packageCommentPreviewHex:string,
+     *     packageCommentPreviewByteCount:int,
+     *     packageCommentByteExposurePolicy:string,
+     *     canExposePackageCommentBytes:bool
+     * }
+     */
+    public function packageCommentSourcePreflight(): array
+    {
+        return self::rawPackageCommentSourcePreflight($this->bytes);
+    }
+
+    /**
+     * @return array{
+     *     packageCommentSourceAvailable:bool,
+     *     packageCommentOffset:int,
+     *     packageCommentBytes:int,
+     *     packageCommentEnd:int,
+     *     packageCommentSha256:?string,
+     *     packageCommentPreviewHex:string,
+     *     packageCommentPreviewByteCount:int,
+     *     packageCommentByteExposurePolicy:string,
+     *     canExposePackageCommentBytes:bool
+     * }
+     */
+    public static function rawPackageCommentSourcePreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before package comment source provenance can be scanned');
+        }
+
+        $commentOffset = $archive['eocdOffset'] + 22;
+        $commentBytes = $archive['packageCommentLength'];
+        $commentPreviewByteCount = min($commentBytes, 16);
+        $comment = substr($bytes, $commentOffset, $commentBytes);
+
+        return [
+            'packageCommentSourceAvailable' => true,
+            'packageCommentOffset' => $commentOffset,
+            'packageCommentBytes' => $commentBytes,
+            'packageCommentEnd' => $commentOffset + $commentBytes,
+            'packageCommentSha256' => $commentBytes > 0 ? hash('sha256', $comment) : null,
+            'packageCommentPreviewHex' => $commentPreviewByteCount > 0
+                ? bin2hex(substr($comment, 0, $commentPreviewByteCount))
+                : '',
+            'packageCommentPreviewByteCount' => $commentPreviewByteCount,
+            'packageCommentByteExposurePolicy' => 'zip-package-comment-source-metadata-only',
+            'canExposePackageCommentBytes' => false,
+        ];
     }
 
     /**
@@ -2414,7 +2482,7 @@ final class ZipPackage
             'eocdOffset' => $archive['eocdOffset'],
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
-        ] + $summary;
+        ] + $summary + self::rawPackageCommentSourcePreflight($bytes);
     }
 
     /**

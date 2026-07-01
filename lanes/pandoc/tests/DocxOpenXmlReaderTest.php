@@ -32786,6 +32786,7 @@ XML;
         unset($zipPart);
 
         $sourcePackage = ZipPackage::fromParts($zipParts, $packageComment);
+        $commentSource = $sourcePackage->packageCommentSourcePreflight();
         $document = (new DocxOpenXmlReader())->readZipPackage($sourcePackage);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
@@ -32810,6 +32811,11 @@ XML;
         $t->same(true, $comments['packageCommentHasBidiControls']);
         $t->same(['right-to-left-override'], $comments['packageCommentUnicodeFormatControlNames']);
         $t->same(['right-to-left-override'], $comments['packageCommentBidiControlNames']);
+        $t->same(true, $comments['packageCommentSourceAvailable']);
+        $t->same($commentSource['packageCommentOffset'], $comments['packageCommentOffset']);
+        $t->same(strlen($packageComment), $comments['packageCommentBytes']);
+        $t->same($commentSource['packageCommentEnd'], $comments['packageCommentEnd']);
+        $t->same(hash('sha256', $packageComment), $comments['packageCommentSha256']);
         $t->same([
             'package-comment-unicode-format-control',
             'package-comment-bidi-format-control',
@@ -32866,6 +32872,11 @@ XML;
         $t->same(true, $summary['zipPackageCommentHasBidiControls']);
         $t->same(['right-to-left-override'], $summary['zipPackageCommentUnicodeFormatControlNames']);
         $t->same(['right-to-left-override'], $summary['zipPackageCommentBidiControlNames']);
+        $t->same(true, $summary['zipPackageCommentSourceAvailable']);
+        $t->same($comments['packageCommentOffset'], $summary['zipPackageCommentOffset']);
+        $t->same($comments['packageCommentBytes'], $summary['zipPackageCommentBytes']);
+        $t->same($comments['packageCommentEnd'], $summary['zipPackageCommentEnd']);
+        $t->same($comments['packageCommentSha256'], $summary['zipPackageCommentSha256']);
         $t->same($comments['packageCommentIssues'], $summary['zipPackageCommentIssues']);
         $t->same(2, $summary['zipEntryCommentCount']);
         $t->same(['word/document.xml', 'word/media/review.png'], $summary['zipCommentedEntryNames']);

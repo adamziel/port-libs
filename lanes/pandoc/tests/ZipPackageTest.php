@@ -7097,9 +7097,18 @@ return [
                 'method' => 0,
             ],
         ], 'source package review comment'));
+        $commentSource = $commentedPackage->packageCommentSourcePreflight();
         $summary = $commentedPackage->commentPreflight();
 
         $t->same('source package review comment', $summary['packageComment']);
+        $t->same($commentSource, array_intersect_key($summary, $commentSource));
+        $t->same(true, $summary['packageCommentSourceAvailable']);
+        $t->same(strlen('source package review comment'), $summary['packageCommentBytes']);
+        $t->same(hash('sha256', 'source package review comment'), $summary['packageCommentSha256']);
+        $t->same(bin2hex(substr('source package review comment', 0, 16)), $summary['packageCommentPreviewHex']);
+        $t->same(16, $summary['packageCommentPreviewByteCount']);
+        $t->same('zip-package-comment-source-metadata-only', $summary['packageCommentByteExposurePolicy']);
+        $t->same(false, $summary['canExposePackageCommentBytes']);
         $t->same(true, $summary['hasPackageComment']);
         $t->same(true, $summary['hasEntryComments']);
         $t->same(true, $summary['hasComments']);
@@ -7338,8 +7347,13 @@ return [
                 'compressionMethod' => 0,
             ],
         ], 'source package');
+        $commentSource = ZipPackage::rawPackageCommentSourcePreflight($package->bytes());
         $summary = $package->commentPreflight();
 
+        $t->same($commentSource, array_intersect_key($summary, $commentSource));
+        $t->same(true, $summary['packageCommentSourceAvailable']);
+        $t->same(strlen('source package'), $summary['packageCommentBytes']);
+        $t->same(hash('sha256', 'source package'), $summary['packageCommentSha256']);
         $t->same(true, $summary['hasComments']);
         $t->same(false, $summary['hasCommentControlBytes']);
         $t->same(false, $summary['packageCommentHasControlBytes']);
