@@ -6822,7 +6822,7 @@ final class CitationCslProcessor
             return $this->sortMacroValue($item, $macro, $scope, $key);
         }
 
-        $variable = $this->sortVariable($key);
+        $variable = self::pageExtentCountVariableAlias($this->sortVariable($key));
 
         return match ($variable) {
             'presort' => $this->normalizeSortText((string) ($item['presort'] ?? '')),
@@ -10681,6 +10681,8 @@ final class CitationCslProcessor
      */
     private function labelTermName(string $variable, array $item): string
     {
+        $variable = self::pageExtentCountVariableAlias($variable);
+
         if ($variable === 'page' || $variable === 'page-first') {
             $pagination = trim((string) ($item['pagination'] ?? ''));
             if ($pagination !== '') {
@@ -10741,7 +10743,7 @@ final class CitationCslProcessor
             return false;
         }
 
-        if (in_array(strtolower(trim($variable)), ['number-of-pages', 'number-of-volumes'], true)) {
+        if (in_array(self::pageExtentCountVariableAlias($variable), ['number-of-pages', 'number-of-volumes'], true)) {
             return !$this->labelCountValueLooksSingular($value);
         }
 
@@ -11060,6 +11062,10 @@ final class CitationCslProcessor
     private function renderVariableValue(array $item, string $variable, string $scope, ?AstNode $citation = null): string
     {
         $normalized = strtolower(trim($variable));
+        $pageExtentCountValue = self::pageExtentCountVariableValue($item, $normalized);
+        if ($pageExtentCountValue !== null) {
+            return $pageExtentCountValue;
+        }
 
         return match ($normalized) {
             'locator' => $this->formatCslLocatorValue($this->citationLocatorParts($citation)),
@@ -11389,6 +11395,8 @@ final class CitationCslProcessor
 
     private function textVariableAcceptsNumberForm(string $variable): bool
     {
+        $variable = self::pageExtentCountVariableAlias($variable);
+
         return in_array($variable, [
             'citation-number',
             'first-reference-note-number',
@@ -11416,6 +11424,29 @@ final class CitationCslProcessor
             'supplement-number',
             'version',
         ], true);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function pageExtentCountVariableValue(array $item, string $variable): ?string
+    {
+        return match (self::pageExtentCountVariableAlias($variable)) {
+            'number-of-pages' => (string) ($item['numberOfPages'] ?? ''),
+            'number-of-volumes' => (string) ($item['numberOfVolumes'] ?? ''),
+            default => null,
+        };
+    }
+
+    private static function pageExtentCountVariableAlias(string $variable): string
+    {
+        $normalized = str_replace(['_', ' '], '-', strtolower(trim($variable)));
+
+        return match ($normalized) {
+            'number-of-pages', 'numberofpages', 'pagetotal', 'page-total', 'num-pages', 'numpages', 'total-pages', 'totalpages' => 'number-of-pages',
+            'number-of-volumes', 'numberofvolumes', 'volumes', 'volume-count', 'volumecount', 'num-volumes', 'numvolumes' => 'number-of-volumes',
+            default => $normalized,
+        };
     }
 
     /**

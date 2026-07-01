@@ -29732,6 +29732,113 @@ XML);
         $t->contains('<dt>Bell 2025</dt><dd>Direct NumPages Alias Packet :: ii-iv :: ii :: 3 :: 1</dd>', $blocks);
         $t->contains('<dt>Chen 2024</dt><dd>Direct Page Total Alias Packet :: 77 :: 77 :: 22 :: 4</dd>', $blocks);
     },
+    'renders bounded direct csl page extent variable aliases' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-style-page-total',
+                'type' => 'report',
+                'title' => 'Direct Style Page Total Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'pageTotal' => '22',
+                'volumeCount' => '4',
+            ],
+            [
+                'id' => 'direct-style-numpages',
+                'type' => 'book',
+                'title' => 'Direct Style NumPages Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'numPages' => '1',
+                'numVolumes' => '1',
+            ],
+            [
+                'id' => 'direct-style-volumes',
+                'type' => 'chapter',
+                'title' => 'Direct Style Volumes Packet',
+                'author' => [
+                    ['family' => 'Chen', 'given' => 'Cy'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'numberofpages' => '14',
+                'volumes' => '2',
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Direct CSL Page Extent Variable Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-page-extent-variable-alias-review</id>
+    <updated>2026-07-01T14:22:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="volume-count" sort="descending"/>
+      <key variable="page-total" sort="descending"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <choose>
+        <if variable="pagetotal volume-count" match="all">
+          <group delimiter=" | ">
+            <names variable="author"/>
+            <label variable="pagetotal" form="short" plural="contextual"/>
+            <text variable="pagetotal"/>
+            <number variable="page-total" form="roman"/>
+            <label variable="volume-count" form="short" plural="contextual"/>
+            <text variable="volume-count"/>
+            <number variable="volumecount"/>
+          </group>
+        </if>
+        <else>
+          <text value="missing-page-extent-alias"/>
+        </else>
+      </choose>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="volumes" sort="descending"/>
+      <key variable="numberofpages" sort="descending"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <label variable="num-pages" form="short" plural="contextual"/>
+      <number variable="numpages"/>
+      <label variable="num-volumes" form="short" plural="contextual"/>
+      <number variable="numvolumes"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $processor->cslStyleSummary();
+        $branch = $summary['citationRendering'][0]['branches'][0] ?? [];
+        $t->same('Bounded Direct CSL Page Extent Variable Alias Review', $summary['title'] ?? null);
+        $t->same(['pagetotal', 'volume-count'], $branch['variables'] ?? null);
+        $t->same('volume-count', $summary['citationSort'][0]['variable'] ?? null);
+        $t->same('volumes', $summary['bibliographySort'][0]['variable'] ?? null);
+
+        $t->same('[Ames | pp. | 22 | xxii | vols. | 4 | 4; Chen | pp. | 14 | xiv | vols. | 2 | 2; Bell | p. | 1 | i | vol. | 1 | 1]', $processor->renderCitationCluster([
+            $citation('direct-style-page-total', '[@direct-style-page-total]'),
+            $citation('direct-style-numpages', '[@direct-style-numpages]'),
+            $citation('direct-style-volumes', '[@direct-style-volumes]'),
+        ]));
+        $t->same('Direct Style Page Total Packet :: pp. :: 22 :: vols. :: 4', $processor->renderBibliographyEntry('direct-style-page-total'));
+        $t->same('Direct Style NumPages Packet :: p. :: 1 :: vol. :: 1', $processor->renderBibliographyEntry('direct-style-numpages'));
+
+        $document = (new MarkdownReader())->read('Direct page extent variable aliases [@direct-style-page-total; @direct-style-numpages; @direct-style-volumes] stay style-visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct page extent variable aliases [Ames | pp. | 22 | xxii | vols. | 4 | 4; Chen | pp. | 14 | xiv | vols. | 2 | 2; Bell | p. | 1 | i | vol. | 1 | 1] stay style-visible.</p>', $blocks);
+        $amesPosition = strpos($blocks, '<dt>Ames 2026</dt><dd>Direct Style Page Total Packet :: pp. :: 22 :: vols. :: 4</dd>');
+        $chenPosition = strpos($blocks, '<dt>Chen 2024</dt><dd>Direct Style Volumes Packet :: pp. :: 14 :: vols. :: 2</dd>');
+        $bellPosition = strpos($blocks, '<dt>Bell 2025</dt><dd>Direct Style NumPages Packet :: p. :: 1 :: vol. :: 1</dd>');
+        $t->true($amesPosition !== false && $chenPosition !== false && $bellPosition !== false);
+        $t->true($amesPosition < $chenPosition && $chenPosition < $bellPosition, 'Page extent alias sort order is not reflected in WordPress bibliography output');
+    },
     'maps bounded biblatex review volume metadata aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{review-volume-alias,
