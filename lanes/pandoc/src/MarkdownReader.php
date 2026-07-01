@@ -866,7 +866,7 @@ final class MarkdownReader
         $id = null;
         $classes = [];
         $attributes = [];
-        preg_match_all('/(?:^|\s)(#[^\s]+|\.[^\s]+|[A-Za-z_:][A-Za-z0-9_.:-]*=(?:"[^"]*"|\'[^\']*\'|[^\s]+))/', $source, $matches);
+        preg_match_all('/(?:^|\s)(#[^\s]+|\.[^\s]+|[A-Za-z_:][A-Za-z0-9_.:-]*=(?:"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|[^\s]+))/', $source, $matches);
 
         foreach ($matches[1] as $token) {
             if ($token[0] === '#') {
@@ -9688,21 +9688,7 @@ final class MarkdownReader
 
         if (str_starts_with($info, '{') && str_ends_with($info, '}')) {
             $inside = trim(substr($info, 1, -1));
-            $tokens = preg_split('/\s+/', $inside, -1, PREG_SPLIT_NO_EMPTY) ?: [];
-            foreach ($tokens as $token) {
-                if (str_starts_with($token, '.')) {
-                    $classes[] = substr($token, 1);
-                    continue;
-                }
-                if (str_starts_with($token, '#')) {
-                    $id = substr($token, 1);
-                    continue;
-                }
-                if (str_contains($token, '=')) {
-                    [$name, $value] = explode('=', $token, 2);
-                    $attributes[$name] = trim($value, "\"'");
-                }
-            }
+            [$id, $classes, $attributes] = $this->parseMarkdownAttributeSpec($inside);
         } else {
             $tokens = preg_split('/\s+/', $info, -1, PREG_SPLIT_NO_EMPTY) ?: [];
             if ($tokens !== []) {

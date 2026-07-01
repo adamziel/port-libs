@@ -2200,6 +2200,8 @@
     "markdownReaderAbbreviationCommandFixtureAssertions": 14,
     "mappedMarkdownReaderGfmDetailsListFixtureCases": 6,
     "markdownReaderGfmDetailsListFixtureAssertions": 22,
+    "mappedMarkdownReaderFencedCodeAttributeCompletionCases": 4,
+    "markdownReaderFencedCodeAttributeCompletionAssertions": 21,
     "mappedOdfPackageIdentityStemLookupMapCases": 1,
     "odfPackageIdentityStemLookupMapAssertions": 6,
     "mappedOdfPackageXmlCdataSectionProvenanceCases": 1,
