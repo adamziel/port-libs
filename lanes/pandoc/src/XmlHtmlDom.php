@@ -121,6 +121,79 @@ final class XmlHtmlDom
     ];
 
     /** @var array<string, true> */
+    private const HTML_AUTOCOMPLETE_GROUPING_TOKENS = [
+        'billing' => true,
+        'shipping' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_AUTOCOMPLETE_CONTACT_TOKENS = [
+        'fax' => true,
+        'home' => true,
+        'mobile' => true,
+        'pager' => true,
+        'work' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_AUTOCOMPLETE_FIELD_TOKENS = [
+        'additional-name' => true,
+        'address-level1' => true,
+        'address-level2' => true,
+        'address-level3' => true,
+        'address-level4' => true,
+        'address-line1' => true,
+        'address-line2' => true,
+        'address-line3' => true,
+        'bday' => true,
+        'bday-day' => true,
+        'bday-month' => true,
+        'bday-year' => true,
+        'cc-additional-name' => true,
+        'cc-csc' => true,
+        'cc-exp' => true,
+        'cc-exp-month' => true,
+        'cc-exp-year' => true,
+        'cc-family-name' => true,
+        'cc-given-name' => true,
+        'cc-name' => true,
+        'cc-number' => true,
+        'cc-type' => true,
+        'country' => true,
+        'country-name' => true,
+        'current-password' => true,
+        'email' => true,
+        'family-name' => true,
+        'given-name' => true,
+        'honorific-prefix' => true,
+        'honorific-suffix' => true,
+        'impp' => true,
+        'language' => true,
+        'name' => true,
+        'new-password' => true,
+        'nickname' => true,
+        'one-time-code' => true,
+        'organization' => true,
+        'organization-title' => true,
+        'photo' => true,
+        'postal-code' => true,
+        'sex' => true,
+        'street-address' => true,
+        'tel' => true,
+        'tel-area-code' => true,
+        'tel-country-code' => true,
+        'tel-extension' => true,
+        'tel-local' => true,
+        'tel-local-prefix' => true,
+        'tel-local-suffix' => true,
+        'tel-national' => true,
+        'transaction-amount' => true,
+        'transaction-currency' => true,
+        'url' => true,
+        'username' => true,
+    ];
+
+    /** @var array<string, true> */
     private const HTML_CUSTOM_ELEMENT_RESERVED_NAMES = [
         'annotation-xml' => true,
         'color-profile' => true,
@@ -25989,13 +26062,8 @@ final class XmlHtmlDom
             $summary['patternReviewPolicy'] = 'pattern-source-no-regex-execution';
         }
         if ($control->hasAttribute('autocomplete')) {
-            $autocomplete = self::formControlAutocompleteSummary($control->getAttribute('autocomplete'));
             $summary['autocompleteRaw'] = $control->getAttribute('autocomplete');
-            $summary['autocompleteTokens'] = $autocomplete['tokens'];
-            $summary['autocompleteNormalizedTokens'] = $autocomplete['normalizedTokens'];
-            $summary['invalidAutocompleteTokens'] = $autocomplete['invalid'];
-            $summary['autocompleteState'] = $autocomplete['state'];
-            $summary['autocompleteValid'] = $autocomplete['valid'];
+            $summary += self::formControlAutocompleteSummary($summary['autocompleteRaw']);
         }
         if (($name === 'input' || $name === 'textarea') && $control->hasAttribute('dirname')) {
             $dirname = self::formControlDirnameSummary($control->getAttribute('dirname'));
@@ -26114,23 +26182,87 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return array{tokens:list<string>, normalizedTokens:list<string>, invalid:list<string>, state:?string, valid:bool}
+     * @return array<string, mixed>
      */
     private static function formControlAutocompleteSummary(string $value): array
     {
         $tokens = self::spaceSeparatedTokens($value);
         $normalized = [];
         $invalid = [];
-        foreach ($tokens as $token) {
+        $counts = [];
+        $duplicates = [];
+        $known = [];
+        $unknown = [];
+        $stateTokens = [];
+        $sectionTokens = [];
+        $groupingTokens = [];
+        $contactTokens = [];
+        $fieldTokens = [];
+        $credentialTokens = [];
+        $tokenDetails = [];
+        $issues = [];
+
+        foreach ($tokens as $index => $token) {
             if (!self::isHtmlReferenceToken($token)) {
                 $invalid[] = $token;
+                $tokenDetails[] = [
+                    'index' => $index,
+                    'token' => $token,
+                    'normalizedToken' => null,
+                    'category' => 'invalid',
+                    'known' => false,
+                    'valid' => false,
+                    'duplicate' => false,
+                ];
+                $issues[] = [
+                    'code' => 'invalid-form-control-autocomplete-token',
+                    'token' => $token,
+                    'index' => $index,
+                ];
                 continue;
             }
 
             $lower = strtolower($token);
-            if (!in_array($lower, $normalized, true)) {
+            if (!array_key_exists($lower, $counts)) {
+                $counts[$lower] = 0;
                 $normalized[] = $lower;
             }
+            ++$counts[$lower];
+            if ($counts[$lower] === 2) {
+                $duplicates[] = $lower;
+            }
+
+            $category = self::formControlAutocompleteTokenCategory($lower);
+            $knownToken = $category !== 'unknown';
+            if ($knownToken && !in_array($lower, $known, true)) {
+                $known[] = $lower;
+            } elseif (!$knownToken && !in_array($lower, $unknown, true)) {
+                $unknown[] = $lower;
+            }
+
+            if ($category === 'state') {
+                $stateTokens[] = $lower;
+            } elseif ($category === 'section') {
+                $sectionTokens[] = $lower;
+            } elseif ($category === 'grouping') {
+                $groupingTokens[] = $lower;
+            } elseif ($category === 'contact') {
+                $contactTokens[] = $lower;
+            } elseif ($category === 'field') {
+                $fieldTokens[] = $lower;
+            } elseif ($category === 'credential') {
+                $credentialTokens[] = $lower;
+            }
+
+            $tokenDetails[] = [
+                'index' => $index,
+                'token' => $token,
+                'normalizedToken' => $lower,
+                'category' => $category,
+                'known' => $knownToken,
+                'valid' => true,
+                'duplicate' => $counts[$lower] > 1,
+            ];
         }
 
         $state = match ($normalized) {
@@ -26140,13 +26272,130 @@ final class XmlHtmlDom
             default => 'detail',
         };
 
+        if ($tokens === []) {
+            $issues[] = ['code' => 'empty-form-control-autocomplete'];
+        }
+        foreach ($duplicates as $token) {
+            $issues[] = [
+                'code' => 'duplicate-form-control-autocomplete-token',
+                'token' => $token,
+                'count' => $counts[$token],
+            ];
+        }
+        foreach ($unknown as $token) {
+            $issues[] = ['code' => 'unknown-form-control-autocomplete-token', 'token' => $token];
+        }
+        if ($stateTokens !== [] && count($tokens) > 1) {
+            $issues[] = [
+                'code' => 'state-form-control-autocomplete-token-with-details',
+                'tokens' => array_values(array_unique($stateTokens)),
+            ];
+        }
+        if (count(array_unique($stateTokens)) > 1) {
+            $issues[] = [
+                'code' => 'multiple-form-control-autocomplete-state-tokens',
+                'tokens' => array_values(array_unique($stateTokens)),
+            ];
+        }
+        if (count(array_unique($sectionTokens)) > 1) {
+            $issues[] = [
+                'code' => 'multiple-form-control-autocomplete-section-tokens',
+                'tokens' => array_values(array_unique($sectionTokens)),
+            ];
+        }
+        foreach ($tokenDetails as $detail) {
+            if (($detail['category'] ?? null) === 'section' && ($detail['index'] ?? null) !== 0) {
+                $issues[] = [
+                    'code' => 'misplaced-form-control-autocomplete-section-token',
+                    'token' => $detail['normalizedToken'],
+                    'index' => $detail['index'],
+                ];
+            }
+            if (($detail['category'] ?? null) === 'credential' && ($detail['index'] ?? null) !== count($tokens) - 1) {
+                $issues[] = [
+                    'code' => 'misplaced-form-control-autocomplete-credential-token',
+                    'token' => $detail['normalizedToken'],
+                    'index' => $detail['index'],
+                ];
+            }
+        }
+        if (count(array_unique($groupingTokens)) > 1) {
+            $issues[] = [
+                'code' => 'multiple-form-control-autocomplete-grouping-tokens',
+                'tokens' => array_values(array_unique($groupingTokens)),
+            ];
+        }
+        if (count(array_unique($contactTokens)) > 1) {
+            $issues[] = [
+                'code' => 'multiple-form-control-autocomplete-contact-tokens',
+                'tokens' => array_values(array_unique($contactTokens)),
+            ];
+        }
+        if (count(array_unique($fieldTokens)) > 1) {
+            $issues[] = [
+                'code' => 'multiple-form-control-autocomplete-field-tokens',
+                'tokens' => array_values(array_unique($fieldTokens)),
+            ];
+        }
+        if (count(array_unique($credentialTokens)) > 1) {
+            $issues[] = [
+                'code' => 'multiple-form-control-autocomplete-credential-tokens',
+                'tokens' => array_values(array_unique($credentialTokens)),
+            ];
+        }
+
         return [
-            'tokens' => $tokens,
-            'normalizedTokens' => $normalized,
-            'invalid' => $invalid,
-            'state' => $state,
-            'valid' => $tokens !== [] && $invalid === [],
+            'autocompleteReviewPolicy' => 'html-form-control-autocomplete-token-review',
+            'autocompleteTokens' => $tokens,
+            'autocompleteNormalizedTokens' => $normalized,
+            'autocompleteTokenCounts' => $counts,
+            'autocompleteTokenCount' => count($tokens),
+            'autocompleteUniqueTokenCount' => count($counts),
+            'autocompleteKnownTokens' => $known,
+            'autocompleteUnknownTokens' => $unknown,
+            'invalidAutocompleteTokens' => $invalid,
+            'duplicateAutocompleteTokens' => $duplicates,
+            'autocompleteStateTokens' => array_values(array_unique($stateTokens)),
+            'autocompleteSectionToken' => $sectionTokens[0] ?? null,
+            'autocompleteGroupingToken' => $groupingTokens[0] ?? null,
+            'autocompleteContactHint' => $contactTokens[0] ?? null,
+            'autocompleteFieldName' => $fieldTokens[0] ?? null,
+            'autocompleteCredentialToken' => $credentialTokens[0] ?? null,
+            'autocompleteTokenDetails' => $tokenDetails,
+            'autocompleteState' => $state,
+            'autocompleteValid' => $tokens !== [] && $invalid === [],
+            'autocompleteIssues' => $issues,
+            'autocompleteIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'autocompleteConforming' => $issues === [],
+            'autocompleteReviewOnlyNoAutofill' => true,
         ];
+    }
+
+    private static function formControlAutocompleteTokenCategory(string $token): string
+    {
+        if ($token === 'on' || $token === 'off') {
+            return 'state';
+        }
+        if (str_starts_with($token, 'section-') && strlen($token) > strlen('section-')) {
+            return 'section';
+        }
+        if (isset(self::HTML_AUTOCOMPLETE_GROUPING_TOKENS[$token])) {
+            return 'grouping';
+        }
+        if (isset(self::HTML_AUTOCOMPLETE_CONTACT_TOKENS[$token])) {
+            return 'contact';
+        }
+        if (isset(self::HTML_AUTOCOMPLETE_FIELD_TOKENS[$token])) {
+            return 'field';
+        }
+        if ($token === 'webauthn') {
+            return 'credential';
+        }
+
+        return 'unknown';
     }
 
     /**
