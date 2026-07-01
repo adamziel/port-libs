@@ -18,6 +18,16 @@ return [
             'meta' => [
                 'title' => ['t' => 'MetaInlines', 'c' => [[$str('Wrapped'), $space(), $str('Title')]]],
                 'abstract' => ['t' => 'MetaBlocks', 'c' => [[$plain('Meta block')]]],
+                'source' => ['t' => 'MetaString', 'c' => ['wrapped-metadata']],
+                'draft' => ['t' => 'MetaBool', 'c' => [false]],
+                'reviewers' => ['t' => 'MetaList', 'c' => [[
+                    ['t' => 'MetaString', 'c' => ['Ada']],
+                    ['t' => 'MetaBool', 'c' => [true]],
+                ]]],
+                'audit' => ['t' => 'MetaMap', 'c' => [[
+                    'stage' => ['t' => 'MetaString', 'c' => ['ingest']],
+                    'complete' => ['t' => 'MetaBool', 'c' => [false]],
+                ]]],
             ],
             'blocks' => [[
                 ['t' => 'Header', 'c' => [[
@@ -85,6 +95,12 @@ return [
 
         $t->same('Wrapped Title', $document->attr('meta')['title']);
         $t->same('Meta block', $document->attr('meta')['abstract']['value'][0]->attr('text'));
+        $t->same('wrapped-metadata', $document->attr('meta')['source']);
+        $t->same(false, $document->attr('meta')['draft']);
+        $t->same('Ada', $document->attr('meta')['reviewers']['value'][0]);
+        $t->same(true, $document->attr('meta')['reviewers']['value'][1]);
+        $t->same('ingest', $document->attr('meta')['audit']['value']['stage']);
+        $t->same(false, $document->attr('meta')['audit']['value']['complete']);
         $t->same('heading', $heading->type);
         $t->same('wrapped-header', $heading->attr('id'));
         $t->same(['native-json'], $heading->attr('classes'));
@@ -105,6 +121,14 @@ return [
         $t->same('Str', $decoded['meta']['title']['c'][0]['t']);
         $t->same('MetaBlocks', $decoded['meta']['abstract']['t']);
         $t->same('Plain', $decoded['meta']['abstract']['c'][0]['t']);
+        $t->same('wrapped-metadata', $decoded['meta']['source']['c']);
+        $t->same(false, $decoded['meta']['draft']['c']);
+        $t->same('MetaList', $decoded['meta']['reviewers']['t']);
+        $t->same('Ada', $decoded['meta']['reviewers']['c'][0]['c']);
+        $t->same(true, $decoded['meta']['reviewers']['c'][1]['c']);
+        $t->same('MetaMap', $decoded['meta']['audit']['t']);
+        $t->same('ingest', $decoded['meta']['audit']['c']['stage']['c']);
+        $t->same(false, $decoded['meta']['audit']['c']['complete']['c']);
         $t->same('Header', $decoded['blocks'][0]['t']);
         $t->same(2, $decoded['blocks'][0]['c'][0]);
         $t->same('wrapped-header', $decoded['blocks'][0]['c'][1][0]);

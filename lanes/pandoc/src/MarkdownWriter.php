@@ -16,6 +16,9 @@ final class MarkdownWriter
     /** @var list<array{label:string, url:string, title:string, attrs:array<string, mixed>}> */
     private array $references = [];
 
+    /** @var array<string, string> */
+    private array $abbreviations = [];
+
     /** @var array<string, int> */
     private array $noteLabelUses = [];
 
@@ -58,6 +61,7 @@ final class MarkdownWriter
 
         $this->notes = [];
         $this->references = [];
+        $this->abbreviations = [];
         $this->noteLabelUses = [];
         $this->noteUsedLabels = [];
         $this->referenceLabelUses = [];
@@ -6052,7 +6056,9 @@ final class MarkdownWriter
 
         if ($this->isCommonMarkVariant()) {
             if ($this->isRawMarkdownFormat($format)) {
-                return $this->indentedLines($text, $indent);
+                return $this->rawMarkdownFormatCompatible($format)
+                    ? $this->indentedLines($text, $indent)
+                    : [];
             }
 
             if ($this->isRawHtmlFormat($format)) {
@@ -6061,6 +6067,10 @@ final class MarkdownWriter
         }
 
         if (!$this->isCommonMarkVariant() && ($format === '' || $this->isRawMarkdownFormat($format))) {
+            if ($format !== '' && !$this->rawMarkdownFormatCompatible($format)) {
+                return [];
+            }
+
             return $this->indentedLines($text, $indent);
         }
 
@@ -6200,7 +6210,7 @@ final class MarkdownWriter
     {
         return match ($node->type) {
             'text' => $this->escapeText(
-                (string) $node->attr('text', ''),
+                $this->inlineText($node),
                 $following,
                 $escapeInitialPlainMarker,
                 (bool) $node->attr('preserveSmartPunctuation', false)
@@ -6230,6 +6240,11 @@ final class MarkdownWriter
         };
     }
 
+    private function inlineText(AstNode $node): string
+    {
+        return $this->firstStringAttr($node->attrs, ['text', 'value', 'literal', 'content', 'string']);
+    }
+
     /**
      * @param list<AstNode> $nodes
      */
@@ -6247,13 +6262,13 @@ final class MarkdownWriter
     {
         return match ($node->type) {
             'text' => $this->renderPlainText(
-                (string) $node->attr('text', ''),
+                $this->inlineText($node),
                 (bool) $node->attr('preserveSmartPunctuation', false)
             ),
             'softbreak' => $this->writerWrapText() === 'preserve' ? "\n" : ' ',
             'space' => ' ',
             'linebreak' => "\n",
-            'code' => (string) $node->attr('text', ''),
+            'code' => $this->codeText($node),
             'emph' => $this->renderPlainEmph($node),
             'strong' => $this->renderPlainStrong($node),
             'mark', 'underline', 'strikeout', 'superscript', 'subscript', 'span', 'citation' => $this->renderPlainInlines($node->children),
@@ -6353,7 +6368,7 @@ final class MarkdownWriter
 
     private function renderCode(AstNode $node): string
     {
-        $text = (string) $node->attr('text', '');
+        $text = $this->codeText($node);
         $longestTickRun = 0;
         if (preg_match_all('/`+/', $text, $matches) !== false) {
             foreach ($matches[0] as $run) {
@@ -6362,7 +6377,7 @@ final class MarkdownWriter
         }
 
         $marker = str_repeat('`', $longestTickRun + 1);
-        $spacer = $longestTickRun === 0 ? '' : ' ';
+        $spacer = $longestTickRun === 0 && !str_starts_with($text, ' ') && !str_ends_with($text, ' ') ? '' : ' ';
 
         return $marker
             . $spacer
@@ -6370,6 +6385,11 @@ final class MarkdownWriter
             . $spacer
             . $marker
             . $this->renderAttributesTuple($this->linkAttrTuple($node));
+    }
+
+    private function codeText(AstNode $node): string
+    {
+        return $this->firstStringAttr($node->attrs, ['text', 'code', 'literal', 'value', 'content']);
     }
 
     private function renderLineBreak(): string
@@ -6395,6 +6415,14 @@ final class MarkdownWriter
     private function renderSoftBreak(array $following = []): string
     {
         $next = $following[0] ?? null;
+        if (
+            $next instanceof AstNode
+            && $next->type === 'text'
+            && $this->startsWithReferenceSuffixConflict((string) $next->attr('text', ''))
+        ) {
+            return "\n";
+        }
+
         if (
             $this->opmlNoteMarkdownEnabled()
             && $next instanceof AstNode
@@ -6726,12 +6754,6 @@ final class MarkdownWriter
     private function renderQuoted(AstNode $node): string
     {
         $content = $this->renderInlines($node->children);
-        if ($this->smartEnabled()) {
-            $delimiter = $node->attr('kind') === 'single' ? "'" : '"';
-
-            return $delimiter . $content . $delimiter;
-        }
-
         if ($node->attr('kind') === 'single') {
             $left = $this->writerPreferAscii() ? '&lsquo;' : "\u{2018}";
             $right = $this->writerPreferAscii() ? '&rsquo;' : "\u{2019}";
@@ -6808,11 +6830,17 @@ final class MarkdownWriter
             return $entries;
         }
 
+        foreach (['id', 'citationId', 'citationID', 'identifier'] as $idName) {
+            if (array_key_exists($idName, $node->attrs)) {
+                return [$this->citationEntryFromNode($node)];
+            }
+        }
+
         if (array_key_exists('id', $node->attrs)) {
             return [$this->citationEntryFromNode($node)];
         }
 
-        $id = (string) $node->attr('id', '');
+        $id = $this->firstStringAttr($node->attrs, ['id', 'citationId', 'citationID', 'identifier']);
 
         return $id === '' ? [] : [$this->citationEntryFromNode($node)];
     }
@@ -6822,12 +6850,20 @@ final class MarkdownWriter
      */
     private function citationEntryFromNode(AstNode $node): array
     {
+        $suffix = $node->attr('suffix', null);
+        if ($suffix === null) {
+            $suffix = $node->attr('citationSuffix', []);
+            if (is_string($suffix) && $suffix !== '' && !str_starts_with($suffix, ',') && !str_starts_with($suffix, ';')) {
+                $suffix = ', ' . $suffix;
+            }
+        }
+
         return [
-            'id' => (string) $node->attr('id', ''),
-            'mode' => (string) $node->attr('mode', 'normal'),
-            'prefix' => $node->attr('prefix', []),
-            'locator' => $node->attr('locator', []),
-            'suffix' => $node->attr('suffix', []),
+            'id' => $this->firstStringAttr($node->attrs, ['id', 'citationId', 'citationID', 'identifier']),
+            'mode' => $this->firstStringAttr($node->attrs, ['mode', 'citationMode', 'citationModeConstructor']) ?: 'normal',
+            'prefix' => $node->attr('prefix', $node->attr('citationPrefix', [])),
+            'locator' => $node->attr('locator', $node->attr('locatorText', [])),
+            'suffix' => $suffix,
         ];
     }
 
@@ -6946,12 +6982,113 @@ final class MarkdownWriter
 
     private function renderMath(AstNode $node): string
     {
-        $text = (string) $node->attr('text', '');
-        if ((bool) $node->attr('display', false)) {
-            return '$$' . $text . '$$';
+        $text = $this->mathText($node);
+        $attrTuple = $this->linkAttrTuple($node);
+        if (!$this->texMathDollarsEnabled()) {
+            return $this->renderMathHtml($node, $text);
         }
 
-        return '$' . trim($text) . '$';
+        if (!$this->isNullAttrTuple($attrTuple) && !$this->rawAttributeEnabled()) {
+            return $this->renderMathHtml($node, $text);
+        }
+
+        $attrs = $this->renderAttributesTuple($attrTuple);
+        if ((bool) $node->attr('display', false)) {
+            return '$$' . $this->escapeMathDollarBody($text) . '$$' . $attrs;
+        }
+
+        return '$' . $this->escapeMathDollarBody(trim($text)) . '$' . $attrs;
+    }
+
+    private function mathText(AstNode $node): string
+    {
+        foreach (['text', 'formula', 'math', 'literal', 'content', 'value'] as $name) {
+            $value = $node->attr($name, null);
+            if (is_string($value)) {
+                return $value;
+            }
+        }
+
+        return '';
+    }
+
+    private function escapeMathDollarBody(string $text): string
+    {
+        return str_replace('$', '\\$', $text);
+    }
+
+    private function renderMathHtml(AstNode $node, string $text): string
+    {
+        $display = (bool) $node->attr('display', false);
+
+        return '<span'
+            . $this->renderMathHtmlAttributes($node, $display)
+            . '>'
+            . $this->escapeHtml($text)
+            . '</span>';
+    }
+
+    private function renderMathHtmlAttributes(AstNode $node, bool $display): string
+    {
+        $attrTuple = $this->linkAttrTuple($node);
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+
+        $attributes = [];
+        $seen = [];
+        $id = $htmlAttributes['id'] ?? $attrTuple['id'];
+        if (is_scalar($id) && (string) $id !== '') {
+            $attributes[] = ['id', (string) $id];
+            $seen['id'] = true;
+        }
+
+        $classes = ['math', $display ? 'display' : 'inline'];
+        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
+            array_push($classes, ...(preg_split('/\s+/u', (string) $htmlAttributes['class'], -1, PREG_SPLIT_NO_EMPTY) ?: []));
+        }
+        array_push($classes, ...$attrTuple['classes']);
+        $attributes[] = ['class', implode(' ', array_values(array_unique($classes)))];
+        $seen['class'] = true;
+
+        foreach ($htmlAttributes as $name => $value) {
+            $name = strtolower((string) $name);
+            if ($name === 'id' || $name === 'class' || !$this->safeHtmlAttribute($name, (string) $value)) {
+                continue;
+            }
+
+            $attributes[] = [$name, (string) $value];
+            $seen[$name] = true;
+        }
+
+        foreach ($attrTuple['attributes'] as $name => $value) {
+            $rawName = (string) $name;
+            if (!$this->safeHtmlAttribute($rawName, $value)) {
+                continue;
+            }
+
+            $name = $this->htmlAttributeName($rawName);
+            $key = strtolower($name);
+            if (isset($seen[$key])) {
+                continue;
+            }
+
+            $attributes[] = [$name, $value];
+            $seen[$key] = true;
+        }
+
+        return $this->renderHtmlAttributes($attributes);
+    }
+
+    private function safeHtmlAttribute(string $name, string $value): bool
+    {
+        if (str_starts_with(strtolower($name), 'on')) {
+            return false;
+        }
+
+        return strtolower($name) !== 'style'
+            || stripos($value, 'javascript:') === false;
     }
 
     private function renderRawAttributeInline(AstNode $node): string
@@ -6981,27 +7118,23 @@ final class MarkdownWriter
             return $text;
         }
 
-        if ($this->isCommonMarkVariant()) {
-            if ($this->isRawMarkdownFormat($format)) {
-                return $text;
-            }
-        } elseif ($this->isRawMarkdownFormat($format)) {
-            return $text;
-        }
-
-        if ($this->rawAttributeEnabled()) {
-            return $this->renderRawAttributeInline(new AstNode($node->type, [
-                'format' => $format,
-                'text' => $text,
-            ]));
+        if ($this->isRawMarkdownFormat($format)) {
+            return $this->rawMarkdownFormatCompatible($format) ? $text : '';
         }
 
         if ($this->isRawHtmlFormat($format) && $this->rawHtmlEnabled()) {
             return $text;
         }
 
-        if (in_array($format, ['latex', 'tex'], true) && $this->rawTexEnabled()) {
+        if (in_array(strtolower($format), ['latex', 'tex'], true) && $this->rawTexEnabled()) {
             return $text;
+        }
+
+        if ($this->rawAttributeEnabled() && MarkdownFormatProfile::rawFamily($format) !== null) {
+            return $this->renderRawAttributeInline(new AstNode($node->type, [
+                'format' => $format,
+                'text' => $text,
+            ]));
         }
 
         return '';
@@ -7026,7 +7159,7 @@ final class MarkdownWriter
             return [$format === '' ? 'markdown' : $format, $this->rawNodeText($node, ['text', 'markdown', 'value', 'literal', 'content', 'raw'])];
         }
 
-        return [$format, $this->rawNodeText($node, ['text', 'markdown', 'html', 'content', 'literal', 'value', 'raw'])];
+        return [$format, $this->rawNodeText($node, ['text', 'markdown', 'html', 'tex', 'content', 'literal', 'value', 'raw'])];
     }
 
     /**
@@ -7053,7 +7186,7 @@ final class MarkdownWriter
 
     private function rawNodeFormat(AstNode $node): string
     {
-        foreach (['format', 'raw_format', 'format_name'] as $name) {
+        foreach (['format', 'raw_format', 'format_name', 'rawFormat', 'formatName'] as $name) {
             $format = $node->attr($name, null);
             if (is_string($format) && $format !== '') {
                 return $format;
@@ -7092,6 +7225,30 @@ final class MarkdownWriter
         return MarkdownFormatProfile::canonicalMarkdownFormat($format) !== null;
     }
 
+    private function rawMarkdownFormatCompatible(string $format): bool
+    {
+        $source = MarkdownFormatProfile::canonicalMarkdownFormat($format);
+        if ($source === null) {
+            return false;
+        }
+
+        if (!array_key_exists('format', $this->options) && !array_key_exists('variant', $this->options)) {
+            return true;
+        }
+
+        $target = str_replace('-', '_', $this->writerVariant());
+        if ($source === 'markdown') {
+            return true;
+        }
+
+        return match ($target) {
+            'markdown' => in_array($source, ['markdown_mmd', 'markdown_phpextra', 'markdown_strict'], true),
+            'commonmark' => $source === 'commonmark',
+            'gfm', 'commonmark_x' => in_array($source, ['commonmark', 'gfm'], true),
+            default => $source === $target,
+        };
+    }
+
     private function renderMark(AstNode $node): string
     {
         return '==' . $this->renderInlines($node->children) . '==';
@@ -7107,7 +7264,13 @@ final class MarkdownWriter
             && in_array($classes, [['mark'], ['marked'], ['highlighted']], true)
             && $attributes === []
         ) {
-            return $this->renderMark($node);
+            $markedContent = $this->renderInlines($node->children);
+            if (!str_contains($markedContent, '\\==')) {
+                return '==' . $markedContent . '==';
+            }
+            $markedContent = str_replace('\\==', '\\=\\=', $markedContent);
+
+            return '[' . $markedContent . ']' . $this->renderAttributesTuple($attrTuple);
         }
 
         if (
@@ -7116,6 +7279,7 @@ final class MarkdownWriter
             && isset($attributes['data-emoji'])
             && count($node->children) === 1
             && $node->children[0]->type === 'text'
+            && $this->emojiAliasMatchesText((string) $attributes['data-emoji'], (string) $node->children[0]->attr('text', ''))
         ) {
             return ':' . (string) $attributes['data-emoji'] . ':';
         }
@@ -7130,6 +7294,16 @@ final class MarkdownWriter
             && $this->emojiShortcodesEnabled()
         ) {
             return $attributes['shortcode'];
+        }
+
+        $emojiAlias = $this->spanEmojiAlias($node, $attrTuple);
+        if ($emojiAlias !== null) {
+            return ':' . $emojiAlias . ':';
+        }
+
+        $abbreviation = $this->renderAbbreviationSpan($node, $attrTuple);
+        if ($abbreviation !== null) {
+            return $abbreviation;
         }
 
         $attrs = $this->renderAttributesTuple($attrTuple);
@@ -7148,6 +7322,211 @@ final class MarkdownWriter
         }
 
         return $content;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrTuple
+     */
+    private function spanEmojiAlias(AstNode $node, array $attrTuple): ?string
+    {
+        if (count($node->children) !== 1 || $node->children[0]->type !== 'text') {
+            return null;
+        }
+
+        $alias = $this->emojiAliasCandidate($node, $attrTuple);
+        if ($alias === null) {
+            return null;
+        }
+
+        $classes = $attrTuple['classes'];
+        $hasEmojiClass = array_intersect($classes, ['emoji', 'gemoji', 'emoji-shortcode', 'emoji_shortcode']) !== [];
+        if (!$hasEmojiClass && !$this->nodeHasScalarEmojiAlias($node)) {
+            return null;
+        }
+
+        $text = (string) $node->children[0]->attr('text', '');
+        if (!$this->emojiAliasMatchesText($alias, $text)) {
+            return null;
+        }
+
+        return $alias;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrTuple
+     */
+    private function emojiAliasCandidate(AstNode $node, array $attrTuple): ?string
+    {
+        foreach ([
+            'data-emoji',
+            'data-gemoji',
+            'data-shortcode',
+            'emoji-alias',
+            'data-emoji-alias',
+            'shortcode',
+        ] as $name) {
+            $value = $attrTuple['attributes'][$name] ?? null;
+            if (is_string($value) && $value !== '') {
+                return $this->normalizeEmojiAlias($value);
+            }
+        }
+
+        foreach ([
+            'emojiAlias',
+            'markdownEmojiAlias',
+            'emojiShortcode',
+            'shortcode',
+            'gemoji',
+            'emoji',
+        ] as $name) {
+            $value = $node->attr($name, null);
+            if (is_scalar($value) && (string) $value !== '') {
+                return $this->normalizeEmojiAlias((string) $value);
+            }
+        }
+
+        return null;
+    }
+
+    private function nodeHasScalarEmojiAlias(AstNode $node): bool
+    {
+        foreach (['emojiAlias', 'markdownEmojiAlias', 'emojiShortcode', 'shortcode', 'gemoji', 'emoji'] as $name) {
+            if (is_scalar($node->attr($name, null)) && (string) $node->attr($name) !== '') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function normalizeEmojiAlias(string $alias): string
+    {
+        return trim($alias, ":\t\n\r\0\x0B ");
+    }
+
+    private function emojiAliasMatchesText(string $alias, string $text): bool
+    {
+        $glyphs = [
+            'book' => "\u{1F4D6}",
+            'bulb' => "\u{1F4A1}",
+            'calendar' => "\u{1F4C6}",
+            'camera' => "\u{1F4F7}",
+            'clipboard' => "\u{1F4CB}",
+            'computer' => "\u{1F4BB}",
+            'gear' => "\u{2699}\u{FE0F}",
+            'grin' => "\u{1F601}",
+            'key' => "\u{1F511}",
+            'link' => "\u{1F517}",
+            'package' => "\u{1F4E6}",
+            'printer' => "\u{1F5A8}\u{FE0F}",
+            'thumbsup' => "\u{1F44D}",
+            'wave' => "\u{1F44B}",
+        ];
+
+        $alias = $this->normalizeEmojiAlias($alias);
+        if (isset($glyphs[$alias])) {
+            return $text === $glyphs[$alias];
+        }
+
+        return preg_match('/\p{So}/u', $text) === 1;
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrTuple
+     */
+    private function renderAbbreviationSpan(AstNode $node, array $attrTuple): ?string
+    {
+        if (!$this->abbreviationsEnabled() || $attrTuple['id'] !== '') {
+            return null;
+        }
+
+        if (count($attrTuple['classes']) !== 1 || !in_array($attrTuple['classes'][0], ['abbr', 'abbreviation', 'acronym'], true)) {
+            return null;
+        }
+
+        if (count($node->children) !== 1 || $node->children[0]->type !== 'text') {
+            return null;
+        }
+
+        $term = (string) $node->children[0]->attr('text', '');
+        if ($term === '' || preg_match('/[\[\]\r\n]/u', $term) === 1) {
+            return null;
+        }
+
+        $title = $this->abbreviationTitle($node, $attrTuple);
+        if ($title === null || $title === '' || $this->abbreviationTitleHasLineBreak($node)) {
+            return null;
+        }
+
+        $titleAttributes = array_intersect(
+            array_keys($attrTuple['attributes']),
+            ['title', 'abbr-title', 'abbreviation-title', 'acronym-title', 'acronym_title', 'expansion', 'definition']
+        );
+        if (count($attrTuple['attributes']) !== count($titleAttributes)) {
+            return null;
+        }
+
+        $this->abbreviations[$term] = $title;
+
+        return $this->escapeText($term);
+    }
+
+    /**
+     * @param array{id:string, classes:list<string>, attributes:array<string, string>} $attrTuple
+     */
+    private function abbreviationTitle(AstNode $node, array $attrTuple): ?string
+    {
+        foreach (['title', 'abbr-title', 'abbreviation-title', 'acronym-title', 'acronym_title', 'expansion', 'definition'] as $name) {
+            $value = $attrTuple['attributes'][$name] ?? null;
+            if (is_string($value)) {
+                return $value;
+            }
+        }
+
+        foreach (['titleText', 'abbrTitle', 'abbreviationTitle', 'acronymTitle', 'expansion', 'definition'] as $name) {
+            $value = $node->attr($name, null);
+            if (is_scalar($value)) {
+                return (string) $value;
+            }
+        }
+
+        return null;
+    }
+
+    private function abbreviationTitleHasLineBreak(AstNode $node): bool
+    {
+        foreach (['titleText', 'abbrTitle', 'abbreviationTitle', 'acronymTitle', 'expansion', 'definition', 'title'] as $name) {
+            $value = $node->attr($name, null);
+            if (is_scalar($value) && preg_match('/\R/u', (string) $value) === 1) {
+                return true;
+            }
+        }
+
+        $attributes = $node->attr('attributes', []);
+        if (!is_array($attributes)) {
+            return false;
+        }
+
+        foreach ($attributes as $key => $value) {
+            if (is_array($value)) {
+                $name = $value['key'] ?? $value['name'] ?? $value[0] ?? null;
+                $attributeValue = $value['value'] ?? $value[1] ?? '';
+            } else {
+                $name = is_string($key) ? $key : null;
+                $attributeValue = $value;
+            }
+
+            if (
+                is_string($name)
+                && in_array($name, ['title', 'abbr-title', 'abbreviation-title', 'acronym-title', 'acronym_title', 'expansion', 'definition'], true)
+                && is_scalar($attributeValue)
+                && preg_match('/\R/u', (string) $attributeValue) === 1
+            ) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -7180,7 +7559,7 @@ final class MarkdownWriter
             ? $this->linkUrl($node)
             : $this->renderLinkDestination($this->linkUrl($node));
 
-        return '[' . $this->renderInlines($node->children) . ']('
+        return '[' . $this->renderLinkLabelInlines($node->children) . ']('
             . $destination
             . $titleMarkdown
             . ')'
@@ -7458,7 +7837,7 @@ final class MarkdownWriter
      */
     private function renderReferenceLink(AstNode $node, array $following): string
     {
-        $labelText = $this->renderInlines($node->children);
+        $labelText = $this->renderReferenceLinkLabel($node->children);
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
@@ -7475,6 +7854,42 @@ final class MarkdownWriter
         $suffix = $referenceLabel === $plainLabel ? '[]' : '[' . $referenceLabel . ']';
 
         return '[' . $labelText . ']' . $suffix;
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderReferenceLinkLabel(array $nodes): string
+    {
+        $label = '';
+        foreach ($nodes as $index => $node) {
+            if ($node->type === 'softbreak') {
+                $label .= "\n";
+                continue;
+            }
+
+            $label .= $this->renderInline($node, array_slice($nodes, $index + 1));
+        }
+
+        return $this->unescapeBalancedLinkLabelBrackets($label, $this->plainInlineText($nodes));
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     */
+    private function renderLinkLabelInlines(array $nodes): string
+    {
+        return $this->unescapeBalancedLinkLabelBrackets(
+            $this->renderInlines($nodes),
+            $this->plainInlineText($nodes)
+        );
+    }
+
+    private function unescapeBalancedLinkLabelBrackets(string $rendered, string $plain): string
+    {
+        return $this->hasUnbalancedReferenceLabelBrackets($plain)
+            ? $rendered
+            : str_replace(['\\[', '\\]'], ['[', ']'], $rendered);
     }
 
     private function renderNoteReference(AstNode $node): string
@@ -7595,8 +8010,32 @@ final class MarkdownWriter
     {
         return $label === ''
             || strlen($label) > 999
-            || str_contains($label, '[')
-            || str_contains($label, ']');
+            || $this->hasUnbalancedReferenceLabelBrackets($label);
+    }
+
+    private function hasUnbalancedReferenceLabelBrackets(string $label): bool
+    {
+        $depth = 0;
+        $chars = preg_split('//u', $label, -1, PREG_SPLIT_NO_EMPTY);
+        if ($chars === false) {
+            return str_contains($label, '[') || str_contains($label, ']');
+        }
+
+        foreach ($chars as $char) {
+            if ($char === '[') {
+                $depth++;
+                continue;
+            }
+
+            if ($char === ']') {
+                if ($depth === 0) {
+                    return true;
+                }
+                $depth--;
+            }
+        }
+
+        return $depth !== 0;
     }
 
     private function nextGeneratedReferenceLabel(): string
@@ -7759,6 +8198,12 @@ final class MarkdownWriter
                 continue;
             }
 
+            if ($this->smartEnabled() && str_starts_with($tail, '---')) {
+                $escaped .= '\\-\\-\\-';
+                $i += 2;
+                continue;
+            }
+
             if ($this->smartEnabled() && str_starts_with($tail, '--')) {
                 $escaped .= '\\--';
                 $i++;
@@ -7778,6 +8223,11 @@ final class MarkdownWriter
                 continue;
             }
 
+            if ($i === 0 && $char === ':' && (strlen($text) === 1 || preg_match('/\s/u', $text[1]) === 1)) {
+                $escaped .= '\\:';
+                continue;
+            }
+
             if (str_starts_with($tail, '![')) {
                 $escaped .= '\\![';
                 $i++;
@@ -7785,7 +8235,7 @@ final class MarkdownWriter
             }
 
             if (str_starts_with($tail, '~~')) {
-                $escaped .= '\\~~';
+                $escaped .= '\\~\\~';
                 $i++;
                 continue;
             }
@@ -7796,7 +8246,7 @@ final class MarkdownWriter
             }
 
             if ($char === '&' && preg_match('/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);/', $tail) === 1) {
-                $escaped .= '\\&';
+                $escaped .= '&amp;';
                 continue;
             }
 
@@ -8191,7 +8641,8 @@ final class MarkdownWriter
         $text = '';
         foreach ($nodes as $node) {
             $text .= match ($node->type) {
-                'text', 'code' => (string) $node->attr('text', ''),
+                'text' => $this->inlineText($node),
+                'code' => $this->codeText($node),
                 'softbreak', 'linebreak' => ' ',
                 default => $this->plainInlineText($node->children),
             };
@@ -8332,11 +8783,13 @@ final class MarkdownWriter
     private function pendingDefinitionBlocks(): array
     {
         $blocks = [];
-        while ($this->notes !== [] || $this->references !== []) {
+        while ($this->notes !== [] || $this->references !== [] || $this->abbreviations !== []) {
             $notes = $this->notes;
             $references = $this->references;
+            $abbreviations = $this->abbreviations;
             $this->notes = [];
             $this->references = [];
+            $this->abbreviations = [];
 
             foreach ($notes as $note) {
                 $blocks[] = $this->renderNoteDefinition($note['label'], $note['node']);
@@ -8348,6 +8801,14 @@ final class MarkdownWriter
             }
             if ($referenceDefinitions !== []) {
                 $blocks[] = implode("\n", $referenceDefinitions);
+            }
+
+            $abbreviationDefinitions = [];
+            foreach ($abbreviations as $term => $title) {
+                $abbreviationDefinitions[] = '*[' . $term . ']: ' . $title;
+            }
+            if ($abbreviationDefinitions !== []) {
+                $blocks[] = implode("\n", $abbreviationDefinitions);
             }
         }
 
@@ -8364,7 +8825,7 @@ final class MarkdownWriter
             return $this->renderOpmlNoteDefinition($label, $node);
         }
 
-        $body = $this->renderBlockCollection($node->children);
+        $body = $this->withPendingDefinitions($this->renderBlockCollection($node->children));
         if ($body === '') {
             return '[^' . $label . ']:';
         }
@@ -8415,7 +8876,7 @@ final class MarkdownWriter
     private function renderPlainNoteDefinition(string $label, AstNode $node): string
     {
         $marker = '[' . $label . ']';
-        $body = $this->renderBlockCollection($node->children);
+        $body = $this->withPendingDefinitions($this->renderBlockCollection($node->children));
         if ($body === '') {
             return $marker;
         }
@@ -8433,6 +8894,15 @@ final class MarkdownWriter
         }
 
         return $rendered;
+    }
+
+    private function withPendingDefinitions(string $body): string
+    {
+        $blocks = [];
+        $this->appendBlockEntry($blocks, $body);
+        $this->appendPendingDefinitionEntries($blocks);
+
+        return $this->joinBlockEntries($blocks);
     }
 
     /**
@@ -8481,6 +8951,11 @@ final class MarkdownWriter
         $label = (string) $node->children[0]->attr('text', '');
         $candidates = [$this->autolinkText($node)];
         if (str_starts_with($url, 'mailto:')) {
+            $address = substr($url, 7);
+            if (str_contains($address, '?') || str_contains($address, '#')) {
+                return null;
+            }
+
             $candidates[] = $url;
         }
 
@@ -8518,7 +8993,7 @@ final class MarkdownWriter
         }
 
         $url = $this->imageUrl($node);
-        if ($labelNodes === [] || (count($labelNodes) === 1 && $labelNodes[0]->type === 'text' && $labelNodes[0]->attr('text', '') === $url)) {
+        if ($labelNodes === [] || (count($labelNodes) === 1 && $labelNodes[0]->type === 'text' && $this->inlineText($labelNodes[0]) === $url)) {
             return [new AstNode('text', ['text' => ''])];
         }
 
@@ -8840,9 +9315,53 @@ final class MarkdownWriter
      */
     private function linkAttrTuple(AstNode $node): array
     {
-        $id = $this->normalizeAttributeTokenValue($this->firstStringAttr($node->attrs, ['id', 'identifier']));
+        $htmlAttributes = $node->attr('htmlAttributes', []);
+        if (!is_array($htmlAttributes)) {
+            $htmlAttributes = [];
+        }
+
+        $id = '';
+        if (isset($htmlAttributes['id']) && is_scalar($htmlAttributes['id'])) {
+            $id = $this->normalizeAttributeTokenValue((string) $htmlAttributes['id']);
+        }
+        if ($id === '') {
+            $id = $this->normalizeAttributeTokenValue($this->firstStringAttr($node->attrs, ['id', 'identifier']));
+        }
+
         $classes = $this->attributeClasses($node->attrs);
-        $attributes = $this->attributeKeyValues($node->attrs);
+        if (isset($htmlAttributes['class']) && is_scalar($htmlAttributes['class'])) {
+            $classes = array_merge(
+                preg_split('/\s+/u', (string) $htmlAttributes['class'], -1, PREG_SPLIT_NO_EMPTY) ?: [],
+                $classes
+            );
+            $classes = array_values(array_unique(array_map(
+                fn (string $class): string => $this->normalizeAttributeTokenValue($class),
+                $classes
+            )));
+            $classes = array_values(array_filter($classes, static fn (string $class): bool => $class !== ''));
+        }
+
+        $attributes = [];
+        foreach ($htmlAttributes as $name => $value) {
+            if ($name === 'id' || $name === 'class' || !is_scalar($value)) {
+                continue;
+            }
+
+            $name = $this->normalizeAttributeTokenValue((string) $name);
+            if ($name !== '') {
+                $attributes[$name] = $this->normalizeAttributeValue((string) $value);
+            }
+        }
+        $attributes = array_replace($attributes, $this->attributeKeyValues($node->attrs));
+
+        if (!in_array($node->type, ['link', 'image'], true)) {
+            foreach (['dir', 'lang', 'role', 'title', 'xml:lang'] as $name) {
+                $value = $node->attr($name, null);
+                if (is_scalar($value)) {
+                    $attributes[$name] = $this->normalizeAttributeValue((string) $value);
+                }
+            }
+        }
 
         return [
             'id' => $id,
@@ -8889,7 +9408,7 @@ final class MarkdownWriter
     private function attributeKeyValues(array $attrs): array
     {
         $attributes = [];
-        foreach (['attributes', 'keyvals', 'keyValues'] as $name) {
+        foreach (['attributes', 'attributePairs', 'keyvals', 'keyValues'] as $name) {
             $this->appendAttributeKeyValues($attributes, $attrs[$name] ?? []);
         }
 
@@ -9003,17 +9522,28 @@ final class MarkdownWriter
 
     private function rawHtmlEnabled(): bool
     {
-        return MarkdownFormatProfile::rawHtmlEnabled($this->options, true);
+        return MarkdownFormatProfile::rawHtmlEnabled($this->markdownProfileOptions(), true);
     }
 
     private function rawAttributeEnabled(): bool
     {
-        return MarkdownFormatProfile::rawAttributeEnabled($this->options, true);
+        return MarkdownFormatProfile::rawAttributeEnabled($this->markdownProfileOptions(), true);
     }
 
     private function rawTexEnabled(): bool
     {
-        return MarkdownFormatProfile::rawTexEnabled($this->options, true);
+        return MarkdownFormatProfile::rawTexEnabled($this->markdownProfileOptions(), true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function markdownProfileOptions(): array
+    {
+        $options = $this->options;
+        $options['format'] = $this->markdownFormatWithExtensionOption();
+
+        return $options;
     }
 
     private function opmlNoteMarkdownEnabled(): bool
@@ -9178,6 +9708,26 @@ final class MarkdownWriter
         return $this->markdownExtensionOverride('emoji_shortcodes') === true;
     }
 
+    private function texMathDollarsEnabled(): bool
+    {
+        $override = $this->markdownExtensionOverride('tex_math_dollars');
+        if ($override !== null) {
+            return $override;
+        }
+
+        return in_array($this->writerVariant(), ['markdown', 'commonmark-x'], true);
+    }
+
+    private function abbreviationsEnabled(): bool
+    {
+        $override = $this->markdownExtensionOverride('abbreviations');
+        if ($override !== null) {
+            return $override;
+        }
+
+        return in_array($this->writerVariant(), ['markdown', 'markdown-mmd', 'markdown-phpextra', 'markdown-strict'], true);
+    }
+
     private function markdownExtensionOverride(string $extension): ?bool
     {
         return $this->markdownExtensionOverrides()[$extension] ?? null;
@@ -9214,7 +9764,16 @@ final class MarkdownWriter
 
     private function bracketedSpansEnabled(): bool
     {
-        return (bool) ($this->options['bracketedSpans'] ?? true);
+        if (array_key_exists('bracketedSpans', $this->options)) {
+            return (bool) $this->options['bracketedSpans'];
+        }
+
+        $override = $this->markdownExtensionOverride('bracketed_spans');
+        if ($override !== null) {
+            return $override;
+        }
+
+        return !$this->isCommonMarkVariant();
     }
 
     private function nativeSpansEnabled(): bool
