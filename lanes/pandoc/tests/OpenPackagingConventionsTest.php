@@ -143,6 +143,29 @@ $buildOpcZipPackage = static function (array $entries): string {
         . pack('VvvvvVVv', 0x06054b50, 0, 0, count($entries), count($entries), strlen($central), $centralOffset, 0);
 };
 
+$buildSignedOpcZipPackage = static function () use ($buildOpcZipPackage): string {
+    $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>
+XML;
+    $zip = $buildOpcZipPackage([
+        ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+        ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'method' => 0],
+        ['name' => 'word/document.xml', 'data' => '<w:document/>', 'method' => 0],
+    ]);
+    $eocdOffset = strrpos($zip, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('Unable to locate EOCD in signed OPC fixture');
+    }
+
+    $signatureData = 'opc-central-signature';
+    $signature = pack('Vv', 0x05054b50, strlen($signatureData)) . $signatureData;
+
+    return substr($zip, 0, $eocdOffset) . $signature . substr($zip, $eocdOffset);
+};
+
 return [
     'parses OPC content types defaults overrides and fallback lookup' => static function (TestRunner $t) use ($contentTypesXml): void {
         $types = OpcContentTypes::fromXml($contentTypesXml);
@@ -703,13 +726,69 @@ XML;
             $t->same(true, $manifest['hasPackageComment']);
             $t->same(false, $manifest['hasCentralDirectorySignature']);
             $t->same(null, $manifest['centralDirectorySignatureOffset']);
+            $t->same(null, $manifest['centralDirectorySignatureDataOffset']);
+            $t->same(null, $manifest['centralDirectorySignatureEnd']);
             $t->same(0, $manifest['centralDirectorySignatureBytes']);
+            $t->same(0, $manifest['centralDirectorySignatureRecordBytes']);
+            $t->same('', $manifest['centralDirectorySignaturePreviewHex']);
+            $t->same(0, $manifest['centralDirectorySignaturePreviewByteCount']);
             $t->same(null, $manifest['centralDirectorySignatureSha256']);
+            $t->same(null, $manifest['centralDirectorySignatureLocation']);
+            $t->same('not-present', $manifest['centralDirectorySignatureVerification']);
+            $t->same('not-present', $manifest['centralDirectorySignatureByteExposurePolicy']);
+            $t->same(false, $manifest['centralDirectorySignatureCanExposeBytes']);
         }
 
         $t->same($summary['packageSource'], $rawSummary['packageSource']);
         $t->same($summary['endOfCentralDirectorySha256'], $rawSummary['endOfCentralDirectorySha256']);
         $t->same($summary['packageCommentSha256'], $rawSummary['packageCommentSha256']);
+    },
+    'carries OPC ZIP central directory signature source policy through manifest preflights' => static function (TestRunner $t) use ($buildSignedOpcZipPackage): void {
+        $zip = $buildSignedOpcZipPackage();
+        $package = ZipPackage::fromString($zip);
+        $zipManifest = $package->packageManifestPreflight();
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $signatureData = 'opc-central-signature';
+        $signatureFields = [
+            'hasCentralDirectorySignature',
+            'centralDirectorySignatureOffset',
+            'centralDirectorySignatureDataOffset',
+            'centralDirectorySignatureEnd',
+            'centralDirectorySignatureBytes',
+            'centralDirectorySignatureRecordBytes',
+            'centralDirectorySignaturePreviewHex',
+            'centralDirectorySignaturePreviewByteCount',
+            'centralDirectorySignatureSha256',
+            'centralDirectorySignatureLocation',
+            'centralDirectorySignatureVerification',
+            'centralDirectorySignatureByteExposurePolicy',
+            'centralDirectorySignatureCanExposeBytes',
+        ];
+
+        foreach ([$summary, $rawSummary] as $manifest) {
+            $t->same(true, $manifest['valid']);
+            $t->same($zipManifest['packageSource'], $manifest['packageSource']);
+            foreach ($signatureFields as $field) {
+                $t->same($zipManifest[$field], $manifest[$field], "{$field} top-level manifest");
+                $t->same($manifest[$field], $manifest['packageSource'][$field], "{$field} package source");
+            }
+        }
+
+        $t->same(true, $summary['hasCentralDirectorySignature']);
+        $t->same($summary['centralDirectoryEnd'], $summary['centralDirectorySignatureOffset']);
+        $t->same($summary['centralDirectorySignatureOffset'] + 6, $summary['centralDirectorySignatureDataOffset']);
+        $t->same($summary['endOfCentralDirectoryOffset'], $summary['centralDirectorySignatureEnd']);
+        $t->same(strlen($signatureData), $summary['centralDirectorySignatureBytes']);
+        $t->same(strlen($signatureData) + 6, $summary['centralDirectorySignatureRecordBytes']);
+        $t->same(bin2hex(substr($signatureData, 0, 16)), $summary['centralDirectorySignaturePreviewHex']);
+        $t->same(16, $summary['centralDirectorySignaturePreviewByteCount']);
+        $t->same(hash('sha256', $signatureData), $summary['centralDirectorySignatureSha256']);
+        $t->same('between-central-directory-and-eocd', $summary['centralDirectorySignatureLocation']);
+        $t->same('not-performed-native-bounded-reader', $summary['centralDirectorySignatureVerification']);
+        $t->same('central-directory-signature-metadata-only', $summary['centralDirectorySignatureByteExposurePolicy']);
+        $t->same(false, $summary['centralDirectorySignatureCanExposeBytes']);
+        $t->same($summary['packageSource'], $rawSummary['packageSource']);
     },
     'preflights raw ZIP central directory OPC manifest before package construction' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';
