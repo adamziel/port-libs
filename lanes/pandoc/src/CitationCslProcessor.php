@@ -1401,6 +1401,8 @@ final class CitationCslProcessor
             'source' => self::firstStringField($item, ['source', 'source-title', 'sourceTitle', 'sourcetitle']),
             'endnoteTitleVariantSummary' => self::firstStringField($item, ['endnote-title-variant-summary', 'endnoteTitleVariantSummary', 'endnotetitlevariantsummary']),
             'endnotePublicationTypeHintSummary' => self::firstStringField($item, ['endnote-publication-type-hint-summary', 'endnotePublicationTypeHintSummary', 'endnotepublicationtypehintsummary']),
+            'endnotePublicationDetailSummary' => self::firstStringField($item, ['endnote-publication-detail-summary', 'endnotePublicationDetailSummary', 'endnotepublicationdetailsummary']),
+            'endnotePublicationDetailDiagnosticSummary' => self::firstStringField($item, ['endnote-publication-detail-diagnostic-summary', 'endnotePublicationDetailDiagnosticSummary', 'endnotepublicationdetaildiagnosticsummary']),
             'endnoteDateDiagnosticSummary' => self::firstStringField($item, ['endnote-date-diagnostic-summary', 'endnoteDateDiagnosticSummary', 'endnotedatediagnosticsummary']),
             'endnoteUnsupportedFieldSummary' => self::firstStringField($item, ['endnote-unsupported-field-summary', 'endnoteUnsupportedFieldSummary', 'endnoteunsupportedfieldsummary']),
             'risFieldProvenance' => $risFieldProvenance,
@@ -2225,13 +2227,32 @@ final class CitationCslProcessor
         $datePacket = self::endnoteDatePacket($record);
         $publicationHints = self::endnotePublicationTypeHints($record, $refType);
         $unsupportedFields = self::endnoteUnsupportedFields($record);
+        $publicationDetails = self::endnotePublicationDetails($record);
         $electronicResource = self::endnoteFirstText($record, ['electronic-resource-num', 'doi']);
         $url = self::endnoteFirstRelatedUrl($record);
-        $doi = preg_match('/^(?:doi:\s*)?10\.\S+/i', $electronicResource) === 1
-            ? preg_replace('/^doi:\s*/i', '', $electronicResource)
-            : '';
-        if ($url === '' && preg_match('/^https?:\/\//i', $electronicResource) === 1) {
-            $url = $electronicResource;
+        $doi = '';
+        foreach (self::endnoteTextList($record, ['electronic-resource-num', 'doi']) as $resourceValue) {
+            if (self::endnoteLooksLikeDoi($resourceValue)) {
+                $doi = preg_replace('/^doi:\s*/i', '', trim($resourceValue)) ?? trim($resourceValue);
+                break;
+            }
+        }
+        if ($url === '') {
+            foreach (self::endnoteTextList($record, ['electronic-resource-num', 'doi']) as $resourceValue) {
+                if (self::endnoteLooksLikeUrl($resourceValue)) {
+                    $url = $resourceValue;
+                    break;
+                }
+            }
+        }
+        $rawElectronicResource = '';
+        if ($electronicResource !== '' && !self::endnoteLooksLikeDoi($electronicResource) && !self::endnoteLooksLikeUrl($electronicResource)) {
+            $rawElectronicResource = $electronicResource;
+            $unsupportedFields[] = [
+                'field' => 'electronic-resource-num',
+                'value' => $electronicResource,
+                'reason' => 'endnote-electronic-resource-preserved-raw-only',
+            ];
         }
 
         $authorGroup = self::endnoteContributorNames($record, ['authors'], 'author');
@@ -2278,6 +2299,8 @@ final class CitationCslProcessor
             'sourceFileDiagnostics' => self::endnoteSourceFileDiagnostics($record),
             'endnoteTitleVariantSummary' => $titleFields['summary'],
             'endnotePublicationTypeHintSummary' => $publicationHints['summary'],
+            'endnotePublicationDetailSummary' => $publicationDetails['summary'],
+            'endnotePublicationDetailDiagnosticSummary' => self::endnoteReasonSummary($publicationDetails['diagnostics']),
             'endnoteDateDiagnosticSummary' => self::endnoteReasonSummary($datePacket['diagnostics']),
             'endnoteUnsupportedFieldSummary' => self::endnoteUnsupportedFieldSummary($unsupportedFields),
             'rawEndnoteXml' => [
@@ -2289,6 +2312,10 @@ final class CitationCslProcessor
                 'titleVariantSummary' => $titleFields['summary'],
                 'publicationTypeHints' => $publicationHints['hints'],
                 'publicationTypeHintSummary' => $publicationHints['summary'],
+                'publicationDetailFields' => $publicationDetails['fields'],
+                'publicationDetailSummary' => $publicationDetails['summary'],
+                'publicationDetailDiagnostics' => $publicationDetails['diagnostics'],
+                'publicationDetailDiagnosticSummary' => self::endnoteReasonSummary($publicationDetails['diagnostics']),
                 'dateFields' => $datePacket['fields'],
                 'dateDiagnostics' => $datePacket['diagnostics'],
                 'dateDiagnosticSummary' => self::endnoteReasonSummary($datePacket['diagnostics']),
@@ -2300,13 +2327,8 @@ final class CitationCslProcessor
             ],
         ];
 
-        if ($doi === '' && $electronicResource !== '' && $electronicResource !== $url) {
-            $item['rawEndnoteXml']['electronicResourceNumber'] = $electronicResource;
-            $item['rawEndnoteXml']['unsupportedFields'][] = [
-                'field' => 'electronic-resource-num',
-                'value' => $electronicResource,
-                'reason' => 'endnote-electronic-resource-preserved-raw-only',
-            ];
+        if ($rawElectronicResource !== '') {
+            $item['rawEndnoteXml']['electronicResourceNumber'] = $rawElectronicResource;
         }
 
         return array_filter($item, static fn (mixed $value): bool => $value !== '' && $value !== [] && $value !== null);
@@ -2475,6 +2497,146 @@ final class CitationCslProcessor
         }
 
         return ['hints' => $hints, 'summary' => implode('; ', $parts)];
+    }
+
+    /**
+     * @return array{
+     *     fields:list<array{field:string, value:string, parent:string, kind:string}>,
+     *     diagnostics:list<array{field:string, value:string, parent:string, kind:string, reason:string, severity:string}>,
+     *     summary:string
+     * }
+     */
+    private static function endnotePublicationDetails(\DOMElement $record): array
+    {
+        $fields = [];
+        $diagnostics = [];
+        $fieldKinds = [
+            'secondary-title' => 'journal-title',
+            'full-title' => 'journal-title',
+            'periodical-title' => 'journal-title',
+            'abbr-1' => 'journal-abbreviation',
+            'abbr-2' => 'journal-abbreviation',
+            'abbr-3' => 'journal-abbreviation',
+            'volume' => 'volume',
+            'number' => 'issue',
+            'issue' => 'issue',
+            'pages' => 'pages',
+            'electronic-resource-num' => 'electronic-resource',
+            'doi' => 'doi',
+        ];
+
+        foreach ($fieldKinds as $fieldName => $kind) {
+            foreach (XmlHtmlDom::descendantElements($record, $fieldName) as $element) {
+                $value = XmlHtmlDom::normalizedText($element);
+                $parent = $element->parentNode instanceof \DOMElement ? $element->parentNode->localName : '';
+                $fields[] = ['field' => $fieldName, 'value' => $value, 'parent' => $parent, 'kind' => $kind];
+                $diagnostic = self::endnotePublicationDetailDiagnosticForValue($fieldName, $value, $parent, $kind);
+                if (is_array($diagnostic)) {
+                    $diagnostics[] = $diagnostic;
+                }
+            }
+        }
+
+        foreach (self::endnoteUrlRecordsByParent($record, ['related-urls', 'web-urls', 'urls'], true) as $entry) {
+            $value = $entry['url'];
+            $parent = $entry['parent'];
+            $fields[] = ['field' => 'url', 'value' => $value, 'parent' => $parent, 'kind' => 'url'];
+            if ($value === '') {
+                $diagnostics[] = self::endnotePublicationDetailDiagnostic('url', $value, $parent, 'url', 'endnote-publication-detail-empty-field');
+            } elseif (!self::endnoteLooksLikeUrl($value)) {
+                $diagnostics[] = self::endnotePublicationDetailDiagnostic('url', $value, $parent, 'url', 'endnote-publication-detail-malformed-url');
+            }
+        }
+
+        return [
+            'fields' => $fields,
+            'diagnostics' => $diagnostics,
+            'summary' => self::endnotePublicationDetailSummary($fields),
+        ];
+    }
+
+    /**
+     * @return array{field:string, value:string, parent:string, kind:string, reason:string, severity:string}|null
+     */
+    private static function endnotePublicationDetailDiagnosticForValue(string $field, string $value, string $parent, string $kind): ?array
+    {
+        if ($value === '') {
+            return self::endnotePublicationDetailDiagnostic($field, $value, $parent, $kind, 'endnote-publication-detail-empty-field');
+        }
+
+        if ($kind === 'pages' && self::endnotePagesLookMalformed($value)) {
+            return self::endnotePublicationDetailDiagnostic($field, $value, $parent, $kind, 'endnote-publication-detail-malformed-pages');
+        }
+
+        if ($kind === 'doi' && !self::endnoteLooksLikeDoi($value)) {
+            return self::endnotePublicationDetailDiagnostic($field, $value, $parent, $kind, 'endnote-publication-detail-malformed-doi');
+        }
+
+        if ($kind === 'electronic-resource' && !self::endnoteLooksLikeDoi($value) && !self::endnoteLooksLikeUrl($value)) {
+            return self::endnotePublicationDetailDiagnostic($field, $value, $parent, $kind, 'endnote-publication-detail-malformed-electronic-resource');
+        }
+
+        return null;
+    }
+
+    /**
+     * @return array{field:string, value:string, parent:string, kind:string, reason:string, severity:string}
+     */
+    private static function endnotePublicationDetailDiagnostic(string $field, string $value, string $parent, string $kind, string $reason): array
+    {
+        return [
+            'field' => $field,
+            'value' => $value,
+            'parent' => $parent,
+            'kind' => $kind,
+            'reason' => $reason,
+            'severity' => 'warning',
+        ];
+    }
+
+    /**
+     * @param list<array{field:string, value:string, parent:string, kind:string}> $fields
+     */
+    private static function endnotePublicationDetailSummary(array $fields): string
+    {
+        $parts = [];
+        foreach ($fields as $field) {
+            if ($field['value'] === '') {
+                continue;
+            }
+
+            $parts[] = $field['field'] . ': ' . $field['value'];
+        }
+
+        return implode('; ', $parts);
+    }
+
+    private static function endnoteLooksLikeDoi(string $value): bool
+    {
+        $normalized = preg_replace('/^doi:\s*/i', '', trim($value)) ?? trim($value);
+
+        return preg_match('/^10\.\S+\/\S+$/i', $normalized) === 1;
+    }
+
+    private static function endnoteLooksLikeUrl(string $value): bool
+    {
+        $value = trim($value);
+        if ($value === '' || preg_match('/\s/u', $value) === 1) {
+            return false;
+        }
+
+        return filter_var($value, FILTER_VALIDATE_URL) !== false;
+    }
+
+    private static function endnotePagesLookMalformed(string $value): bool
+    {
+        $value = trim($value);
+        if (preg_match('/[\p{L}\p{N}]/u', $value) !== 1) {
+            return true;
+        }
+
+        return preg_match('/(^|[\s,;])[-–—]+|[-–—]+\s*$/u', $value) === 1
+            || preg_match('/[-–—]{3,}/u', $value) === 1;
     }
 
     /**
@@ -2872,7 +3034,7 @@ final class CitationCslProcessor
      * @param list<string> $parentNames
      * @return list<array{url:string, parent:string}>
      */
-    private static function endnoteUrlRecordsByParent(\DOMElement $record, array $parentNames): array
+    private static function endnoteUrlRecordsByParent(\DOMElement $record, array $parentNames, bool $includeEmpty = false): array
     {
         $records = [];
         foreach (XmlHtmlDom::descendantElements($record, 'url') as $urlElement) {
@@ -2882,7 +3044,7 @@ final class CitationCslProcessor
             }
 
             $url = XmlHtmlDom::normalizedText($urlElement);
-            if ($url !== '') {
+            if ($url !== '' || $includeEmpty) {
                 $records[] = ['url' => $url, 'parent' => $parent->localName];
             }
         }
@@ -11167,6 +11329,8 @@ final class CitationCslProcessor
             'source', 'source-title', 'sourcetitle' => (string) ($item['source'] ?? ''),
             'endnote-title-variant-summary', 'endnote-title-variants' => (string) ($item['endnoteTitleVariantSummary'] ?? ''),
             'endnote-publication-type-hint-summary', 'endnote-publication-type-hints' => (string) ($item['endnotePublicationTypeHintSummary'] ?? ''),
+            'endnote-publication-detail-summary', 'endnote-publication-details' => (string) ($item['endnotePublicationDetailSummary'] ?? ''),
+            'endnote-publication-detail-diagnostic-summary', 'endnote-publication-detail-diagnostics' => (string) ($item['endnotePublicationDetailDiagnosticSummary'] ?? ''),
             'endnote-date-diagnostic-summary', 'endnote-date-diagnostics' => (string) ($item['endnoteDateDiagnosticSummary'] ?? ''),
             'endnote-unsupported-field-summary', 'endnote-unsupported-fields' => (string) ($item['endnoteUnsupportedFieldSummary'] ?? ''),
             'source-file-summary', 'source-files-summary', 'source-files', 'source-attachment-summary', 'source-attachments' => $this->sourceFileSummary($item),

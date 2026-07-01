@@ -92,10 +92,10 @@ final class JsonReader
         [$type, $payload] = $this->tagged($value, 'meta value');
 
         return match ($type) {
-            'MetaMap' => ['type' => 'MetaMap', 'value' => $this->parseMetaMap($payload)],
-            'MetaList' => ['type' => 'MetaList', 'value' => array_map(fn (mixed $item): mixed => $this->parseMetaValue($item), $this->expectList($payload, 'MetaList'))],
-            'MetaBool' => (bool) $payload,
-            'MetaString' => $this->expectString($payload, 'MetaString'),
+            'MetaMap' => ['type' => 'MetaMap', 'value' => $this->parseMetaMap($this->singleWrappedObject($payload))],
+            'MetaList' => ['type' => 'MetaList', 'value' => array_map(fn (mixed $item): mixed => $this->parseMetaValue($item), $this->expectList($this->singleWrappedTaggedListPayload($payload), 'MetaList'))],
+            'MetaBool' => $this->expectBool($this->singleWrappedScalar($payload), 'MetaBool'),
+            'MetaString' => $this->expectString($this->singleWrappedScalar($payload), 'MetaString'),
             'MetaInlines' => ['type' => 'MetaInlines', 'value' => $this->parseInlineList($payload)],
             'MetaBlocks' => ['type' => 'MetaBlocks', 'value' => $this->parseBlockList($payload)],
             default => throw new \InvalidArgumentException("Unsupported Pandoc JSON meta value '{$type}'"),
@@ -968,6 +968,15 @@ final class JsonReader
     {
         if (!is_string($value)) {
             throw new \InvalidArgumentException("Expected {$context} to be a string");
+        }
+
+        return $value;
+    }
+
+    private function expectBool(mixed $value, string $context): bool
+    {
+        if (!is_bool($value)) {
+            throw new \InvalidArgumentException("Expected {$context} to be a boolean");
         }
 
         return $value;
