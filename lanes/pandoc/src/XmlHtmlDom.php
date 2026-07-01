@@ -2314,6 +2314,12 @@ final class XmlHtmlDom
             'fundingLinkedReferences' => $fundingReview['fundingLinkedReferences'],
             'fundingLinkedReferenceCount' => $fundingReview['fundingLinkedReferenceCount'],
             'fundingReferenceBacklinkReviewPolicy' => 'jats-bits-funding-reference-backlinks-metadata-only',
+            'fundingReferenceBacklinkSummary' => $fundingReview['fundingReferenceBacklinkSummary'],
+            'fundingReferenceBacklinkStatusCounts' => $fundingReview['fundingReferenceBacklinkStatusCounts'],
+            'fundingReferenceBacklinkReferenceIdsByStatus' => $fundingReview['fundingReferenceBacklinkReferenceIdsByStatus'],
+            'fundingReferenceBacklinkConflictReferenceIds' => $fundingReview['fundingReferenceBacklinkConflictReferenceIds'],
+            'fundingReferenceBacklinkMultiAwardReferenceIds' => $fundingReview['fundingReferenceBacklinkMultiAwardReferenceIds'],
+            'maxFundingReferenceBacklinkLinkCount' => $fundingReview['maxFundingReferenceBacklinkLinkCount'],
             'fundingReferenceBacklinks' => $fundingReview['fundingReferenceBacklinks'],
             'fundingReferenceBacklinkCount' => $fundingReview['fundingReferenceBacklinkCount'],
             'missingFundingReferenceBacklinkCount' => $fundingReview['missingFundingReferenceBacklinkCount'],
@@ -9151,6 +9157,7 @@ final class XmlHtmlDom
             $conflictingAwardSourcePairs
         );
         $fundingReferenceBacklinks = self::jatsFundingReferenceBacklinkSummaries($fundingLinkedReferences, $safeReferenceMap);
+        $fundingReferenceBacklinkSummary = self::jatsFundingReferenceBacklinkAggregateSummary($fundingReferenceBacklinks);
         $fundingDiagnostics = self::jatsFundingDiagnostics(
             $fundingGroups,
             $awardGroups,
@@ -9205,6 +9212,12 @@ final class XmlHtmlDom
             'fundingLinkedReferenceCount' => count($fundingLinkedReferences),
             'fundingReferenceBacklinks' => $fundingReferenceBacklinks,
             'fundingReferenceBacklinkCount' => count($fundingReferenceBacklinks),
+            'fundingReferenceBacklinkSummary' => $fundingReferenceBacklinkSummary,
+            'fundingReferenceBacklinkStatusCounts' => $fundingReferenceBacklinkSummary['statusCounts'],
+            'fundingReferenceBacklinkReferenceIdsByStatus' => $fundingReferenceBacklinkSummary['referenceIdsByStatus'],
+            'fundingReferenceBacklinkConflictReferenceIds' => $fundingReferenceBacklinkSummary['awardSourceConflictReferenceIds'],
+            'fundingReferenceBacklinkMultiAwardReferenceIds' => $fundingReferenceBacklinkSummary['multiAwardReferenceIds'],
+            'maxFundingReferenceBacklinkLinkCount' => $fundingReferenceBacklinkSummary['maxLinkCount'],
             'missingFundingReferenceBacklinkCount' => count(array_filter(
                 $fundingReferenceBacklinks,
                 static fn (array $backlink): bool => ($backlink['found'] ?? null) === false
@@ -10271,6 +10284,91 @@ final class XmlHtmlDom
         );
 
         return $orderedBacklinks;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $backlinks
+     * @return array<string, mixed>
+     */
+    private static function jatsFundingReferenceBacklinkAggregateSummary(array $backlinks): array
+    {
+        $statusCounts = ['missing' => 0, 'duplicate' => 0, 'linked' => 0];
+        $referenceIdsByStatus = ['missing' => [], 'duplicate' => [], 'linked' => []];
+        $linkCountsByReferenceId = [];
+        $awardIdsByReferenceId = [];
+        $fundingSourceIdsByReferenceId = [];
+        $awardSourceConflictReferenceIds = [];
+        $multiAwardReferenceIds = [];
+        $referenceIds = [];
+        $maxLinkCount = 0;
+
+        foreach ($backlinks as $backlink) {
+            $referenceId = self::stringOrNull($backlink['referenceId'] ?? null);
+            if ($referenceId === null) {
+                continue;
+            }
+
+            $referenceIds[] = $referenceId;
+            $linkCount = is_int($backlink['linkCount'] ?? null) ? $backlink['linkCount'] : 0;
+            $linkCountsByReferenceId[$referenceId] = $linkCount;
+            $maxLinkCount = max($maxLinkCount, $linkCount);
+
+            $awardIds = is_array($backlink['awardIds'] ?? null)
+                ? self::jatsUniqueNonEmptyStrings($backlink['awardIds'])
+                : [];
+            $fundingSourceIds = is_array($backlink['fundingSourceIds'] ?? null)
+                ? self::jatsUniqueNonEmptyStrings($backlink['fundingSourceIds'])
+                : [];
+            $awardIdsByReferenceId[$referenceId] = $awardIds;
+            $fundingSourceIdsByReferenceId[$referenceId] = $fundingSourceIds;
+
+            if (($backlink['found'] ?? null) === false) {
+                $status = 'missing';
+            } elseif (($backlink['duplicate'] ?? null) === true) {
+                $status = 'duplicate';
+            } else {
+                $status = 'linked';
+            }
+
+            ++$statusCounts[$status];
+            $referenceIdsByStatus[$status][] = $referenceId;
+
+            if ((int) ($backlink['awardSourceConflictCount'] ?? 0) > 0) {
+                $awardSourceConflictReferenceIds[] = $referenceId;
+            }
+            if (count($awardIds) > 1) {
+                $multiAwardReferenceIds[] = $referenceId;
+            }
+        }
+
+        foreach ($referenceIdsByStatus as $status => $ids) {
+            $referenceIdsByStatus[$status] = self::jatsUniqueNonEmptyStrings($ids);
+        }
+
+        $awardSourceConflictReferenceIds = self::jatsUniqueNonEmptyStrings($awardSourceConflictReferenceIds);
+        $multiAwardReferenceIds = self::jatsUniqueNonEmptyStrings($multiAwardReferenceIds);
+
+        return [
+            'policy' => 'jats-bits-funding-reference-backlink-summary-metadata-only',
+            'metadataOnly' => true,
+            'citationTextBlocked' => true,
+            'linkTextBlocked' => true,
+            'referenceCount' => count($referenceIds),
+            'referenceIds' => self::jatsUniqueNonEmptyStrings($referenceIds),
+            'statusCounts' => $statusCounts,
+            'referenceIdsByStatus' => $referenceIdsByStatus,
+            'missingReferenceCount' => $statusCounts['missing'],
+            'duplicateReferenceCount' => $statusCounts['duplicate'],
+            'linkedReferenceCount' => $statusCounts['linked'],
+            'awardSourceConflictReferenceCount' => count($awardSourceConflictReferenceIds),
+            'awardSourceConflictReferenceIds' => $awardSourceConflictReferenceIds,
+            'multiAwardReferenceCount' => count($multiAwardReferenceIds),
+            'multiAwardReferenceIds' => $multiAwardReferenceIds,
+            'maxLinkCount' => $maxLinkCount,
+            'linkCountsByReferenceId' => $linkCountsByReferenceId,
+            'awardIdsByReferenceId' => $awardIdsByReferenceId,
+            'fundingSourceIdsByReferenceId' => $fundingSourceIdsByReferenceId,
+        ];
     }
 
     /**
