@@ -3105,6 +3105,7 @@ final class XlsxReader
                 $authorId = $this->integerAttribute($commentElement, 'authorId');
                 $textElement = $this->firstChildElement($commentElement, 'text');
                 $text = $textElement instanceof \DOMElement ? $this->allDescendantText($textElement) : '';
+                $richTextRuns = $textElement instanceof \DOMElement ? $this->parseRichTextRuns($textElement) : [];
                 $record = [
                     'ref' => $ref,
                     'authorId' => $authorId,
@@ -3112,6 +3113,8 @@ final class XlsxReader
                     'text' => $text,
                     'textBytes' => strlen($text),
                     'textSha256' => hash('sha256', $text),
+                    'richTextRunCount' => count($richTextRuns),
+                    'richTextRuns' => $richTextRuns,
                     'partName' => ltrim($part, '/'),
                     'relationshipId' => $relationship->id,
                 ];
@@ -3127,6 +3130,106 @@ final class XlsxReader
             'commentsByCell' => $commentsByCell,
             'commentDiagnostics' => array_values(array_unique($diagnostics)),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseRichTextRuns(\DOMElement $textElement): array
+    {
+        $runs = [];
+        foreach ($this->childElements($textElement, 'r') as $runElement) {
+            $text = '';
+            foreach ($this->childElements($runElement, 't') as $textRun) {
+                $text .= $textRun->textContent;
+            }
+            if ($text === '') {
+                continue;
+            }
+
+            $record = [
+                'text' => $text,
+                'textBytes' => strlen($text),
+                'textSha256' => hash('sha256', $text),
+            ];
+
+            $properties = $this->firstChildElement($runElement, 'rPr');
+            if ($properties instanceof \DOMElement) {
+                $record += $this->richTextRunProperties($properties);
+            }
+
+            $runs[] = $record;
+        }
+
+        if ($runs !== []) {
+            return $runs;
+        }
+
+        $text = $this->allDescendantText($textElement);
+        if ($text === '') {
+            return [];
+        }
+
+        return [[
+            'text' => $text,
+            'textBytes' => strlen($text),
+            'textSha256' => hash('sha256', $text),
+        ]];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function richTextRunProperties(\DOMElement $properties): array
+    {
+        $underline = $this->firstChildElement($properties, 'u');
+        $size = $this->firstChildElement($properties, 'sz');
+        $font = $this->firstChildElement($properties, 'rFont');
+        $family = $this->firstChildElement($properties, 'family');
+        $charset = $this->firstChildElement($properties, 'charset');
+        $scheme = $this->firstChildElement($properties, 'scheme');
+        $verticalAlign = $this->firstChildElement($properties, 'vertAlign');
+        $color = $this->firstChildElement($properties, 'color');
+        $colorMetadata = $color instanceof \DOMElement ? $this->styleColorMetadata($color) : [];
+
+        $attrs = [
+            'bold' => $this->firstChildElement($properties, 'b') instanceof \DOMElement,
+            'italic' => $this->firstChildElement($properties, 'i') instanceof \DOMElement,
+            'strike' => $this->firstChildElement($properties, 'strike') instanceof \DOMElement,
+        ];
+
+        if ($underline instanceof \DOMElement) {
+            $underlineStyle = strtolower(trim($underline->getAttribute('val')));
+            $attrs['underline'] = $underlineStyle !== 'none';
+            $attrs['underlineStyle'] = $underlineStyle !== '' ? $underlineStyle : 'single';
+        }
+        if ($size instanceof \DOMElement && is_numeric(trim($size->getAttribute('val')))) {
+            $attrs['fontSize'] = (float) trim($size->getAttribute('val'));
+        }
+        if ($font instanceof \DOMElement && trim($font->getAttribute('val')) !== '') {
+            $attrs['fontName'] = trim($font->getAttribute('val'));
+        }
+        if ($colorMetadata !== []) {
+            $attrs['fontColor'] = $colorMetadata['token'] ?? null;
+            $attrs['fontColorMetadata'] = $colorMetadata;
+        }
+        if ($family instanceof \DOMElement) {
+            $attrs['fontFamily'] = $this->integerAttribute($family, 'val');
+        }
+        if ($charset instanceof \DOMElement) {
+            $attrs['fontCharset'] = $this->integerAttribute($charset, 'val');
+        }
+        if ($scheme instanceof \DOMElement && trim($scheme->getAttribute('val')) !== '') {
+            $attrs['fontScheme'] = trim($scheme->getAttribute('val'));
+        }
+        if ($verticalAlign instanceof \DOMElement && trim($verticalAlign->getAttribute('val')) !== '') {
+            $attrs['fontVerticalAlign'] = trim($verticalAlign->getAttribute('val'));
+        }
+
+        return array_filter(
+            $attrs,
+            static fn (mixed $value): bool => $value !== null && $value !== ''
+        );
     }
 
     /**

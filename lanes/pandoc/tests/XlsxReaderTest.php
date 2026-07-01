@@ -412,7 +412,7 @@ XML,
 <comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
   <authors><author>Reviewer</author></authors>
   <commentList>
-    <comment ref="B2" authorId="0"><text><r><t>Check revenue</t></r></text></comment>
+    <comment ref="B2" authorId="0"><text><r><rPr><b/><color rgb="FFFF0000"/><sz val="9"/><rFont val="Calibri"/></rPr><t>Check </t></r><r><rPr><i/><u val="single"/></rPr><t>revenue</t></r></text></comment>
   </commentList>
 </comments>
 XML,
@@ -921,6 +921,26 @@ return [
         $t->same('Reviewer', $review['sheets'][0]['comments'][0]['author'] ?? null);
         $t->same('Check revenue', $review['sheets'][0]['comments'][0]['text'] ?? null);
         $t->same(hash('sha256', 'Check revenue'), $review['sheets'][0]['comments'][0]['textSha256'] ?? null);
+        $commentRuns = $review['sheets'][0]['comments'][0]['richTextRuns'] ?? [];
+        $t->same(2, $review['sheets'][0]['comments'][0]['richTextRunCount'] ?? null);
+        $t->same('Check ', $commentRuns[0]['text'] ?? null);
+        $t->same(hash('sha256', 'Check '), $commentRuns[0]['textSha256'] ?? null);
+        $t->same(true, $commentRuns[0]['bold'] ?? null);
+        $t->same('rgb:FFFF0000', $commentRuns[0]['fontColor'] ?? null);
+        $t->same([
+            'source' => 'rgb',
+            'value' => 'FFFF0000',
+            'token' => 'rgb:FFFF0000',
+            'argb' => 'FFFF0000',
+            'alpha' => 'FF',
+            'rgb' => 'FF0000',
+        ], $commentRuns[0]['fontColorMetadata'] ?? null);
+        $t->same(9.0, $commentRuns[0]['fontSize'] ?? null);
+        $t->same('Calibri', $commentRuns[0]['fontName'] ?? null);
+        $t->same('revenue', $commentRuns[1]['text'] ?? null);
+        $t->same(true, $commentRuns[1]['italic'] ?? null);
+        $t->same(true, $commentRuns[1]['underline'] ?? null);
+        $t->same('single', $commentRuns[1]['underlineStyle'] ?? null);
 
         $t->same('($1,234.50)', $moneyCell->attr('text'));
         $t->same('right', $moneyCell->attr('align'));
@@ -963,6 +983,9 @@ return [
         $t->same(true, $moneyCell->attr('xlsxHidden'));
         $t->same(1, $moneyCell->attr('xlsxCommentCount'));
         $t->same('Check revenue', $moneyCell->attr('xlsxComments')[0]['text'] ?? null);
+        $t->same(2, $moneyCell->attr('xlsxComments')[0]['richTextRunCount'] ?? null);
+        $t->same('Check ', $moneyCell->attr('xlsxComments')[0]['richTextRuns'][0]['text'] ?? null);
+        $t->same('revenue', $moneyCell->attr('xlsxComments')[0]['richTextRuns'][1]['text'] ?? null);
         $t->same('underline', $moneyCell->children[0]->children[0]->type);
 
         $t->same('2024-01-15', $dateCell->attr('text'));
