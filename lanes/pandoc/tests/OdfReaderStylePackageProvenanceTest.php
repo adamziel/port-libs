@@ -203,4 +203,78 @@ return [
         $t->same('office:master-styles', $result['masterPages']['ReviewPage']['sourceContainer']);
         $t->same(true, $result['masterPages']['ReviewPage']['masterStyle']);
     },
+    'summarizes ODT style diagnostics in package provenance without exposing style bytes' => static function (TestRunner $t) use ($manifestXml, $metaXml): void {
+        $contentWithMissingStyleUse = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:text>
+      <text:p text:style-name="MissingParagraph">Style diagnostic provenance packet.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+
+        $stylesWithBrokenReferences = <<<'XML'
+<office:document-styles
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0">
+  <office:styles>
+    <style:style style:name="BrokenParagraph" style:family="paragraph" style:parent-style-name="MissingParent" style:list-style-name="MissingList"/>
+  </office:styles>
+</office:document-styles>
+XML;
+
+        $result = (new OdfReader())->readPackage(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentWithMissingStyleUse],
+            ['name' => 'styles.xml', 'data' => $stylesWithBrokenReferences],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+        ], 'odt style diagnostics package provenance'));
+
+        $styleReport = $result['importReport']['styles'];
+        $provenance = $result['importReport']['manifest']['packageProvenance']['stylePackageProvenance'];
+        $itemsByPart = [];
+        foreach ($provenance['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+
+        $t->same($styleReport['diagnosticCount'], $provenance['diagnosticCount']);
+        $t->same($styleReport['diagnosticCodeCounts'], $provenance['diagnosticCodeCounts']);
+        $t->same([
+            'odf-content-missing-style' => 1,
+            'odf-style-missing-list-style' => 1,
+            'odf-style-missing-parent' => 1,
+        ], $provenance['diagnosticCodeCounts']);
+        $t->same(['content.xml', 'styles.xml'], $provenance['diagnosticSourceParts']);
+        $t->same(['content.xml' => 1, 'styles.xml' => 2], $provenance['diagnosticSourcePartCounts']);
+        $t->same(['office:styles' => 2], $provenance['diagnosticSourceContainerCounts']);
+        $t->same([
+            'listStyleName' => 1,
+            'parentName' => 1,
+            'styleName' => 3,
+        ], $provenance['diagnosticNameKeyCounts']);
+        $t->same(['BrokenParagraph', 'MissingList', 'MissingParagraph', 'MissingParent'], $provenance['diagnosticNames']);
+        $t->same('odf-style-package-provenance-metadata-only', $provenance['byteExposurePolicy']);
+        $t->same(false, $provenance['canExposeBytes']);
+
+        $t->same(1, $itemsByPart['content.xml']['diagnosticCount']);
+        $t->same(['odf-content-missing-style' => 1], $itemsByPart['content.xml']['diagnosticCodeCounts']);
+        $t->same(['styleName' => 1], $itemsByPart['content.xml']['diagnosticNameKeyCounts']);
+        $t->same(['MissingParagraph'], $itemsByPart['content.xml']['diagnosticNames']);
+        $t->same(2, $itemsByPart['styles.xml']['diagnosticCount']);
+        $t->same([
+            'odf-style-missing-list-style' => 1,
+            'odf-style-missing-parent' => 1,
+        ], $itemsByPart['styles.xml']['diagnosticCodeCounts']);
+        $t->same(['office:styles' => 2], $itemsByPart['styles.xml']['diagnosticSourceContainerCounts']);
+        $t->same([
+            'listStyleName' => 1,
+            'parentName' => 1,
+            'styleName' => 2,
+        ], $itemsByPart['styles.xml']['diagnosticNameKeyCounts']);
+        $t->same(['BrokenParagraph', 'MissingList', 'MissingParent'], $itemsByPart['styles.xml']['diagnosticNames']);
+    },
 ];
