@@ -230,7 +230,13 @@ final class XlsxReader
                 'veryHiddenSheetCount' => count(array_filter($sheets, static fn (array $sheet): bool => $sheet['veryHidden'])),
                 'workbookProperties' => $workbookInfo['workbookProperties'],
                 'calculationProperties' => $workbookInfo['calculationProperties'],
+                'definedNamePolicy' => 'defined-name-formula-metadata-only',
                 'definedNameCount' => $workbookInfo['definedNameCount'],
+                'definedNames' => $workbookInfo['definedNames'],
+                'definedNameNames' => $workbookInfo['definedNameNames'],
+                'hiddenDefinedNameCount' => $workbookInfo['hiddenDefinedNameCount'],
+                'printAreaDefinedNameCount' => $workbookInfo['printAreaDefinedNameCount'],
+                'filterDatabaseDefinedNameCount' => $workbookInfo['filterDatabaseDefinedNameCount'],
                 'externalReferenceCount' => $workbookInfo['externalReferenceCount'],
                 'sharedStringCount' => count($sharedStrings),
                 'styleFontCount' => count($styles['fonts']),
@@ -1219,6 +1225,11 @@ final class XlsxReader
      *     workbookProperties:array<string, bool|string|null>,
      *     calculationProperties:array<string, bool|int|string|null>,
      *     definedNameCount:int,
+     *     definedNames:list<array<string, mixed>>,
+     *     definedNameNames:list<string>,
+     *     hiddenDefinedNameCount:int,
+     *     printAreaDefinedNameCount:int,
+     *     filterDatabaseDefinedNameCount:int,
      *     externalReferenceCount:int,
      *     sheets:list<array{index:int, name:string, relationshipId:string, state:string, hidden:bool, veryHidden:bool}>
      * }
@@ -1270,6 +1281,7 @@ final class XlsxReader
         $calculationProperties = $this->firstChildElement($root, 'calcPr');
         $definedNames = $this->firstChildElement($root, 'definedNames');
         $externalReferences = $this->firstChildElement($root, 'externalReferences');
+        $definedNameMetadata = $this->parseDefinedNames($definedNames, $sheets);
 
         return [
             'date1904' => $date1904,
@@ -1295,9 +1307,172 @@ final class XlsxReader
                 'forceFullCalc' => $calculationProperties instanceof \DOMElement ? $this->booleanAttribute($calculationProperties, 'forceFullCalc') : null,
                 'iterate' => $calculationProperties instanceof \DOMElement ? $this->booleanAttribute($calculationProperties, 'iterate') : null,
             ],
-            'definedNameCount' => $definedNames instanceof \DOMElement ? count($this->childElements($definedNames, 'definedName')) : 0,
+            'definedNameCount' => count($definedNameMetadata),
+            'definedNames' => $definedNameMetadata,
+            'definedNameNames' => array_values(array_unique(array_map(
+                static fn (array $definedName): string => is_string($definedName['name'] ?? null) ? $definedName['name'] : '',
+                array_filter($definedNameMetadata, static fn (array $definedName): bool => is_string($definedName['name'] ?? null) && $definedName['name'] !== '')
+            ))),
+            'hiddenDefinedNameCount' => count(array_filter($definedNameMetadata, static fn (array $definedName): bool => ($definedName['hidden'] ?? null) === true)),
+            'printAreaDefinedNameCount' => count(array_filter($definedNameMetadata, static fn (array $definedName): bool => ($definedName['nameClass'] ?? null) === 'printArea')),
+            'filterDatabaseDefinedNameCount' => count(array_filter($definedNameMetadata, static fn (array $definedName): bool => ($definedName['nameClass'] ?? null) === 'filterDatabase')),
             'externalReferenceCount' => $externalReferences instanceof \DOMElement ? count($this->childElements($externalReferences, 'externalReference')) : 0,
             'sheets' => $sheets,
+        ];
+    }
+
+    /**
+     * @param list<array{index:int, name:string, relationshipId:string, state:string, hidden:bool, veryHidden:bool}> $sheets
+     * @return list<array<string, mixed>>
+     */
+    private function parseDefinedNames(?\DOMElement $definedNames, array $sheets): array
+    {
+        if (!$definedNames instanceof \DOMElement) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($this->childElements($definedNames, 'definedName') as $definedName) {
+            $name = $this->nonEmptyAttribute($definedName, 'name');
+            $localSheetId = $this->integerAttribute($definedName, 'localSheetId');
+            $formula = trim($definedName->textContent);
+            $references = $this->parseDefinedNameReferences($formula);
+            $sheetName = $localSheetId !== null && isset($sheets[$localSheetId])
+                ? $sheets[$localSheetId]['name']
+                : null;
+
+            $items[] = [
+                'name' => $name,
+                'nameClass' => $this->definedNameClass($name),
+                'scope' => $localSheetId === null ? 'workbook' : 'sheet',
+                'localSheetId' => $localSheetId,
+                'sheetName' => $sheetName,
+                'hidden' => $this->booleanAttribute($definedName, 'hidden'),
+                'function' => $this->booleanAttribute($definedName, 'function'),
+                'vbProcedure' => $this->booleanAttribute($definedName, 'vbProcedure'),
+                'xlm' => $this->booleanAttribute($definedName, 'xlm'),
+                'publishToServer' => $this->booleanAttribute($definedName, 'publishToServer'),
+                'workbookParameter' => $this->booleanAttribute($definedName, 'workbookParameter'),
+                'functionGroupId' => $this->integerAttribute($definedName, 'functionGroupId'),
+                'shortcutKey' => $this->nonEmptyAttribute($definedName, 'shortcutKey'),
+                'commentPresent' => $this->nonEmptyAttribute($definedName, 'comment') !== null,
+                'customMenuPresent' => $this->nonEmptyAttribute($definedName, 'customMenu') !== null,
+                'descriptionPresent' => $this->nonEmptyAttribute($definedName, 'description') !== null,
+                'helpPresent' => $this->nonEmptyAttribute($definedName, 'help') !== null,
+                'statusBarPresent' => $this->nonEmptyAttribute($definedName, 'statusBar') !== null,
+                'formulaTextBytes' => strlen($formula),
+                'formulaSha256' => hash('sha256', $formula),
+                'referenceCount' => count($references),
+                'references' => $references,
+            ];
+        }
+
+        return $items;
+    }
+
+    private function definedNameClass(?string $name): string
+    {
+        $normalized = strtolower((string) $name);
+
+        return match ($normalized) {
+            '_xlnm.print_area' => 'printArea',
+            '_xlnm.print_titles' => 'printTitles',
+            '_xlnm._filterdatabase' => 'filterDatabase',
+            default => str_starts_with($normalized, '_xlnm.') ? 'builtIn' : 'custom',
+        };
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private function parseDefinedNameReferences(string $formula): array
+    {
+        $references = [];
+        foreach ($this->splitDefinedNameReferences($formula) as $referenceText) {
+            $reference = $this->parseDefinedNameReference($referenceText);
+            if ($reference !== null) {
+                $references[] = $reference;
+            }
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function splitDefinedNameReferences(string $formula): array
+    {
+        $parts = [];
+        $buffer = '';
+        $inQuotedSheet = false;
+        $length = strlen($formula);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $formula[$offset];
+            if ($char === "'") {
+                $buffer .= $char;
+                if ($inQuotedSheet && $offset + 1 < $length && $formula[$offset + 1] === "'") {
+                    $buffer .= "'";
+                    $offset++;
+                    continue;
+                }
+                $inQuotedSheet = !$inQuotedSheet;
+                continue;
+            }
+            if ($char === ',' && !$inQuotedSheet) {
+                $part = trim($buffer);
+                if ($part !== '') {
+                    $parts[] = $part;
+                }
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $part = trim($buffer);
+        if ($part !== '') {
+            $parts[] = $part;
+        }
+
+        return $parts;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function parseDefinedNameReference(string $referenceText): ?array
+    {
+        $referenceText = trim($referenceText);
+        if ($referenceText === '') {
+            return null;
+        }
+
+        $sheetName = null;
+        $reference = $referenceText;
+        if (preg_match("/^'((?:[^']|'')+)'!(.+)$/", $referenceText, $matches) === 1) {
+            $sheetName = str_replace("''", "'", $matches[1]);
+            $reference = trim($matches[2]);
+        } elseif (preg_match('/^([^!]+)!(.+)$/', $referenceText, $matches) === 1) {
+            $sheetName = trim($matches[1]);
+            $reference = trim($matches[2]);
+        }
+
+        $normalizedReference = str_replace('$', '', $reference);
+        $parsedRange = $this->parseCellRange($normalizedReference);
+        $parsedCell = $parsedRange === null ? $this->parseCellReference($normalizedReference) : null;
+        if ($parsedRange === null && $parsedCell === null) {
+            return null;
+        }
+
+        return [
+            'sheetName' => $sheetName,
+            'reference' => $reference,
+            'normalizedReference' => $normalizedReference,
+            'referenceKind' => $parsedRange !== null ? 'range' : 'cell',
+            'range' => $parsedRange,
+            'cell' => $parsedCell,
         ];
     }
 

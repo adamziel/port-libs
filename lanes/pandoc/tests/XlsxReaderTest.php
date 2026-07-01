@@ -525,7 +525,9 @@ XML,
   <workbookPr date1904="1" filterPrivacy="1" backupFile="1" showObjects="placeholders" codeName="ThisWorkbook"/>
   <calcPr calcId="191029" calcMode="manual" fullCalcOnLoad="1" forceFullCalc="0" iterate="1"/>
   <definedNames>
-    <definedName name="VisibleRange">Visible!$A$1:$C$3</definedName>
+    <definedName name="VisibleRange" comment="Reviewed range">Visible!$A$1:$C$3</definedName>
+    <definedName name="_xlnm.Print_Area" localSheetId="0">'Visible'!$A$1:$C$3</definedName>
+    <definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Visible!$A$1:$C$3</definedName>
   </definedNames>
   <externalReferences>
     <externalReference r:id="rIdExternalBook"/>
@@ -1300,7 +1302,45 @@ return [
         $t->same(true, $review['calculationProperties']['fullCalcOnLoad'] ?? null);
         $t->same(false, $review['calculationProperties']['forceFullCalc'] ?? null);
         $t->same(true, $review['calculationProperties']['iterate'] ?? null);
-        $t->same(1, $review['definedNameCount'] ?? null);
+        $t->same('defined-name-formula-metadata-only', $review['definedNamePolicy'] ?? null);
+        $t->same(3, $review['definedNameCount'] ?? null);
+        $t->same(['VisibleRange', '_xlnm.Print_Area', '_xlnm._FilterDatabase'], $review['definedNameNames'] ?? null);
+        $t->same(1, $review['hiddenDefinedNameCount'] ?? null);
+        $t->same(1, $review['printAreaDefinedNameCount'] ?? null);
+        $t->same(1, $review['filterDatabaseDefinedNameCount'] ?? null);
+        $definedNames = $review['definedNames'] ?? [];
+        $t->same('VisibleRange', $definedNames[0]['name'] ?? null);
+        $t->same('custom', $definedNames[0]['nameClass'] ?? null);
+        $t->same('workbook', $definedNames[0]['scope'] ?? null);
+        $t->same(null, $definedNames[0]['localSheetId'] ?? null);
+        $t->same(null, $definedNames[0]['sheetName'] ?? null);
+        $t->same(true, $definedNames[0]['commentPresent'] ?? null);
+        $t->same(strlen('Visible!$A$1:$C$3'), $definedNames[0]['formulaTextBytes'] ?? null);
+        $t->same(hash('sha256', 'Visible!$A$1:$C$3'), $definedNames[0]['formulaSha256'] ?? null);
+        $t->same(1, $definedNames[0]['referenceCount'] ?? null);
+        $t->same('Visible', $definedNames[0]['references'][0]['sheetName'] ?? null);
+        $t->same('$A$1:$C$3', $definedNames[0]['references'][0]['reference'] ?? null);
+        $t->same('A1:C3', $definedNames[0]['references'][0]['normalizedReference'] ?? null);
+        $t->same('range', $definedNames[0]['references'][0]['referenceKind'] ?? null);
+        $t->same([
+            'firstRow' => 1,
+            'firstColumn' => 1,
+            'lastRow' => 3,
+            'lastColumn' => 3,
+        ], $definedNames[0]['references'][0]['range'] ?? null);
+        $t->true(!array_key_exists('formulaText', $definedNames[0]), 'Defined-name metadata should not expose formula text');
+        $t->same('_xlnm.Print_Area', $definedNames[1]['name'] ?? null);
+        $t->same('printArea', $definedNames[1]['nameClass'] ?? null);
+        $t->same('sheet', $definedNames[1]['scope'] ?? null);
+        $t->same(0, $definedNames[1]['localSheetId'] ?? null);
+        $t->same('Visible', $definedNames[1]['sheetName'] ?? null);
+        $t->same('Visible', $definedNames[1]['references'][0]['sheetName'] ?? null);
+        $t->same(hash('sha256', "'Visible'!\$A\$1:\$C\$3"), $definedNames[1]['formulaSha256'] ?? null);
+        $t->same('_xlnm._FilterDatabase', $definedNames[2]['name'] ?? null);
+        $t->same('filterDatabase', $definedNames[2]['nameClass'] ?? null);
+        $t->same(true, $definedNames[2]['hidden'] ?? null);
+        $t->same('Visible', $definedNames[2]['sheetName'] ?? null);
+        $t->same('$A$1:$C$3', $definedNames[2]['references'][0]['reference'] ?? null);
         $t->same(1, $review['externalReferenceCount'] ?? null);
 
         $t->same('cached-values-only-no-formula-evaluation', $review['formulaPolicy'] ?? null);
