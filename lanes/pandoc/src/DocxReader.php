@@ -8,7 +8,7 @@ final class DocxReader
 {
     private const INTERNAL_STYLE_ORIGIN_ATTR = '__docxStyleOrigin';
     private const MAX_WARNING_COUNT = 32;
-    private const WARNING_OVERFLOW_MESSAGE = 'Additional DOCX parser warnings were suppressed.';
+    private const MAX_DOCX_WARNING_LENGTH = 240;
 
     private const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     private const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -44,6 +44,11 @@ final class DocxReader
     /** @var list<string> */
     private array $warnings = [];
 
+    /** @var array<string, true> */
+    private array $warningKeys = [];
+
+    private int $warningOverflowCount = 0;
+
     /** @var array<string, mixed> */
     private array $bodyMetadata = [];
 
@@ -62,13 +67,19 @@ final class DocxReader
 
     private string $commentsMode;
 
+    private bool $collectWarnings;
+
+    private bool $stylesExtension;
+
     /**
-     * @param array{revisionMode?: string, commentsMode?: string} $options
+     * @param array{revisionMode?: string, commentsMode?: string, collectWarnings?: bool, stylesExtension?: bool} $options
      */
     public function __construct(array $options = [])
     {
         $this->revisionMode = $this->normalizeRevisionMode((string) ($options['revisionMode'] ?? 'preserve'));
         $this->commentsMode = $this->normalizeCommentsMode((string) ($options['commentsMode'] ?? 'preserve'));
+        $this->collectWarnings = (bool) ($options['collectWarnings'] ?? false);
+        $this->stylesExtension = (bool) ($options['stylesExtension'] ?? false);
     }
 
     public function read(string $bytes): AstNode
@@ -87,6 +98,8 @@ final class DocxReader
     public function readDocument(ZipPackage $package): AstNode
     {
         $this->warnings = [];
+        $this->warningKeys = [];
+        $this->warningOverflowCount = 0;
         $entriesByName = [];
         $entries = [];
         $media = [];
@@ -304,6 +317,9 @@ final class DocxReader
         string $documentPartName
     ): AstNode {
         $this->documentPartName = $documentPartName;
+        $this->warnings = [];
+        $this->warningKeys = [];
+        $this->warningOverflowCount = 0;
         $this->styles = $styles_xml !== '' ? $this->styles($this->loadXml($styles_xml, 'DOCX styles.xml')) : [];
         $this->numbering = $numbering_xml !== '' ? $this->numbering($this->loadXml($numbering_xml, 'DOCX numbering.xml')) : [];
         $this->relationships = $rels_xml !== '' ? $this->relationships($this->loadXml($rels_xml, 'DOCX document relationships')) : [];
@@ -354,6 +370,9 @@ final class DocxReader
         $metadata['docxFootnotes'] = count($this->footnotes);
         $metadata['docxEndnotes'] = count($this->endnotes);
         $metadata['docxComments'] = count($this->comments);
+        $metadata['docxWarnings'] = $this->warnings;
+        $metadata['docxWarningCount'] = count($this->warnings) + $this->warningOverflowCount;
+        $metadata['docxWarningOverflowCount'] = $this->warningOverflowCount;
         $metadata['docxHeaders'] = count($headerDivs);
         $metadata['docxFooters'] = count($footerDivs);
         $metadata['docxHeaderFiles'] = array_keys($header_xmls);
@@ -2667,6 +2686,14 @@ final class DocxReader
             if (!is_array($children) || !$this->allAstNodes($children)) {
                 $children = [];
             }
+            $commentBlocks = $comment['children'] ?? [];
+            if (
+                $this->revisionMode === 'preserve'
+                && is_array($commentBlocks)
+                && !$this->commentBlocksRetainInlineShape($commentBlocks)
+            ) {
+                $this->addWarning("Docx comment {$id} will not retain formatting");
+            }
         }
 
         return new AstNode('span', [
@@ -3885,6 +3912,28 @@ final class DocxReader
         }
 
         return $inlines;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function commentBlocksRetainInlineShape(array $blocks): bool
+    {
+        foreach ($blocks as $block) {
+            if (!$block instanceof AstNode) {
+                return false;
+            }
+            if (in_array($block->type, ['paragraph', 'plain'], true)) {
+                continue;
+            }
+            if ($block->type === 'div' && $this->commentBlocksRetainInlineShape($block->children)) {
+                continue;
+            }
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -5798,13 +5847,7 @@ final class DocxReader
      */
     private function commentMayLoseFormatting(array $children): bool
     {
-        foreach ($children as $child) {
-            if ($child->type !== 'paragraph') {
-                return true;
-            }
-        }
-
-        return false;
+        return !$this->commentBlocksRetainInlineShape($children);
     }
 
     /**
@@ -5872,11 +5915,14 @@ final class DocxReader
     private function normalizeCommentsMode(string $mode): string
     {
         $mode = strtolower(trim($mode));
-        if (in_array($mode, ['preserve', 'omit'], true)) {
-            return $mode;
+        if (in_array($mode, ['preserve', 'all', 'all-changes'], true)) {
+            return 'preserve';
+        }
+        if (in_array($mode, ['omit', 'accept', 'accept-changes', 'reject', 'reject-changes'], true)) {
+            return 'omit';
         }
 
-        throw new \InvalidArgumentException("Unsupported DOCX commentsMode '{$mode}'. Expected preserve or omit.");
+        throw new \InvalidArgumentException("Unsupported DOCX commentsMode '{$mode}'. Expected preserve/all, omit, accept, or reject.");
     }
 
     private function loadXml(string $xml, string $label): \DOMDocument
@@ -5908,14 +5954,15 @@ final class DocxReader
         if (!is_string($normalized) || $normalized === '') {
             return;
         }
-        if (in_array($normalized, $this->warnings, true)) {
+        if (strlen($normalized) > self::MAX_DOCX_WARNING_LENGTH) {
+            $normalized = substr($normalized, 0, self::MAX_DOCX_WARNING_LENGTH - 3) . '...';
+        }
+        if (isset($this->warningKeys[$normalized])) {
             return;
         }
+        $this->warningKeys[$normalized] = true;
         if (count($this->warnings) >= self::MAX_WARNING_COUNT) {
-            if (!in_array(self::WARNING_OVERFLOW_MESSAGE, $this->warnings, true)) {
-                $this->warnings[self::MAX_WARNING_COUNT - 1] = self::WARNING_OVERFLOW_MESSAGE;
-            }
-
+            ++$this->warningOverflowCount;
             return;
         }
 

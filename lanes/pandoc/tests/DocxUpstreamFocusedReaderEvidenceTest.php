@@ -179,14 +179,14 @@ return [
         $t->same(DocxUpstreamFocusedReaderEvidence::TOOL_NAME, $report['tool']);
         $t->same('focused-native-php-and-mapped-reader-evidence', $report['evidenceKind']);
         $t->same(36, $report['denominator']['denominatorCaseRows']);
-        $t->same(31, $report['focusedCoverage']['coveredCaseCount']);
-        $t->same(5, $report['focusedCoverage']['remainingOpenCaseCount']);
-        $t->same(27, $report['targetedFixtureChecks']['passedTargetedCaseCount']);
+        $t->same(36, $report['focusedCoverage']['coveredCaseCount']);
+        $t->same(0, $report['focusedCoverage']['remainingOpenCaseCount']);
+        $t->same(32, $report['targetedFixtureChecks']['passedTargetedCaseCount']);
         $t->same(0, $report['targetedFixtureChecks']['failedTargetedCaseCount']);
         $t->same(4, $report['targetedFixtureChecks']['mappedOnlyCaseCount']);
         $t->same('valid-denominator-map', $report['mappingValidation']['status']);
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
-        $t->true(in_array('that every upstream DocxParserWarning expectation passes locally', $report['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that upstream testForWarningsWithOpts itself was executed locally', $report['claimBoundaries']['doesNotAssert'], true));
     },
 
     'maps focused reader evidence against the 36 case upstream denominator' => static function (TestRunner $t) use ($repoRoot, $makeTempDir, $removeTree): void {
@@ -203,8 +203,8 @@ return [
             $t->same(36, $report['denominator']['totalCasesNotCoveredByLocal74GateSemantics']);
             $t->same(36, $report['denominator']['denominatorCaseRows']);
             $t->same(36, count($caseRows));
-            $t->same(31, $coverage['coveredCaseCount']);
-            $t->same(5, $coverage['remainingOpenCaseCount']);
+            $t->same(36, $coverage['coveredCaseCount']);
+            $t->same(0, $coverage['remainingOpenCaseCount']);
             $t->same('valid-denominator-map', $report['mappingValidation']['status']);
             $t->same([], $report['mappingValidation']['issues']);
             $t->same(DocxUpstreamFocusedReaderEvidence::STATUS_SKIPPED_MISSING_SOURCE, $targeted['status']);
@@ -212,12 +212,16 @@ return [
             $t->same(5, $coverage['coverageKindCounts']['focused-media-bag-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['focused-citation-addin-native-php-check']);
             $t->same(12, $coverage['coverageKindCounts']['focused-revision-mode-native-php-check']);
-            $t->same(2, $coverage['coverageKindCounts']['focused-comments-native-php-check']);
+            $t->same(3, $coverage['coverageKindCounts']['focused-comments-native-php-check']);
+            $t->same(4, $coverage['coverageKindCounts']['focused-docx-warning-native-php-check']);
+            $t->same(2, $coverage['coverageKindCounts']['focused-style-default-native-php-check']);
+            $t->same(2, $coverage['coverageKindCounts']['focused-metadata-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['mapped-upstream-native-expectation-evidence']);
-            $t->same(1, $coverage['coverageKindCounts']['focused-warning-native-php-check']);
-            $t->true(in_array('comment warnings (all)', $coverage['remainingOpenLabels'], true));
+            $t->same([], $coverage['remainingOpenLabels']);
             $t->true(!in_array('comment warnings (accept -- no warnings)', $coverage['remainingOpenLabels'], true));
-            $t->true(in_array('comments (accept -- no comments)', $coverage['remainingOpenLabels'], true));
+            $t->true(!in_array('comment warnings (reject -- no warnings)', $coverage['remainingOpenLabels'], true));
+            $t->true(!in_array('comment warnings (all)', $coverage['remainingOpenLabels'], true));
+            $t->true(!in_array('comments (accept -- no comments)', $coverage['remainingOpenLabels'], true));
             $t->true(!in_array('comments (reject -- comments)', $coverage['remainingOpenLabels'], true), 'reject no-comments case should be covered by focused evidence');
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
@@ -248,7 +252,7 @@ return [
         }
     },
 
-    'runs optional targeted comments warning accept check when the fixture is present' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $commentsWarningDocxBytes, $repoRoot): void {
+    'runs optional targeted comments warning checks when the fixture is present' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $commentsWarningDocxBytes, $repoRoot): void {
         $root = $makeTempDir();
         try {
             $writeFile($root, 'comments_warning.docx', $commentsWarningDocxBytes());
@@ -258,14 +262,18 @@ return [
                 $targeted['caseCheckRows'],
                 static fn (array $row): bool => ($row['status'] ?? '') === 'passed'
             ));
-            $row = $passedRows[0] ?? [];
+            $passedByLabel = [];
+            foreach ($passedRows as $row) {
+                $passedByLabel[(string) ($row['label'] ?? '')] = $row;
+            }
 
             $t->same(DocxUpstreamFocusedReaderEvidence::STATUS_COMPLETED, $targeted['status']);
-            $t->same(1, $targeted['passedTargetedCaseCount']);
+            $t->same(3, $targeted['passedTargetedCaseCount']);
             $t->same(0, $targeted['failedTargetedCaseCount']);
-            $t->same('comment warnings (accept -- no warnings)', $row['label'] ?? null);
-            $t->same([], $row['details']['docxWarnings'] ?? null);
-            $t->same(1, $row['details']['docxComments'] ?? null);
+            $t->same([], $passedByLabel['comment warnings (accept -- no warnings)']['details']['docxWarnings'] ?? null);
+            $t->same([], $passedByLabel['comment warnings (reject -- no warnings)']['details']['docxWarnings'] ?? null);
+            $t->same(['Docx comment 1 will not retain formatting'], $passedByLabel['comment warnings (all)']['details']['docxWarnings'] ?? null);
+            $t->same(1, $passedByLabel['comment warnings (accept -- no warnings)']['details']['docxComments'] ?? null);
         } finally {
             $removeTree($root);
         }

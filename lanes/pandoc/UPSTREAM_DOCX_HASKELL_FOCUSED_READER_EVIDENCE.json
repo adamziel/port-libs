@@ -22,42 +22,37 @@
         "doesAssert": [
             "the denominator is the 36-case haskellReaderInventory.notCoveredCases list from UPSTREAM_DOCX_HASKELL_INVENTORY.json",
             "which denominator cases have additional focused native PHP checks or mapped upstream native evidence",
-            "optional targeted DOCX fixture checks when a hydrated upstream test/docx cache is supplied"
+            "optional targeted DOCX fixture checks when a hydrated upstream test/docx cache is supplied",
+            "the listed focused DOCX warning metadata checks only, without executing upstream testForWarningsWithOpts"
         ],
         "doesNotAssert": [
             "that upstream Haskell/Cabal/Tasty tests were executed",
             "that local DOCX reader output equals upstream native expectations for mapped-native-only cases",
-            "that every upstream DocxParserWarning expectation passes locally",
+            "that upstream testForWarningsWithOpts itself was executed locally",
             "that full DOCX/OpenXML parity is achieved"
         ]
     },
     "focusedCoverage": {
-        "coveredCaseCount": 31,
-        "remainingOpenCaseCount": 5,
+        "coveredCaseCount": 36,
+        "remainingOpenCaseCount": 0,
         "coverageKindCounts": {
             "focused-citation-addin-native-php-check": 4,
-            "focused-comments-native-php-check": 1,
+            "focused-comments-native-php-check": 3,
+            "focused-docx-warning-native-php-check": 4,
             "focused-media-bag-native-php-check": 5,
             "focused-metadata-native-php-check": 2,
             "focused-revision-mode-native-php-check": 12,
             "focused-style-default-native-php-check": 2,
-            "focused-warning-native-php-check": 1,
             "mapped-upstream-native-expectation-evidence": 4
         },
-        "coveredPercentOf36CaseDenominator": 86.11,
-        "remainingOpenLabels": [
-            "comments (accept -- no comments)",
-            "comments (reject -- comments)",
-            "comment warnings (reject -- no warnings)",
-            "comment warnings (all)",
-            "comments (with styles extension)"
-        ]
+        "coveredPercentOf36CaseDenominator": 100,
+        "remainingOpenLabels": []
     },
     "targetedFixtureChecks": {
         "status": "completed-targeted-docx-reader-checks",
         "sourceDirectoryPresent": true,
         "upstreamDocxDirectory": ".upstream-cache/pandoc-current/test/docx",
-        "passedTargetedCaseCount": 27,
+        "passedTargetedCaseCount": 32,
         "failedTargetedCaseCount": 0,
         "skippedTargetedCaseCount": 0,
         "mappedOnlyCaseCount": 4,
@@ -325,6 +320,46 @@
                 }
             },
             {
+                "caseKey": "testCompareWithOpts|comments (accept -- no comments)|docx/comments.docx|docx/comments_no_comments.native",
+                "label": "comments (accept -- no comments)",
+                "targetedCheckId": "comments:accept-no-comments",
+                "status": "passed",
+                "fixture": "comments.docx",
+                "nativeFixture": "comments_no_comments.native",
+                "details": {
+                    "revisionMode": "accept",
+                    "commentsMode": "omit",
+                    "blockTexts": [
+                        "I want some text to have a comment on it.",
+                        "This is a new paragraph.",
+                        "And so is this.",
+                        "One more. And this is one with a comment in a comment."
+                    ],
+                    "classes": [],
+                    "noteCount": 0
+                }
+            },
+            {
+                "caseKey": "testCompareWithOpts|comments (reject -- comments)|docx/comments.docx|docx/comments_no_comments.native",
+                "label": "comments (reject -- comments)",
+                "targetedCheckId": "comments:reject-no-comments",
+                "status": "passed",
+                "fixture": "comments.docx",
+                "nativeFixture": "comments_no_comments.native",
+                "details": {
+                    "revisionMode": "reject",
+                    "commentsMode": "omit",
+                    "blockTexts": [
+                        "I want some text to have a comment on it.",
+                        "This is a new paragraph.",
+                        "And so is this.",
+                        "One more. And this is one with a comment in a comment."
+                    ],
+                    "classes": [],
+                    "noteCount": 0
+                }
+            },
+            {
                 "caseKey": "testCompareWithOpts|comments (all comments)|docx/comments.docx|docx/comments.native",
                 "label": "comments (all comments)",
                 "targetedCheckId": "comments:all",
@@ -433,8 +468,49 @@
                 "fixture": "comments_warning.docx",
                 "details": {
                     "revisionMode": "accept",
+                    "docxWarningCount": 0,
                     "docxWarnings": [],
                     "docxComments": 1
+                }
+            },
+            {
+                "caseKey": "testForWarningsWithOpts|comment warnings (reject -- no warnings)|docx/comments_warning.docx|",
+                "label": "comment warnings (reject -- no warnings)",
+                "targetedCheckId": "warning:comments_warning:reject",
+                "status": "passed",
+                "fixture": "comments_warning.docx",
+                "details": {
+                    "revisionMode": "reject",
+                    "docxWarningCount": 0,
+                    "docxWarnings": [],
+                    "docxComments": 1
+                }
+            },
+            {
+                "caseKey": "testForWarningsWithOpts|comment warnings (all)|docx/comments_warning.docx|",
+                "label": "comment warnings (all)",
+                "targetedCheckId": "warning:comments_warning:all",
+                "status": "passed",
+                "fixture": "comments_warning.docx",
+                "details": {
+                    "revisionMode": "preserve",
+                    "docxWarnings": [
+                        "Docx comment 1 will not retain formatting"
+                    ],
+                    "docxWarningCount": 1
+                }
+            },
+            {
+                "caseKey": "testForWarningsWithOpts|comments (with styles extension)|docx/comments.docx|",
+                "label": "comments (with styles extension)",
+                "targetedCheckId": "warning:comments-with-styles",
+                "status": "passed",
+                "fixture": "comments.docx",
+                "details": {
+                    "stylesExtension": true,
+                    "docxWarnings": [],
+                    "docxWarningCount": 0,
+                    "docxComments": 5
                 }
             },
             {
@@ -880,9 +956,21 @@
             "docx": "docx/comments.docx",
             "native": "docx/comments_no_comments.native",
             "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
-            "coverageStatus": "remaining-open",
-            "openReason": "local DocxReader does not yet expose an accept/reject comments ReaderOptions mode equivalent",
-            "nextEvidence": "Add a focused commentsMode option or mapped no-comments native evidence."
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-comments-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader revisionMode=accept plus commentsMode=omit matches upstream no-comments native block text"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "comments:accept-no-comments",
+            "limitations": [
+                "local explicit commentsMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
         },
         {
             "caseKey": "testCompareWithOpts|comments (reject -- comments)|docx/comments.docx|docx/comments_no_comments.native",
@@ -891,9 +979,21 @@
             "docx": "docx/comments.docx",
             "native": "docx/comments_no_comments.native",
             "inventoryReason": "different-native-expectation-stem-and-non-default-reader-options",
-            "coverageStatus": "remaining-open",
-            "openReason": "local DocxReader does not yet expose an accept/reject comments ReaderOptions mode equivalent",
-            "nextEvidence": "Add a focused commentsMode option or mapped no-comments native evidence."
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-comments-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader revisionMode=reject plus commentsMode=omit matches upstream no-comments native block text"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/MarkdownReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "comments:reject-no-comments",
+            "limitations": [
+                "local explicit commentsMode evidence is not an upstream Haskell ReaderOptions run"
+            ]
         },
         {
             "caseKey": "testCompareWithOpts|comments (all comments)|docx/comments.docx|docx/comments.native",
@@ -1124,18 +1224,18 @@
             "native": null,
             "inventoryReason": "warning-only-no-native-comparison",
             "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
-            "coverageKind": "focused-warning-native-php-check",
+            "coverageKind": "focused-docx-warning-native-php-check",
             "focusedEvidence": [
-                "local DOCX warning collector returns an empty warning list for comments_warning.docx with revisionMode=accept"
+                "local DOCX reader revisionMode=accept exposes an empty bounded docxWarnings metadata list for comments_warning.docx"
             ],
             "localEvidence": [
                 "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
                 "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
             ],
             "targetedCheckId": "warning:comments_warning:accept",
             "limitations": [
-                "does not execute upstream testForWarningsWithOpts",
-                "does not cover the reject/all/style-extension warning cases"
+                "focused warning metadata check; does not execute upstream testForWarningsWithOpts"
             ]
         },
         {
@@ -1145,9 +1245,20 @@
             "docx": "docx/comments_warning.docx",
             "native": null,
             "inventoryReason": "warning-only-no-native-comparison",
-            "coverageStatus": "remaining-open",
-            "openReason": "focused local warning evidence is not yet mapped for this upstream testForWarningsWithOpts case",
-            "nextEvidence": "Add a targeted DOCX warning expectation check for this specific comments_warning/comments style-extension case."
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-docx-warning-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader revisionMode=reject exposes an empty bounded docxWarnings metadata list for comments_warning.docx"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "warning:comments_warning:reject",
+            "limitations": [
+                "focused warning metadata check; does not execute upstream testForWarningsWithOpts"
+            ]
         },
         {
             "caseKey": "testForWarningsWithOpts|comment warnings (all)|docx/comments_warning.docx|",
@@ -1156,9 +1267,20 @@
             "docx": "docx/comments_warning.docx",
             "native": null,
             "inventoryReason": "warning-only-no-native-comparison",
-            "coverageStatus": "remaining-open",
-            "openReason": "focused local warning evidence is not yet mapped for this upstream testForWarningsWithOpts case",
-            "nextEvidence": "Add a targeted DOCX warning expectation check for this specific comments_warning/comments style-extension case."
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-docx-warning-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader exposes the upstream all-comments DocxParserWarning text for non-inline comment body formatting loss"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "warning:comments_warning:all",
+            "limitations": [
+                "focused warning metadata check; does not execute upstream testForWarningsWithOpts"
+            ]
         },
         {
             "caseKey": "testForWarningsWithOpts|comments (with styles extension)|docx/comments.docx|",
@@ -1167,9 +1289,20 @@
             "docx": "docx/comments.docx",
             "native": null,
             "inventoryReason": "warning-only-no-native-comparison",
-            "coverageStatus": "remaining-open",
-            "openReason": "focused local warning evidence is not yet mapped for this upstream testForWarningsWithOpts case",
-            "nextEvidence": "Add a targeted DOCX warning expectation check for this specific comments_warning/comments style-extension case."
+            "coverageStatus": "covered-by-focused-native-php-or-mapped-evidence",
+            "coverageKind": "focused-docx-warning-native-php-check",
+            "focusedEvidence": [
+                "local DOCX reader verifies comments.docx +styles has no comment-formatting-loss warnings"
+            ],
+            "localEvidence": [
+                "lanes/pandoc/src/DocxReader.php",
+                "lanes/pandoc/tests/DocxReaderTest.php",
+                "lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
+            ],
+            "targetedCheckId": "warning:comments-with-styles",
+            "limitations": [
+                "focused warning metadata check; does not execute upstream testForWarningsWithOpts"
+            ]
         },
         {
             "caseKey": "testMediaBag|image extraction|docx/image.docx|",

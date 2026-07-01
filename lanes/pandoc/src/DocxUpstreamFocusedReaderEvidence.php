@@ -328,7 +328,12 @@ final class DocxUpstreamFocusedReaderEvidence
                 ),
                 'revision:track_changes_scrubbed_metadata:preserve' => $this->checkScrubbedRevisionFixture(),
                 'comments:all' => $this->checkCommentsAllFixture(),
-                'warning:comments_warning:accept' => $this->checkCommentWarningAcceptFixture(),
+                'comments:accept-no-comments' => $this->checkCommentsNoCommentsFixture('accept'),
+                'comments:reject-no-comments' => $this->checkCommentsNoCommentsFixture('reject'),
+                'warning:comments_warning:accept' => $this->checkCommentsWarningNoWarningsFixture('accept'),
+                'warning:comments_warning:reject' => $this->checkCommentsWarningNoWarningsFixture('reject'),
+                'warning:comments_warning:all' => $this->checkCommentsWarningAllFixture(),
+                'warning:comments-with-styles' => $this->checkCommentsWithStylesWarningsFixture(),
                 'custom-style-reference:default' => $this->checkCustomStyleDefaultFixture(),
                 'compact-style-removal:styles' => $this->checkCompactStyleFixture(),
                 'metadata:styles' => $this->checkMetadataFixture('metadata', false),
@@ -545,28 +550,145 @@ final class DocxUpstreamFocusedReaderEvidence
     /**
      * @return array<string, mixed>
      */
-    private function checkCommentWarningAcceptFixture(): array
+    private function checkCommentsNoCommentsFixture(string $revisionMode): array
     {
-        $loaded = $this->readDocxFixture('comments_warning', ['revisionMode' => 'accept']);
+        $loaded = $this->readDocxFixture('comments', [
+            'revisionMode' => $revisionMode,
+            'commentsMode' => 'omit',
+        ]);
+        if (is_array($loaded['skipped'] ?? null)) {
+            return $loaded['skipped'];
+        }
+
+        $nativePath = $this->absoluteDocxDirectory() . DIRECTORY_SEPARATOR . 'comments_no_comments.native';
+        if (!is_file($nativePath)) {
+            return [
+                'status' => 'skipped-missing-fixture',
+                'fixture' => 'comments_no_comments.native',
+                'reason' => 'Required upstream native expectation is missing: comments_no_comments.native',
+            ];
+        }
+
+        $native = file_get_contents($nativePath);
+        if (!is_string($native)) {
+            throw new \RuntimeException("Unable to read native fixture {$nativePath}");
+        }
+
+        /** @var AstNode $document */
+        $document = $loaded['document'];
+        $expected = (new NativeReader())->read($native);
+        $expectedTexts = self::blockTexts($expected);
+        $actualTexts = self::blockTexts($document);
+        $classes = self::classNames($document);
+        $noteCount = count(array_filter(
+            self::flattenNodes($document),
+            static fn (AstNode $node): bool => $node->type === 'note'
+        ));
+
+        $this->assertSame($expectedTexts, $actualTexts, "comments.docx {$revisionMode} no-comments text mismatch");
+        $this->assertTrue(!in_array('comment-start', $classes, true), "comments.docx {$revisionMode} no-comments should omit comment-start spans");
+        $this->assertTrue(!in_array('comment-end', $classes, true), "comments.docx {$revisionMode} no-comments should omit comment-end spans");
+        $this->assertSame(0, $noteCount, "comments.docx {$revisionMode} no-comments should omit comment notes");
+
+        return [
+            'status' => 'passed',
+            'fixture' => 'comments.docx',
+            'nativeFixture' => 'comments_no_comments.native',
+            'details' => [
+                'revisionMode' => $revisionMode,
+                'commentsMode' => 'omit',
+                'blockTexts' => $actualTexts,
+                'classes' => $classes,
+                'noteCount' => $noteCount,
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function checkCommentsWarningNoWarningsFixture(string $revisionMode): array
+    {
+        $loaded = $this->readDocxFixture('comments_warning', ['revisionMode' => $revisionMode]);
         if (is_array($loaded['skipped'] ?? null)) {
             return $loaded['skipped'];
         }
 
         /** @var AstNode $document */
         $document = $loaded['document'];
-        /** @var DocxReader $reader */
-        $reader = $loaded['reader'];
-        $warnings = $reader->warnings();
         $meta = $document->attr('meta', []);
-        $this->assertSame([], $warnings, 'comments_warning.docx accept mode should not emit DOCX parser warnings');
-        $this->assertTrue((int) ($meta['docxComments'] ?? 0) === 1, 'comments_warning.docx should load the source comment record');
+        $warnings = $meta['docxWarnings'] ?? null;
+        $this->assertSame([], is_array($warnings) ? $warnings : null, "comments_warning {$revisionMode} mode should expose no DOCX reader warnings");
+        $this->assertSame(0, (int) ($meta['docxWarningCount'] ?? -1), "comments_warning {$revisionMode} mode should count zero DOCX reader warnings");
+        $this->assertTrue((int) ($meta['docxComments'] ?? 0) > 0, 'comments_warning.docx should load comments.xml records');
 
         return [
             'status' => 'passed',
             'fixture' => 'comments_warning.docx',
             'details' => [
-                'revisionMode' => 'accept',
+                'revisionMode' => $revisionMode,
+                'docxWarningCount' => (int) ($meta['docxWarningCount'] ?? 0),
+                'docxWarnings' => is_array($warnings) ? $warnings : [],
+                'docxComments' => (int) ($meta['docxComments'] ?? 0),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function checkCommentsWarningAllFixture(): array
+    {
+        $loaded = $this->readDocxFixture('comments_warning', ['revisionMode' => 'preserve']);
+        if (is_array($loaded['skipped'] ?? null)) {
+            return $loaded['skipped'];
+        }
+
+        /** @var AstNode $document */
+        $document = $loaded['document'];
+        $meta = $document->attr('meta', []);
+        $warnings = is_array($meta['docxWarnings'] ?? null) ? $meta['docxWarnings'] : [];
+        $this->assertSame(['Docx comment 1 will not retain formatting'], $warnings, 'comments_warning.docx all-comments warning mismatch');
+        $this->assertSame(1, (int) ($meta['docxWarningCount'] ?? 0), 'comments_warning.docx should expose one DOCX warning');
+
+        return [
+            'status' => 'passed',
+            'fixture' => 'comments_warning.docx',
+            'details' => [
+                'revisionMode' => 'preserve',
                 'docxWarnings' => $warnings,
+                'docxWarningCount' => (int) ($meta['docxWarningCount'] ?? 0),
+            ],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function checkCommentsWithStylesWarningsFixture(): array
+    {
+        $loaded = $this->readDocxFixture('comments', [
+            'collectWarnings' => true,
+            'stylesExtension' => true,
+        ]);
+        if (is_array($loaded['skipped'] ?? null)) {
+            return $loaded['skipped'];
+        }
+
+        /** @var AstNode $document */
+        $document = $loaded['document'];
+        $meta = $document->attr('meta', []);
+        $warnings = is_array($meta['docxWarnings'] ?? null) ? $meta['docxWarnings'] : [];
+        $this->assertSame([], $warnings, 'comments.docx +styles warning collector should be empty');
+        $this->assertSame(0, (int) ($meta['docxWarningCount'] ?? -1), 'comments.docx +styles should not emit DOCX parser warnings');
+
+        return [
+            'status' => 'passed',
+            'fixture' => 'comments.docx',
+            'details' => [
+                'stylesExtension' => true,
+                'docxWarnings' => $warnings,
+                'docxWarningCount' => (int) ($meta['docxWarningCount'] ?? 0),
                 'docxComments' => (int) ($meta['docxComments'] ?? 0),
             ],
         ];
@@ -768,13 +890,19 @@ final class DocxUpstreamFocusedReaderEvidence
             'lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php',
         ];
         $add('testCompareWithOpts', 'comments (all comments)', 'docx/comments.docx', 'docx/comments.native', 'focused-comments-native-php-check', ['local DOCX reader loads comments.xml records and exposes comment-start/comment-end spans'], $commentsLocal, ['does not cover accept/reject no-comment ReaderOptions'], 'comments:all');
+        $add('testCompareWithOpts', 'comments (accept -- no comments)', 'docx/comments.docx', 'docx/comments_no_comments.native', 'focused-comments-native-php-check', ['local DOCX reader revisionMode=accept plus commentsMode=omit matches upstream no-comments native block text'], $commentsLocal, ['local explicit commentsMode evidence is not an upstream Haskell ReaderOptions run'], 'comments:accept-no-comments');
+        $add('testCompareWithOpts', 'comments (reject -- comments)', 'docx/comments.docx', 'docx/comments_no_comments.native', 'focused-comments-native-php-check', ['local DOCX reader revisionMode=reject plus commentsMode=omit matches upstream no-comments native block text'], $commentsLocal, ['local explicit commentsMode evidence is not an upstream Haskell ReaderOptions run'], 'comments:reject-no-comments');
 
         $warningLocal = [
             'lanes/pandoc/src/DocxReader.php',
+            'lanes/pandoc/tests/DocxReaderTest.php',
             'lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php',
         ];
-        $warningLimits = ['does not execute upstream testForWarningsWithOpts', 'does not cover the reject/all/style-extension warning cases'];
-        $add('testForWarningsWithOpts', 'comment warnings (accept -- no warnings)', 'docx/comments_warning.docx', null, 'focused-warning-native-php-check', ['local DOCX warning collector returns an empty warning list for comments_warning.docx with revisionMode=accept'], $warningLocal, $warningLimits, 'warning:comments_warning:accept');
+        $warningLimits = ['focused warning metadata check; does not execute upstream testForWarningsWithOpts'];
+        $add('testForWarningsWithOpts', 'comment warnings (accept -- no warnings)', 'docx/comments_warning.docx', null, 'focused-docx-warning-native-php-check', ['local DOCX reader revisionMode=accept exposes an empty bounded docxWarnings metadata list for comments_warning.docx'], $warningLocal, $warningLimits, 'warning:comments_warning:accept');
+        $add('testForWarningsWithOpts', 'comment warnings (reject -- no warnings)', 'docx/comments_warning.docx', null, 'focused-docx-warning-native-php-check', ['local DOCX reader revisionMode=reject exposes an empty bounded docxWarnings metadata list for comments_warning.docx'], $warningLocal, $warningLimits, 'warning:comments_warning:reject');
+        $add('testForWarningsWithOpts', 'comment warnings (all)', 'docx/comments_warning.docx', null, 'focused-docx-warning-native-php-check', ['local DOCX reader exposes the upstream all-comments DocxParserWarning text for non-inline comment body formatting loss'], $warningLocal, $warningLimits, 'warning:comments_warning:all');
+        $add('testForWarningsWithOpts', 'comments (with styles extension)', 'docx/comments.docx', null, 'focused-docx-warning-native-php-check', ['local DOCX reader verifies comments.docx +styles has no comment-formatting-loss warnings'], $warningLocal, $warningLimits, 'warning:comments-with-styles');
 
         $styleLocal = [
             'lanes/pandoc/src/DocxReader.php',
@@ -796,25 +924,7 @@ final class DocxUpstreamFocusedReaderEvidence
      */
     private static function openCaseDefinitions(): array
     {
-        $definitions = [];
-        $add = static function (string $call, string $label, string $docx, ?string $native, string $openReason, string $nextEvidence) use (&$definitions): void {
-            $definitions[self::caseKeyFromParts($call, $label, $docx, $native)] = [
-                'openReason' => $openReason,
-                'nextEvidence' => $nextEvidence,
-            ];
-        };
-
-        $commentModeReason = 'local DocxReader does not yet expose an accept/reject comments ReaderOptions mode equivalent';
-        $add('testCompareWithOpts', 'comments (accept -- no comments)', 'docx/comments.docx', 'docx/comments_no_comments.native', $commentModeReason, 'Add a focused commentsMode option or mapped no-comments native evidence.');
-        $add('testCompareWithOpts', 'comments (reject -- comments)', 'docx/comments.docx', 'docx/comments_no_comments.native', $commentModeReason, 'Add a focused commentsMode option or mapped no-comments native evidence.');
-
-        $warningReason = 'focused local warning evidence is not yet mapped for this upstream testForWarningsWithOpts case';
-        $warningNext = 'Add a targeted DOCX warning expectation check for this specific comments_warning/comments style-extension case.';
-        $add('testForWarningsWithOpts', 'comment warnings (reject -- no warnings)', 'docx/comments_warning.docx', null, $warningReason, $warningNext);
-        $add('testForWarningsWithOpts', 'comment warnings (all)', 'docx/comments_warning.docx', null, $warningReason, $warningNext);
-        $add('testForWarningsWithOpts', 'comments (with styles extension)', 'docx/comments.docx', null, $warningReason, $warningNext);
-
-        return $definitions;
+        return [];
     }
 
     /**
@@ -850,11 +960,12 @@ final class DocxUpstreamFocusedReaderEvidence
                 'the denominator is the 36-case haskellReaderInventory.notCoveredCases list from UPSTREAM_DOCX_HASKELL_INVENTORY.json',
                 'which denominator cases have additional focused native PHP checks or mapped upstream native evidence',
                 'optional targeted DOCX fixture checks when a hydrated upstream test/docx cache is supplied',
+                'the listed focused DOCX warning metadata checks only, without executing upstream testForWarningsWithOpts',
             ],
             'doesNotAssert' => [
                 'that upstream Haskell/Cabal/Tasty tests were executed',
                 'that local DOCX reader output equals upstream native expectations for mapped-native-only cases',
-                'that every upstream DocxParserWarning expectation passes locally',
+                'that upstream testForWarningsWithOpts itself was executed locally',
                 'that full DOCX/OpenXML parity is achieved',
             ],
         ];

@@ -142,8 +142,8 @@ jobs:
           php tools/pandoc-docx-focused-reader-evidence.php \
             --json \
             --docx-dir .upstream-cache/pandoc-current/test/docx \
-            --require-covered 31 \
-            --require-targeted-checks 27 \
+            --require-covered 36 \
+            --require-targeted-checks 32 \
             --require-no-targeted-failures
 
       - name: Run optional upstream DOCX runner preflight plan
