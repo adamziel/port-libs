@@ -625,6 +625,69 @@ BIB;
         $t->same(false, str_contains($reviewJson, 'Private Publisher'));
         $t->same(false, str_contains($reviewJson, 'Private Related Title'));
     },
+    'records metadata only biblatex date shape review provenance' => static function (TestRunner $t): void {
+        $biblatex = <<<'BIB'
+@online{date-shape-private-one,
+  author    = {Ng, Nia},
+  title     = {Secret Date Shape Packet},
+  date      = {2026-06-01/2026-06-03},
+  urldate   = {2026-07-01/},
+  origdate  = {/1999},
+  eventdate = {private event window}
+}
+
+@report{date-shape-private-two,
+  author    = {Roe, Pat},
+  title     = {Secret Split Date Packet},
+  year      = {2020},
+  month     = {5},
+  day       = {9},
+  endyear   = {2021},
+  endmonth  = {6},
+  endday    = {11},
+  submitted = {2025/2026},
+  labeldate = {/2024}
+}
+BIB;
+
+        $document = (new BibliographyReader('biblatex'))->read($biblatex);
+        $review = $document->attr('bibtexReview');
+        $items = $review['items'];
+
+        $t->same('biblatex-bibliography', $review['scope']);
+        $t->same(false, $review['externalTooling']);
+        $t->same(['date-shape-private-one', 'date-shape-private-two'], $review['itemIds']);
+        $t->same(['issued' => 4, 'submitted' => 2], $review['dateRangeEndpointCounts']);
+        $t->same(['accessed' => 1, 'label-date' => 1, 'original-date' => 1], $review['openEndedDateVariableCounts']);
+        $t->same(['end' => 1, 'start' => 2], $review['openEndedDateDirectionCounts']);
+        $t->same(['event-date' => 1], $review['literalDateVariableCounts']);
+
+        $first = $items[0];
+        $t->same('date-shape-private-one', $first['id']);
+        $t->same(['issued' => 2], $first['dateRangeEndpointCounts']);
+        $t->same(1, $first['dateRangeVariableCount']);
+        $t->same(['accessed' => 1, 'original-date' => 1], $first['openEndedDateVariableCounts']);
+        $t->same(2, $first['openEndedDateVariableCount']);
+        $t->same(['end' => 1, 'start' => 1], $first['openEndedDateDirectionCounts']);
+        $t->same(['event-date' => 1], $first['literalDateVariableCounts']);
+        $t->same(1, $first['literalDateVariableCount']);
+
+        $second = $items[1];
+        $t->same('date-shape-private-two', $second['id']);
+        $t->same(['issued' => 2, 'submitted' => 2], $second['dateRangeEndpointCounts']);
+        $t->same(2, $second['dateRangeVariableCount']);
+        $t->same(['label-date' => 1], $second['openEndedDateVariableCounts']);
+        $t->same(['start' => 1], $second['openEndedDateDirectionCounts']);
+        $t->same([], $second['literalDateVariableCounts']);
+        $t->same(0, $second['literalDateVariableCount']);
+
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'Secret Date Shape Packet'));
+        $t->same(false, str_contains($reviewJson, 'Secret Split Date Packet'));
+        $t->same(false, str_contains($reviewJson, '2026-06-01/2026-06-03'));
+        $t->same(false, str_contains($reviewJson, '2026-07-01/'));
+        $t->same(false, str_contains($reviewJson, 'private event window'));
+    },
     'carries biblatex relation summaries through the registered reader path' => static function (TestRunner $t): void {
         $biblatex = <<<'BIB'
 @book{registered-relation,

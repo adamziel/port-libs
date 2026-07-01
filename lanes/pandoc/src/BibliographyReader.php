@@ -611,6 +611,10 @@ final class BibliographyReader
         $fieldValueCounts = [];
         $nameVariableCounts = [];
         $dateVariableCounts = [];
+        $dateRangeEndpointCounts = [];
+        $openEndedDateVariableCounts = [];
+        $openEndedDateDirectionCounts = [];
+        $literalDateVariableCounts = [];
         $identifierFieldCounts = [];
         $sourceFileDiagnosticReasonCounts = [];
         $relationReferenceCounts = [];
@@ -645,6 +649,10 @@ final class BibliographyReader
             $this->mergeCountMap($fieldValueCounts, $review['fieldValueCounts']);
             $this->mergeCountMap($nameVariableCounts, $review['nameVariableCounts']);
             $this->mergeCountMap($dateVariableCounts, $review['datePartCounts']);
+            $this->mergeCountMap($dateRangeEndpointCounts, $review['dateRangeEndpointCounts']);
+            $this->mergeCountMap($openEndedDateVariableCounts, $review['openEndedDateVariableCounts']);
+            $this->mergeCountMap($openEndedDateDirectionCounts, $review['openEndedDateDirectionCounts']);
+            $this->mergeCountMap($literalDateVariableCounts, $review['literalDateVariableCounts']);
             $this->mergeStringListCounts($identifierFieldCounts, $review['identifierFields']);
             $this->mergeCountMap($sourceFileDiagnosticReasonCounts, $review['sourceFileDiagnosticReasonCounts']);
             $this->mergeCountMap($relationReferenceCounts, $review['relationReferenceCounts']);
@@ -681,6 +689,10 @@ final class BibliographyReader
         ksort($fieldValueCounts);
         ksort($nameVariableCounts);
         ksort($dateVariableCounts);
+        ksort($dateRangeEndpointCounts);
+        ksort($openEndedDateVariableCounts);
+        ksort($openEndedDateDirectionCounts);
+        ksort($literalDateVariableCounts);
         ksort($identifierFieldCounts);
         ksort($sourceFileDiagnosticReasonCounts);
         ksort($relationReferenceCounts);
@@ -707,6 +719,10 @@ final class BibliographyReader
             'linkBearingItemCount' => $linkBearingItemCount,
             'nameVariableCounts' => $nameVariableCounts,
             'dateVariableCounts' => $dateVariableCounts,
+            'dateRangeEndpointCounts' => $dateRangeEndpointCounts,
+            'openEndedDateVariableCounts' => $openEndedDateVariableCounts,
+            'openEndedDateDirectionCounts' => $openEndedDateDirectionCounts,
+            'literalDateVariableCounts' => $literalDateVariableCounts,
             'identifierFieldCounts' => $identifierFieldCounts,
             'sourceFileCandidateCount' => $sourceFileCandidateCount,
             'sourceFileDiagnosticReasonCounts' => $sourceFileDiagnosticReasonCounts,
@@ -769,6 +785,7 @@ final class BibliographyReader
         ]);
         $nameVariableCounts = $this->cslJsonNameVariableCounts($item);
         $datePartCounts = $this->cslJsonDatePartCounts($item);
+        $dateShapeReview = $this->dateShapeReview($item);
         $id = $item['id'] ?? '';
         $type = $item['type'] ?? '';
 
@@ -788,6 +805,13 @@ final class BibliographyReader
             'nameCount' => array_sum($nameVariableCounts),
             'dateVariableCount' => count($datePartCounts),
             'datePartCounts' => $datePartCounts,
+            'dateRangeEndpointCounts' => $dateShapeReview['dateRangeEndpointCounts'],
+            'dateRangeVariableCount' => count($dateShapeReview['dateRangeEndpointCounts']),
+            'openEndedDateVariableCounts' => $dateShapeReview['openEndedDateVariableCounts'],
+            'openEndedDateVariableCount' => array_sum($dateShapeReview['openEndedDateVariableCounts']),
+            'openEndedDateDirectionCounts' => $dateShapeReview['openEndedDateDirectionCounts'],
+            'literalDateVariableCounts' => $dateShapeReview['literalDateVariableCounts'],
+            'literalDateVariableCount' => array_sum($dateShapeReview['literalDateVariableCounts']),
             'identifierFieldCount' => count($identifierFields),
             'identifierFields' => $identifierFields,
             'linkBearing' => $linkFields !== [],
@@ -807,6 +831,69 @@ final class BibliographyReader
             'biblatexSkipsBibliography' => $biblatexSkipsBibliography,
             'biblatexBibliographyVisibility' => $biblatexSkipsBibliography ? 'omit' : 'include',
             'payloadExposurePolicy' => 'source-values-omitted',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array{
+     *     dateRangeEndpointCounts: array<string, int>,
+     *     openEndedDateVariableCounts: array<string, int>,
+     *     openEndedDateDirectionCounts: array<string, int>,
+     *     literalDateVariableCounts: array<string, int>
+     * }
+     */
+    private function dateShapeReview(array $item): array
+    {
+        $rangeEndpointCounts = [];
+        $openEndedVariableCounts = [];
+        $openEndedDirectionCounts = [];
+        $literalVariableCounts = [];
+
+        foreach ($this->dateVariableFields() as $variable => $fieldNames) {
+            $value = $this->firstPresentValue($item, $fieldNames);
+            if (!$this->fieldHasValue($value)) {
+                continue;
+            }
+
+            if (!is_array($value)) {
+                $literalVariableCounts[$variable] = 1;
+                continue;
+            }
+
+            $dateParts = $value['date-parts'] ?? null;
+            if (is_array($dateParts) && count($dateParts) > 1) {
+                $rangeEndpointCounts[$variable] = count($dateParts);
+            }
+
+            $openEnded = $value['open-ended'] ?? null;
+            if (is_scalar($openEnded)) {
+                $openEnded = strtolower(trim((string) $openEnded));
+                if (in_array($openEnded, ['start', 'end'], true)) {
+                    $openEndedVariableCounts[$variable] = 1;
+                    $openEndedDirectionCounts[$openEnded] = ($openEndedDirectionCounts[$openEnded] ?? 0) + 1;
+                }
+            }
+
+            if (
+                array_key_exists('literal', $value)
+                && $this->fieldHasValue($value['literal'])
+                && (!is_array($dateParts) || $dateParts === [])
+            ) {
+                $literalVariableCounts[$variable] = 1;
+            }
+        }
+
+        ksort($rangeEndpointCounts);
+        ksort($openEndedVariableCounts);
+        ksort($openEndedDirectionCounts);
+        ksort($literalVariableCounts);
+
+        return [
+            'dateRangeEndpointCounts' => $rangeEndpointCounts,
+            'openEndedDateVariableCounts' => $openEndedVariableCounts,
+            'openEndedDateDirectionCounts' => $openEndedDirectionCounts,
+            'literalDateVariableCounts' => $literalVariableCounts,
         ];
     }
 
@@ -1126,6 +1213,40 @@ final class BibliographyReader
         ksort($counts);
 
         return $counts;
+    }
+
+    /**
+     * @return array<string, list<string>>
+     */
+    private function dateVariableFields(): array
+    {
+        return [
+            'issued' => ['issued', 'issuedDate', 'issued-date', 'date'],
+            'accessed' => ['accessed', 'accessedDate', 'accessed-date', 'URLDate', 'URL-date', 'urlDate', 'url-date'],
+            'original-date' => ['original-date', 'originalDate'],
+            'available-date' => ['available-date', 'availableDate'],
+            'accepted-date' => ['accepted-date', 'acceptedDate'],
+            'revised-date' => ['revised-date', 'revisedDate'],
+            'reprint-date' => ['reprint-date', 'reprintDate'],
+            'submitted' => ['submitted', 'submitted-date'],
+            'event-date' => ['event-date', 'eventDate'],
+            'label-date' => ['label-date', 'labelDate'],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param list<string> $fieldNames
+     */
+    private function firstPresentValue(array $item, array $fieldNames): mixed
+    {
+        foreach ($fieldNames as $fieldName) {
+            if (array_key_exists($fieldName, $item) && $this->fieldHasValue($item[$fieldName])) {
+                return $item[$fieldName];
+            }
+        }
+
+        return null;
     }
 
     private function cslJsonDatePartCount(mixed $value): int
