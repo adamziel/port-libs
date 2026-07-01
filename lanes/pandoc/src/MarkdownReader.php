@@ -10511,6 +10511,22 @@ final class MarkdownReader
         return $this->optionsExtensionOverride('commonmark_autolinks', $enabled);
     }
 
+    private function smartExtensionEnabled(): bool
+    {
+        if (array_key_exists('smart', $this->options)) {
+            return $this->boolOption($this->options['smart'], true);
+        }
+
+        $format = $this->options['format'] ?? $this->options['variant'] ?? 'markdown';
+        $enabled = MarkdownFormatProfile::canonicalFormat($format) === 'markdown';
+        $formatOverrides = MarkdownFormatProfile::markdownExtensionOverrides($format);
+        if (array_key_exists('smart', $formatOverrides)) {
+            $enabled = $formatOverrides['smart'];
+        }
+
+        return $this->optionsExtensionOverride('smart', $enabled);
+    }
+
     private function optionsExtensionOverride(string $extension, bool $default): bool
     {
         $extensions = $this->options['extensions'] ?? null;
@@ -11479,6 +11495,10 @@ final class MarkdownReader
      */
     private function tryParseSmartQuote(string $text, int $offset): ?array
     {
+        if (!$this->smartExtensionEnabled()) {
+            return null;
+        }
+
         $delimiter = $text[$offset] ?? '';
         if ($delimiter !== '"' && $delimiter !== "'") {
             return null;
@@ -11574,6 +11594,10 @@ final class MarkdownReader
      */
     private function tryReadSmartTextReplacement(string $text, int $offset): ?array
     {
+        if (!$this->smartExtensionEnabled()) {
+            return null;
+        }
+
         if (substr($text, $offset, 3) === '...') {
             return ['text' => "\u{2026}", 'next' => $offset + 3];
         }
@@ -12017,6 +12041,55 @@ final class MarkdownReader
 
     private function decodeHtmlEntities(string $text): string
     {
+        $text = preg_replace_callback(
+            '/&#(?:([0-9]+)|[xX]([0-9A-Fa-f]+));/',
+            fn (array $match): string => $this->codepointToUtf8($this->htmlEntityCodepoint($match)),
+            $text
+        ) ?? $text;
+
         return html_entity_decode($text, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, 'UTF-8');
+    }
+
+    /**
+     * @param array<int, string> $match
+     */
+    private function htmlEntityCodepoint(array $match): int
+    {
+        $codepoint = ($match[2] ?? '') !== ''
+            ? (int) hexdec($match[2])
+            : (int) $match[1];
+
+        if ($codepoint <= 0 || $codepoint > 0x10FFFF || ($codepoint >= 0xD800 && $codepoint <= 0xDFFF)) {
+            return 0xFFFD;
+        }
+
+        return $codepoint;
+    }
+
+    private function codepointToUtf8(int $codepoint): string
+    {
+        if (function_exists('mb_chr')) {
+            return mb_chr($codepoint, 'UTF-8');
+        }
+
+        if ($codepoint <= 0x7F) {
+            return chr($codepoint);
+        }
+
+        if ($codepoint <= 0x7FF) {
+            return chr(0xC0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        if ($codepoint <= 0xFFFF) {
+            return chr(0xE0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        return chr(0xF0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3F))
+            . chr(0x80 | (($codepoint >> 6) & 0x3F))
+            . chr(0x80 | ($codepoint & 0x3F));
     }
 }
