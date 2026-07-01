@@ -1156,6 +1156,22 @@ final class CitationCslProcessor
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass']);
         $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation', 'archivelocation', 'eprint']);
+        $archiveList = self::stringListFromFirstField($item, ['archive-list', 'archiveList', 'archivelist', 'archiveprefix-list', 'archivePrefixList', 'eprinttype-list', 'eprintTypeList']);
+        if ($archive === '' && $archiveList !== []) {
+            $archive = implode('; ', $archiveList);
+        }
+        $archiveCollectionList = self::stringListFromFirstField($item, ['archive-collection-list', 'archive_collection-list', 'archiveCollectionList', 'archivecollectionlist']);
+        if ($archiveCollection === '' && $archiveCollectionList !== []) {
+            $archiveCollection = implode('; ', $archiveCollectionList);
+        }
+        $archivePlaceList = self::stringListFromFirstField($item, ['archive-place-list', 'archivePlaceList', 'archiveplacelist', 'eprintclass-list', 'eprintClassList']);
+        if ($archivePlace === '' && $archivePlaceList !== []) {
+            $archivePlace = implode('; ', $archivePlaceList);
+        }
+        $archiveLocationList = self::stringListFromFirstField($item, ['archive-location-list', 'archive_location-list', 'archiveLocationList', 'archivelocationlist', 'eprint-list', 'eprintList']);
+        if ($archiveLocation === '' && $archiveLocationList !== []) {
+            $archiveLocation = implode('; ', $archiveLocationList);
+        }
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
         $publisherList = self::stringListFromFirstField($item, [
@@ -1605,6 +1621,10 @@ final class CitationCslProcessor
             'archiveCollection' => $archiveCollection,
             'archivePlace' => $archivePlace,
             'archiveLocation' => $archiveLocation,
+            'archiveList' => $archiveList !== [] ? $archiveList : ($archive !== '' ? [$archive] : []),
+            'archiveCollectionList' => $archiveCollectionList !== [] ? $archiveCollectionList : ($archiveCollection !== '' ? [$archiveCollection] : []),
+            'archivePlaceList' => $archivePlaceList !== [] ? $archivePlaceList : ($archivePlace !== '' ? [$archivePlace] : []),
+            'archiveLocationList' => $archiveLocationList !== [] ? $archiveLocationList : ($archiveLocation !== '' ? [$archiveLocation] : []),
             'archiveSummary' => $archiveSummary,
             'callNumber' => self::firstStringField($item, ['call-number', 'callNumber', 'callnumber', 'library', 'shelfmark', 'shelf-mark', 'shelfMark']),
             'language' => $language,
@@ -6900,8 +6920,10 @@ final class CitationCslProcessor
             'keyword-list', 'keywordlist', 'category-list', 'categorylist',
             'citation-alias', 'citationalias', 'citation-aliases', 'citationaliases',
             'citation-alias-summary', 'citation-aliases-summary', 'citationaliassummary', 'citationaliasessummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
-            'archive', 'archive-place', 'archiveplace', 'archive_collection', 'archive-collection', 'archivecollection',
-            'archive_location', 'archive-location', 'archivelocation', 'archive-summary', 'archivesummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
+            'archive', 'archive-list', 'archivelist', 'archive-place', 'archiveplace', 'archive-place-list', 'archiveplacelist',
+            'archive_collection', 'archive-collection', 'archivecollection', 'archive-collection-list', 'archivecollectionlist',
+            'archive_location', 'archive-location', 'archivelocation', 'archive-location-list', 'archivelocationlist',
+            'archive-summary', 'archivesummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
             'type' => $this->normalizeSortText((string) $item['type']),
             'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
             'first-reference-note-number' => $this->numberVariableSortValue($item, $variable, $scope),
@@ -11266,9 +11288,13 @@ final class CitationCslProcessor
             'wikidata', 'wikidata-id', 'wikidataid', 'wd' => (string) ($item['wikidata'] ?? ''),
             'authority-identifiers', 'authority-identifier-summary', 'creator-identifiers', 'creator-identifier-summary' => (string) ($item['authorityIdentifierSummary'] ?? ''),
             'archive' => (string) $item['archive'],
+            'archive-list', 'archivelist', 'archiveprefix-list', 'archiveprefixlist', 'eprinttype-list', 'eprinttypelist' => implode('; ', is_array($item['archiveList'] ?? null) ? $item['archiveList'] : []),
             'archive_collection', 'archive-collection', 'archivecollection' => (string) ($item['archiveCollection'] ?? ''),
+            'archive-collection-list', 'archive_collection-list', 'archivecollectionlist' => implode('; ', is_array($item['archiveCollectionList'] ?? null) ? $item['archiveCollectionList'] : []),
             'archive-place', 'archiveplace' => (string) $item['archivePlace'],
+            'archive-place-list', 'archiveplacelist', 'eprintclass-list', 'eprintclasslist' => implode('; ', is_array($item['archivePlaceList'] ?? null) ? $item['archivePlaceList'] : []),
             'archive_location', 'archive-location', 'archivelocation' => (string) $item['archiveLocation'],
+            'archive-location-list', 'archive_location-list', 'archivelocationlist', 'eprint-list', 'eprintlist' => implode('; ', is_array($item['archiveLocationList'] ?? null) ? $item['archiveLocationList'] : []),
             'archive-summary', 'archive-summary-text', 'archivesummary', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
             'call-number', 'callnumber' => (string) $item['callNumber'],
             'language', 'langid', 'language-id', 'languageid', 'hyphenation' => (string) $item['language'],

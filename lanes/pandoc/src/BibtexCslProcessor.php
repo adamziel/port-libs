@@ -973,6 +973,10 @@ final class BibtexCslProcessor
         $this->applyLiteralListField($item, $fields, 'original-publisher', ['origpublisher', 'originalpublisher', 'original-publisher'], 'original-publisher-list');
         $this->applyLiteralListField($item, $fields, 'original-publisher-place', ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'], 'original-publisher-place-list');
         $this->applyLiteralListField($item, $fields, 'original-language', ['origlanguage', 'originallanguage', 'original-language'], 'original-language-list');
+        $this->applyLiteralListField($item, $fields, 'archive', ['archiveprefix', 'eprinttype', 'archive'], 'archive-list');
+        $this->applyLiteralListField($item, $fields, 'archive-collection', ['archivecollection', 'archive-collection', 'archive_collection'], 'archive-collection-list');
+        $this->applyLiteralListField($item, $fields, 'archive-place', ['eprintclass', 'archiveplace', 'archive-place'], 'archive-place-list');
+        $this->applyLiteralListField($item, $fields, 'archive_location', ['eprint', 'archive-location', 'archive_location', 'archivelocation'], 'archive-location-list');
         $number = $this->firstField($fields, ['number']);
         if (($item['issue'] ?? '') === '' && $number !== null && $number !== '' && $this->entryNumberActsAsIssue($type)) {
             $item['issue'] = $number;

@@ -2049,6 +2049,90 @@ BIB;
         $t->contains('Call number: MS 42 Box 4', $markdown);
         $t->contains('Call number: Reading Room Shelf B/12', $blocks);
     },
+    'carries biblatex archive literal list metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{distributed-archive,
+  author             = {Ng, Nia},
+  title              = {Distributed Archive Packet},
+  date               = {2026},
+  archive            = {{Zenodo} and {OSF}},
+  archivecollection  = {{Migration data} and {Review snapshots}},
+  archiveplace       = {{preprints} and {supplements}},
+  archive_location   = {{10.5281/zenodo.1} and {osf.io/review}},
+  url                = {https://example.test/distributed-archive}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['distributed-archive'];
+
+        $t->same('Zenodo; OSF', $item['archive']);
+        $t->same(['Zenodo', 'OSF'], $item['archive-list']);
+        $t->same('Migration data; Review snapshots', $item['archive-collection']);
+        $t->same(['Migration data', 'Review snapshots'], $item['archive-collection-list']);
+        $t->same('preprints; supplements', $item['archive-place']);
+        $t->same(['preprints', 'supplements'], $item['archive-place-list']);
+        $t->same('10.5281/zenodo.1; osf.io/review', $item['archive_location']);
+        $t->same(['10.5281/zenodo.1', 'osf.io/review'], $item['archive-location-list']);
+        $t->same('Zenodo; OSF:Migration data; Review snapshots:preprints; supplements:10.5281/zenodo.1; osf.io/review', $item['archive-summary']);
+        $t->same('Zenodo and OSF', $item['rawBibtex']['fields']['archive']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Archive Literal List Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-archive-literal-list-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="archive-list"/>
+        <text variable="archive-collection-list"/>
+        <text variable="archive-place-list"/>
+        <text variable="archive-location-list"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="archive-list"/>
+      <text variable="archive-collection-list"/>
+      <text variable="archive-place-list"/>
+      <text variable="archive-location-list"/>
+      <text variable="archive-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('distributed-archive');
+        $t->same(['Zenodo', 'OSF'], $styledItem['archiveList'] ?? null);
+        $t->same(['Migration data', 'Review snapshots'], $styledItem['archiveCollectionList'] ?? null);
+        $t->same(['preprints', 'supplements'], $styledItem['archivePlaceList'] ?? null);
+        $t->same(['10.5281/zenodo.1', 'osf.io/review'], $styledItem['archiveLocationList'] ?? null);
+        $t->same('[Ng | Zenodo; OSF | Migration data; Review snapshots | preprints; supplements | 10.5281/zenodo.1; osf.io/review]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'distributed-archive', 'text' => '[@distributed-archive]']),
+        ]));
+        $t->same(
+            'Distributed Archive Packet :: Zenodo; OSF :: Migration data; Review snapshots :: preprints; supplements :: 10.5281/zenodo.1; osf.io/review :: Zenodo; OSF:Migration data; Review snapshots:preprints; supplements:10.5281/zenodo.1; osf.io/review',
+            $styled->renderBibliographyEntry('distributed-archive')
+        );
+
+        $document = (new MarkdownReader())->read('Archive lists [@distributed-archive] stay visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['distributed-archive'], $handoff['citedKeys']);
+        $t->same(['Zenodo', 'OSF'], $handoff['items'][0]['archive-list'] ?? null);
+        $t->same(['10.5281/zenodo.1', 'osf.io/review'], $handoff['items'][0]['archive-location-list'] ?? null);
+        $t->contains('<p>Archive lists [Ng | Zenodo; OSF | Migration data; Review snapshots | preprints; supplements | 10.5281/zenodo.1; osf.io/review] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Distributed Archive Packet :: Zenodo; OSF :: Migration data; Review snapshots :: preprints; supplements :: 10.5281/zenodo.1; osf.io/review :: Zenodo; OSF:Migration data; Review snapshots:preprints; supplements:10.5281/zenodo.1; osf.io/review</dd>', $blocks);
+    },
     'carries biblatex thesis school and type aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @phdthesis{doctoral-review,
