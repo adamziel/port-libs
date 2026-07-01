@@ -2045,6 +2045,8 @@
         "xmlHtmlDomScriptIntegrityReviewAssertions": 47,
         "mappedXmlHtmlDomMeasurementReviewCases": 1,
         "xmlHtmlDomMeasurementReviewAssertions": 80,
+        "mappedXmlHtmlDomTimeDatetimeIssueCodeCases": 1,
+        "xmlHtmlDomTimeDatetimeIssueCodeAssertions": 47,
         "mappedDocxRelationshipTargetCaseFoldPathSegmentCases": 1,
         "docxRelationshipTargetCaseFoldPathSegmentAssertions": 74,
         "legacyBiblatexPublicationStateDateCases": 1,

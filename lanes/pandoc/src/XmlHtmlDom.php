@@ -19445,6 +19445,7 @@ final class XmlHtmlDom
         $summary = [
             'time' => 'time',
             'timeElement' => true,
+            'timeDatetimeReviewPolicy' => 'html-time-datetime-value-review',
             'timeText' => $text,
             'timeDatetimeRaw' => $raw,
             'timeDatetimeSource' => $source,
@@ -19455,9 +19456,22 @@ final class XmlHtmlDom
             'timeValue' => null,
             'timeValueKind' => null,
             'timeValueValid' => false,
+            'timeDatetimeIssues' => [],
+            'timeDatetimeIssueCodes' => [],
+            'timeDatetimeIssueCount' => 0,
+            'timeDatetimeConforming' => false,
+            'timeValueIssues' => [],
+            'timeValueIssueCodes' => [],
+            'timeValueIssueCount' => 0,
+            'timeValueConforming' => false,
         ];
 
         if ($source === 'missing') {
+            $summary = self::withTimeDatetimeIssues($summary, [[
+                'code' => 'missing-time-datetime',
+                'source' => 'missing',
+            ]]);
+
             return $summary;
         }
 
@@ -19465,6 +19479,7 @@ final class XmlHtmlDom
         if ($datetime === null) {
             $summary['timeDatetimeKind'] = 'invalid';
             $summary['timeValueKind'] = 'invalid';
+            $summary = self::withTimeDatetimeIssues($summary, self::timeDatetimeIssueRecords($source, $candidate));
 
             return $summary;
         }
@@ -19475,8 +19490,69 @@ final class XmlHtmlDom
         $summary['timeValue'] = $datetime['value'];
         $summary['timeValueKind'] = $datetime['kind'];
         $summary['timeValueValid'] = true;
+        $summary['timeDatetimeConforming'] = true;
+        $summary['timeValueConforming'] = true;
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param list<array<string, mixed>> $issues
+     * @return array<string, mixed>
+     */
+    private static function withTimeDatetimeIssues(array $summary, array $issues): array
+    {
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        $summary['timeDatetimeIssues'] = $issues;
+        $summary['timeDatetimeIssueCodes'] = $issueCodes;
+        $summary['timeDatetimeIssueCount'] = count($issues);
+        $summary['timeDatetimeConforming'] = $issues === [];
+        $summary['timeValueIssues'] = $issues;
+        $summary['timeValueIssueCodes'] = $issueCodes;
+        $summary['timeValueIssueCount'] = count($issues);
+        $summary['timeValueConforming'] = $issues === [];
+
+        return $summary;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function timeDatetimeIssueRecords(string $source, string $candidate): array
+    {
+        $trimmed = trim($candidate);
+        $record = [
+            'source' => $source,
+            'byteLength' => strlen($candidate),
+        ];
+
+        if ($trimmed === '') {
+            return [[
+                'code' => 'empty-time-datetime',
+            ] + $record];
+        }
+
+        if (strlen($trimmed) > 128) {
+            return [[
+                'code' => 'oversize-time-datetime',
+                'trimmedByteLength' => strlen($trimmed),
+            ] + $record];
+        }
+
+        if (preg_match('/[<>{}`]/', $trimmed) === 1) {
+            return [[
+                'code' => 'unsafe-time-datetime-token',
+            ] + $record];
+        }
+
+        return [[
+            'code' => $source === 'text' ? 'invalid-time-text' : 'invalid-time-datetime',
+        ] + $record];
     }
 
     /**
