@@ -14,6 +14,7 @@ return [
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $sources = docx_zip_source_record_content_type_source_index_by(
             $summary['partZipSourceRecordContentTypeSources'],
@@ -31,6 +32,32 @@ return [
         $t->same(0, $summary['partZipSourceRecordContentTypeSourceDataDescriptorPartCount']);
         $t->same(0, $summary['partZipSourceRecordContentTypeSourceIssuePartCount']);
         $t->same($summary['partZipSourceRecordPartCount'], array_sum($summary['partZipSourceRecordContentTypeSourceCounts']));
+        $t->same($identity, $document->attr('docx')['packageIdentity']);
+        $t->same(
+            $summary['partZipSourceRecordContentTypeSourceCount'],
+            $identity['partZipSourceRecordContentTypeSourceCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordContentTypeSourceCounts'],
+            $identity['partZipSourceRecordContentTypeSourceCounts']
+        );
+        $t->same(
+            $summary['partZipSourceRecordContentTypeSourceBytes'],
+            $identity['partZipSourceRecordContentTypeSourceBytes']
+        );
+        $t->same(
+            $summary['partZipSourceRecordContentTypeSourceDataDescriptorPartCount'],
+            $identity['partZipSourceRecordContentTypeSourceDataDescriptorPartCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordContentTypeSourceIssuePartCount'],
+            $identity['partZipSourceRecordContentTypeSourceIssuePartCount']
+        );
+        $t->same($summary['partZipSourceRecordContentTypeSources'], $identity['partZipSourceRecordContentTypeSources']);
+        $t->same(
+            false,
+            array_key_exists('contents', $identity['partZipSourceRecordContentTypeSources'][0]['largestSourceRecordPart'])
+        );
 
         $default = $sources['default'];
         $t->same(6, $default['partCount']);

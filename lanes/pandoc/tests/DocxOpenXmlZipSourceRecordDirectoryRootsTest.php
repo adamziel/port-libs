@@ -11,6 +11,7 @@ return [
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $roots = docx_zip_source_record_index_by($summary['partZipSourceRecordDirectoryRoots'], 'directoryRoot');
 
@@ -37,6 +38,36 @@ return [
         $t->same(
             docx_zip_source_record_sum_by_root($inventory, 'sourceRecordBytes'),
             $summary['partZipSourceRecordDirectoryRootBytes']
+        );
+        $t->same($identity, $document->attr('docx')['packageIdentity']);
+        $t->same(
+            $summary['partZipSourceRecordDirectoryRootCount'],
+            $identity['partZipSourceRecordDirectoryRootCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordDirectoryRootCounts'],
+            $identity['partZipSourceRecordDirectoryRootCounts']
+        );
+        $t->same($summary['partZipSourceRecordDirectoryRootBytes'], $identity['partZipSourceRecordDirectoryRootBytes']);
+        $t->same($summary['partZipSourceRecordPartCount'], $identity['partZipSourceRecordPartCount']);
+        $t->same($summary['partZipSourceRecordByteLength'], $identity['partZipSourceRecordByteLength']);
+        $t->same(
+            $summary['partZipSourceRecordLocalRecordByteLength'],
+            $identity['partZipSourceRecordLocalRecordByteLength']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCentralDirectoryRecordByteLength'],
+            $identity['partZipSourceRecordCentralDirectoryRecordByteLength']
+        );
+        $t->same(
+            $summary['partZipSourceRecordDataDescriptorPartCount'],
+            $identity['partZipSourceRecordDataDescriptorPartCount']
+        );
+        $t->same($summary['partZipSourceRecordIssuePartCount'], $identity['partZipSourceRecordIssuePartCount']);
+        $t->same($summary['partZipSourceRecordDirectoryRoots'], $identity['partZipSourceRecordDirectoryRoots']);
+        $t->same(
+            false,
+            array_key_exists('contents', $identity['partZipSourceRecordDirectoryRoots'][0]['largestSourceRecordPart'])
         );
 
         $word = $roots['word/'];

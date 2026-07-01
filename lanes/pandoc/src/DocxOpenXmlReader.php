@@ -35753,6 +35753,28 @@ final class DocxOpenXmlReader
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
             'zipEntryCount' => (int) ($summary['zipEntryCount'] ?? 0),
+            'partZipSourceRecordDirectoryRootCount' => (int) ($summary['partZipSourceRecordDirectoryRootCount'] ?? 0),
+            'partZipSourceRecordDirectoryRootCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordDirectoryRootCounts'] ?? []
+            ),
+            'partZipSourceRecordDirectoryRootBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordDirectoryRootBytes'] ?? []
+            ),
+            'partZipSourceRecordPartCount' => (int) ($summary['partZipSourceRecordPartCount'] ?? 0),
+            'partZipSourceRecordByteLength' => (int) ($summary['partZipSourceRecordByteLength'] ?? 0),
+            'partZipSourceRecordLocalRecordByteLength' => (int) (
+                $summary['partZipSourceRecordLocalRecordByteLength'] ?? 0
+            ),
+            'partZipSourceRecordCentralDirectoryRecordByteLength' => (int) (
+                $summary['partZipSourceRecordCentralDirectoryRecordByteLength'] ?? 0
+            ),
+            'partZipSourceRecordDataDescriptorPartCount' => (int) (
+                $summary['partZipSourceRecordDataDescriptorPartCount'] ?? 0
+            ),
+            'partZipSourceRecordIssuePartCount' => (int) ($summary['partZipSourceRecordIssuePartCount'] ?? 0),
+            'partZipSourceRecordDirectoryRoots' => is_array($summary['partZipSourceRecordDirectoryRoots'] ?? null)
+                ? array_values($summary['partZipSourceRecordDirectoryRoots'])
+                : [],
             'partZipSourceRecordCompressionMethodCount' => (int) ($summary['partZipSourceRecordCompressionMethodCount'] ?? 0),
             'partZipSourceRecordCompressionMethodCounts' => $this->packageIdentityCountMap(
                 $summary['partZipSourceRecordCompressionMethodCounts'] ?? []
@@ -35793,6 +35815,65 @@ final class DocxOpenXmlReader
             ),
             'partZipSourceRecordRoles' => is_array($summary['partZipSourceRecordRoles'] ?? null)
                 ? array_values($summary['partZipSourceRecordRoles'])
+                : [],
+            'partZipSourceRecordContentTypeCount' => (int) ($summary['partZipSourceRecordContentTypeCount'] ?? 0),
+            'partZipSourceRecordContentTypeCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordContentTypeCounts'] ?? []
+            ),
+            'partZipSourceRecordContentTypeBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordContentTypeBytes'] ?? []
+            ),
+            'partZipSourceRecordContentTypeDataDescriptorPartCount' => (int) (
+                $summary['partZipSourceRecordContentTypeDataDescriptorPartCount'] ?? 0
+            ),
+            'partZipSourceRecordContentTypeIssuePartCount' => (int) (
+                $summary['partZipSourceRecordContentTypeIssuePartCount'] ?? 0
+            ),
+            'partZipSourceRecordContentTypes' => is_array($summary['partZipSourceRecordContentTypes'] ?? null)
+                ? array_values($summary['partZipSourceRecordContentTypes'])
+                : [],
+            'partZipSourceRecordContentTypeSourceCount' => (int) (
+                $summary['partZipSourceRecordContentTypeSourceCount'] ?? 0
+            ),
+            'partZipSourceRecordContentTypeSourceCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordContentTypeSourceCounts'] ?? []
+            ),
+            'partZipSourceRecordContentTypeSourceBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordContentTypeSourceBytes'] ?? []
+            ),
+            'partZipSourceRecordContentTypeSourceDataDescriptorPartCount' => (int) (
+                $summary['partZipSourceRecordContentTypeSourceDataDescriptorPartCount'] ?? 0
+            ),
+            'partZipSourceRecordContentTypeSourceIssuePartCount' => (int) (
+                $summary['partZipSourceRecordContentTypeSourceIssuePartCount'] ?? 0
+            ),
+            'partZipSourceRecordContentTypeSources' => is_array(
+                $summary['partZipSourceRecordContentTypeSources'] ?? null
+            )
+                ? array_values($summary['partZipSourceRecordContentTypeSources'])
+                : [],
+            'partZipSourceRecordPackagePartExtensionCount' => (int) (
+                $summary['partZipSourceRecordPackagePartExtensionCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePartExtensionCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePartExtensionCounts'] ?? []
+            ),
+            'partZipSourceRecordPackagePartExtensionBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordPackagePartExtensionBytes'] ?? []
+            ),
+            'partZipSourceRecordExtensionlessPackagePartCount' => (int) (
+                $summary['partZipSourceRecordExtensionlessPackagePartCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePartExtensionDataDescriptorPartCount' => (int) (
+                $summary['partZipSourceRecordPackagePartExtensionDataDescriptorPartCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePartExtensionIssuePartCount' => (int) (
+                $summary['partZipSourceRecordPackagePartExtensionIssuePartCount'] ?? 0
+            ),
+            'partZipSourceRecordPackagePartExtensions' => is_array(
+                $summary['partZipSourceRecordPackagePartExtensions'] ?? null
+            )
+                ? array_values($summary['partZipSourceRecordPackagePartExtensions'])
                 : [],
             'packageBasenameCount' => (int) ($summary['partBaseNameCount'] ?? 0),
             'packageBasenameCounts' => $this->packageIdentityCountMap($summary['partBaseNameCounts'] ?? []),

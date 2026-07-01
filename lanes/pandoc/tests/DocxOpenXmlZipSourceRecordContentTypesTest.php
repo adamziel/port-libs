@@ -14,6 +14,7 @@ return [
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $contentTypes = docx_zip_source_record_content_type_index_by(
             $summary['partZipSourceRecordContentTypes'],
@@ -31,6 +32,23 @@ return [
         $t->same(0, $summary['partZipSourceRecordContentTypeDataDescriptorPartCount']);
         $t->same(0, $summary['partZipSourceRecordContentTypeIssuePartCount']);
         $t->same($summary['partZipSourceRecordPartCount'], array_sum($summary['partZipSourceRecordContentTypeCounts']));
+        $t->same($identity, $document->attr('docx')['packageIdentity']);
+        $t->same($summary['partZipSourceRecordContentTypeCount'], $identity['partZipSourceRecordContentTypeCount']);
+        $t->same($summary['partZipSourceRecordContentTypeCounts'], $identity['partZipSourceRecordContentTypeCounts']);
+        $t->same($summary['partZipSourceRecordContentTypeBytes'], $identity['partZipSourceRecordContentTypeBytes']);
+        $t->same(
+            $summary['partZipSourceRecordContentTypeDataDescriptorPartCount'],
+            $identity['partZipSourceRecordContentTypeDataDescriptorPartCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordContentTypeIssuePartCount'],
+            $identity['partZipSourceRecordContentTypeIssuePartCount']
+        );
+        $t->same($summary['partZipSourceRecordContentTypes'], $identity['partZipSourceRecordContentTypes']);
+        $t->same(
+            false,
+            array_key_exists('contents', $identity['partZipSourceRecordContentTypes'][0]['largestSourceRecordPart'])
+        );
 
         $relationships = $contentTypes['application/vnd.openxmlformats-package.relationships+xml'];
         $t->same(2, $relationships['partCount']);

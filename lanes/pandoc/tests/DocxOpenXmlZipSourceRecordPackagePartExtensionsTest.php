@@ -14,6 +14,7 @@ return [
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $extensions = docx_zip_source_record_package_part_extension_index_by(
             $summary['partZipSourceRecordPackagePartExtensions'],
@@ -32,6 +33,39 @@ return [
         $t->same(0, $summary['partZipSourceRecordPackagePartExtensionDataDescriptorPartCount']);
         $t->same(0, $summary['partZipSourceRecordPackagePartExtensionIssuePartCount']);
         $t->same($summary['partZipSourceRecordPartCount'], array_sum($summary['partZipSourceRecordPackagePartExtensionCounts']));
+        $t->same($identity, $document->attr('docx')['packageIdentity']);
+        $t->same(
+            $summary['partZipSourceRecordPackagePartExtensionCount'],
+            $identity['partZipSourceRecordPackagePartExtensionCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordPackagePartExtensionCounts'],
+            $identity['partZipSourceRecordPackagePartExtensionCounts']
+        );
+        $t->same(
+            $summary['partZipSourceRecordPackagePartExtensionBytes'],
+            $identity['partZipSourceRecordPackagePartExtensionBytes']
+        );
+        $t->same(
+            $summary['partZipSourceRecordExtensionlessPackagePartCount'],
+            $identity['partZipSourceRecordExtensionlessPackagePartCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordPackagePartExtensionDataDescriptorPartCount'],
+            $identity['partZipSourceRecordPackagePartExtensionDataDescriptorPartCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordPackagePartExtensionIssuePartCount'],
+            $identity['partZipSourceRecordPackagePartExtensionIssuePartCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordPackagePartExtensions'],
+            $identity['partZipSourceRecordPackagePartExtensions']
+        );
+        $t->same(
+            false,
+            array_key_exists('contents', $identity['partZipSourceRecordPackagePartExtensions'][0]['largestSourceRecordPart'])
+        );
 
         $xml = $extensions['xml'];
         $t->same(3, $xml['partCount']);
