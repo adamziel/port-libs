@@ -1146,6 +1146,7 @@ final class NativeWriter
     {
         return match ($node->type) {
             'text' => $this->renderTextInline((string) $node->attr('text', '')),
+            'space' => ['Space'],
             'softbreak' => ['SoftBreak'],
             'linebreak' => ['LineBreak'],
             'emph' => ['Emph ' . $this->renderInlineList($node->children)],
@@ -1213,7 +1214,7 @@ final class NativeWriter
     {
         $captionBlocks = $node->attr('captionBlocks', null);
         if (is_array($captionBlocks) && $this->isAstNodeList($captionBlocks)) {
-            return $captionBlocks;
+            return $this->mixedNodesAsBlocks($captionBlocks);
         }
 
         $captionInlines = $this->captionInlines($node->attr('captionInlines', null), $node->attr('caption', null));
@@ -1222,6 +1223,34 @@ final class NativeWriter
         }
 
         return [new AstNode('plain', [], $captionInlines)];
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @return list<AstNode>
+     */
+    private function mixedNodesAsBlocks(array $nodes): array
+    {
+        $blocks = [];
+        $inlines = [];
+        foreach ($nodes as $node) {
+            if ($this->isInlineNode($node)) {
+                $inlines[] = $node;
+                continue;
+            }
+
+            if ($inlines !== []) {
+                $blocks[] = new AstNode('plain', [], $inlines);
+                $inlines = [];
+            }
+            $blocks[] = $node;
+        }
+
+        if ($inlines !== []) {
+            $blocks[] = new AstNode('plain', [], $inlines);
+        }
+
+        return $blocks;
     }
 
     /**
@@ -1674,6 +1703,7 @@ final class NativeWriter
     {
         return in_array($node->type, [
             'text',
+            'space',
             'softbreak',
             'linebreak',
             'emph',

@@ -1629,6 +1629,8 @@
         "mappedSharedOpcZipCentralDirectorySourceRecordCases": 1,
         "mappedLegacyBiblatexLiteralListMetadataCases": 1,
         "mappedJsonNativeTargetConstructorEditCases": 1,
+        "mappedJsonNativeMixedCaptionNativeWriterCases": 1,
+        "jsonNativeMixedCaptionNativeWriterAssertions": 23,
         "mappedLegacyBiblatexSecondaryEditorRoleCases": 1,
         "mappedLegacyBiblatexDivisionPartNumberCases": 1,
         "mappedLegacyBiblatexPrimaryClassArchiveCases": 1,
