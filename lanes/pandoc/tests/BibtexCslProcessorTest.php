@@ -3209,6 +3209,86 @@ XML);
         $t->contains('<p>Relation source [Relation Review Manual | Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related | dataonly, skipbib | missing-related | Xref: Source Proceedings (2023)] keeps relation handoff metadata.</p>', $blocks);
         $t->contains('Relation Review Manual :: Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related :: dataonly, skipbib :: missing-related :: Xref: Source Proceedings (2023)', $blocks);
     },
+    'labels known biblatex related types without explicit related strings in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{reprint-manual,
+  author      = {Ng, Nia},
+  title       = {Reprint Manual},
+  date        = {2026},
+  related     = {original-packet, missing-original},
+  relatedtype = {reprintof}
+}
+
+@book{translation-manual,
+  author      = {Roe, Pat},
+  title       = {Translation Manual},
+  date        = {2025},
+  related     = {source-edition},
+  relatedtype = {translation_of}
+}
+
+@book{companion-manual,
+  author      = {Ito, Ira},
+  title       = {Companion Manual},
+  date        = {2024},
+  related     = {companion-packet},
+  relatedtype = {companion}
+}
+
+@book{original-packet,
+  options = {dataonly},
+  title   = {Original Packet},
+  date    = {1999}
+}
+
+@book{source-edition,
+  options = {dataonly},
+  title   = {Source Edition},
+  date    = {2020}
+}
+
+@book{companion-packet,
+  options = {dataonly},
+  title   = {Companion Packet},
+  date    = {2021}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+
+        $t->same('Reprint of: Original Packet (1999); missing: missing-original', $items['reprint-manual']['relatedSummary'] ?? null);
+        $t->same('Translation of: Source Edition (2020)', $items['translation-manual']['relatedSummary'] ?? null);
+        $t->same('Related source (companion): Companion Packet (2021)', $items['companion-manual']['relatedSummary'] ?? null);
+        $t->contains('Reprint of: Original Packet (1999); missing: missing-original', $processor->renderBibliographyText($items['reprint-manual']));
+        $t->contains('Related source (companion): Companion Packet (2021)', $processor->renderBibliographyText($items['companion-manual']));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Reprint Manual | Reprint of: Original Packet (1999); missing: missing-original]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'reprint-manual', 'text' => '[@reprint-manual]']),
+        ]));
+        $t->same('Translation Manual :: Translation of: Source Edition (2020)', $styled->renderBibliographyEntry('translation-manual'));
+        $t->same('Companion Manual :: Related source (companion): Companion Packet (2021)', $styled->renderBibliographyEntry('companion-manual'));
+    },
     'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-date-addendum,

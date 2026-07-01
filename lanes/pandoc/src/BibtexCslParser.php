@@ -1520,6 +1520,23 @@ final class BibtexCslParser
     {
         return match (strtolower(str_replace('_', '-', trim($type)))) {
             'license' => 'License',
+            'translationof', 'translation-of' => 'Translation of',
+            'translatedas', 'translated-as' => 'Translated as',
+            'reprintof', 'reprint-of' => 'Reprint of',
+            'reprintas', 'reprint-as' => 'Reprinted as',
+            'reviewof', 'review-of' => 'Review of',
+            'reviewas', 'review-as' => 'Reviewed as',
+            'commentaryof', 'commentary-of' => 'Commentary on',
+            'commentaryas', 'commentary-as' => 'Commentary published as',
+            'annotationof', 'annotation-of' => 'Annotation of',
+            'annotatedby', 'annotated-by' => 'Annotated by',
+            'updateof', 'update-of' => 'Update of',
+            'updatedby', 'updated-by' => 'Updated by',
+            'supplementto', 'supplement-to' => 'Supplement to',
+            'supplementedby', 'supplemented-by' => 'Supplemented by',
+            'partof', 'part-of' => 'Part of',
+            'continuedby', 'continued-by' => 'Continued by',
+            'continues' => 'Continues',
             default => 'Related source',
         };
     }

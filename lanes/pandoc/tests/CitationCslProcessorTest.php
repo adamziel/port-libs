@@ -1919,6 +1919,87 @@ XML);
         $t->same('Alias Manual | reviewof | source-packet, missing-packet', $styled->renderCitationCluster([$citation('alias-manual', '[@alias-manual]')]));
         $t->same('Alias Manual :: Reviews alias packet (reviewof): Source Packet (2025-04-01); missing: missing-packet :: skipbib=true, dataonly=false :: missing-packet', $styled->renderBibliographyEntry('alias-manual'));
     },
+    'labels known biblatex related types without explicit related strings for csl rendering' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{review-manual,
+  title       = {Review Manual},
+  date        = {2026},
+  related     = {source-article, missing-source},
+  relatedtype = {reviewof}
+}
+
+@book{updated-manual,
+  title       = {Updated Manual},
+  date        = {2025},
+  related     = {update-packet},
+  relatedtype = {updated_by}
+}
+
+@book{companion-manual,
+  title       = {Companion Manual},
+  date        = {2024},
+  related     = {companion-packet},
+  relatedtype = {companion}
+}
+
+@article{source-article,
+  options = {dataonly},
+  title   = {Source Article},
+  date    = {2025}
+}
+
+@book{update-packet,
+  options = {dataonly},
+  title   = {Update Packet},
+  date    = {2026}
+}
+
+@book{companion-packet,
+  options = {dataonly},
+  title   = {Companion Packet},
+  date    = {2023}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $itemsById = [];
+        foreach ($items as $item) {
+            $itemsById[(string) ($item['id'] ?? '')] = $item;
+        }
+
+        $t->same(3, count($items));
+        $t->same('Review of: Source Article (2025); missing: missing-source', $itemsById['review-manual']['relatedSummary'] ?? null);
+        $t->same('Updated by: Update Packet (2026)', $itemsById['updated-manual']['relatedSummary'] ?? null);
+        $t->same('Related source (companion): Companion Packet (2023)', $itemsById['companion-manual']['relatedSummary'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $t->same('Review Manual. 2026. Review of: Source Article (2025); missing: missing-source.', $processor->renderBibliographyEntry('review-manual'));
+        $t->same('Updated Manual. 2025. Updated by: Update Packet (2026).', $processor->renderBibliographyEntry('updated-manual'));
+        $t->same('Companion Manual. 2024. Related source (companion): Companion Packet (2023).', $processor->renderBibliographyEntry('companion-manual'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Review Manual | Review of: Source Article (2025); missing: missing-source]', $styled->renderCitationCluster([$citation('review-manual', '[@review-manual]')]));
+        $t->same('Updated Manual :: Updated by: Update Packet (2026)', $styled->renderBibliographyEntry('updated-manual'));
+        $t->same('Companion Manual :: Related source (companion): Companion Packet (2023)', $styled->renderBibliographyEntry('companion-manual'));
+    },
     'maps bounded biblatex related options into csl review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @set{migration-review-set,
