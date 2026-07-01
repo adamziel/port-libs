@@ -29,7 +29,7 @@ $manifestXml = <<<XML
   <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
   <manifest:file-entry manifest:full-path="Extensions/Audit/" manifest:media-type=""/>
   <manifest:file-entry manifest:full-path="Extensions/Audit/description.xml" manifest:media-type="text/xml" manifest:size="{$descriptionSize}"/>
-  <manifest:file-entry manifest:full-path="Extensions/Audit/config.xcu" manifest:media-type="text/xml" manifest:size="{$configSize}"/>
+  <manifest:file-entry manifest:full-path="Extensions/Audit/config.xcu" manifest:media-type="text/xml" manifest:size="{$configSize}bytes"/>
   <manifest:file-entry manifest:full-path="Extensions/Audit/icon.png" manifest:media-type="image/png" manifest:size="{$iconSize}"/>
   <manifest:file-entry manifest:full-path="Extensions/Audit/script.js" manifest:media-type="application/javascript" manifest:size="{$scriptSize}"/>
   <manifest:file-entry manifest:full-path="Extensions/Audit/missing.jar" manifest:media-type="application/java-archive" manifest:size="21"/>
@@ -149,9 +149,11 @@ return [
         $t->same(1, $readerExtensions['encryptedCount']);
         $t->same(0, $readerExtensions['missingMediaTypeCount']);
         $t->same(0, $readerExtensions['invalidMediaTypeCount']);
-        $t->same(3, $readerExtensions['issueCount']);
+        $t->same(1, $readerExtensions['invalidDeclaredSizeCount']);
+        $t->same(4, $readerExtensions['issueCount']);
         $t->same([
             'odf-extension-package-encrypted-part',
+            'odf-extension-package-invalid-declared-size',
             'odf-extension-package-missing-part',
             'odf-extension-package-undeclared-part',
         ], $readerExtensions['issueCodes']);
@@ -186,6 +188,12 @@ return [
         $t->same('extension-configuration', $configuration['kind']);
         $t->same('text/xml', $configuration['mediaTypeBase']);
         $t->same(strlen($configXml), $configuration['byteLength']);
+        $t->same(null, $configuration['declaredSize']);
+        $t->same(strlen($configXml) . 'bytes', $configuration['declaredSizeRaw']);
+        $t->same(false, $configuration['declaredSizeValid']);
+        $t->same(true, $configuration['declaredSizeInvalid']);
+        $t->same(false, $configuration['declaredSizeMismatch']);
+        $t->same(['odf-extension-package-invalid-declared-size'], $configuration['issues']);
 
         $icon = $readerItems['Extensions/Audit/icon.png'];
         $t->same('extension-media-resource', $icon['kind']);
@@ -275,7 +283,8 @@ return [
         $t->same(1, $compactExtensions['missingCount']);
         $t->same(1, $compactExtensions['directoryCount']);
         $t->same(1, $compactExtensions['encryptedCount']);
-        $t->same(3, $compactExtensions['issueCount']);
+        $t->same(1, $compactExtensions['invalidDeclaredSizeCount']);
+        $t->same(4, $compactExtensions['issueCount']);
         $t->same($readerExtensions['issueCodes'], $compactExtensions['issueCodes']);
         $t->same($readerExtensions['kindCounts'], $compactExtensions['kindCounts']);
         $t->same($readerExtensions['groupCounts'], $compactExtensions['groupCounts']);
@@ -287,6 +296,12 @@ return [
         $t->same(strlen($descriptionXml), $compactItems['Extensions/Audit/description.xml']['byteLength']);
         $t->same(sprintf('%08x', crc32($descriptionXml)), $compactItems['Extensions/Audit/description.xml']['crc32']);
         $t->same('extension-configuration', $compactItems['Extensions/Audit/config.xcu']['kind']);
+        $t->same(null, $compactItems['Extensions/Audit/config.xcu']['declaredSize']);
+        $t->same(strlen($configXml) . 'bytes', $compactItems['Extensions/Audit/config.xcu']['declaredSizeRaw']);
+        $t->same(false, $compactItems['Extensions/Audit/config.xcu']['declaredSizeValid']);
+        $t->same(true, $compactItems['Extensions/Audit/config.xcu']['declaredSizeInvalid']);
+        $t->same(false, $compactItems['Extensions/Audit/config.xcu']['declaredSizeMismatch']);
+        $t->same(['odf-extension-package-invalid-declared-size'], $compactItems['Extensions/Audit/config.xcu']['issues']);
         $t->same('extension-media-resource', $compactItems['Extensions/Audit/icon.png']['kind']);
         $t->same('extension-script', $compactItems['Extensions/Audit/script.js']['kind']);
         $t->same(['odf-extension-package-missing-part'], $compactItems['Extensions/Audit/missing.jar']['issues']);
