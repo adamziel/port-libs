@@ -142,6 +142,111 @@ final class OpenDocumentPackage
         );
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function rawImportPreflight(
+        string $bytes,
+        ?int $maxTotalUncompressedBytes = null,
+        ?float $maxExpansionRatio = null,
+        ?int $maxEntryUncompressedBytes = null
+    ): array {
+        $zipPreflight = ZipPackage::rawStrictImportPreflight(
+            $bytes,
+            $maxTotalUncompressedBytes,
+            $maxExpansionRatio,
+            $maxEntryUncompressedBytes
+        );
+        $mimetypeEntry = self::rawMimetypeEntryPreflight($bytes);
+        $zip64 = is_array($zipPreflight['zip64EndOfCentralDirectory'] ?? null)
+            ? $zipPreflight['zip64EndOfCentralDirectory']
+            : null;
+        $diagnostics = [];
+        $addDiagnostic = static function (string $diagnostic) use (&$diagnostics): void {
+            if (!in_array($diagnostic, $diagnostics, true)) {
+                $diagnostics[] = $diagnostic;
+            }
+        };
+        foreach (($zipPreflight['diagnostics'] ?? []) as $diagnostic) {
+            if (is_string($diagnostic) && $diagnostic !== '') {
+                $addDiagnostic($diagnostic);
+            }
+        }
+        foreach (($mimetypeEntry['diagnostics'] ?? []) as $diagnostic) {
+            if (is_string($diagnostic) && $diagnostic !== '') {
+                $addDiagnostic($diagnostic);
+            }
+        }
+
+        $zipPackage = null;
+        $zipPackageInstantiationError = is_string($zipPreflight['instantiationError'] ?? null)
+            ? $zipPreflight['instantiationError']
+            : null;
+        $canInstantiateZipPackage = false;
+        if (($zipPreflight['canInstantiate'] ?? false) === true) {
+            try {
+                $zipPackage = ZipPackage::fromString($bytes);
+                $canInstantiateZipPackage = true;
+                $zipPackageInstantiationError = null;
+            } catch (\RuntimeException $exception) {
+                $zipPackageInstantiationError = $exception->getMessage();
+                $addDiagnostic('zip-package-instantiation-failed');
+            }
+        } else {
+            $addDiagnostic('zip-package-instantiation-failed');
+        }
+
+        $openDocumentPackageInstantiationError = null;
+        $canInstantiateOpenDocumentPackage = false;
+        $manifestVersion = null;
+        $manifestEntryCount = null;
+        if ($zipPackage instanceof ZipPackage) {
+            try {
+                $openDocumentPackage = self::fromPackage($zipPackage);
+                $canInstantiateOpenDocumentPackage = true;
+                $manifestVersion = $openDocumentPackage->manifestVersion();
+                $manifestEntryCount = count($openDocumentPackage->manifestEntries());
+            } catch (\InvalidArgumentException|\RuntimeException $exception) {
+                $openDocumentPackageInstantiationError = $exception->getMessage();
+                $addDiagnostic('odf-package-instantiation-failed');
+            }
+        } else {
+            $openDocumentPackageInstantiationError = $zipPackageInstantiationError
+                ?? 'ZIP package could not be instantiated';
+            $addDiagnostic('odf-package-instantiation-failed');
+        }
+
+        return [
+            'format' => 'odf',
+            'packageByteLength' => strlen($bytes),
+            'entryCount' => (int) ($zipPreflight['entryCount'] ?? 0),
+            'isValid' => $canInstantiateOpenDocumentPackage
+                && ($zipPreflight['isValid'] ?? false) === true
+                && ($mimetypeEntry['matchesOpenDocumentText'] ?? false) === true,
+            'isOpenDocumentTextPackage' => $canInstantiateOpenDocumentPackage
+                || ($mimetypeEntry['matchesOpenDocumentText'] ?? false) === true,
+            'canInstantiateZipPackage' => $canInstantiateZipPackage,
+            'zipPackageInstantiationError' => $zipPackageInstantiationError,
+            'canInstantiateOpenDocumentPackage' => $canInstantiateOpenDocumentPackage,
+            'openDocumentPackageInstantiationError' => $openDocumentPackageInstantiationError,
+            'manifestVersion' => $manifestVersion,
+            'manifestEntryCount' => $manifestEntryCount,
+            'mimetypeEntry' => $mimetypeEntry,
+            'requiresZip64' => $zip64 !== null && ($zip64['requiresZip64'] ?? false) === true,
+            'hasZip64EndOfCentralDirectoryLocator' => $zip64 !== null
+                && ($zip64['hasZip64EndOfCentralDirectoryLocator'] ?? false) === true,
+            'hasZip64EndOfCentralDirectory' => $zip64 !== null
+                && ($zip64['hasZip64EndOfCentralDirectory'] ?? false) === true,
+            'zip64EndOfCentralDirectoryIssueCodes' => $zip64['issues'] ?? [],
+            'zip64EndOfCentralDirectory' => $zip64,
+            'zipRawStrictImport' => $zipPreflight,
+            'diagnosticCount' => count($diagnostics),
+            'diagnostics' => $diagnostics,
+            'byteExposurePolicy' => 'odf-raw-package-import-metadata-only',
+            'canExposeBytes' => false,
+        ];
+    }
+
     public function package(): ZipPackage
     {
         return $this->package;
@@ -10197,6 +10302,162 @@ final class OpenDocumentPackage
             8 => 'deflated',
             default => 'unsupported',
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function rawMimetypeEntryPreflight(string $bytes): array
+    {
+        $diagnostics = [];
+        $length = strlen($bytes);
+        if ($length < 30 || substr($bytes, 0, 4) !== "PK\x03\x04") {
+            return [
+                'exists' => false,
+                'isFirstLocalEntry' => false,
+                'entryName' => null,
+                'mediaType' => null,
+                'matchesOpenDocumentText' => false,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'usesDataDescriptor' => null,
+                'localHeaderOffset' => 0,
+                'localHeaderLength' => null,
+                'localNameLength' => null,
+                'localExtraFieldLength' => null,
+                'contentBytes' => null,
+                'compressedByteLength' => null,
+                'uncompressedByteLength' => null,
+                'payloadAvailable' => false,
+                'byteExposurePolicy' => 'odf-mimetype-validation-only',
+                'canExposeBytes' => false,
+                'diagnostics' => ['odf-raw-mimetype-local-header-missing'],
+            ];
+        }
+
+        $generalPurposeFlags = self::rawReadUInt16($bytes, 6);
+        $compressionMethod = self::rawReadUInt16($bytes, 8);
+        $compressedBytes = self::rawReadUInt32($bytes, 18);
+        $uncompressedBytes = self::rawReadUInt32($bytes, 22);
+        $nameLength = self::rawReadUInt16($bytes, 26);
+        $extraFieldLength = self::rawReadUInt16($bytes, 28);
+        if (
+            $generalPurposeFlags === null
+            || $compressionMethod === null
+            || $compressedBytes === null
+            || $uncompressedBytes === null
+            || $nameLength === null
+            || $extraFieldLength === null
+        ) {
+            return [
+                'exists' => false,
+                'isFirstLocalEntry' => false,
+                'entryName' => null,
+                'mediaType' => null,
+                'matchesOpenDocumentText' => false,
+                'compressionMethod' => null,
+                'compressionMethodName' => null,
+                'usesDataDescriptor' => null,
+                'localHeaderOffset' => 0,
+                'localHeaderLength' => null,
+                'localNameLength' => null,
+                'localExtraFieldLength' => null,
+                'contentBytes' => null,
+                'compressedByteLength' => null,
+                'uncompressedByteLength' => null,
+                'payloadAvailable' => false,
+                'byteExposurePolicy' => 'odf-mimetype-validation-only',
+                'canExposeBytes' => false,
+                'diagnostics' => ['odf-raw-mimetype-local-header-truncated'],
+            ];
+        }
+
+        $localHeaderLength = 30 + $nameLength + $extraFieldLength;
+        $entryName = self::rawRangeAvailable($bytes, 30, $nameLength)
+            ? substr($bytes, 30, $nameLength)
+            : null;
+        if ($entryName !== 'mimetype') {
+            $diagnostics[] = 'odf-raw-mimetype-not-first-local-entry';
+        }
+        if ($compressionMethod !== 0) {
+            $diagnostics[] = 'odf-raw-mimetype-compressed';
+        }
+        if (($generalPurposeFlags & 0x0008) !== 0) {
+            $diagnostics[] = 'odf-raw-mimetype-uses-data-descriptor';
+        }
+        if ($extraFieldLength > 0) {
+            $diagnostics[] = 'odf-raw-mimetype-local-extra-fields';
+        }
+        if ($compressionMethod === 0 && $compressedBytes !== $uncompressedBytes) {
+            $diagnostics[] = 'odf-raw-mimetype-stored-size-mismatch';
+        }
+
+        $payloadOffset = $localHeaderLength;
+        $payloadAvailable = $entryName === 'mimetype'
+            && $compressionMethod === 0
+            && self::rawRangeAvailable($bytes, $payloadOffset, $uncompressedBytes);
+        $mediaType = $payloadAvailable
+            ? substr($bytes, $payloadOffset, $uncompressedBytes)
+            : null;
+        if ($entryName === 'mimetype' && $compressionMethod === 0 && !$payloadAvailable) {
+            $diagnostics[] = 'odf-raw-mimetype-bytes-unavailable';
+        }
+        if ($mediaType !== null && $mediaType !== self::TEXT_MIMETYPE) {
+            $diagnostics[] = 'odf-raw-mimetype-mismatch';
+        }
+
+        return [
+            'exists' => $entryName === 'mimetype',
+            'isFirstLocalEntry' => $entryName === 'mimetype',
+            'entryName' => $entryName,
+            'mediaType' => $mediaType,
+            'matchesOpenDocumentText' => $mediaType === self::TEXT_MIMETYPE,
+            'compressionMethod' => $compressionMethod,
+            'compressionMethodName' => self::compressionMethodName($compressionMethod),
+            'usesDataDescriptor' => ($generalPurposeFlags & 0x0008) !== 0,
+            'generalPurposeFlags' => $generalPurposeFlags,
+            'localHeaderOffset' => 0,
+            'localHeaderLength' => $localHeaderLength,
+            'localNameLength' => $nameLength,
+            'localExtraFieldLength' => $extraFieldLength,
+            'contentBytes' => $mediaType === null ? null : strlen($mediaType),
+            'compressedByteLength' => $compressedBytes,
+            'uncompressedByteLength' => $uncompressedBytes,
+            'payloadAvailable' => $payloadAvailable,
+            'byteExposurePolicy' => 'odf-mimetype-validation-only',
+            'canExposeBytes' => false,
+            'diagnostics' => array_values(array_unique($diagnostics)),
+        ];
+    }
+
+    private static function rawReadUInt16(string $bytes, int $offset): ?int
+    {
+        if (!self::rawRangeAvailable($bytes, $offset, 2)) {
+            return null;
+        }
+
+        $value = unpack('vvalue', substr($bytes, $offset, 2));
+
+        return is_array($value) ? (int) $value['value'] : null;
+    }
+
+    private static function rawReadUInt32(string $bytes, int $offset): ?int
+    {
+        if (!self::rawRangeAvailable($bytes, $offset, 4)) {
+            return null;
+        }
+
+        $value = unpack('Vvalue', substr($bytes, $offset, 4));
+
+        return is_array($value) ? (int) $value['value'] : null;
+    }
+
+    private static function rawRangeAvailable(string $bytes, int $offset, int $length): bool
+    {
+        return $offset >= 0
+            && $length >= 0
+            && $offset <= strlen($bytes)
+            && $length <= strlen($bytes) - $offset;
     }
 
     private static function assertTextPackageMimetype(ZipPackage $package): void
