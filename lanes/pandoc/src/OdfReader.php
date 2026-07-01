@@ -1409,6 +1409,9 @@ final class OdfReader
         $rootCustomAttributeCount = 0;
         $rootCustomAttributeNames = [];
         $rootCustomAttributeItems = [];
+        $rootNamespaceDeclarationCount = 0;
+        $rootNamespaceDeclarationNames = [];
+        $rootNamespaceDeclarationItems = [];
         $manifestPartReferenceSuffixItems = [];
         $manifestMediaTypeMismatches = [];
         $byteExposurePolicyCounts = [];
@@ -1530,6 +1533,27 @@ final class OdfReader
                     'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
                 ];
             }
+            $partNamespaceDeclarationCount = (int) ($rootAttributeProvenance['namespaceDeclarationCount'] ?? 0);
+            if ($partNamespaceDeclarationCount > 0) {
+                $rootNamespaceDeclarationCount += $partNamespaceDeclarationCount;
+                foreach ($rootAttributeProvenance['namespaceDeclarationNames'] ?? [] as $declarationName) {
+                    if (is_string($declarationName) && $declarationName !== '' && !in_array($declarationName, $rootNamespaceDeclarationNames, true)) {
+                        $rootNamespaceDeclarationNames[] = $declarationName;
+                    }
+                }
+                $rootNamespaceDeclarationItems[] = [
+                    'part' => $part,
+                    'expectedRoot' => $expectedRoot,
+                    'rootName' => $rootName,
+                    'rootNamespaceDeclarationCount' => $partNamespaceDeclarationCount,
+                    'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                    'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                    'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
+                    'rootCustomAttributeCount' => $rootAttributeProvenance['customAttributeCount'] ?? 0,
+                    'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                    'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                ];
+            }
 
             $items[] = [
                 'part' => $part,
@@ -1589,6 +1613,7 @@ final class OdfReader
 
         ksort($versionCounts, SORT_STRING);
         sort($rootCustomAttributeNames, SORT_STRING);
+        sort($rootNamespaceDeclarationNames, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
 
         return [
@@ -1604,6 +1629,10 @@ final class OdfReader
             'rootCustomAttributeCount' => $rootCustomAttributeCount,
             'rootCustomAttributeNames' => $rootCustomAttributeNames,
             'rootCustomAttributeItems' => $rootCustomAttributeItems,
+            'rootNamespaceDeclarationPartCount' => count($rootNamespaceDeclarationItems),
+            'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+            'rootNamespaceDeclarationNames' => $rootNamespaceDeclarationNames,
+            'rootNamespaceDeclarationItems' => $rootNamespaceDeclarationItems,
             'manifestPartReferenceSuffixCount' => count($manifestPartReferenceSuffixItems),
             'manifestPartReferenceQueryCount' => count(array_filter(
                 $manifestPartReferenceSuffixItems,
