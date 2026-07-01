@@ -15335,10 +15335,16 @@ final class DocxOpenXmlReader
         $partZipSourceRecordRoles = $this->packagePartZipSourceRecordRoleSummary($partInventory);
         $partZipSourceRecordRoleCounts = [];
         $partZipSourceRecordRoleBytes = [];
+        $partZipSourceRecordRoleOccurrenceCount = 0;
+        $partZipSourceRecordRoleDataDescriptorOccurrenceCount = 0;
+        $partZipSourceRecordRoleIssueOccurrenceCount = 0;
         foreach ($partZipSourceRecordRoles as $sourceRecordRole) {
             $role = (string) ($sourceRecordRole['role'] ?? '');
             $partZipSourceRecordRoleCounts[$role] = (int) ($sourceRecordRole['partCount'] ?? 0);
             $partZipSourceRecordRoleBytes[$role] = (int) ($sourceRecordRole['sourceRecordBytes'] ?? 0);
+            $partZipSourceRecordRoleOccurrenceCount += (int) ($sourceRecordRole['partCount'] ?? 0);
+            $partZipSourceRecordRoleDataDescriptorOccurrenceCount += (int) ($sourceRecordRole['dataDescriptorPartCount'] ?? 0);
+            $partZipSourceRecordRoleIssueOccurrenceCount += (int) ($sourceRecordRole['sourceByteSpanIssuePartCount'] ?? 0);
         }
         ksort($partZipSourceRecordRoleCounts, SORT_STRING);
         ksort($partZipSourceRecordRoleBytes, SORT_STRING);
@@ -17998,6 +18004,9 @@ final class DocxOpenXmlReader
             'partZipSourceRecordRoleCount' => count($partZipSourceRecordRoles),
             'partZipSourceRecordRoleCounts' => $partZipSourceRecordRoleCounts,
             'partZipSourceRecordRoleBytes' => $partZipSourceRecordRoleBytes,
+            'partZipSourceRecordRoleOccurrenceCount' => $partZipSourceRecordRoleOccurrenceCount,
+            'partZipSourceRecordRoleDataDescriptorOccurrenceCount' => $partZipSourceRecordRoleDataDescriptorOccurrenceCount,
+            'partZipSourceRecordRoleIssueOccurrenceCount' => $partZipSourceRecordRoleIssueOccurrenceCount,
             'zeroBytePartCount' => count($zeroByteParts),
             'zeroBytePartNames' => array_values(array_map(
                 static fn (array $part): string => (string) $part['partName'],
@@ -19429,10 +19438,10 @@ final class DocxOpenXmlReader
             }
 
             $partName = (string) ($part['partName'] ?? $partName);
-            $partRoles = array_values(array_filter(
+            $partRoles = array_values(array_unique(array_filter(
                 array_map('strval', $part['roles'] ?? []),
                 static fn (string $role): bool => $role !== '',
-            ));
+            )));
             if ($partRoles === []) {
                 $partRoles = ['package-part'];
             }
@@ -19576,16 +19585,18 @@ final class DocxOpenXmlReader
                     ++$roles[$role]['sourceByteSpanIssuePartCount'];
                 }
 
+                $rolePartSummary = $partSummary;
+                $rolePartSummary['role'] = $role;
                 $largestPart = $roles[$role]['largestSourceRecordPart'];
                 if (
                     !is_array($largestPart)
-                    || $partSummary['sourceRecordBytes'] > (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                    || $rolePartSummary['sourceRecordBytes'] > (int) ($largestPart['sourceRecordBytes'] ?? 0)
                     || (
-                        $partSummary['sourceRecordBytes'] === (int) ($largestPart['sourceRecordBytes'] ?? 0)
-                        && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                        $rolePartSummary['sourceRecordBytes'] === (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                        && strcmp($rolePartSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
                     )
                 ) {
-                    $roles[$role]['largestSourceRecordPart'] = $partSummary;
+                    $roles[$role]['largestSourceRecordPart'] = $rolePartSummary;
                 }
             }
         }

@@ -13,6 +13,7 @@ return [
         $summary = $package['summary'];
         $inventory = $package['parts'];
         $roles = docx_zip_source_record_role_index_by($summary['partZipSourceRecordRoles'], 'role');
+        $expectedRoleCounts = docx_zip_source_record_role_counts($inventory);
         $expectedRoles = [
             'content-types',
             'core-properties',
@@ -29,14 +30,14 @@ return [
         $t->same('Source role buckets.', $document->children[0]->attr('text'));
         $t->same(count($expectedRoles), $summary['partZipSourceRecordRoleCount']);
         $t->same($expectedRoles, array_column($summary['partZipSourceRecordRoles'], 'role'));
-        $t->same(
-            docx_zip_source_record_role_counts($inventory),
-            $summary['partZipSourceRecordRoleCounts']
-        );
+        $t->same($expectedRoleCounts, $summary['partZipSourceRecordRoleCounts']);
         $t->same(
             docx_zip_source_record_role_sums($inventory, 'sourceRecordBytes'),
             $summary['partZipSourceRecordRoleBytes']
         );
+        $t->same(array_sum($expectedRoleCounts), $summary['partZipSourceRecordRoleOccurrenceCount']);
+        $t->same(0, $summary['partZipSourceRecordRoleDataDescriptorOccurrenceCount']);
+        $t->same(0, $summary['partZipSourceRecordRoleIssueOccurrenceCount']);
 
         $documentTargets = $roles['document-relationship-target'];
         $t->same(2, $documentTargets['partCount']);
@@ -60,6 +61,7 @@ return [
             $documentTargets['centralDirectoryRecordBytes']
         );
         $t->same('word/embeddings/review.xlsx', $documentTargets['largestSourceRecordPart']['partName']);
+        $t->same('document-relationship-target', $documentTargets['largestSourceRecordPart']['role']);
         $t->same(
             $inventory['word/embeddings/review.xlsx']['sourceRecordBytes'],
             $documentTargets['largestSourceRecordPart']['sourceRecordBytes']
@@ -78,6 +80,7 @@ return [
             ['document-relationship-target', 'embedded-package'],
             $embedded['largestSourceRecordPart']['roles']
         );
+        $t->same('embedded-package', $embedded['largestSourceRecordPart']['role']);
 
         $relationshipPart = $roles['relationship-part'];
         $t->same(2, $relationshipPart['partCount']);
@@ -255,10 +258,10 @@ function docx_zip_source_record_role_sum_for_role(array $inventory, string $role
  */
 function docx_zip_source_record_part_roles(array $part): array
 {
-    $roles = array_values(array_filter(
+    $roles = array_values(array_unique(array_filter(
         array_map('strval', $part['roles'] ?? []),
         static fn (string $role): bool => $role !== '',
-    ));
+    )));
 
     return $roles === [] ? ['package-part'] : $roles;
 }
