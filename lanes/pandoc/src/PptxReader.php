@@ -244,7 +244,7 @@ final class PptxReader
     private function loadPackageXmlFromUpstreamPath(ZipPackage $package, string $path, string $label): \DOMDocument
     {
         if (!in_array($path, $package->names(), true)) {
-            throw new \RuntimeException('File not found in archive: ' . $path);
+            throw new \RuntimeException('Entry not found: ' . $path);
         }
 
         return $this->loadPackageXml($package, $path, $label);
