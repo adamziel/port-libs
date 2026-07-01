@@ -2420,6 +2420,7 @@ final class OdfReader
                 'path' => $entry->name,
                 'pathSegments' => $pathSegments,
                 'pathSegmentCount' => count($pathSegments),
+                'topLevelSegment' => $pathSegments[0] ?? '',
                 'directory' => $directory,
                 'directoryDepth' => self::packagePartDirectoryDepth($directory),
                 'baseName' => self::packagePartBaseName($entry->name),
@@ -2665,6 +2666,7 @@ final class OdfReader
         ksort($manifestVersionCounts, SORT_STRING);
         ksort($manifestPreferredViewModeCounts, SORT_STRING);
         $pathDepthReview = self::packagePartPathDepthReview($parts, 'part');
+        $areaDepthSummary = self::packagePartAreaDepthSummary($parts, 'part');
 
         $provenance = [
             'mimetypeEntry' => $mimetypeEntry,
@@ -2675,6 +2677,18 @@ final class OdfReader
             'maxPartDirectoryDepth' => $pathDepthReview['maxPartDirectoryDepth'],
             'deepestPartNames' => $pathDepthReview['deepestPartNames'],
             'deepestParts' => $pathDepthReview['deepestParts'],
+            'packageTopLevelSegmentCount' => $areaDepthSummary['packageTopLevelSegmentCount'],
+            'packageTopLevelSegmentCounts' => $areaDepthSummary['packageTopLevelSegmentCounts'],
+            'packageTopLevelSegmentNames' => $areaDepthSummary['packageTopLevelSegmentNames'],
+            'packageTopLevelSegmentSummaries' => $areaDepthSummary['packageTopLevelSegmentSummaries'],
+            'packageDirectoryDepthCount' => $areaDepthSummary['packageDirectoryDepthCount'],
+            'packageDirectoryDepthCounts' => $areaDepthSummary['packageDirectoryDepthCounts'],
+            'maxPackageDirectoryDepth' => $areaDepthSummary['maxPackageDirectoryDepth'],
+            'packageDirectoryDepthSummaries' => $areaDepthSummary['packageDirectoryDepthSummaries'],
+            'deepestPackagePartNames' => $areaDepthSummary['deepestPackagePartNames'],
+            'deepestPackageParts' => $areaDepthSummary['deepestPackageParts'],
+            'packageRoleSummaryCount' => $areaDepthSummary['packageRoleSummaryCount'],
+            'packageRoleSummaries' => $areaDepthSummary['packageRoleSummaries'],
             'fileEntryCount' => $fileEntryCount,
             'directoryEntryCount' => $packageDirectoryCount,
             'totalByteLength' => $totalByteLength,
@@ -3398,6 +3412,7 @@ final class OdfReader
                 'part' => $item['part'] ?? null,
                 'pathSegments' => $item['pathSegments'] ?? [],
                 'pathSegmentCount' => $item['pathSegmentCount'] ?? null,
+                'topLevelSegment' => $item['topLevelSegment'] ?? null,
                 'directory' => $item['directory'] ?? null,
                 'directoryDepth' => $item['directoryDepth'] ?? null,
                 'baseName' => $item['baseName'] ?? null,
@@ -3605,6 +3620,12 @@ final class OdfReader
             'maxPartDirectoryDepth' => $provenance['maxPartDirectoryDepth'] ?? 0,
             'deepestPartNames' => $provenance['deepestPartNames'] ?? [],
             'deepestParts' => $provenance['deepestParts'] ?? [],
+            'packageTopLevelSegmentCounts' => $provenance['packageTopLevelSegmentCounts'] ?? [],
+            'packageDirectoryDepthCounts' => $provenance['packageDirectoryDepthCounts'] ?? [],
+            'maxPackageDirectoryDepth' => $provenance['maxPackageDirectoryDepth'] ?? 0,
+            'deepestPackagePartNames' => $provenance['deepestPackagePartNames'] ?? [],
+            'packageRoleSummaryCount' => $provenance['packageRoleSummaryCount'] ?? 0,
+            'packageRoleSummaries' => $provenance['packageRoleSummaries'] ?? [],
             'roleCounts' => $provenance['roleCounts'] ?? [],
             'undeclaredRoleCounts' => $provenance['undeclaredRoleCounts'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
@@ -3716,6 +3737,12 @@ final class OdfReader
             'maxPartDirectoryDepth' => $provenance['maxPartDirectoryDepth'] ?? 0,
             'deepestPartNames' => $provenance['deepestPartNames'] ?? [],
             'deepestParts' => $provenance['deepestParts'] ?? [],
+            'packageTopLevelSegmentCounts' => $provenance['packageTopLevelSegmentCounts'] ?? [],
+            'packageDirectoryDepthCounts' => $provenance['packageDirectoryDepthCounts'] ?? [],
+            'maxPackageDirectoryDepth' => $provenance['maxPackageDirectoryDepth'] ?? 0,
+            'deepestPackagePartNames' => $provenance['deepestPackagePartNames'] ?? [],
+            'packageRoleSummaryCount' => $provenance['packageRoleSummaryCount'] ?? 0,
+            'packageRoleSummaries' => $provenance['packageRoleSummaries'] ?? [],
             'manifestRootCustomAttributeCount' => $provenance['manifestRootCustomAttributeCount'] ?? 0,
             'manifestRootCustomAttributeNames' => $provenance['manifestRootCustomAttributeNames'] ?? [],
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
@@ -22596,6 +22623,370 @@ final class OdfReader
             )),
             'deepestParts' => $deepestParts,
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{packageTopLevelSegmentCount:int,packageTopLevelSegmentCounts:array<string, int>,packageTopLevelSegmentNames:list<string>,packageTopLevelSegmentSummaries:list<array<string, mixed>>,packageDirectoryDepthCount:int,packageDirectoryDepthCounts:array<int, int>,maxPackageDirectoryDepth:int,packageDirectoryDepthSummaries:list<array<string, mixed>>,deepestPackagePartNames:list<string>,deepestPackageParts:list<array<string, mixed>>,packageRoleSummaryCount:int,packageRoleSummaries:list<array<string, mixed>>}
+     */
+    private static function packagePartAreaDepthSummary(array $parts, string $nameField): array
+    {
+        $topLevelSegments = [];
+        $directoryDepths = [];
+        $roleSummaries = [];
+        $topLevelSegmentCounts = [];
+        $directoryDepthCounts = [];
+        $deepestParts = [];
+        $maxPackageDirectoryDepth = 0;
+
+        foreach ($parts as $fallbackName => $part) {
+            $partSummary = self::packagePartAreaDepthItem($part, $nameField, (string) $fallbackName);
+            $partName = self::packagePartAreaDepthItemName($partSummary);
+            $topLevelSegment = (string) ($partSummary['topLevelSegment'] ?? '');
+            $directory = (string) ($partSummary['directory'] ?? '/');
+            $directoryDepth = (int) ($partSummary['directoryDepth'] ?? 0);
+            $byteLength = (int) ($partSummary['byteLength'] ?? 0);
+            $compressedByteLength = (int) ($partSummary['compressedByteLength'] ?? 0);
+            $isDirectory = ($partSummary['isDirectory'] ?? false) === true;
+            $declaredInManifest = ($partSummary['declaredInManifest'] ?? false) === true;
+            $undeclared = ($partSummary['undeclared'] ?? false) === true;
+            $canExposeBytes = ($partSummary['canExposeBytes'] ?? false) === true;
+            $byteExposurePolicy = is_string($partSummary['byteExposurePolicy'] ?? null)
+                ? $partSummary['byteExposurePolicy']
+                : '';
+            $roles = array_values(array_map('strval', is_array($partSummary['roles'] ?? null) ? $partSummary['roles'] : []));
+
+            if (!isset($topLevelSegments[$topLevelSegment])) {
+                $topLevelSegments[$topLevelSegment] = self::emptyPackageAreaDepthGroup([
+                    'topLevelSegment' => $topLevelSegment,
+                ]);
+            }
+            if (!isset($directoryDepths[$directoryDepth])) {
+                $directoryDepths[$directoryDepth] = self::emptyPackageAreaDepthGroup([
+                    'directoryDepth' => $directoryDepth,
+                ]);
+            }
+
+            self::addPackageAreaDepthItemToGroup(
+                $topLevelSegments[$topLevelSegment],
+                $partSummary,
+                $partName,
+                $topLevelSegment,
+                $directory,
+                $directoryDepth,
+                $byteLength,
+                $compressedByteLength,
+                $isDirectory,
+                $declaredInManifest,
+                $undeclared,
+                $canExposeBytes,
+                $byteExposurePolicy,
+                $roles
+            );
+            self::addPackageAreaDepthItemToGroup(
+                $directoryDepths[$directoryDepth],
+                $partSummary,
+                $partName,
+                $topLevelSegment,
+                $directory,
+                $directoryDepth,
+                $byteLength,
+                $compressedByteLength,
+                $isDirectory,
+                $declaredInManifest,
+                $undeclared,
+                $canExposeBytes,
+                $byteExposurePolicy,
+                $roles
+            );
+
+            foreach ($roles as $role) {
+                if ($role === '') {
+                    continue;
+                }
+                if (!isset($roleSummaries[$role])) {
+                    $roleSummaries[$role] = self::emptyPackageAreaDepthGroup([
+                        'role' => $role,
+                    ]);
+                }
+                self::addPackageAreaDepthItemToGroup(
+                    $roleSummaries[$role],
+                    $partSummary,
+                    $partName,
+                    $topLevelSegment,
+                    $directory,
+                    $directoryDepth,
+                    $byteLength,
+                    $compressedByteLength,
+                    $isDirectory,
+                    $declaredInManifest,
+                    $undeclared,
+                    $canExposeBytes,
+                    $byteExposurePolicy,
+                    $roles
+                );
+            }
+
+            $topLevelSegmentCounts[$topLevelSegment] = ($topLevelSegmentCounts[$topLevelSegment] ?? 0) + 1;
+            $directoryDepthCounts[$directoryDepth] = ($directoryDepthCounts[$directoryDepth] ?? 0) + 1;
+            if ($directoryDepth > $maxPackageDirectoryDepth) {
+                $maxPackageDirectoryDepth = $directoryDepth;
+                $deepestParts = [];
+            }
+            if ($directoryDepth === $maxPackageDirectoryDepth) {
+                $deepestParts[] = $partSummary;
+            }
+        }
+
+        ksort($topLevelSegments, SORT_STRING);
+        ksort($directoryDepths, SORT_NUMERIC);
+        ksort($roleSummaries, SORT_STRING);
+        ksort($topLevelSegmentCounts, SORT_STRING);
+        ksort($directoryDepthCounts, SORT_NUMERIC);
+        usort(
+            $deepestParts,
+            static fn (array $left, array $right): int => strcmp(
+                self::packagePartAreaDepthItemName($left),
+                self::packagePartAreaDepthItemName($right)
+            )
+        );
+
+        return [
+            'packageTopLevelSegmentCount' => count($topLevelSegments),
+            'packageTopLevelSegmentCounts' => $topLevelSegmentCounts,
+            'packageTopLevelSegmentNames' => array_keys($topLevelSegments),
+            'packageTopLevelSegmentSummaries' => array_map(
+                static fn (array $group): array => self::finalizePackageAreaDepthGroup($group),
+                array_values($topLevelSegments)
+            ),
+            'packageDirectoryDepthCount' => count($directoryDepths),
+            'packageDirectoryDepthCounts' => $directoryDepthCounts,
+            'maxPackageDirectoryDepth' => $maxPackageDirectoryDepth,
+            'packageDirectoryDepthSummaries' => array_map(
+                static fn (array $group): array => self::finalizePackageAreaDepthGroup($group),
+                array_values($directoryDepths)
+            ),
+            'deepestPackagePartNames' => array_map(
+                static fn (array $part): string => self::packagePartAreaDepthItemName($part),
+                $deepestParts
+            ),
+            'deepestPackageParts' => $deepestParts,
+            'packageRoleSummaryCount' => count($roleSummaries),
+            'packageRoleSummaries' => array_map(
+                static fn (array $group): array => self::finalizePackageAreaDepthGroup($group),
+                array_values($roleSummaries)
+            ),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $part
+     * @return array<string, mixed>
+     */
+    private static function packagePartAreaDepthItem(array $part, string $nameField, string $fallbackName): array
+    {
+        $partName = is_string($part[$nameField] ?? null) && $part[$nameField] !== ''
+            ? $part[$nameField]
+            : $fallbackName;
+        $pathSegments = is_array($part['pathSegments'] ?? null)
+            ? array_values(array_map('strval', $part['pathSegments']))
+            : self::packagePartPathSegments($partName);
+        $directory = is_string($part['directory'] ?? null)
+            ? $part['directory']
+            : self::packagePartDirectory($partName);
+
+        return self::withoutEmpty([
+            'partName' => $partName,
+            'part' => $partName,
+            'path' => is_string($part['path'] ?? null) ? $part['path'] : $partName,
+            'topLevelSegment' => is_string($part['topLevelSegment'] ?? null) && $part['topLevelSegment'] !== ''
+                ? $part['topLevelSegment']
+                : ($pathSegments[0] ?? ''),
+            'pathSegments' => $pathSegments,
+            'pathSegmentCount' => is_int($part['pathSegmentCount'] ?? null)
+                ? $part['pathSegmentCount']
+                : count($pathSegments),
+            'directory' => $directory,
+            'directoryDepth' => is_int($part['directoryDepth'] ?? null)
+                ? $part['directoryDepth']
+                : self::packagePartDirectoryDepth($directory),
+            'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : self::packagePartBaseName($partName),
+            'byteLength' => is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0,
+            'compressedByteLength' => is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0,
+            'roles' => array_values(array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : [])),
+            'byteExposurePolicy' => is_string($part['byteExposurePolicy'] ?? null) ? $part['byteExposurePolicy'] : null,
+            'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+            'undeclared' => ($part['undeclared'] ?? false) === true,
+            'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+            'isDirectory' => ($part['isDirectory'] ?? false) === true,
+        ]);
+    }
+
+    /**
+     * @param array<string, mixed> $base
+     * @return array<string, mixed>
+     */
+    private static function emptyPackageAreaDepthGroup(array $base): array
+    {
+        return $base + [
+            'partCount' => 0,
+            'fileCount' => 0,
+            'directoryCount' => 0,
+            'byteLength' => 0,
+            'compressedByteLength' => 0,
+            'declaredInManifestCount' => 0,
+            'undeclaredEntryCount' => 0,
+            'exposableEntryCount' => 0,
+            'blockedEntryCount' => 0,
+            'roleCounts' => [],
+            'byteExposurePolicyCounts' => [],
+            'directoryDepthCounts' => [],
+            'topLevelSegmentCounts' => [],
+            'partNames' => [],
+            '_directories' => [],
+            '_topLevelSegments' => [],
+            'largestPart' => null,
+            'deepestPart' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $group
+     * @param array<string, mixed> $partSummary
+     * @param list<string> $roles
+     */
+    private static function addPackageAreaDepthItemToGroup(
+        array &$group,
+        array $partSummary,
+        string $partName,
+        string $topLevelSegment,
+        string $directory,
+        int $directoryDepth,
+        int $byteLength,
+        int $compressedByteLength,
+        bool $isDirectory,
+        bool $declaredInManifest,
+        bool $undeclared,
+        bool $canExposeBytes,
+        string $byteExposurePolicy,
+        array $roles
+    ): void {
+        ++$group['partCount'];
+        $group['byteLength'] += $byteLength;
+        $group['compressedByteLength'] += $compressedByteLength;
+        if ($isDirectory) {
+            ++$group['directoryCount'];
+        } else {
+            ++$group['fileCount'];
+        }
+        if ($declaredInManifest) {
+            ++$group['declaredInManifestCount'];
+        }
+        if ($undeclared) {
+            ++$group['undeclaredEntryCount'];
+        }
+        if ($canExposeBytes) {
+            ++$group['exposableEntryCount'];
+        } else {
+            ++$group['blockedEntryCount'];
+        }
+
+        $group['partNames'][] = $partName;
+        $group['_directories'][$directory] = true;
+        $group['_topLevelSegments'][$topLevelSegment] = true;
+        $group['directoryDepthCounts'][$directoryDepth] = ($group['directoryDepthCounts'][$directoryDepth] ?? 0) + 1;
+        $group['topLevelSegmentCounts'][$topLevelSegment] = ($group['topLevelSegmentCounts'][$topLevelSegment] ?? 0) + 1;
+        if ($byteExposurePolicy !== '') {
+            $group['byteExposurePolicyCounts'][$byteExposurePolicy] = ($group['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+        }
+        foreach ($roles as $role) {
+            if (!is_string($role) || $role === '') {
+                continue;
+            }
+            $group['roleCounts'][$role] = ($group['roleCounts'][$role] ?? 0) + 1;
+        }
+
+        if (self::isPreferredLargestPackagePart($group['largestPart'], $partSummary)) {
+            $group['largestPart'] = $partSummary;
+        }
+        if (self::isPreferredDeepestPackagePart($group['deepestPart'], $partSummary)) {
+            $group['deepestPart'] = $partSummary;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $group
+     * @return array<string, mixed>
+     */
+    private static function finalizePackageAreaDepthGroup(array $group): array
+    {
+        ksort($group['roleCounts'], SORT_STRING);
+        ksort($group['byteExposurePolicyCounts'], SORT_STRING);
+        ksort($group['directoryDepthCounts'], SORT_NUMERIC);
+        ksort($group['topLevelSegmentCounts'], SORT_STRING);
+        sort($group['partNames'], SORT_STRING);
+
+        $directories = array_keys($group['_directories']);
+        sort($directories, SORT_STRING);
+        $topLevelSegments = array_keys($group['_topLevelSegments']);
+        sort($topLevelSegments, SORT_STRING);
+        unset($group['_directories'], $group['_topLevelSegments']);
+
+        $group['directories'] = $directories;
+        $group['topLevelSegments'] = $topLevelSegments;
+
+        return $group;
+    }
+
+    private static function isPreferredLargestPackagePart(?array $current, array $candidate): bool
+    {
+        if (!is_array($current)) {
+            return true;
+        }
+
+        $candidateBytes = (int) ($candidate['byteLength'] ?? 0);
+        $currentBytes = (int) ($current['byteLength'] ?? 0);
+        if ($candidateBytes !== $currentBytes) {
+            return $candidateBytes > $currentBytes;
+        }
+
+        return strcmp(
+            self::packagePartAreaDepthItemName($candidate),
+            self::packagePartAreaDepthItemName($current)
+        ) < 0;
+    }
+
+    private static function isPreferredDeepestPackagePart(?array $current, array $candidate): bool
+    {
+        if (!is_array($current)) {
+            return true;
+        }
+
+        $candidateDepth = (int) ($candidate['directoryDepth'] ?? 0);
+        $currentDepth = (int) ($current['directoryDepth'] ?? 0);
+        if ($candidateDepth !== $currentDepth) {
+            return $candidateDepth > $currentDepth;
+        }
+
+        $candidateSegments = (int) ($candidate['pathSegmentCount'] ?? 0);
+        $currentSegments = (int) ($current['pathSegmentCount'] ?? 0);
+        if ($candidateSegments !== $currentSegments) {
+            return $candidateSegments > $currentSegments;
+        }
+
+        return strcmp(
+            self::packagePartAreaDepthItemName($candidate),
+            self::packagePartAreaDepthItemName($current)
+        ) < 0;
+    }
+
+    /**
+     * @param array<string, mixed> $part
+     */
+    private static function packagePartAreaDepthItemName(array $part): string
+    {
+        $part = $part['part'] ?? $part['path'] ?? $part['partName'] ?? null;
+        return is_string($part) ? $part : '';
     }
 
     /**
