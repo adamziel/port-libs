@@ -2718,6 +2718,10 @@ final class PptxReader
 
     private function isTitlePlaceholder(\DOMElement $shapeElement): bool
     {
+        if ($shapeElement->localName !== 'sp') {
+            return false;
+        }
+
         $placeholder = $this->placeholderElement($shapeElement);
         if (!$placeholder instanceof \DOMElement) {
             return false;
