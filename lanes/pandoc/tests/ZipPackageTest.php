@@ -999,6 +999,9 @@ return [
         $t->same(1, $profile['extensionlessFileEntryCount']);
         $t->same(3, $profile['pathDepthBucketCount']);
         $t->same(3, $profile['maxPathDepth']);
+        $t->same(9, $profile['leafNameCount']);
+        $t->same(0, $profile['sharedLeafNameCount']);
+        $t->same(0, $profile['sharedLeafNameEntryCount']);
 
         $t->same(1, $kinds['content-types']['entryCount']);
         $t->same(1, $kinds['root-relationships']['entryCount']);
@@ -1033,6 +1036,8 @@ return [
             'localHeaderOrder' => 5,
             'directoryRoot' => 'word/',
             'parentDirectory' => 'word/media/',
+            'leafName' => 'image.PNG',
+            'entryBaseName' => 'image.PNG',
             'pathDepth' => 3,
             'extension' => 'png',
             'packagePartKind' => 'media',
@@ -1042,6 +1047,227 @@ return [
         $t->same($profile, $strict['packagePartProfile']);
         $t->same($profile, $raw['packagePartProfile']);
         $t->same($profile, $raw['strictImport']['packagePartProfile']);
+    },
+
+    'summarizes zip package manifest leaf names without changing manifest hash contract' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mainDocumentXml = '<w:document><w:body><w:p>manifest leaf names</w:p></w:body></w:document>';
+        $customDocumentXml = '<audit><source>custom package leaf</source></audit>';
+        $wordImageBytes = "word manifest leaf image\n";
+        $slideImageBytes = "slide manifest leaf image\n";
+        $coreXml = '<cp:coreProperties/>';
+        $zip = $buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $mainDocumentXml, 'method' => 0],
+            ['name' => 'customXml/document.xml', 'data' => $customDocumentXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $wordImageBytes, 'method' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $slideImageBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'method' => 0],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $profile = $package->packagePartProfilePreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $manifestByLeaf = array_column($manifest['leafNameSummaries'], null, 'leafName');
+        $profileByLeaf = array_column($profile['leafNameSummaries'], null, 'leafName');
+        $manifestSharedByLeaf = array_column($manifest['sharedLeafNameSummaries'], null, 'leafName');
+        $profileSharedByLeaf = array_column($profile['sharedLeafNameSummaries'], null, 'leafName');
+        $expectedManifestJson = json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'entries' => array_map(
+                static fn (array $entry): array => [
+                    'name' => $entry['name'],
+                    'isDirectory' => $entry['isDirectory'],
+                    'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                    'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'crc32Hex' => $entry['crc32Hex'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                    'localHeaderSha256' => $entry['localHeaderSha256'],
+                    'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                ],
+                $manifest['entries']
+            ),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same(hash('sha256', $expectedManifestJson), $manifest['manifestSha256']);
+        $t->same(4, $manifest['leafNameCount']);
+        $t->same(2, $manifest['sharedLeafNameCount']);
+        $t->same(4, $manifest['sharedLeafNameEntryCount']);
+        $t->same($manifest['leafNameSummaries'], $profile['leafNameSummaries']);
+        $t->same($manifest['sharedLeafNameSummaries'], $profile['sharedLeafNameSummaries']);
+
+        $expectedDocumentLeaf = [
+            'leafName' => 'document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'entryBaseNames' => ['document.xml'],
+            'entryExtensionKeys' => ['xml'],
+            'directoryRoots' => ['customXml/', 'word/'],
+            'parentDirectories' => ['customXml/', 'word/'],
+            'packagePartKinds' => ['markup-part'],
+            'compressedBytes' => strlen($mainDocumentXml) + strlen($customDocumentXml),
+            'uncompressedBytes' => strlen($mainDocumentXml) + strlen($customDocumentXml),
+            'roles' => [],
+            'entryNames' => ['word/document.xml', 'customXml/document.xml'],
+        ];
+        $expectedImageLeaf = [
+            'leafName' => 'image.png',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'entryBaseNames' => ['image.png'],
+            'entryExtensionKeys' => ['png'],
+            'directoryRoots' => ['ppt/', 'word/'],
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'packagePartKinds' => ['media'],
+            'compressedBytes' => strlen($wordImageBytes) + strlen($slideImageBytes),
+            'uncompressedBytes' => strlen($wordImageBytes) + strlen($slideImageBytes),
+            'roles' => [],
+            'entryNames' => ['word/media/image.png', 'ppt/media/image.png'],
+        ];
+
+        $t->same($expectedDocumentLeaf, $manifestByLeaf['document.xml']);
+        $t->same($expectedImageLeaf, $manifestByLeaf['image.png']);
+        $t->same($expectedDocumentLeaf, $profileByLeaf['document.xml']);
+        $t->same($expectedImageLeaf, $profileByLeaf['image.png']);
+        $t->same($expectedDocumentLeaf, $manifestSharedByLeaf['document.xml']);
+        $t->same($expectedImageLeaf, $manifestSharedByLeaf['image.png']);
+        $t->same($expectedDocumentLeaf, $profileSharedByLeaf['document.xml']);
+        $t->same($expectedImageLeaf, $profileSharedByLeaf['image.png']);
+
+        $t->same('document.xml', $manifest['entries'][0]['leafName']);
+        $t->same('document.xml', $manifest['entries'][0]['entryBaseName']);
+        $t->same('xml', $manifest['entries'][0]['entryExtension']);
+        $t->same('xml', $manifest['entries'][0]['entryExtensionKey']);
+        $t->same(2, $manifest['entries'][0]['pathDepth']);
+        $t->same('markup-part', $manifest['entries'][0]['packagePartKind']);
+        $t->same('image.png', $profile['entries'][2]['leafName']);
+        $t->same('image.png', $profile['entries'][2]['entryBaseName']);
+        $t->same('png', $profile['entries'][2]['extension']);
+        $t->same('media', $profile['entries'][2]['packagePartKind']);
+        $t->same('media', $manifest['entries'][4]['leafName']);
+        $t->same(null, $manifest['entries'][4]['entryExtension']);
+        $t->same('(none)', $manifest['entries'][4]['entryExtensionKey']);
+        $t->same('directory', $manifest['entries'][4]['packagePartKind']);
+
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($profile, $strict['packagePartProfile']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($profile, $raw['packagePartProfile']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+        $t->same($profile, $raw['strictImport']['packagePartProfile']);
+    },
+
+    'summarizes zip package manifest source byte spans for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentName = 'word/document.xml';
+        $commentsName = 'word/comments.xml';
+        $documentXml = '<w:document><w:body><w:p>manifest-wide source spans</w:p></w:body></w:document>';
+        $commentsXml = '<w:comments><w:comment>manifest descriptor source span</w:comment></w:comments>';
+        $commentsExtra = pack('vva*', 0xb0b0, strlen('manifest-source-span'), 'manifest-source-span');
+        $documentComment = 'document manifest source span';
+        $commentsComment = 'comments manifest source span';
+        $zip = $buildZipPackage([
+            [
+                'name' => $documentName,
+                'data' => $documentXml,
+                'method' => 0,
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => $commentsName,
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'descriptorSignature' => true,
+                'localExtra' => $commentsExtra,
+                'centralExtra' => $commentsExtra,
+                'comment' => $commentsComment,
+            ],
+        ]);
+        $commentsCompressed = gzdeflate($commentsXml);
+        if ($commentsCompressed === false) {
+            throw new RuntimeException('Unable to deflate comments fixture');
+        }
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $documentEntry = $manifest['entries'][0];
+        $commentsEntry = $manifest['entries'][1];
+
+        $t->same(2, $manifest['sourceByteSpanEntryCount']);
+        $t->same(0, $manifest['sourceByteSpanIssueCount']);
+        $t->same([], $manifest['sourceByteSpanIssues']);
+        $t->same($documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'], $manifest['sourceLocalRecordBytes']);
+        $t->same($documentEntry['localHeaderBytes'] + $commentsEntry['localHeaderBytes'], $manifest['sourceLocalHeaderBytes']);
+        $t->same(60, $manifest['sourceLocalFixedHeaderBytes']);
+        $t->same(strlen($documentName) + strlen($commentsName) + strlen($commentsExtra), $manifest['sourceLocalHeaderVariableFieldBytes']);
+        $t->same(strlen($documentName) + strlen($commentsName), $manifest['sourceLocalRawNameBytes']);
+        $t->same(strlen($commentsExtra), $manifest['sourceLocalExtraFieldBytes']);
+        $t->same(strlen($commentsExtra), $manifest['sourceLocalReviewFieldBytes']);
+        $t->same(strlen($documentXml) + strlen($commentsCompressed), $manifest['sourceCompressedDataBytes']);
+        $t->same(16, $manifest['sourceDataDescriptorBytes']);
+        $t->same($documentEntry['centralDirectoryRecordBytes'] + $commentsEntry['centralDirectoryRecordBytes'], $manifest['sourceCentralDirectoryRecordBytes']);
+        $t->same(92, $manifest['sourceCentralDirectoryFixedHeaderBytes']);
+        $t->same(
+            strlen($documentName) + strlen($documentComment) + strlen($commentsName) + strlen($commentsExtra) + strlen($commentsComment),
+            $manifest['sourceCentralDirectoryVariableFieldBytes']
+        );
+        $t->same(strlen($documentName) + strlen($commentsName), $manifest['sourceCentralDirectoryRawNameBytes']);
+        $t->same(strlen($commentsExtra), $manifest['sourceCentralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment) + strlen($commentsComment), $manifest['sourceCentralDirectoryRawCommentBytes']);
+        $t->same(strlen($commentsExtra) + strlen($documentComment) + strlen($commentsComment), $manifest['sourceCentralDirectoryReviewFieldBytes']);
+        $t->same($manifest['sourceLocalRecordBytes'] + $manifest['sourceCentralDirectoryRecordBytes'], $manifest['sourceTotalRecordBytes']);
+
+        $t->same(0, $documentEntry['localRecordOffset']);
+        $t->same(30 + strlen($documentName), $documentEntry['localHeaderBytes']);
+        $t->same(strlen($documentName), $documentEntry['localHeaderVariableFieldBytes']);
+        $t->same(hash('sha256', $documentName), $documentEntry['localHeaderVariableFieldSha256']);
+        $t->same(0, $documentEntry['localHeaderReviewFieldBytes']);
+        $t->same(strlen($documentXml), $documentEntry['compressedDataBytes']);
+        $t->same(hash('sha256', $documentXml), $documentEntry['compressedDataSha256']);
+        $t->same(false, $documentEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(0, $documentEntry['dataDescriptorBytes']);
+        $t->same(null, $documentEntry['dataDescriptorSha256']);
+        $t->same(46, $documentEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(strlen($documentName) + strlen($documentComment), $documentEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(strlen($documentComment), $documentEntry['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $documentComment), $documentEntry['centralDirectoryRawCommentSha256']);
+        $t->same(strlen($documentComment), $documentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same([], $documentEntry['sourceByteSpanIssues']);
+
+        $t->same($documentEntry['localRecordEnd'], $commentsEntry['localRecordOffset']);
+        $t->same(30 + strlen($commentsName) + strlen($commentsExtra), $commentsEntry['localHeaderBytes']);
+        $t->same(strlen($commentsName) + strlen($commentsExtra), $commentsEntry['localHeaderVariableFieldBytes']);
+        $t->same(strlen($commentsExtra), $commentsEntry['localExtraFieldBytes']);
+        $t->same(strlen($commentsExtra), $commentsEntry['localHeaderReviewFieldBytes']);
+        $t->same(hash('sha256', $commentsExtra), $commentsEntry['localExtraFieldSha256']);
+        $t->same(strlen($commentsCompressed), $commentsEntry['compressedDataBytes']);
+        $t->same(hash('sha256', $commentsCompressed), $commentsEntry['compressedDataSha256']);
+        $t->same(true, $commentsEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same($commentsEntry['compressedDataEnd'], $commentsEntry['dataDescriptorOffset']);
+        $t->same(16, $commentsEntry['dataDescriptorBytes']);
+        $t->same($commentsEntry['dataDescriptorOffset'] + 16, $commentsEntry['dataDescriptorEnd']);
+        $t->same(hash('sha256', substr($zip, $commentsEntry['dataDescriptorOffset'], 16)), $commentsEntry['dataDescriptorSha256']);
+        $t->same(46, $commentsEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(strlen($commentsName) + strlen($commentsExtra) + strlen($commentsComment), $commentsEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(strlen($commentsExtra), $commentsEntry['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', $commentsExtra), $commentsEntry['centralDirectoryExtraFieldSha256']);
+        $t->same(strlen($commentsComment), $commentsEntry['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $commentsComment), $commentsEntry['centralDirectoryRawCommentSha256']);
+        $t->same(strlen($commentsExtra) + strlen($commentsComment), $commentsEntry['centralDirectoryReviewFieldBytes']);
+        $t->same($commentsEntry['localRecordBytes'] + $commentsEntry['centralDirectoryRecordBytes'], $commentsEntry['sourceRecordBytes']);
+        $t->same([], $commentsEntry['sourceByteSpanIssues']);
+
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
     'preflights zip local header spans for stored and streamed package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -11234,12 +11460,14 @@ return [
 
     'summarizes readable zip handoff raw comments before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>handoff raw comment summary</w:p></w:body></w:document>';
+        $documentCompressedBytes = strlen(gzdeflate($documentXml));
         $documentComment = 'document reviewer note';
         $readyName = 'word/media/commented-ready.bin';
         $readyRawComment = "r\x82sum\x82 ready attachment";
         $readyComment = "r\u{00e9}sum\u{00e9} ready attachment";
         $blockedName = 'word/media/commented-blocked.bin';
         $blockedComment = 'blocked media reviewer note';
+        $blockedPayload = str_repeat('blocked commented media payload ', 3);
         $package = ZipPackage::fromString($buildZipPackage([
             [
                 'name' => 'word/document.xml',
@@ -11256,7 +11484,7 @@ return [
             ],
             [
                 'name' => $blockedName,
-                'data' => str_repeat('blocked commented media payload ', 3),
+                'data' => $blockedPayload,
                 'method' => 0,
                 'comment' => $blockedComment,
             ],
@@ -11288,6 +11516,74 @@ return [
         $t->same(1, $summary['handoffLegacyEncodedCommentEntryCount']);
         $t->same(0, $summary['handoffUnicodeCommentExtraEntryCount']);
         $t->same(1, $summary['handoffDecodedCommentDiffersFromRawCommentEntryCount']);
+        $t->same(2, $summary['selectedCommentEncodingSummaryCount']);
+        $t->same(2, $summary['handoffCommentEncodingSummaryCount']);
+
+        $selectedCommentEncodingByName = [];
+        foreach ($summary['selectedCommentEncodingSummaries'] as $encodingSummary) {
+            $selectedCommentEncodingByName[$encodingSummary['commentEncoding']] = $encodingSummary;
+        }
+        $handoffCommentEncodingByName = [];
+        foreach ($summary['handoffCommentEncodingSummaries'] as $encodingSummary) {
+            $handoffCommentEncodingByName[$encodingSummary['commentEncoding']] = $encodingSummary;
+        }
+        $t->same(['cp437', 'utf-8'], array_keys($selectedCommentEncodingByName));
+        $t->same(['cp437', 'utf-8'], array_keys($handoffCommentEncodingByName));
+        $t->same([
+            'commentEncoding' => 'cp437',
+            'entryCount' => 1,
+            'readyEntryCount' => 1,
+            'blockedEntryCount' => 0,
+            'rawCommentProvenanceEntryCount' => 1,
+            'legacyEncodedCommentEntryCount' => 1,
+            'unicodeCommentExtraEntryCount' => 0,
+            'decodedCommentDiffersFromRawCommentEntryCount' => 1,
+            'rawCommentBytes' => strlen($readyRawComment),
+            'decodedCommentBytes' => strlen($readyComment),
+            'compressedBytes' => strlen("ready commented media placeholder\n"),
+            'uncompressedBytes' => strlen("ready commented media placeholder\n"),
+            'roles' => ['attachment'],
+            'entryNames' => [$readyName],
+            'readyEntryNames' => [$readyName],
+            'blockedEntryNames' => [],
+        ], $selectedCommentEncodingByName['cp437']);
+        $t->same($selectedCommentEncodingByName['cp437'], $handoffCommentEncodingByName['cp437']);
+        $t->same([
+            'commentEncoding' => 'utf-8',
+            'entryCount' => 2,
+            'readyEntryCount' => 1,
+            'blockedEntryCount' => 1,
+            'rawCommentProvenanceEntryCount' => 0,
+            'legacyEncodedCommentEntryCount' => 0,
+            'unicodeCommentExtraEntryCount' => 0,
+            'decodedCommentDiffersFromRawCommentEntryCount' => 0,
+            'rawCommentBytes' => strlen($documentComment) + strlen($blockedComment),
+            'decodedCommentBytes' => strlen($documentComment) + strlen($blockedComment),
+            'compressedBytes' => $documentCompressedBytes + strlen($blockedPayload),
+            'uncompressedBytes' => strlen($documentXml) + strlen($blockedPayload),
+            'roles' => ['attachment', 'main-document'],
+            'entryNames' => ['word/document.xml', $blockedName],
+            'readyEntryNames' => ['word/document.xml'],
+            'blockedEntryNames' => [$blockedName],
+        ], $selectedCommentEncodingByName['utf-8']);
+        $t->same([
+            'commentEncoding' => 'utf-8',
+            'entryCount' => 1,
+            'readyEntryCount' => 1,
+            'blockedEntryCount' => 0,
+            'rawCommentProvenanceEntryCount' => 0,
+            'legacyEncodedCommentEntryCount' => 0,
+            'unicodeCommentExtraEntryCount' => 0,
+            'decodedCommentDiffersFromRawCommentEntryCount' => 0,
+            'rawCommentBytes' => strlen($documentComment),
+            'decodedCommentBytes' => strlen($documentComment),
+            'compressedBytes' => $documentCompressedBytes,
+            'uncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+            'readyEntryNames' => ['word/document.xml'],
+            'blockedEntryNames' => [],
+        ], $handoffCommentEncodingByName['utf-8']);
 
         $documentCommentSummary = $summary['handoffCommentedEntries'][0];
         $readyCommentSummary = $summary['handoffCommentedEntries'][1];
@@ -13245,6 +13541,141 @@ return [
         $t->contains('Unsupported ZIP compression method 12', $zeroCompressedEntry['error']);
     },
 
+    'summarizes selected zip handoff expansion ratio buckets before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = str_repeat('D', 2048);
+        $styleXml = '<style/>';
+        $emptyBytes = '';
+        $mediaBytes = str_repeat('M', 70000);
+        $unknownName = 'word/media/zero-compressed.bin';
+        $unknownUncompressedSize = 37;
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8],
+            ['name' => 'word/styles.xml', 'data' => $styleXml, 'method' => 0],
+            ['name' => 'word/media/empty.bin', 'data' => $emptyBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $mediaBytes, 'method' => 8],
+            [
+                'name' => $unknownName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $unknownUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $unknownUncompressedSize,
+            ],
+        ]));
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $mediaCompressed = strlen(gzdeflate($mediaBytes));
+        $documentRatio = strlen($documentXml) / $documentCompressed;
+        $mediaRatio = strlen($mediaBytes) / $mediaCompressed;
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/styles.xml', 'required' => false, 'kind' => 'file', 'role' => 'styles'],
+            ['name' => 'word/media/empty.bin', 'required' => false, 'kind' => 'file', 'role' => 'attachment'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 16],
+            ['name' => $unknownName, 'required' => false, 'kind' => 'file', 'role' => 'media-review'],
+        ], 131072);
+
+        $selectedByBucket = [];
+        foreach ($summary['selectedExpansionRatioBucketSummaries'] as $bucket) {
+            $selectedByBucket[$bucket['expansionRatioBucket']] = $bucket;
+        }
+        $handoffByBucket = [];
+        foreach ($summary['handoffExpansionRatioBucketSummaries'] as $bucket) {
+            $handoffByBucket[$bucket['expansionRatioBucket']] = $bucket;
+        }
+
+        $t->same(4, $summary['selectedExpansionRatioBucketCount']);
+        $t->same(3, $summary['handoffExpansionRatioBucketCount']);
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x', 'unknown'], array_keys($selectedByBucket));
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x'], array_keys($handoffByBucket));
+
+        $t->same([
+            'expansionRatioBucket' => 'zero-byte',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 0.0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => ['attachment'],
+            'entryNames' => ['word/media/empty.bin'],
+            'largestExpansionRatioEntryName' => 'word/media/empty.bin',
+            'largestExpansionRatio' => 0.0,
+        ], $selectedByBucket['zero-byte']);
+        $t->same($selectedByBucket['zero-byte'], $handoffByBucket['zero-byte']);
+
+        $t->same([
+            'expansionRatioBucket' => 'up-to-1x',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 1.0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => strlen($styleXml),
+            'uncompressedBytes' => strlen($styleXml),
+            'roles' => ['styles'],
+            'entryNames' => ['word/styles.xml'],
+            'largestExpansionRatioEntryName' => 'word/styles.xml',
+            'largestExpansionRatio' => 1.0,
+        ], $selectedByBucket['up-to-1x']);
+        $t->same($selectedByBucket['up-to-1x'], $handoffByBucket['up-to-1x']);
+
+        $t->same([
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => $documentCompressed + $mediaCompressed,
+            'uncompressedBytes' => strlen($documentXml) + strlen($mediaBytes),
+            'roles' => ['main-document', 'media'],
+            'entryNames' => ['word/document.xml', 'word/media/large.bin'],
+            'largestExpansionRatioEntryName' => 'word/media/large.bin',
+            'largestExpansionRatio' => $mediaRatio,
+        ], $selectedByBucket['over-100x']);
+        $t->same([
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => $documentCompressed,
+            'uncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+            'largestExpansionRatioEntryName' => 'word/document.xml',
+            'largestExpansionRatio' => $documentRatio,
+        ], $handoffByBucket['over-100x']);
+
+        $t->same([
+            'expansionRatioBucket' => 'unknown',
+            'minExpansionRatio' => null,
+            'maxExpansionRatio' => null,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => $unknownUncompressedSize,
+            'roles' => ['media-review'],
+            'entryNames' => [$unknownName],
+            'largestExpansionRatioEntryName' => null,
+            'largestExpansionRatio' => null,
+        ], $selectedByBucket['unknown']);
+        $t->same('metadata-only', $summary['entries'][3]['byteExposurePolicy']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][3]['issues']);
+        $t->same(false, $summary['entries'][4]['isReadable']);
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'unreadable-entry'], $summary['issues']);
+    },
+
     'preflights duplicate selected zip package requests before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>duplicate selected handoff</w:p></w:body></w:document>';
         $imageBytes = "review image bytes\n";
@@ -13484,6 +13915,159 @@ return [
         ], $summary['issues']);
     },
 
+    'summarizes selected zip handoff expected kinds for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>expected kind handoff</w:p></w:body></w:document>';
+        $stylesXml = '<w:styles/>';
+        $imageBytes = "expected kind image bytes\n";
+        $rawBytes = "oversized expected kind media bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/styles.xml', 'data' => $stylesXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/raw.bin', 'data' => $rawBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/styles.xml', 'required' => false, 'kind' => 'directory', 'role' => 'style-directory'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'any', 'role' => 'media'],
+            ['name' => 'word/media/raw.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/missing-dir/', 'required' => true, 'kind' => 'directory', 'role' => 'required-directory'],
+        ], 1024);
+        $byExpectedKind = [];
+        foreach ($summary['expectedKindSummaries'] as $kindSummary) {
+            $byExpectedKind[$kindSummary['expectedKind']] = $kindSummary;
+        }
+        $handoffByExpectedKind = [];
+        foreach ($summary['handoffExpectedKindSummaries'] as $kindSummary) {
+            $handoffByExpectedKind[$kindSummary['expectedKind']] = $kindSummary;
+        }
+
+        $t->same(3, $summary['requestExpectedKindSummaryCount']);
+        $t->same(3, $summary['handoffExpectedKindSummaryCount']);
+        $t->same(6, $summary['expectedKindEntryCount']);
+        $t->same(3, $summary['handoffExpectedKindEntryCount']);
+        $t->same(1, $summary['directoryMismatchEntryCount']);
+        $t->same(3, $summary['handoffEntryCount']);
+        $t->same(3, $summary['failedEntryCount']);
+        $t->same(['file', 'directory', 'any'], array_keys($byExpectedKind));
+        $t->same(['file', 'directory', 'any'], array_keys($handoffByExpectedKind));
+        $t->same('file-entry-not-directory', $summary['entries'][1]['issues'][0]);
+        $t->same('any', $summary['entries'][3]['expectedKind']);
+        $t->same('entry-uncompressed-size-exceeds-limit', $summary['entries'][4]['issues'][0]);
+
+        $t->same([
+            'expectedKind' => 'file',
+            'requestCount' => 2,
+            'presentEntryCount' => 2,
+            'missingEntryCount' => 0,
+            'actualFileEntryCount' => 2,
+            'actualDirectoryEntryCount' => 0,
+            'directoryMismatchEntryCount' => 0,
+            'handoffEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'failedEntryCount' => 1,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($documentXml) + strlen($rawBytes),
+            'selectedUncompressedBytes' => strlen($documentXml) + strlen($rawBytes),
+            'handoffCompressedBytes' => strlen($documentXml),
+            'handoffUncompressedBytes' => strlen($documentXml),
+            'roles' => ['main-document', 'media'],
+            'entryNames' => ['word/document.xml', 'word/media/raw.bin'],
+            'selectedEntryNames' => ['word/document.xml', 'word/media/raw.bin'],
+            'handoffEntryNames' => ['word/document.xml'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $byExpectedKind['file']);
+        $t->same([
+            'expectedKind' => 'directory',
+            'requestCount' => 3,
+            'presentEntryCount' => 2,
+            'missingEntryCount' => 1,
+            'actualFileEntryCount' => 1,
+            'actualDirectoryEntryCount' => 1,
+            'directoryMismatchEntryCount' => 1,
+            'handoffEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'failedEntryCount' => 2,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($stylesXml),
+            'selectedUncompressedBytes' => strlen($stylesXml),
+            'handoffCompressedBytes' => 0,
+            'handoffUncompressedBytes' => 0,
+            'roles' => ['media-directory', 'required-directory', 'style-directory'],
+            'entryNames' => ['word/styles.xml', 'word/media/', 'word/missing-dir/'],
+            'selectedEntryNames' => ['word/styles.xml', 'word/media/'],
+            'handoffEntryNames' => ['word/media/'],
+            'missingEntryNames' => ['word/missing-dir/'],
+            'failedEntryNames' => ['word/styles.xml', 'word/missing-dir/'],
+            'issues' => ['file-entry-not-directory', 'missing-required-entry'],
+            'issueCounts' => [
+                'file-entry-not-directory' => 1,
+                'missing-required-entry' => 1,
+            ],
+        ], $byExpectedKind['directory']);
+        $t->same([
+            'expectedKind' => 'any',
+            'requestCount' => 1,
+            'presentEntryCount' => 1,
+            'missingEntryCount' => 0,
+            'actualFileEntryCount' => 1,
+            'actualDirectoryEntryCount' => 0,
+            'directoryMismatchEntryCount' => 0,
+            'handoffEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'failedEntryCount' => 0,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($imageBytes),
+            'selectedUncompressedBytes' => strlen($imageBytes),
+            'handoffCompressedBytes' => strlen($imageBytes),
+            'handoffUncompressedBytes' => strlen($imageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png'],
+            'selectedEntryNames' => ['word/media/image.png'],
+            'handoffEntryNames' => ['word/media/image.png'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $byExpectedKind['any']);
+        $t->same([
+            'expectedKind' => 'directory',
+            'requestCount' => 1,
+            'presentEntryCount' => 1,
+            'missingEntryCount' => 0,
+            'actualFileEntryCount' => 0,
+            'actualDirectoryEntryCount' => 1,
+            'directoryMismatchEntryCount' => 0,
+            'handoffEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'failedEntryCount' => 0,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => 0,
+            'selectedUncompressedBytes' => 0,
+            'handoffCompressedBytes' => 0,
+            'handoffUncompressedBytes' => 0,
+            'roles' => ['media-directory'],
+            'entryNames' => ['word/media/'],
+            'selectedEntryNames' => ['word/media/'],
+            'handoffEntryNames' => ['word/media/'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $handoffByExpectedKind['directory']);
+        $t->same($byExpectedKind['any'], $handoffByExpectedKind['any']);
+    },
+
     'summarizes selected zip handoff statuses for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>status policy</w:p></w:body></w:document>';
         $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
@@ -13677,11 +14261,13 @@ return [
         $relsXml = '<Relationships><Relationship Id="rIdMedia" Target="media/image.png"/></Relationships>';
         $largeBytes = "blocked content type media bytes\n";
         $invalidBytes = "invalid content type should still hand off\n";
+        $svgBytes = "<svg><title>declared image</title></svg>\n";
         $package = ZipPackage::fromString($buildZipPackage([
             ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
             ['name' => 'word/_rels/document.xml.rels', 'data' => $relsXml, 'method' => 0],
             ['name' => 'word/media/raw.bin', 'data' => $largeBytes, 'method' => 0],
             ['name' => 'custom/invalid-type.bin', 'data' => $invalidBytes, 'method' => 0],
+            ['name' => 'word/media/vector.svg', 'data' => $svgBytes, 'method' => 0],
         ]));
 
         $summary = $package->entryHandoffPreflight([
@@ -13726,6 +14312,14 @@ return [
                 'declaredContentType' => 'not a content type',
                 'declaredContentTypeSource' => 'content-types-override',
             ],
+            [
+                'name' => 'word/media/vector.svg',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'media',
+                'declaredContentType' => 'image/svg+xml',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
         ], 1024);
 
         $byContentType = [];
@@ -13738,32 +14332,105 @@ return [
             $key = $contentTypeSummary['declaredContentTypeBase'] ?? $contentTypeSummary['declaredContentTypes'][0];
             $handoffByContentType[$key] = $contentTypeSummary;
         }
+        $bySource = [];
+        foreach ($summary['declaredContentTypeSourceSummaries'] as $sourceSummary) {
+            $bySource[$sourceSummary['declaredContentTypeSource']] = $sourceSummary;
+        }
+        $handoffBySource = [];
+        foreach ($summary['handoffDeclaredContentTypeSourceSummaries'] as $sourceSummary) {
+            $handoffBySource[$sourceSummary['declaredContentTypeSource']] = $sourceSummary;
+        }
+        $byFamily = [];
+        foreach ($summary['declaredContentTypeFamilySummaries'] as $familySummary) {
+            $byFamily[$familySummary['declaredContentTypeFamily']] = $familySummary;
+        }
+        $handoffByFamily = [];
+        foreach ($summary['handoffDeclaredContentTypeFamilySummaries'] as $familySummary) {
+            $handoffByFamily[$familySummary['declaredContentTypeFamily']] = $familySummary;
+        }
+        $byTopLevel = [];
+        foreach ($summary['declaredContentTypeTopLevelSummaries'] as $topLevelSummary) {
+            $byTopLevel[$topLevelSummary['declaredContentTypeTopLevel']] = $topLevelSummary;
+        }
+        $handoffByTopLevel = [];
+        foreach ($summary['handoffDeclaredContentTypeTopLevelSummaries'] as $topLevelSummary) {
+            $handoffByTopLevel[$topLevelSummary['declaredContentTypeTopLevel']] = $topLevelSummary;
+        }
+        $bySubtype = [];
+        foreach ($summary['declaredContentTypeSubtypeSummaries'] as $subtypeSummary) {
+            $bySubtype[$subtypeSummary['declaredContentTypeSubtype']] = $subtypeSummary;
+        }
+        $handoffBySubtype = [];
+        foreach ($summary['handoffDeclaredContentTypeSubtypeSummaries'] as $subtypeSummary) {
+            $handoffBySubtype[$subtypeSummary['declaredContentTypeSubtype']] = $subtypeSummary;
+        }
+        $byStructuredSuffix = [];
+        foreach ($summary['declaredContentTypeStructuredSuffixSummaries'] as $suffixSummary) {
+            $byStructuredSuffix[$suffixSummary['declaredContentTypeStructuredSuffix']] = $suffixSummary;
+        }
+        $handoffByStructuredSuffix = [];
+        foreach ($summary['handoffDeclaredContentTypeStructuredSuffixSummaries'] as $suffixSummary) {
+            $handoffByStructuredSuffix[$suffixSummary['declaredContentTypeStructuredSuffix']] = $suffixSummary;
+        }
 
         $mainType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
         $relsType = 'application/vnd.openxmlformats-package.relationships+xml';
-        $t->same(5, $summary['declaredContentTypeEntryCount']);
-        $t->same(3, $summary['handoffDeclaredContentTypeEntryCount']);
-        $t->same(5, $summary['declaredContentTypeSummaryCount']);
-        $t->same(3, $summary['handoffDeclaredContentTypeSummaryCount']);
+        $t->same(6, $summary['declaredContentTypeEntryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeEntryCount']);
+        $t->same(6, $summary['declaredContentTypeSummaryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeSummaryCount']);
+        $t->same(6, $summary['declaredContentTypeFamilyEntryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeFamilyEntryCount']);
+        $t->same(6, $summary['declaredContentTypeSourceEntryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeSourceEntryCount']);
+        $t->same(2, $summary['declaredContentTypeSourceSummaryCount']);
+        $t->same(2, $summary['handoffDeclaredContentTypeSourceSummaryCount']);
+        $t->same(5, $summary['declaredContentTypeFamilySummaryCount']);
+        $t->same(4, $summary['handoffDeclaredContentTypeFamilySummaryCount']);
+        $t->same(2, $summary['declaredContentTypeTopLevelSummaryCount']);
+        $t->same(2, $summary['handoffDeclaredContentTypeTopLevelSummaryCount']);
+        $t->same(5, $summary['declaredContentTypeSubtypeSummaryCount']);
+        $t->same(3, $summary['handoffDeclaredContentTypeSubtypeSummaryCount']);
+        $t->same(1, $summary['declaredContentTypeStructuredSuffixSummaryCount']);
+        $t->same(1, $summary['handoffDeclaredContentTypeStructuredSuffixSummaryCount']);
         $t->same(1, $summary['invalidDeclaredContentTypeEntryCount']);
         $t->same(1, $summary['handoffInvalidDeclaredContentTypeEntryCount']);
+        $t->same(1, $summary['invalidDeclaredContentTypeFamilyEntryCount']);
+        $t->same(1, $summary['handoffInvalidDeclaredContentTypeFamilyEntryCount']);
+        $t->same(1, $summary['invalidDeclaredContentTypeSourceEntryCount']);
+        $t->same(1, $summary['handoffInvalidDeclaredContentTypeSourceEntryCount']);
         $t->same(1, $summary['declaredContentTypeParameterEntryCount']);
         $t->same(1, $summary['handoffDeclaredContentTypeParameterEntryCount']);
+        $t->same(1, $summary['declaredContentTypeSourceParameterEntryCount']);
+        $t->same(1, $summary['handoffDeclaredContentTypeSourceParameterEntryCount']);
         $t->same(['invalid-declared-content-type'], $summary['declaredContentTypeIssues']);
         $t->same(['invalid-declared-content-type'], $summary['handoffDeclaredContentTypeIssues']);
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
 
         $t->same($mainType, $summary['entries'][0]['declaredContentTypeBase']);
+        $t->same('openxml-wordprocessing', $summary['entries'][0]['declaredContentTypeFamily']);
+        $t->same('application', $summary['entries'][0]['declaredContentTypeTopLevel']);
+        $t->same('vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $summary['entries'][0]['declaredContentTypeSubtype']);
+        $t->same('xml', $summary['entries'][0]['declaredContentTypeStructuredSuffix']);
+        $t->same(true, $summary['entries'][0]['declaredContentTypeHasStructuredSuffix']);
         $t->same('content-types-override', $summary['entries'][0]['declaredContentTypeSource']);
         $t->same(true, $summary['entries'][0]['declaredContentTypeIsValid']);
         $t->same($relsType, $summary['entries'][1]['declaredContentTypeBase']);
+        $t->same('opc-relationships', $summary['entries'][1]['declaredContentTypeFamily']);
         $t->same(true, $summary['entries'][1]['declaredContentTypeHasParameters']);
         $t->same(1, $summary['entries'][1]['declaredContentTypeParameterCount']);
         $t->same('UTF-8', $summary['entries'][1]['declaredContentTypeParameterMap']['charset']);
+        $t->same('binary', $summary['entries'][2]['declaredContentTypeFamily']);
+        $t->same('xml', $summary['entries'][3]['declaredContentTypeFamily']);
+        $t->same('invalid', $summary['entries'][4]['declaredContentTypeFamily']);
         $t->same(false, $summary['entries'][4]['declaredContentTypeIsValid']);
+        $t->same(null, $summary['entries'][4]['declaredContentTypeTopLevel']);
         $t->same(['invalid-declared-content-type'], $summary['entries'][4]['declaredContentTypeIssues']);
         $t->same('ready', $summary['entries'][4]['status']);
         $t->same(hash('sha256', $invalidBytes), $summary['entries'][4]['contentSha256']);
+        $t->same('image', $summary['entries'][5]['declaredContentTypeTopLevel']);
+        $t->same('svg+xml', $summary['entries'][5]['declaredContentTypeSubtype']);
+        $t->same('xml', $summary['entries'][5]['declaredContentTypeStructuredSuffix']);
 
         $t->same(['content-types-override'], $byContentType[$mainType]['sources']);
         $t->same(['main-document'], $byContentType[$mainType]['roles']);
@@ -13778,9 +14445,584 @@ return [
         $t->same(['word/missing.xml'], $byContentType['application/xml']['missingEntryNames']);
         $t->same(1, $byContentType['not a content type']['invalidEntryCount']);
         $t->same(['invalid-declared-content-type'], $byContentType['not a content type']['issues']);
+        $t->same(['word/media/vector.svg'], $byContentType['image/svg+xml']['handoffEntryNames']);
         $t->same(false, isset($handoffByContentType['application/octet-stream']));
         $t->same(false, isset($handoffByContentType['application/xml']));
         $t->same(['custom/invalid-type.bin'], $handoffByContentType['not a content type']['handoffEntryNames']);
+
+        $t->same(['content-types-default', 'content-types-override'], array_keys($bySource));
+        $t->same(['content-types-default', 'content-types-override'], array_keys($handoffBySource));
+        $t->same([
+            'declaredContentTypeSource' => 'content-types-default',
+            'entryCount' => 4,
+            'validEntryCount' => 4,
+            'invalidEntryCount' => 0,
+            'parameterEntryCount' => 1,
+            'parameterCount' => 1,
+            'requiredCount' => 0,
+            'optionalCount' => 4,
+            'presentEntryCount' => 3,
+            'missingEntryCount' => 1,
+            'handoffEntryCount' => 2,
+            'handoffUniqueEntryCount' => 2,
+            'failedEntryCount' => 1,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 3,
+            'selectedCompressedBytes' => strlen($relsXml) + strlen($largeBytes) + strlen($svgBytes),
+            'selectedUncompressedBytes' => strlen($relsXml) + strlen($largeBytes) + strlen($svgBytes),
+            'handoffCompressedBytes' => strlen($relsXml) + strlen($svgBytes),
+            'handoffUncompressedBytes' => strlen($relsXml) + strlen($svgBytes),
+            'declaredContentTypeFamilies' => ['binary', 'opc-relationships', 'xml'],
+            'declaredContentTypeBases' => [
+                'application/octet-stream',
+                'application/vnd.openxmlformats-package.relationships+xml',
+                'application/xml',
+                'image/svg+xml',
+            ],
+            'declaredContentTypes' => [
+                'application/octet-stream',
+                'application/vnd.openxmlformats-package.relationships+xml; charset=UTF-8',
+                'application/xml',
+                'image/svg+xml',
+            ],
+            'declaredContentTypeTopLevels' => ['application', 'image'],
+            'declaredContentTypeSubtypes' => [
+                'octet-stream',
+                'svg+xml',
+                'vnd.openxmlformats-package.relationships+xml',
+                'xml',
+            ],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'roles' => ['document-relationships', 'media', 'optional-sidecar'],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+                'word/missing.xml',
+                'word/media/vector.svg',
+            ],
+            'selectedEntryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+                'word/media/vector.svg',
+            ],
+            'handoffEntryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/media/vector.svg',
+            ],
+            'missingEntryNames' => ['word/missing.xml'],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'declaredContentTypeIssues' => [],
+            'declaredContentTypeIssueCounts' => [],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $bySource['content-types-default']);
+        $t->same([
+            'declaredContentTypeSource' => 'content-types-override',
+            'entryCount' => 2,
+            'validEntryCount' => 1,
+            'invalidEntryCount' => 1,
+            'parameterEntryCount' => 0,
+            'parameterCount' => 0,
+            'requiredCount' => 1,
+            'optionalCount' => 1,
+            'presentEntryCount' => 2,
+            'missingEntryCount' => 0,
+            'handoffEntryCount' => 2,
+            'handoffUniqueEntryCount' => 2,
+            'failedEntryCount' => 1,
+            'duplicateRequestCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($documentXml) + strlen($invalidBytes),
+            'selectedUncompressedBytes' => strlen($documentXml) + strlen($invalidBytes),
+            'handoffCompressedBytes' => strlen($documentXml) + strlen($invalidBytes),
+            'handoffUncompressedBytes' => strlen($documentXml) + strlen($invalidBytes),
+            'declaredContentTypeFamilies' => ['invalid', 'openxml-wordprocessing'],
+            'declaredContentTypeBases' => [$mainType],
+            'declaredContentTypes' => [$mainType, 'not a content type'],
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeSubtypes' => ['vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'roles' => ['custom-review', 'main-document'],
+            'entryNames' => ['word/document.xml', 'custom/invalid-type.bin'],
+            'selectedEntryNames' => ['word/document.xml', 'custom/invalid-type.bin'],
+            'handoffEntryNames' => ['word/document.xml', 'custom/invalid-type.bin'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => ['custom/invalid-type.bin'],
+            'declaredContentTypeIssues' => ['invalid-declared-content-type'],
+            'declaredContentTypeIssueCounts' => ['invalid-declared-content-type' => 1],
+            'issues' => ['invalid-declared-content-type'],
+            'issueCounts' => ['invalid-declared-content-type' => 1],
+        ], $bySource['content-types-override']);
+        $t->same(2, $handoffBySource['content-types-default']['entryCount']);
+        $t->same(['word/_rels/document.xml.rels', 'word/media/vector.svg'], $handoffBySource['content-types-default']['handoffEntryNames']);
+        $t->same($bySource['content-types-override'], $handoffBySource['content-types-override']);
+
+        $t->same(['binary', 'invalid', 'opc-relationships', 'openxml-wordprocessing', 'xml'], array_keys($byFamily));
+        $t->same(['invalid', 'opc-relationships', 'openxml-wordprocessing', 'xml'], array_keys($handoffByFamily));
+        $t->same([$mainType], $byFamily['openxml-wordprocessing']['declaredContentTypeBases']);
+        $t->same(['main-document'], $byFamily['openxml-wordprocessing']['roles']);
+        $t->same(['word/document.xml'], $byFamily['openxml-wordprocessing']['handoffEntryNames']);
+        $t->same([$relsType], $byFamily['opc-relationships']['declaredContentTypeBases']);
+        $t->same(1, $byFamily['opc-relationships']['parameterEntryCount']);
+        $t->same(1, $byFamily['opc-relationships']['parameterCount']);
+        $t->same(['document-relationships'], $byFamily['opc-relationships']['roles']);
+        $t->same(['application/octet-stream'], $byFamily['binary']['declaredContentTypeBases']);
+        $t->same(1, $byFamily['binary']['failedEntryCount']);
+        $t->same(['word/media/raw.bin'], $byFamily['binary']['failedEntryNames']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $byFamily['binary']['issues']);
+        $t->same(['application/xml', 'image/svg+xml'], $byFamily['xml']['declaredContentTypeBases']);
+        $t->same(1, $byFamily['xml']['missingEntryCount']);
+        $t->same(['word/missing.xml'], $byFamily['xml']['missingEntryNames']);
+        $t->same(['media', 'optional-sidecar'], $byFamily['xml']['roles']);
+        $t->same(['word/media/vector.svg'], $byFamily['xml']['handoffEntryNames']);
+        $t->same([], $byFamily['invalid']['declaredContentTypeBases']);
+        $t->same(1, $byFamily['invalid']['invalidEntryCount']);
+        $t->same(['invalid-declared-content-type'], $byFamily['invalid']['issues']);
+        $t->same(false, isset($handoffByFamily['binary']));
+        $t->same(['word/media/vector.svg'], $handoffByFamily['xml']['handoffEntryNames']);
+        $t->same(['custom/invalid-type.bin'], $handoffByFamily['invalid']['handoffEntryNames']);
+        $t->same([
+            'declaredContentTypeTopLevel' => 'application',
+            'entryCount' => 4,
+            'parameterEntryCount' => 1,
+            'missingEntryCount' => 1,
+            'failedEntryCount' => 1,
+            'selectedUniqueEntryCount' => 3,
+            'handoffUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($documentXml) + strlen($relsXml) + strlen($largeBytes),
+            'selectedUncompressedBytes' => strlen($documentXml) + strlen($relsXml) + strlen($largeBytes),
+            'handoffCompressedBytes' => strlen($documentXml) + strlen($relsXml),
+            'handoffUncompressedBytes' => strlen($documentXml) + strlen($relsXml),
+            'declaredContentTypeBases' => [
+                'application/octet-stream',
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+                'application/vnd.openxmlformats-package.relationships+xml',
+                'application/xml',
+            ],
+            'declaredContentTypeSubtypes' => [
+                'octet-stream',
+                'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+                'vnd.openxmlformats-package.relationships+xml',
+                'xml',
+            ],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default', 'content-types-override'],
+            'roles' => ['document-relationships', 'main-document', 'media', 'optional-sidecar'],
+            'entryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+                'word/missing.xml',
+            ],
+            'selectedEntryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/raw.bin',
+            ],
+            'handoffEntryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+            ],
+            'missingEntryNames' => ['word/missing.xml'],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $byTopLevel['application']);
+        $t->same([
+            'declaredContentTypeTopLevel' => 'image',
+            'entryCount' => 1,
+            'parameterEntryCount' => 0,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($svgBytes),
+            'selectedUncompressedBytes' => strlen($svgBytes),
+            'handoffCompressedBytes' => strlen($svgBytes),
+            'handoffUncompressedBytes' => strlen($svgBytes),
+            'declaredContentTypeBases' => ['image/svg+xml'],
+            'declaredContentTypeSubtypes' => ['svg+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default'],
+            'roles' => ['media'],
+            'entryNames' => ['word/media/vector.svg'],
+            'selectedEntryNames' => ['word/media/vector.svg'],
+            'handoffEntryNames' => ['word/media/vector.svg'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $byTopLevel['image']);
+        $t->same(2, $handoffByTopLevel['application']['entryCount']);
+        $t->same(['word/document.xml', 'word/_rels/document.xml.rels'], $handoffByTopLevel['application']['handoffEntryNames']);
+        $t->same($byTopLevel['image'], $handoffByTopLevel['image']);
+
+        $mainSubtype = 'vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $relsSubtype = 'vnd.openxmlformats-package.relationships+xml';
+        $t->same([
+            'octet-stream',
+            'svg+xml',
+            $mainSubtype,
+            $relsSubtype,
+            'xml',
+        ], array_keys($bySubtype));
+        $t->same(['svg+xml', $mainSubtype, $relsSubtype], array_keys($handoffBySubtype));
+        $t->same([
+            'declaredContentTypeSubtype' => $mainSubtype,
+            'entryCount' => 1,
+            'parameterEntryCount' => 0,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($documentXml),
+            'selectedUncompressedBytes' => strlen($documentXml),
+            'handoffCompressedBytes' => strlen($documentXml),
+            'handoffUncompressedBytes' => strlen($documentXml),
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeBases' => [$mainType],
+            'declaredContentTypeSubtypes' => [$mainSubtype],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-override'],
+            'roles' => ['main-document'],
+            'entryNames' => ['word/document.xml'],
+            'selectedEntryNames' => ['word/document.xml'],
+            'handoffEntryNames' => ['word/document.xml'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $bySubtype[$mainSubtype]);
+        $t->same([
+            'declaredContentTypeSubtype' => 'octet-stream',
+            'entryCount' => 1,
+            'parameterEntryCount' => 0,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 1,
+            'selectedUniqueEntryCount' => 1,
+            'handoffUniqueEntryCount' => 0,
+            'selectedCompressedBytes' => strlen($largeBytes),
+            'selectedUncompressedBytes' => strlen($largeBytes),
+            'handoffCompressedBytes' => 0,
+            'handoffUncompressedBytes' => 0,
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeBases' => ['application/octet-stream'],
+            'declaredContentTypeSubtypes' => ['octet-stream'],
+            'declaredContentTypeStructuredSuffixes' => [],
+            'sources' => ['content-types-default'],
+            'roles' => ['media'],
+            'entryNames' => ['word/media/raw.bin'],
+            'selectedEntryNames' => ['word/media/raw.bin'],
+            'handoffEntryNames' => [],
+            'missingEntryNames' => [],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $bySubtype['octet-stream']);
+        $t->same([
+            'declaredContentTypeSubtype' => 'xml',
+            'entryCount' => 1,
+            'parameterEntryCount' => 0,
+            'missingEntryCount' => 1,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 0,
+            'handoffUniqueEntryCount' => 0,
+            'selectedCompressedBytes' => 0,
+            'selectedUncompressedBytes' => 0,
+            'handoffCompressedBytes' => 0,
+            'handoffUncompressedBytes' => 0,
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeBases' => ['application/xml'],
+            'declaredContentTypeSubtypes' => ['xml'],
+            'declaredContentTypeStructuredSuffixes' => [],
+            'sources' => ['content-types-default'],
+            'roles' => ['optional-sidecar'],
+            'entryNames' => ['word/missing.xml'],
+            'selectedEntryNames' => [],
+            'handoffEntryNames' => [],
+            'missingEntryNames' => ['word/missing.xml'],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $bySubtype['xml']);
+        $t->same(false, isset($handoffBySubtype['octet-stream']));
+        $t->same(false, isset($handoffBySubtype['xml']));
+        $t->same(['word/media/vector.svg'], $handoffBySubtype['svg+xml']['handoffEntryNames']);
+
+        $suffixXmlBytes = strlen($documentXml) + strlen($relsXml) + strlen($svgBytes);
+        $t->same(['xml'], array_keys($byStructuredSuffix));
+        $t->same(['xml'], array_keys($handoffByStructuredSuffix));
+        $t->same([
+            'declaredContentTypeStructuredSuffix' => 'xml',
+            'entryCount' => 3,
+            'parameterEntryCount' => 1,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 3,
+            'handoffUniqueEntryCount' => 3,
+            'selectedCompressedBytes' => $suffixXmlBytes,
+            'selectedUncompressedBytes' => $suffixXmlBytes,
+            'handoffCompressedBytes' => $suffixXmlBytes,
+            'handoffUncompressedBytes' => $suffixXmlBytes,
+            'declaredContentTypeTopLevels' => ['application', 'image'],
+            'declaredContentTypeBases' => [$mainType, $relsType, 'image/svg+xml'],
+            'declaredContentTypeSubtypes' => ['svg+xml', $mainSubtype, $relsSubtype],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default', 'content-types-override'],
+            'roles' => ['document-relationships', 'main-document', 'media'],
+            'entryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/vector.svg',
+            ],
+            'selectedEntryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/vector.svg',
+            ],
+            'handoffEntryNames' => [
+                'word/document.xml',
+                'word/_rels/document.xml.rels',
+                'word/media/vector.svg',
+            ],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $byStructuredSuffix['xml']);
+        $t->same($byStructuredSuffix['xml'], $handoffByStructuredSuffix['xml']);
+    },
+
+    'summarizes selected zip handoff content type parameters before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mainType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml';
+        $relsType = 'application/vnd.openxmlformats-package.relationships+xml';
+        $documentXml = '<w:document><w:body><w:p>content type parameter handoff</w:p></w:body></w:document>';
+        $relsXml = '<Relationships/>';
+        $css = 'body{color:#111}';
+        $rawBytes = 'blocked media bytes';
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $relsXml, 'method' => 0],
+            ['name' => 'word/styles.css', 'data' => $css, 'method' => 0],
+            ['name' => 'word/media/raw.bin', 'data' => $rawBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            [
+                'name' => 'word/document.xml',
+                'required' => true,
+                'kind' => 'file',
+                'role' => 'main-document',
+                'declaredContentType' => $mainType,
+                'declaredContentTypeSource' => 'content-types-override',
+            ],
+            [
+                'name' => 'word/_rels/document.xml.rels',
+                'required' => true,
+                'kind' => 'file',
+                'role' => 'document-relationships',
+                'declaredContentType' => $relsType . '; charset=UTF-8; profile=office',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
+            [
+                'name' => 'word/styles.css',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'stylesheet',
+                'declaredContentType' => 'text/css; charset=utf-8',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
+            [
+                'name' => 'word/media/raw.bin',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'media',
+                'declaredContentType' => 'application/octet-stream; profile=blocked',
+                'declaredContentTypeSource' => 'request',
+                'maxUncompressedBytes' => 4,
+            ],
+            [
+                'name' => 'word/missing.xml',
+                'required' => false,
+                'kind' => 'file',
+                'role' => 'optional-sidecar',
+                'declaredContentType' => 'application/xml; charset=utf-8',
+                'declaredContentTypeSource' => 'content-types-default',
+            ],
+        ], 4096);
+
+        $byParameter = [];
+        foreach ($summary['declaredContentTypeParameterSummaries'] as $parameterSummary) {
+            $byParameter[$parameterSummary['declaredContentTypeParameterName']] = $parameterSummary;
+        }
+        $handoffByParameter = [];
+        foreach ($summary['handoffDeclaredContentTypeParameterSummaries'] as $parameterSummary) {
+            $handoffByParameter[$parameterSummary['declaredContentTypeParameterName']] = $parameterSummary;
+        }
+
+        $t->same(4, $summary['declaredContentTypeParameterEntryCount']);
+        $t->same(2, $summary['handoffDeclaredContentTypeParameterEntryCount']);
+        $t->same(2, $summary['declaredContentTypeParameterSummaryCount']);
+        $t->same(2, $summary['handoffDeclaredContentTypeParameterSummaryCount']);
+        $t->same(['charset', 'profile'], array_keys($byParameter));
+        $t->same(['charset', 'profile'], array_keys($handoffByParameter));
+
+        $t->same([
+            'declaredContentTypeParameterName' => 'charset',
+            'parameterCount' => 3,
+            'parameterValueCount' => 2,
+            'entryCount' => 3,
+            'missingEntryCount' => 1,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'handoffUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($relsXml) + strlen($css),
+            'selectedUncompressedBytes' => strlen($relsXml) + strlen($css),
+            'handoffCompressedBytes' => strlen($relsXml) + strlen($css),
+            'handoffUncompressedBytes' => strlen($relsXml) + strlen($css),
+            'parameterValues' => ['UTF-8', 'utf-8'],
+            'rawParameters' => ['charset=UTF-8', 'charset=utf-8'],
+            'declaredContentTypeBases' => [
+                'application/vnd.openxmlformats-package.relationships+xml',
+                'application/xml',
+                'text/css',
+            ],
+            'declaredContentTypes' => [
+                $relsType . '; charset=UTF-8; profile=office',
+                'application/xml; charset=utf-8',
+                'text/css; charset=utf-8',
+            ],
+            'declaredContentTypeFamilies' => ['css', 'opc-relationships', 'xml'],
+            'declaredContentTypeTopLevels' => ['application', 'text'],
+            'declaredContentTypeSubtypes' => ['css', 'vnd.openxmlformats-package.relationships+xml', 'xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default'],
+            'roles' => ['document-relationships', 'optional-sidecar', 'stylesheet'],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/styles.css',
+                'word/missing.xml',
+            ],
+            'selectedEntryNames' => ['word/_rels/document.xml.rels', 'word/styles.css'],
+            'handoffEntryNames' => ['word/_rels/document.xml.rels', 'word/styles.css'],
+            'missingEntryNames' => ['word/missing.xml'],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $byParameter['charset']);
+        $t->same([
+            'declaredContentTypeParameterName' => 'charset',
+            'parameterCount' => 2,
+            'parameterValueCount' => 2,
+            'entryCount' => 2,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 2,
+            'handoffUniqueEntryCount' => 2,
+            'selectedCompressedBytes' => strlen($relsXml) + strlen($css),
+            'selectedUncompressedBytes' => strlen($relsXml) + strlen($css),
+            'handoffCompressedBytes' => strlen($relsXml) + strlen($css),
+            'handoffUncompressedBytes' => strlen($relsXml) + strlen($css),
+            'parameterValues' => ['UTF-8', 'utf-8'],
+            'rawParameters' => ['charset=UTF-8', 'charset=utf-8'],
+            'declaredContentTypeBases' => [
+                'application/vnd.openxmlformats-package.relationships+xml',
+                'text/css',
+            ],
+            'declaredContentTypes' => [
+                $relsType . '; charset=UTF-8; profile=office',
+                'text/css; charset=utf-8',
+            ],
+            'declaredContentTypeFamilies' => ['css', 'opc-relationships'],
+            'declaredContentTypeTopLevels' => ['application', 'text'],
+            'declaredContentTypeSubtypes' => ['css', 'vnd.openxmlformats-package.relationships+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default'],
+            'roles' => ['document-relationships', 'stylesheet'],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/styles.css',
+            ],
+            'selectedEntryNames' => ['word/_rels/document.xml.rels', 'word/styles.css'],
+            'handoffEntryNames' => ['word/_rels/document.xml.rels', 'word/styles.css'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $handoffByParameter['charset']);
+
+        $t->same([
+            'declaredContentTypeParameterName' => 'profile',
+            'parameterCount' => 2,
+            'parameterValueCount' => 2,
+            'entryCount' => 2,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 1,
+            'selectedUniqueEntryCount' => 2,
+            'handoffUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($relsXml) + strlen($rawBytes),
+            'selectedUncompressedBytes' => strlen($relsXml) + strlen($rawBytes),
+            'handoffCompressedBytes' => strlen($relsXml),
+            'handoffUncompressedBytes' => strlen($relsXml),
+            'parameterValues' => ['blocked', 'office'],
+            'rawParameters' => ['profile=blocked', 'profile=office'],
+            'declaredContentTypeBases' => [
+                'application/octet-stream',
+                'application/vnd.openxmlformats-package.relationships+xml',
+            ],
+            'declaredContentTypes' => [
+                'application/octet-stream; profile=blocked',
+                $relsType . '; charset=UTF-8; profile=office',
+            ],
+            'declaredContentTypeFamilies' => ['binary', 'opc-relationships'],
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeSubtypes' => ['octet-stream', 'vnd.openxmlformats-package.relationships+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default', 'request'],
+            'roles' => ['document-relationships', 'media'],
+            'entryNames' => ['word/_rels/document.xml.rels', 'word/media/raw.bin'],
+            'selectedEntryNames' => ['word/_rels/document.xml.rels', 'word/media/raw.bin'],
+            'handoffEntryNames' => ['word/_rels/document.xml.rels'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => ['word/media/raw.bin'],
+            'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            'issueCounts' => ['entry-uncompressed-size-exceeds-limit' => 1],
+        ], $byParameter['profile']);
+        $t->same([
+            'declaredContentTypeParameterName' => 'profile',
+            'parameterCount' => 1,
+            'parameterValueCount' => 1,
+            'entryCount' => 1,
+            'missingEntryCount' => 0,
+            'failedEntryCount' => 0,
+            'selectedUniqueEntryCount' => 1,
+            'handoffUniqueEntryCount' => 1,
+            'selectedCompressedBytes' => strlen($relsXml),
+            'selectedUncompressedBytes' => strlen($relsXml),
+            'handoffCompressedBytes' => strlen($relsXml),
+            'handoffUncompressedBytes' => strlen($relsXml),
+            'parameterValues' => ['office'],
+            'rawParameters' => ['profile=office'],
+            'declaredContentTypeBases' => ['application/vnd.openxmlformats-package.relationships+xml'],
+            'declaredContentTypes' => [$relsType . '; charset=UTF-8; profile=office'],
+            'declaredContentTypeFamilies' => ['opc-relationships'],
+            'declaredContentTypeTopLevels' => ['application'],
+            'declaredContentTypeSubtypes' => ['vnd.openxmlformats-package.relationships+xml'],
+            'declaredContentTypeStructuredSuffixes' => ['xml'],
+            'sources' => ['content-types-default'],
+            'roles' => ['document-relationships'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+            'selectedEntryNames' => ['word/_rels/document.xml.rels'],
+            'handoffEntryNames' => ['word/_rels/document.xml.rels'],
+            'missingEntryNames' => [],
+            'failedEntryNames' => [],
+            'issues' => [],
+            'issueCounts' => [],
+        ], $handoffByParameter['profile']);
+
+        $t->same('metadata-only', $summary['entries'][3]['byteExposurePolicy']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][3]['issues']);
+        $t->same('missing-optional', $summary['entries'][4]['status']);
     },
 
     'summarizes readable zip handoff content digests for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -14188,6 +15430,314 @@ return [
         $t->same('missing-optional', $summary['entries'][8]['status']);
     },
 
+    'summarizes selected zip handoff leaf name collisions for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mainDocumentXml = '<w:document><w:body><w:p>leaf collision handoff</w:p></w:body></w:document>';
+        $customDocumentXml = '<audit><source>custom xml document name collision</source></audit>';
+        $coreXml = '<cp:coreProperties/>';
+        $wordImageBytes = "word image bytes\n";
+        $pptImageBytes = "blocked slide image bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $mainDocumentXml, 'method' => 0],
+            ['name' => 'customXml/document.xml', 'data' => $customDocumentXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $wordImageBytes, 'method' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $pptImageBytes, 'method' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'customXml/document.xml', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'ppt/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'docProps/core.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+            ['name' => 'word/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByLeaf = [];
+        foreach ($summary['selectedLeafNameCollisionSummaries'] as $leafSummary) {
+            $selectedByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $handoffByLeaf = [];
+        foreach ($summary['handoffLeafNameCollisionSummaries'] as $leafSummary) {
+            $handoffByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+
+        $t->same(2, $summary['selectedLeafNameCollisionCount']);
+        $t->same(4, $summary['selectedLeafNameCollisionEntryCount']);
+        $t->same(1, $summary['handoffLeafNameCollisionCount']);
+        $t->same(2, $summary['handoffLeafNameCollisionEntryCount']);
+        $t->same(['document.xml', 'image.png'], array_keys($selectedByLeaf));
+        $t->same(['document.xml'], array_keys($handoffByLeaf));
+
+        $t->same([
+            'leafName' => 'document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'entryBaseNames' => ['document.xml'],
+            'entryExtensionKeys' => ['xml'],
+            'directoryRoots' => ['customXml/', 'word/'],
+            'parentDirectories' => ['customXml/', 'word/'],
+            'packagePartKinds' => ['markup-part'],
+            'compressedBytes' => strlen($mainDocumentXml) + strlen($customDocumentXml),
+            'uncompressedBytes' => strlen($mainDocumentXml) + strlen($customDocumentXml),
+            'roles' => ['custom-xml', 'main-document'],
+            'entryNames' => ['word/document.xml', 'customXml/document.xml'],
+        ], $selectedByLeaf['document.xml']);
+        $t->same($selectedByLeaf['document.xml'], $handoffByLeaf['document.xml']);
+
+        $t->same([
+            'leafName' => 'image.png',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'entryBaseNames' => ['image.png'],
+            'entryExtensionKeys' => ['png'],
+            'directoryRoots' => ['ppt/', 'word/'],
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'packagePartKinds' => ['media'],
+            'compressedBytes' => strlen($wordImageBytes) + strlen($pptImageBytes),
+            'uncompressedBytes' => strlen($wordImageBytes) + strlen($pptImageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png', 'ppt/media/image.png'],
+        ], $selectedByLeaf['image.png']);
+
+        $t->same('document.xml', $summary['entries'][0]['leafName']);
+        $t->same('document.xml', $summary['entries'][1]['leafName']);
+        $t->same('image.png', $summary['entries'][2]['leafName']);
+        $t->same('image.png', $summary['entries'][3]['leafName']);
+        $t->same('core.xml', $summary['entries'][4]['leafName']);
+        $t->same(null, $summary['entries'][5]['leafName']);
+        $t->same('blocked', $summary['entries'][3]['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
+    'summarizes selected zip handoff leaf names for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $documentXml = '<w:document><w:body><w:p>leaf document</w:p></w:body></w:document>';
+        $customXml = '<item><value>custom leaf</value></item>';
+        $imageBytes = "leaf image bytes\n";
+        $largeImageBytes = "blocked duplicate image leaf bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'customXml/document.xml', 'data' => $customXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $largeImageBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'customXml/document.xml', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'ppt/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'preview', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/missing/document.xml', 'required' => false, 'kind' => 'file', 'role' => 'optional-sidecar'],
+        ], 1024);
+
+        $selectedByLeaf = [];
+        foreach ($summary['selectedLeafNameSummaries'] as $leafSummary) {
+            $selectedByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $handoffByLeaf = [];
+        foreach ($summary['handoffLeafNameSummaries'] as $leafSummary) {
+            $handoffByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $selectedSharedByLeaf = [];
+        foreach ($summary['selectedSharedLeafNameSummaries'] as $leafSummary) {
+            $selectedSharedByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $handoffSharedByLeaf = [];
+        foreach ($summary['handoffSharedLeafNameSummaries'] as $leafSummary) {
+            $handoffSharedByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $selectedCollisionByLeaf = [];
+        foreach ($summary['selectedLeafNameCollisionSummaries'] as $leafSummary) {
+            $selectedCollisionByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+        $handoffCollisionByLeaf = [];
+        foreach ($summary['handoffLeafNameCollisionSummaries'] as $leafSummary) {
+            $handoffCollisionByLeaf[$leafSummary['leafName']] = $leafSummary;
+        }
+
+        $t->same(4, $summary['selectedLeafNameCount']);
+        $t->same(2, $summary['selectedSharedLeafNameCount']);
+        $t->same(4, $summary['selectedSharedLeafNameEntryCount']);
+        $t->same(4, $summary['handoffLeafNameCount']);
+        $t->same(1, $summary['handoffSharedLeafNameCount']);
+        $t->same(2, $summary['handoffSharedLeafNameEntryCount']);
+        $t->same($selectedSharedByLeaf, $selectedCollisionByLeaf);
+        $t->same($handoffSharedByLeaf, $handoffCollisionByLeaf);
+
+        $t->same([
+            'leafName' => 'document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'entryBaseNames' => ['document.xml'],
+            'entryExtensionKeys' => ['xml'],
+            'directoryRoots' => ['customXml/', 'word/'],
+            'parentDirectories' => ['customXml/', 'word/'],
+            'packagePartKinds' => ['markup-part'],
+            'compressedBytes' => strlen($documentXml) + strlen($customXml),
+            'uncompressedBytes' => strlen($documentXml) + strlen($customXml),
+            'roles' => ['custom-xml', 'main-document'],
+            'entryNames' => ['word/document.xml', 'customXml/document.xml'],
+        ], $selectedByLeaf['document.xml']);
+        $t->same($selectedByLeaf['document.xml'], $handoffByLeaf['document.xml']);
+        $t->same($selectedByLeaf['document.xml'], $selectedSharedByLeaf['document.xml']);
+        $t->same($selectedByLeaf['document.xml'], $handoffSharedByLeaf['document.xml']);
+
+        $t->same([
+            'leafName' => 'image.png',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'entryBaseNames' => ['image.png'],
+            'entryExtensionKeys' => ['png'],
+            'directoryRoots' => ['ppt/', 'word/'],
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'packagePartKinds' => ['media'],
+            'compressedBytes' => strlen($imageBytes) + strlen($largeImageBytes),
+            'uncompressedBytes' => strlen($imageBytes) + strlen($largeImageBytes),
+            'roles' => ['media', 'preview'],
+            'entryNames' => ['word/media/image.png', 'ppt/media/image.png'],
+        ], $selectedByLeaf['image.png']);
+        $t->same($selectedByLeaf['image.png'], $selectedSharedByLeaf['image.png']);
+        $t->same([
+            'leafName' => 'image.png',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'entryBaseNames' => ['image.png'],
+            'entryExtensionKeys' => ['png'],
+            'directoryRoots' => ['word/'],
+            'parentDirectories' => ['word/media/'],
+            'packagePartKinds' => ['media'],
+            'compressedBytes' => strlen($imageBytes),
+            'uncompressedBytes' => strlen($imageBytes),
+            'roles' => ['media'],
+            'entryNames' => ['word/media/image.png'],
+        ], $handoffByLeaf['image.png']);
+        $t->same(false, isset($handoffSharedByLeaf['image.png']));
+
+        $t->same('media', $selectedByLeaf['media']['leafName']);
+        $t->same(1, $selectedByLeaf['media']['directoryEntryCount']);
+        $t->same(false, isset($selectedByLeaf['missing.xml']));
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+        $t->same('blocked', $summary['entries'][4]['status']);
+        $t->same('missing-optional', $summary['entries'][6]['status']);
+    },
+
+    'summarizes selected zip handoff case-folded name collisions for package review' => static function (TestRunner $t): void {
+        $mainDocumentXml = '<w:document><w:body><w:p>case folded handoff</w:p></w:body></w:document>';
+        $alternateDocumentXml = '<w:document><w:body><w:p>case folded alternate</w:p></w:body></w:document>';
+        $previewImageBytes = "case folded preview image\n";
+        $blockedImageBytes = "blocked case folded image bytes\n";
+        $coreXml = '<cp:coreProperties/>';
+
+        $package = ZipPackage::fromParts([
+            ['name' => 'word/document.xml', 'data' => $mainDocumentXml, 'compressionMethod' => 0],
+            ['name' => 'Word/Document.XML', 'data' => $alternateDocumentXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/Image.PNG', 'data' => $previewImageBytes, 'compressionMethod' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $blockedImageBytes, 'compressionMethod' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'compressionMethod' => 0],
+        ]);
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'Word/Document.XML', 'required' => false, 'kind' => 'file', 'role' => 'alternate-main'],
+            ['name' => 'word/media/Image.PNG', 'required' => false, 'kind' => 'file', 'role' => 'preview'],
+            ['name' => 'ppt/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'docProps/core.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+        ], 1024);
+
+        $selectedByNameFold = [];
+        foreach ($summary['selectedCaseFoldNameCollisionSummaries'] as $foldSummary) {
+            $selectedByNameFold[$foldSummary['caseFoldName']] = $foldSummary;
+        }
+        $handoffByNameFold = [];
+        foreach ($summary['handoffCaseFoldNameCollisionSummaries'] as $foldSummary) {
+            $handoffByNameFold[$foldSummary['caseFoldName']] = $foldSummary;
+        }
+        $selectedByLeafFold = [];
+        foreach ($summary['selectedCaseFoldLeafNameCollisionSummaries'] as $foldSummary) {
+            $selectedByLeafFold[$foldSummary['caseFoldLeafName']] = $foldSummary;
+        }
+        $handoffByLeafFold = [];
+        foreach ($summary['handoffCaseFoldLeafNameCollisionSummaries'] as $foldSummary) {
+            $handoffByLeafFold[$foldSummary['caseFoldLeafName']] = $foldSummary;
+        }
+
+        $t->same(1, $summary['selectedCaseFoldNameCollisionCount']);
+        $t->same(2, $summary['selectedCaseFoldNameCollisionEntryCount']);
+        $t->same(1, $summary['handoffCaseFoldNameCollisionCount']);
+        $t->same(2, $summary['handoffCaseFoldNameCollisionEntryCount']);
+        $t->same(2, $summary['selectedCaseFoldLeafNameCollisionCount']);
+        $t->same(4, $summary['selectedCaseFoldLeafNameCollisionEntryCount']);
+        $t->same(1, $summary['handoffCaseFoldLeafNameCollisionCount']);
+        $t->same(2, $summary['handoffCaseFoldLeafNameCollisionEntryCount']);
+        $t->same(['word/document.xml'], array_keys($selectedByNameFold));
+        $t->same(['word/document.xml'], array_keys($handoffByNameFold));
+        $t->same(['document.xml', 'image.png'], array_keys($selectedByLeafFold));
+        $t->same(['document.xml'], array_keys($handoffByLeafFold));
+
+        $expectedDocumentNameFold = [
+            'caseFoldName' => 'word/document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($mainDocumentXml) + strlen($alternateDocumentXml),
+            'uncompressedBytes' => strlen($mainDocumentXml) + strlen($alternateDocumentXml),
+            'roles' => ['alternate-main', 'main-document'],
+            'entryNames' => ['word/document.xml', 'Word/Document.XML'],
+            'exactEntryNames' => ['Word/Document.XML', 'word/document.xml'],
+        ];
+        $t->same($expectedDocumentNameFold, $selectedByNameFold['word/document.xml']);
+        $t->same($expectedDocumentNameFold, $handoffByNameFold['word/document.xml']);
+
+        $expectedDocumentLeafFold = [
+            'caseFoldLeafName' => 'document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['Word/', 'word/'],
+            'compressedBytes' => strlen($mainDocumentXml) + strlen($alternateDocumentXml),
+            'uncompressedBytes' => strlen($mainDocumentXml) + strlen($alternateDocumentXml),
+            'roles' => ['alternate-main', 'main-document'],
+            'entryNames' => ['word/document.xml', 'Word/Document.XML'],
+            'leafNames' => ['Document.XML', 'document.xml'],
+        ];
+        $t->same($expectedDocumentLeafFold, $selectedByLeafFold['document.xml']);
+        $t->same($expectedDocumentLeafFold, $handoffByLeafFold['document.xml']);
+
+        $t->same([
+            'caseFoldLeafName' => 'image.png',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'compressedBytes' => strlen($previewImageBytes) + strlen($blockedImageBytes),
+            'uncompressedBytes' => strlen($previewImageBytes) + strlen($blockedImageBytes),
+            'roles' => ['media', 'preview'],
+            'entryNames' => ['word/media/Image.PNG', 'ppt/media/image.png'],
+            'leafNames' => ['Image.PNG', 'image.png'],
+        ], $selectedByLeafFold['image.png']);
+
+        $t->same('word/document.xml', $summary['entries'][0]['caseFoldName']);
+        $t->same('document.xml', $summary['entries'][0]['caseFoldLeafName']);
+        $t->same('word/document.xml', $summary['entries'][1]['caseFoldName']);
+        $t->same('document.xml', $summary['entries'][1]['caseFoldLeafName']);
+        $t->same('word/media/image.png', $summary['entries'][2]['caseFoldName']);
+        $t->same('image.png', $summary['entries'][2]['caseFoldLeafName']);
+        $t->same('blocked', $summary['entries'][3]['status']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
     'summarizes selected zip handoff path prefixes for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
         $contentTypesXml = '<Types/>';
         $packageRelsXml = '<Relationships/>';
@@ -14427,6 +15977,96 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
         $t->same('blocked', $summary['entries'][6]['status']);
         $t->same('ready', $summary['entries'][7]['status']);
+    },
+
+    'summarizes selected zip handoff entry extensions for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $documentXml = '<w:document><w:body><w:p>extension handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.PNG"/></Relationships>';
+        $imageBytes = "image bytes\n";
+        $extensionlessBytes = "extensionless media bytes\n";
+        $largeBytes = "large selected media bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/image.PNG', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/no-extension', 'data' => $extensionlessBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/', 'required' => false, 'kind' => 'directory', 'role' => 'media-directory'],
+            ['name' => 'word/media/image.PNG', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/no-extension', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'customXml/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml'],
+        ], 1024);
+
+        $selectedByExtension = [];
+        foreach ($summary['selectedEntryExtensionSummaries'] as $extensionSummary) {
+            $selectedByExtension[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
+        $handoffByExtension = [];
+        foreach ($summary['handoffEntryExtensionSummaries'] as $extensionSummary) {
+            $handoffByExtension[$extensionSummary['extensionKey']] = $extensionSummary;
+        }
+
+        $t->same(5, $summary['selectedEntryExtensionBucketCount']);
+        $t->same(2, $summary['selectedExtensionlessEntryCount']);
+        $t->same(4, $summary['handoffEntryExtensionBucketCount']);
+        $t->same(2, $summary['handoffExtensionlessEntryCount']);
+        $t->same(['(none)', 'bin', 'png', 'rels', 'xml'], array_keys($selectedByExtension));
+        $t->same(['(none)', 'png', 'rels', 'xml'], array_keys($handoffByExtension));
+
+        $t->same(null, $selectedByExtension['(none)']['extension']);
+        $t->same(2, $selectedByExtension['(none)']['entryCount']);
+        $t->same(1, $selectedByExtension['(none)']['fileEntryCount']);
+        $t->same(1, $selectedByExtension['(none)']['directoryEntryCount']);
+        $t->same(strlen($extensionlessBytes), $selectedByExtension['(none)']['uncompressedBytes']);
+        $t->same(['word/media/', 'word/media/no-extension'], $selectedByExtension['(none)']['entryNames']);
+        $t->same(['media', 'media-directory'], $selectedByExtension['(none)']['roles']);
+
+        $t->same('bin', $selectedByExtension['bin']['extension']);
+        $t->same(1, $selectedByExtension['bin']['entryCount']);
+        $t->same(strlen($largeBytes), $selectedByExtension['bin']['uncompressedBytes']);
+        $t->same(['word/media/large.bin'], $selectedByExtension['bin']['entryNames']);
+        $t->true(!isset($handoffByExtension['bin']), 'oversized bin entry should not enter readable handoff extension buckets');
+
+        $t->same('png', $selectedByExtension['png']['extension']);
+        $t->same(1, $selectedByExtension['png']['entryCount']);
+        $t->same(['word/media/image.PNG'], $selectedByExtension['png']['entryNames']);
+        $t->same($selectedByExtension['png'], $handoffByExtension['png']);
+
+        $t->same('rels', $selectedByExtension['rels']['extension']);
+        $t->same(2, $selectedByExtension['rels']['entryCount']);
+        $t->same(['_rels/.rels', 'word/_rels/document.xml.rels'], $selectedByExtension['rels']['entryNames']);
+        $t->same(['document-relationships', 'root-relationships'], $selectedByExtension['rels']['roles']);
+        $t->same($selectedByExtension['rels'], $handoffByExtension['rels']);
+
+        $t->same('xml', $selectedByExtension['xml']['extension']);
+        $t->same(2, $selectedByExtension['xml']['entryCount']);
+        $t->same(['[Content_Types].xml', 'word/document.xml'], $selectedByExtension['xml']['entryNames']);
+        $t->same(['content-types', 'main-document'], $selectedByExtension['xml']['roles']);
+        $t->same($selectedByExtension['xml'], $handoffByExtension['xml']);
+
+        $t->same('image.PNG', $summary['entries'][5]['entryBaseName']);
+        $t->same('png', $summary['entries'][5]['entryExtension']);
+        $t->same('png', $summary['entries'][5]['entryExtensionKey']);
+        $t->same('media', $summary['entries'][4]['entryBaseName']);
+        $t->same(null, $summary['entries'][4]['entryExtension']);
+        $t->same('(none)', $summary['entries'][4]['entryExtensionKey']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['entries'][7]['issues']);
+        $t->same(null, $summary['entries'][8]['entryExtension']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 
     'summarizes selected zip handoff order provenance for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -14740,6 +16380,133 @@ return [
         $t->same([$summary['entries'][0], $bidiEntry, $adsEntry, $reservedEntry], $summary['handoffEntries']);
     },
 
+    'summarizes selected zip entry name hygiene counters before reader handoff' => static function (TestRunner $t): void {
+        $bidiName = "word/media/review\u{202e}gnp.txt";
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>selected name hygiene</w:p></w:body></w:document>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/source-image.png',
+                'data' => "safe selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/ leading.png',
+                'data' => "leading selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/trailing./review.png',
+                'data' => "trailing dot selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/CON',
+                'data' => "reserved selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png:Zone.Identifier',
+                'data' => "ads selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => $bidiName,
+                'data' => "bidi selected media placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '/word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/source-image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/ leading.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/trailing./review.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/CON', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/review.png:Zone.Identifier', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => $bidiName, 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/missing.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+        ], 2048);
+
+        $reviewNames = array_map(
+            static fn (array $entry): string => $entry['name'],
+            $summary['selectedNameHygieneReviewEntries']
+        );
+
+        $t->same(8, $summary['requestedEntryCount']);
+        $t->same(7, $summary['presentEntryCount']);
+        $t->same(7, $summary['selectedUniqueEntryCount']);
+        $t->same(5, $summary['selectedNameHygieneReviewEntryCount']);
+        $t->same(6, $summary['selectedNameHygieneIssueCount']);
+        $t->same(1, $summary['selectedNameHygieneLeadingOrTrailingWhitespaceEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneTrailingDotSegmentEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneWindowsReservedNameEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneWindowsAlternateDataStreamEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneUnicodeFormatControlEntryCount']);
+        $t->same(1, $summary['selectedNameHygieneUnicodeBidiControlEntryCount']);
+        $t->same([
+            'segment-leading-or-trailing-whitespace',
+            'segment-trailing-dot',
+            'segment-windows-reserved-name',
+            'segment-windows-alternate-data-stream',
+            'segment-unicode-format-control',
+            'segment-bidi-format-control',
+        ], $summary['selectedNameHygieneIssues']);
+        $t->same([
+            'word/media/ leading.png',
+            'word/media/trailing./review.png',
+            'word/media/CON',
+            'word/media/review.png:Zone.Identifier',
+            $bidiName,
+        ], $reviewNames);
+        $t->same(7, $summary['handoffEntryCount']);
+        $t->same(7, $summary['readableEntryCount']);
+        $t->same(0, $summary['failedEntryCount']);
+        $t->same(true, $summary['isSupportedByBoundedReader']);
+        $t->same([], $summary['issues']);
+
+        $safeEntry = $summary['entries'][1];
+        $t->same('word/media/source-image.png', $safeEntry['name']);
+        $t->same('word/media/source-image.png', $safeEntry['nameHygienePath']);
+        $t->same(['word', 'media', 'source-image.png'], $safeEntry['nameHygieneSegments']);
+        $t->same(false, $safeEntry['hasNameHygieneIssue']);
+        $t->same([], $safeEntry['nameHygieneIssues']);
+        $t->same([], $safeEntry['nameHygieneFlaggedSegments']);
+
+        $leadingEntry = $summary['entries'][2];
+        $t->same(true, $leadingEntry['hasNameHygieneIssue']);
+        $t->same(['segment-leading-or-trailing-whitespace'], $leadingEntry['nameHygieneIssues']);
+        $t->same(2, $leadingEntry['nameHygieneFlaggedSegments'][0]['index']);
+        $t->same(' leading.png', $leadingEntry['nameHygieneFlaggedSegments'][0]['segment']);
+
+        $trailingDotEntry = $summary['entries'][3];
+        $t->same(['segment-trailing-dot'], $trailingDotEntry['nameHygieneIssues']);
+        $t->same('trailing.', $trailingDotEntry['nameHygieneFlaggedSegments'][0]['segment']);
+
+        $reservedEntry = $summary['entries'][4];
+        $t->same(['segment-windows-reserved-name'], $reservedEntry['nameHygieneIssues']);
+        $t->same('CON', $reservedEntry['nameHygieneFlaggedSegments'][0]['segment']);
+
+        $adsEntry = $summary['entries'][5];
+        $t->same(['segment-windows-alternate-data-stream'], $adsEntry['nameHygieneIssues']);
+        $t->same('review.png:Zone.Identifier', $adsEntry['nameHygieneFlaggedSegments'][0]['segment']);
+
+        $bidiEntry = $summary['entries'][6];
+        $t->same(['segment-unicode-format-control', 'segment-bidi-format-control'], $bidiEntry['nameHygieneIssues']);
+        $t->same(['right-to-left-override'], $bidiEntry['nameHygieneFlaggedSegments'][0]['unicodeFormatControlNames']);
+        $t->same(['right-to-left-override'], $bidiEntry['nameHygieneFlaggedSegments'][0]['bidiControlNames']);
+        $t->same("bidi selected media placeholder\n", $package->read('/' . $bidiName));
+
+        $missingEntry = $summary['entries'][7];
+        $t->same(false, $missingEntry['exists']);
+        $t->same(null, $missingEntry['nameHygienePath']);
+        $t->same([], $missingEntry['nameHygieneSegments']);
+        $t->same([], $missingEntry['nameHygieneIssues']);
+    },
+
     'summarizes selected zip handoff timestamp provenance before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {
         $documentModifiedAt = 1780479017;
         $mediaModifiedAt = 1780479027;
@@ -15022,6 +16789,272 @@ return [
         $t->same('blocked', $summary['entries'][8]['status']);
         $t->same('package-part', $summary['entries'][9]['packagePartKind']);
         $t->same(null, $summary['entries'][10]['packagePartKind']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
+    },
+
+    'summarizes zip package part kind status before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $packageRelsXml = '<Relationships/>';
+        $documentXml = '<w:document><w:body><w:p>kind status handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = "kind status image bytes\n";
+        $largeBytes = "blocked kind status media bytes\n";
+        $finderMetadata = "finder metadata bytes\n";
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $largeBytes, 'method' => 0],
+            ['name' => 'word/media/.DS_Store', 'data' => $finderMetadata, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '[Content_Types].xml', 'required' => true, 'kind' => 'file', 'role' => 'content-types'],
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'docProps/core.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media'],
+            ['name' => 'word/media/large.bin', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/media/.DS_Store', 'required' => false, 'kind' => 'file', 'role' => 'platform-sidecar'],
+        ], 1024);
+
+        $kindStatusByKind = [];
+        foreach ($summary['packagePartKindStatusSummaries'] as $kindSummary) {
+            $kindStatusByKind[$kindSummary['packagePartKind']] = $kindSummary;
+        }
+        $handoffKindStatusByKind = [];
+        foreach ($summary['handoffPackagePartKindStatusSummaries'] as $kindSummary) {
+            $handoffKindStatusByKind[$kindSummary['packagePartKind']] = $kindSummary;
+        }
+
+        $t->same(6, $summary['packagePartKindStatusSummaryCount']);
+        $t->same(5, $summary['handoffPackagePartKindStatusSummaryCount']);
+        $t->same([
+            'content-types',
+            'markup-part',
+            'media',
+            'metadata',
+            'relationship-part',
+            'root-relationships',
+        ], array_keys($kindStatusByKind));
+        $t->same([
+            'content-types',
+            'markup-part',
+            'media',
+            'relationship-part',
+            'root-relationships',
+        ], array_keys($handoffKindStatusByKind));
+
+        $mediaStatus = $kindStatusByKind['media'];
+        $t->same(3, $mediaStatus['entryCount']);
+        $t->same(3, $mediaStatus['presentEntryCount']);
+        $t->same(1, $mediaStatus['readyEntryCount']);
+        $t->same(2, $mediaStatus['blockedEntryCount']);
+        $t->same(2, $mediaStatus['failedEntryCount']);
+        $t->same(1, $mediaStatus['readableEntryCount']);
+        $t->same(2, $mediaStatus['metadataOnlyEntryCount']);
+        $t->same(strlen($imageBytes) + strlen($largeBytes) + strlen($finderMetadata), $mediaStatus['compressedBytes']);
+        $t->same(strlen($imageBytes) + strlen($largeBytes) + strlen($finderMetadata), $mediaStatus['uncompressedBytes']);
+        $t->same(['metadata-only', 'readable'], $mediaStatus['byteExposurePolicies']);
+        $t->same(['blocked', 'ready'], $mediaStatus['statuses']);
+        $t->same(['media', 'platform-sidecar'], $mediaStatus['roles']);
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'finder-metadata-entry'], $mediaStatus['issues']);
+        $t->same([
+            'entry-uncompressed-size-exceeds-limit' => 1,
+            'finder-metadata-entry' => 1,
+        ], $mediaStatus['issueCounts']);
+        $t->same([
+            'word/media/image.png',
+            'word/media/large.bin',
+            'word/media/.DS_Store',
+        ], $mediaStatus['entryNames']);
+        $t->same(['word/media/image.png'], $mediaStatus['readyEntryNames']);
+        $t->same(['word/media/large.bin', 'word/media/.DS_Store'], $mediaStatus['blockedEntryNames']);
+
+        $metadataStatus = $kindStatusByKind['metadata'];
+        $t->same(1, $metadataStatus['entryCount']);
+        $t->same(0, $metadataStatus['presentEntryCount']);
+        $t->same(1, $metadataStatus['missingEntryCount']);
+        $t->same(1, $metadataStatus['missingByteExposurePolicyEntryCount']);
+        $t->same(['missing'], $metadataStatus['byteExposurePolicies']);
+        $t->same(['missing-optional'], $metadataStatus['statuses']);
+        $t->same(['metadata'], $metadataStatus['roles']);
+        $t->same(['docProps/core.xml'], $metadataStatus['missingEntryNames']);
+        $t->same(false, isset($handoffKindStatusByKind['metadata']));
+
+        $handoffMediaStatus = $handoffKindStatusByKind['media'];
+        $t->same(1, $handoffMediaStatus['entryCount']);
+        $t->same(1, $handoffMediaStatus['readyEntryCount']);
+        $t->same(0, $handoffMediaStatus['blockedEntryCount']);
+        $t->same(1, $handoffMediaStatus['readableEntryCount']);
+        $t->same(['readable'], $handoffMediaStatus['byteExposurePolicies']);
+        $t->same(['ready'], $handoffMediaStatus['statuses']);
+        $t->same([], $handoffMediaStatus['issues']);
+        $t->same(['word/media/image.png'], $handoffMediaStatus['entryNames']);
+        $t->same(['entry-uncompressed-size-exceeds-limit', 'finder-metadata-entry'], $summary['issues']);
+    },
+
+    'summarizes selected zip relationship source parts before reader byte exposure' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $rootRelsXml = '<Relationships><Relationship Id="rIdDocument" Target="word/document.xml"/></Relationships>';
+        $documentXml = '<w:document><w:body><w:p>relationship source handoff</w:p></w:body></w:document>';
+        $documentRelsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $customXml = '<review><source>custom xml relationship source</source></review>';
+        $customRelsXml = '<Relationships><Relationship Id="rIdLarge" Target="../word/media/large.bin"/></Relationships>';
+
+        $package = ZipPackage::fromString($buildZipPackage([
+            ['name' => '_rels/.rels', 'data' => $rootRelsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelsXml, 'method' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'method' => 0],
+            ['name' => 'customXml/_rels/item1.xml.rels', 'data' => $customRelsXml, 'method' => 0],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => '_rels/.rels', 'required' => true, 'kind' => 'file', 'role' => 'root-relationships'],
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/_rels/document.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'document-relationships'],
+            ['name' => 'customXml/item1.xml', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml'],
+            ['name' => 'customXml/_rels/item1.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'custom-xml-relationships', 'maxUncompressedBytes' => 8],
+            ['name' => 'word/_rels/missing.xml.rels', 'required' => false, 'kind' => 'file', 'role' => 'missing-relationships'],
+        ], 1024);
+
+        $selectedBySource = [];
+        foreach ($summary['selectedRelationshipSourceSummaries'] as $sourceSummary) {
+            $selectedBySource[$sourceSummary['relationshipSourcePartName']] = $sourceSummary;
+        }
+        $handoffBySource = [];
+        foreach ($summary['handoffRelationshipSourceSummaries'] as $sourceSummary) {
+            $handoffBySource[$sourceSummary['relationshipSourcePartName']] = $sourceSummary;
+        }
+        $selectedByScope = [];
+        foreach ($summary['selectedRelationshipSourceScopeSummaries'] as $scopeSummary) {
+            $selectedByScope[$scopeSummary['relationshipSourceScope']] = $scopeSummary;
+        }
+        $handoffByScope = [];
+        foreach ($summary['handoffRelationshipSourceScopeSummaries'] as $scopeSummary) {
+            $handoffByScope[$scopeSummary['relationshipSourceScope']] = $scopeSummary;
+        }
+
+        $t->same(3, $summary['selectedRelationshipSourceCount']);
+        $t->same(3, $summary['selectedRelationshipSourceEntryCount']);
+        $t->same(2, $summary['selectedRelationshipSourceScopeCount']);
+        $t->same(3, $summary['selectedRelationshipSourceScopeEntryCount']);
+        $t->same(3, $summary['selectedRelationshipSourceScopeSourcePartCount']);
+        $t->same(2, $summary['handoffRelationshipSourceCount']);
+        $t->same(2, $summary['handoffRelationshipSourceEntryCount']);
+        $t->same(2, $summary['handoffRelationshipSourceScopeCount']);
+        $t->same(2, $summary['handoffRelationshipSourceScopeEntryCount']);
+        $t->same(2, $summary['handoffRelationshipSourceScopeSourcePartCount']);
+        $t->same(['/', '/customXml/item1.xml', '/word/document.xml'], array_keys($selectedBySource));
+        $t->same(['/', '/word/document.xml'], array_keys($handoffBySource));
+        $t->same(['package', 'part'], array_keys($selectedByScope));
+        $t->same(['package', 'part'], array_keys($handoffByScope));
+
+        $t->same([
+            'relationshipSourcePartName' => '/',
+            'relationshipSourceDirectory' => '/',
+            'relationshipSourceScope' => 'package',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($rootRelsXml),
+            'uncompressedBytes' => strlen($rootRelsXml),
+            'roles' => ['root-relationships'],
+            'relationshipPartNames' => ['/_rels/.rels'],
+            'entryNames' => ['_rels/.rels'],
+        ], $selectedBySource['/']);
+
+        $t->same([
+            'relationshipSourcePartName' => '/word/document.xml',
+            'relationshipSourceDirectory' => '/word/',
+            'relationshipSourceScope' => 'part',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentRelsXml),
+            'uncompressedBytes' => strlen($documentRelsXml),
+            'roles' => ['document-relationships'],
+            'relationshipPartNames' => ['/word/_rels/document.xml.rels'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+        ], $handoffBySource['/word/document.xml']);
+
+        $t->same([
+            'relationshipSourcePartName' => '/customXml/item1.xml',
+            'relationshipSourceDirectory' => '/customXml/',
+            'relationshipSourceScope' => 'part',
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($customRelsXml),
+            'uncompressedBytes' => strlen($customRelsXml),
+            'roles' => ['custom-xml-relationships'],
+            'relationshipPartNames' => ['/customXml/_rels/item1.xml.rels'],
+            'entryNames' => ['customXml/_rels/item1.xml.rels'],
+        ], $selectedBySource['/customXml/item1.xml']);
+        $t->same(false, isset($handoffBySource['/customXml/item1.xml']));
+
+        $t->same([
+            'relationshipSourceScope' => 'package',
+            'entryCount' => 1,
+            'sourcePartCount' => 1,
+            'sourceDirectoryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($rootRelsXml),
+            'uncompressedBytes' => strlen($rootRelsXml),
+            'roles' => ['root-relationships'],
+            'relationshipSourcePartNames' => ['/'],
+            'relationshipSourceDirectories' => ['/'],
+            'relationshipPartNames' => ['/_rels/.rels'],
+            'entryNames' => ['_rels/.rels'],
+        ], $selectedByScope['package']);
+        $t->same($selectedByScope['package'], $handoffByScope['package']);
+
+        $t->same([
+            'relationshipSourceScope' => 'part',
+            'entryCount' => 2,
+            'sourcePartCount' => 2,
+            'sourceDirectoryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentRelsXml) + strlen($customRelsXml),
+            'uncompressedBytes' => strlen($documentRelsXml) + strlen($customRelsXml),
+            'roles' => ['custom-xml-relationships', 'document-relationships'],
+            'relationshipSourcePartNames' => ['/customXml/item1.xml', '/word/document.xml'],
+            'relationshipSourceDirectories' => ['/customXml/', '/word/'],
+            'relationshipPartNames' => ['/customXml/_rels/item1.xml.rels', '/word/_rels/document.xml.rels'],
+            'entryNames' => ['word/_rels/document.xml.rels', 'customXml/_rels/item1.xml.rels'],
+        ], $selectedByScope['part']);
+        $t->same([
+            'relationshipSourceScope' => 'part',
+            'entryCount' => 1,
+            'sourcePartCount' => 1,
+            'sourceDirectoryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentRelsXml),
+            'uncompressedBytes' => strlen($documentRelsXml),
+            'roles' => ['document-relationships'],
+            'relationshipSourcePartNames' => ['/word/document.xml'],
+            'relationshipSourceDirectories' => ['/word/'],
+            'relationshipPartNames' => ['/word/_rels/document.xml.rels'],
+            'entryNames' => ['word/_rels/document.xml.rels'],
+        ], $handoffByScope['part']);
+
+        $t->same(true, $summary['entries'][0]['isRelationshipPart']);
+        $t->same('/_rels/.rels', $summary['entries'][0]['relationshipPartName']);
+        $t->same('/', $summary['entries'][0]['relationshipSourcePartName']);
+        $t->same('package', $summary['entries'][0]['relationshipSourceScope']);
+        $t->same(false, $summary['entries'][1]['isRelationshipPart']);
+        $t->same('/word/_rels/document.xml.rels', $summary['entries'][2]['relationshipPartName']);
+        $t->same('/word/document.xml', $summary['entries'][2]['relationshipSourcePartName']);
+        $t->same('blocked', $summary['entries'][4]['status']);
+        $t->same('/customXml/item1.xml', $summary['entries'][4]['relationshipSourcePartName']);
+        $t->same(null, $summary['entries'][5]['relationshipSourcePartName']);
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
     },
 

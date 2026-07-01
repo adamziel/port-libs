@@ -381,6 +381,7 @@ final class OpcContentTypes
      */
     private static function uriReferenceSuffix(string $uriReference): array
     {
+        OpcPackagePath::assertSafeUriReferenceSuffix($uriReference, 'OPC content type URI reference');
         $suffixOffset = strcspn($uriReference, '?#');
         $suffix = substr($uriReference, $suffixOffset);
         if ($suffix === '') {

@@ -316,6 +316,65 @@ XML;
         $t->same(null, $targets['/word/document.xml:rIdExternalAudit']['targetQuery']);
         $t->same(null, $targets['/word/document.xml:rIdExternalAudit']['targetFragment']);
     },
+    'rejects unsafe OPC content type URI reference suffixes before package graph construction' => static function (TestRunner $t) use ($contentTypesXml): void {
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+
+        foreach ([
+            '/word/document.xml?review=%ZZ' => 'malformed percent escape',
+            '/word/document.xml#review%00' => 'unsafe percent-encoded byte',
+            "/word/document.xml?review=raw value" => 'invalid URI bytes',
+        ] as $uriReference => $parseErrorNeedle) {
+            try {
+                $types->contentTypeResolutionForPart($uriReference);
+                $t->true(false, 'Unsafe OPC content type URI reference suffix should be rejected: ' . $uriReference);
+            } catch (\InvalidArgumentException $exception) {
+                $t->contains($parseErrorNeedle, $exception->getMessage());
+            }
+        }
+
+        $summary = OpcRelationshipGraph::preflightSelectedContentTypes(
+            ZipPackage::fromParts([
+                ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+                ['name' => 'word/document.xml', 'data' => '<w:document/>'],
+                ['name' => 'word/media/review-image.PNG', 'data' => 'PNG'],
+            ]),
+            [
+                '/word/document.xml?review=%ZZ',
+                '/word/media/review-image.PNG#crop%00',
+                "/word/document.xml?review=raw value",
+                '/word/media/review-image.PNG?crop=%20ready',
+            ]
+        );
+
+        $records = [];
+        foreach ($summary['records'] as $record) {
+            $records[$record['selectedPartName']] = $record;
+        }
+
+        $t->same(false, $summary['valid']);
+        $t->same(4, $summary['selectedPartCount']);
+        $t->same(1, $summary['uniqueSelectedPartCount']);
+        $t->same(3, $summary['invalidSelectedPartCount']);
+        $t->same(1, $summary['existingSelectedPartCount']);
+        $t->same(1, $summary['contentTypeResolvedPartCount']);
+        $t->same(['invalid-selected-part-name' => 3], $summary['issueCounts']);
+        $t->same(['invalid-selected-part-name'], $summary['issues']);
+        $t->same(3, count($summary['invalidSelectedPartNames']));
+
+        $t->same(['invalid-selected-part-name'], $records['/word/document.xml?review=%ZZ']['issues']);
+        $t->contains('malformed percent escape', $records['/word/document.xml?review=%ZZ']['parseError'] ?? '');
+        $t->same(['invalid-selected-part-name'], $records['/word/media/review-image.PNG#crop%00']['issues']);
+        $t->contains('unsafe percent-encoded byte', $records['/word/media/review-image.PNG#crop%00']['parseError'] ?? '');
+        $t->same(['invalid-selected-part-name'], $records["/word/document.xml?review=raw value"]['issues']);
+        $t->contains('invalid URI bytes', $records["/word/document.xml?review=raw value"]['parseError'] ?? '');
+
+        $validImage = $records['/word/media/review-image.PNG?crop=%20ready'];
+        $t->same('/word/media/review-image.PNG', $validImage['partName']);
+        $t->same(true, $validImage['exists']);
+        $t->same('default', $validImage['contentTypeSource']);
+        $t->same('image/png', $validImage['contentType']);
+        $t->same([], $validImage['issues']);
+    },
     'preflights OPC ZIP entry manifest before XML package handoff' => static function (TestRunner $t): void {
         $package = ZipPackage::fromParts([
             ['name' => '[Content_Types].xml', 'data' => '<Types/>'],
@@ -496,6 +555,7 @@ XML;
 XML;
         $documentExtra = pack('vv', 0x5455, 0);
         $documentComment = 'central record review';
+        $packageComment = 'package review trail';
         $parts = [
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
             ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
@@ -508,7 +568,7 @@ XML;
             ],
             ['name' => 'word/media/review.png', 'data' => 'PNG', 'compressionMethod' => 0],
         ];
-        $zip = ZipPackage::build($parts);
+        $zip = ZipPackage::build($parts, $packageComment);
 
         $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
         $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
@@ -523,13 +583,58 @@ XML;
 
         $documentEntry = $entries['word/document.xml'];
         $rawDocumentEntry = $rawEntries['word/document.xml'];
+        $expectedCentralNameBytes = array_sum(array_map(
+            static fn (array $part): int => strlen($part['name']),
+            $parts
+        ));
         $expectedCentralRecordBytes = 46
             + strlen('word/document.xml')
             + strlen($documentExtra)
             + strlen($documentComment);
+        $expectedCentralVariableFieldBytes = strlen('word/document.xml')
+            + strlen($documentExtra)
+            + strlen($documentComment);
+        $expectedCentralReviewFieldBytes = strlen($documentExtra) + strlen($documentComment);
+        $expectedPackageCommentOffset = strlen($zip) - strlen($packageComment);
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
+        $t->same($expectedCentralNameBytes + $expectedCentralReviewFieldBytes, $summary['centralDirectoryVariableFieldBytes']);
+        $t->same($summary['centralDirectoryVariableFieldBytes'], $rawSummary['centralDirectoryVariableFieldBytes']);
+        $t->same($expectedCentralNameBytes, $summary['centralDirectoryNameBytes']);
+        $t->same($summary['centralDirectoryNameBytes'], $rawSummary['centralDirectoryNameBytes']);
+        $t->same(strlen($documentExtra), $summary['centralDirectoryExtraFieldBytes']);
+        $t->same($summary['centralDirectoryExtraFieldBytes'], $rawSummary['centralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment), $summary['centralDirectoryCommentBytes']);
+        $t->same($summary['centralDirectoryCommentBytes'], $rawSummary['centralDirectoryCommentBytes']);
+        $t->same($expectedCentralReviewFieldBytes, $summary['centralDirectoryReviewFieldBytes']);
+        $t->same($summary['centralDirectoryReviewFieldBytes'], $rawSummary['centralDirectoryReviewFieldBytes']);
+        $t->same(1, $summary['centralExtraFieldEntryCount']);
+        $t->same($summary['centralExtraFieldEntryCount'], $rawSummary['centralExtraFieldEntryCount']);
+        $t->same(1, $summary['entryCommentCount']);
+        $t->same($summary['entryCommentCount'], $rawSummary['entryCommentCount']);
+        $t->same(1, $summary['centralDirectoryReviewFieldEntryCount']);
+        $t->same($summary['centralDirectoryReviewFieldEntryCount'], $rawSummary['centralDirectoryReviewFieldEntryCount']);
+        $t->same(true, $summary['hasCentralDirectoryVariableFields']);
+        $t->same($summary['hasCentralDirectoryVariableFields'], $rawSummary['hasCentralDirectoryVariableFields']);
+        $t->same(true, $summary['hasCentralExtraFields']);
+        $t->same($summary['hasCentralExtraFields'], $rawSummary['hasCentralExtraFields']);
+        $t->same(true, $summary['hasEntryComments']);
+        $t->same($summary['hasEntryComments'], $rawSummary['hasEntryComments']);
+        $t->same(true, $summary['hasCentralDirectoryReviewFields']);
+        $t->same($summary['hasCentralDirectoryReviewFields'], $rawSummary['hasCentralDirectoryReviewFields']);
+        $t->same($expectedPackageCommentOffset, $summary['packageCommentOffset']);
+        $t->same($summary['packageCommentOffset'], $rawSummary['packageCommentOffset']);
+        $t->same(strlen($packageComment), $summary['packageCommentLength']);
+        $t->same($summary['packageCommentLength'], $rawSummary['packageCommentLength']);
+        $t->same(strlen($packageComment), $summary['packageCommentBytes']);
+        $t->same($summary['packageCommentBytes'], $rawSummary['packageCommentBytes']);
+        $t->same(strlen($zip), $summary['packageCommentEnd']);
+        $t->same($summary['packageCommentEnd'], $rawSummary['packageCommentEnd']);
+        $t->same(hash('sha256', $packageComment), $summary['packageCommentSha256']);
+        $t->same($summary['packageCommentSha256'], $rawSummary['packageCommentSha256']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same($summary['hasPackageComment'], $rawSummary['hasPackageComment']);
         $t->same($documentEntry['entryIndex'], $documentEntry['centralDirectoryIndex']);
         $t->same(2, $documentEntry['centralDirectoryIndex']);
         $t->same($rawDocumentEntry['centralDirectoryOffset'], $rawDocumentEntry['centralDirectoryRecordOffset']);
@@ -553,6 +658,51 @@ XML;
             $documentEntry['centralDirectoryRecordSha256']
         );
         $t->same($documentEntry['centralDirectoryRecordSha256'], $rawDocumentEntry['centralDirectoryRecordSha256']);
+        $t->same(46, $documentEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same($documentEntry['centralDirectoryFixedHeaderBytes'], $rawDocumentEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(
+            $documentEntry['centralDirectoryRecordOffset'] + 46,
+            $documentEntry['centralDirectoryVariableFieldOffset']
+        );
+        $t->same($documentEntry['centralDirectoryVariableFieldOffset'], $rawDocumentEntry['centralDirectoryVariableFieldOffset']);
+        $t->same($expectedCentralVariableFieldBytes, $documentEntry['centralDirectoryVariableFieldBytes']);
+        $t->same($documentEntry['centralDirectoryVariableFieldBytes'], $rawDocumentEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(
+            hash(
+                'sha256',
+                substr($zip, $documentEntry['centralDirectoryVariableFieldOffset'], $documentEntry['centralDirectoryVariableFieldBytes'])
+            ),
+            $documentEntry['centralDirectoryVariableFieldSha256']
+        );
+        $t->same($documentEntry['centralDirectoryVariableFieldSha256'], $rawDocumentEntry['centralDirectoryVariableFieldSha256']);
+        $t->same($documentEntry['centralDirectoryVariableFieldOffset'], $documentEntry['centralDirectoryRawNameOffset']);
+        $t->same($documentEntry['centralDirectoryRawNameOffset'], $rawDocumentEntry['centralDirectoryRawNameOffset']);
+        $t->same(strlen('word/document.xml'), $documentEntry['centralDirectoryRawNameBytes']);
+        $t->same($documentEntry['centralDirectoryRawNameBytes'], $rawDocumentEntry['centralDirectoryRawNameBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentEntry['centralDirectoryRawNameSha256']);
+        $t->same($documentEntry['centralDirectoryRawNameSha256'], $rawDocumentEntry['centralDirectoryRawNameSha256']);
+        $t->same(
+            $documentEntry['centralDirectoryRawNameOffset'] + strlen('word/document.xml'),
+            $documentEntry['centralDirectoryExtraFieldOffset']
+        );
+        $t->same($documentEntry['centralDirectoryExtraFieldOffset'], $rawDocumentEntry['centralDirectoryExtraFieldOffset']);
+        $t->same(strlen($documentExtra), $documentEntry['centralDirectoryExtraFieldBytes']);
+        $t->same($documentEntry['centralDirectoryExtraFieldBytes'], $rawDocumentEntry['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', $documentExtra), $documentEntry['centralDirectoryExtraFieldSha256']);
+        $t->same($documentEntry['centralDirectoryExtraFieldSha256'], $rawDocumentEntry['centralDirectoryExtraFieldSha256']);
+        $t->same(
+            $documentEntry['centralDirectoryExtraFieldOffset'] + strlen($documentExtra),
+            $documentEntry['centralDirectoryRawCommentOffset']
+        );
+        $t->same($documentEntry['centralDirectoryRawCommentOffset'], $rawDocumentEntry['centralDirectoryRawCommentOffset']);
+        $t->same(strlen($documentComment), $documentEntry['centralDirectoryRawCommentBytes']);
+        $t->same($documentEntry['centralDirectoryRawCommentBytes'], $rawDocumentEntry['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $documentComment), $documentEntry['centralDirectoryRawCommentSha256']);
+        $t->same($documentEntry['centralDirectoryRawCommentSha256'], $rawDocumentEntry['centralDirectoryRawCommentSha256']);
+        $t->same($expectedCentralReviewFieldBytes, $documentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same($documentEntry['centralDirectoryReviewFieldBytes'], $rawDocumentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same(true, $documentEntry['hasCentralDirectoryReviewFields']);
+        $t->same($documentEntry['hasCentralDirectoryReviewFields'], $rawDocumentEntry['hasCentralDirectoryReviewFields']);
     },
     'carries OPC ZIP raw entry-name provenance through manifest preflights' => static function (TestRunner $t) use ($buildOpcZipPackage, $buildUnicodeExtra): void {
         $contentTypesXml = <<<'XML'
@@ -1253,6 +1403,30 @@ XML;
         foreach ($rawSummary['packagePartExtensionSummaries'] as $extensionSummary) {
             $rawExtensionSummaries[$extensionSummary['extensionKey']] = $extensionSummary;
         }
+        $directoryRootSummaries = [];
+        foreach ($summary['packagePartDirectoryRootSummaries'] as $directoryRootSummary) {
+            $directoryRootSummaries[$directoryRootSummary['directoryRoot']] = $directoryRootSummary;
+        }
+        $rawDirectoryRootSummaries = [];
+        foreach ($rawSummary['packagePartDirectoryRootSummaries'] as $directoryRootSummary) {
+            $rawDirectoryRootSummaries[$directoryRootSummary['directoryRoot']] = $directoryRootSummary;
+        }
+        $segmentSummaries = [];
+        foreach ($summary['packagePartPathSegmentSummaries'] as $segmentSummary) {
+            $segmentSummaries[$segmentSummary['pathSegmentCount']] = $segmentSummary;
+        }
+        $rawSegmentSummaries = [];
+        foreach ($rawSummary['packagePartPathSegmentSummaries'] as $segmentSummary) {
+            $rawSegmentSummaries[$segmentSummary['pathSegmentCount']] = $segmentSummary;
+        }
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $rawEntries = [];
+        foreach ($rawSummary['entries'] as $entry) {
+            $rawEntries[$entry['entryName']] = $entry;
+        }
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
@@ -1271,6 +1445,50 @@ XML;
             'customXml/item1',
         ], $summary['entryNamesByPackagePartExtension']['(none)']);
         $t->same($summary['entryNamesByPackagePartExtension'], $rawSummary['entryNamesByPackagePartExtension']);
+        $t->same(5, $summary['packagePartDirectoryRootCount']);
+        $t->same(5, $rawSummary['packagePartDirectoryRootCount']);
+        $t->same([
+            '/' => 1,
+            '_rels/' => 1,
+            'customXml/' => 1,
+            'docProps/' => 1,
+            'word/' => 5,
+        ], $summary['packagePartDirectoryRootCounts']);
+        $t->same($summary['packagePartDirectoryRootCounts'], $rawSummary['packagePartDirectoryRootCounts']);
+        $t->same(['[Content_Types].xml'], $summary['entryNamesByPackagePartDirectoryRoot']['/']);
+        $t->same([
+            'word/_rels/document.xml.rels',
+            'word/document.xml',
+            'word/embeddings/source.DOCX',
+            'word/media/image.PNG',
+            'word/media/vector.svg',
+        ], $summary['entryNamesByPackagePartDirectoryRoot']['word/']);
+        $t->same($summary['entryNamesByPackagePartDirectoryRoot'], $rawSummary['entryNamesByPackagePartDirectoryRoot']);
+        $t->same([
+            1 => 1,
+            2 => 4,
+            3 => 4,
+        ], $summary['packagePartPathSegmentCounts']);
+        $t->same($summary['packagePartPathSegmentCounts'], $rawSummary['packagePartPathSegmentCounts']);
+        $t->same([
+            1 => ['[Content_Types].xml'],
+            2 => [
+                '_rels/.rels',
+                'customXml/item1',
+                'docProps/core.xml',
+                'word/document.xml',
+            ],
+            3 => [
+                'word/_rels/document.xml.rels',
+                'word/embeddings/source.DOCX',
+                'word/media/image.PNG',
+                'word/media/vector.svg',
+            ],
+        ], $summary['entryNamesByPackagePartPathSegmentCount']);
+        $t->same(
+            $summary['entryNamesByPackagePartPathSegmentCount'],
+            $rawSummary['entryNamesByPackagePartPathSegmentCount']
+        );
         $t->same([
             '[Content_Types].xml',
             'docProps/core.xml',
@@ -1304,6 +1522,88 @@ XML;
             'embedded-package-candidate' => 1,
         ], $extensionSummaries['docx']['roleCounts']);
         $t->same($extensionSummaries['docx'], $rawExtensionSummaries['docx']);
+        $wordBytes = strlen('<w:document/>')
+            + strlen('<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>')
+            + strlen('PNGDATA')
+            + strlen('<svg/>')
+            + strlen('DOCXDATA');
+        $t->same([
+            'directoryRoot' => 'word/',
+            'entryCount' => 5,
+            'fileEntryCount' => 5,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 5,
+            'compressedBytes' => $wordBytes,
+            'uncompressedBytes' => $wordBytes,
+            'roleCounts' => [
+                'embedded-package-candidate' => 1,
+                'media' => 2,
+                'part-relationships' => 1,
+                'xml-part' => 1,
+            ],
+            'handoffKindCounts' => [
+                'embedded-package' => 1,
+                'media' => 2,
+                'relationships+xml' => 1,
+                'xml' => 1,
+            ],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/document.xml',
+                'word/embeddings/source.DOCX',
+                'word/media/image.PNG',
+                'word/media/vector.svg',
+            ],
+            'partNames' => [
+                '/word/_rels/document.xml.rels',
+                '/word/document.xml',
+                '/word/embeddings/source.DOCX',
+                '/word/media/image.PNG',
+                '/word/media/vector.svg',
+            ],
+        ], $directoryRootSummaries['word/']);
+        $t->same($directoryRootSummaries['word/'], $rawDirectoryRootSummaries['word/']);
+        $t->same([
+            'xml-part' => 1,
+        ], $directoryRootSummaries['customXml/']['roleCounts']);
+        $t->same([
+            'binary-part' => 1,
+        ], $rawDirectoryRootSummaries['customXml/']['roleCounts']);
+        $t->same(1, $segmentSummaries[1]['pathSegmentCount']);
+        $t->same([
+            'content-types' => 1,
+        ], $segmentSummaries[1]['roleCounts']);
+        $t->same(strlen($contentTypesXml), $segmentSummaries[1]['uncompressedBytes']);
+        $t->same([
+            'document-properties' => 1,
+            'package-relationships' => 1,
+            'xml-part' => 2,
+        ], $segmentSummaries[2]['roleCounts']);
+        $t->same([
+            'relationships+xml' => 1,
+            'xml' => 3,
+        ], $segmentSummaries[2]['handoffKindCounts']);
+        $t->same([
+            'binary-part' => 1,
+            'document-properties' => 1,
+            'package-relationships' => 1,
+            'xml-part' => 1,
+        ], $rawSegmentSummaries[2]['roleCounts']);
+        $t->same([
+            'binary' => 1,
+            'relationships+xml' => 1,
+            'xml' => 2,
+        ], $rawSegmentSummaries[2]['handoffKindCounts']);
+        $t->same([
+            'embedded-package-candidate' => 1,
+            'media' => 2,
+            'part-relationships' => 1,
+        ], $segmentSummaries[3]['roleCounts']);
+        $t->same($segmentSummaries[3], $rawSegmentSummaries[3]);
+        $t->same(1, $entries['[Content_Types].xml']['partNamePathSegmentCount']);
+        $t->same(2, $entries['customXml/item1']['partNamePathSegmentCount']);
+        $t->same(3, $entries['word/media/vector.svg']['partNamePathSegmentCount']);
+        $t->same($entries['word/media/vector.svg']['partNamePathSegmentCount'], $rawEntries['word/media/vector.svg']['partNamePathSegmentCount']);
         $t->same(2, $summary['roleCounts']['media']);
         $t->same(2, $rawSummary['roleCounts']['media']);
     },

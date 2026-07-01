@@ -264,6 +264,10 @@ final class OpcRelationshipGraph
             ];
 
             try {
+                OpcPackagePath::assertSafeUriReferenceSuffix(
+                    $selectedPartName,
+                    'OPC selected content type part URI reference'
+                );
                 $partName = OpcPackagePath::canonicalPartNameFromUri(
                     OpcPackagePath::stripQueryAndFragment($selectedPartName)
                 );
@@ -658,10 +662,17 @@ final class OpcRelationshipGraph
         foreach ($package->packageManifestPreflight()['entries'] as $manifestEntry) {
             $packageManifestEntriesByCentralDirectoryIndex[$manifestEntry['centralDirectoryIndex']] = $manifestEntry;
         }
+        $packageBytes = $package->bytes();
+        $centralDirectoryVariableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($packageBytes);
+        $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex = [];
+        foreach ($centralDirectoryVariableFields['entries'] as $variableFieldEntry) {
+            $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex[$variableFieldEntry['centralDirectoryIndex']] = $variableFieldEntry;
+        }
 
         foreach ($package->entries() as $entryIndex => $entry) {
             $isDirectory = $entry->isDirectory();
             $partName = null;
+            $partNamePathSegmentCount = null;
             $equivalenceKey = null;
             $parseError = null;
             $issues = [];
@@ -675,10 +686,39 @@ final class OpcRelationshipGraph
             $centralDirectoryRecordBytes = is_int($centralDirectoryRecordOffset) && is_int($centralDirectoryRecordEnd)
                 ? max(0, $centralDirectoryRecordEnd - $centralDirectoryRecordOffset)
                 : null;
+            $variableFieldEntry = $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex[$entryIndex] ?? null;
+            $centralDirectoryVariableFieldOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['variableFieldsOffset'] ?? null)
+                : null;
+            $centralDirectoryVariableFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['variableFieldsLength'] ?? null)
+                : null;
+            $centralDirectoryRawNameOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawNameOffset'] ?? null)
+                : null;
+            $centralDirectoryRawNameBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawNameLength'] ?? null)
+                : null;
+            $centralDirectoryExtraFieldOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['centralExtraFieldOffset'] ?? null)
+                : null;
+            $centralDirectoryExtraFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['centralExtraFieldLength'] ?? null)
+                : null;
+            $centralDirectoryRawCommentOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawCommentOffset'] ?? null)
+                : null;
+            $centralDirectoryRawCommentBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawCommentLength'] ?? null)
+                : null;
+            $centralDirectoryReviewFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['reviewFieldBytes'] ?? null)
+                : null;
 
             if (!$isDirectory) {
                 try {
                     $partName = OpcPackagePath::canonicalPartName($entry->name);
+                    $partNamePathSegmentCount = self::partNamePathSegmentCount($partName);
                     $equivalenceKey = self::partNameEquivalenceKey($partName);
                     $packagePartNamesByEquivalenceKey[$equivalenceKey] = $partName;
                     $packagePartEntryIndexesByEquivalenceKey[$equivalenceKey][] = $entryIndex;
@@ -697,6 +737,7 @@ final class OpcRelationshipGraph
                 'entryIndex' => $entryIndex,
                 'entryName' => $entry->name,
                 'partName' => $partName,
+                'partNamePathSegmentCount' => $partNamePathSegmentCount,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
                 'centralDirectoryIndex' => $entryIndex,
@@ -704,6 +745,38 @@ final class OpcRelationshipGraph
                 'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
                 'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
+                'centralDirectoryFixedHeaderBytes' => is_array($variableFieldEntry) ? ($variableFieldEntry['fixedHeaderLength'] ?? null) : null,
+                'centralDirectoryVariableFieldOffset' => $centralDirectoryVariableFieldOffset,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryVariableFieldSha256' => self::zipByteRangeSha256(
+                    $packageBytes,
+                    $centralDirectoryVariableFieldOffset,
+                    $centralDirectoryVariableFieldBytes
+                ),
+                'centralDirectoryRawNameOffset' => $centralDirectoryRawNameOffset,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryRawNameSha256' => self::zipByteRangeSha256(
+                    $packageBytes,
+                    $centralDirectoryRawNameOffset,
+                    $centralDirectoryRawNameBytes
+                ),
+                'centralDirectoryExtraFieldOffset' => $centralDirectoryExtraFieldOffset,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryExtraFieldSha256' => self::zipByteRangeSha256(
+                    $packageBytes,
+                    $centralDirectoryExtraFieldOffset,
+                    $centralDirectoryExtraFieldBytes
+                ),
+                'centralDirectoryRawCommentOffset' => $centralDirectoryRawCommentOffset,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryRawCommentSha256' => self::zipByteRangeSha256(
+                    $packageBytes,
+                    $centralDirectoryRawCommentOffset,
+                    $centralDirectoryRawCommentBytes
+                ),
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'hasCentralDirectoryReviewFields' => is_int($centralDirectoryReviewFieldBytes)
+                    && $centralDirectoryReviewFieldBytes > 0,
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
                 'localHeaderOffset' => $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset,
                 'rawName' => $entry->rawName,
@@ -997,6 +1070,12 @@ final class OpcRelationshipGraph
         $packagePartExtensionCounts = [];
         $entryNamesByPackagePartExtension = [];
         $packagePartExtensionSummariesByExtension = [];
+        $packagePartDirectoryRootCounts = [];
+        $entryNamesByPackagePartDirectoryRoot = [];
+        $packagePartDirectoryRootSummariesByRoot = [];
+        $packagePartPathSegmentCounts = [];
+        $entryNamesByPackagePartPathSegmentCount = [];
+        $packagePartPathSegmentSummariesByCount = [];
         $compressionMethodCounts = [];
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
@@ -1164,6 +1243,31 @@ final class OpcRelationshipGraph
                     $packagePartExtensionSummariesByExtension,
                     $extensionKey,
                     $extension === '' ? null : $extension,
+                    $entry,
+                );
+
+                $directoryRoot = self::zipEntryManifestDirectoryRoot($entry['partName']);
+                $packagePartDirectoryRootCounts[$directoryRoot] = ($packagePartDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                $entryNamesByPackagePartDirectoryRoot[$directoryRoot] ??= [];
+                self::appendUniqueString($entryNamesByPackagePartDirectoryRoot[$directoryRoot], $entry['entryName']);
+                self::recordZipEntryManifestDirectoryRootSummary(
+                    $packagePartDirectoryRootSummariesByRoot,
+                    $directoryRoot,
+                    $entry,
+                );
+            }
+            if ($entry['isPackagePart'] && is_int($entry['partNamePathSegmentCount'])) {
+                $pathSegmentCount = $entry['partNamePathSegmentCount'];
+                $packagePartPathSegmentCounts[$pathSegmentCount] =
+                    ($packagePartPathSegmentCounts[$pathSegmentCount] ?? 0) + 1;
+                $entryNamesByPackagePartPathSegmentCount[$pathSegmentCount] ??= [];
+                self::appendUniqueString(
+                    $entryNamesByPackagePartPathSegmentCount[$pathSegmentCount],
+                    $entry['entryName'],
+                );
+                self::recordZipEntryManifestPathSegmentSummary(
+                    $packagePartPathSegmentSummariesByCount,
+                    $pathSegmentCount,
                     $entry,
                 );
             }
@@ -1337,6 +1441,18 @@ final class OpcRelationshipGraph
         ksort($packagePartExtensionCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByPackagePartExtension);
         $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
+        ksort($packagePartDirectoryRootCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByPackagePartDirectoryRoot);
+        $packagePartDirectoryRootSummaries = self::zipEntryManifestContentSummaries($packagePartDirectoryRootSummariesByRoot);
+        ksort($packagePartPathSegmentCounts, SORT_NUMERIC);
+        ksort($entryNamesByPackagePartPathSegmentCount, SORT_NUMERIC);
+        foreach ($entryNamesByPackagePartPathSegmentCount as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
+        $packagePartPathSegmentSummaries = self::zipEntryManifestPathSegmentSummaries(
+            $packagePartPathSegmentSummariesByCount
+        );
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -1383,6 +1499,24 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFields['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryNameBytes' => $centralDirectoryVariableFields['centralDirectoryNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryVariableFields['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryCommentBytes' => $centralDirectoryVariableFields['centralDirectoryCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryVariableFields['centralDirectoryReviewFieldBytes'],
+            'centralExtraFieldEntryCount' => $centralDirectoryVariableFields['centralExtraFieldEntryCount'],
+            'entryCommentCount' => $centralDirectoryVariableFields['entryCommentCount'],
+            'centralDirectoryReviewFieldEntryCount' => $centralDirectoryVariableFields['reviewFieldEntryCount'],
+            'packageCommentOffset' => $centralDirectoryVariableFields['packageCommentOffset'],
+            'packageCommentLength' => $centralDirectoryVariableFields['packageCommentLength'],
+            'packageCommentBytes' => $centralDirectoryVariableFields['packageCommentLength'],
+            'packageCommentEnd' => $centralDirectoryVariableFields['packageCommentEnd'],
+            'packageCommentSha256' => $centralDirectoryVariableFields['packageCommentSha256'],
+            'hasCentralDirectoryVariableFields' => $centralDirectoryVariableFields['hasCentralDirectoryVariableFields'],
+            'hasCentralExtraFields' => $centralDirectoryVariableFields['hasCentralExtraFields'],
+            'hasEntryComments' => $centralDirectoryVariableFields['hasEntryComments'],
+            'hasCentralDirectoryReviewFields' => $centralDirectoryVariableFields['hasCentralDirectoryReviewFields'],
+            'hasPackageComment' => $centralDirectoryVariableFields['hasPackageComment'],
             'contentTypesItemCount' => count($contentTypesItems),
             'contentTypeDeclarationAvailable' => $contentTypes instanceof OpcContentTypes,
             'contentTypesParseError' => $contentTypesParseError,
@@ -1398,6 +1532,13 @@ final class OpcRelationshipGraph
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
             'entryNamesByPackagePartExtension' => $entryNamesByPackagePartExtension,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
+            'packagePartDirectoryRootCount' => count($packagePartDirectoryRootCounts),
+            'packagePartDirectoryRootCounts' => $packagePartDirectoryRootCounts,
+            'entryNamesByPackagePartDirectoryRoot' => $entryNamesByPackagePartDirectoryRoot,
+            'packagePartDirectoryRootSummaries' => $packagePartDirectoryRootSummaries,
+            'packagePartPathSegmentCounts' => $packagePartPathSegmentCounts,
+            'entryNamesByPackagePartPathSegmentCount' => $entryNamesByPackagePartPathSegmentCount,
+            'packagePartPathSegmentSummaries' => $packagePartPathSegmentSummaries,
             'contentTypeOverrideDeclarationCount' => count($contentTypeOverrideDeclarations),
             'contentTypeUsedOverrideDeclarationCount' => count($contentTypeOverrideDeclarations) - count($contentTypeUnusedOverridePartNames),
             'contentTypeUnusedOverrideDeclarationCount' => count($contentTypeUnusedOverridePartNames),
@@ -1500,6 +1641,11 @@ final class OpcRelationshipGraph
     public static function preflightZipCentralDirectoryManifest(string $bytes): array
     {
         $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
+        $centralDirectoryVariableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($bytes);
+        $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex = [];
+        foreach ($centralDirectoryVariableFields['entries'] as $variableFieldEntry) {
+            $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex[$variableFieldEntry['centralDirectoryIndex']] = $variableFieldEntry;
+        }
         $localHeaderOrder = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($bytes);
         $localHeaderOrderByCentralDirectoryIndex = [];
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
@@ -1525,6 +1671,7 @@ final class OpcRelationshipGraph
         foreach ($centralDirectory['entries'] as $entryIndex => $centralEntry) {
             $isDirectory = $centralEntry['isDirectory'];
             $partName = null;
+            $partNamePathSegmentCount = null;
             $equivalenceKey = null;
             $parseError = null;
             $issues = $centralEntry['issues'];
@@ -1539,6 +1686,7 @@ final class OpcRelationshipGraph
             if (!$isDirectory) {
                 try {
                     $partName = OpcPackagePath::canonicalPartName($centralEntry['name']);
+                    $partNamePathSegmentCount = self::partNamePathSegmentCount($partName);
                     $equivalenceKey = self::partNameEquivalenceKey($partName);
                     $packagePartNamesByEquivalenceKey[$equivalenceKey] = $partName;
                     $packagePartEntryIndexesByEquivalenceKey[$equivalenceKey][] = $entryIndex;
@@ -1556,11 +1704,40 @@ final class OpcRelationshipGraph
                 }
             }
             $centralDirectoryRecordBytes = max(0, $centralEntry['recordEnd'] - $centralEntry['centralDirectoryOffset']);
+            $variableFieldEntry = $centralDirectoryVariableFieldEntriesByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $centralDirectoryVariableFieldOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['variableFieldsOffset'] ?? null)
+                : null;
+            $centralDirectoryVariableFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['variableFieldsLength'] ?? null)
+                : null;
+            $centralDirectoryRawNameOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawNameOffset'] ?? null)
+                : null;
+            $centralDirectoryRawNameBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawNameLength'] ?? null)
+                : null;
+            $centralDirectoryExtraFieldOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['centralExtraFieldOffset'] ?? null)
+                : null;
+            $centralDirectoryExtraFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['centralExtraFieldLength'] ?? null)
+                : null;
+            $centralDirectoryRawCommentOffset = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawCommentOffset'] ?? null)
+                : null;
+            $centralDirectoryRawCommentBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['rawCommentLength'] ?? null)
+                : null;
+            $centralDirectoryReviewFieldBytes = is_array($variableFieldEntry)
+                ? ($variableFieldEntry['reviewFieldBytes'] ?? null)
+                : null;
 
             $entries[] = [
                 'entryIndex' => $entryIndex,
                 'entryName' => $centralEntry['name'],
                 'partName' => $partName,
+                'partNamePathSegmentCount' => $partNamePathSegmentCount,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
@@ -1589,6 +1766,38 @@ final class OpcRelationshipGraph
                     'sha256',
                     substr($bytes, $centralEntry['centralDirectoryOffset'], $centralDirectoryRecordBytes)
                 ),
+                'centralDirectoryFixedHeaderBytes' => is_array($variableFieldEntry) ? ($variableFieldEntry['fixedHeaderLength'] ?? null) : null,
+                'centralDirectoryVariableFieldOffset' => $centralDirectoryVariableFieldOffset,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryVariableFieldSha256' => self::zipByteRangeSha256(
+                    $bytes,
+                    $centralDirectoryVariableFieldOffset,
+                    $centralDirectoryVariableFieldBytes
+                ),
+                'centralDirectoryRawNameOffset' => $centralDirectoryRawNameOffset,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryRawNameSha256' => self::zipByteRangeSha256(
+                    $bytes,
+                    $centralDirectoryRawNameOffset,
+                    $centralDirectoryRawNameBytes
+                ),
+                'centralDirectoryExtraFieldOffset' => $centralDirectoryExtraFieldOffset,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryExtraFieldSha256' => self::zipByteRangeSha256(
+                    $bytes,
+                    $centralDirectoryExtraFieldOffset,
+                    $centralDirectoryExtraFieldBytes
+                ),
+                'centralDirectoryRawCommentOffset' => $centralDirectoryRawCommentOffset,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryRawCommentSha256' => self::zipByteRangeSha256(
+                    $bytes,
+                    $centralDirectoryRawCommentOffset,
+                    $centralDirectoryRawCommentBytes
+                ),
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+                'hasCentralDirectoryReviewFields' => is_int($centralDirectoryReviewFieldBytes)
+                    && $centralDirectoryReviewFieldBytes > 0,
                 'localHeaderOffset' => $centralEntry['localHeaderOffset'],
                 'compressionMethod' => $centralEntry['compressionMethod'],
                 'compressionMethodName' => $centralEntry['compressionMethodName'],
@@ -1738,6 +1947,12 @@ final class OpcRelationshipGraph
         $packagePartExtensionCounts = [];
         $entryNamesByPackagePartExtension = [];
         $packagePartExtensionSummariesByExtension = [];
+        $packagePartDirectoryRootCounts = [];
+        $entryNamesByPackagePartDirectoryRoot = [];
+        $packagePartDirectoryRootSummariesByRoot = [];
+        $packagePartPathSegmentCounts = [];
+        $entryNamesByPackagePartPathSegmentCount = [];
+        $packagePartPathSegmentSummariesByCount = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -1814,6 +2029,39 @@ final class OpcRelationshipGraph
                     $extensionKey,
                     $extension === '' ? null : $extension,
                     $extensionSummaryEntry,
+                );
+
+                $directoryRoot = self::zipEntryManifestDirectoryRoot($entry['partName']);
+                $packagePartDirectoryRootCounts[$directoryRoot] = ($packagePartDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                $entryNamesByPackagePartDirectoryRoot[$directoryRoot] ??= [];
+                self::appendUniqueString($entryNamesByPackagePartDirectoryRoot[$directoryRoot], $entry['entryName']);
+
+                $directoryRootSummaryEntry = $entry;
+                $directoryRootSummaryEntry['compressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactCompressedSize : 0;
+                $directoryRootSummaryEntry['uncompressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactUncompressedSize : 0;
+                self::recordZipEntryManifestDirectoryRootSummary(
+                    $packagePartDirectoryRootSummariesByRoot,
+                    $directoryRoot,
+                    $directoryRootSummaryEntry,
+                );
+            }
+            if ($entry['isPackagePart'] && is_int($entry['partNamePathSegmentCount'])) {
+                $pathSegmentCount = $entry['partNamePathSegmentCount'];
+                $packagePartPathSegmentCounts[$pathSegmentCount] =
+                    ($packagePartPathSegmentCounts[$pathSegmentCount] ?? 0) + 1;
+                $entryNamesByPackagePartPathSegmentCount[$pathSegmentCount] ??= [];
+                self::appendUniqueString(
+                    $entryNamesByPackagePartPathSegmentCount[$pathSegmentCount],
+                    $entry['entryName'],
+                );
+
+                $pathSegmentSummaryEntry = $entry;
+                $pathSegmentSummaryEntry['compressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactCompressedSize : 0;
+                $pathSegmentSummaryEntry['uncompressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactUncompressedSize : 0;
+                self::recordZipEntryManifestPathSegmentSummary(
+                    $packagePartPathSegmentSummariesByCount,
+                    $pathSegmentCount,
+                    $pathSegmentSummaryEntry,
                 );
             }
 
@@ -1952,6 +2200,18 @@ final class OpcRelationshipGraph
         ksort($packagePartExtensionCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByPackagePartExtension);
         $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
+        ksort($packagePartDirectoryRootCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByPackagePartDirectoryRoot);
+        $packagePartDirectoryRootSummaries = self::zipEntryManifestContentSummaries($packagePartDirectoryRootSummariesByRoot);
+        ksort($packagePartPathSegmentCounts, SORT_NUMERIC);
+        ksort($entryNamesByPackagePartPathSegmentCount, SORT_NUMERIC);
+        foreach ($entryNamesByPackagePartPathSegmentCount as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
+        $packagePartPathSegmentSummaries = self::zipEntryManifestPathSegmentSummaries(
+            $packagePartPathSegmentSummariesByCount
+        );
         self::sortZipManifestCompressionMethodProvenance(
             $compressionMethodCounts,
             $entryNamesByCompressionMethod,
@@ -1995,11 +2255,36 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFields['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryNameBytes' => $centralDirectoryVariableFields['centralDirectoryNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryVariableFields['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryCommentBytes' => $centralDirectoryVariableFields['centralDirectoryCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryVariableFields['centralDirectoryReviewFieldBytes'],
+            'centralExtraFieldEntryCount' => $centralDirectoryVariableFields['centralExtraFieldEntryCount'],
+            'entryCommentCount' => $centralDirectoryVariableFields['entryCommentCount'],
+            'centralDirectoryReviewFieldEntryCount' => $centralDirectoryVariableFields['reviewFieldEntryCount'],
+            'packageCommentOffset' => $centralDirectoryVariableFields['packageCommentOffset'],
+            'packageCommentLength' => $centralDirectoryVariableFields['packageCommentLength'],
+            'packageCommentBytes' => $centralDirectoryVariableFields['packageCommentLength'],
+            'packageCommentEnd' => $centralDirectoryVariableFields['packageCommentEnd'],
+            'packageCommentSha256' => $centralDirectoryVariableFields['packageCommentSha256'],
+            'hasCentralDirectoryVariableFields' => $centralDirectoryVariableFields['hasCentralDirectoryVariableFields'],
+            'hasCentralExtraFields' => $centralDirectoryVariableFields['hasCentralExtraFields'],
+            'hasEntryComments' => $centralDirectoryVariableFields['hasEntryComments'],
+            'hasCentralDirectoryReviewFields' => $centralDirectoryVariableFields['hasCentralDirectoryReviewFields'],
+            'hasPackageComment' => $centralDirectoryVariableFields['hasPackageComment'],
             'contentTypesItemCount' => count($contentTypesItems),
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
             'entryNamesByPackagePartExtension' => $entryNamesByPackagePartExtension,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
+            'packagePartDirectoryRootCount' => count($packagePartDirectoryRootCounts),
+            'packagePartDirectoryRootCounts' => $packagePartDirectoryRootCounts,
+            'entryNamesByPackagePartDirectoryRoot' => $entryNamesByPackagePartDirectoryRoot,
+            'packagePartDirectoryRootSummaries' => $packagePartDirectoryRootSummaries,
+            'packagePartPathSegmentCounts' => $packagePartPathSegmentCounts,
+            'entryNamesByPackagePartPathSegmentCount' => $entryNamesByPackagePartPathSegmentCount,
+            'packagePartPathSegmentSummaries' => $packagePartPathSegmentSummaries,
             'equivalentPackagePartNameGroupCount' => count($equivalentPackagePartNameGroups),
             'equivalentPackagePartNameEntryCount' => $equivalentPackagePartNameEntryCount,
             'rawNameCollisionGroupCount' => $rawNameManifest['rawNameCollisionGroupCount'],
@@ -8775,6 +9060,15 @@ final class OpcRelationshipGraph
         };
     }
 
+    private static function zipByteRangeSha256(string $bytes, mixed $offset, mixed $length): ?string
+    {
+        if (!is_int($offset) || !is_int($length) || $offset < 0 || $length < 0) {
+            return null;
+        }
+
+        return hash('sha256', substr($bytes, $offset, $length));
+    }
+
     /**
      * @param list<array{entryName:string, partName:?string, role:string, handoffKind:string, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int}> $entries
      * @return list<array{entryName:string, partName:?string, role:string, handoffKind:string, compressionMethod:int, compressionMethodName:string, compressedSize:int, uncompressedSize:int}>
@@ -8902,6 +9196,58 @@ final class OpcRelationshipGraph
         self::recordZipEntryManifestContentSummaryEntry($summaries[$extensionKey], $entry);
     }
 
+    private static function recordZipEntryManifestDirectoryRootSummary(
+        array &$summaries,
+        string $directoryRoot,
+        array $entry
+    ): void {
+        $summaries[$directoryRoot] ??= [
+            'directoryRoot' => $directoryRoot,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        self::recordZipEntryManifestContentSummaryEntry($summaries[$directoryRoot], $entry);
+    }
+
+    private static function zipEntryManifestDirectoryRoot(string $partName): string
+    {
+        $path = ltrim($partName, '/');
+        $slash = strpos($path, '/');
+
+        return $slash === false ? '/' : substr($path, 0, $slash + 1);
+    }
+
+    private static function recordZipEntryManifestPathSegmentSummary(
+        array &$summaries,
+        int $pathSegmentCount,
+        array $entry
+    ): void {
+        $summaries[$pathSegmentCount] ??= [
+            'pathSegmentCount' => $pathSegmentCount,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        self::recordZipEntryManifestContentSummaryEntry($summaries[$pathSegmentCount], $entry);
+    }
+
     private static function recordZipEntryManifestContentSummaryEntry(array &$summary, array $entry): void
     {
         $summary['entryCount']++;
@@ -8932,6 +9278,20 @@ final class OpcRelationshipGraph
             if (isset($summary['contentTypeSourceCounts'])) {
                 ksort($summary['contentTypeSourceCounts'], SORT_STRING);
             }
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['handoffKindCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    private static function zipEntryManifestPathSegmentSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_NUMERIC);
+        foreach ($summaries as &$summary) {
             ksort($summary['roleCounts'], SORT_STRING);
             ksort($summary['handoffKindCounts'], SORT_STRING);
             sort($summary['entryNames'], SORT_STRING);
@@ -9388,6 +9748,13 @@ final class OpcRelationshipGraph
         $position = strrpos($basename, '.');
 
         return $position === false ? '' : strtolower(substr($basename, $position + 1));
+    }
+
+    private static function partNamePathSegmentCount(string $partName): int
+    {
+        $trimmedPartName = trim(OpcPackagePath::canonicalPartName($partName), '/');
+
+        return $trimmedPartName === '' ? 0 : substr_count($trimmedPartName, '/') + 1;
     }
 
     private static function contentTypesItemNameInPackage(ZipPackage $package): ?string
