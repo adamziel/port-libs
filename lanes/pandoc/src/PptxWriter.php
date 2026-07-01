@@ -465,7 +465,10 @@ final class PptxWriter
                     if ($picture !== null) {
                         $shapes[] = $picture;
                     } else {
-                        $nonImageInlines[] = new AstNode('text', ['text' => $this->imageFallbackText($child)]);
+                        $fallback = $this->imageFallbackText($child);
+                        if ($fallback !== '') {
+                            $nonImageInlines[] = new AstNode('text', ['text' => $fallback]);
+                        }
                     }
                     continue;
                 }
@@ -658,12 +661,13 @@ final class PptxWriter
                         if ($xml !== '') {
                             $runs[] = $xml;
                         }
-                        break;
                     }
-                    $text = $this->inlineText([$inline]);
-                    if ($text !== '') {
-                        $runs[] = $this->runXml($text, $style);
-                    }
+                    break;
+                case 'raw_html':
+                case 'raw_html_inline':
+                case 'raw_tex':
+                case 'raw_tex_inline':
+                case 'raw_markdown':
                     break;
                 case 'span':
                 case 'smallcaps':
@@ -1709,7 +1713,13 @@ final class PptxWriter
 
     private function blockText(AstNode $node): string
     {
-        if ($node->type === 'text' || $node->type === 'code' || $node->type === 'raw_inline' || $node->type === 'raw_block' || $node->type === 'code_block') {
+        if ($node->type === 'raw_inline' || $node->type === 'raw_block') {
+            return $this->isOpenXmlRaw($node) ? (string) $node->attr('text', '') : '';
+        }
+        if ($node->type === 'raw_html' || $node->type === 'raw_html_inline' || $node->type === 'raw_tex' || $node->type === 'raw_tex_inline' || $node->type === 'raw_markdown') {
+            return '';
+        }
+        if ($node->type === 'text' || $node->type === 'code' || $node->type === 'code_block') {
             return (string) $node->attr('text', '');
         }
         if ($node->type === 'softbreak' || $node->type === 'linebreak') {
@@ -1748,12 +1758,7 @@ final class PptxWriter
     private function imageFallbackText(AstNode $image): string
     {
         $alt = (string) $image->attr('alt', $this->inlineText($image->children));
-        if ($alt !== '') {
-            return $alt;
-        }
-        $url = (string) $image->attr('url', $image->attr('src', ''));
-
-        return $url === '' ? '[Image]' : '[Image: ' . $url . ']';
+        return $alt;
     }
 
     private function shapeName(AstNode $node, string $fallback): string

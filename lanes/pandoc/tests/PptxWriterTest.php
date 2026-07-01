@@ -103,6 +103,14 @@ Pandoc (Meta {unMeta = fromList []})
 [Para [Str "Here",Space,Str "is",Space,Str "one",Space,Str "note.",Note [Para [Str "Here",Space,Str "is",Space,Str "the",Space,Str "note."]],Space,Str "And",Space,Str "one",Space,Str "more",Space,Str "note.",Note [Para [Str "And",Space,Str "another",Space,Str "note."]]]]
 NATIVE;
 
+$upstreamRemoveEmptySlidesNative = <<<'NATIVE'
+[Para [Str "Content"]
+,Para [Image ("",[],[]) [] ("lalune.jpg",""),Space,RawInline (Format "html") "<!--  -->"]
+,HorizontalRule
+,HorizontalRule
+,Para [Str "More",Space,Str "content"]]
+NATIVE;
+
 $collectText = static function (AstNode $node) use (&$collectText): string {
     $text = '';
     if (isset($node->attrs['text']) && is_scalar($node->attrs['text'])) {
@@ -352,6 +360,27 @@ return [
         $t->contains('Notes', $slide2Text);
         $t->contains('1. Here is the note.', $slide2Text);
         $t->contains('2. And another note.', $slide2Text);
+        $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'drops upstream blank raw-html and unresolved empty-alt image content' => static function (TestRunner $t) use ($upstreamRemoveEmptySlidesNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamRemoveEmptySlidesNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected first non-empty slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected second non-empty slide after separators');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'Consecutive separators and blank-only content must not produce another slide');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $slide1Text = trim(preg_replace('/\s+/u', ' ', strip_tags($slide1)) ?? '');
+        $t->contains('Content', $slide1Text);
+        $t->true(!str_contains($slide1Text, 'Image:'), 'Missing image with empty alt should not render URL fallback text');
+        $t->true(!str_contains($slide1, '&lt;!--'), 'Raw HTML comment should not be escaped into slide XML');
+        $t->true(!str_contains($slide1, '<!--'), 'Raw HTML comment should not be emitted into slide XML');
+
+        $slide2Text = trim(preg_replace('/\s+/u', ' ', strip_tags($package->read('ppt/slides/slide2.xml'))) ?? '');
+        $t->contains('More content', $slide2Text);
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
     },
 
