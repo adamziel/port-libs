@@ -2024,6 +2024,7 @@ final class OdfReader
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
         $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
+        $packagePartBasenames = self::packagePartBasenameInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
         sort($manifestCustomAttributeNames, SORT_STRING);
@@ -2090,6 +2091,17 @@ final class OdfReader
             'entryNamesByPackagePartExtension' => $packagePartExtensions['entryNamesByPackagePartExtension'],
             'packagePartExtensionSummaryCount' => count($packagePartExtensions['packagePartExtensionSummaries']),
             'packagePartExtensionSummaries' => $packagePartExtensions['packagePartExtensionSummaries'],
+            'packageBasenameCounts' => $packagePartBasenames['packageBasenameCounts'],
+            'entryNamesByPackageBasename' => $packagePartBasenames['entryNamesByPackageBasename'],
+            'packageBasenameStemCounts' => $packagePartBasenames['packageBasenameStemCounts'],
+            'packageCaseFoldedBasenameCounts' => $packagePartBasenames['packageCaseFoldedBasenameCounts'],
+            'entryNamesByPackageCaseFoldedBasename' => $packagePartBasenames['entryNamesByPackageCaseFoldedBasename'],
+            'duplicatePackageBasenameCount' => $packagePartBasenames['duplicatePackageBasenameCount'],
+            'duplicatePackageBasenameEntryCount' => $packagePartBasenames['duplicatePackageBasenameEntryCount'],
+            'duplicatePackageBasenameSummaries' => $packagePartBasenames['duplicatePackageBasenameSummaries'],
+            'caseFoldedPackageBasenameDuplicateCount' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateCount'],
+            'caseFoldedPackageBasenameDuplicateEntryCount' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateEntryCount'],
+            'caseFoldedPackageBasenameDuplicateSummaries' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateSummaries'],
             'mediaResources' => $mediaResourceSummary,
             'preferredViewModes' => $preferredViewModeSummary,
             'manifestEncryption' => $manifestEncryptionSummary,
@@ -2645,6 +2657,15 @@ final class OdfReader
             'undeclaredRoleCounts' => $provenance['undeclaredRoleCounts'] ?? [],
             'extensionlessPackagePartCount' => $provenance['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
+            'packageBasenameCounts' => $provenance['packageBasenameCounts'] ?? [],
+            'packageBasenameStemCounts' => $provenance['packageBasenameStemCounts'] ?? [],
+            'packageCaseFoldedBasenameCounts' => $provenance['packageCaseFoldedBasenameCounts'] ?? [],
+            'duplicatePackageBasenameCount' => $provenance['duplicatePackageBasenameCount'] ?? 0,
+            'duplicatePackageBasenameEntryCount' => $provenance['duplicatePackageBasenameEntryCount'] ?? 0,
+            'duplicatePackageBasenameSummaries' => $provenance['duplicatePackageBasenameSummaries'] ?? [],
+            'caseFoldedPackageBasenameDuplicateCount' => $provenance['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
+            'caseFoldedPackageBasenameDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
+            'caseFoldedPackageBasenameDuplicateSummaries' => $provenance['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
@@ -2807,6 +2828,15 @@ final class OdfReader
             'roleCounts' => $provenance['roleCounts'] ?? [],
             'extensionlessPackagePartCount' => $provenance['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
+            'packageBasenameCounts' => $provenance['packageBasenameCounts'] ?? [],
+            'packageBasenameStemCounts' => $provenance['packageBasenameStemCounts'] ?? [],
+            'packageCaseFoldedBasenameCounts' => $provenance['packageCaseFoldedBasenameCounts'] ?? [],
+            'duplicatePackageBasenameCount' => $provenance['duplicatePackageBasenameCount'] ?? 0,
+            'duplicatePackageBasenameEntryCount' => $provenance['duplicatePackageBasenameEntryCount'] ?? 0,
+            'duplicatePackageBasenameSummaries' => $provenance['duplicatePackageBasenameSummaries'] ?? [],
+            'caseFoldedPackageBasenameDuplicateCount' => $provenance['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
+            'caseFoldedPackageBasenameDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
+            'caseFoldedPackageBasenameDuplicateSummaries' => $provenance['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
             'packagePathKindCounts' => $provenance['packagePathKindCounts'] ?? [],
@@ -2947,6 +2977,13 @@ final class OdfReader
         $extension = pathinfo($part, PATHINFO_EXTENSION);
 
         return $extension === '' ? null : $extension;
+    }
+
+    private static function packagePartBasenameStem(string $basename): string
+    {
+        $stem = pathinfo($basename, PATHINFO_FILENAME);
+
+        return $stem === '' ? $basename : $stem;
     }
 
     /**
@@ -3090,6 +3127,115 @@ final class OdfReader
             'packagePartExtensionCounts' => $extensionCounts,
             'entryNamesByPackagePartExtension' => $entryNamesByExtension,
             'packagePartExtensionSummaries' => array_values($summaries),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     packageBasenameCounts:array<string, int>,
+     *     entryNamesByPackageBasename:array<string, list<string>>,
+     *     packageBasenameStemCounts:array<string, int>,
+     *     packageCaseFoldedBasenameCounts:array<string, int>,
+     *     entryNamesByPackageCaseFoldedBasename:array<string, list<string>>,
+     *     duplicatePackageBasenameCount:int,
+     *     duplicatePackageBasenameEntryCount:int,
+     *     duplicatePackageBasenameSummaries:list<array<string, mixed>>,
+     *     caseFoldedPackageBasenameDuplicateCount:int,
+     *     caseFoldedPackageBasenameDuplicateEntryCount:int,
+     *     caseFoldedPackageBasenameDuplicateSummaries:list<array<string, mixed>>
+     * }
+     */
+    private static function packagePartBasenameInventory(array $parts): array
+    {
+        $basenameCounts = [];
+        $entryNamesByBasename = [];
+        $stemCounts = [];
+        $caseFoldedBasenameCounts = [];
+        $entryNamesByCaseFoldedBasename = [];
+        $basenamesByCaseFoldedBasename = [];
+
+        foreach ($parts as $name => $part) {
+            $path = is_string($part['part'] ?? null) ? $part['part'] : (string) $name;
+            $pathShape = is_array($part['packagePathShape'] ?? null) ? $part['packagePathShape'] : [];
+            $basename = is_string($part['packageBasename'] ?? null) ? $part['packageBasename'] : null;
+            if ($basename === null && is_string($pathShape['basename'] ?? null)) {
+                $basename = $pathShape['basename'];
+            }
+            if ($basename === null || $basename === '') {
+                continue;
+            }
+
+            $stem = self::packagePartBasenameStem($basename);
+            $caseFoldKey = strtolower($basename);
+            $basenameCounts[$basename] = ($basenameCounts[$basename] ?? 0) + 1;
+            $entryNamesByBasename[$basename][] = $path;
+            $stemCounts[$stem] = ($stemCounts[$stem] ?? 0) + 1;
+            $caseFoldedBasenameCounts[$caseFoldKey] = ($caseFoldedBasenameCounts[$caseFoldKey] ?? 0) + 1;
+            $entryNamesByCaseFoldedBasename[$caseFoldKey][] = $path;
+            $basenamesByCaseFoldedBasename[$caseFoldKey][$basename] = true;
+        }
+
+        ksort($basenameCounts, SORT_STRING);
+        ksort($entryNamesByBasename, SORT_STRING);
+        foreach ($entryNamesByBasename as $basename => $names) {
+            sort($names, SORT_STRING);
+            $entryNamesByBasename[$basename] = $names;
+        }
+        ksort($stemCounts, SORT_STRING);
+        ksort($caseFoldedBasenameCounts, SORT_STRING);
+        ksort($entryNamesByCaseFoldedBasename, SORT_STRING);
+        foreach ($entryNamesByCaseFoldedBasename as $caseFoldKey => $names) {
+            sort($names, SORT_STRING);
+            $entryNamesByCaseFoldedBasename[$caseFoldKey] = $names;
+        }
+        ksort($basenamesByCaseFoldedBasename, SORT_STRING);
+
+        $duplicateSummaries = [];
+        $duplicateEntryCount = 0;
+        foreach ($entryNamesByBasename as $basename => $names) {
+            if (count($names) < 2) {
+                continue;
+            }
+
+            $duplicateEntryCount += count($names);
+            $duplicateSummaries[] = [
+                'packageBasename' => $basename,
+                'entryCount' => count($names),
+                'entryNames' => $names,
+            ];
+        }
+
+        $caseFoldedDuplicateSummaries = [];
+        $caseFoldedDuplicateEntryCount = 0;
+        foreach ($entryNamesByCaseFoldedBasename as $caseFoldKey => $names) {
+            if (count($names) < 2) {
+                continue;
+            }
+
+            $basenames = array_keys($basenamesByCaseFoldedBasename[$caseFoldKey] ?? []);
+            sort($basenames, SORT_STRING);
+            $caseFoldedDuplicateEntryCount += count($names);
+            $caseFoldedDuplicateSummaries[] = [
+                'caseFoldKey' => $caseFoldKey,
+                'entryCount' => count($names),
+                'packageBasenames' => $basenames,
+                'entryNames' => $names,
+            ];
+        }
+
+        return [
+            'packageBasenameCounts' => $basenameCounts,
+            'entryNamesByPackageBasename' => $entryNamesByBasename,
+            'packageBasenameStemCounts' => $stemCounts,
+            'packageCaseFoldedBasenameCounts' => $caseFoldedBasenameCounts,
+            'entryNamesByPackageCaseFoldedBasename' => $entryNamesByCaseFoldedBasename,
+            'duplicatePackageBasenameCount' => count($duplicateSummaries),
+            'duplicatePackageBasenameEntryCount' => $duplicateEntryCount,
+            'duplicatePackageBasenameSummaries' => $duplicateSummaries,
+            'caseFoldedPackageBasenameDuplicateCount' => count($caseFoldedDuplicateSummaries),
+            'caseFoldedPackageBasenameDuplicateEntryCount' => $caseFoldedDuplicateEntryCount,
+            'caseFoldedPackageBasenameDuplicateSummaries' => $caseFoldedDuplicateSummaries,
         ];
     }
 
