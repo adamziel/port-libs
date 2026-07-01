@@ -20765,6 +20765,10 @@ final class XmlHtmlDom
             $summary += self::htmlNonceSummary($element, $attributes['nonce']);
         }
 
+        if (array_key_exists('elementtiming', $attributes)) {
+            $summary += self::elementTimingReviewSummary($element, $attributes['elementtiming']);
+        }
+
         if (array_key_exists('hidden', $attributes)) {
             $hiddenKeyword = self::hiddenKeyword($attributes['hidden']);
             $summary['hiddenRaw'] = $attributes['hidden'];
@@ -21253,6 +21257,68 @@ final class XmlHtmlDom
             'nonceSharedInFragment' => count($sameValueElements) > 1,
             'nonceReviewCodes' => $reviewCodes,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function elementTimingReviewSummary(\DOMElement $element, string $raw): array
+    {
+        $token = trim($raw);
+        $issues = [];
+        if ($token === '') {
+            $issues[] = ['code' => 'empty-elementtiming-token'];
+        } elseif (!self::isHtmlReferenceToken($token)) {
+            $issues[] = ['code' => 'invalid-elementtiming-token', 'value' => $raw];
+        }
+
+        $resourceAttribute = self::elementTimingResourceAttribute($element);
+        $text = self::normalizedText($element);
+
+        return [
+            'elementTimingReviewPolicy' => 'html-elementtiming-token-review',
+            'elementTimingElement' => self::htmlElementName($element),
+            'elementTimingRaw' => $raw,
+            'elementTimingToken' => $issues === [] ? $token : null,
+            'elementTimingValid' => $issues === [],
+            'elementTimingByteLength' => strlen($raw),
+            'elementTimingTokenByteLength' => $token === '' ? 0 : strlen($token),
+            'elementTimingWhitespaceTrimmed' => $raw !== $token,
+            'elementTimingObservedKind' => self::elementTimingObservedKind($element, $resourceAttribute, $text),
+            'elementTimingTextLength' => strlen($text),
+            'elementTimingResourceAttribute' => $resourceAttribute,
+            'elementTimingResourceUrl' => $resourceAttribute === null ? null : self::attributeOrNull($element, $resourceAttribute),
+            'elementTimingIssues' => $issues,
+            'elementTimingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+        ];
+    }
+
+    private static function elementTimingResourceAttribute(\DOMElement $element): ?string
+    {
+        foreach (['src', 'poster', 'href', 'data'] as $attribute) {
+            if (self::attributeOrNull($element, $attribute) !== null) {
+                return $attribute;
+            }
+        }
+
+        return null;
+    }
+
+    private static function elementTimingObservedKind(\DOMElement $element, ?string $resourceAttribute, string $text): string
+    {
+        $name = self::htmlElementName($element);
+
+        return match (true) {
+            in_array($name, ['img', 'image', 'picture'], true) => 'image',
+            in_array($name, ['audio', 'video'], true) => 'media',
+            in_array($name, ['canvas', 'svg'], true) => 'visual',
+            $resourceAttribute !== null => 'resource',
+            $text !== '' => 'text',
+            default => 'container',
+        };
     }
 
     /**
