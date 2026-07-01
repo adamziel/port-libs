@@ -1623,7 +1623,12 @@ final class OpenDocumentPackage
         $packageExtraFields = self::packageExtraFieldInventory($parts);
         $packagePathByteLengths = self::packagePathByteLengthInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($this->manifestEntries, $parts, $undeclaredEntries);
-        $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($this->package, $parts, 'path');
+        $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize(
+            $this->package,
+            $parts,
+            'path',
+            $this->manifestEntries
+        );
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
 
         return [

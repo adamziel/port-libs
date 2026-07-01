@@ -2212,7 +2212,7 @@ final class OdfReader
         $packageExtraFields = self::packageExtraFieldInventory($parts);
         $packagePathByteLengths = self::packagePathByteLengthInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
-        $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
+        $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part', $manifest);
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
         sort($manifestCustomAttributeNames, SORT_STRING);
         sort($manifestCustomChildElementNames, SORT_STRING);
