@@ -18270,6 +18270,35 @@ final class DocxOpenXmlReader
         );
         $largestRelationshipSourceParts = array_slice($relationshipSourceExistingParts, 0, 5);
         $relationshipSourceDirectories = $this->relationshipSourceDirectorySummary($relationshipSources);
+        $relationshipSourceCaseFoldDirectories = $this->relationshipSourceCaseFoldDirectorySummary($relationshipSources);
+        $relationshipSourceCaseFoldDirectoryCounts = [];
+        $relationshipSourceExistingCaseFoldDirectoryCounts = [];
+        $relationshipSourceNonExistingCaseFoldDirectoryCounts = [];
+        $duplicateRelationshipSourceCaseFoldDirectories = [];
+        $duplicateRelationshipSourceCaseFoldDirectorySourceCount = 0;
+        $duplicateRelationshipSourceCaseFoldDirectoryRelationshipCount = 0;
+        foreach ($relationshipSourceCaseFoldDirectories as $caseFoldDirectorySummary) {
+            $caseFoldDirectoryKey = (string) ($caseFoldDirectorySummary['sourceCaseFoldDirectoryKey'] ?? '');
+            $sourceCount = (int) ($caseFoldDirectorySummary['sourceCount'] ?? 0);
+            $relationshipSourceCaseFoldDirectoryCounts[$caseFoldDirectoryKey] = $sourceCount;
+            if ((int) ($caseFoldDirectorySummary['existingSourceCount'] ?? 0) > 0) {
+                $relationshipSourceExistingCaseFoldDirectoryCounts[$caseFoldDirectoryKey] =
+                    (int) ($caseFoldDirectorySummary['existingSourceCount'] ?? 0);
+            }
+            if ((int) ($caseFoldDirectorySummary['nonExistingSourceCount'] ?? 0) > 0) {
+                $relationshipSourceNonExistingCaseFoldDirectoryCounts[$caseFoldDirectoryKey] =
+                    (int) ($caseFoldDirectorySummary['nonExistingSourceCount'] ?? 0);
+            }
+            if ((int) ($caseFoldDirectorySummary['sourceDirectoryVariantCount'] ?? 0) > 1) {
+                $duplicateRelationshipSourceCaseFoldDirectories[] = $caseFoldDirectoryKey;
+                $duplicateRelationshipSourceCaseFoldDirectorySourceCount += $sourceCount;
+                $duplicateRelationshipSourceCaseFoldDirectoryRelationshipCount +=
+                    (int) ($caseFoldDirectorySummary['relationshipCount'] ?? 0);
+            }
+        }
+        ksort($relationshipSourceCaseFoldDirectoryCounts, SORT_STRING);
+        ksort($relationshipSourceExistingCaseFoldDirectoryCounts, SORT_STRING);
+        ksort($relationshipSourceNonExistingCaseFoldDirectoryCounts, SORT_STRING);
         $relationshipSourceDirectoryBaseNames = $this->relationshipSourceDirectoryBaseNameSummary($relationshipSources);
         $relationshipSourceDirectoryBaseNameCounts = [];
         $relationshipSourceExistingDirectoryBaseNameCounts = [];
@@ -19123,6 +19152,15 @@ final class DocxOpenXmlReader
             'relationshipSourceRoles' => $relationshipSourceRoles,
             'relationshipSourceDirectoryCount' => count($relationshipSourceDirectories),
             'relationshipSourceDirectories' => $relationshipSourceDirectories,
+            'relationshipSourceCaseFoldDirectoryCount' => count($relationshipSourceCaseFoldDirectories),
+            'relationshipSourceCaseFoldDirectoryCounts' => $relationshipSourceCaseFoldDirectoryCounts,
+            'relationshipSourceExistingCaseFoldDirectoryCounts' => $relationshipSourceExistingCaseFoldDirectoryCounts,
+            'relationshipSourceNonExistingCaseFoldDirectoryCounts' => $relationshipSourceNonExistingCaseFoldDirectoryCounts,
+            'duplicateRelationshipSourceCaseFoldDirectoryCount' => count($duplicateRelationshipSourceCaseFoldDirectories),
+            'duplicateRelationshipSourceCaseFoldDirectorySourceCount' => $duplicateRelationshipSourceCaseFoldDirectorySourceCount,
+            'duplicateRelationshipSourceCaseFoldDirectoryRelationshipCount' => $duplicateRelationshipSourceCaseFoldDirectoryRelationshipCount,
+            'duplicateRelationshipSourceCaseFoldDirectories' => $duplicateRelationshipSourceCaseFoldDirectories,
+            'relationshipSourceCaseFoldDirectories' => $relationshipSourceCaseFoldDirectories,
             'relationshipSourceDirectoryBaseNameCount' => count($relationshipSourceDirectoryBaseNames),
             'relationshipSourceDirectoryBaseNameCounts' => $relationshipSourceDirectoryBaseNameCounts,
             'relationshipSourceExistingDirectoryBaseNameCounts' => $relationshipSourceExistingDirectoryBaseNameCounts,
@@ -27692,6 +27730,250 @@ final class DocxOpenXmlReader
             sort($summary['sourceParts'], SORT_STRING);
             sort($summary['relationshipParts'], SORT_STRING);
             $directories[$directoryKey] = $summary;
+        }
+
+        return array_values($directories);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipSourceCaseFoldDirectorySummary(array $relationshipSources): array
+    {
+        $directories = [];
+        foreach ($relationshipSources as $source) {
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $sourceDirectory = is_string($source['sourceDirectory'] ?? null)
+                ? $source['sourceDirectory']
+                : ($sourcePart === '' ? '' : $this->packagePartDirectory($sourcePart));
+            $caseFoldDirectory = $sourceDirectory === ''
+                ? ''
+                : $this->packagePartCaseFoldKey($sourceDirectory);
+            $caseFoldDirectoryKey = $caseFoldDirectory === ''
+                ? '(invalid-source)'
+                : $caseFoldDirectory;
+
+            if (!isset($directories[$caseFoldDirectoryKey])) {
+                $directories[$caseFoldDirectoryKey] = [
+                    'sourceCaseFoldDirectoryKey' => $caseFoldDirectoryKey,
+                    'sourceCaseFoldDirectory' => $caseFoldDirectoryKey === '(invalid-source)' ? null : $caseFoldDirectory,
+                    'sourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'missingContentTypeSourceCount' => 0,
+                    'parameterizedSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'sourceDirectoryVariantCount' => 0,
+                    'sourceDirectoryCounts' => [],
+                    'sourcePathDepthCounts' => [],
+                    'sourceDirectoryDepthCounts' => [],
+                    'sourceBaseNameCounts' => [],
+                    'sourcePartExtensionCounts' => [],
+                    'relationshipSourceKindCounts' => [],
+                    'sourceContentTypeBaseCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceDirectories' => [],
+                    'sourceParts' => [],
+                    'existingSourceParts' => [],
+                    'nonExistingSourceParts' => [],
+                    'relationshipParts' => [],
+                    'contentTypes' => [],
+                    'largestExistingSourcePart' => null,
+                    '_seenExistingSourceParts' => [],
+                ];
+            }
+
+            ++$directories[$caseFoldDirectoryKey]['sourceCount'];
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$directories[$caseFoldDirectoryKey]['existingSourceCount'];
+            } else {
+                ++$directories[$caseFoldDirectoryKey]['nonExistingSourceCount'];
+            }
+            $directories[$caseFoldDirectoryKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $directories[$caseFoldDirectoryKey]['relationshipRecordCount'] +=
+                (int) ($source['relationshipRecordCount'] ?? 0);
+
+            $sourceDirectoryKey = $sourceDirectory === '' ? '(invalid-source)' : $sourceDirectory;
+            $directories[$caseFoldDirectoryKey]['sourceDirectoryCounts'][$sourceDirectoryKey] =
+                ($directories[$caseFoldDirectoryKey]['sourceDirectoryCounts'][$sourceDirectoryKey] ?? 0) + 1;
+
+            $sourcePathDepth = is_int($source['sourcePathDepth'] ?? null)
+                ? (int) $source['sourcePathDepth']
+                : ($sourcePart === '' ? null : count($this->packagePartPathSegments($sourcePart)));
+            $sourcePathDepthKey = $sourcePathDepth === null ? '(invalid-source)' : (string) $sourcePathDepth;
+            $directories[$caseFoldDirectoryKey]['sourcePathDepthCounts'][$sourcePathDepthKey] =
+                ($directories[$caseFoldDirectoryKey]['sourcePathDepthCounts'][$sourcePathDepthKey] ?? 0) + 1;
+
+            $sourceDirectoryDepth = is_int($source['sourceDirectoryDepth'] ?? null)
+                ? (int) $source['sourceDirectoryDepth']
+                : ($sourceDirectory === '' ? null : $this->packagePartDirectoryDepth($sourceDirectory));
+            $sourceDirectoryDepthKey = $sourceDirectoryDepth === null ? '(invalid-source)' : (string) $sourceDirectoryDepth;
+            $directories[$caseFoldDirectoryKey]['sourceDirectoryDepthCounts'][$sourceDirectoryDepthKey] =
+                ($directories[$caseFoldDirectoryKey]['sourceDirectoryDepthCounts'][$sourceDirectoryDepthKey] ?? 0) + 1;
+
+            $sourceBaseName = is_string($source['sourceBaseName'] ?? null)
+                ? $source['sourceBaseName']
+                : ($sourcePart === '' ? '' : $this->packagePartBaseName($sourcePart));
+            $sourceBaseNameKey = $sourceBaseName === '' ? '(invalid-source)' : $sourceBaseName;
+            $directories[$caseFoldDirectoryKey]['sourceBaseNameCounts'][$sourceBaseNameKey] =
+                ($directories[$caseFoldDirectoryKey]['sourceBaseNameCounts'][$sourceBaseNameKey] ?? 0) + 1;
+
+            $sourcePartExtension = is_string($source['sourcePartExtension'] ?? null)
+                ? $source['sourcePartExtension']
+                : ($sourcePart === '' ? null : $this->packagePartExtension($sourcePart));
+            $sourcePartExtensionKey = $sourcePartExtension ?? '(none)';
+            $directories[$caseFoldDirectoryKey]['sourcePartExtensionCounts'][$sourcePartExtensionKey] =
+                ($directories[$caseFoldDirectoryKey]['sourcePartExtensionCounts'][$sourcePartExtensionKey] ?? 0) + 1;
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $directories[$caseFoldDirectoryKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($directories[$caseFoldDirectoryKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $sourceContentType = is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : '';
+            $sourceContentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $sourceContentTypeBaseKey = $sourceContentTypeBase === '' ? '(missing)' : $sourceContentTypeBase;
+            $directories[$caseFoldDirectoryKey]['sourceContentTypeBaseCounts'][$sourceContentTypeBaseKey] =
+                ($directories[$caseFoldDirectoryKey]['sourceContentTypeBaseCounts'][$sourceContentTypeBaseKey] ?? 0) + 1;
+
+            $sourceContentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $sourceContentTypeSourceKey = $sourceContentTypeSource === '' ? '(missing)' : $sourceContentTypeSource;
+            $directories[$caseFoldDirectoryKey]['sourceContentTypeSourceCounts'][$sourceContentTypeSourceKey] =
+                ($directories[$caseFoldDirectoryKey]['sourceContentTypeSourceCounts'][$sourceContentTypeSourceKey] ?? 0) + 1;
+            if ($sourceContentTypeSourceKey === '(missing)') {
+                ++$directories[$caseFoldDirectoryKey]['missingContentTypeSourceCount'];
+            }
+
+            $sourceContentTypeParameterCount = is_int($source['sourceContentTypeParameterCount'] ?? null)
+                ? (int) $source['sourceContentTypeParameterCount']
+                : 0;
+            $sourceContentTypeParameters = is_array($source['sourceContentTypeParameters'] ?? null)
+                ? $source['sourceContentTypeParameters']
+                : [];
+            $sourceContentTypeParameterMap = is_array($source['sourceContentTypeParameterMap'] ?? null)
+                ? $source['sourceContentTypeParameterMap']
+                : [];
+            $sourceContentTypeHasParameters = ($source['sourceContentTypeHasParameters'] ?? false) === true
+                || $sourceContentTypeParameterCount > 0
+                || $sourceContentTypeParameters !== []
+                || $sourceContentTypeParameterMap !== [];
+            if ($sourceContentTypeHasParameters) {
+                ++$directories[$caseFoldDirectoryKey]['parameterizedSourceCount'];
+            }
+
+            $sourceRoles = array_values(array_filter(
+                array_map('strval', $source['sourceRoles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            ));
+            foreach ($sourceRoles as $role) {
+                $directories[$caseFoldDirectoryKey]['sourceRoleCounts'][$role] =
+                    ($directories[$caseFoldDirectoryKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString(
+                $directories[$caseFoldDirectoryKey]['sourceDirectories'],
+                $sourceDirectory === '' ? null : $sourceDirectory,
+            );
+            $this->appendUniqueString(
+                $directories[$caseFoldDirectoryKey]['sourceParts'],
+                $sourcePart === '' ? null : $sourcePart,
+            );
+            if ($sourceExists) {
+                $this->appendUniqueString(
+                    $directories[$caseFoldDirectoryKey]['existingSourceParts'],
+                    $sourcePart === '' ? null : $sourcePart,
+                );
+            } else {
+                $this->appendUniqueString(
+                    $directories[$caseFoldDirectoryKey]['nonExistingSourceParts'],
+                    $sourcePart === '' ? null : $sourcePart,
+                );
+            }
+            $this->appendUniqueString(
+                $directories[$caseFoldDirectoryKey]['relationshipParts'],
+                is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString(
+                $directories[$caseFoldDirectoryKey]['contentTypes'],
+                $sourceContentType === '' ? null : $sourceContentType,
+            );
+
+            $sourceBytes = is_int($source['sourceBytes'] ?? null) ? (int) $source['sourceBytes'] : null;
+            if (
+                !$sourceExists
+                || $sourceBytes === null
+                || isset($directories[$caseFoldDirectoryKey]['_seenExistingSourceParts'][$sourcePart])
+            ) {
+                continue;
+            }
+
+            $directories[$caseFoldDirectoryKey]['_seenExistingSourceParts'][$sourcePart] = true;
+            $sourceSummary = [
+                'sourcePart' => $sourcePart,
+                'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
+                'relationshipSourceKind' => $sourceKind,
+                'sourceDirectory' => $sourceDirectory === '' ? null : $sourceDirectory,
+                'sourceCaseFoldDirectory' => $caseFoldDirectory === '' ? null : $caseFoldDirectory,
+                'sourceDirectoryDepth' => $sourceDirectoryDepth,
+                'sourcePathDepth' => $sourcePathDepth,
+                'sourceBaseName' => $sourceBaseName === '' ? null : $sourceBaseName,
+                'sourcePartExtension' => $sourcePartExtension,
+                'sourceBytes' => $sourceBytes,
+                'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                'sourceContentType' => $sourceContentType === '' ? null : $sourceContentType,
+                'sourceContentTypeBase' => $sourceContentTypeBase === '' ? null : $sourceContentTypeBase,
+                'sourceContentTypeSource' => $sourceContentTypeSource === '' ? null : $sourceContentTypeSource,
+                'sourceContentTypeHasParameters' => $sourceContentTypeHasParameters,
+                'sourceContentTypeParameterCount' => $sourceContentTypeParameterCount,
+                'sourceRoles' => $sourceRoles,
+                'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+            ];
+            $directories[$caseFoldDirectoryKey]['existingSourceByteLength'] += $sourceBytes;
+            $largestPart = $directories[$caseFoldDirectoryKey]['largestExistingSourcePart'];
+            if (
+                !is_array($largestPart)
+                || $sourceBytes > (int) ($largestPart['sourceBytes'] ?? 0)
+                || (
+                    $sourceBytes === (int) ($largestPart['sourceBytes'] ?? 0)
+                    && strcmp($sourcePart, (string) ($largestPart['sourcePart'] ?? '')) < 0
+                )
+            ) {
+                $directories[$caseFoldDirectoryKey]['largestExistingSourcePart'] = $sourceSummary;
+            }
+        }
+
+        ksort($directories, SORT_STRING);
+        foreach ($directories as $caseFoldDirectoryKey => $summary) {
+            ksort($summary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($summary['sourcePathDepthCounts'], SORT_STRING);
+            ksort($summary['sourceDirectoryDepthCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceDirectories'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['existingSourceParts'], SORT_STRING);
+            sort($summary['nonExistingSourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
+            $summary['sourceDirectoryVariantCount'] = count($summary['sourceDirectoryCounts']);
+            unset($summary['_seenExistingSourceParts']);
+            $directories[$caseFoldDirectoryKey] = $summary;
         }
 
         return array_values($directories);
