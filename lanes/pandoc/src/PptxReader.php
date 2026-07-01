@@ -47,7 +47,7 @@ final class PptxReader
                 throw new \RuntimeException('PPTX external slide relationships are not supported');
             }
 
-            $slidePart = OpcPackagePath::stripQueryAndFragment($presentationRelationships->resolveTarget($relationship));
+            $slidePart = $this->upstreamPresentationSlidePart($relationship->target);
             $slideDocument = $this->loadPackageXml($package, $slidePart, 'PPTX slide ' . $slide['index']);
             $slideRelationships = $this->relationshipsOrEmpty($package, $slidePart);
             $slideContext = $this->slideContext($package, $slideRelationships);
@@ -133,6 +133,11 @@ final class PptxReader
         }
 
         return OpcRelationships::fromPackage($package, $sourcePart);
+    }
+
+    private function upstreamPresentationSlidePart(string $target): string
+    {
+        return 'ppt/' . $target;
     }
 
     private function loadPackageXml(ZipPackage $package, string $partName, string $label): \DOMDocument
