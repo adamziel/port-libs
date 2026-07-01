@@ -545,14 +545,29 @@ XML;
         foreach ($rawSummary['entries'] as $entry) {
             $rawEntries[$entry['entryName']] = $entry;
         }
+        $sourceRecordEntries = [];
+        foreach ($summary['zipSourceRecordManifest']['entries'] as $entry) {
+            $sourceRecordEntries[$entry['entryName']] = $entry;
+        }
 
         $documentEntry = $entries['word/document.xml'];
         $rawDocumentEntry = $rawEntries['word/document.xml'];
         $manifestDocumentEntry = $manifestEntries['word/document.xml'];
+        $sourceRecordDocumentEntry = $sourceRecordEntries['word/document.xml'];
         $expectedCentralRecordBytes = 46
             + strlen('word/document.xml')
             + strlen($documentExtra)
             + strlen($documentComment);
+        $expectedLocalReviewFieldBytes = strlen($documentExtra);
+        $expectedCentralReviewFieldBytes = strlen($documentExtra) + strlen($documentComment);
+        $expectedReviewFieldBytes = $expectedLocalReviewFieldBytes + $expectedCentralReviewFieldBytes;
+        $expectedReviewFieldBucket = [
+            'reviewFieldEntryCount' => 1,
+            'reviewFieldByteCountsAreExact' => true,
+            'localHeaderReviewFieldBytes' => $expectedLocalReviewFieldBytes,
+            'centralDirectoryReviewFieldBytes' => $expectedCentralReviewFieldBytes,
+            'reviewFieldBytes' => $expectedReviewFieldBytes,
+        ];
         $creatorFields = [
             'versionMadeBy',
             'madeByHostSystem',
@@ -642,6 +657,39 @@ XML;
             strlen($documentExtra) + strlen($documentComment),
             $documentEntry['centralDirectoryReviewFieldBytes']
         );
+        $t->same($summary['zipSourceRecordManifest'], $rawSummary['zipSourceRecordManifest']);
+        $t->same(true, $summary['zipSourceRecordReviewFieldByteCountsAreExact']);
+        $t->same(true, $rawSummary['zipSourceRecordReviewFieldByteCountsAreExact']);
+        $t->same($expectedLocalReviewFieldBytes, $summary['zipSourceRecordLocalHeaderReviewFieldBytes']);
+        $t->same($expectedLocalReviewFieldBytes, $rawSummary['zipSourceRecordLocalHeaderReviewFieldBytes']);
+        $t->same($expectedLocalReviewFieldBytes, $summary['zipSourceRecordKnownLocalHeaderReviewFieldBytes']);
+        $t->same($expectedCentralReviewFieldBytes, $summary['zipSourceRecordCentralDirectoryReviewFieldBytes']);
+        $t->same($expectedCentralReviewFieldBytes, $rawSummary['zipSourceRecordCentralDirectoryReviewFieldBytes']);
+        $t->same($expectedCentralReviewFieldBytes, $summary['zipSourceRecordKnownCentralDirectoryReviewFieldBytes']);
+        $t->same($expectedReviewFieldBytes, $summary['zipSourceRecordReviewFieldBytes']);
+        $t->same($expectedReviewFieldBytes, $rawSummary['zipSourceRecordReviewFieldBytes']);
+        $t->same($expectedReviewFieldBytes, $summary['zipSourceRecordKnownReviewFieldBytes']);
+        $t->same(
+            ['xml-part' => $expectedReviewFieldBucket],
+            $summary['zipSourceRecordReviewFieldBytesByRole']
+        );
+        $t->same(
+            ['xml-part' => $expectedReviewFieldBucket],
+            $rawSummary['zipSourceRecordReviewFieldBytesByRole']
+        );
+        $t->same(
+            ['xml' => $expectedReviewFieldBucket],
+            $summary['zipSourceRecordReviewFieldBytesByHandoffKind']
+        );
+        $t->same(
+            ['xml' => $expectedReviewFieldBucket],
+            $rawSummary['zipSourceRecordReviewFieldBytesByHandoffKind']
+        );
+        $t->same(true, $sourceRecordDocumentEntry['reviewFieldByteCountsAreExact']);
+        $t->same($expectedLocalReviewFieldBytes, $sourceRecordDocumentEntry['localHeaderReviewFieldBytes']);
+        $t->same($expectedCentralReviewFieldBytes, $sourceRecordDocumentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same($expectedReviewFieldBytes, $sourceRecordDocumentEntry['reviewFieldBytes']);
+        $t->same($expectedReviewFieldBytes, $sourceRecordDocumentEntry['knownReviewFieldBytes']);
     },
     'carries OPC ZIP local header and compressed payload source hashes through manifest preflights' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

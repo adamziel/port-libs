@@ -1442,6 +1442,15 @@ final class OpcRelationshipGraph
             'zipSourceRecordKnownCentralDirectoryRecordBytes' => $zipSourceRecordManifest['knownCentralDirectoryRecordBytes'],
             'zipSourceRecordBytes' => $zipSourceRecordManifest['sourceRecordBytes'],
             'zipSourceRecordKnownBytes' => $zipSourceRecordManifest['knownSourceRecordBytes'],
+            'zipSourceRecordReviewFieldByteCountsAreExact' => $zipSourceRecordManifest['reviewFieldByteCountsAreExact'],
+            'zipSourceRecordLocalHeaderReviewFieldBytes' => $zipSourceRecordManifest['localHeaderReviewFieldBytes'],
+            'zipSourceRecordKnownLocalHeaderReviewFieldBytes' => $zipSourceRecordManifest['knownLocalHeaderReviewFieldBytes'],
+            'zipSourceRecordCentralDirectoryReviewFieldBytes' => $zipSourceRecordManifest['centralDirectoryReviewFieldBytes'],
+            'zipSourceRecordKnownCentralDirectoryReviewFieldBytes' => $zipSourceRecordManifest['knownCentralDirectoryReviewFieldBytes'],
+            'zipSourceRecordReviewFieldBytes' => $zipSourceRecordManifest['reviewFieldBytes'],
+            'zipSourceRecordKnownReviewFieldBytes' => $zipSourceRecordManifest['knownReviewFieldBytes'],
+            'zipSourceRecordReviewFieldBytesByRole' => $zipSourceRecordManifest['reviewFieldBytesByRole'],
+            'zipSourceRecordReviewFieldBytesByHandoffKind' => $zipSourceRecordManifest['reviewFieldBytesByHandoffKind'],
             'zipSourceRecordManifest' => $zipSourceRecordManifest,
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
@@ -2588,6 +2597,15 @@ final class OpcRelationshipGraph
             'zipSourceRecordKnownCentralDirectoryRecordBytes' => $zipSourceRecordManifest['knownCentralDirectoryRecordBytes'],
             'zipSourceRecordBytes' => $zipSourceRecordManifest['sourceRecordBytes'],
             'zipSourceRecordKnownBytes' => $zipSourceRecordManifest['knownSourceRecordBytes'],
+            'zipSourceRecordReviewFieldByteCountsAreExact' => $zipSourceRecordManifest['reviewFieldByteCountsAreExact'],
+            'zipSourceRecordLocalHeaderReviewFieldBytes' => $zipSourceRecordManifest['localHeaderReviewFieldBytes'],
+            'zipSourceRecordKnownLocalHeaderReviewFieldBytes' => $zipSourceRecordManifest['knownLocalHeaderReviewFieldBytes'],
+            'zipSourceRecordCentralDirectoryReviewFieldBytes' => $zipSourceRecordManifest['centralDirectoryReviewFieldBytes'],
+            'zipSourceRecordKnownCentralDirectoryReviewFieldBytes' => $zipSourceRecordManifest['knownCentralDirectoryReviewFieldBytes'],
+            'zipSourceRecordReviewFieldBytes' => $zipSourceRecordManifest['reviewFieldBytes'],
+            'zipSourceRecordKnownReviewFieldBytes' => $zipSourceRecordManifest['knownReviewFieldBytes'],
+            'zipSourceRecordReviewFieldBytesByRole' => $zipSourceRecordManifest['reviewFieldBytesByRole'],
+            'zipSourceRecordReviewFieldBytesByHandoffKind' => $zipSourceRecordManifest['reviewFieldBytesByHandoffKind'],
             'zipSourceRecordManifest' => $zipSourceRecordManifest,
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
@@ -9475,6 +9493,40 @@ final class OpcRelationshipGraph
         $dataDescriptorEntryCount = 0;
         $unknownSourceRecordEntryCount = 0;
         $byteCountsAreExact = true;
+        $localHeaderReviewFieldBytes = 0;
+        $centralDirectoryReviewFieldBytes = 0;
+        $reviewFieldBytes = 0;
+        $localHeaderReviewFieldByteCountsAreExact = true;
+        $centralDirectoryReviewFieldByteCountsAreExact = true;
+        $reviewFieldBytesByRole = [];
+        $reviewFieldBytesByHandoffKind = [];
+        $recordReviewFieldBucket = static function (
+            array &$buckets,
+            string $bucketName,
+            int $localHeaderBytes,
+            int $centralDirectoryBytes,
+            bool $byteCountsAreExact
+        ): void {
+            $bucketBytes = $localHeaderBytes + $centralDirectoryBytes;
+            if ($bucketBytes === 0) {
+                return;
+            }
+
+            $buckets[$bucketName] ??= [
+                'reviewFieldEntryCount' => 0,
+                'reviewFieldByteCountsAreExact' => true,
+                'localHeaderReviewFieldBytes' => 0,
+                'centralDirectoryReviewFieldBytes' => 0,
+                'reviewFieldBytes' => 0,
+            ];
+
+            $buckets[$bucketName]['reviewFieldEntryCount']++;
+            $buckets[$bucketName]['reviewFieldByteCountsAreExact'] =
+                $buckets[$bucketName]['reviewFieldByteCountsAreExact'] && $byteCountsAreExact;
+            $buckets[$bucketName]['localHeaderReviewFieldBytes'] += $localHeaderBytes;
+            $buckets[$bucketName]['centralDirectoryReviewFieldBytes'] += $centralDirectoryBytes;
+            $buckets[$bucketName]['reviewFieldBytes'] += $bucketBytes;
+        };
 
         foreach ($entries as $entry) {
             $entryName = is_string($entry['entryName'] ?? null) ? $entry['entryName'] : '';
@@ -9497,6 +9549,19 @@ final class OpcRelationshipGraph
             $entryCentralDirectoryRecordBytes = is_int($entry['centralDirectoryRecordBytes'] ?? null)
                 ? $entry['centralDirectoryRecordBytes']
                 : null;
+            $entryLocalHeaderReviewFieldBytes = is_int($entry['localHeaderReviewFieldBytes'] ?? null)
+                ? $entry['localHeaderReviewFieldBytes']
+                : null;
+            $entryCentralDirectoryReviewFieldBytes = is_int($entry['centralDirectoryReviewFieldBytes'] ?? null)
+                ? $entry['centralDirectoryReviewFieldBytes']
+                : null;
+            $entryReviewFieldByteCountsAreExact = $entryLocalHeaderReviewFieldBytes !== null
+                && $entryCentralDirectoryReviewFieldBytes !== null;
+            $entryKnownLocalHeaderReviewFieldBytes = $entryLocalHeaderReviewFieldBytes ?? 0;
+            $entryKnownCentralDirectoryReviewFieldBytes = $entryCentralDirectoryReviewFieldBytes ?? 0;
+            $entryKnownReviewFieldBytes = $entryKnownLocalHeaderReviewFieldBytes
+                + $entryKnownCentralDirectoryReviewFieldBytes;
+            $entryReviewFieldBytes = $entryReviewFieldByteCountsAreExact ? $entryKnownReviewFieldBytes : null;
             $entryByteCountsAreExact = ($entry['byteCountsAreExact'] ?? true) === true
                 && $entryLocalRecordBytes !== null
                 && $entryLocalHeaderBytes !== null
@@ -9514,6 +9579,15 @@ final class OpcRelationshipGraph
             }
             if ($entryCentralDirectoryRecordBytes === null) {
                 $sourceRecordIssues[] = 'central-directory-record-byte-count-unavailable';
+            }
+            if (!$entryReviewFieldByteCountsAreExact) {
+                $sourceRecordIssues[] = 'source-record-review-field-byte-count-not-exact';
+            }
+            if ($entryLocalHeaderReviewFieldBytes === null) {
+                $sourceRecordIssues[] = 'local-header-review-field-byte-count-unavailable';
+            }
+            if ($entryCentralDirectoryReviewFieldBytes === null) {
+                $sourceRecordIssues[] = 'central-directory-review-field-byte-count-unavailable';
             }
 
             if ($entryByteCountsAreExact) {
@@ -9534,6 +9608,29 @@ final class OpcRelationshipGraph
                 ++$dataDescriptorEntryCount;
             }
             $centralDirectoryRecordBytes += $entryCentralDirectoryRecordBytes ?? 0;
+            if ($entryLocalHeaderReviewFieldBytes === null) {
+                $localHeaderReviewFieldByteCountsAreExact = false;
+            }
+            if ($entryCentralDirectoryReviewFieldBytes === null) {
+                $centralDirectoryReviewFieldByteCountsAreExact = false;
+            }
+            $localHeaderReviewFieldBytes += $entryKnownLocalHeaderReviewFieldBytes;
+            $centralDirectoryReviewFieldBytes += $entryKnownCentralDirectoryReviewFieldBytes;
+            $reviewFieldBytes += $entryKnownReviewFieldBytes;
+            $recordReviewFieldBucket(
+                $reviewFieldBytesByRole,
+                $role,
+                $entryKnownLocalHeaderReviewFieldBytes,
+                $entryKnownCentralDirectoryReviewFieldBytes,
+                $entryReviewFieldByteCountsAreExact,
+            );
+            $recordReviewFieldBucket(
+                $reviewFieldBytesByHandoffKind,
+                $handoffKind,
+                $entryKnownLocalHeaderReviewFieldBytes,
+                $entryKnownCentralDirectoryReviewFieldBytes,
+                $entryReviewFieldByteCountsAreExact,
+            );
 
             $manifestEntries[] = [
                 'entryIndex' => $entry['entryIndex'] ?? null,
@@ -9562,9 +9659,18 @@ final class OpcRelationshipGraph
                 'centralDirectoryRecordEnd' => $entry['centralDirectoryRecordEnd'] ?? null,
                 'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
                 'sourceRecordBytes' => $entrySourceRecordBytes,
+                'reviewFieldByteCountsAreExact' => $entryReviewFieldByteCountsAreExact,
+                'localHeaderReviewFieldBytes' => $entryLocalHeaderReviewFieldBytes,
+                'centralDirectoryReviewFieldBytes' => $entryCentralDirectoryReviewFieldBytes,
+                'reviewFieldBytes' => $entryReviewFieldBytes,
+                'knownReviewFieldBytes' => $entryKnownReviewFieldBytes,
                 'sourceRecordIssues' => $sourceRecordIssues,
             ];
         }
+        ksort($reviewFieldBytesByRole, SORT_STRING);
+        ksort($reviewFieldBytesByHandoffKind, SORT_STRING);
+        $reviewFieldByteCountsAreExact = $localHeaderReviewFieldByteCountsAreExact
+            && $centralDirectoryReviewFieldByteCountsAreExact;
 
         $payload = [
             'manifestVersion' => $manifestVersion,
@@ -9583,6 +9689,19 @@ final class OpcRelationshipGraph
             'knownCentralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'sourceRecordBytes' => $byteCountsAreExact ? $sourceRecordBytes : null,
             'knownSourceRecordBytes' => $sourceRecordBytes,
+            'reviewFieldByteCountsAreExact' => $reviewFieldByteCountsAreExact,
+            'localHeaderReviewFieldBytes' => $localHeaderReviewFieldByteCountsAreExact
+                ? $localHeaderReviewFieldBytes
+                : null,
+            'knownLocalHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldByteCountsAreExact
+                ? $centralDirectoryReviewFieldBytes
+                : null,
+            'knownCentralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+            'reviewFieldBytes' => $reviewFieldByteCountsAreExact ? $reviewFieldBytes : null,
+            'knownReviewFieldBytes' => $reviewFieldBytes,
+            'reviewFieldBytesByRole' => $reviewFieldBytesByRole,
+            'reviewFieldBytesByHandoffKind' => $reviewFieldBytesByHandoffKind,
             'entries' => $manifestEntries,
         ];
         $manifestJson = json_encode(
