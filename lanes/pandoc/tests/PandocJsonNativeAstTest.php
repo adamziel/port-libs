@@ -14889,6 +14889,143 @@ return [
             }
         }
     },
+    'regenerates only edited citation locator affix payloads' => static function (TestRunner $t): void {
+        $anchorRecord = [
+            'reviewQueue' => 'anchor-review',
+            'sourceOrdinal' => 21,
+            'citationId' => 'source-anchor',
+            'citationPrefix' => [
+                ['t' => 'Str', 'c' => 'see'],
+            ],
+            'citationSuffix' => [
+                ['t' => 'Str', 'c' => 'p.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '12'],
+            ],
+            'citationMode' => ['t' => 'NormalCitation', 'c' => []],
+            'citationNoteNum' => 4,
+            'citationHash' => 501,
+        ];
+        $transitionRecord = [
+            'reviewQueue' => 'transition-review',
+            'sourceOrdinal' => 22,
+            'citationId' => 'source-transition',
+            'citationPrefix' => [
+                ['t' => 'Str', 'c' => 'compare'],
+            ],
+            'citationSuffix' => [
+                ['t' => 'Str', 'c' => 'ch.'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => '3'],
+            ],
+            'citationMode' => ['t' => 'NormalCitation', 'c' => []],
+            'citationNoteNum' => 5,
+            'citationHash' => 502,
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Cite', 'c' => [
+                        [$anchorRecord, $transitionRecord],
+                        [
+                            ['t' => 'Str', 'c' => '[see'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@source-anchor,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'p.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '12;'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'compare'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '@source-transition,'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => 'ch.'],
+                            ['t' => 'Space'],
+                            ['t' => 'Str', 'c' => '3]'],
+                        ],
+                    ]],
+                ]],
+            ],
+        ];
+        $plainInlines = static function (array $nodes): string {
+            return implode('', array_map(static function (AstNode $node): string {
+                return $node->type === 'space' ? ' ' : (string) $node->attr('text', '');
+            }, $nodes));
+        };
+        $stripCitationWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $cluster = $document->children[0]->children[0];
+            $anchor = $cluster->children[0];
+            $transition = $cluster->children[1];
+            $transitionAttrs = $stripCitationWrapper($transition);
+            unset($transitionAttrs['suffix']);
+            $transitionAttrs = array_replace($transitionAttrs, [
+                'prefix' => [
+                    new AstNode('text', ['text' => 'against']),
+                ],
+                'locator' => [
+                    new AstNode('text', ['text' => 'sec.']),
+                    new AstNode('space'),
+                    new AstNode('text', ['text' => '9']),
+                ],
+                'mode' => 'author_in_text',
+                'citationModeNative' => ['t' => 'AuthorInText', 'c' => []],
+                'citationNoteNum' => 8,
+                'citationHash' => 902,
+                'text' => 'against @source-transition, sec. 9',
+            ]);
+            $editedTransition = new AstNode('citation', $transitionAttrs, [
+                new AstNode('text', ['text' => 'against @source-transition, sec. 9']),
+            ]);
+            $editedDocument = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', $document->children[0]->attrs, [
+                    new AstNode('citation_group', [
+                        'text' => '[see @source-anchor, p. 12; against @source-transition, sec. 9]',
+                    ], [$anchor, $editedTransition]),
+                ]),
+            ]);
+
+            $t->same('citation_group', $cluster->type, "{$source} citation group node");
+            $t->same('see', $anchor->attr('prefix')[0]->attr('text'), "{$source} anchor prefix");
+            $t->same('p. 12', $plainInlines($anchor->attr('suffix')), "{$source} anchor locator text");
+            $t->same('compare', $transition->attr('prefix')[0]->attr('text'), "{$source} transition prefix");
+            $t->same('ch. 3', $plainInlines($transition->attr('suffix')), "{$source} transition original locator text");
+            $t->same('normal', $transition->attr('mode'), "{$source} transition starts as normal citation");
+            $t->same(5, $transition->attr('citationNoteNum'), "{$source} transition note number");
+            $t->same(502, $transition->attr('citationHash'), "{$source} transition hash");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedDocument),
+                'native' => json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $records = $encoded['blocks'][0]['c'][0]['c'][0];
+                $editedRecord = $records[1];
+
+                $t->same($anchorRecord, $records[0], "{$source} {$writer} writer preserves unchanged citation sidecar");
+                $t->same('source-transition', $editedRecord['citationId'], "{$source} {$writer} writer keeps edited citation id");
+                $t->same('against', $editedRecord['citationPrefix'][0]['c'], "{$source} {$writer} writer updates edited prefix");
+                $t->same('sec.', $editedRecord['citationSuffix'][0]['c'], "{$source} {$writer} writer uses locator label as suffix");
+                $t->same('9', $editedRecord['citationSuffix'][2]['c'], "{$source} {$writer} writer uses locator value as suffix");
+                $t->same(['t' => 'AuthorInText', 'c' => []], $editedRecord['citationMode'], "{$source} {$writer} writer updates author-in-text mode");
+                $t->same(8, $editedRecord['citationNoteNum'], "{$source} {$writer} writer updates note number");
+                $t->same(902, $editedRecord['citationHash'], "{$source} {$writer} writer updates hash");
+                $t->same(false, array_key_exists('reviewQueue', $editedRecord), "{$source} {$writer} writer drops stale edited review queue");
+                $t->same(false, array_key_exists('sourceOrdinal', $editedRecord), "{$source} {$writer} writer drops stale edited source ordinal");
+            }
+        }
+    },
     'preserves cite source inline constructors when regenerating citation wrappers' => static function (TestRunner $t): void {
         $sourceInlines = [
             ['t' => 'Str', 'c' => '[see'],
