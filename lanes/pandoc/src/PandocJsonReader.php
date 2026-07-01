@@ -1447,7 +1447,7 @@ final class PandocJsonReader
         }
 
         if ($alignments === []) {
-            return [];
+            return $columnSpecs !== $colSpecs ? ['columnSpecsNative' => $colSpecs] : [];
         }
 
         $attrs = [
@@ -1473,6 +1473,10 @@ final class PandocJsonReader
     private function tableColumnSpecCollectionContent(mixed $colSpecs): array
     {
         $items = $this->listContent($colSpecs, 'Table column specs');
+        if (count($items) === 1 && is_array($items[0]) && array_is_list($items[0]) && $items[0] === []) {
+            return [];
+        }
+
         if (
             count($items) === 1
             && is_array($items[0])
@@ -1681,6 +1685,10 @@ final class PandocJsonReader
     private function singleWrappedTaggedCollection(mixed $value, string $context, string $constructor): array
     {
         $items = $this->listContent($value, $context);
+        if (count($items) === 1 && is_array($items[0]) && array_is_list($items[0]) && $items[0] === []) {
+            return [];
+        }
+
         if (
             count($items) === 1
             && is_array($items[0])

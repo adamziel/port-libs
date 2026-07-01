@@ -1297,7 +1297,7 @@ final class PandocJsonWriter
             count($native) === 1
             && is_array($native[0])
             && array_is_list($native[0])
-            && count($native[0]) > 1
+            && (count($native[0]) > 1 || ($native[0] === [] && $generated === []))
         ) {
             return [$generated];
         }
