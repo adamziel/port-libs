@@ -20313,15 +20313,40 @@ MARKDOWN);
                 'missing' => false,
             ],
         ];
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'fieldCount' => 3,
+            'calculationOrderCount' => 3,
+            'resolvedFieldCount' => 2,
+            'missingFieldCount' => 1,
+            'undeclaredFieldCount' => 0,
+            'fieldObjects' => ['4 0 R', '5 0 R', '99 0 R'],
+            'missingFieldObjects' => ['99 0 R'],
+            'undeclaredFieldObjects' => [],
+            'fieldNames' => ['review.subtotal', 'review.total'],
+            'fieldTypeLabels' => ['text' => 2],
+            'flagNames' => ['multiline' => 1, 'readOnly' => 2],
+            'issues' => ['calculation-order-boundary', 'missing-calculation-order-field'],
+        ];
         $diagnostics = implode(',', $result['diagnostics']);
 
         $t->same(true, $result['ok']);
         $t->same($expected, $result['pdfAcroFormCalculationOrder']);
+        $t->same($expectedPolicy, $result['pdfAcroFormCalculationOrderPolicy']);
         $t->contains('pdf-byte-acroform-calculation-order:3', $diagnostics);
         $t->contains('pdf-byte-acroform-calculation-order-fields:2', $diagnostics);
         $t->contains('pdf-byte-acroform-calculation-order-missing:1', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy:review', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-entries:3', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-fields:2', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-missing:1', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-type:text:2', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-flag:readOnly:2', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-issue:calculation-order-boundary', $diagnostics);
+        $t->contains('pdf-byte-acroform-calculation-policy-issue:missing-calculation-order-field', $diagnostics);
         $t->same(true, $sequence['ok']);
         $t->same($expected, $sequence['finalPdfAcroFormCalculationOrder']);
+        $t->same($expectedPolicy, $sequence['finalPdfAcroFormCalculationOrderPolicy']);
     },
 
     'fake runner extracts bounded pdf digital signature metadata from produced bytes' => static function (TestRunner $t) use ($document): void {

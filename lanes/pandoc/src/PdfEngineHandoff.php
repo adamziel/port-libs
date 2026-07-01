@@ -853,6 +853,7 @@ final class PdfEngineHandoff
      *     pdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     pdfAcroFormAppearancePolicy: array{reviewStatus:string, fieldCount:int, fieldNames:list<string>, needAppearances:bool|null, defaultResourcesPresent:bool, defaultAppearancePresent:bool, xfaPresent:bool, appearancePolicyCount:int, normalAppearanceFieldCount:int, fieldsWithoutNormalAppearanceCount:int, fieldsWithoutNormalAppearance:list<string>, reviewAppearanceCount:int, issues:list<string>}|array{},
      *     pdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
+     *     pdfAcroFormCalculationOrderPolicy: array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{},
      *     pdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     pdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     pdfThreadPolicy: array<string, mixed>,
@@ -1620,6 +1621,7 @@ final class PdfEngineHandoff
         $pdfAcroFormMetadata = [];
         $pdfAcroFormAppearancePolicy = [];
         $pdfAcroFormCalculationOrder = [];
+        $pdfAcroFormCalculationOrderPolicy = [];
         $pdfXfaPackets = [];
         $pdfThreads = [];
         $pdfThreadPolicy = [];
@@ -1779,6 +1781,7 @@ final class PdfEngineHandoff
                 $pdfAcroFormMetadata = $pdfInspection['acroFormMetadata'];
                 $pdfAcroFormAppearancePolicy = $pdfInspection['acroFormAppearancePolicy'];
                 $pdfAcroFormCalculationOrder = $pdfInspection['acroFormCalculationOrder'];
+                $pdfAcroFormCalculationOrderPolicy = $pdfInspection['acroFormCalculationOrderPolicy'];
                 $pdfXfaPackets = $pdfInspection['xfaPackets'];
                 $pdfThreads = $pdfInspection['threads'];
                 $pdfThreadPolicy = $pdfInspection['threadPolicy'];
@@ -4110,6 +4113,34 @@ final class PdfEngineHandoff
                         $diagnostics[] = 'pdf-byte-acroform-calculation-order-missing:' . $missingCalculationFields;
                     }
                 }
+                if ($pdfAcroFormCalculationOrderPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-acroform-calculation-policy:' . ($pdfAcroFormCalculationOrderPolicy['reviewStatus'] ?? 'unknown');
+                    foreach ([
+                        'calculationOrderCount' => 'entries',
+                        'resolvedFieldCount' => 'fields',
+                        'missingFieldCount' => 'missing',
+                        'undeclaredFieldCount' => 'undeclared',
+                    ] as $key => $label) {
+                        if (isset($pdfAcroFormCalculationOrderPolicy[$key]) && is_int($pdfAcroFormCalculationOrderPolicy[$key]) && $pdfAcroFormCalculationOrderPolicy[$key] > 0) {
+                            $diagnostics[] = 'pdf-byte-acroform-calculation-policy-' . $label . ':' . $pdfAcroFormCalculationOrderPolicy[$key];
+                        }
+                    }
+                    foreach ($pdfAcroFormCalculationOrderPolicy['fieldTypeLabels'] ?? [] as $label => $count) {
+                        if (is_string($label) && is_int($count) && $label !== '') {
+                            $diagnostics[] = 'pdf-byte-acroform-calculation-policy-type:' . $label . ':' . $count;
+                        }
+                    }
+                    foreach ($pdfAcroFormCalculationOrderPolicy['flagNames'] ?? [] as $flagName => $count) {
+                        if (is_string($flagName) && is_int($count) && $flagName !== '') {
+                            $diagnostics[] = 'pdf-byte-acroform-calculation-policy-flag:' . $flagName . ':' . $count;
+                        }
+                    }
+                    foreach ($pdfAcroFormCalculationOrderPolicy['issues'] ?? [] as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $diagnostics[] = 'pdf-byte-acroform-calculation-policy-issue:' . $issue;
+                        }
+                    }
+                }
                 if ($pdfThreads !== []) {
                     $diagnostics[] = 'pdf-byte-threads:' . count($pdfThreads);
                     $beadCount = 0;
@@ -5524,6 +5555,7 @@ final class PdfEngineHandoff
             'pdfAcroFormMetadata' => $pdfAcroFormMetadata,
             'pdfAcroFormAppearancePolicy' => $pdfAcroFormAppearancePolicy,
             'pdfAcroFormCalculationOrder' => $pdfAcroFormCalculationOrder,
+            'pdfAcroFormCalculationOrderPolicy' => $pdfAcroFormCalculationOrderPolicy,
             'pdfXfaPackets' => $pdfXfaPackets,
             'pdfThreads' => $pdfThreads,
             'pdfThreadPolicy' => $pdfThreadPolicy,
@@ -5702,6 +5734,7 @@ final class PdfEngineHandoff
      *     finalPdfAcroFormMetadata: array{fieldReferences:list<string>, fieldCount:int, needAppearances:bool|null, sigFlags:int|null, sigFlagNames:list<string>, defaultResourcesPresent:bool, defaultAppearance:string|null, quadding:int|null, calculationOrder:list<string>, xfaPresent:bool, xfaPacketNames:list<string>}|array{},
      *     finalPdfAcroFormAppearancePolicy: array{reviewStatus:string, fieldCount:int, fieldNames:list<string>, needAppearances:bool|null, defaultResourcesPresent:bool, defaultAppearancePresent:bool, xfaPresent:bool, appearancePolicyCount:int, normalAppearanceFieldCount:int, fieldsWithoutNormalAppearanceCount:int, fieldsWithoutNormalAppearance:list<string>, reviewAppearanceCount:int, issues:list<string>}|array{},
      *     finalPdfAcroFormCalculationOrder: list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
+     *     finalPdfAcroFormCalculationOrderPolicy: array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{},
      *     finalPdfXfaPackets: list<array{packetName:string|null, packetObject:string|null, source:string, valueKind:string, filters:list<string>, packetBytes:int|null, packetSha256:string|null, packetSkipped:string|null}>,
      *     finalPdfThreads: list<array{object:string, infoTitle:string|null, infoAuthor:string|null, infoSubject:string|null, firstBead:string|null, beadCount:int, beads:list<array{object:string, pageObject:string|null, rect:list<float>|null, next:string|null, prev:string|null}>}>,
      *     finalPdfThreadPolicy: array<string, mixed>,
@@ -6040,6 +6073,7 @@ final class PdfEngineHandoff
             'finalPdfAcroFormMetadata' => is_array($finalRun) && is_array($finalRun['pdfAcroFormMetadata'] ?? null) ? $finalRun['pdfAcroFormMetadata'] : [],
             'finalPdfAcroFormAppearancePolicy' => is_array($finalRun) && is_array($finalRun['pdfAcroFormAppearancePolicy'] ?? null) ? $finalRun['pdfAcroFormAppearancePolicy'] : [],
             'finalPdfAcroFormCalculationOrder' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrder'] ?? null) ? $finalRun['pdfAcroFormCalculationOrder'] : [],
+            'finalPdfAcroFormCalculationOrderPolicy' => is_array($finalRun) && is_array($finalRun['pdfAcroFormCalculationOrderPolicy'] ?? null) ? $finalRun['pdfAcroFormCalculationOrderPolicy'] : [],
             'finalPdfXfaPackets' => is_array($finalRun) && is_array($finalRun['pdfXfaPackets'] ?? null) ? $finalRun['pdfXfaPackets'] : [],
             'finalPdfThreads' => is_array($finalRun) && is_array($finalRun['pdfThreads'] ?? null) ? $finalRun['pdfThreads'] : [],
             'finalPdfThreadPolicy' => is_array($finalRun) && is_array($finalRun['pdfThreadPolicy'] ?? null) ? $finalRun['pdfThreadPolicy'] : [],
@@ -13068,6 +13102,7 @@ final class PdfEngineHandoff
      *     embeddedFileNames:list<string>,
      *     embeddedFiles:list<array{name:string, unicodeName:string|null, description:string|null, afRelationship:string|null, filespec:string|null, embeddedFile:string|null, subtype:string|null, size:int|null, modDate:string|null, checksum:string|null, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null, collectionItems:list<array{name:string, value:string|int|float|bool|null, valueType:string}>, source:string}>,
      *     acroFormCalculationOrder:list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}>,
+     *     acroFormCalculationOrderPolicy:array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{},
      *     formFields:list<array{name:string, type:string, typeLabel:string, alternateName:string|null, mappingName:string|null, value:string|null, defaultValue:string|null, flags:int, flagNames:list<string>, options:list<string>}>,
      *     formFieldTypes:array<string, int>,
      *     formFieldActions:list<array{fieldName:string|null, fieldObject:string|null, fieldType:string|null, fieldTypeLabel:string|null, trigger:string, source:string, actionType:string, actionTarget:string|null, scriptBytes:int|null, scriptSha256:string|null}>,
@@ -13306,6 +13341,7 @@ final class PdfEngineHandoff
             'acroFormMetadata' => $acroFormMetadata,
             'acroFormAppearancePolicy' => $acroFormAppearancePolicy,
             'acroFormCalculationOrder' => $acroFormCalculationOrder,
+            'acroFormCalculationOrderPolicy' => $this->summarizePdfAcroFormCalculationOrderPolicy($acroFormMetadata, $acroFormCalculationOrder),
             'xfaPackets' => $xfaPackets,
             'threads' => $threads,
             'threadPolicy' => $this->summarizePdfThreadPolicy($threads),
@@ -35126,6 +35162,120 @@ final class PdfEngineHandoff
             'fieldsWithoutNormalAppearanceCount' => count($fieldsWithoutNormalAppearance),
             'fieldsWithoutNormalAppearance' => $fieldsWithoutNormalAppearance,
             'reviewAppearanceCount' => $reviewAppearanceCount,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array{fieldReferences?:list<string>, fieldCount?:int, calculationOrder?:list<string>} $metadata
+     * @param list<array{order:int, fieldObject:string, fieldName:string|null, fieldType:string|null, fieldTypeLabel:string|null, alternateName:string|null, mappingName:string|null, flags:int|null, flagNames:list<string>, missing:bool}> $calculationOrder
+     * @return array{reviewStatus:string, fieldCount:int, calculationOrderCount:int, resolvedFieldCount:int, missingFieldCount:int, undeclaredFieldCount:int, fieldObjects:list<string>, missingFieldObjects:list<string>, undeclaredFieldObjects:list<string>, fieldNames:list<string>, fieldTypeLabels:array<string, int>, flagNames:array<string, int>, issues:list<string>}|array{}
+     */
+    private function summarizePdfAcroFormCalculationOrderPolicy(array $metadata, array $calculationOrder): array
+    {
+        $declaredFieldReferences = [];
+        foreach (is_array($metadata['fieldReferences'] ?? null) ? $metadata['fieldReferences'] : [] as $reference) {
+            if (is_string($reference) && $reference !== '') {
+                $declaredFieldReferences[$reference] = true;
+            }
+        }
+
+        $fieldObjects = [];
+        foreach (is_array($metadata['calculationOrder'] ?? null) ? $metadata['calculationOrder'] : [] as $reference) {
+            if (is_string($reference) && $reference !== '') {
+                $fieldObjects[$reference] = true;
+            }
+        }
+
+        if ($calculationOrder === [] && $fieldObjects === []) {
+            return [];
+        }
+
+        $resolvedFieldCount = 0;
+        $missingFieldObjects = [];
+        $undeclaredFieldObjects = [];
+        $fieldNames = [];
+        $fieldTypeLabels = [];
+        $flagNames = [];
+
+        foreach ($calculationOrder as $entry) {
+            $fieldObject = is_string($entry['fieldObject'] ?? null) && $entry['fieldObject'] !== ''
+                ? $entry['fieldObject']
+                : null;
+            if ($fieldObject !== null) {
+                $fieldObjects[$fieldObject] = true;
+            }
+
+            if (($entry['missing'] ?? false) === true) {
+                if ($fieldObject !== null) {
+                    $missingFieldObjects[$fieldObject] = true;
+                }
+                continue;
+            }
+
+            $resolvedFieldCount++;
+            if ($fieldObject !== null && $declaredFieldReferences !== [] && !isset($declaredFieldReferences[$fieldObject])) {
+                $undeclaredFieldObjects[$fieldObject] = true;
+            }
+
+            if (is_string($entry['fieldName'] ?? null) && $entry['fieldName'] !== '') {
+                $fieldNames[$entry['fieldName']] = true;
+            }
+
+            $fieldTypeLabel = is_string($entry['fieldTypeLabel'] ?? null) && $entry['fieldTypeLabel'] !== ''
+                ? $entry['fieldTypeLabel']
+                : (is_string($entry['fieldType'] ?? null) && $entry['fieldType'] !== '' ? $entry['fieldType'] : null);
+            if ($fieldTypeLabel !== null) {
+                $fieldTypeLabels[$fieldTypeLabel] = ($fieldTypeLabels[$fieldTypeLabel] ?? 0) + 1;
+            }
+
+            foreach (is_array($entry['flagNames'] ?? null) ? $entry['flagNames'] : [] as $flagName) {
+                if (!is_string($flagName) || $flagName === '') {
+                    continue;
+                }
+                $flagNames[$flagName] = ($flagNames[$flagName] ?? 0) + 1;
+            }
+        }
+
+        $fieldObjectList = array_keys($fieldObjects);
+        $missingFieldObjectList = array_keys($missingFieldObjects);
+        $undeclaredFieldObjectList = array_keys($undeclaredFieldObjects);
+        $fieldNameList = array_keys($fieldNames);
+        sort($fieldObjectList, SORT_STRING);
+        sort($missingFieldObjectList, SORT_STRING);
+        sort($undeclaredFieldObjectList, SORT_STRING);
+        sort($fieldNameList, SORT_STRING);
+        ksort($fieldTypeLabels);
+        ksort($flagNames);
+
+        $issues = [];
+        if ($fieldObjectList !== []) {
+            $issues[] = 'calculation-order-boundary';
+        }
+        if ($missingFieldObjectList !== []) {
+            $issues[] = 'missing-calculation-order-field';
+        }
+        if ($undeclaredFieldObjectList !== []) {
+            $issues[] = 'calculation-order-field-not-declared';
+        }
+        if ($resolvedFieldCount === 0 && $fieldObjectList !== []) {
+            $issues[] = 'calculation-order-unresolved';
+        }
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'fieldCount' => is_int($metadata['fieldCount'] ?? null) ? $metadata['fieldCount'] : count($declaredFieldReferences),
+            'calculationOrderCount' => count($fieldObjectList),
+            'resolvedFieldCount' => $resolvedFieldCount,
+            'missingFieldCount' => count($missingFieldObjectList),
+            'undeclaredFieldCount' => count($undeclaredFieldObjectList),
+            'fieldObjects' => $fieldObjectList,
+            'missingFieldObjects' => $missingFieldObjectList,
+            'undeclaredFieldObjects' => $undeclaredFieldObjectList,
+            'fieldNames' => $fieldNameList,
+            'fieldTypeLabels' => $fieldTypeLabels,
+            'flagNames' => $flagNames,
             'issues' => $issues,
         ];
     }
