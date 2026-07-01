@@ -19087,6 +19087,8 @@ final class DocxOpenXmlReader
             $this->relationshipSourceBaseNameCharacterSummary($relationshipSources);
         $relationshipSourceDirectoryNameCharacters =
             $this->relationshipSourceDirectoryNameCharacterSummary($relationshipSources);
+        $relationshipSourcePathByteLengths =
+            $this->relationshipSourcePathByteLengthBucketSummary($relationshipSources);
         $relationshipSourcePathDepths = $this->relationshipSourcePathDepthSummary($relationshipSources);
         $relationshipSourcePathDepthCounts = [];
         foreach ($relationshipSourcePathDepths as $sourcePathDepthSummary) {
@@ -19247,6 +19249,8 @@ final class DocxOpenXmlReader
                 (int) ($parameterValueSummary['relationshipCount'] ?? 0);
         }
         ksort($relationshipTargetContentTypeParameterValueBucketCounts, SORT_STRING);
+        $relationshipTargetPathByteLengths =
+            $this->relationshipTargetPathByteLengthBucketSummary($relationshipTargets);
         $relationshipTargetPathSegments = $this->relationshipTargetPathSegmentSummary($relationshipTargets);
         $relationshipTargetPathSegmentOccurrenceCount = 0;
         foreach ($relationshipTargetPathSegments as $targetPathSegmentSummary) {
@@ -20036,6 +20040,11 @@ final class DocxOpenXmlReader
             'relationshipSourceDirectoryNameCharacterFlagSourceParts' => $relationshipSourceDirectoryNameCharacters['flagSourceParts'],
             'relationshipSourceDirectoryNameCharacterReviewDirectories' => $relationshipSourceDirectoryNameCharacters['directories'],
             'relationshipSourceDirectoryNameCharacterReviewDirectoryNames' => $relationshipSourceDirectoryNameCharacters['directoryNames'],
+            'relationshipSourcePathByteLengthBucketCount' => $relationshipSourcePathByteLengths['relationshipSourcePathByteLengthBucketCount'],
+            'relationshipSourcePathByteLengthBuckets' => $relationshipSourcePathByteLengths['relationshipSourcePathByteLengthBuckets'],
+            'relationshipSourcePathByteLengthBucketCounts' => $relationshipSourcePathByteLengths['relationshipSourcePathByteLengthBucketCounts'],
+            'relationshipSourcePartsByPathByteLengthBucket' => $relationshipSourcePathByteLengths['relationshipSourcePartsByPathByteLengthBucket'],
+            'relationshipSourcePathByteLengthBucketSummaries' => $relationshipSourcePathByteLengths['relationshipSourcePathByteLengthBucketSummaries'],
             'relationshipSourcePathDepthCount' => count($relationshipSourcePathDepths),
             'relationshipSourcePathDepthCounts' => $relationshipSourcePathDepthCounts,
             'maxRelationshipSourcePathSegmentCount' => $maxRelationshipSourcePathSegmentCount,
@@ -20262,6 +20271,12 @@ final class DocxOpenXmlReader
             'duplicateRelationshipTargetCaseFoldParts' => $relationshipTargetCaseFoldParts['duplicateCaseFoldParts'],
             'duplicateRelationshipTargetCaseFoldPartGroups' => $relationshipTargetCaseFoldParts['duplicateGroups'],
             'relationshipTargetBaseNameStems' => array_values($relationshipTargetBaseNameStems),
+            'relationshipTargetPathByteLengthBucketCount' => $relationshipTargetPathByteLengths['relationshipTargetPathByteLengthBucketCount'],
+            'relationshipTargetPathByteLengthBuckets' => $relationshipTargetPathByteLengths['relationshipTargetPathByteLengthBuckets'],
+            'relationshipTargetPathByteLengthBucketCounts' => $relationshipTargetPathByteLengths['relationshipTargetPathByteLengthBucketCounts'],
+            'relationshipTargetPartsByPathByteLengthBucket' => $relationshipTargetPathByteLengths['relationshipTargetPartsByPathByteLengthBucket'],
+            'relationshipTargetPathByteLengthRelationshipTypeCounts' => $relationshipTargetPathByteLengths['relationshipTargetPathByteLengthRelationshipTypeCounts'],
+            'relationshipTargetPathByteLengthBucketSummaries' => $relationshipTargetPathByteLengths['relationshipTargetPathByteLengthBucketSummaries'],
             'relationshipTargetPathDepthCount' => count($relationshipTargetPathDepths),
             'relationshipTargetPathDepthCounts' => $relationshipTargetPathDepthCounts,
             'relationshipTargetPathDepths' => array_values($relationshipTargetPathDepths),
@@ -33322,6 +33337,399 @@ final class DocxOpenXmlReader
             'packagePathByteLengthByteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'entryNamesByPackagePathByteLengthByteExposurePolicy' => $entryNamesByByteExposurePolicy,
             'packagePathByteLengthBucketSummaries' => $orderedSummaries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return array<string, mixed>
+     */
+    private function relationshipSourcePathByteLengthBucketSummary(array $relationshipSources): array
+    {
+        $summaries = [];
+        $bucketCounts = [];
+        $sourcePartsByBucket = [];
+
+        foreach ($relationshipSources as $source) {
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $sourcePathByteLength = strlen($sourcePart);
+            $bucket = self::packagePathByteLengthBucket($sourcePathByteLength);
+            $bucketKey = $bucket['packagePathByteLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'relationshipSourcePathByteLengthBucket' => $bucketKey,
+                    'minRelationshipSourcePathByteLength' => $bucket['minPackagePathByteLength'],
+                    'maxRelationshipSourcePathByteLength' => $bucket['maxPackagePathByteLength'],
+                    'sourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'longestRelationshipSourcePathByteLength' => 0,
+                    'longestSourcePart' => null,
+                    'relationshipSourceKindCounts' => [],
+                    'sourceContentTypeBaseCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'largestExistingSourcePart' => null,
+                ];
+            }
+
+            ++$summaries[$bucketKey]['sourceCount'];
+            $bucketCounts[$bucketKey] = ($bucketCounts[$bucketKey] ?? 0) + 1;
+            if ($sourcePart !== '') {
+                $sourcePartsByBucket[$bucketKey][$sourcePart] = true;
+            }
+
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$summaries[$bucketKey]['existingSourceCount'];
+            } else {
+                ++$summaries[$bucketKey]['nonExistingSourceCount'];
+            }
+            $summaries[$bucketKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $summaries[$bucketKey]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $summaries[$bucketKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($summaries[$bucketKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $summaries[$bucketKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($summaries[$bucketKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+            $summaries[$bucketKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                ($summaries[$bucketKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+            $sourceRoles = is_array($source['sourceRoles'] ?? null) ? $source['sourceRoles'] : [];
+            foreach (array_values(array_map('strval', $sourceRoles)) as $role) {
+                if ($role === '') {
+                    continue;
+                }
+                $summaries[$bucketKey]['sourceRoleCounts'][$role] =
+                    ($summaries[$bucketKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString($summaries[$bucketKey]['sourceParts'], $sourcePart);
+            $this->appendUniqueString(
+                $summaries[$bucketKey]['relationshipParts'],
+                is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
+            );
+
+            if (
+                $sourcePathByteLength > (int) $summaries[$bucketKey]['longestRelationshipSourcePathByteLength']
+                || (
+                    $sourcePathByteLength === (int) $summaries[$bucketKey]['longestRelationshipSourcePathByteLength']
+                    && (
+                        $summaries[$bucketKey]['longestSourcePart'] === null
+                        || strcmp($sourcePart, (string) $summaries[$bucketKey]['longestSourcePart']) < 0
+                    )
+                )
+            ) {
+                $summaries[$bucketKey]['longestRelationshipSourcePathByteLength'] = $sourcePathByteLength;
+                $summaries[$bucketKey]['longestSourcePart'] = $sourcePart;
+            }
+
+            if (!is_int($source['sourceBytes'] ?? null)) {
+                continue;
+            }
+
+            $sourceBytes = (int) $source['sourceBytes'];
+            $summaries[$bucketKey]['existingSourceByteLength'] += $sourceBytes;
+            $sourceSummary = [
+                'sourcePart' => $sourcePart,
+                'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
+                'relationshipSourceKind' => $sourceKind,
+                'sourcePathByteLength' => $sourcePathByteLength,
+                'sourceDirectory' => is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : null,
+                'sourceBaseName' => is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : null,
+                'sourcePartExtension' => is_string($source['sourcePartExtension'] ?? null) ? $source['sourcePartExtension'] : null,
+                'sourceBytes' => $sourceBytes,
+                'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                'sourceRoles' => array_values(array_map('strval', $sourceRoles)),
+            ];
+            $largestSourcePart = $summaries[$bucketKey]['largestExistingSourcePart'];
+            if (
+                !is_array($largestSourcePart)
+                || $sourceSummary['sourceBytes'] > (int) ($largestSourcePart['sourceBytes'] ?? 0)
+                || (
+                    $sourceSummary['sourceBytes'] === (int) ($largestSourcePart['sourceBytes'] ?? 0)
+                    && strcmp($sourceSummary['sourcePart'], (string) ($largestSourcePart['sourcePart'] ?? '')) < 0
+                )
+            ) {
+                $summaries[$bucketKey]['largestExistingSourcePart'] = $sourceSummary;
+            }
+        }
+
+        $orderedSummaries = [];
+        $orderedBuckets = [];
+        $orderedBucketCounts = [];
+        foreach (['up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes', '33-to-64-bytes', 'over-64-bytes'] as $bucketKey) {
+            if (!isset($summaries[$bucketKey])) {
+                continue;
+            }
+
+            $summary = $summaries[$bucketKey];
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $orderedSummaries[] = $summary;
+            $orderedBuckets[] = $bucketKey;
+            $orderedBucketCounts[$bucketKey] = $bucketCounts[$bucketKey] ?? 0;
+        }
+
+        $this->sortStringSetMap($sourcePartsByBucket);
+
+        return [
+            'relationshipSourcePathByteLengthBucketCount' => count($orderedSummaries),
+            'relationshipSourcePathByteLengthBuckets' => $orderedBuckets,
+            'relationshipSourcePathByteLengthBucketCounts' => $orderedBucketCounts,
+            'relationshipSourcePartsByPathByteLengthBucket' => $sourcePartsByBucket,
+            'relationshipSourcePathByteLengthBucketSummaries' => $orderedSummaries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipTargets
+     * @return array<string, mixed>
+     */
+    private function relationshipTargetPathByteLengthBucketSummary(array $relationshipTargets): array
+    {
+        $summaries = [];
+        $bucketCounts = [];
+        $targetPartsByBucket = [];
+        $relationshipTypeCounts = [];
+
+        foreach ($relationshipTargets as $target) {
+            $targetPart = is_string($target['targetPart'] ?? null) ? $target['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $targetPathByteLength = strlen($targetPart);
+            $bucket = self::packagePathByteLengthBucket($targetPathByteLength);
+            $bucketKey = $bucket['packagePathByteLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'relationshipTargetPathByteLengthBucket' => $bucketKey,
+                    'minRelationshipTargetPathByteLength' => $bucket['minPackagePathByteLength'],
+                    'maxRelationshipTargetPathByteLength' => $bucket['maxPackagePathByteLength'],
+                    'relationshipCount' => 0,
+                    'existingTargetCount' => 0,
+                    'missingTargetCount' => 0,
+                    'missingContentTypeTargetCount' => 0,
+                    'parameterizedTargetCount' => 0,
+                    'existingTargetByteLength' => 0,
+                    'existingTargetPartByteLength' => 0,
+                    'longestRelationshipTargetPathByteLength' => 0,
+                    'longestTargetPart' => null,
+                    'targetDirectoryCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'relationshipTypeCounts' => [],
+                    'targetRoleCounts' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'relationshipIds' => [],
+                    'relationshipTypes' => [],
+                    'targetParts' => [],
+                    'existingTargetParts' => [],
+                    'missingTargetParts' => [],
+                    'contentTypes' => [],
+                    'largestExistingTargetPart' => null,
+                    '_seenExistingTargetParts' => [],
+                ];
+            }
+
+            ++$summaries[$bucketKey]['relationshipCount'];
+            $bucketCounts[$bucketKey] = ($bucketCounts[$bucketKey] ?? 0) + 1;
+            $targetPartsByBucket[$bucketKey][$targetPart] = true;
+
+            $targetExists = ($target['targetExists'] ?? false) === true;
+            if ($targetExists) {
+                ++$summaries[$bucketKey]['existingTargetCount'];
+                $this->appendUniqueString($summaries[$bucketKey]['existingTargetParts'], $targetPart);
+            } else {
+                ++$summaries[$bucketKey]['missingTargetCount'];
+                $this->appendUniqueString($summaries[$bucketKey]['missingTargetParts'], $targetPart);
+            }
+            if (($target['targetContentTypeHasParameters'] ?? false) === true) {
+                ++$summaries[$bucketKey]['parameterizedTargetCount'];
+            }
+
+            $targetDirectory = is_string($target['targetDirectory'] ?? null)
+                ? $target['targetDirectory']
+                : $this->packagePartDirectory($targetPart);
+            $summaries[$bucketKey]['targetDirectoryCounts'][$targetDirectory] =
+                ($summaries[$bucketKey]['targetDirectoryCounts'][$targetDirectory] ?? 0) + 1;
+
+            $contentTypeBase = is_string($target['targetContentTypeBase'] ?? null)
+                ? $target['targetContentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $summaries[$bucketKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($summaries[$bucketKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($target['targetContentTypeSource'] ?? null)
+                ? $target['targetContentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $summaries[$bucketKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($summaries[$bucketKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            if ($contentTypeSource === 'missing') {
+                ++$summaries[$bucketKey]['missingContentTypeTargetCount'];
+            }
+
+            $relationshipType = is_string($target['relationshipType'] ?? null) ? $target['relationshipType'] : '';
+            $relationshipTypeKey = is_string($target['relationshipTypeKey'] ?? null)
+                ? $target['relationshipTypeKey']
+                : ($relationshipType === '' ? '(missing-type)' : $relationshipType);
+            $summaries[$bucketKey]['relationshipTypeCounts'][$relationshipTypeKey] =
+                ($summaries[$bucketKey]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+            $relationshipTypeCounts[$bucketKey][$relationshipTypeKey] =
+                ($relationshipTypeCounts[$bucketKey][$relationshipTypeKey] ?? 0) + 1;
+
+            $targetRoles = is_array($target['targetRoles'] ?? null) ? $target['targetRoles'] : [];
+            $targetRoles = array_values(array_unique(array_filter(
+                array_map('strval', $targetRoles),
+                static fn (string $role): bool => $role !== ''
+            )));
+            if ($targetRoles === []) {
+                $targetRoles = [$targetExists ? 'relationship-target' : 'missing-relationship-target'];
+            }
+            foreach ($targetRoles as $targetRole) {
+                $summaries[$bucketKey]['targetRoleCounts'][$targetRole] =
+                    ($summaries[$bucketKey]['targetRoleCounts'][$targetRole] ?? 0) + 1;
+            }
+
+            $this->appendUniqueString(
+                $summaries[$bucketKey]['sourceParts'],
+                is_string($target['sourcePart'] ?? null) ? $target['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $summaries[$bucketKey]['relationshipParts'],
+                is_string($target['relationshipsPart'] ?? null) ? $target['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString(
+                $summaries[$bucketKey]['relationshipIds'],
+                is_string($target['relationshipId'] ?? null) ? $target['relationshipId'] : null,
+            );
+            $this->appendUniqueString($summaries[$bucketKey]['relationshipTypes'], $relationshipType);
+            $this->appendUniqueString($summaries[$bucketKey]['targetParts'], $targetPart);
+            $this->appendUniqueString(
+                $summaries[$bucketKey]['contentTypes'],
+                is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : null,
+            );
+
+            if (
+                $targetPathByteLength > (int) $summaries[$bucketKey]['longestRelationshipTargetPathByteLength']
+                || (
+                    $targetPathByteLength === (int) $summaries[$bucketKey]['longestRelationshipTargetPathByteLength']
+                    && (
+                        $summaries[$bucketKey]['longestTargetPart'] === null
+                        || strcmp($targetPart, (string) $summaries[$bucketKey]['longestTargetPart']) < 0
+                    )
+                )
+            ) {
+                $summaries[$bucketKey]['longestRelationshipTargetPathByteLength'] = $targetPathByteLength;
+                $summaries[$bucketKey]['longestTargetPart'] = $targetPart;
+            }
+
+            if (!$targetExists || isset($summaries[$bucketKey]['_seenExistingTargetParts'][$targetPart])) {
+                continue;
+            }
+
+            $summaries[$bucketKey]['_seenExistingTargetParts'][$targetPart] = true;
+            $targetBytes = is_int($target['targetBytes'] ?? null) ? (int) $target['targetBytes'] : 0;
+            $summaries[$bucketKey]['existingTargetByteLength'] += $targetBytes;
+            $summaries[$bucketKey]['existingTargetPartByteLength'] += $targetBytes;
+            $targetSummary = [
+                'targetPart' => $targetPart,
+                'targetPathByteLength' => $targetPathByteLength,
+                'targetDirectory' => $targetDirectory,
+                'targetBaseName' => is_string($target['targetBaseName'] ?? null) ? $target['targetBaseName'] : $this->packagePartBaseName($targetPart),
+                'targetPathDepth' => is_int($target['targetPathDepth'] ?? null)
+                    ? (int) $target['targetPathDepth']
+                    : count($this->packagePartPathSegments($targetPart)),
+                'targetPartExtension' => is_string($target['targetPartExtension'] ?? null) ? $target['targetPartExtension'] : $this->packagePartExtension($targetPart),
+                'targetBytes' => $targetBytes,
+                'targetCrc32' => is_string($target['targetCrc32'] ?? null) ? $target['targetCrc32'] : null,
+                'targetSha256' => is_string($target['targetSha256'] ?? null) ? $target['targetSha256'] : null,
+                'targetContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                'targetContentTypeSource' => $contentTypeSource,
+                'targetRoles' => $targetRoles,
+            ];
+            $largestTargetPart = $summaries[$bucketKey]['largestExistingTargetPart'];
+            if (
+                !is_array($largestTargetPart)
+                || $targetSummary['targetBytes'] > (int) ($largestTargetPart['targetBytes'] ?? 0)
+                || (
+                    $targetSummary['targetBytes'] === (int) ($largestTargetPart['targetBytes'] ?? 0)
+                    && strcmp($targetSummary['targetPart'], (string) ($largestTargetPart['targetPart'] ?? '')) < 0
+                )
+            ) {
+                $summaries[$bucketKey]['largestExistingTargetPart'] = $targetSummary;
+            }
+        }
+
+        $orderedSummaries = [];
+        $orderedBuckets = [];
+        $orderedBucketCounts = [];
+        foreach (['up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes', '33-to-64-bytes', 'over-64-bytes'] as $bucketKey) {
+            if (!isset($summaries[$bucketKey])) {
+                continue;
+            }
+
+            $summary = $summaries[$bucketKey];
+            ksort($summary['targetDirectoryCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['relationshipTypeCounts'], SORT_STRING);
+            ksort($summary['targetRoleCounts'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['relationshipIds'], SORT_STRING);
+            sort($summary['relationshipTypes'], SORT_STRING);
+            sort($summary['targetParts'], SORT_STRING);
+            sort($summary['existingTargetParts'], SORT_STRING);
+            sort($summary['missingTargetParts'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
+            unset($summary['_seenExistingTargetParts']);
+            $orderedSummaries[] = $summary;
+            $orderedBuckets[] = $bucketKey;
+            $orderedBucketCounts[$bucketKey] = $bucketCounts[$bucketKey] ?? 0;
+        }
+
+        $this->sortStringSetMap($targetPartsByBucket);
+        $this->sortNestedCountMap($relationshipTypeCounts, SORT_STRING);
+
+        return [
+            'relationshipTargetPathByteLengthBucketCount' => count($orderedSummaries),
+            'relationshipTargetPathByteLengthBuckets' => $orderedBuckets,
+            'relationshipTargetPathByteLengthBucketCounts' => $orderedBucketCounts,
+            'relationshipTargetPartsByPathByteLengthBucket' => $targetPartsByBucket,
+            'relationshipTargetPathByteLengthRelationshipTypeCounts' => $relationshipTypeCounts,
+            'relationshipTargetPathByteLengthBucketSummaries' => $orderedSummaries,
         ];
     }
 

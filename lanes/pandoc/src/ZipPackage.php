@@ -14932,6 +14932,9 @@ final class ZipPackage
         $centralDirectoryRawCommentBytes = 0;
         $centralDirectoryReviewFieldBytes = 0;
         $sourceRecordBytes = 0;
+        $sourceRecordStructuralBytes = 0;
+        $sourceRecordReviewFieldBytes = 0;
+        $sourceRecordReviewFieldEntries = [];
         $centralExtraFieldEntryCount = 0;
         $entryCommentCount = 0;
         $maxPathSegmentCount = 0;
@@ -15413,7 +15416,19 @@ final class ZipPackage
                 $centralDirectoryRecordBytes += $entryCentralDirectoryRecordBytes;
             }
             $entrySourceRecordBytes = $localRecordLength + max(0, $entryCentralDirectoryRecordBytes ?? 0);
+            $entrySourceRecordReviewFieldBytes = $entryLocalHeaderReviewFieldBytes
+                + $entryCentralDirectoryReviewFieldBytes
+                + $dataDescriptorLength;
+            $entrySourceRecordStructuralBytes = max(
+                0,
+                $entrySourceRecordBytes - $entry->compressedSize - $entrySourceRecordReviewFieldBytes
+            );
+            $entrySourceRecordReviewFieldRatio = $entrySourceRecordBytes === 0
+                ? null
+                : $entrySourceRecordReviewFieldBytes / $entrySourceRecordBytes;
             $sourceRecordBytes += $entrySourceRecordBytes;
+            $sourceRecordStructuralBytes += $entrySourceRecordStructuralBytes;
+            $sourceRecordReviewFieldBytes += $entrySourceRecordReviewFieldBytes;
             $versionNeededToExtractSummaries[$versionNeededToExtract]['sourceRecordBytes'] += $entrySourceRecordBytes;
             $centralDirectoryFixedHeaderBytes += $entryCentralDirectoryFixedHeaderBytes;
             $centralDirectoryVariableFieldBytes += $entryCentralDirectoryVariableFieldBytes;
@@ -15426,6 +15441,25 @@ final class ZipPackage
             }
             if ($entryCentralDirectoryRawCommentBytes > 0) {
                 ++$entryCommentCount;
+            }
+            if ($entrySourceRecordReviewFieldBytes > 0) {
+                $sourceRecordReviewFieldEntries[] = [
+                    'name' => $entry->name,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                    'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
+                    'packagePartExtensionKey' => $packagePartExtensionKey,
+                    'compressionMethod' => $entry->compressionMethod,
+                    'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
+                    'localHeaderReviewFieldBytes' => $entryLocalHeaderReviewFieldBytes,
+                    'centralDirectoryReviewFieldBytes' => $entryCentralDirectoryReviewFieldBytes,
+                    'dataDescriptorBytes' => $dataDescriptorLength,
+                    'sourceRecordPayloadBytes' => $entry->compressedSize,
+                    'sourceRecordStructuralBytes' => $entrySourceRecordStructuralBytes,
+                    'sourceRecordReviewFieldBytes' => $entrySourceRecordReviewFieldBytes,
+                    'sourceRecordReviewFieldRatio' => $entrySourceRecordReviewFieldRatio,
+                    'sourceRecordBytes' => $entrySourceRecordBytes,
+                    'usesDataDescriptor' => $usesDataDescriptor,
+                ];
             }
             $summary = [
                 'name' => $entry->name,
@@ -15525,6 +15559,11 @@ final class ZipPackage
                 'centralDirectoryRawCommentBytes' => $entryCentralDirectoryRawCommentBytes,
                 'centralDirectoryRawCommentSha256' => $entryCentralDirectoryRawCommentSha256,
                 'centralDirectoryReviewFieldBytes' => $entryCentralDirectoryReviewFieldBytes,
+                'sourceRecordPayloadBytes' => $entry->compressedSize,
+                'sourceRecordStructuralBytes' => $entrySourceRecordStructuralBytes,
+                'sourceRecordReviewFieldBytes' => $entrySourceRecordReviewFieldBytes,
+                'sourceRecordReviewFieldRatio' => $entrySourceRecordReviewFieldRatio,
+                'hasSourceRecordReviewFields' => $entrySourceRecordReviewFieldBytes > 0,
                 'sourceRecordBytes' => $entrySourceRecordBytes,
             ];
             $entries[] = $summary;
@@ -15909,6 +15948,15 @@ final class ZipPackage
             'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
+            'sourceRecordPayloadBytes' => $compressedBytes,
+            'sourceRecordStructuralBytes' => $sourceRecordStructuralBytes,
+            'sourceRecordReviewFieldBytes' => $sourceRecordReviewFieldBytes,
+            'sourceRecordReviewFieldRatio' => $sourceRecordBytes === 0
+                ? null
+                : $sourceRecordReviewFieldBytes / $sourceRecordBytes,
+            'sourceRecordReviewFieldEntryCount' => count($sourceRecordReviewFieldEntries),
+            'hasSourceRecordReviewFields' => $sourceRecordReviewFieldEntries !== [],
+            'sourceRecordReviewFieldEntries' => $sourceRecordReviewFieldEntries,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
             'hasEntryComments' => $entryCommentSummaries !== [],
@@ -16099,6 +16147,15 @@ final class ZipPackage
             'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
+            'sourceRecordPayloadBytes' => $compressedBytes,
+            'sourceRecordStructuralBytes' => $sourceRecordStructuralBytes,
+            'sourceRecordReviewFieldBytes' => $sourceRecordReviewFieldBytes,
+            'sourceRecordReviewFieldRatio' => $sourceRecordBytes === 0
+                ? null
+                : $sourceRecordReviewFieldBytes / $sourceRecordBytes,
+            'sourceRecordReviewFieldEntryCount' => count($sourceRecordReviewFieldEntries),
+            'hasSourceRecordReviewFields' => $sourceRecordReviewFieldEntries !== [],
+            'sourceRecordReviewFieldEntries' => $sourceRecordReviewFieldEntries,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
             'hasEntryComments' => $entryCommentSummaries !== [],
