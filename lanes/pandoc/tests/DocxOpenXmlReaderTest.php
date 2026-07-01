@@ -23214,6 +23214,116 @@ XML;
         $t->true(!str_contains((string) $encodedReview, $hiddenEntity), 'selected XML doctype rollups should not expose entity replacement text');
         $t->true(!str_contains((string) $encodedReview, 'Document Type Theme'), 'selected XML doctype rollups should not expose selected part attribute values');
     },
+    'summarizes docx selected openxml entity reference provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $settingsEntity = 'selected-entity:hidden-alpha';
+        $settingsSecondEntity = 'selected-entity:hidden-beta';
+        $themeEntity = 'selected-entity:hidden-gamma';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/entity-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsEntity" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?review=entity#settings"/>' . "\n" .
+            '  <Relationship Id="rThemeEntity" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/entity-theme.xml?review=entity#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE w:settings [
+  <!ENTITY settingsReview "{$settingsEntity}">
+  <!ENTITY settingsSecondReview "{$settingsSecondEntity}">
+]>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:docVars><w:docVar>&settingsReview;&settingsSecondReview;</w:docVar></w:docVars>
+</w:settings>
+XML;
+        $parts['word/theme/entity-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE a:theme [
+  <!ENTITY themeReview "{$themeEntity}">
+]>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Entity Theme">
+  <a:themeElements>&themeReview;</a:themeElements>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+
+        $t->same(2, $selected['xmlEntityReferencePartCount']);
+        $t->same(3, $selected['xmlEntityReferenceCount']);
+        $t->same(['word/settings.xml', 'word/theme/entity-theme.xml'], $selected['xmlEntityReferencePartNames']);
+        $t->same([
+            'settingsReview' => 1,
+            'settingsSecondReview' => 1,
+            'themeReview' => 1,
+        ], $selected['xmlEntityReferenceNameCounts']);
+        $t->same(['settingsReview', 'settingsSecondReview', 'themeReview'], $selected['xmlEntityReferenceNames']);
+        $t->same([
+            '/a:theme/a:themeElements' => 1,
+            '/w:settings/w:docVars/w:docVar' => 2,
+        ], $selected['xmlEntityReferenceParentPathCounts']);
+        $t->same(2, $selected['xmlEntityReferenceParentPathCount']);
+        $t->same([
+            'http://schemas.openxmlformats.org/drawingml/2006/main' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 2,
+        ], $selected['xmlEntityReferenceParentNamespaceCounts']);
+        $t->same(2, $selected['xmlEntityReferenceParentNamespaceCount']);
+        $t->same(['docVar' => 2, 'themeElements' => 1], $selected['xmlEntityReferenceParentLocalNameCounts']);
+        $t->same(['a:themeElements' => 1, 'w:docVar' => 2], $selected['xmlEntityReferenceParentQualifiedNameCounts']);
+
+        $t->same(2, $settings['xmlEntityReferenceCount']);
+        $t->same(['settingsReview' => 1, 'settingsSecondReview' => 1], $settings['xmlEntityReferenceNameCounts']);
+        $t->same('/w:settings/w:docVars/w:docVar', $settings['xmlEntityReferences'][0]['parentPath']);
+        $t->same('settingsReview', $settings['xmlEntityReferences'][0]['name']);
+        $t->same(strlen('settingsReview'), $settings['xmlEntityReferences'][0]['nameByteLength']);
+        $t->same('w:docVar', $settings['xmlEntityReferences'][0]['parentQualifiedName']);
+        $t->same('settingsSecondReview', $settings['xmlEntityReferences'][1]['name']);
+
+        $t->same(1, $theme['xmlEntityReferenceCount']);
+        $t->same(['themeReview' => 1], $theme['xmlEntityReferenceNameCounts']);
+        $t->same('/a:theme/a:themeElements', $theme['xmlEntityReferences'][0]['parentPath']);
+        $t->same('a:themeElements', $theme['xmlEntityReferences'][0]['parentQualifiedName']);
+
+        $t->same($selected['xmlEntityReferencePartCount'], $summary['selectedXmlPartXmlEntityReferencePartCount']);
+        $t->same($selected['xmlEntityReferenceCount'], $summary['selectedXmlPartXmlEntityReferenceCount']);
+        $t->same($selected['xmlEntityReferencePartNames'], $summary['selectedXmlPartXmlEntityReferencePartNames']);
+        $t->same($selected['xmlEntityReferenceNameCounts'], $summary['selectedXmlPartXmlEntityReferenceNameCounts']);
+        $t->same($selected['xmlEntityReferenceNames'], $summary['selectedXmlPartXmlEntityReferenceNames']);
+        $t->same($selected['xmlEntityReferenceParentPathCount'], $summary['selectedXmlPartXmlEntityReferenceParentPathCount']);
+        $t->same($selected['xmlEntityReferenceParentPathCounts'], $summary['selectedXmlPartXmlEntityReferenceParentPathCounts']);
+        $t->same($selected['xmlEntityReferenceParentPaths'], $summary['selectedXmlPartXmlEntityReferenceParentPaths']);
+        $t->same($selected['xmlEntityReferenceParentNamespaceCount'], $summary['selectedXmlPartXmlEntityReferenceParentNamespaceCount']);
+        $t->same($selected['xmlEntityReferenceParentNamespaceCounts'], $summary['selectedXmlPartXmlEntityReferenceParentNamespaceCounts']);
+        $t->same($selected['xmlEntityReferenceParentLocalNameCount'], $summary['selectedXmlPartXmlEntityReferenceParentLocalNameCount']);
+        $t->same($selected['xmlEntityReferenceParentLocalNameCounts'], $summary['selectedXmlPartXmlEntityReferenceParentLocalNameCounts']);
+        $t->same($selected['xmlEntityReferenceParentQualifiedNameCount'], $summary['selectedXmlPartXmlEntityReferenceParentQualifiedNameCount']);
+        $t->same($selected['xmlEntityReferenceParentQualifiedNameCounts'], $summary['selectedXmlPartXmlEntityReferenceParentQualifiedNameCounts']);
+        $t->same($selected['xmlEntityReferences'], $summary['selectedXmlPartXmlEntityReferences']);
+        $t->same('settings', $summary['selectedXmlPartXmlEntityReferences'][0]['kind']);
+        $t->same('theme', $summary['selectedXmlPartXmlEntityReferences'][2]['kind']);
+
+        $encodedReview = json_encode([
+            $selected['xmlEntityReferences'],
+            $summary['selectedXmlPartXmlEntityReferences'],
+            $settings['xmlEntityReferences'],
+            $theme['xmlEntityReferences'],
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML entity-reference metadata should encode for review');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-alpha'), 'selected XML entity-reference rollups should not expose entity replacement text');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-beta'), 'selected XML entity-reference rollups should not expose second entity replacement text');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-gamma'), 'selected XML entity-reference rollups should not expose theme entity replacement text');
+        $t->true(!str_contains((string) $encodedReview, 'Entity Theme'), 'selected XML entity-reference rollups should not expose selected part attribute values');
+    },
     'summarizes docx selected openxml text and cdata metadata for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $settingsText = "selected-settings-text:hidden-alpha\nline-two";
