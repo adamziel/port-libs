@@ -1898,7 +1898,7 @@ final class OdfReader
                 'manifestPartFragment' => is_array($manifestItem) ? $manifestItem['partFragment'] : null,
                 'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
                 'manifestMediaTypeBase' => is_array($manifestItem) ? $manifestItem['mediaTypeBase'] : null,
-                'manifestMediaFamily' => is_array($manifestItem) ? self::manifestPackageCoverageMediaFamily($manifestItem, null) : null,
+                'manifestMediaFamily' => is_array($manifestItem) ? $this->packagePartManifestMediaFamily($entry->name, $manifestItem, $embeddedObjectPackage) : null,
                 'manifestMediaTypeHasParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeHasParameters'] : false,
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
@@ -6145,6 +6145,82 @@ final class OdfReader
             return 'xml';
         }
         if (($entry['missingMediaType'] ?? false) === true || $mediaTypeBase === '') {
+            return 'missing-media-type';
+        }
+        if ($mediaTypeBase === 'application/octet-stream' || str_starts_with($mediaTypeBase, 'application/vnd.')) {
+            return 'binary';
+        }
+
+        return 'other';
+    }
+
+    /**
+     * @param array<string, mixed> $manifestItem
+     * @param array<string, mixed>|null $embeddedObjectPackage
+     */
+    private function packagePartManifestMediaFamily(string $part, array $manifestItem, ?array $embeddedObjectPackage): string
+    {
+        $mediaTypeBase = strtolower(trim((string) ($manifestItem['mediaTypeBase'] ?? '')));
+        $isDirectory = ($manifestItem['isDirectory'] ?? false) === true || str_ends_with($part, '/');
+        if ($isDirectory && $embeddedObjectPackage !== null && ($embeddedObjectPackage['isRoot'] ?? false) === true) {
+            return 'opendocument-object-package';
+        }
+        if ($isDirectory) {
+            return 'directory';
+        }
+        if ($this->isScriptPackagePartName($part)) {
+            return 'script';
+        }
+        if (self::isConfigurationPackagePartName($part)) {
+            return 'configuration';
+        }
+        if ($this->isThumbnailPackagePartName($part)) {
+            return 'thumbnail';
+        }
+        if ($this->isSignaturePartName($part)) {
+            return 'signature';
+        }
+        if ($this->isObjectReplacementPackagePartName($part)) {
+            return 'object-replacement';
+        }
+        if ($this->isLayoutCachePackagePartName($part)) {
+            return 'layout-cache';
+        }
+        if ($this->isMetaInfSidecarPackagePartName($part)) {
+            return 'meta-inf-sidecar';
+        }
+        if ($this->isDatabasePackagePartName($part)) {
+            return 'database';
+        }
+        if ($this->isFontPackagePart($part, is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null)
+            || ($mediaTypeBase !== '' && $this->isFontMediaType($mediaTypeBase))
+        ) {
+            return 'font';
+        }
+        if ($this->isRdfPackagePart($part, is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null)
+            || $mediaTypeBase === 'application/rdf+xml'
+        ) {
+            return 'rdf';
+        }
+        if ($embeddedObjectPackage !== null && ($embeddedObjectPackage['isRoot'] ?? false) === true) {
+            return 'opendocument-object-package';
+        }
+        if ($mediaTypeBase !== '' && $this->isEmbeddedObjectPackageMediaType($mediaTypeBase)) {
+            return 'opendocument-object-package';
+        }
+
+        $mediaResourceFamily = self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase);
+        if ($mediaResourceFamily !== null) {
+            return $mediaResourceFamily;
+        }
+        $packageMediaResourceFamily = self::mediaResourceFamilyFromPackagePart($part);
+        if ($mediaTypeBase === 'application/octet-stream' && $packageMediaResourceFamily !== null) {
+            return $packageMediaResourceFamily;
+        }
+        if (self::isXmlMediaTypeBase($mediaTypeBase)) {
+            return 'xml';
+        }
+        if (($manifestItem['missingMediaType'] ?? false) === true || $mediaTypeBase === '') {
             return 'missing-media-type';
         }
         if ($mediaTypeBase === 'application/octet-stream' || str_starts_with($mediaTypeBase, 'application/vnd.')) {
