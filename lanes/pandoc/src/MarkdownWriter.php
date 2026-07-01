@@ -8042,6 +8042,13 @@ final class MarkdownWriter
             return "\n";
         }
 
+        if (
+            $this->isRawHtmlSummaryElementBlock($previous)
+            && ($current->type === 'paragraph' || $current->type === 'plain')
+        ) {
+            return "\n";
+        }
+
         if ($this->isRawBlockNode($previous) && ($current->type === 'plain' || $this->isRawBlockNode($current))) {
             return "\n";
         }
@@ -8052,6 +8059,18 @@ final class MarkdownWriter
     private function isRawBlockNode(AstNode $node): bool
     {
         return in_array($node->type, ['raw_html', 'raw_tex', 'raw_block', 'raw_markdown'], true);
+    }
+
+    private function isRawHtmlSummaryElementBlock(AstNode $node): bool
+    {
+        if (!$this->isRawBlockNode($node)) {
+            return false;
+        }
+
+        [$format, $text] = $this->rawBlockFormatAndText($node);
+
+        return $this->isRawHtmlFormat($format)
+            && preg_match('/^\s*<summary\b[^>]*>.*<\/summary\s*>\s*$/is', $text) === 1;
     }
 
     /**
