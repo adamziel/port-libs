@@ -19422,13 +19422,18 @@ final class XmlHtmlDom
     {
         $value = self::attributeOrNull($element, 'value');
         $text = self::normalizedText($element);
-        $normalizedValue = $value === null ? null : trim($value);
+        $normalizedValue = $value === null ? null : self::htmlMetadataAttributeValue($value);
         $issues = [];
         if ($value === null) {
             $issues[] = ['code' => 'missing-data-element-value'];
         } elseif ($normalizedValue === '') {
             $issues[] = ['code' => 'empty-data-element-value'];
         }
+        $metadataIssues = self::dataElementValueIssues($value, $normalizedValue);
+        $metadataIssueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $metadataIssues
+        )));
 
         return [
             'dataElement' => 'data',
@@ -19446,7 +19451,58 @@ final class XmlHtmlDom
                 $issues
             ),
             'dataValueIssues' => $issues,
+            'dataValueByteLength' => $value === null ? null : strlen($value),
+            'dataValueNormalizedByteLength' => $normalizedValue === null ? null : strlen($normalizedValue),
+            'dataValueMetadataReviewPolicy' => 'html-data-value-review',
+            'dataValueReviewerMetadataValue' => $metadataIssues === [] ? $normalizedValue : null,
+            'dataValueMetadataValid' => $metadataIssues === [],
+            'dataValueMetadataConforming' => $metadataIssues === [],
+            'dataValueMetadataIssues' => $metadataIssues,
+            'dataValueMetadataIssueCodes' => $metadataIssueCodes,
+            'dataValueMetadataIssueCount' => count($metadataIssues),
+            'dataValueValid' => $metadataIssues === [],
+            'dataValueConforming' => $metadataIssues === [],
+            'dataValueIssueCount' => count($issues),
         ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function dataElementValueIssues(?string $raw, ?string $normalized): array
+    {
+        if ($raw === null) {
+            return [[
+                'code' => 'missing-data-value',
+                'source' => 'missing',
+            ]];
+        }
+
+        $record = [
+            'source' => 'value-attribute',
+            'byteLength' => strlen($raw),
+            'normalizedByteLength' => strlen($normalized ?? ''),
+        ];
+
+        if ($normalized === '') {
+            return [[
+                'code' => 'empty-data-value',
+            ] + $record];
+        }
+
+        if (strlen($normalized ?? '') > 256) {
+            return [[
+                'code' => 'oversize-data-value',
+            ] + $record];
+        }
+
+        if (preg_match('/[<>{}`]/', $normalized ?? '') === 1) {
+            return [[
+                'code' => 'unsafe-data-value-token',
+            ] + $record];
+        }
+
+        return [];
     }
 
     /**
