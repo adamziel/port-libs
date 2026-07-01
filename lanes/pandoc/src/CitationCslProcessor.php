@@ -1370,10 +1370,10 @@ final class CitationCslProcessor
         }
         $reviewedTitle = self::composedStringField(
             $item,
-            ['reviewed-title', 'reviewedTitle', 'reviewedtitle', 'reviewtitle'],
-            ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'reviewsubtitle']
+            ['reviewed-title', 'reviewedTitle', 'reviewedtitle', 'review-title', 'reviewTitle', 'reviewtitle'],
+            ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'review-subtitle', 'reviewSubtitle', 'reviewsubtitle']
         );
-        $reviewedGenre = self::firstStringField($item, ['reviewed-genre', 'reviewedGenre', 'reviewedgenre', 'reviewgenre']);
+        $reviewedGenre = self::firstStringField($item, ['reviewed-genre', 'reviewedGenre', 'reviewedgenre', 'review-genre', 'reviewGenre', 'reviewgenre']);
         $risFieldProvenance = is_array($item['risFieldProvenance'] ?? null) ? array_values($item['risFieldProvenance']) : [];
         $orcid = self::firstStringField($item, ['ORCID', 'orcid', 'orcid-id', 'orcidId', 'orcidid']);
         $isni = self::firstStringField($item, ['ISNI', 'isni']);
@@ -1455,7 +1455,7 @@ final class CitationCslProcessor
             'translatedTitle' => self::composedStringField($item, $translatedTitleKeys, $translatedSubtitleKeys),
             'translatedSubtitle' => self::firstStringField($item, $translatedSubtitleKeys),
             'reviewedTitle' => $reviewedTitle,
-            'reviewedSubtitle' => self::firstStringField($item, ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'reviewsubtitle']),
+            'reviewedSubtitle' => self::firstStringField($item, ['reviewed-subtitle', 'reviewedSubtitle', 'reviewedsubtitle', 'review-subtitle', 'reviewSubtitle', 'reviewsubtitle']),
             'reviewedGenre' => $reviewedGenre,
             'reprintTitle' => self::firstStringField($item, ['reprint-title', 'reprintTitle', 'reprinttitle']),
             'containerTitle' => self::composedStringField(
@@ -11302,9 +11302,9 @@ final class CitationCslProcessor
             'translated-subtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitletranslation' => (string) ($item['translatedSubtitle'] ?? ''),
             'translated-title-raw', 'translatedtitleraw', 'title-translation-raw', 'titletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-title', 'translatedTitle', 'translatedtitle', 'title-translation', 'titleTranslation', 'titletranslation']),
             'translated-subtitle-raw', 'translatedsubtitleraw', 'title-translation-subtitle-raw', 'titletranslationsubtitleraw', 'subtitle-translation-raw', 'subtitletranslationraw' => $this->rawAliasedVariableValue($item, $variable, ['translated-subtitle', 'translatedSubtitle', 'translatedsubtitle', 'title-translation-subtitle', 'titleTranslationSubtitle', 'titletranslationsubtitle', 'subtitle-translation', 'subtitleTranslation', 'subtitletranslation']),
-            'reviewed-title', 'reviewedtitle' => (string) ($item['reviewedTitle'] ?? ''),
-            'reviewed-subtitle', 'reviewedsubtitle', 'reviewsubtitle' => (string) ($item['reviewedSubtitle'] ?? ''),
-            'reviewed-genre', 'reviewedgenre' => (string) ($item['reviewedGenre'] ?? ''),
+            'reviewed-title', 'reviewedtitle', 'review-title', 'reviewtitle' => (string) ($item['reviewedTitle'] ?? ''),
+            'reviewed-subtitle', 'reviewedsubtitle', 'review-subtitle', 'reviewsubtitle' => (string) ($item['reviewedSubtitle'] ?? ''),
+            'reviewed-genre', 'reviewedgenre', 'review-genre', 'reviewgenre' => (string) ($item['reviewedGenre'] ?? ''),
             'reprint-title', 'reprinttitle' => (string) ($item['reprintTitle'] ?? ''),
             'reprint-page', 'reprintpage', 'reprint-pages', 'reprintpages' => $this->formatCslPageRanges((string) ($item['reprintPage'] ?? '')),
             'reprint-page-first', 'reprintpagefirst' => (string) ($item['reprintPageFirst'] ?? ''),
