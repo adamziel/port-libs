@@ -1470,6 +1470,7 @@ XML);
   origtitle         = {Manual de Migracion},
   origsubtitle      = {Archivo Appendix},
   origtitleaddon    = {facsimile source},
+  origtype          = {source manual},
   origdate          = {2020-05},
   origpublisher     = {Archivo Press},
   origlocation      = {Madrid},
@@ -1493,6 +1494,7 @@ BIB;
         $t->same('Migration Manual', $item['title']);
         $t->same('Manual de Migracion: Archivo Appendix', $item['original-title']);
         $t->same('facsimile source', $item['original-title-addon']);
+        $t->same('source manual', $item['original-genre']);
         $t->same([2020, 5], $item['original-date']['date-parts'][0]);
         $t->same('Archivo Press', $item['original-publisher']);
         $t->same('Madrid', $item['original-publisher-place']);
@@ -1504,7 +1506,32 @@ BIB;
         $t->same('2.1.0', $item['version']);
         $t->same('revised', $item['status']);
         $t->same('print-on-demand packet', $item['medium']);
-        $t->same('Gia Garcia. Migration Manual. Review Press. 2026. Collection title: Review Sources. Collection title abbreviation: RS. Collection number: 7. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
+        $t->same('Gia Garcia. Migration Manual. Review Press. 2026. Original genre: source manual. Collection title: Review Sources. Collection title abbreviation: RS. Collection number: 7. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="original-genre"/>
+        <text variable="origtype"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-genre"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Migration Manual | source manual | source manual]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'translated-manual', 'text' => '[@translated-manual]']),
+        ]));
+        $t->same('Migration Manual :: source manual', $styled->renderBibliographyEntry('translated-manual'));
     },
     'carries biblatex literal list metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
