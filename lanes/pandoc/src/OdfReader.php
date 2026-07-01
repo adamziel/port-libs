@@ -1453,6 +1453,10 @@ final class OdfReader
         $manifestFileEntryOrder = [];
         $manifestByteExposurePolicyCounts = [];
         $manifestByteExposurePolicyItems = [];
+        $missingManifestDeclaredItems = [];
+        $missingManifestDeclaredRoleCounts = [];
+        $missingManifestDeclaredByteExposurePolicyCounts = [];
+        $missingManifestDeclaredMediaTypeBaseCounts = [];
         $packagePartByteExposurePolicyCounts = [];
         $packagePartByteExposurePolicyItems = [];
         $manifestCustomAttributeCount = 0;
@@ -1576,6 +1580,42 @@ final class OdfReader
                     'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
                     'diagnostics' => $item['diagnostics'] ?? [],
                 ]);
+            }
+            if (is_string($part) && $part !== '' && ($item['exists'] ?? false) !== true) {
+                $missingRoles = $this->missingManifestDeclaredRoles($item, $objectPackageRootParts);
+                $missingManifestDeclaredItems[] = self::withoutEmpty([
+                    'manifestIndex' => is_int($manifestIndex) ? $manifestIndex : count($missingManifestDeclaredItems),
+                    'fullPath' => $item['fullPath'] ?? null,
+                    'part' => $part,
+                    'partReference' => $item['partReference'] ?? null,
+                    'partSuffix' => $item['partSuffix'] ?? null,
+                    'partQuery' => $item['partQuery'] ?? null,
+                    'partFragment' => $item['partFragment'] ?? null,
+                    'mediaType' => $item['mediaType'] ?? null,
+                    'mediaTypeBase' => $item['mediaTypeBase'] ?? null,
+                    'missingMediaType' => ($item['missingMediaType'] ?? false) === true,
+                    'version' => $item['version'] ?? null,
+                    'preferredViewMode' => $item['preferredViewMode'] ?? null,
+                    'declaredSize' => $item['declaredSize'] ?? null,
+                    'declaredSizeRaw' => $item['declaredSizeRaw'] ?? null,
+                    'declaredSizeValid' => ($item['declaredSizeValid'] ?? false) === true,
+                    'declaredSizeInvalid' => ($item['declaredSizeInvalid'] ?? false) === true,
+                    'encrypted' => ($item['encrypted'] ?? false) === true,
+                    'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+                    'byteExposurePolicy' => $manifestByteExposurePolicy,
+                    'roles' => $missingRoles,
+                    'diagnostics' => $item['diagnostics'] ?? [],
+                ]);
+                foreach ($missingRoles as $role) {
+                    $missingManifestDeclaredRoleCounts[$role] = ($missingManifestDeclaredRoleCounts[$role] ?? 0) + 1;
+                }
+                if (is_string($manifestByteExposurePolicy) && $manifestByteExposurePolicy !== '') {
+                    $missingManifestDeclaredByteExposurePolicyCounts[$manifestByteExposurePolicy] = ($missingManifestDeclaredByteExposurePolicyCounts[$manifestByteExposurePolicy] ?? 0) + 1;
+                }
+                $mediaTypeBase = is_string($item['mediaTypeBase'] ?? null) && $item['mediaTypeBase'] !== ''
+                    ? $item['mediaTypeBase']
+                    : '(missing)';
+                $missingManifestDeclaredMediaTypeBaseCounts[$mediaTypeBase] = ($missingManifestDeclaredMediaTypeBaseCounts[$mediaTypeBase] ?? 0) + 1;
             }
             $customManifestAttributes = is_array($item['customManifestAttributes'] ?? null)
                 ? $item['customManifestAttributes']
@@ -1930,6 +1970,9 @@ final class OdfReader
         ksort($roleByteLengths, SORT_STRING);
         ksort($roleCompressedByteLengths, SORT_STRING);
         ksort($manifestByteExposurePolicyCounts, SORT_STRING);
+        ksort($missingManifestDeclaredRoleCounts, SORT_STRING);
+        ksort($missingManifestDeclaredByteExposurePolicyCounts, SORT_STRING);
+        ksort($missingManifestDeclaredMediaTypeBaseCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
         ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
@@ -1980,6 +2023,11 @@ final class OdfReader
             'manifestByteExposurePolicyCounts' => $manifestByteExposurePolicyCounts,
             'manifestByteExposurePolicyItemCount' => count($manifestByteExposurePolicyItems),
             'manifestByteExposurePolicyItems' => $manifestByteExposurePolicyItems,
+            'missingManifestDeclaredPartCount' => count($missingManifestDeclaredItems),
+            'missingManifestDeclaredItems' => $missingManifestDeclaredItems,
+            'missingManifestDeclaredRoleCounts' => $missingManifestDeclaredRoleCounts,
+            'missingManifestDeclaredByteExposurePolicyCounts' => $missingManifestDeclaredByteExposurePolicyCounts,
+            'missingManifestDeclaredMediaTypeBaseCounts' => $missingManifestDeclaredMediaTypeBaseCounts,
             'manifestCustomAttributeEntryCount' => count($manifestCustomAttributeItems),
             'manifestCustomAttributeCount' => $manifestCustomAttributeCount,
             'manifestCustomAttributeNames' => $manifestCustomAttributeNames,
@@ -4067,6 +4115,75 @@ final class OdfReader
         }
 
         return $roles === [] ? ['package-part'] : array_values(array_unique($roles));
+    }
+
+    /**
+     * @param array<string, mixed> $manifestItem
+     * @param array<string, array<string, mixed>> $objectPackageRootParts
+     * @return list<string>
+     */
+    private function missingManifestDeclaredRoles(array $manifestItem, array $objectPackageRootParts): array
+    {
+        $part = (string) ($manifestItem['part'] ?? '');
+        $mediaType = (string) ($manifestItem['mediaType'] ?? '');
+        $roles = [];
+
+        if ($part === 'content.xml') {
+            $roles[] = 'odf-content';
+        }
+        if ($part === 'styles.xml') {
+            $roles[] = 'odf-styles';
+        }
+        if ($part === 'meta.xml') {
+            $roles[] = 'odf-meta';
+        }
+        if ($part === 'settings.xml') {
+            $roles[] = 'odf-settings';
+        }
+        if (($manifestItem['thumbnailPackagePart'] ?? false) === true || $this->isThumbnailPackagePartName($part)) {
+            $roles[] = 'package-thumbnail';
+        }
+        if (($manifestItem['signaturePackagePart'] ?? false) === true || $this->isSignaturePartName($part)) {
+            $roles[] = 'package-signature';
+        }
+        if (($manifestItem['configurationPackagePart'] ?? false) === true || self::isConfigurationPackagePartName($part)) {
+            $roles[] = 'configuration-package';
+        }
+        if (($manifestItem['fontPackagePart'] ?? false) === true || $this->isFontPackagePart($part, $mediaType)) {
+            $roles[] = 'font-package';
+        }
+
+        $rdfMetadataPart = ($manifestItem['rdfMetadataPart'] ?? false) === true || $this->isRdfPackagePart($part, $mediaType);
+        if ($rdfMetadataPart) {
+            $roles[] = 'rdf-metadata';
+        }
+        if (($manifestItem['objectReplacementPackagePart'] ?? false) === true || $this->isObjectReplacementPackagePartName($part)) {
+            $roles[] = 'object-replacement';
+        }
+        if (($manifestItem['layoutCachePackagePart'] ?? false) === true || $this->isLayoutCachePackagePartName($part)) {
+            $roles[] = 'layout-cache';
+        }
+
+        $embeddedObjectPackagePart = ($manifestItem['embeddedObjectPackagePart'] ?? false) === true;
+        if ($embeddedObjectPackagePart) {
+            $roles[] = isset($objectPackageRootParts[$part]) ? 'embedded-object-root' : 'embedded-object-part';
+        }
+
+        $roles[] = 'manifest-declared';
+        $mediaTypeBase = (string) ($manifestItem['mediaTypeBase'] ?? self::mediaTypeReport($mediaType)['mediaTypeBase']);
+        if (!str_ends_with($part, '/')
+            && $this->mediaResourcePackagePrecedenceRoles($manifestItem) === []
+            && !$embeddedObjectPackagePart
+            && !$rdfMetadataPart
+            && self::isManifestMediaResourceCandidate($part, $mediaTypeBase)
+        ) {
+            $roles[] = 'media-resource';
+        }
+        if (($manifestItem['scriptPackagePart'] ?? false) === true || $this->isScriptPackagePartName($part)) {
+            $roles[] = 'script-package';
+        }
+
+        return array_values(array_unique($roles));
     }
 
     /**
