@@ -272,6 +272,53 @@ return [
         $t->same(false, $summary['directReaderParityClaimed']);
         $t->same(false, $summary['directWriterParityClaimed']);
     },
+    'builds wiki reader writer unsupported taxonomy matrix without converter claims' => static function (TestRunner $t): void {
+        $matrix = PandocFormatRegistry::wikiUnsupportedTaxonomyMatrix();
+
+        $t->same($matrix, PandocFormatRegistry::wikiFormatReviewPacket());
+        $t->same(['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki'], $matrix['inputTokens']);
+        $t->same(['dokuwiki', 'jira', 'mediawiki', 'xwiki', 'zimwiki'], $matrix['outputTokens']);
+        $t->same(['creole', 'dokuwiki', 'jira', 'mediawiki', 'tikiwiki', 'twiki', 'vimwiki', 'xwiki', 'zimwiki'], $matrix['uniqueTokens']);
+        $t->same(['dokuwiki' => 'dokuwiki', 'wiki' => 'mediawiki'], $matrix['extensionAliases']);
+        $t->same(['dokuwiki'], $matrix['extensionAliasesByFormat']['dokuwiki']);
+        $t->same(['wiki'], $matrix['extensionAliasesByFormat']['mediawiki']);
+        $t->same(true, $matrix['externalToolFree']);
+        $t->same(false, $matrix['directReaderParitySupported']);
+        $t->same(false, $matrix['directWriterParitySupported']);
+        $t->same('unsupported', $matrix['directParityStatus']);
+
+        $t->same('no-native-php-wiki-reader', $matrix['readerUnsupportedReasonPayloads']['creole']['reason']);
+        $t->same('', $matrix['readerUnsupportedReasonPayloads']['creole']['implementation']);
+        $t->same(false, $matrix['formats']['creole']['reader']['nativeImplementationRegistered']);
+        $t->same([], $matrix['formats']['creole']['reader']['nativeImplementationRecords']);
+        $t->same('not-upstream-pandoc-wiki-writer-format', $matrix['writerUnsupportedReasonPayloads']['creole']['reason']);
+        $t->same('not-applicable', $matrix['formats']['creole']['writer']['status']);
+
+        $t->same('partial-native-php-wiki-reader-parity', $matrix['readerUnsupportedReasonPayloads']['jira']['reason']);
+        $t->same(JiraReader::class, $matrix['readerUnsupportedReasonPayloads']['jira']['implementation']);
+        $t->same(true, $matrix['formats']['jira']['reader']['nativeImplementationRegistered']);
+        $t->same([
+            [
+                'format' => 'jira',
+                'direction' => 'reader',
+                'implementation' => JiraReader::class,
+                'status' => 'partial',
+            ],
+        ], $matrix['formats']['jira']['reader']['nativeImplementationRecords']);
+        $t->same('no-native-php-wiki-writer', $matrix['writerUnsupportedReasonPayloads']['jira']['reason']);
+        $t->same([], $matrix['formats']['jira']['writer']['nativeImplementationRecords']);
+
+        $t->same('not-upstream-pandoc-wiki-reader-format', $matrix['readerUnsupportedReasonPayloads']['xwiki']['reason']);
+        $t->same('no-native-php-wiki-writer', $matrix['writerUnsupportedReasonPayloads']['xwiki']['reason']);
+        $t->same('', $matrix['writerUnsupportedReasonPayloads']['xwiki']['implementation']);
+        $t->same(['jira'], array_keys($matrix['nativeImplementationRecords']['readers']));
+        $t->same([], $matrix['nativeImplementationRecords']['writers']);
+        $t->true(array_key_exists('mediawiki', $matrix['emptyNativeImplementationRecords']['readers']));
+        $t->true(array_key_exists('mediawiki', $matrix['emptyNativeImplementationRecords']['writers']));
+        $t->same([], $matrix['emptyNativeImplementationRecords']['writers']['mediawiki']);
+        $t->contains('does not invoke external wiki converters', $matrix['reviewNote']);
+        json_encode($matrix, JSON_THROW_ON_ERROR);
+    },
     'tracks roff manual reader writer and extension inference registry metadata' => static function (TestRunner $t): void {
         $t->same(['man', 'mdoc'], PandocFormatRegistry::roffManualInputFormats());
         $t->same(['man', 'ms'], PandocFormatRegistry::roffManualOutputFormats());

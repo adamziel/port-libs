@@ -217,6 +217,7 @@ final class PdfEngineHandoff
         }
         $typstBoundaryProvenance = $this->typstBoundaryProvenanceFor($engine, $profile['family'], $engineOptions, $engineEnvironment);
         $typstBoundarySummary = $this->typstBoundarySummaryFor($typstBoundaryProvenance);
+        $typstBoundarySourceSummary = $this->typstBoundarySourceSummaryFor($typstBoundaryProvenance);
         $typstBoundaryMatrix = $this->typstBoundaryMatrixFor(
             $engine,
             $typstBoundaryProvenance,
@@ -790,6 +791,17 @@ final class PdfEngineHandoff
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
         }
+        if ($typstBoundarySourceSummary !== []) {
+            $diagnostics[] = 'typst-boundary-source-summary:' . $typstBoundarySourceSummary['reviewStatus'];
+            foreach ($typstBoundarySourceSummary['sourceCounts'] as $source => $count) {
+                if ($count > 0) {
+                    $diagnostics[] = 'typst-boundary-source:' . $source . ':' . $count;
+                }
+            }
+            if ($typstBoundarySourceSummary['shadowedEnvironmentVariableCount'] > 0) {
+                $diagnostics[] = 'typst-boundary-source-shadowed-environment:' . $typstBoundarySourceSummary['shadowedEnvironmentVariableCount'];
+            }
+        }
         if ($typstBoundaryMatrix !== []) {
             $diagnostics[] = 'typst-boundary-matrix:' . $typstBoundaryMatrix['reviewStatus'];
             $diagnostics[] = 'typst-boundary-matrix-cases:' . $typstBoundaryMatrix['caseCount'];
@@ -848,6 +860,7 @@ final class PdfEngineHandoff
             'typstImportPathPolicy' => $typstImportPathPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstBoundarySummary' => $typstBoundarySummary,
+            'typstBoundarySourceSummary' => $typstBoundarySourceSummary,
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'handoffInputProvenance' => $handoffInputProvenance,
             'metadata' => $metadata,
@@ -1120,6 +1133,9 @@ final class PdfEngineHandoff
         $typstBoundarySummary = is_array($plan['typstBoundarySummary'] ?? null)
             ? $plan['typstBoundarySummary']
             : $this->typstBoundarySummaryFor($typstBoundaryProvenance);
+        $typstBoundarySourceSummary = is_array($plan['typstBoundarySourceSummary'] ?? null)
+            ? $plan['typstBoundarySourceSummary']
+            : $this->typstBoundarySourceSummaryFor($typstBoundaryProvenance);
 
         $sourceBytes = $plan['sourceBytes'] ?? null;
         $typstImportPathPolicy = is_array($plan['typstImportPathPolicy'] ?? null)
@@ -5622,6 +5638,7 @@ final class PdfEngineHandoff
             'typstImportPathPolicy' => $typstImportPathPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstBoundarySummary' => $typstBoundarySummary,
+            'typstBoundarySourceSummary' => $typstBoundarySourceSummary,
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
@@ -5664,6 +5681,7 @@ final class PdfEngineHandoff
             'typstImportPathPolicy' => $typstImportPathPolicy,
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstBoundarySummary' => $typstBoundarySummary,
+            'typstBoundarySourceSummary' => $typstBoundarySourceSummary,
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
@@ -6391,6 +6409,7 @@ final class PdfEngineHandoff
             'finalTypstExternalDependencyPolicy' => is_array($finalRun) && is_array($finalRun['typstExternalDependencyPolicy'] ?? null) ? $finalRun['typstExternalDependencyPolicy'] : [],
             'finalTypstBoundaryProvenance' => is_array($finalRun) && is_array($finalRun['typstBoundaryProvenance'] ?? null) ? $finalRun['typstBoundaryProvenance'] : [],
             'finalTypstBoundarySummary' => is_array($finalRun) && is_array($finalRun['typstBoundarySummary'] ?? null) ? $finalRun['typstBoundarySummary'] : [],
+            'finalTypstBoundarySourceSummary' => is_array($finalRun) && is_array($finalRun['typstBoundarySourceSummary'] ?? null) ? $finalRun['typstBoundarySourceSummary'] : [],
             'finalTypstBoundaryMatrix' => is_array($finalRun) && is_array($finalRun['typstBoundaryMatrix'] ?? null) ? $finalRun['typstBoundaryMatrix'] : [],
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
@@ -10370,6 +10389,197 @@ final class PdfEngineHandoff
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @return array<string, mixed>
+     */
+    private function typstBoundarySourceSummaryFor(array $provenance): array
+    {
+        if ($provenance === []) {
+            return [];
+        }
+
+        $sourceCounts = [
+            'engine-option' => 0,
+            'environment' => 0,
+            'environment-shadow' => 0,
+            'implicit' => 0,
+        ];
+        $pathSourceCounts = $sourceCounts;
+        $controlsBySource = [
+            'engine-option' => [],
+            'environment' => [],
+            'environment-shadow' => [],
+            'implicit' => [],
+        ];
+        $environmentVariables = [];
+        $shadowedEnvironmentVariables = [];
+
+        $normalizeSource = static function (mixed $entry, string $fallback = 'engine-option'): string {
+            if (is_array($entry) && is_string($entry['shadowedBy'] ?? null)) {
+                return 'environment-shadow';
+            }
+            if (is_array($entry) && ($entry['source'] ?? null) === 'environment') {
+                return 'environment';
+            }
+            if (in_array($fallback, ['engine-option', 'environment', 'environment-shadow', 'implicit'], true)) {
+                return $fallback;
+            }
+
+            return 'engine-option';
+        };
+        $append = static function (string $control, string $source, bool $pathEntry = false) use (&$sourceCounts, &$pathSourceCounts, &$controlsBySource): void {
+            if (!array_key_exists($source, $sourceCounts)) {
+                $source = 'engine-option';
+            }
+
+            ++$sourceCounts[$source];
+            if ($pathEntry) {
+                ++$pathSourceCounts[$source];
+            }
+            $controlsBySource[$source][] = $control;
+        };
+        $appendEntry = static function (string $control, mixed $entry, bool $pathEntry = false, string $fallback = 'engine-option') use ($normalizeSource, $append): void {
+            if (!is_array($entry)) {
+                return;
+            }
+
+            $append($control, $normalizeSource($entry, $fallback), $pathEntry);
+        };
+        $appendList = static function (string $control, mixed $entries, bool $pathEntry = false, string $fallback = 'engine-option') use ($appendEntry): void {
+            if (!is_array($entries)) {
+                return;
+            }
+            foreach ($entries as $entry) {
+                $appendEntry($control, $entry, $pathEntry, $fallback);
+            }
+        };
+        $captureEnvironment = static function (mixed $entry) use (&$environmentVariables, &$shadowedEnvironmentVariables): void {
+            if (!is_array($entry) || !is_string($entry['environmentVariable'] ?? null) || $entry['environmentVariable'] === '') {
+                return;
+            }
+
+            $environmentVariables[] = $entry['environmentVariable'];
+            if (is_string($entry['shadowedBy'] ?? null)) {
+                $shadowedEnvironmentVariables[] = $entry['environmentVariable'];
+            }
+        };
+
+        $appendEntry('root', $provenance['root'] ?? null, true);
+        $appendList('font-path', $provenance['fontPaths'] ?? null, true);
+        $appendList('certificate', $provenance['certificates'] ?? null, true);
+        $appendEntry('package-path', $provenance['packagePath'] ?? null, true);
+        $appendEntry('package-cache', $provenance['packageCache'] ?? null, true);
+        $appendList('input-variable', $provenance['inputVariables'] ?? null);
+        $appendEntry('creation-timestamp', $provenance['creationTimestamp'] ?? null);
+        $appendEntry('pdf-standard', $provenance['pdfStandard'] ?? null);
+        $appendEntry('features', $provenance['featureGates'] ?? null);
+        $appendEntry('jobs', is_array($provenance['executionPolicy']['jobs'] ?? null) ? $provenance['executionPolicy']['jobs'] : null);
+        if (is_array($provenance['dependencyOutput'] ?? null)) {
+            $appendEntry('dependency-output', $provenance['dependencyOutput']['file'] ?? null, true);
+            $appendEntry('dependency-format', $provenance['dependencyOutput']['format'] ?? null);
+        }
+        $appendEntry('timings-output', $provenance['timingsOutput'] ?? null, true);
+        if (is_array($provenance['diagnosticOutput'] ?? null)) {
+            $appendEntry('diagnostic-format', $provenance['diagnosticOutput']['format'] ?? null);
+            $appendEntry('diagnostic-color', $provenance['diagnosticOutput']['color'] ?? null);
+        }
+        $appendEntry('output-format', $provenance['outputFormat'] ?? null);
+        if (is_array($provenance['pdfExport'] ?? null)) {
+            $appendEntry('pdf-pages', $provenance['pdfExport']['pageSelection'] ?? null);
+            $appendEntry('pdf-ppi', $provenance['pdfExport']['ppi'] ?? null);
+            $appendEntry('pdf-tags', $provenance['pdfExport']['tags'] ?? null);
+            $appendEntry('pdf-pretty', $provenance['pdfExport']['pretty'] ?? null);
+        }
+        if (is_array($provenance['openOutput'] ?? null)) {
+            $appendEntry('open-output', $provenance['openOutput'], false, 'engine-option');
+        }
+        if (is_array($provenance['systemFonts'] ?? null)) {
+            $fontSource = is_string($provenance['systemFonts']['environmentVariable'] ?? null) && !is_string($provenance['systemFonts']['shadowedBy'] ?? null)
+                ? 'environment'
+                : 'engine-option';
+            $appendEntry('system-fonts', $provenance['systemFonts'], false, $fontSource);
+        }
+        if (is_array($provenance['embeddedFonts'] ?? null)) {
+            $fontSource = is_string($provenance['embeddedFonts']['environmentVariable'] ?? null) && !is_string($provenance['embeddedFonts']['shadowedBy'] ?? null)
+                ? 'environment'
+                : 'engine-option';
+            $appendEntry('embedded-fonts', $provenance['embeddedFonts'], false, $fontSource);
+        }
+
+        foreach ([
+            'rootEnvironment' => ['root', true],
+            'certificateEnvironment' => ['certificate', true],
+            'packagePathEnvironment' => ['package-path', true],
+            'packageCacheEnvironment' => ['package-cache', true],
+            'featureGateEnvironment' => ['features', false],
+            'creationTimestampEnvironment' => ['creation-timestamp', false],
+        ] as $key => [$control, $pathEntry]) {
+            $entry = $provenance[$key] ?? null;
+            if (!is_array($entry)) {
+                continue;
+            }
+            $append($control, 'environment-shadow', $pathEntry);
+            $captureEnvironment($entry);
+        }
+
+        foreach (['root', 'fontPaths', 'certificates', 'packagePath', 'packageCache', 'creationTimestamp', 'featureGates'] as $key) {
+            $entries = match ($key) {
+                'fontPaths', 'certificates' => is_array($provenance[$key] ?? null) ? $provenance[$key] : [],
+                default => [is_array($provenance[$key] ?? null) ? $provenance[$key] : null],
+            };
+            foreach ($entries as $entry) {
+                $captureEnvironment($entry);
+            }
+        }
+        foreach (['systemFonts', 'embeddedFonts'] as $key) {
+            $captureEnvironment($provenance[$key] ?? null);
+        }
+        foreach (is_array($provenance['environmentVariables'] ?? null) ? $provenance['environmentVariables'] : [] as $variable) {
+            if (is_string($variable) && $variable !== '') {
+                $environmentVariables[] = $variable;
+            }
+        }
+
+        foreach ($controlsBySource as $source => $controls) {
+            $controls = array_values(array_unique(array_filter(
+                $controls,
+                static fn (mixed $control): bool => is_string($control) && $control !== ''
+            )));
+            sort($controls);
+            $controlsBySource[$source] = $controls;
+        }
+        $environmentVariables = array_values(array_unique(array_filter(
+            $environmentVariables,
+            static fn (mixed $variable): bool => is_string($variable) && $variable !== ''
+        )));
+        sort($environmentVariables);
+        $shadowedEnvironmentVariables = array_values(array_unique(array_filter(
+            $shadowedEnvironmentVariables,
+            static fn (mixed $variable): bool => is_string($variable) && $variable !== ''
+        )));
+        sort($shadowedEnvironmentVariables);
+        $issues = array_values(array_filter(
+            is_array($provenance['issues'] ?? null) ? $provenance['issues'] : [],
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        ));
+
+        return [
+            'reviewStatus' => is_string($provenance['reviewStatus'] ?? null) ? $provenance['reviewStatus'] : ($issues === [] ? 'ok' : 'review'),
+            'controlCount' => array_sum($sourceCounts),
+            'sourceCount' => count(array_filter($sourceCounts, static fn (int $count): bool => $count > 0)),
+            'sourceCounts' => $sourceCounts,
+            'pathSourceCounts' => $pathSourceCounts,
+            'controlsBySource' => $controlsBySource,
+            'environmentVariableCount' => count($environmentVariables),
+            'environmentVariables' => $environmentVariables,
+            'shadowedEnvironmentVariableCount' => count($shadowedEnvironmentVariables),
+            'shadowedEnvironmentVariables' => $shadowedEnvironmentVariables,
+            'issueCount' => count($issues),
+            'issues' => $issues,
+        ];
     }
 
     /**

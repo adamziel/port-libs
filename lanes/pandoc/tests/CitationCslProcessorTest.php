@@ -32427,6 +32427,147 @@ XML);
         $t->contains('<p>EndNote XML title dates cite [see EndNote XML Title Date Packet | Title Diag. Packet | 2026-06-12 | endnote-date-empty-field: 1; endnote-date-malformed-field: 1 | ref-type: Journal Article -&gt; article-journal; work-type: peer reviewed article; publication-type: online ahead of print | endnote-attachment-not-imported].</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>EndNote XML Title Date Packet :: Journal of Title Diagnostics :: Title Diag. Packet :: title: EndNote XML Title Date Packet; secondary-title: Journal of Title Diagnostics; tertiary-title: Proceedings of Review Metadata; alternate-title: Title Diag. Packet :: custom3: Unsupported title/date note; remote-database-name: Legacy EndNote Library; research-notes: Keep raw date warning</dd>', $blocks);
     },
+    'parses bounded endnote xml publication detail diagnostics' => static function (TestRunner $t) use ($citation): void {
+        $xml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<xml>
+  <records>
+    <record>
+      <ref-type name="Journal Article">17</ref-type>
+      <rec-number>315</rec-number>
+      <accession-num>endnote-publication-details</accession-num>
+      <contributors>
+        <authors>
+          <author>Ng, Nia</author>
+        </authors>
+      </contributors>
+      <titles>
+        <title>EndNote XML Publication Detail Packet</title>
+        <secondary-title>Journal of Publication Details</secondary-title>
+        <alternate-title>JPD Packet</alternate-title>
+      </titles>
+      <periodical>
+        <abbr-1>JPD</abbr-1>
+      </periodical>
+      <dates>
+        <year>2026</year>
+      </dates>
+      <volume>12</volume>
+      <volume></volume>
+      <number>4</number>
+      <issue></issue>
+      <pages>19-22</pages>
+      <pages>--</pages>
+      <electronic-resource-num>review packet id 44</electronic-resource-num>
+      <doi>10.5555/endnote-details</doi>
+      <urls>
+        <related-urls>
+          <url>https://example.test/endnote-details</url>
+          <url>not a url</url>
+          <url></url>
+        </related-urls>
+        <pdf-urls>
+          <url>attachments/publication-detail.pdf</url>
+        </pdf-urls>
+      </urls>
+      <custom4>Raw publication detail note</custom4>
+    </record>
+  </records>
+</xml>
+XML;
+
+        $items = CitationCslProcessor::endnoteXmlItems($xml);
+        $t->same(1, count($items));
+        $item = $items[0];
+        $t->same('article-journal', $item['type']);
+        $t->same('EndNote XML Publication Detail Packet', $item['title']);
+        $t->same('Journal of Publication Details', $item['container-title']);
+        $t->same('JPD', $item['container-title-short']);
+        $t->same('12', $item['volume']);
+        $t->same('4', $item['issue']);
+        $t->same('19-22', $item['page']);
+        $t->same('10.5555/endnote-details', $item['doi']);
+        $t->same('https://example.test/endnote-details', $item['url']);
+        $t->same('endnote-attachment-not-imported', $item['sourceFileDiagnostics'][0]['reason']);
+        $t->same('attachments/publication-detail.pdf', $item['sourceFileDiagnostics'][0]['path']);
+        $t->same(
+            'secondary-title: Journal of Publication Details; abbr-1: JPD; volume: 12; number: 4; pages: 19-22; pages: --; electronic-resource-num: review packet id 44; doi: 10.5555/endnote-details; url: https://example.test/endnote-details; url: not a url',
+            $item['rawEndnoteXml']['publicationDetailSummary']
+        );
+        $t->same(
+            'endnote-publication-detail-empty-field: 3; endnote-publication-detail-malformed-electronic-resource: 1; endnote-publication-detail-malformed-pages: 1; endnote-publication-detail-malformed-url: 1',
+            $item['rawEndnoteXml']['publicationDetailDiagnosticSummary']
+        );
+        $t->same(['volume', 'issue', 'pages', 'electronic-resource-num', 'url', 'url'], array_column($item['rawEndnoteXml']['publicationDetailDiagnostics'], 'field'));
+        $t->same('review packet id 44', $item['rawEndnoteXml']['electronicResourceNumber']);
+        $t->same(['custom4', 'electronic-resource-num'], array_column($item['rawEndnoteXml']['unsupportedFields'], 'field'));
+        $t->same('custom4: Raw publication detail note; electronic-resource-num: review packet id 44', $item['rawEndnoteXml']['unsupportedFieldSummary']);
+
+        $processor = CitationCslProcessor::fromEndnoteXml($xml);
+        $normalized = $processor->item('endnote-publication-details');
+        $t->same('Journal of Publication Details', $normalized['containerTitle'] ?? null);
+        $t->same('JPD', $normalized['containerTitleShort'] ?? null);
+        $t->same('12', $normalized['volume'] ?? null);
+        $t->same('4', $normalized['issue'] ?? null);
+        $t->same('19-22', $normalized['page'] ?? null);
+        $t->same('19', $normalized['pageFirst'] ?? null);
+        $t->same('10.5555/endnote-details', $normalized['doi'] ?? null);
+        $t->same('https://example.test/endnote-details', $normalized['url'] ?? null);
+        $t->same('endnote-publication-detail-empty-field: 3; endnote-publication-detail-malformed-electronic-resource: 1; endnote-publication-detail-malformed-pages: 1; endnote-publication-detail-malformed-url: 1', $normalized['endnotePublicationDetailDiagnosticSummary'] ?? null);
+        $t->same('custom4: Raw publication detail note; electronic-resource-num: review packet id 44', $normalized['endnoteUnsupportedFieldSummary'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded EndNote XML Publication Detail Review</title>
+    <id>https://example.test/styles/bounded-endnote-xml-publication-detail-review</id>
+    <updated>2026-06-13T06:22:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="container-title"/>
+        <text variable="volume"/>
+        <text variable="issue"/>
+        <text variable="page"/>
+        <text variable="DOI"/>
+        <text variable="URL"/>
+        <text variable="endnote-publication-detail-diagnostic-summary"/>
+        <text variable="endnote-unsupported-field-summary"/>
+        <text variable="source-file-diagnostic-reasons"/>
+        <text variable="locator-diagnostic-reasons"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="endnote-publication-detail-summary"/>
+      <text variable="endnote-publication-detail-diagnostic-summary"/>
+      <text variable="endnote-unsupported-field-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $locatorCitation = $citation('endnote-publication-details', '[@endnote-publication-details]', 'normal', ['prefix' => 'see', 'suffix' => 'sec. 6-7']);
+        $diagnostics = $processor->citationLocatorDiagnostics($locatorCitation);
+        $t->same('citation-locator-suffix-inferred', $diagnostics[0]['reason'] ?? null);
+        $t->same(
+            '[see Journal of Publication Details | 12 | 4 | 19-22 | 10.5555/endnote-details | https://example.test/endnote-details | endnote-publication-detail-empty-field: 3; endnote-publication-detail-malformed-electronic-resource: 1; endnote-publication-detail-malformed-pages: 1; endnote-publication-detail-malformed-url: 1 | custom4: Raw publication detail note; electronic-resource-num: review packet id 44 | endnote-attachment-not-imported | citation-locator-suffix-inferred]',
+            $styled->renderCitationCluster([$locatorCitation])
+        );
+        $t->same(
+            'EndNote XML Publication Detail Packet :: secondary-title: Journal of Publication Details; abbr-1: JPD; volume: 12; number: 4; pages: 19-22; pages: --; electronic-resource-num: review packet id 44; doi: 10.5555/endnote-details; url: https://example.test/endnote-details; url: not a url :: endnote-publication-detail-empty-field: 3; endnote-publication-detail-malformed-electronic-resource: 1; endnote-publication-detail-malformed-pages: 1; endnote-publication-detail-malformed-url: 1 :: custom4: Raw publication detail note; electronic-resource-num: review packet id 44',
+            $styled->renderBibliographyEntry('endnote-publication-details')
+        );
+
+        $document = (new MarkdownReader())->read('EndNote XML publication details cite [see @endnote-publication-details, sec. 6-7].');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>EndNote XML publication details cite [see Journal of Publication Details | 12 | 4 | 19-22 | 10.5555/endnote-details | https://example.test/endnote-details | endnote-publication-detail-empty-field: 3; endnote-publication-detail-malformed-electronic-resource: 1; endnote-publication-detail-malformed-pages: 1; endnote-publication-detail-malformed-url: 1 | custom4: Raw publication detail note; electronic-resource-num: review packet id 44 | endnote-attachment-not-imported].</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>EndNote XML Publication Detail Packet :: secondary-title: Journal of Publication Details; abbr-1: JPD; volume: 12; number: 4; pages: 19-22; pages: --; electronic-resource-num: review packet id 44; doi: 10.5555/endnote-details; url: https://example.test/endnote-details; url: not a url :: endnote-publication-detail-empty-field: 3; endnote-publication-detail-malformed-electronic-resource: 1; endnote-publication-detail-malformed-pages: 1; endnote-publication-detail-malformed-url: 1 :: custom4: Raw publication detail note; electronic-resource-num: review packet id 44</dd>', $blocks);
+    },
     'parses bounded ris records into csl bibliography items' => static function (TestRunner $t) use ($citation): void {
         $ris = <<<'RIS'
 TY  - JOUR
