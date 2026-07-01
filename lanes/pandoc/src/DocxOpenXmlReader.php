@@ -45033,6 +45033,65 @@ final class DocxOpenXmlReader
             'entryNamesByPackagePathDepthByteExposurePolicy' => $this->packageIdentityNestedStringListMap(
                 $summary['partNamesByPartPathDepthByteExposurePolicy'] ?? []
             ),
+            'packagePathSegmentPositionBucketCount' => (int) (
+                $summary['partPathSegmentPositionBucketCount'] ?? 0
+            ),
+            'packagePathSegmentPositionOccurrenceCount' => (int) (
+                $summary['partPathSegmentPositionOccurrenceCount'] ?? 0
+            ),
+            'packagePathSegmentPositionCounts' => $this->packageIdentityCountMap(
+                $summary['partPathSegmentPositionCounts'] ?? []
+            ),
+            'packagePathSegmentPositionPartCounts' => $this->packageIdentityCountMap(
+                $summary['partPathSegmentPositionPartCounts'] ?? []
+            ),
+            'packagePathSegmentPositionParameterizedBucketCount' => (int) (
+                $summary['partPathSegmentPositionParameterizedBucketCount'] ?? 0
+            ),
+            'packagePathSegmentPositionParameterizedPartCount' => (int) (
+                $summary['partPathSegmentPositionParameterizedPartCount'] ?? 0
+            ),
+            'packagePathSegmentPositionMissingContentTypeBucketCount' => (int) (
+                $summary['partPathSegmentPositionMissingContentTypeBucketCount'] ?? 0
+            ),
+            'packagePathSegmentPositions' => is_array($summary['partPathSegmentPositions'] ?? null)
+                ? array_values($summary['partPathSegmentPositions'])
+                : [],
+            'packageCaseFoldPathSegmentPositionBucketCount' => (int) (
+                $summary['partCaseFoldPathSegmentPositionBucketCount'] ?? 0
+            ),
+            'packageCaseFoldPathSegmentPositionOccurrenceCount' => (int) (
+                $summary['partCaseFoldPathSegmentPositionOccurrenceCount'] ?? 0
+            ),
+            'packageCaseFoldPathSegmentPositionCounts' => $this->packageIdentityCountMap(
+                $summary['partCaseFoldPathSegmentPositionCounts'] ?? []
+            ),
+            'packageCaseFoldPathSegmentPositionPartCounts' => $this->packageIdentityCountMap(
+                $summary['partCaseFoldPathSegmentPositionPartCounts'] ?? []
+            ),
+            'packageCaseFoldPathSegmentPositionParameterizedBucketCount' => (int) (
+                $summary['partCaseFoldPathSegmentPositionParameterizedBucketCount'] ?? 0
+            ),
+            'packageCaseFoldPathSegmentPositionParameterizedPartCount' => (int) (
+                $summary['partCaseFoldPathSegmentPositionParameterizedPartCount'] ?? 0
+            ),
+            'packageCaseFoldPathSegmentPositionMissingContentTypeBucketCount' => (int) (
+                $summary['partCaseFoldPathSegmentPositionMissingContentTypeBucketCount'] ?? 0
+            ),
+            'duplicatePackageCaseFoldPathSegmentPositionCount' => (int) (
+                $summary['duplicatePartCaseFoldPathSegmentPositionCount'] ?? 0
+            ),
+            'duplicatePackageCaseFoldPathSegmentPositionCaseFoldSegmentCount' => (int) (
+                $summary['duplicatePartCaseFoldPathSegmentPositionCaseFoldSegmentCount'] ?? 0
+            ),
+            'duplicatePackageCaseFoldPathSegmentPositions' => self::packageIdentityStringList(
+                $summary['duplicatePartCaseFoldPathSegmentPositions'] ?? []
+            ),
+            'packageCaseFoldPathSegmentPositions' => is_array(
+                $summary['partCaseFoldPathSegmentPositions'] ?? null
+            )
+                ? array_values($summary['partCaseFoldPathSegmentPositions'])
+                : [],
             'entryNamesByPackageDirectoryBaseName' => $this->packageIdentityLookupMapFromSummaries(
                 $summary['partDirectoryBaseNames'] ?? [],
                 'directoryBaseName'

@@ -7227,25 +7227,88 @@ final class OpenDocumentPackage
         $packageFileEntryCount = 0;
         $packageDirectoryEntryCount = 0;
         $packageDeclaredZipEntryCount = 0;
+        $manifestPackageReferenceDirectoryRootCounts = [];
+        $manifestPackageExistingReferenceDirectoryRootCounts = [];
+        $manifestPackageCoveredReferenceDirectoryRootCounts = [];
+        $manifestPackageMissingReferenceDirectoryRootCounts = [];
+        $manifestPackageVirtualDirectoryReferenceDirectoryRootCounts = [];
+        $packageDirectoryRootCounts = [];
+        $packageDeclaredZipEntryDirectoryRootCounts = [];
+        $packageUndeclaredZipEntryDirectoryRootCounts = [];
+        $directoryRootSummaries = [];
+        $coverageDirectoryRoot = static function (string $path): string {
+            $trimmed = trim($path, '/');
+            if ($trimmed !== '' && str_ends_with($path, '/')) {
+                $segments = explode('/', $trimmed);
+
+                return $segments[0] . '/';
+            }
+
+            return self::packageDirectoryRoot($path);
+        };
+        $ensureDirectoryRootSummary = static function (string $directoryRoot) use (&$directoryRootSummaries): void {
+            if (isset($directoryRootSummaries[$directoryRoot])) {
+                return;
+            }
+
+            $directoryRootSummaries[$directoryRoot] = [
+                'directoryRoot' => $directoryRoot,
+                'manifestPackageReferenceCount' => 0,
+                'manifestPackageFileReferenceCount' => 0,
+                'manifestPackageDirectoryReferenceCount' => 0,
+                'manifestPackageExistingReferenceCount' => 0,
+                'manifestPackageCoveredReferenceCount' => 0,
+                'manifestPackageMissingReferenceCount' => 0,
+                'manifestPackageVirtualDirectoryReferenceCount' => 0,
+                'packageEntryCount' => 0,
+                'packageFileEntryCount' => 0,
+                'packageDirectoryEntryCount' => 0,
+                'packageDeclaredZipEntryCount' => 0,
+                'packageUndeclaredZipEntryCount' => 0,
+                'manifestPackageReferencePaths' => [],
+                'manifestPackageMissingReferencePaths' => [],
+                'manifestPackageVirtualDirectoryReferencePaths' => [],
+                'packageEntryPaths' => [],
+                'packageDeclaredZipEntryPaths' => [],
+                'packageUndeclaredZipEntryPaths' => [],
+                'manifestMediaFamilyCounts' => [],
+                'byteExposurePolicyCounts' => [],
+            ];
+        };
 
         foreach ($packageParts as $name => $part) {
             $path = is_string($part['path'] ?? null) ? $part['path'] : (string) $name;
+            $directoryRoot = $coverageDirectoryRoot($path);
+            $ensureDirectoryRootSummary($directoryRoot);
             $packagePaths[] = $path;
+            $packageDirectoryRootCounts[$directoryRoot] = ($packageDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+            ++$directoryRootSummaries[$directoryRoot]['packageEntryCount'];
+            $directoryRootSummaries[$directoryRoot]['packageEntryPaths'][] = $path;
             if (($part['isDirectory'] ?? false) === true) {
                 ++$packageDirectoryEntryCount;
+                ++$directoryRootSummaries[$directoryRoot]['packageDirectoryEntryCount'];
             } else {
                 ++$packageFileEntryCount;
+                ++$directoryRootSummaries[$directoryRoot]['packageFileEntryCount'];
             }
             if (($part['declaredInManifest'] ?? false) === true) {
                 ++$packageDeclaredZipEntryCount;
                 $declaredZipEntryPaths[] = $path;
+                $packageDeclaredZipEntryDirectoryRootCounts[$directoryRoot] = ($packageDeclaredZipEntryDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                ++$directoryRootSummaries[$directoryRoot]['packageDeclaredZipEntryCount'];
+                $directoryRootSummaries[$directoryRoot]['packageDeclaredZipEntryPaths'][] = $path;
             }
         }
 
         foreach ($undeclaredPackageEntries as $entry) {
             $path = $entry['path'] ?? null;
             if (is_string($path) && $path !== '') {
+                $directoryRoot = $coverageDirectoryRoot($path);
+                $ensureDirectoryRootSummary($directoryRoot);
                 $undeclaredZipEntryPaths[] = $path;
+                $packageUndeclaredZipEntryDirectoryRootCounts[$directoryRoot] = ($packageUndeclaredZipEntryDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                ++$directoryRootSummaries[$directoryRoot]['packageUndeclaredZipEntryCount'];
+                $directoryRootSummaries[$directoryRoot]['packageUndeclaredZipEntryPaths'][] = $path;
             }
         }
 
@@ -7259,28 +7322,45 @@ final class OpenDocumentPackage
             $isDirectory = ($entry['isDirectory'] ?? false) === true || str_ends_with($packagePath, '/');
             $exists = ($entry['exists'] ?? false) === true;
             $hasZipEntry = isset($packageParts[$packagePath]);
+            $directoryRoot = $coverageDirectoryRoot($packagePath);
+            $ensureDirectoryRootSummary($directoryRoot);
             $manifestPackageReferencePaths[] = $packagePath;
+            $manifestPackageReferenceDirectoryRootCounts[$directoryRoot] = ($manifestPackageReferenceDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+            ++$directoryRootSummaries[$directoryRoot]['manifestPackageReferenceCount'];
+            $directoryRootSummaries[$directoryRoot]['manifestPackageReferencePaths'][] = $packagePath;
             if ($isDirectory) {
                 ++$manifestPackageDirectoryReferenceCount;
                 $directoryPackageReferencePaths[] = $packagePath;
+                ++$directoryRootSummaries[$directoryRoot]['manifestPackageDirectoryReferenceCount'];
             } else {
                 ++$manifestPackageFileReferenceCount;
+                ++$directoryRootSummaries[$directoryRoot]['manifestPackageFileReferenceCount'];
             }
             if ($exists) {
                 ++$manifestPackageExistingReferenceCount;
                 $existingPackageReferencePaths[] = $packagePath;
+                $manifestPackageExistingReferenceDirectoryRootCounts[$directoryRoot] = ($manifestPackageExistingReferenceDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                ++$directoryRootSummaries[$directoryRoot]['manifestPackageExistingReferenceCount'];
             }
             if ($hasZipEntry) {
                 ++$manifestPackageCoveredReferenceCount;
                 $coveredPackageReferencePaths[] = $packagePath;
+                $manifestPackageCoveredReferenceDirectoryRootCounts[$directoryRoot] = ($manifestPackageCoveredReferenceDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                ++$directoryRootSummaries[$directoryRoot]['manifestPackageCoveredReferenceCount'];
             }
             if (!$exists) {
                 ++$manifestPackageMissingReferenceCount;
                 $missingPackageReferencePaths[] = $packagePath;
+                $manifestPackageMissingReferenceDirectoryRootCounts[$directoryRoot] = ($manifestPackageMissingReferenceDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                ++$directoryRootSummaries[$directoryRoot]['manifestPackageMissingReferenceCount'];
+                $directoryRootSummaries[$directoryRoot]['manifestPackageMissingReferencePaths'][] = $packagePath;
             }
             if ($isDirectory && $exists && !$hasZipEntry) {
                 ++$manifestPackageVirtualDirectoryReferenceCount;
                 $virtualDirectoryPackageReferencePaths[] = $packagePath;
+                $manifestPackageVirtualDirectoryReferenceDirectoryRootCounts[$directoryRoot] = ($manifestPackageVirtualDirectoryReferenceDirectoryRootCounts[$directoryRoot] ?? 0) + 1;
+                ++$directoryRootSummaries[$directoryRoot]['manifestPackageVirtualDirectoryReferenceCount'];
+                $directoryRootSummaries[$directoryRoot]['manifestPackageVirtualDirectoryReferencePaths'][] = $packagePath;
             }
 
             $part = is_array($packageParts[$packagePath] ?? null) ? $packageParts[$packagePath] : null;
@@ -7290,6 +7370,8 @@ final class OpenDocumentPackage
             if (is_string($mediaFamily) && $mediaFamily !== '') {
                 $manifestPackageReferenceMediaFamilyCounts[$mediaFamily] =
                     ($manifestPackageReferenceMediaFamilyCounts[$mediaFamily] ?? 0) + 1;
+                $directoryRootSummaries[$directoryRoot]['manifestMediaFamilyCounts'][$mediaFamily] =
+                    ($directoryRootSummaries[$directoryRoot]['manifestMediaFamilyCounts'][$mediaFamily] ?? 0) + 1;
                 if (!$exists) {
                     $manifestPackageMissingReferenceMediaFamilyCounts[$mediaFamily] =
                         ($manifestPackageMissingReferenceMediaFamilyCounts[$mediaFamily] ?? 0) + 1;
@@ -7300,6 +7382,8 @@ final class OpenDocumentPackage
             if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
                 $manifestPackageReferenceByteExposurePolicyCounts[$byteExposurePolicy] =
                     ($manifestPackageReferenceByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                $directoryRootSummaries[$directoryRoot]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                    ($directoryRootSummaries[$directoryRoot]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
                 if (!$exists) {
                     $manifestPackageMissingReferenceByteExposurePolicyCounts[$byteExposurePolicy] =
                         ($manifestPackageMissingReferenceByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
@@ -7311,6 +7395,7 @@ final class OpenDocumentPackage
                 'manifestPath' => $manifestPath,
                 'packagePath' => $packagePath,
                 'isDirectory' => $isDirectory,
+                'directoryRoot' => $directoryRoot,
                 'exists' => $exists,
                 'hasZipEntry' => $hasZipEntry,
                 'virtualDirectoryReference' => $isDirectory && $exists && !$hasZipEntry,
@@ -7345,6 +7430,26 @@ final class OpenDocumentPackage
         ksort($manifestPackageMissingReferenceMediaFamilyCounts, SORT_STRING);
         ksort($manifestPackageReferenceByteExposurePolicyCounts, SORT_STRING);
         ksort($manifestPackageMissingReferenceByteExposurePolicyCounts, SORT_STRING);
+        ksort($manifestPackageReferenceDirectoryRootCounts, SORT_STRING);
+        ksort($manifestPackageExistingReferenceDirectoryRootCounts, SORT_STRING);
+        ksort($manifestPackageCoveredReferenceDirectoryRootCounts, SORT_STRING);
+        ksort($manifestPackageMissingReferenceDirectoryRootCounts, SORT_STRING);
+        ksort($manifestPackageVirtualDirectoryReferenceDirectoryRootCounts, SORT_STRING);
+        ksort($packageDirectoryRootCounts, SORT_STRING);
+        ksort($packageDeclaredZipEntryDirectoryRootCounts, SORT_STRING);
+        ksort($packageUndeclaredZipEntryDirectoryRootCounts, SORT_STRING);
+        ksort($directoryRootSummaries, SORT_STRING);
+        foreach ($directoryRootSummaries as &$summary) {
+            $summary['manifestPackageReferencePaths'] = $sortStringList($summary['manifestPackageReferencePaths']);
+            $summary['manifestPackageMissingReferencePaths'] = $sortStringList($summary['manifestPackageMissingReferencePaths']);
+            $summary['manifestPackageVirtualDirectoryReferencePaths'] = $sortStringList($summary['manifestPackageVirtualDirectoryReferencePaths']);
+            $summary['packageEntryPaths'] = $sortStringList($summary['packageEntryPaths']);
+            $summary['packageDeclaredZipEntryPaths'] = $sortStringList($summary['packageDeclaredZipEntryPaths']);
+            $summary['packageUndeclaredZipEntryPaths'] = $sortStringList($summary['packageUndeclaredZipEntryPaths']);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+        }
+        unset($summary);
 
         return [
             'present' => true,
@@ -7363,6 +7468,13 @@ final class OpenDocumentPackage
             'manifestPackageMissingReferencePaths' => $sortStringList($missingPackageReferencePaths),
             'manifestPackageDirectoryReferencePaths' => $sortStringList($directoryPackageReferencePaths),
             'manifestPackageVirtualDirectoryReferencePaths' => $sortStringList($virtualDirectoryPackageReferencePaths),
+            'manifestPackageDirectoryRootCount' => count($directoryRootSummaries),
+            'manifestPackageReferenceDirectoryRootCounts' => $manifestPackageReferenceDirectoryRootCounts,
+            'manifestPackageExistingReferenceDirectoryRootCounts' => $manifestPackageExistingReferenceDirectoryRootCounts,
+            'manifestPackageCoveredReferenceDirectoryRootCounts' => $manifestPackageCoveredReferenceDirectoryRootCounts,
+            'manifestPackageMissingReferenceDirectoryRootCounts' => $manifestPackageMissingReferenceDirectoryRootCounts,
+            'manifestPackageVirtualDirectoryReferenceDirectoryRootCounts' => $manifestPackageVirtualDirectoryReferenceDirectoryRootCounts,
+            'manifestPackageDirectoryRootSummaries' => array_values($directoryRootSummaries),
             'manifestPackageReferenceMediaFamilyCounts' => $manifestPackageReferenceMediaFamilyCounts,
             'manifestPackageMissingReferenceMediaFamilyCounts' => $manifestPackageMissingReferenceMediaFamilyCounts,
             'manifestPackageReferenceByteExposurePolicyCounts' => $manifestPackageReferenceByteExposurePolicyCounts,
@@ -7375,6 +7487,9 @@ final class OpenDocumentPackage
             'packageEntryPaths' => $sortStringList($packagePaths),
             'packageDeclaredZipEntryPaths' => $sortStringList($declaredZipEntryPaths),
             'packageUndeclaredZipEntryPaths' => $sortStringList($undeclaredZipEntryPaths),
+            'packageDirectoryRootCounts' => $packageDirectoryRootCounts,
+            'packageDeclaredZipEntryDirectoryRootCounts' => $packageDeclaredZipEntryDirectoryRootCounts,
+            'packageUndeclaredZipEntryDirectoryRootCounts' => $packageUndeclaredZipEntryDirectoryRootCounts,
             'issueCount' => count($issueCodes),
             'issueCodes' => $issueCodes,
             'byteExposurePolicy' => 'odf-manifest-package-coverage-metadata-only',
