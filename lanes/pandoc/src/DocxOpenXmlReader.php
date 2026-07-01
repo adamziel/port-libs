@@ -19710,6 +19710,7 @@ final class DocxOpenXmlReader
             'partXmlCdataSectionPartCount' => $partXmlCdataSections['partCount'],
             'partXmlCdataSectionCount' => $partXmlCdataSections['sectionCount'],
             'partXmlCdataSectionByteLength' => $partXmlCdataSections['byteLength'],
+            'partXmlCdataSectionParentDepthCounts' => $partXmlCdataSections['parentDepthCounts'],
             'partXmlCdataSectionPartNames' => $partXmlCdataSections['partNames'],
             'partXmlCdataSections' => $partXmlCdataSections['sections'],
             'partXmlCdataSectionsTruncated' => $partXmlCdataSections['truncated'],
@@ -37486,7 +37487,7 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
-     * @return array{partCount:int, sectionCount:int, byteLength:int, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool}
+     * @return array{partCount:int, sectionCount:int, byteLength:int, parentDepthCounts:array<int, int>, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCdataSectionSummary(array $partInventory): array
     {
@@ -37494,6 +37495,7 @@ final class DocxOpenXmlReader
         $sections = [];
         $sectionCount = 0;
         $byteLength = 0;
+        $parentDepthCounts = [];
         $truncated = false;
         $summaryLimit = 64;
 
@@ -37507,6 +37509,14 @@ final class DocxOpenXmlReader
             $sectionCount += $partSectionCount;
             $byteLength += (int) ($part['xmlCdataSectionByteLength'] ?? 0);
             $this->appendUniqueString($partNames, $partName);
+            foreach (($part['xmlCdataSectionParentDepthCounts'] ?? []) as $depth => $count) {
+                if (!is_int($depth) && !(is_string($depth) && ctype_digit($depth))) {
+                    continue;
+                }
+
+                $depth = (int) $depth;
+                $parentDepthCounts[$depth] = ($parentDepthCounts[$depth] ?? 0) + (int) $count;
+            }
             if (($part['xmlCdataSectionsTruncated'] ?? false) === true) {
                 $truncated = true;
             }
@@ -37525,11 +37535,13 @@ final class DocxOpenXmlReader
         }
 
         sort($partNames, SORT_STRING);
+        ksort($parentDepthCounts, SORT_NUMERIC);
 
         return [
             'partCount' => count($partNames),
             'sectionCount' => $sectionCount,
             'byteLength' => $byteLength,
+            'parentDepthCounts' => $parentDepthCounts,
             'partNames' => $partNames,
             'sections' => $sections,
             'truncated' => $truncated,
@@ -37649,7 +37661,7 @@ final class DocxOpenXmlReader
     }
 
     /**
-     * @return array{count:int, byteLength:int, sections:list<array<string, mixed>>, truncated:bool}
+     * @return array{count:int, byteLength:int, parentDepthCounts:array<int, int>, sections:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCdataSectionMetadata(
         string $xml,
@@ -37660,6 +37672,7 @@ final class DocxOpenXmlReader
         $empty = [
             'count' => 0,
             'byteLength' => 0,
+            'parentDepthCounts' => [],
             'sections' => [],
             'truncated' => false,
         ];
@@ -37681,6 +37694,7 @@ final class DocxOpenXmlReader
         $sections = [];
         $count = 0;
         $byteLength = 0;
+        $parentDepthCounts = [];
         $truncated = false;
         $itemLimit = 32;
         foreach ($nodes as $node) {
@@ -37692,26 +37706,30 @@ final class DocxOpenXmlReader
             $value = (string) $node->nodeValue;
             $valueByteLength = strlen($value);
             $byteLength += $valueByteLength;
+            $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+            $parentPath = $this->domElementPath($parent);
+            $parentDepth = $this->domElementPathDepth($parentPath);
+            $parentDepthCounts[$parentDepth] = ($parentDepthCounts[$parentDepth] ?? 0) + 1;
             if (count($sections) >= $itemLimit) {
                 $truncated = true;
                 continue;
             }
 
-            $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
-            $parentPath = $this->domElementPath($parent);
             $sections[] = [
                 'index' => $count - 1,
                 'parentPath' => $parentPath,
-                'parentDepth' => $this->domElementPathDepth($parentPath),
+                'parentDepth' => $parentDepth,
                 'byteLength' => $valueByteLength,
                 'crc32' => sprintf('%08x', crc32($value)),
                 'sha256' => hash('sha256', $value),
             ];
         }
+        ksort($parentDepthCounts, SORT_NUMERIC);
 
         return [
             'count' => $count,
             'byteLength' => $byteLength,
+            'parentDepthCounts' => $parentDepthCounts,
             'sections' => $sections,
             'truncated' => $truncated,
         ];
@@ -44159,6 +44177,7 @@ final class DocxOpenXmlReader
                 'overridePartName' => $contentTypeResolution['overridePartName'],
                 'xmlCdataSectionCount' => $xmlCdataSections['count'],
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
+                'xmlCdataSectionParentDepthCounts' => $xmlCdataSections['parentDepthCounts'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
                 'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
                 'xmlCommentCount' => $xmlComments['count'],
