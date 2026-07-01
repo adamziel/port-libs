@@ -809,6 +809,89 @@ XML,
         $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][1]['centralEntryNames']);
         $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][1]['localEntryNames']);
     },
+    'preserves docx source zip modification time provenance across package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $documentModifiedAt = 1780479017;
+        $mediaModifiedDosTime = 19400;
+        $mediaModifiedDosDate = 23747;
+        $zipParts = [];
+        foreach ($parts as $name => $data) {
+            $zipPart = [
+                'name' => $name,
+                'data' => $data,
+            ];
+            if ($name === 'word/document.xml') {
+                $zipPart['modifiedAt'] = $documentModifiedAt;
+            }
+            if ($name === 'word/media/review.png') {
+                $zipPart['modifiedDosTime'] = $mediaModifiedDosTime;
+                $zipPart['modifiedDosDate'] = $mediaModifiedDosDate;
+            }
+            $zipParts[] = $zipPart;
+        }
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(ZipPackage::fromParts($zipParts));
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $modificationTimes = $package['zipPackage']['modificationTimes'];
+        $documentEntry = $package['zipPackage']['byPackagePath']['word/document.xml'];
+        $mediaEntry = $package['zipPackage']['byPackagePath']['word/media/review.png'];
+        $documentInventory = $package['parts']['word/document.xml'];
+        $mediaInventory = $package['parts']['word/media/review.png'];
+
+        $t->same(count($parts), $modificationTimes['entryCount']);
+        $t->same(2, $modificationTimes['timestampEntryCount']);
+        $t->same(2, $modificationTimes['dosTimestampEntryCount']);
+        $t->same(1, $modificationTimes['extendedTimestampEntryCount']);
+        $t->same(0, $modificationTimes['ntfsTimestampEntryCount']);
+        $t->same(0, $modificationTimes['invalidDosTimestampEntryCount']);
+        $t->same(0, $modificationTimes['issueCount']);
+        $t->same([], $modificationTimes['issueCodes']);
+        $t->same(['dos' => 1, 'extended-timestamp' => 1], $modificationTimes['timestampSourceCounts']);
+        $t->same(['dos' => 1, 'extended-timestamp' => 1], $modificationTimes['localTimestampSourceCounts']);
+
+        $t->same($modificationTimes['entryCount'], $summary['zipModificationTimeEntryCount']);
+        $t->same($modificationTimes['timestampEntryCount'], $summary['zipTimestampEntryCount']);
+        $t->same($modificationTimes['dosTimestampEntryCount'], $summary['zipDosTimestampEntryCount']);
+        $t->same($modificationTimes['extendedTimestampEntryCount'], $summary['zipExtendedTimestampEntryCount']);
+        $t->same($modificationTimes['ntfsTimestampEntryCount'], $summary['zipNtfsTimestampEntryCount']);
+        $t->same($modificationTimes['invalidDosTimestampEntryCount'], $summary['zipInvalidDosTimestampEntryCount']);
+        $t->same($modificationTimes['issueCount'], $summary['zipModificationTimeIssueCount']);
+        $t->same($modificationTimes['issueCodes'], $summary['zipModificationTimeIssueCodes']);
+        $t->same($modificationTimes['timestampSourceCounts'], $summary['zipTimestampSourceCounts']);
+        $t->same($modificationTimes['localTimestampSourceCounts'], $summary['zipLocalTimestampSourceCounts']);
+        $t->same([], $summary['zipInvalidDosTimestampEntries']);
+
+        $t->same($documentModifiedAt, $documentEntry['zipModifiedAt']);
+        $t->same($documentModifiedAt, $documentEntry['zipCentralModifiedAt']);
+        $t->same($documentModifiedAt, $documentEntry['zipLocalModifiedAt']);
+        $t->same($documentModifiedAt, $documentEntry['zipExtendedModifiedAt']);
+        $t->same($documentModifiedAt, $documentEntry['zipLocalExtendedModifiedAt']);
+        $t->same('extended-timestamp', $documentEntry['zipTimestampSource']);
+        $t->same('extended-timestamp', $documentEntry['zipLocalTimestampSource']);
+        $t->same(true, $documentEntry['zipHasDosTimestamp']);
+        $t->same(true, $documentEntry['zipIsDosTimestampValid']);
+        $t->same([], $documentEntry['zipModificationTimeIssues']);
+
+        $t->same($mediaModifiedDosTime, $mediaEntry['zipModifiedDosTime']);
+        $t->same($mediaModifiedDosDate, $mediaEntry['zipModifiedDosDate']);
+        $t->same('dos', $mediaEntry['zipTimestampSource']);
+        $t->same('dos', $mediaEntry['zipLocalTimestampSource']);
+        $t->same($mediaEntry['zipDosModifiedAt'], $mediaEntry['zipModifiedAt']);
+        $t->same($mediaEntry['zipDosModifiedAt'], $mediaEntry['zipLocalModifiedAt']);
+        $t->same(null, $mediaEntry['zipExtendedModifiedAt']);
+        $t->same(null, $mediaEntry['zipLocalExtendedModifiedAt']);
+        $t->same(0, $mediaEntry['zipModificationTimeIssueCount']);
+
+        $t->same($documentEntry['zipModifiedAt'], $documentInventory['zipModifiedAt']);
+        $t->same($documentEntry['zipTimestampSource'], $documentInventory['zipTimestampSource']);
+        $t->same($documentEntry['zipLocalTimestampSource'], $documentInventory['zipLocalTimestampSource']);
+        $t->same($mediaEntry['zipModifiedAt'], $mediaInventory['zipModifiedAt']);
+        $t->same($mediaEntry['zipTimestampSource'], $mediaInventory['zipTimestampSource']);
+        $t->same($mediaEntry['zipLocalTimestampSource'], $mediaInventory['zipLocalTimestampSource']);
+        $t->same([], $documentInventory['zipModificationTimeIssues']);
+        $t->same([], $mediaInventory['zipModificationTimeIssues']);
+    },
     'preserves docx source zip package manifest hashes across package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);

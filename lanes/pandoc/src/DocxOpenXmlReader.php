@@ -11923,6 +11923,28 @@ final class DocxOpenXmlReader
         $summary['zipDataDescriptorIssueCount'] = $zipDataDescriptors['issueCount'];
         $summary['zipDataDescriptorIssueCodes'] = $zipDataDescriptors['issueCodes'];
         $summary['zipDataDescriptorByteLength'] = $zipDataDescriptors['descriptorByteLength'];
+        $zipModificationTimes = is_array($zipPackage['modificationTimes'] ?? null)
+            ? $zipPackage['modificationTimes']
+            : $this->emptyZipModificationTimeProvenance();
+        $summary['zipModificationTimeEntryCount'] = (int) ($zipModificationTimes['entryCount'] ?? 0);
+        $summary['zipTimestampEntryCount'] = (int) ($zipModificationTimes['timestampEntryCount'] ?? 0);
+        $summary['zipDosTimestampEntryCount'] = (int) ($zipModificationTimes['dosTimestampEntryCount'] ?? 0);
+        $summary['zipExtendedTimestampEntryCount'] = (int) ($zipModificationTimes['extendedTimestampEntryCount'] ?? 0);
+        $summary['zipNtfsTimestampEntryCount'] = (int) ($zipModificationTimes['ntfsTimestampEntryCount'] ?? 0);
+        $summary['zipInvalidDosTimestampEntryCount'] = (int) ($zipModificationTimes['invalidDosTimestampEntryCount'] ?? 0);
+        $summary['zipModificationTimeIssueCount'] = (int) ($zipModificationTimes['issueCount'] ?? 0);
+        $summary['zipModificationTimeIssueCodes'] = is_array($zipModificationTimes['issueCodes'] ?? null)
+            ? $zipModificationTimes['issueCodes']
+            : [];
+        $summary['zipTimestampSourceCounts'] = is_array($zipModificationTimes['timestampSourceCounts'] ?? null)
+            ? $zipModificationTimes['timestampSourceCounts']
+            : [];
+        $summary['zipLocalTimestampSourceCounts'] = is_array($zipModificationTimes['localTimestampSourceCounts'] ?? null)
+            ? $zipModificationTimes['localTimestampSourceCounts']
+            : [];
+        $summary['zipInvalidDosTimestampEntries'] = is_array($zipModificationTimes['invalidDosTimestampEntries'] ?? null)
+            ? $zipModificationTimes['invalidDosTimestampEntries']
+            : [];
         $zipSourceRecords = is_array($zipPackage['sourceRecords'] ?? null)
             ? $zipPackage['sourceRecords']
             : $this->emptyZipSourceRecordProvenance();
@@ -12115,6 +12137,7 @@ final class DocxOpenXmlReader
                     'entries' => [],
                 ],
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
+                'modificationTimes' => $this->emptyZipModificationTimeProvenance(),
                 'sourceRecords' => $this->emptyZipSourceRecordProvenance(),
                 'extraFields' => $this->emptyZipExtraFieldProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
@@ -12140,6 +12163,7 @@ final class DocxOpenXmlReader
         );
         $sizePreflight = $sourcePackage->sizePreflight();
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
+        $modificationTimes = $this->zipModificationTimeProvenance($sourcePackage->modificationTimePreflight());
         $sourceRecords = $this->zipSourceRecordProvenance($sourcePackage, $parts);
         $extraFields = $sourcePackage->extraFieldPreflight();
         $comments = $sourcePackage->commentPreflight();
@@ -12172,6 +12196,12 @@ final class DocxOpenXmlReader
         foreach ($dataDescriptors['entries'] as $descriptorEntry) {
             if (is_array($descriptorEntry) && is_string($descriptorEntry['name'] ?? null)) {
                 $dataDescriptorByName[$descriptorEntry['name']] = $descriptorEntry;
+            }
+        }
+        $modificationTimeByName = [];
+        foreach ($modificationTimes['entries'] as $modificationTimeEntry) {
+            if (is_array($modificationTimeEntry) && is_string($modificationTimeEntry['name'] ?? null)) {
+                $modificationTimeByName[$modificationTimeEntry['name']] = $modificationTimeEntry;
             }
         }
         $sourceRecordEntriesByName = [];
@@ -12267,6 +12297,7 @@ final class DocxOpenXmlReader
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             ]
                 + $this->zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null)
+                + $this->zipModificationTimeEntryProvenance($modificationTimeByName[$entry->name] ?? null)
                 + $this->zipSourceRecordEntryProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             $entries[] = $summary;
             $byPackagePath[$entry->name] = $summary;
@@ -12300,6 +12331,7 @@ final class DocxOpenXmlReader
             'loadedPartNames' => $loadedPartNames,
             'compressionMethods' => $compressionMethods,
             'dataDescriptors' => $dataDescriptors,
+            'modificationTimes' => $modificationTimes,
             'sourceRecords' => $sourceRecords,
             'extraFields' => $extraFields,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
@@ -12910,6 +12942,118 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipModificationTimeProvenance(): array
+    {
+        return [
+            'entryCount' => 0,
+            'timestampEntryCount' => 0,
+            'dosTimestampEntryCount' => 0,
+            'extendedTimestampEntryCount' => 0,
+            'ntfsTimestampEntryCount' => 0,
+            'invalidDosTimestampEntryCount' => 0,
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'timestampSourceCounts' => [],
+            'localTimestampSourceCounts' => [],
+            'invalidDosTimestampEntries' => [],
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $modificationTimes
+     * @return array<string, mixed>
+     */
+    private function zipModificationTimeProvenance(array $modificationTimes): array
+    {
+        $timestampSourceCounts = [];
+        $localTimestampSourceCounts = [];
+        $issueCodes = [];
+        $entries = [];
+
+        foreach (($modificationTimes['entries'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $timestampSource = is_string($entry['timestampSource'] ?? null) ? $entry['timestampSource'] : null;
+            if ($timestampSource !== null && $timestampSource !== '') {
+                $timestampSourceCounts[$timestampSource] = ($timestampSourceCounts[$timestampSource] ?? 0) + 1;
+            }
+
+            $localTimestampSource = is_string($entry['localTimestampSource'] ?? null) ? $entry['localTimestampSource'] : null;
+            if ($localTimestampSource !== null && $localTimestampSource !== '') {
+                $localTimestampSourceCounts[$localTimestampSource] = ($localTimestampSourceCounts[$localTimestampSource] ?? 0) + 1;
+            }
+
+            foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                if (is_string($issue) && !in_array($issue, $issueCodes, true)) {
+                    $issueCodes[] = $issue;
+                }
+            }
+
+            $entries[] = $entry;
+        }
+
+        ksort($timestampSourceCounts);
+        ksort($localTimestampSourceCounts);
+        sort($issueCodes, SORT_STRING);
+
+        return [
+            'entryCount' => (int) ($modificationTimes['entryCount'] ?? count($entries)),
+            'timestampEntryCount' => (int) ($modificationTimes['timestampEntryCount'] ?? 0),
+            'dosTimestampEntryCount' => (int) ($modificationTimes['dosTimestampEntryCount'] ?? 0),
+            'extendedTimestampEntryCount' => (int) ($modificationTimes['extendedTimestampEntryCount'] ?? 0),
+            'ntfsTimestampEntryCount' => (int) ($modificationTimes['ntfsTimestampEntryCount'] ?? 0),
+            'invalidDosTimestampEntryCount' => (int) ($modificationTimes['invalidDosTimestampEntryCount'] ?? 0),
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'timestampSourceCounts' => $timestampSourceCounts,
+            'localTimestampSourceCounts' => $localTimestampSourceCounts,
+            'invalidDosTimestampEntries' => is_array($modificationTimes['invalidDosTimestampEntries'] ?? null)
+                ? $modificationTimes['invalidDosTimestampEntries']
+                : [],
+            'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private function zipModificationTimeEntryProvenance(?array $entry): array
+    {
+        $issues = is_array($entry['issues'] ?? null) ? array_values(array_filter(
+            $entry['issues'],
+            static fn (mixed $issue): bool => is_string($issue)
+        )) : [];
+
+        return [
+            'zipModifiedDosTime' => $entry['modifiedDosTime'] ?? null,
+            'zipModifiedDosDate' => $entry['modifiedDosDate'] ?? null,
+            'zipHasDosTimestamp' => ($entry['hasDosTimestamp'] ?? false) === true,
+            'zipIsDosTimestampValid' => ($entry['isDosTimestampValid'] ?? true) === true,
+            'zipDosModifiedAt' => $entry['dosModifiedAt'] ?? null,
+            'zipExtendedModifiedAt' => $entry['extendedModifiedAt'] ?? null,
+            'zipNtfsModifiedAt' => $entry['ntfsModifiedAt'] ?? null,
+            'zipModifiedAt' => $entry['modifiedAt'] ?? null,
+            'zipTimestampSource' => $entry['timestampSource'] ?? null,
+            'zipCentralExtendedModifiedAt' => $entry['centralExtendedModifiedAt'] ?? null,
+            'zipCentralNtfsModifiedAt' => $entry['centralNtfsModifiedAt'] ?? null,
+            'zipCentralModifiedAt' => $entry['centralModifiedAt'] ?? null,
+            'zipCentralTimestampSource' => $entry['centralTimestampSource'] ?? null,
+            'zipLocalExtendedModifiedAt' => $entry['localExtendedModifiedAt'] ?? null,
+            'zipLocalNtfsModifiedAt' => $entry['localNtfsModifiedAt'] ?? null,
+            'zipLocalModifiedAt' => $entry['localModifiedAt'] ?? null,
+            'zipLocalTimestampSource' => $entry['localTimestampSource'] ?? null,
+            'zipModificationTimeIssueCount' => count($issues),
+            'zipModificationTimeIssues' => $issues,
+        ];
+    }
+
+    /**
      * @param array<string, mixed>|null $entry
      * @return array<string, mixed>
      */
@@ -13275,6 +13419,25 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['hasZeroLocalHeaderPlaceholders'] = $entry['hasZeroLocalHeaderPlaceholders'] ?? null;
             $partInventory[$partName]['dataDescriptorIssueCount'] = $entry['dataDescriptorIssueCount'] ?? 0;
             $partInventory[$partName]['dataDescriptorIssues'] = $entry['dataDescriptorIssues'] ?? [];
+            $partInventory[$partName]['zipModifiedDosTime'] = $entry['zipModifiedDosTime'] ?? null;
+            $partInventory[$partName]['zipModifiedDosDate'] = $entry['zipModifiedDosDate'] ?? null;
+            $partInventory[$partName]['zipHasDosTimestamp'] = $entry['zipHasDosTimestamp'] ?? false;
+            $partInventory[$partName]['zipIsDosTimestampValid'] = $entry['zipIsDosTimestampValid'] ?? true;
+            $partInventory[$partName]['zipDosModifiedAt'] = $entry['zipDosModifiedAt'] ?? null;
+            $partInventory[$partName]['zipExtendedModifiedAt'] = $entry['zipExtendedModifiedAt'] ?? null;
+            $partInventory[$partName]['zipNtfsModifiedAt'] = $entry['zipNtfsModifiedAt'] ?? null;
+            $partInventory[$partName]['zipModifiedAt'] = $entry['zipModifiedAt'] ?? null;
+            $partInventory[$partName]['zipTimestampSource'] = $entry['zipTimestampSource'] ?? null;
+            $partInventory[$partName]['zipCentralExtendedModifiedAt'] = $entry['zipCentralExtendedModifiedAt'] ?? null;
+            $partInventory[$partName]['zipCentralNtfsModifiedAt'] = $entry['zipCentralNtfsModifiedAt'] ?? null;
+            $partInventory[$partName]['zipCentralModifiedAt'] = $entry['zipCentralModifiedAt'] ?? null;
+            $partInventory[$partName]['zipCentralTimestampSource'] = $entry['zipCentralTimestampSource'] ?? null;
+            $partInventory[$partName]['zipLocalExtendedModifiedAt'] = $entry['zipLocalExtendedModifiedAt'] ?? null;
+            $partInventory[$partName]['zipLocalNtfsModifiedAt'] = $entry['zipLocalNtfsModifiedAt'] ?? null;
+            $partInventory[$partName]['zipLocalModifiedAt'] = $entry['zipLocalModifiedAt'] ?? null;
+            $partInventory[$partName]['zipLocalTimestampSource'] = $entry['zipLocalTimestampSource'] ?? null;
+            $partInventory[$partName]['zipModificationTimeIssueCount'] = $entry['zipModificationTimeIssueCount'] ?? 0;
+            $partInventory[$partName]['zipModificationTimeIssues'] = $entry['zipModificationTimeIssues'] ?? [];
             foreach ([
                 'hasSourceByteSpanProvenance',
                 'localRecordOffset',
