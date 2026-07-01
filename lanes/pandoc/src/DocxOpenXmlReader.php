@@ -203,6 +203,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['documentContentTypeHasParameters'] = $documentPackageIdentity['contentTypeHasParameters'];
         $packageProvenance['summary']['documentContentTypeParameterCount'] = $documentPackageIdentity['contentTypeParameterCount'];
         $packageProvenance['summary']['documentContentTypeParameterMap'] = $documentPackageIdentity['contentTypeParameterMap'];
+        $packageProvenance['summary']['documentPackageIdentityVersion'] = $documentPackageIdentity['identityVersion'];
+        $packageProvenance['summary']['documentPackageIdentitySha256'] = $documentPackageIdentity['identitySha256'];
+        $packageProvenance['summary']['documentPackageIdentityPayloadByteLength'] = $documentPackageIdentity['identityPayloadByteLength'];
+        $packageProvenance['summary']['documentPackageIdentityByteExposurePolicy'] = $documentPackageIdentity['byteExposurePolicy'];
+        $packageProvenance['summary']['documentPackageIdentityCanExposeBytes'] = $documentPackageIdentity['canExposeBytes'];
         $packageProvenance['summary']['documentFormatKind'] = $documentPackageIdentity['formatKind'];
         $packageProvenance['summary']['documentTemplate'] = $documentPackageIdentity['template'];
         $packageProvenance['summary']['documentMacroEnabled'] = $documentPackageIdentity['macroEnabled'];
@@ -28564,9 +28569,10 @@ final class DocxOpenXmlReader
             'unknown' => ['unexpected-main-document-content-type'],
             default => [],
         };
-
-        return [
+        $identity = [
+            'identityVersion' => 1,
             'reviewPolicy' => 'docx-main-document-package-identity',
+            'packageType' => 'docx-openxml-main-document',
             'partName' => $documentPart,
             'contentType' => $contentType['contentType'],
             'contentTypeBase' => $contentTypeBase,
@@ -28584,6 +28590,16 @@ final class DocxOpenXmlReader
             'issueCount' => count($issueCodes),
             'issueCodes' => $issueCodes,
         ];
+        $identityJson = json_encode(
+            self::canonicalIdentityValue($identity),
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+        $identity['identitySha256'] = hash('sha256', $identityJson);
+        $identity['identityPayloadByteLength'] = strlen($identityJson);
+        $identity['byteExposurePolicy'] = 'docx-main-document-package-identity-metadata-only';
+        $identity['canExposeBytes'] = false;
+
+        return $identity;
     }
 
     /**
@@ -35016,6 +35032,25 @@ final class DocxOpenXmlReader
         $child = $this->childElement($parent, $childLocalName);
 
         return $child instanceof \DOMElement ? $child->getAttributeNS(self::NS_W, $attrLocalName) : '';
+    }
+
+    private static function canonicalIdentityValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (array_is_list($value)) {
+            return array_map(static fn (mixed $item): mixed => self::canonicalIdentityValue($item), $value);
+        }
+
+        $canonical = [];
+        foreach ($value as $key => $item) {
+            $canonical[(string) $key] = self::canonicalIdentityValue($item);
+        }
+        ksort($canonical, SORT_STRING);
+
+        return $canonical;
     }
 
     private function wordBoolean(\DOMElement $element, string $attribute = 'val'): bool

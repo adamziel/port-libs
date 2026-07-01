@@ -51,13 +51,19 @@ return [
 
         foreach ($cases as [$contentType, $contentTypeBase, $formatKind, $template, $macroEnabled, $issueCodes]) {
             $document = (new DocxOpenXmlReader())->readPackage(docx_package_identity_fixture_parts($contentType));
+            $repeatDocument = (new DocxOpenXmlReader())->readPackage(docx_package_identity_fixture_parts($contentType));
+            $changedDocument = (new DocxOpenXmlReader())->readPackage(docx_package_identity_fixture_parts($contentType . '; identity-review=changed'));
             $docx = $document->attr('docx');
             $package = $docx['packageProvenance'];
             $identity = $docx['documentPackageIdentity'];
+            $repeatIdentity = $repeatDocument->attr('docx')['documentPackageIdentity'];
+            $changedIdentity = $changedDocument->attr('docx')['documentPackageIdentity'];
             $summary = $package['summary'];
 
             $t->same($identity, $package['documentPackageIdentity']);
+            $t->same(1, $identity['identityVersion']);
             $t->same('docx-main-document-package-identity', $identity['reviewPolicy']);
+            $t->same('docx-openxml-main-document', $identity['packageType']);
             $t->same('word/document.xml', $identity['partName']);
             $t->same($contentType, $identity['contentType']);
             $t->same($contentTypeBase, $identity['contentTypeBase']);
@@ -69,6 +75,12 @@ return [
             $t->same(count($issueCodes), $identity['issueCount']);
             $t->same($issueCodes, $identity['issueCodes']);
             $t->same(str_contains($contentType, ';'), $identity['contentTypeHasParameters']);
+            $t->same(false, $identity['canExposeBytes']);
+            $t->same('docx-main-document-package-identity-metadata-only', $identity['byteExposurePolicy']);
+            $t->same(64, strlen($identity['identitySha256']));
+            $t->true($identity['identityPayloadByteLength'] > 0);
+            $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+            $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
 
             $t->same($identity['reviewPolicy'], $summary['documentPackageIdentityReviewPolicy']);
             $t->same($identity['contentType'], $summary['documentContentType']);
@@ -77,6 +89,11 @@ return [
             $t->same($identity['contentTypeHasParameters'], $summary['documentContentTypeHasParameters']);
             $t->same($identity['contentTypeParameterCount'], $summary['documentContentTypeParameterCount']);
             $t->same($identity['contentTypeParameterMap'], $summary['documentContentTypeParameterMap']);
+            $t->same($identity['identityVersion'], $summary['documentPackageIdentityVersion']);
+            $t->same($identity['identitySha256'], $summary['documentPackageIdentitySha256']);
+            $t->same($identity['identityPayloadByteLength'], $summary['documentPackageIdentityPayloadByteLength']);
+            $t->same($identity['byteExposurePolicy'], $summary['documentPackageIdentityByteExposurePolicy']);
+            $t->same($identity['canExposeBytes'], $summary['documentPackageIdentityCanExposeBytes']);
             $t->same($identity['formatKind'], $summary['documentFormatKind']);
             $t->same($identity['template'], $summary['documentTemplate']);
             $t->same($identity['macroEnabled'], $summary['documentMacroEnabled']);
