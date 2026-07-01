@@ -121,7 +121,7 @@ final class JsonReader
      */
     private function parseBlockList(mixed $value): array
     {
-        return array_map(fn (mixed $block): AstNode => $this->parseBlock($block), $this->expectList($value, 'block list'));
+        return array_map(fn (mixed $block): AstNode => $this->parseBlock($block), $this->expectList($this->singleWrappedTaggedListPayload($value), 'block list'));
     }
 
     private function parseBlock(mixed $value): AstNode
@@ -281,7 +281,7 @@ final class JsonReader
      */
     private function parseInlineList(mixed $value): array
     {
-        return array_map(fn (mixed $inline): AstNode => $this->parseInline($inline), $this->expectList($value, 'inline list'));
+        return array_map(fn (mixed $inline): AstNode => $this->parseInline($inline), $this->expectList($this->singleWrappedTaggedListPayload($value), 'inline list'));
     }
 
     private function parseInline(mixed $value): AstNode
@@ -805,6 +805,11 @@ final class JsonReader
 
     private function singleWrappedInlineListPayload(mixed $value): mixed
     {
+        return $this->singleWrappedTaggedListPayload($value);
+    }
+
+    private function singleWrappedTaggedListPayload(mixed $value): mixed
+    {
         if (
             is_array($value)
             && $this->isList($value)
@@ -924,7 +929,7 @@ final class JsonReader
      */
     private function expectTuple(mixed $value, int $length, string $context): array
     {
-        $items = $this->expectList($value, $context);
+        $items = $this->expectList($this->singleWrappedTuplePayload($value, $length), $context);
         if (count($items) !== $length) {
             throw new \InvalidArgumentException("Expected {$context} to contain {$length} entries");
         }
