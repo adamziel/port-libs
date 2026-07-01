@@ -15819,6 +15819,48 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $nameEncodingSummaries = self::packageManifestTextEncodingSummaries($entries, $this->entries, 'name');
+        $nameEncodings = array_map(
+            static fn (array $summary): string => (string) $summary['encoding'],
+            $nameEncodingSummaries
+        );
+        $rawNameProvenanceEntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['rawTextProvenanceEntryCount'],
+            $nameEncodingSummaries
+        ));
+        $legacyEncodedNameEntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['legacyEncodedEntryCount'],
+            $nameEncodingSummaries
+        ));
+        $unicodePathExtraEntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['unicodeExtraFieldEntryCount'],
+            $nameEncodingSummaries
+        ));
+        $decodedNameDiffersFromRawNameEntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['decodedTextDiffersFromRawTextEntryCount'],
+            $nameEncodingSummaries
+        ));
+        $commentEncodingSummaries = self::packageManifestTextEncodingSummaries($entries, $this->entries, 'comment');
+        $commentEncodings = array_map(
+            static fn (array $summary): string => (string) $summary['encoding'],
+            $commentEncodingSummaries
+        );
+        $rawCommentProvenanceEntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['rawTextProvenanceEntryCount'],
+            $commentEncodingSummaries
+        ));
+        $legacyEncodedCommentEntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['legacyEncodedEntryCount'],
+            $commentEncodingSummaries
+        ));
+        $unicodeCommentExtraEntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['unicodeExtraFieldEntryCount'],
+            $commentEncodingSummaries
+        ));
+        $decodedCommentDiffersFromRawCommentEntryCount = array_sum(array_map(
+            static fn (array $summary): int => (int) $summary['decodedTextDiffersFromRawTextEntryCount'],
+            $commentEncodingSummaries
+        ));
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15916,6 +15958,20 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            'nameEncodingSummaryCount' => count($nameEncodingSummaries),
+            'nameEncodings' => $nameEncodings,
+            'rawNameProvenanceEntryCount' => $rawNameProvenanceEntryCount,
+            'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
+            'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
+            'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
+            'nameEncodingSummaries' => $nameEncodingSummaries,
+            'commentEncodingSummaryCount' => count($commentEncodingSummaries),
+            'commentEncodings' => $commentEncodings,
+            'rawCommentProvenanceEntryCount' => $rawCommentProvenanceEntryCount,
+            'legacyEncodedCommentEntryCount' => $legacyEncodedCommentEntryCount,
+            'unicodeCommentExtraEntryCount' => $unicodeCommentExtraEntryCount,
+            'decodedCommentDiffersFromRawCommentEntryCount' => $decodedCommentDiffersFromRawCommentEntryCount,
+            'commentEncodingSummaries' => $commentEncodingSummaries,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
@@ -16107,6 +16163,20 @@ final class ZipPackage
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
             'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,
+            'nameEncodingSummaryCount' => count($nameEncodingSummaries),
+            'nameEncodings' => $nameEncodings,
+            'rawNameProvenanceEntryCount' => $rawNameProvenanceEntryCount,
+            'legacyEncodedNameEntryCount' => $legacyEncodedNameEntryCount,
+            'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
+            'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
+            'nameEncodingSummaries' => $nameEncodingSummaries,
+            'commentEncodingSummaryCount' => count($commentEncodingSummaries),
+            'commentEncodings' => $commentEncodings,
+            'rawCommentProvenanceEntryCount' => $rawCommentProvenanceEntryCount,
+            'legacyEncodedCommentEntryCount' => $legacyEncodedCommentEntryCount,
+            'unicodeCommentExtraEntryCount' => $unicodeCommentExtraEntryCount,
+            'decodedCommentDiffersFromRawCommentEntryCount' => $decodedCommentDiffersFromRawCommentEntryCount,
+            'commentEncodingSummaries' => $commentEncodingSummaries,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
@@ -16468,6 +16538,113 @@ final class ZipPackage
             'minNameBytes' => 128,
             'maxNameBytes' => null,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<ZipPackageEntry> $packageEntries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestTextEncodingSummaries(array $entries, array $packageEntries, string $kind): array
+    {
+        if ($kind !== 'name' && $kind !== 'comment') {
+            throw new \InvalidArgumentException('Package manifest text encoding summaries require name or comment kind');
+        }
+
+        $isName = $kind === 'name';
+        $summaries = [];
+        foreach ($entries as $index => $entry) {
+            $packageEntry = $packageEntries[$index] ?? null;
+            if (!$packageEntry instanceof ZipPackageEntry) {
+                continue;
+            }
+            if (!$isName && $packageEntry->rawComment === '') {
+                continue;
+            }
+
+            $encoding = $isName ? $packageEntry->nameEncoding : $packageEntry->commentEncoding;
+            $rawText = $isName ? $packageEntry->rawName : $packageEntry->rawComment;
+            $decodedText = $isName ? $packageEntry->name : $packageEntry->comment;
+            $rawTextMatchesDecodedText = $rawText === $decodedText;
+            $usesLegacyEncoding = $encoding === 'cp437';
+            $usesUnicodeExtraField = $isName
+                ? $encoding === 'info-zip-unicode-path'
+                : $encoding === 'info-zip-unicode-comment';
+            $hasRawTextProvenance = !$rawTextMatchesDecodedText
+                || $usesLegacyEncoding
+                || $usesUnicodeExtraField;
+
+            if (!isset($summaries[$encoding])) {
+                $summaries[$encoding] = [
+                    'encoding' => $encoding,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'rawTextBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'rawTextProvenanceEntryCount' => 0,
+                    'legacyEncodedEntryCount' => 0,
+                    'unicodeExtraFieldEntryCount' => 0,
+                    'decodedTextDiffersFromRawTextEntryCount' => 0,
+                    'directoryRoots' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$encoding]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$encoding]['directoryEntryCount'];
+            } else {
+                ++$summaries[$encoding]['fileEntryCount'];
+            }
+            $summaries[$encoding]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$encoding]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$encoding]['rawTextBytes'] += strlen($rawText);
+            $summaries[$encoding]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$encoding]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            if (($entry['usesDataDescriptor'] ?? false) === true) {
+                ++$summaries[$encoding]['dataDescriptorEntryCount'];
+                $summaries[$encoding]['dataDescriptorBytes'] += (int) ($entry['dataDescriptorBytes'] ?? 0);
+            }
+            if ($hasRawTextProvenance) {
+                ++$summaries[$encoding]['rawTextProvenanceEntryCount'];
+            }
+            if ($usesLegacyEncoding) {
+                ++$summaries[$encoding]['legacyEncodedEntryCount'];
+            }
+            if ($usesUnicodeExtraField) {
+                ++$summaries[$encoding]['unicodeExtraFieldEntryCount'];
+            }
+            if (!$rawTextMatchesDecodedText) {
+                ++$summaries[$encoding]['decodedTextDiffersFromRawTextEntryCount'];
+            }
+
+            foreach ([
+                'directoryRoots' => (string) ($entry['directoryRoot'] ?? ''),
+                'compressionMethodNames' => (string) ($entry['compressionMethodName'] ?? ''),
+                'entryNames' => (string) ($entry['name'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$encoding][$field], true)) {
+                    $summaries[$encoding][$field][] = $value;
+                }
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**
