@@ -197,7 +197,7 @@ XML);
         <a:ln w="6350" cap="flat"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:prstDash val="solid"/></a:ln>
       </a:lnStyleLst>
       <a:effectStyleLst>
-        <a:effectStyle><a:effectLst/></a:effectStyle>
+        <a:effectStyle><a:effectLst><a:outerShdw blurRad="40000" dist="20000" dir="5400000"><a:srgbClr val="000000"/></a:outerShdw></a:effectLst></a:effectStyle>
       </a:effectStyleLst>
       <a:bgFillStyleLst>
         <a:solidFill><a:schemeClr val="bg1"/></a:solidFill>
@@ -526,6 +526,7 @@ return [
         $t->same(6350, $review['slides'][1]['context']['theme']['formatScheme']['lineStyles'][0]['width'] ?? null);
         $t->same(1, $review['slides'][1]['context']['theme']['formatScheme']['effectStyleCount'] ?? null);
         $t->same(true, $review['slides'][1]['context']['theme']['formatScheme']['effectStyles'][0]['effectLstPresent'] ?? null);
+        $t->same(['outerShdw'], $review['slides'][1]['context']['theme']['formatScheme']['effectStyles'][0]['effectTypes'] ?? null);
         $t->same(1, $review['slides'][1]['context']['theme']['formatScheme']['backgroundFillStyleCount'] ?? null);
         $t->same('theme:bg1', $review['slides'][1]['context']['theme']['formatScheme']['backgroundFillStyles'][0]['color'] ?? null);
         $t->same(1, count($layoutInheritedParagraphs));

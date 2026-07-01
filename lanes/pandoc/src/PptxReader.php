@@ -686,8 +686,19 @@ final class PptxReader
         $styles = [];
         foreach ($this->childElements($styleList, 'effectStyle') as $styleElement) {
             $style = [];
+            $effectTypes = [];
             foreach ($this->childElements($styleElement, null) as $child) {
                 $style[$child->localName . 'Present'] = true;
+                if ($child->localName !== 'effectLst') {
+                    continue;
+                }
+
+                foreach ($this->childElements($child, null) as $effectElement) {
+                    $effectTypes[] = $effectElement->localName;
+                }
+            }
+            if ($effectTypes !== []) {
+                $style['effectTypes'] = array_values(array_unique($effectTypes));
             }
             $styles[] = $style;
         }
