@@ -140,6 +140,18 @@ return [
         $t->same(1, $identity['roleCounts']['script-package']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['script-package-bytes-blocked']);
         $t->same(1, $identity['packagePartByteExposurePolicyCounts']['undeclared-package-entry-no-bytes']);
+        $t->same($provenance['packagePartByteExposurePolicyByteLengths'], $identity['packagePartByteExposurePolicyByteLengths']);
+        $t->same($provenance['packagePartByteExposurePolicyCompressedByteLengths'], $identity['packagePartByteExposurePolicyCompressedByteLengths']);
+        $t->same($provenance['packagePartByteExposurePolicyItemCount'], $identity['packagePartByteExposurePolicyItemCount']);
+        $t->same($provenance['packagePartByteExposurePolicyItems'], $identity['packagePartByteExposurePolicyItems']);
+        $t->same([
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/hero.png',
+            'Basic/Standard/Review.xml',
+            'Notes/private.txt',
+        ], array_column($identity['packagePartByteExposurePolicyItems'], 'part'));
 
         $hero = $manifestEntries['Pictures/hero.png?cache=1#cover'];
         $script = $manifestEntries['Basic/Standard/Review.xml?macro=approve#entry'];

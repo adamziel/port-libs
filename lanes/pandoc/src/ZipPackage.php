@@ -13954,6 +13954,14 @@ final class ZipPackage
      *     signedDescriptorEntryCount:int,
      *     unsignedDescriptorEntryCount:int,
      *     zip64SizedDescriptorEntryCount:int,
+     *     descriptorBytes:int,
+     *     descriptorValueBytes:int,
+     *     descriptorSpanBytes:int,
+     *     signedDescriptorBytes:int,
+     *     unsignedDescriptorBytes:int,
+     *     descriptorSurplusBytes:int,
+     *     descriptorTruncatedBytes:int,
+     *     largestDescriptorEntry:?array<string, mixed>,
      *     descriptorEntries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
@@ -13965,6 +13973,14 @@ final class ZipPackage
         $signedDescriptorEntryCount = 0;
         $unsignedDescriptorEntryCount = 0;
         $zip64SizedDescriptorEntryCount = 0;
+        $descriptorBytes = 0;
+        $descriptorValueBytes = 0;
+        $descriptorSpanBytes = 0;
+        $signedDescriptorBytes = 0;
+        $unsignedDescriptorBytes = 0;
+        $descriptorSurplusBytes = 0;
+        $descriptorTruncatedBytes = 0;
+        $largestDescriptorEntry = null;
 
         foreach ($this->entries as $entry) {
             $usesDataDescriptor = ($entry->generalPurposeFlags & 0x0008) !== 0;
@@ -14006,10 +14022,29 @@ final class ZipPackage
                 );
                 $summary = array_merge($summary, $descriptor);
                 $descriptorEntries[] = $summary;
+                $descriptorBytes += $descriptor['descriptorLength'];
+                $descriptorValueBytes += $descriptor['descriptorLength'] - ($descriptor['hasSignature'] ? 4 : 0);
+                if ($descriptor['descriptorSpan'] !== null) {
+                    $descriptorSpanBytes += $descriptor['descriptorSpan'];
+                }
+                if ($descriptor['surplusDescriptorBytes'] !== null) {
+                    $descriptorSurplusBytes += $descriptor['surplusDescriptorBytes'];
+                }
+                if ($descriptor['truncatedDescriptorBytes'] !== null) {
+                    $descriptorTruncatedBytes += $descriptor['truncatedDescriptorBytes'];
+                }
+                if (
+                    $largestDescriptorEntry === null
+                    || $descriptor['descriptorLength'] > $largestDescriptorEntry['descriptorLength']
+                ) {
+                    $largestDescriptorEntry = $summary;
+                }
                 if ($descriptor['hasSignature']) {
                     $signedDescriptorEntryCount++;
+                    $signedDescriptorBytes += $descriptor['descriptorLength'];
                 } else {
                     $unsignedDescriptorEntryCount++;
+                    $unsignedDescriptorBytes += $descriptor['descriptorLength'];
                 }
                 if ($descriptor['usesZip64SizedDescriptor']) {
                     $zip64SizedDescriptorEntryCount++;
@@ -14025,6 +14060,14 @@ final class ZipPackage
             'signedDescriptorEntryCount' => $signedDescriptorEntryCount,
             'unsignedDescriptorEntryCount' => $unsignedDescriptorEntryCount,
             'zip64SizedDescriptorEntryCount' => $zip64SizedDescriptorEntryCount,
+            'descriptorBytes' => $descriptorBytes,
+            'descriptorValueBytes' => $descriptorValueBytes,
+            'descriptorSpanBytes' => $descriptorSpanBytes,
+            'signedDescriptorBytes' => $signedDescriptorBytes,
+            'unsignedDescriptorBytes' => $unsignedDescriptorBytes,
+            'descriptorSurplusBytes' => $descriptorSurplusBytes,
+            'descriptorTruncatedBytes' => $descriptorTruncatedBytes,
+            'largestDescriptorEntry' => $largestDescriptorEntry,
             'descriptorEntries' => $descriptorEntries,
             'entries' => $entries,
         ];
