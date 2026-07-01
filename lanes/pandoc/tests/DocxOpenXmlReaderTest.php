@@ -18661,6 +18661,189 @@ XML;
         $t->same('1024x768', $webSettings['targetScreenSize']);
         $t->same(144, $webSettings['pixelsPerInch']);
     },
+    'summarizes docx web settings package relationships for review handoff' => static function (TestRunner $t): void {
+        $webSettingsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/webSettings';
+        $webSettingsContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.webSettings+xml';
+        $webSettingsContentTypeBase = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/web/review-web-settings.xml" ContentType="' . $webSettingsContentType . '; profile=browser-review"/>' . "\n" .
+            '  <Override PartName="/word/web/missing-web-settings.xml" ContentType="' . $webSettingsContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/web/wrong-web-settings.xml" ContentType="application/xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rWebSettings" Type="' . $webSettingsRel . '" Target="web/review-web-settings.xml?profile=browser#web"/>' . "\n" .
+            '  <Relationship Id="rMissingWebSettings" Type="' . $webSettingsRel . '" Target="web/missing-web-settings.xml"/>' . "\n" .
+            '  <Relationship Id="rWrongWebSettings" Type="' . $webSettingsRel . '" Target="web/wrong-web-settings.xml"/>' . "\n" .
+            '  <Relationship Id="rRemoteWebSettings" Type="' . $webSettingsRel . '" Target="https://example.test/web-settings.xml?remote=1#web" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rUnsafeWebSettings" Type="' . $webSettingsRel . '" Target="javascript:alert(1)" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/web/review-web-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:webSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:optimizeForBrowser/>
+  <w:allowPNG/>
+</w:webSettings>
+XML;
+        $parts['word/web/wrong-web-settings.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:notWebSettings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>
+XML;
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
+        $webSettingsParts = $package['webSettingsParts'];
+        $summary = $package['summary'];
+        $relationshipTypes = $package['relationshipTypes'];
+        $inventory = $package['parts'];
+        $valid = $webSettingsParts['byRelationshipId']['rWebSettings'];
+        $missing = $webSettingsParts['byRelationshipId']['rMissingWebSettings'];
+        $wrong = $webSettingsParts['byRelationshipId']['rWrongWebSettings'];
+        $remote = $webSettingsParts['byRelationshipId']['rRemoteWebSettings'];
+        $unsafe = $webSettingsParts['byRelationshipId']['rUnsafeWebSettings'];
+
+        $t->same($webSettingsParts, $docx['webSettingsParts']);
+        $t->same('word/web/review-web-settings.xml', $docx['webSettingsPart']);
+        $t->same('rWebSettings', $docx['webSettingsRelationship']['id']);
+        $t->same(5, $webSettingsParts['count']);
+        $t->same(5, $webSettingsParts['relationshipCount']);
+        $t->same(1, $webSettingsParts['selectedCount']);
+        $t->same(3, $webSettingsParts['internalCount']);
+        $t->same(2, $webSettingsParts['externalCount']);
+        $t->same(1, $webSettingsParts['allowedExternalTargetCount']);
+        $t->same(1, $webSettingsParts['unsafeExternalTargetCount']);
+        $t->same(2, $webSettingsParts['existingCount']);
+        $t->same(1, $webSettingsParts['missingCount']);
+        $t->same(0, $webSettingsParts['missingContentTypeCount']);
+        $t->same(1, $webSettingsParts['unexpectedContentTypeCount']);
+        $t->same(2, $webSettingsParts['validXmlCount']);
+        $t->same(0, $webSettingsParts['invalidXmlCount']);
+        $t->same(1, $webSettingsParts['validRootCount']);
+        $t->same(1, $webSettingsParts['unexpectedRootCount']);
+        $t->same(4, $webSettingsParts['issueCount']);
+        $t->same([
+            'external-target-unsafe-scheme',
+            'external-web-settings-part',
+            'missing-web-settings-part',
+            'unexpected-web-settings-content-type',
+            'unexpected-web-settings-root',
+        ], $webSettingsParts['issueCodes']);
+        $t->same([
+            'rWebSettings',
+            'rMissingWebSettings',
+            'rWrongWebSettings',
+            'rRemoteWebSettings',
+            'rUnsafeWebSettings',
+        ], $webSettingsParts['relationshipIds']);
+        $t->same(['word/web/review-web-settings.xml'], $webSettingsParts['selectedPartNames']);
+        $t->same([
+            'word/web/review-web-settings.xml',
+            'word/web/missing-web-settings.xml',
+            'word/web/wrong-web-settings.xml',
+        ], $webSettingsParts['partNames']);
+        $t->same(['word/web/review-web-settings.xml', 'word/web/wrong-web-settings.xml'], $webSettingsParts['existingPartNames']);
+        $t->same(['word/web/missing-web-settings.xml'], $webSettingsParts['missingPartNames']);
+        $t->same([
+            'https://example.test/web-settings.xml?remote=1#web',
+            'javascript:alert(1)',
+        ], $webSettingsParts['externalTargets']);
+        $t->same(['javascript:alert(1)'], $webSettingsParts['unsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $webSettingsParts['externalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $webSettingsParts['externalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $webSettingsParts['externalTargetIssueCodes']);
+        $t->same([
+            $webSettingsContentType . '; profile=browser-review',
+            $webSettingsContentType,
+            'application/xml',
+        ], $webSettingsParts['contentTypes']);
+        $t->same([
+            $webSettingsContentTypeBase => 2,
+            'application/xml' => 1,
+        ], $webSettingsParts['contentTypeBaseCounts']);
+        $t->same($webSettingsContentTypeBase, $webSettingsParts['expectedContentTypeBase']);
+        $t->same('web-settings-bytes-blocked', $webSettingsParts['byteExposurePolicy']);
+        $t->same('web-settings-metadata-only', $webSettingsParts['reviewPolicy']);
+
+        $t->same(true, $valid['selected']);
+        $t->same('relationship', $valid['selectionSource']);
+        $t->same($webSettingsRel, $valid['relationshipType']);
+        $t->same('web/review-web-settings.xml?profile=browser#web', $valid['target']);
+        $t->same('word/web/review-web-settings.xml?profile=browser#web', $valid['resolvedTarget']);
+        $t->same('word/web/review-web-settings.xml', $valid['targetPart']);
+        $t->same('profile=browser', $valid['targetQuery']);
+        $t->same('web', $valid['targetFragment']);
+        $t->same('?profile=browser#web', $valid['targetReferenceSuffix']);
+        $t->same(true, $valid['exists']);
+        $t->same(strlen($parts['word/web/review-web-settings.xml']), $valid['byteLength']);
+        $t->same(sprintf('%08x', crc32($parts['word/web/review-web-settings.xml'])), $valid['crc32']);
+        $t->same(hash('sha256', $parts['word/web/review-web-settings.xml']), $valid['sha256']);
+        $t->same($webSettingsContentType . '; profile=browser-review', $valid['contentType']);
+        $t->same($webSettingsContentTypeBase, $valid['contentTypeBase']);
+        $t->same(['profile' => 'browser-review'], $valid['contentTypeParameterMap']);
+        $t->same('override', $valid['contentTypeSource']);
+        $t->same(true, $valid['validXml']);
+        $t->same(true, $valid['validRoot']);
+        $t->same('webSettings', $valid['rootLocalName']);
+        $t->same([], $valid['issues']);
+        $t->same(true, $valid['valid']);
+
+        $t->same(false, $missing['exists']);
+        $t->same('word/web/missing-web-settings.xml', $missing['targetPart']);
+        $t->same($webSettingsContentTypeBase, $missing['contentTypeBase']);
+        $t->same(['missing-web-settings-part'], $missing['issues']);
+        $t->same(false, $wrong['validRoot']);
+        $t->same('notWebSettings', $wrong['rootLocalName']);
+        $t->same(['unexpected-web-settings-content-type', 'unexpected-web-settings-root'], $wrong['issues']);
+        $t->same(true, $remote['external']);
+        $t->same(true, $remote['externalTargetAllowed']);
+        $t->same(['external-web-settings-part'], $remote['issues']);
+        $t->same(true, $unsafe['external']);
+        $t->same(false, $unsafe['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
+        $t->same(['external-web-settings-part', 'external-target-unsafe-scheme'], $unsafe['issues']);
+        $t->same($valid, $webSettingsParts['byPartName']['word/web/review-web-settings.xml']);
+
+        $t->same(5, $summary['webSettingsPartCount']);
+        $t->same(5, $summary['webSettingsPartRelationshipCount']);
+        $t->same(1, $summary['webSettingsPartSelectedCount']);
+        $t->same(3, $summary['webSettingsPartInternalCount']);
+        $t->same(2, $summary['webSettingsPartExternalCount']);
+        $t->same(1, $summary['webSettingsPartAllowedExternalTargetCount']);
+        $t->same(1, $summary['webSettingsPartUnsafeExternalTargetCount']);
+        $t->same(['absolute-uri' => 2], $summary['webSettingsPartExternalTargetKindCounts']);
+        $t->same(['https' => 1, 'javascript' => 1], $summary['webSettingsPartExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['webSettingsPartExternalTargetIssueCodes']);
+        $t->same(2, $summary['webSettingsPartExistingCount']);
+        $t->same(1, $summary['webSettingsPartMissingCount']);
+        $t->same(0, $summary['webSettingsPartMissingContentTypeCount']);
+        $t->same(1, $summary['webSettingsPartUnexpectedContentTypeCount']);
+        $t->same(2, $summary['webSettingsPartValidXmlCount']);
+        $t->same(0, $summary['webSettingsPartInvalidXmlCount']);
+        $t->same(1, $summary['webSettingsPartValidRootCount']);
+        $t->same(1, $summary['webSettingsPartUnexpectedRootCount']);
+        $t->same(4, $summary['webSettingsPartIssueCount']);
+        $t->same($webSettingsParts['issueCodes'], $summary['webSettingsPartIssueCodes']);
+        $t->same(0, $summary['webSettingsIssueCount']);
+        $t->same('webSettings', $relationshipTypes[$webSettingsRel]['label']);
+        $t->same(5, $relationshipTypes[$webSettingsRel]['count']);
+        $t->same(3, $relationshipTypes[$webSettingsRel]['internalCount']);
+        $t->same(2, $relationshipTypes[$webSettingsRel]['externalCount']);
+        $t->same(2, $relationshipTypes[$webSettingsRel]['existingTargetCount']);
+        $t->same(1, $relationshipTypes[$webSettingsRel]['missingTargetCount']);
+        $t->same(['word/web/review-web-settings.xml', 'word/web/wrong-web-settings.xml'], $relationshipTypes[$webSettingsRel]['existingTargetParts']);
+        $t->same(['word/web/missing-web-settings.xml'], $relationshipTypes[$webSettingsRel]['missingTargetParts']);
+        $t->same(2, $relationshipTypes[$webSettingsRel]['targetRoleCounts']['web-settings']);
+        $t->true(in_array('web-settings', $inventory['word/web/review-web-settings.xml']['roles'], true), 'web settings inventory role missing');
+        $t->true(in_array('web-settings', $inventory['word/web/wrong-web-settings.xml']['roles'], true), 'wrong web settings inventory role missing');
+        $t->true(!isset($docx['media']['word/web/review-web-settings.xml']), 'Web settings XML should not be exposed as document media');
+    },
     'reports malformed docx web settings xml without aborting package ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

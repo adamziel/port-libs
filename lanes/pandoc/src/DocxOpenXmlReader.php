@@ -325,6 +325,14 @@ final class DocxOpenXmlReader
         );
         $webSettingsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::WEB_SETTINGS_REL, 'webSettings.xml');
         $webSettings = $this->readWebSettings($webSettingsPart['xml'], $webSettingsPart['partName']);
+        $webSettingsParts = $this->readWebSettingsPartProvenance(
+            $parts,
+            $webSettingsPart,
+            $documentPart,
+            $documentRelationshipsPart,
+            $documentRelationships,
+            $contentTypes,
+        );
         $fontTablePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::FONT_TABLE_REL, 'fontTable.xml');
         $fontTable = $this->readFontTable($fontTablePart['xml'], $fontTablePart['partName'], $parts, $contentTypes);
         $themePart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::THEME_REL, 'theme/theme1.xml');
@@ -982,6 +990,27 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableSignatureCount'] = (int) ($fontTable['signatureCount'] ?? 0);
         $packageProvenance['summary']['fontTableSignatureUnicodeRangeCount'] = (int) ($fontTable['signatureUnicodeRangeCount'] ?? 0);
         $packageProvenance['summary']['fontTableSignatureCodePageRangeCount'] = (int) ($fontTable['signatureCodePageRangeCount'] ?? 0);
+        $packageProvenance['webSettingsParts'] = $webSettingsParts;
+        $packageProvenance['summary']['webSettingsPartCount'] = $webSettingsParts['count'];
+        $packageProvenance['summary']['webSettingsPartRelationshipCount'] = $webSettingsParts['relationshipCount'];
+        $packageProvenance['summary']['webSettingsPartSelectedCount'] = $webSettingsParts['selectedCount'];
+        $packageProvenance['summary']['webSettingsPartInternalCount'] = $webSettingsParts['internalCount'];
+        $packageProvenance['summary']['webSettingsPartExternalCount'] = $webSettingsParts['externalCount'];
+        $packageProvenance['summary']['webSettingsPartAllowedExternalTargetCount'] = $webSettingsParts['allowedExternalTargetCount'];
+        $packageProvenance['summary']['webSettingsPartUnsafeExternalTargetCount'] = $webSettingsParts['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['webSettingsPartExternalTargetKindCounts'] = $webSettingsParts['externalTargetKindCounts'];
+        $packageProvenance['summary']['webSettingsPartExternalTargetSchemeCounts'] = $webSettingsParts['externalTargetSchemeCounts'];
+        $packageProvenance['summary']['webSettingsPartExternalTargetIssueCodes'] = $webSettingsParts['externalTargetIssueCodes'];
+        $packageProvenance['summary']['webSettingsPartExistingCount'] = $webSettingsParts['existingCount'];
+        $packageProvenance['summary']['webSettingsPartMissingCount'] = $webSettingsParts['missingCount'];
+        $packageProvenance['summary']['webSettingsPartMissingContentTypeCount'] = $webSettingsParts['missingContentTypeCount'];
+        $packageProvenance['summary']['webSettingsPartUnexpectedContentTypeCount'] = $webSettingsParts['unexpectedContentTypeCount'];
+        $packageProvenance['summary']['webSettingsPartValidXmlCount'] = $webSettingsParts['validXmlCount'];
+        $packageProvenance['summary']['webSettingsPartInvalidXmlCount'] = $webSettingsParts['invalidXmlCount'];
+        $packageProvenance['summary']['webSettingsPartValidRootCount'] = $webSettingsParts['validRootCount'];
+        $packageProvenance['summary']['webSettingsPartUnexpectedRootCount'] = $webSettingsParts['unexpectedRootCount'];
+        $packageProvenance['summary']['webSettingsPartIssueCount'] = $webSettingsParts['issueCount'];
+        $packageProvenance['summary']['webSettingsPartIssueCodes'] = $webSettingsParts['issueCodes'];
         $webSettingsOutputPolicy = $webSettings['outputPolicy'] ?? null;
         $packageProvenance['summary']['webSettingsInvalidXmlCount'] = ($webSettings['validXml'] ?? null) === false ? 1 : 0;
         $packageProvenance['summary']['webSettingsIssueCount'] = (int) ($webSettings['issueCount'] ?? 0);
@@ -1296,6 +1325,7 @@ final class DocxOpenXmlReader
                 'printerSettings' => $printerSettings,
                 'webSettingsPart' => $webSettingsPart['partName'],
                 'webSettings' => $webSettings,
+                'webSettingsParts' => $webSettingsParts,
                 'fontTablePart' => $fontTablePart['partName'],
                 'fontTable' => $fontTable,
                 'themePart' => $themePart['partName'],
@@ -25172,6 +25202,7 @@ final class DocxOpenXmlReader
             self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
             self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',
             self::MAIL_MERGE_RECIPIENT_DATA_REL, self::MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL => 'mail-merge-recipient-data',
+            self::WEB_SETTINGS_REL => 'web-settings',
             self::FONT_TABLE_REL => 'font-table',
             self::FONT_REL => 'embedded-font',
             self::HEADER_REL => 'header-part',
@@ -27631,6 +27662,375 @@ final class DocxOpenXmlReader
             'allowed' => $allowed,
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, mixed> $webSettingsPart
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $relationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readWebSettingsPartProvenance(
+        array $parts,
+        array $webSettingsPart,
+        string $documentPart,
+        string $relationshipsPart,
+        array $relationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $byPartName = [];
+        $relationshipIds = [];
+        $selectedPartNames = [];
+        $selectedRelationship = is_array($webSettingsPart['relationship'] ?? null) ? $webSettingsPart['relationship'] : null;
+        $selectedRelationshipId = is_array($selectedRelationship) ? (string) ($selectedRelationship['id'] ?? '') : null;
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::WEB_SETTINGS_REL) {
+                continue;
+            }
+
+            $item = $this->webSettingsPartRelationshipItem(
+                $parts,
+                $relationship,
+                $documentPart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+                $selectedRelationshipId !== null && $relationship['id'] === $selectedRelationshipId,
+            );
+            $items[] = $item;
+
+            $this->appendUniqueString($relationshipIds, $relationship['id']);
+            if ($relationship['id'] !== '' && !isset($byRelationshipId[$relationship['id']])) {
+                $byRelationshipId[$relationship['id']] = $item;
+            }
+
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            if ($partName !== null && !isset($byPartName[$partName])) {
+                $byPartName[$partName] = $item;
+            }
+            if (($item['selected'] ?? false) === true) {
+                $this->appendUniqueString($selectedPartNames, $partName);
+            }
+        }
+
+        if ($selectedRelationship === null && ($webSettingsPart['exists'] ?? false) === true) {
+            $item = $this->webSettingsPartPackageItem(
+                $parts,
+                (string) ($webSettingsPart['partName'] ?? ''),
+                $contentTypes,
+                count($items),
+            );
+            $items[] = $item;
+
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            if ($partName !== null && !isset($byPartName[$partName])) {
+                $byPartName[$partName] = $item;
+            }
+            $this->appendUniqueString($selectedPartNames, $partName);
+        }
+
+        $partNames = [];
+        $existingPartNames = [];
+        $missingPartNames = [];
+        $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
+        $contentTypesSeen = [];
+        $contentTypeBaseCounts = [];
+        $issueCodes = [];
+        foreach ($items as $item) {
+            $partName = is_string($item['partName'] ?? null) ? $item['partName'] : null;
+            $this->appendUniqueString($partNames, $partName);
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            $contentTypeBase = is_string($item['contentTypeBase'] ?? null) ? $item['contentTypeBase'] : '';
+            if ($contentTypeBase !== '') {
+                $contentTypeBaseCounts[$contentTypeBase] = ($contentTypeBaseCounts[$contentTypeBase] ?? 0) + 1;
+            }
+
+            if (($item['exists'] ?? false) === true) {
+                $this->appendUniqueString($existingPartNames, $partName);
+            } elseif (($item['external'] ?? false) !== true) {
+                $this->appendUniqueString($missingPartNames, $partName);
+            }
+
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                if (($item['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+                }
+
+                $kind = is_string($item['externalTargetKind'] ?? null) ? $item['externalTargetKind'] : '(unknown)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $scheme = is_string($item['externalTargetScheme'] ?? null) ? $item['externalTargetScheme'] : '(none)';
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+                foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
+            }
+
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'relationshipCount' => count(array_filter($relationships, static fn (array $relationship): bool => $relationship['type'] === self::WEB_SETTINGS_REL)),
+            'selectedCount' => count(array_filter($items, static fn (array $item): bool => ($item['selected'] ?? false) === true)),
+            'internalCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) !== true)),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => ($item['external'] ?? false) === true && ($item['externalTargetAllowed'] ?? null) !== true)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => ($item['exists'] ?? false) === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-web-settings-part', $item['issues'] ?? [], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-web-settings-content-type', $item['issues'] ?? [], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-web-settings-content-type', $item['issues'] ?? [], true))),
+            'validXmlCount' => count(array_filter($items, static fn (array $item): bool => ($item['validXml'] ?? null) === true)),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-web-settings-xml', $item['issues'] ?? [], true))),
+            'validRootCount' => count(array_filter($items, static fn (array $item): bool => ($item['validRoot'] ?? null) === true)),
+            'unexpectedRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-web-settings-root', $item['issues'] ?? [], true))),
+            'relationshipIds' => $relationshipIds,
+            'selectedPartNames' => $selectedPartNames,
+            'partNames' => $partNames,
+            'existingPartNames' => $existingPartNames,
+            'missingPartNames' => $missingPartNames,
+            'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
+            'contentTypes' => $contentTypesSeen,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'expectedContentTypeBase' => self::CT_WORD_WEB_SETTINGS,
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => ($item['issues'] ?? []) !== [])),
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'byPartName' => $byPartName,
+            'items' => $items,
+            'byteExposurePolicy' => 'web-settings-bytes-blocked',
+            'reviewPolicy' => 'web-settings-metadata-only',
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function webSettingsPartRelationshipItem(
+        array $parts,
+        array $relationship,
+        string $documentPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index,
+        bool $selected
+    ): array {
+        $item = $this->emptyWebSettingsPartItem($index);
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $documentPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) ($summary['exists'] ?? false);
+
+        $item['relationshipId'] = $summary['id'];
+        $item['relationshipPresent'] = true;
+        $item['selected'] = $selected;
+        $item['selectionSource'] = $selected ? 'relationship' : 'unselected-relationship';
+        $item['relationshipType'] = $summary['type'];
+        $item['target'] = $summary['target'];
+        $item['targetMode'] = $summary['targetMode'];
+        $item['resolvedTarget'] = $summary['resolvedTarget'];
+        $item['external'] = (bool) ($summary['external'] ?? false);
+        $item['partName'] = $targetPart;
+        $item['targetPart'] = $targetPart;
+        $item['targetQuery'] = $summary['targetQuery'];
+        $item['targetFragment'] = $summary['targetFragment'];
+        $item['targetReferenceSuffix'] = $summary['targetReferenceSuffix'];
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['externalTargetIssues'] = $summary['externalTargetIssues'];
+        $item['exists'] = $exists;
+        $item['bytes'] = $exists && $targetPart !== null ? strlen($parts[$targetPart]) : 0;
+        $item['byteLength'] = $item['bytes'];
+        $item['crc32'] = $exists && $targetPart !== null ? sprintf('%08x', crc32($parts[$targetPart])) : null;
+        $item['sha256'] = $exists && $targetPart !== null ? hash('sha256', $parts[$targetPart]) : null;
+        $item['contentType'] = $summary['contentType'];
+        $item['contentTypeBase'] = $summary['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $summary['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $summary['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $summary['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $summary['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $summary['contentTypeSource'];
+        $item['defaultExtension'] = $summary['defaultExtension'];
+        $item['overridePartName'] = $summary['overridePartName'];
+        $item['relationship'] = $summary;
+
+        if ($item['external'] === true) {
+            $item['issues'][] = 'external-web-settings-part';
+            foreach ($item['externalTargetIssues'] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $this->appendUniqueString($item['issues'], $issue);
+                }
+            }
+            $item['valid'] = false;
+
+            return $item;
+        }
+
+        if (!$exists) {
+            $item['issues'][] = 'missing-web-settings-part';
+        }
+
+        if (($summary['contentTypeSource'] ?? '') === 'missing') {
+            $item['issues'][] = 'missing-web-settings-content-type';
+        } elseif (($summary['contentTypeBase'] ?? '') !== self::CT_WORD_WEB_SETTINGS) {
+            $item['issues'][] = 'unexpected-web-settings-content-type';
+        }
+
+        if ($exists && $targetPart !== null) {
+            $this->applyWebSettingsPartXmlMetadata($item, $parts[$targetPart], $targetPart);
+        }
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function webSettingsPartPackageItem(array $parts, string $partName, array $contentTypes, int $index): array
+    {
+        $item = $this->emptyWebSettingsPartItem($index);
+        $contentTypeResolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
+        $exists = isset($parts[$partName]);
+
+        $item['selected'] = true;
+        $item['selectionSource'] = 'conventional-part';
+        $item['partName'] = $partName;
+        $item['targetPart'] = $partName;
+        $item['exists'] = $exists;
+        $item['bytes'] = $exists ? strlen($parts[$partName]) : 0;
+        $item['byteLength'] = $item['bytes'];
+        $item['crc32'] = $exists ? sprintf('%08x', crc32($parts[$partName])) : null;
+        $item['sha256'] = $exists ? hash('sha256', $parts[$partName]) : null;
+        $item['contentType'] = $contentTypeResolution['contentType'];
+        $item['contentTypeBase'] = $contentTypeResolution['contentTypeBase'];
+        $item['contentTypeHasParameters'] = $contentTypeResolution['contentTypeHasParameters'];
+        $item['contentTypeParameterCount'] = $contentTypeResolution['contentTypeParameterCount'];
+        $item['contentTypeParameters'] = $contentTypeResolution['contentTypeParameters'];
+        $item['contentTypeParameterMap'] = $contentTypeResolution['contentTypeParameterMap'];
+        $item['contentTypeSource'] = $contentTypeResolution['contentTypeSource'];
+        $item['defaultExtension'] = $contentTypeResolution['defaultExtension'];
+        $item['overridePartName'] = $contentTypeResolution['overridePartName'];
+
+        if (($contentTypeResolution['contentTypeSource'] ?? '') === 'missing') {
+            $item['issues'][] = 'missing-web-settings-content-type';
+        } elseif (($contentTypeResolution['contentTypeBase'] ?? '') !== self::CT_WORD_WEB_SETTINGS) {
+            $item['issues'][] = 'unexpected-web-settings-content-type';
+        }
+
+        if ($exists) {
+            $this->applyWebSettingsPartXmlMetadata($item, $parts[$partName], $partName);
+        }
+        $item['valid'] = $item['issues'] === [];
+
+        return $item;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyWebSettingsPartItem(int $index): array
+    {
+        return [
+            'index' => $index,
+            'relationshipId' => null,
+            'relationshipPresent' => false,
+            'selected' => false,
+            'selectionSource' => 'unselected',
+            'relationshipType' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'external' => false,
+            'partName' => null,
+            'targetPart' => null,
+            'targetQuery' => null,
+            'targetFragment' => null,
+            'targetReferenceSuffix' => '',
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
+            'exists' => false,
+            'bytes' => 0,
+            'byteLength' => 0,
+            'crc32' => null,
+            'sha256' => null,
+            'contentType' => '',
+            'contentTypeBase' => '',
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameters' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeSource' => 'missing',
+            'defaultExtension' => null,
+            'overridePartName' => null,
+            'expectedContentTypeBase' => self::CT_WORD_WEB_SETTINGS,
+            'validXml' => null,
+            'xmlParseError' => null,
+            'rootNamespace' => null,
+            'rootLocalName' => null,
+            'rootQualifiedName' => null,
+            'rootPrefix' => null,
+            'validRoot' => null,
+            'byteExposurePolicy' => 'web-settings-bytes-blocked',
+            'reviewPolicy' => 'web-settings-metadata-only',
+            'valid' => false,
+            'issues' => [],
+            'relationship' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function applyWebSettingsPartXmlMetadata(array &$item, string $xml, string $partName): void
+    {
+        $root = $this->xmlRootProvenance($xml, $partName);
+        $item['validXml'] = $root['validXml'];
+        $item['xmlParseError'] = $root['xmlParseError'];
+        $item['rootNamespace'] = $root['namespace'];
+        $item['rootLocalName'] = $root['localName'];
+        $item['rootQualifiedName'] = $root['qualifiedName'];
+        $item['rootPrefix'] = $root['prefix'];
+        $item['validRoot'] = $root['validXml'] === true
+            && $root['namespace'] === self::NS_W
+            && $root['localName'] === 'webSettings';
+
+        if ($root['validXml'] === false) {
+            $item['issues'][] = 'invalid-web-settings-xml';
+        } elseif ($item['validRoot'] === false) {
+            $item['issues'][] = 'unexpected-web-settings-root';
+        }
     }
 
     /**
