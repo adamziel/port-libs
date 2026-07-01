@@ -626,6 +626,79 @@ XML);
     }
 };
 
+$buildEmptyHeaderTablePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-header-table-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Empty header table</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="8" name="Empty Header Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tblPr/>
+        <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
+        <a:tr/>
+        <a:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Body A</a:t></a:r></a:p></a:txBody></a:tc>
+          <a:tc><a:txBody><a:p><a:r><a:t>Body B</a:t></a:r></a:p></a:txBody></a:tc>
+        </a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildEmptyTextPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-empty-text-');
     if ($path === false) {
@@ -4087,6 +4160,25 @@ return [
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
         $t->true(!str_contains($native, 'Table'), 'Rowless PPTX table should not emit a native Table block');
         $t->true(!str_contains($native, 'Empty Table'), 'Rowless PPTX table shape name should not leak into visible content');
+    },
+
+    'uses first pptx table row for native column specs like upstream' => static function (TestRunner $t) use ($buildEmptyHeaderTablePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildEmptyHeaderTablePptxPackage());
+        $tables = $nodesOfType($document, 'table');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($tables));
+        $t->same([], $tables[0]->attr('alignments'));
+        $t->same(0, $tables[0]->attr('nativeColumnCount'));
+        $t->same([1828800, 1828800], $tables[0]->attr('columnWidths'));
+        $t->same(0, count($tables[0]->children[0]->children[0]->children));
+        $t->same('Body A', $tables[0]->children[1]->children[0]->children[0]->attr('text'));
+        $t->same('Body B', $tables[0]->children[1]->children[0]->children[1]->attr('text'));
+        $t->contains('Table ( "" , [  ] , [  ] ) (Caption Nothing []) []', $native);
+        $t->contains('TableHead ( "" , [  ] , [  ] ) [ Row ( "" , [  ] , [  ] ) [  ] ])', $native);
+        $t->contains('Str "Body" , Space , Str "A"', $native);
+        $t->contains('Str "Body" , Space , Str "B"', $native);
+        $t->true(!str_contains($native, 'ColWidthDefault'), 'Empty-header PPTX table should not synthesize native column specs from body rows');
     },
 
     'preserves upstream empty pptx text as explicit empty text nodes' => static function (TestRunner $t) use ($buildEmptyTextPptxPackage, $nodesOfType): void {

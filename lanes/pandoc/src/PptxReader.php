@@ -2666,6 +2666,7 @@ final class PptxReader
         $attrs = [
             'caption' => '',
             'alignments' => array_fill(0, count($header), 'default'),
+            'nativeColumnCount' => count($header),
             'pptxTable' => true,
         ];
         $style = $this->tableStyleMetadata($tableElement, $tableStyles);

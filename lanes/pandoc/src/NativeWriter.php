@@ -1564,6 +1564,11 @@ final class NativeWriter
 
     private function tableColumnCount(AstNode $table): int
     {
+        $nativeColumnCount = $table->attr('nativeColumnCount');
+        if (is_int($nativeColumnCount) || (is_string($nativeColumnCount) && preg_match('/^\d+$/', $nativeColumnCount) === 1)) {
+            return max(0, (int) $nativeColumnCount);
+        }
+
         $max = max(count($this->tableAlignments($table, 0)), count($this->tableWidths($table, 0)));
         foreach ($this->tableAllRows($table) as $row) {
             $columns = 0;
