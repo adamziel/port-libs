@@ -812,7 +812,9 @@ return [
                         )
                     ),
                     'localHeaderRawNameBytes' => strlen($entry['name']),
+                    'localHeaderRawNameSha256' => hash('sha256', $entry['name']),
                     'localHeaderExtraFieldBytes' => 0,
+                    'localHeaderExtraFieldSha256' => hash('sha256', ''),
                     'localHeaderReviewFieldBytes' => 0,
                     'localRecordBytes' => $manifestEntry['localRecordBytes'],
                     'localRecordSha256' => hash(
@@ -830,9 +832,20 @@ return [
                     ),
                     'centralDirectoryFixedHeaderBytes' => 46,
                     'centralDirectoryVariableFieldBytes' => $manifestEntry['centralDirectoryVariableFieldBytes'],
+                    'centralDirectoryVariableFieldSha256' => hash(
+                        'sha256',
+                        substr(
+                            $zip,
+                            $manifestEntry['centralDirectoryVariableFieldOffset'],
+                            $manifestEntry['centralDirectoryVariableFieldBytes']
+                        )
+                    ),
                     'centralDirectoryRawNameBytes' => $manifestEntry['centralDirectoryRawNameBytes'],
+                    'centralDirectoryRawNameSha256' => hash('sha256', $entry['name']),
                     'centralDirectoryExtraFieldBytes' => $manifestEntry['centralDirectoryExtraFieldBytes'],
+                    'centralDirectoryExtraFieldSha256' => hash('sha256', ''),
                     'centralDirectoryRawCommentBytes' => $manifestEntry['centralDirectoryRawCommentBytes'],
+                    'centralDirectoryRawCommentSha256' => hash('sha256', ''),
                     'centralDirectoryReviewFieldBytes' => $manifestEntry['centralDirectoryReviewFieldBytes'],
                 ];
             }
@@ -1033,7 +1046,9 @@ return [
                 'localHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'],
                 'localHeaderVariableFieldSha256' => $entry['localHeaderVariableFieldSha256'],
                 'localHeaderRawNameBytes' => $entry['localHeaderRawNameBytes'],
+                'localHeaderRawNameSha256' => $entry['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $entry['localHeaderExtraFieldBytes'],
+                'localHeaderExtraFieldSha256' => $entry['localHeaderExtraFieldSha256'],
                 'localHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $entry['localRecordBytes'],
                 'localRecordSha256' => $entry['localRecordSha256'],
@@ -1045,9 +1060,13 @@ return [
                 'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
                 'centralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'],
                 'centralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryVariableFieldSha256' => $entry['centralDirectoryVariableFieldSha256'],
                 'centralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'],
+                'centralDirectoryRawNameSha256' => $entry['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryExtraFieldSha256' => $entry['centralDirectoryExtraFieldSha256'],
                 'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
+                'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
             ],
             $manifest['entries']
@@ -1317,7 +1336,9 @@ return [
                 'localHeaderVariableFieldBytes' => $documentEntry['localHeaderVariableFieldBytes'],
                 'localHeaderVariableFieldSha256' => $documentEntry['localHeaderVariableFieldSha256'],
                 'localHeaderRawNameBytes' => $documentEntry['localHeaderRawNameBytes'],
+                'localHeaderRawNameSha256' => $documentEntry['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $documentEntry['localHeaderExtraFieldBytes'],
+                'localHeaderExtraFieldSha256' => $documentEntry['localHeaderExtraFieldSha256'],
                 'localHeaderReviewFieldBytes' => $documentEntry['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $documentEntry['localRecordBytes'],
                 'localRecordSha256' => $documentEntry['localRecordSha256'],
@@ -1329,9 +1350,13 @@ return [
                 'centralDirectoryRecordSha256' => $documentEntry['centralDirectoryRecordSha256'],
                 'centralDirectoryFixedHeaderBytes' => $documentEntry['centralDirectoryFixedHeaderBytes'],
                 'centralDirectoryVariableFieldBytes' => $documentEntry['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryVariableFieldSha256' => $documentEntry['centralDirectoryVariableFieldSha256'],
                 'centralDirectoryRawNameBytes' => $documentEntry['centralDirectoryRawNameBytes'],
+                'centralDirectoryRawNameSha256' => $documentEntry['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $documentEntry['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryExtraFieldSha256' => $documentEntry['centralDirectoryExtraFieldSha256'],
                 'centralDirectoryRawCommentBytes' => $documentEntry['centralDirectoryRawCommentBytes'],
+                'centralDirectoryRawCommentSha256' => $documentEntry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $documentEntry['centralDirectoryReviewFieldBytes'],
             ],
             [
@@ -1352,7 +1377,9 @@ return [
                 'localHeaderVariableFieldBytes' => $commentsEntry['localHeaderVariableFieldBytes'],
                 'localHeaderVariableFieldSha256' => $commentsEntry['localHeaderVariableFieldSha256'],
                 'localHeaderRawNameBytes' => $commentsEntry['localHeaderRawNameBytes'],
+                'localHeaderRawNameSha256' => $commentsEntry['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $commentsEntry['localHeaderExtraFieldBytes'],
+                'localHeaderExtraFieldSha256' => $commentsEntry['localHeaderExtraFieldSha256'],
                 'localHeaderReviewFieldBytes' => $commentsEntry['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $commentsEntry['localRecordBytes'],
                 'localRecordSha256' => $commentsEntry['localRecordSha256'],
@@ -1364,9 +1391,13 @@ return [
                 'centralDirectoryRecordSha256' => $commentsEntry['centralDirectoryRecordSha256'],
                 'centralDirectoryFixedHeaderBytes' => $commentsEntry['centralDirectoryFixedHeaderBytes'],
                 'centralDirectoryVariableFieldBytes' => $commentsEntry['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryVariableFieldSha256' => $commentsEntry['centralDirectoryVariableFieldSha256'],
                 'centralDirectoryRawNameBytes' => $commentsEntry['centralDirectoryRawNameBytes'],
+                'centralDirectoryRawNameSha256' => $commentsEntry['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $commentsEntry['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryExtraFieldSha256' => $commentsEntry['centralDirectoryExtraFieldSha256'],
                 'centralDirectoryRawCommentBytes' => $commentsEntry['centralDirectoryRawCommentBytes'],
+                'centralDirectoryRawCommentSha256' => $commentsEntry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $commentsEntry['centralDirectoryReviewFieldBytes'],
             ],
         ];
@@ -1476,7 +1507,9 @@ return [
                 'localHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'],
                 'localHeaderVariableFieldSha256' => $entry['localHeaderVariableFieldSha256'],
                 'localHeaderRawNameBytes' => $entry['localHeaderRawNameBytes'],
+                'localHeaderRawNameSha256' => $entry['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $entry['localHeaderExtraFieldBytes'],
+                'localHeaderExtraFieldSha256' => $entry['localHeaderExtraFieldSha256'],
                 'localHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $entry['localRecordBytes'],
                 'localRecordSha256' => $entry['localRecordSha256'],
@@ -1488,9 +1521,13 @@ return [
                 'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
                 'centralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'],
                 'centralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryVariableFieldSha256' => $entry['centralDirectoryVariableFieldSha256'],
                 'centralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'],
+                'centralDirectoryRawNameSha256' => $entry['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryExtraFieldSha256' => $entry['centralDirectoryExtraFieldSha256'],
                 'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
+                'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
             ],
             $manifest['entries']
@@ -1582,8 +1619,12 @@ return [
             ),
             $documentEntry['localHeaderVariableFieldSha256']
         );
+        $t->same($documentEntry['localHeaderVariableFieldOffset'], $documentEntry['localHeaderRawNameOffset']);
         $t->same(strlen('word/document.xml'), $documentEntry['localHeaderRawNameBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentEntry['localHeaderRawNameSha256']);
+        $t->same($documentEntry['localHeaderRawNameOffset'] + strlen('word/document.xml'), $documentEntry['localHeaderExtraFieldOffset']);
         $t->same(0, $documentEntry['localHeaderExtraFieldBytes']);
+        $t->same(hash('sha256', ''), $documentEntry['localHeaderExtraFieldSha256']);
         $t->same(0, $documentEntry['localHeaderReviewFieldBytes']);
         $t->same(30 + strlen('word/comments.xml') + strlen($commentsExtra), $commentsEntry['localHeaderLength']);
         $t->same(30, $commentsEntry['localHeaderFixedHeaderBytes']);
@@ -1599,10 +1640,41 @@ return [
             ),
             $commentsEntry['localHeaderVariableFieldSha256']
         );
+        $t->same($commentsEntry['localHeaderVariableFieldOffset'], $commentsEntry['localHeaderRawNameOffset']);
         $t->same(strlen('word/comments.xml'), $commentsEntry['localHeaderRawNameBytes']);
+        $t->same(hash('sha256', 'word/comments.xml'), $commentsEntry['localHeaderRawNameSha256']);
+        $t->same($commentsEntry['localHeaderRawNameOffset'] + strlen('word/comments.xml'), $commentsEntry['localHeaderExtraFieldOffset']);
         $t->same(strlen($commentsExtra), $commentsEntry['localHeaderExtraFieldBytes']);
+        $t->same(hash('sha256', $commentsExtra), $commentsEntry['localHeaderExtraFieldSha256']);
         $t->same(strlen($commentsExtra), $commentsEntry['localHeaderReviewFieldBytes']);
         $t->same(46 + strlen('word/comments.xml') + strlen($commentsExtra) + strlen($commentsComment), $commentsCentralDirectoryRecordBytes);
+        $t->same($documentEntry['centralDirectoryRecordOffset'] + 46, $documentEntry['centralDirectoryVariableFieldOffset']);
+        $t->same(strlen('word/document.xml'), $documentEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentEntry['centralDirectoryVariableFieldSha256']);
+        $t->same($documentEntry['centralDirectoryVariableFieldOffset'], $documentEntry['centralDirectoryRawNameOffset']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentEntry['centralDirectoryRawNameSha256']);
+        $t->same($documentEntry['centralDirectoryRawNameOffset'] + strlen('word/document.xml'), $documentEntry['centralDirectoryExtraFieldOffset']);
+        $t->same(hash('sha256', ''), $documentEntry['centralDirectoryExtraFieldSha256']);
+        $t->same($documentEntry['centralDirectoryExtraFieldOffset'], $documentEntry['centralDirectoryRawCommentOffset']);
+        $t->same(hash('sha256', ''), $documentEntry['centralDirectoryRawCommentSha256']);
+        $t->same($commentsEntry['centralDirectoryRecordOffset'] + 46, $commentsEntry['centralDirectoryVariableFieldOffset']);
+        $t->same(
+            hash(
+                'sha256',
+                substr(
+                    $zip,
+                    $commentsEntry['centralDirectoryVariableFieldOffset'],
+                    $commentsEntry['centralDirectoryVariableFieldBytes']
+                )
+            ),
+            $commentsEntry['centralDirectoryVariableFieldSha256']
+        );
+        $t->same($commentsEntry['centralDirectoryVariableFieldOffset'], $commentsEntry['centralDirectoryRawNameOffset']);
+        $t->same(hash('sha256', 'word/comments.xml'), $commentsEntry['centralDirectoryRawNameSha256']);
+        $t->same($commentsEntry['centralDirectoryRawNameOffset'] + strlen('word/comments.xml'), $commentsEntry['centralDirectoryExtraFieldOffset']);
+        $t->same(hash('sha256', $commentsExtra), $commentsEntry['centralDirectoryExtraFieldSha256']);
+        $t->same($commentsEntry['centralDirectoryExtraFieldOffset'] + strlen($commentsExtra), $commentsEntry['centralDirectoryRawCommentOffset']);
+        $t->same(hash('sha256', $commentsComment), $commentsEntry['centralDirectoryRawCommentSha256']);
         $t->same(hash('sha256', gzdeflate($commentsXml)), $commentsEntry['compressedDataSha256']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);

@@ -13585,6 +13585,16 @@ final class ZipPackage
                 'sha256',
                 substr($this->bytes, $entryLocalHeaderVariableFieldOffset, $entryLocalHeaderVariableFieldBytes)
             );
+            $entryLocalHeaderRawNameOffset = $entryLocalHeaderVariableFieldOffset;
+            $entryLocalHeaderRawNameSha256 = hash(
+                'sha256',
+                substr($this->bytes, $entryLocalHeaderRawNameOffset, $entryLocalHeaderRawNameBytes)
+            );
+            $entryLocalHeaderExtraFieldOffset = $entryLocalHeaderRawNameOffset + $entryLocalHeaderRawNameBytes;
+            $entryLocalHeaderExtraFieldSha256 = hash(
+                'sha256',
+                substr($this->bytes, $entryLocalHeaderExtraFieldOffset, $entryLocalHeaderExtraFieldBytes)
+            );
             $compressedDataOffset = (int) $localHeader['dataStart'];
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $compressedDataSha256 = hash(
@@ -13682,6 +13692,40 @@ final class ZipPackage
                 + $entryCentralDirectoryRawCommentBytes;
             $entryCentralDirectoryReviewFieldBytes = $entryCentralDirectoryExtraFieldBytes
                 + $entryCentralDirectoryRawCommentBytes;
+            $entryCentralDirectoryVariableFieldOffset = $entry->centralDirectoryRecordOffset === null
+                ? null
+                : $entry->centralDirectoryRecordOffset + $entryCentralDirectoryFixedHeaderBytes;
+            $entryCentralDirectoryRawNameOffset = $entryCentralDirectoryVariableFieldOffset;
+            $entryCentralDirectoryExtraFieldOffset = $entryCentralDirectoryRawNameOffset === null
+                ? null
+                : $entryCentralDirectoryRawNameOffset + $entryCentralDirectoryRawNameBytes;
+            $entryCentralDirectoryRawCommentOffset = $entryCentralDirectoryExtraFieldOffset === null
+                ? null
+                : $entryCentralDirectoryExtraFieldOffset + $entryCentralDirectoryExtraFieldBytes;
+            $entryCentralDirectoryVariableFieldSha256 = $entryCentralDirectoryVariableFieldOffset === null
+                ? null
+                : hash(
+                    'sha256',
+                    substr($this->bytes, $entryCentralDirectoryVariableFieldOffset, $entryCentralDirectoryVariableFieldBytes)
+                );
+            $entryCentralDirectoryRawNameSha256 = $entryCentralDirectoryRawNameOffset === null
+                ? null
+                : hash(
+                    'sha256',
+                    substr($this->bytes, $entryCentralDirectoryRawNameOffset, $entryCentralDirectoryRawNameBytes)
+                );
+            $entryCentralDirectoryExtraFieldSha256 = $entryCentralDirectoryExtraFieldOffset === null
+                ? null
+                : hash(
+                    'sha256',
+                    substr($this->bytes, $entryCentralDirectoryExtraFieldOffset, $entryCentralDirectoryExtraFieldBytes)
+                );
+            $entryCentralDirectoryRawCommentSha256 = $entryCentralDirectoryRawCommentOffset === null
+                ? null
+                : hash(
+                    'sha256',
+                    substr($this->bytes, $entryCentralDirectoryRawCommentOffset, $entryCentralDirectoryRawCommentBytes)
+                );
             if ($entryCentralDirectoryRecordBytes !== null && $entryCentralDirectoryRecordBytes >= 0) {
                 $centralDirectoryRecordBytes += $entryCentralDirectoryRecordBytes;
             }
@@ -13719,8 +13763,12 @@ final class ZipPackage
                 'localHeaderVariableFieldOffset' => $entryLocalHeaderVariableFieldOffset,
                 'localHeaderVariableFieldBytes' => $entryLocalHeaderVariableFieldBytes,
                 'localHeaderVariableFieldSha256' => $entryLocalHeaderVariableFieldSha256,
+                'localHeaderRawNameOffset' => $entryLocalHeaderRawNameOffset,
                 'localHeaderRawNameBytes' => $entryLocalHeaderRawNameBytes,
+                'localHeaderRawNameSha256' => $entryLocalHeaderRawNameSha256,
+                'localHeaderExtraFieldOffset' => $entryLocalHeaderExtraFieldOffset,
                 'localHeaderExtraFieldBytes' => $entryLocalHeaderExtraFieldBytes,
+                'localHeaderExtraFieldSha256' => $entryLocalHeaderExtraFieldSha256,
                 'localHeaderReviewFieldBytes' => $entryLocalHeaderReviewFieldBytes,
                 'localRecordOffset' => $entry->localHeaderOffset,
                 'localRecordBytes' => $localRecordLength,
@@ -13739,10 +13787,18 @@ final class ZipPackage
                 'centralDirectoryRecordBytes' => $entryCentralDirectoryRecordBytes,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
                 'centralDirectoryFixedHeaderBytes' => $entryCentralDirectoryFixedHeaderBytes,
+                'centralDirectoryVariableFieldOffset' => $entryCentralDirectoryVariableFieldOffset,
                 'centralDirectoryVariableFieldBytes' => $entryCentralDirectoryVariableFieldBytes,
+                'centralDirectoryVariableFieldSha256' => $entryCentralDirectoryVariableFieldSha256,
+                'centralDirectoryRawNameOffset' => $entryCentralDirectoryRawNameOffset,
                 'centralDirectoryRawNameBytes' => $entryCentralDirectoryRawNameBytes,
+                'centralDirectoryRawNameSha256' => $entryCentralDirectoryRawNameSha256,
+                'centralDirectoryExtraFieldOffset' => $entryCentralDirectoryExtraFieldOffset,
                 'centralDirectoryExtraFieldBytes' => $entryCentralDirectoryExtraFieldBytes,
+                'centralDirectoryExtraFieldSha256' => $entryCentralDirectoryExtraFieldSha256,
+                'centralDirectoryRawCommentOffset' => $entryCentralDirectoryRawCommentOffset,
                 'centralDirectoryRawCommentBytes' => $entryCentralDirectoryRawCommentBytes,
+                'centralDirectoryRawCommentSha256' => $entryCentralDirectoryRawCommentSha256,
                 'centralDirectoryReviewFieldBytes' => $entryCentralDirectoryReviewFieldBytes,
             ];
             $entries[] = $summary;
@@ -13764,7 +13820,9 @@ final class ZipPackage
                 'localHeaderVariableFieldBytes' => $summary['localHeaderVariableFieldBytes'],
                 'localHeaderVariableFieldSha256' => $summary['localHeaderVariableFieldSha256'],
                 'localHeaderRawNameBytes' => $summary['localHeaderRawNameBytes'],
+                'localHeaderRawNameSha256' => $summary['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $summary['localHeaderExtraFieldBytes'],
+                'localHeaderExtraFieldSha256' => $summary['localHeaderExtraFieldSha256'],
                 'localHeaderReviewFieldBytes' => $summary['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $summary['localRecordBytes'],
                 'localRecordSha256' => $summary['localRecordSha256'],
@@ -13776,9 +13834,13 @@ final class ZipPackage
                 'centralDirectoryRecordSha256' => $summary['centralDirectoryRecordSha256'],
                 'centralDirectoryFixedHeaderBytes' => $summary['centralDirectoryFixedHeaderBytes'],
                 'centralDirectoryVariableFieldBytes' => $summary['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryVariableFieldSha256' => $summary['centralDirectoryVariableFieldSha256'],
                 'centralDirectoryRawNameBytes' => $summary['centralDirectoryRawNameBytes'],
+                'centralDirectoryRawNameSha256' => $summary['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $summary['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryExtraFieldSha256' => $summary['centralDirectoryExtraFieldSha256'],
                 'centralDirectoryRawCommentBytes' => $summary['centralDirectoryRawCommentBytes'],
+                'centralDirectoryRawCommentSha256' => $summary['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $summary['centralDirectoryReviewFieldBytes'],
             ];
         }
