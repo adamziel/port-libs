@@ -16464,6 +16464,10 @@ final class DocxOpenXmlReader
         $relationshipTargetReferenceSuffixCount = 0;
         $relationshipTargetQueryCount = 0;
         $relationshipTargetFragmentCount = 0;
+        $relationshipTargetFragmentRelationshipCount = 0;
+        $relationshipTargetFragments = [];
+        $relationshipTargetFragmentCounts = [];
+        $relationshipTargetFragmentSummaries = [];
         $relationshipTargetQueryParameterCount = 0;
         $relationshipTargetQueryParameterRelationshipCount = 0;
         $relationshipTargetQueryParameterNameCounts = [];
@@ -16472,6 +16476,7 @@ final class DocxOpenXmlReader
         $relationshipTargetStartsAtPackageRootCount = 0;
         $relationshipTargetParentTraversalSegmentCount = 0;
         $relationshipPartsWithTargetReferenceSuffix = [];
+        $relationshipPartsWithTargetFragments = [];
         $relationshipPartsWithTargetQueryParameters = [];
         $relationshipPartsWithPackageRootTargets = [];
         $relationshipPartsWithParentTraversalTargets = [];
@@ -16479,6 +16484,7 @@ final class DocxOpenXmlReader
         $relationshipPartsWithExternalTargetsWithoutExternalMode = [];
         $relationshipPartsWithExternalRelativeTargets = [];
         $relationshipTargetsWithReferenceSuffix = [];
+        $relationshipTargetsWithFragments = [];
         $relationshipTargetsWithQueryParameters = [];
         $relationshipTargetsStartingAtPackageRoot = [];
         $relationshipTargetsWithParentTraversal = [];
@@ -16891,6 +16897,94 @@ final class DocxOpenXmlReader
                 }
                 if (array_key_exists('targetFragment', $relationship) && $relationship['targetFragment'] !== null) {
                     ++$relationshipTargetFragmentCount;
+                }
+                $targetFragment = is_string($relationship['targetFragment'] ?? null)
+                    ? $relationship['targetFragment']
+                    : '';
+                if ($targetFragment !== '') {
+                    ++$relationshipTargetFragmentRelationshipCount;
+                    $relationshipPartsWithTargetFragments[(string) $relationshipsPart] = true;
+                    $relationshipTargetsWithFragments[] = $this->relationshipProvenanceSummaryItem($relationship);
+                    $this->appendUniqueString($relationshipTargetFragments, $targetFragment);
+                    $relationshipTargetFragmentCounts[$targetFragment] =
+                        ($relationshipTargetFragmentCounts[$targetFragment] ?? 0) + 1;
+
+                    if (!isset($relationshipTargetFragmentSummaries[$targetFragment])) {
+                        $relationshipTargetFragmentSummaries[$targetFragment] = [
+                            'fragment' => $targetFragment,
+                            'relationshipCount' => 0,
+                            'internalRelationshipCount' => 0,
+                            'externalRelationshipCount' => 0,
+                            'existingTargetCount' => 0,
+                            'missingTargetCount' => 0,
+                            'relationshipTypeCounts' => [],
+                            'targetModeCounts' => [],
+                            'contentTypeBaseCounts' => [],
+                            'contentTypeSourceCounts' => [],
+                            'sourceParts' => [],
+                            'relationshipParts' => [],
+                            'relationshipIds' => [],
+                            'targetParts' => [],
+                            'targetReferenceSuffixes' => [],
+                        ];
+                    }
+
+                    ++$relationshipTargetFragmentSummaries[$targetFragment]['relationshipCount'];
+                    if (($relationship['external'] ?? false) === true) {
+                        ++$relationshipTargetFragmentSummaries[$targetFragment]['externalRelationshipCount'];
+                        $contentTypeBaseKey = '(external)';
+                        $contentTypeSourceKey = '(external)';
+                    } else {
+                        ++$relationshipTargetFragmentSummaries[$targetFragment]['internalRelationshipCount'];
+                        $contentTypeBase = is_string($relationship['contentTypeBase'] ?? null)
+                            ? $relationship['contentTypeBase']
+                            : '';
+                        $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+                        $contentTypeSource = is_string($relationship['contentTypeSource'] ?? null)
+                            ? $relationship['contentTypeSource']
+                            : '';
+                        $contentTypeSourceKey = $contentTypeSource === '' ? 'missing' : $contentTypeSource;
+                    }
+                    if (($relationship['exists'] ?? false) === true) {
+                        ++$relationshipTargetFragmentSummaries[$targetFragment]['existingTargetCount'];
+                    } else {
+                        ++$relationshipTargetFragmentSummaries[$targetFragment]['missingTargetCount'];
+                    }
+
+                    $typeKey = is_string($relationship['type'] ?? null) && $relationship['type'] !== ''
+                        ? $relationship['type']
+                        : '(missing)';
+                    $targetModeKey = is_string($relationship['targetMode'] ?? null) && $relationship['targetMode'] !== ''
+                        ? $relationship['targetMode']
+                        : '(implicit-internal)';
+                    $relationshipTargetFragmentSummaries[$targetFragment]['relationshipTypeCounts'][$typeKey] =
+                        ($relationshipTargetFragmentSummaries[$targetFragment]['relationshipTypeCounts'][$typeKey] ?? 0) + 1;
+                    $relationshipTargetFragmentSummaries[$targetFragment]['targetModeCounts'][$targetModeKey] =
+                        ($relationshipTargetFragmentSummaries[$targetFragment]['targetModeCounts'][$targetModeKey] ?? 0) + 1;
+                    $relationshipTargetFragmentSummaries[$targetFragment]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                        ($relationshipTargetFragmentSummaries[$targetFragment]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+                    $relationshipTargetFragmentSummaries[$targetFragment]['contentTypeSourceCounts'][$contentTypeSourceKey] =
+                        ($relationshipTargetFragmentSummaries[$targetFragment]['contentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentSummaries[$targetFragment]['sourceParts'],
+                        is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentSummaries[$targetFragment]['relationshipParts'],
+                        is_string($relationship['relationshipsPart'] ?? null) ? $relationship['relationshipsPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentSummaries[$targetFragment]['relationshipIds'],
+                        is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentSummaries[$targetFragment]['targetParts'],
+                        is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $relationshipTargetFragmentSummaries[$targetFragment]['targetReferenceSuffixes'],
+                        is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : null,
+                    );
                 }
                 $targetQueryParameters = is_array($relationship['targetQueryParameters'] ?? null)
                     ? $relationship['targetQueryParameters']
@@ -18491,6 +18585,20 @@ final class DocxOpenXmlReader
             ksort($targetQueryParameterValueCounts, SORT_STRING);
         }
         unset($targetQueryParameterValueCounts);
+        ksort($relationshipTargetFragmentCounts, SORT_STRING);
+        ksort($relationshipTargetFragmentSummaries, SORT_STRING);
+        foreach ($relationshipTargetFragmentSummaries as &$targetFragmentSummary) {
+            ksort($targetFragmentSummary['relationshipTypeCounts'], SORT_STRING);
+            ksort($targetFragmentSummary['targetModeCounts'], SORT_STRING);
+            ksort($targetFragmentSummary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($targetFragmentSummary['contentTypeSourceCounts'], SORT_STRING);
+            sort($targetFragmentSummary['sourceParts'], SORT_STRING);
+            sort($targetFragmentSummary['relationshipParts'], SORT_STRING);
+            sort($targetFragmentSummary['relationshipIds'], SORT_STRING);
+            sort($targetFragmentSummary['targetParts'], SORT_STRING);
+            sort($targetFragmentSummary['targetReferenceSuffixes'], SORT_STRING);
+        }
+        unset($targetFragmentSummary);
         ksort($relationshipTargetQueryParameters);
         foreach ($relationshipTargetQueryParameters as &$targetQueryParameter) {
             ksort($targetQueryParameter['valueCounts'], SORT_STRING);
@@ -20377,6 +20485,11 @@ final class DocxOpenXmlReader
             'relationshipTargetReferenceSuffixCount' => $relationshipTargetReferenceSuffixCount,
             'relationshipTargetQueryCount' => $relationshipTargetQueryCount,
             'relationshipTargetFragmentCount' => $relationshipTargetFragmentCount,
+            'relationshipTargetFragmentRelationshipCount' => $relationshipTargetFragmentRelationshipCount,
+            'relationshipTargetFragmentValueCount' => count($relationshipTargetFragmentCounts),
+            'relationshipTargetFragments' => $relationshipTargetFragments,
+            'relationshipTargetFragmentCounts' => $relationshipTargetFragmentCounts,
+            'relationshipTargetFragmentSummaries' => array_values($relationshipTargetFragmentSummaries),
             'relationshipTargetQueryParameterCount' => $relationshipTargetQueryParameterCount,
             'relationshipTargetQueryParameterRelationshipCount' => $relationshipTargetQueryParameterRelationshipCount,
             'relationshipTargetQueryParameterNameCount' => count($relationshipTargetQueryParameterNameCounts),
@@ -20574,6 +20687,7 @@ final class DocxOpenXmlReader
             'relationshipPartsWithMissingContentTypes' => array_keys($relationshipPartsWithMissingContentTypes),
             'relationshipPartsWithMissingSources' => $relationshipPartsWithMissingSources,
             'relationshipPartsWithTargetReferenceSuffix' => array_keys($relationshipPartsWithTargetReferenceSuffix),
+            'relationshipPartsWithTargetFragments' => array_keys($relationshipPartsWithTargetFragments),
             'relationshipPartsWithTargetQueryParameters' => array_keys($relationshipPartsWithTargetQueryParameters),
             'relationshipPartsWithPackageRootTargets' => array_keys($relationshipPartsWithPackageRootTargets),
             'relationshipPartsWithParentTraversalTargets' => array_keys($relationshipPartsWithParentTraversalTargets),
@@ -20593,6 +20707,7 @@ final class DocxOpenXmlReader
             'relationshipTargetsWithoutContentType' => $relationshipTargetsWithoutContentType,
             'relationshipsFromMissingSources' => $relationshipsFromMissingSources,
             'relationshipTargetsWithReferenceSuffix' => $relationshipTargetsWithReferenceSuffix,
+            'relationshipTargetsWithFragments' => $relationshipTargetsWithFragments,
             'relationshipTargetsWithQueryParameters' => $relationshipTargetsWithQueryParameters,
             'relationshipTargetsStartingAtPackageRoot' => $relationshipTargetsStartingAtPackageRoot,
             'relationshipTargetsWithParentTraversal' => $relationshipTargetsWithParentTraversal,
