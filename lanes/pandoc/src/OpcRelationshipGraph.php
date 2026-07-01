@@ -1442,6 +1442,8 @@ final class OpcRelationshipGraph
             'zipSourceRecordKnownCentralDirectoryRecordBytes' => $zipSourceRecordManifest['knownCentralDirectoryRecordBytes'],
             'zipSourceRecordBytes' => $zipSourceRecordManifest['sourceRecordBytes'],
             'zipSourceRecordKnownBytes' => $zipSourceRecordManifest['knownSourceRecordBytes'],
+            'zipSourceRecordHandoffKindSummaryCount' => $zipSourceRecordManifest['handoffKindSummaryCount'],
+            'zipSourceRecordHandoffKindSummaries' => $zipSourceRecordManifest['handoffKindSummaries'],
             'zipSourceRecordManifest' => $zipSourceRecordManifest,
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
@@ -2588,6 +2590,8 @@ final class OpcRelationshipGraph
             'zipSourceRecordKnownCentralDirectoryRecordBytes' => $zipSourceRecordManifest['knownCentralDirectoryRecordBytes'],
             'zipSourceRecordBytes' => $zipSourceRecordManifest['sourceRecordBytes'],
             'zipSourceRecordKnownBytes' => $zipSourceRecordManifest['knownSourceRecordBytes'],
+            'zipSourceRecordHandoffKindSummaryCount' => $zipSourceRecordManifest['handoffKindSummaryCount'],
+            'zipSourceRecordHandoffKindSummaries' => $zipSourceRecordManifest['handoffKindSummaries'],
             'zipSourceRecordManifest' => $zipSourceRecordManifest,
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
@@ -9475,6 +9479,7 @@ final class OpcRelationshipGraph
         $dataDescriptorEntryCount = 0;
         $unknownSourceRecordEntryCount = 0;
         $byteCountsAreExact = true;
+        $handoffKindSummaries = [];
 
         foreach ($entries as $entry) {
             $entryName = is_string($entry['entryName'] ?? null) ? $entry['entryName'] : '';
@@ -9534,6 +9539,19 @@ final class OpcRelationshipGraph
                 ++$dataDescriptorEntryCount;
             }
             $centralDirectoryRecordBytes += $entryCentralDirectoryRecordBytes ?? 0;
+            self::recordZipEntrySourceRecordHandoffKindSummary(
+                $handoffKindSummaries,
+                $handoffKind,
+                $entryName,
+                $partName,
+                $entryByteCountsAreExact,
+                $entryLocalRecordBytes,
+                $entryLocalHeaderBytes,
+                $entryCompressedDataBytes,
+                $entryDataDescriptorBytes,
+                $entryCentralDirectoryRecordBytes,
+                $entrySourceRecordBytes,
+            );
 
             $manifestEntries[] = [
                 'entryIndex' => $entry['entryIndex'] ?? null,
@@ -9565,6 +9583,7 @@ final class OpcRelationshipGraph
                 'sourceRecordIssues' => $sourceRecordIssues,
             ];
         }
+        $handoffKindSummaries = self::zipEntrySourceRecordHandoffKindSummaries($handoffKindSummaries);
 
         $payload = [
             'manifestVersion' => $manifestVersion,
@@ -9583,6 +9602,8 @@ final class OpcRelationshipGraph
             'knownCentralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'sourceRecordBytes' => $byteCountsAreExact ? $sourceRecordBytes : null,
             'knownSourceRecordBytes' => $sourceRecordBytes,
+            'handoffKindSummaryCount' => count($handoffKindSummaries),
+            'handoffKindSummaries' => $handoffKindSummaries,
             'entries' => $manifestEntries,
         ];
         $manifestJson = json_encode(
@@ -9594,6 +9615,96 @@ final class OpcRelationshipGraph
             ...$payload,
             'manifestSha256' => hash('sha256', $manifestJson),
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     */
+    private static function recordZipEntrySourceRecordHandoffKindSummary(
+        array &$summaries,
+        string $handoffKind,
+        string $entryName,
+        ?string $partName,
+        bool $entryByteCountsAreExact,
+        ?int $localRecordBytes,
+        ?int $localHeaderBytes,
+        ?int $compressedDataBytes,
+        int $dataDescriptorBytes,
+        ?int $centralDirectoryRecordBytes,
+        ?int $sourceRecordBytes
+    ): void {
+        $summaries[$handoffKind] ??= [
+            'handoffKind' => $handoffKind,
+            'entryCount' => 0,
+            'unknownSourceRecordEntryCount' => 0,
+            'byteCountsAreExact' => true,
+            'localRecordBytes' => 0,
+            'knownLocalRecordBytes' => 0,
+            'localHeaderBytes' => 0,
+            'knownLocalHeaderBytes' => 0,
+            'compressedDataBytes' => 0,
+            'knownCompressedDataBytes' => 0,
+            'dataDescriptorBytes' => 0,
+            'dataDescriptorEntryCount' => 0,
+            'centralDirectoryRecordBytes' => 0,
+            'knownCentralDirectoryRecordBytes' => 0,
+            'sourceRecordBytes' => 0,
+            'knownSourceRecordBytes' => 0,
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        $summary =& $summaries[$handoffKind];
+        $summary['entryCount']++;
+        if (!$entryByteCountsAreExact) {
+            $summary['byteCountsAreExact'] = false;
+            $summary['unknownSourceRecordEntryCount']++;
+        }
+
+        $summary['knownLocalRecordBytes'] += $localRecordBytes ?? 0;
+        $summary['knownLocalHeaderBytes'] += $localHeaderBytes ?? 0;
+        $summary['knownCompressedDataBytes'] += $compressedDataBytes ?? 0;
+        $summary['dataDescriptorBytes'] += $dataDescriptorBytes;
+        $summary['knownCentralDirectoryRecordBytes'] += $centralDirectoryRecordBytes ?? 0;
+        $summary['knownSourceRecordBytes'] += $sourceRecordBytes ?? 0;
+        if ($entryByteCountsAreExact) {
+            $summary['localRecordBytes'] += $localRecordBytes ?? 0;
+            $summary['localHeaderBytes'] += $localHeaderBytes ?? 0;
+            $summary['compressedDataBytes'] += $compressedDataBytes ?? 0;
+            $summary['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes ?? 0;
+            $summary['sourceRecordBytes'] += $sourceRecordBytes ?? 0;
+        }
+        if ($dataDescriptorBytes > 0) {
+            $summary['dataDescriptorEntryCount']++;
+        }
+        self::appendUniqueString($summary['entryNames'], $entryName);
+        if ($partName !== null) {
+            self::appendUniqueString($summary['partNames'], $partName);
+        }
+        unset($summary);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @return list<array<string, mixed>>
+     */
+    private static function zipEntrySourceRecordHandoffKindSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            if (($summary['byteCountsAreExact'] ?? true) !== true) {
+                $summary['localRecordBytes'] = null;
+                $summary['localHeaderBytes'] = null;
+                $summary['compressedDataBytes'] = null;
+                $summary['centralDirectoryRecordBytes'] = null;
+                $summary['sourceRecordBytes'] = null;
+            }
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     private static function recordZipEntryManifestDirectoryRootSummary(
