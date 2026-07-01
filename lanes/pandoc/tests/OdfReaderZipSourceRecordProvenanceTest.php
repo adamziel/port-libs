@@ -89,8 +89,12 @@ $sourceRecordSubset = static function (array $item): array {
         'zipLocalHeaderVariableFieldOffset',
         'zipLocalHeaderVariableFieldBytes',
         'zipLocalHeaderVariableFieldSha256',
+        'zipLocalHeaderRawNameOffset',
         'zipLocalHeaderRawNameBytes',
+        'zipLocalHeaderRawNameSha256',
+        'zipLocalHeaderExtraFieldOffset',
         'zipLocalHeaderExtraFieldBytes',
+        'zipLocalHeaderExtraFieldSha256',
         'zipLocalHeaderReviewFieldBytes',
         'zipLocalRecordOffset',
         'zipLocalRecordBytes',
@@ -110,10 +114,18 @@ $sourceRecordSubset = static function (array $item): array {
         'zipCentralDirectoryRecordEnd',
         'zipCentralDirectoryRecordSha256',
         'zipCentralDirectoryFixedHeaderBytes',
+        'zipCentralDirectoryVariableFieldOffset',
         'zipCentralDirectoryVariableFieldBytes',
+        'zipCentralDirectoryVariableFieldSha256',
+        'zipCentralDirectoryRawNameOffset',
         'zipCentralDirectoryRawNameBytes',
+        'zipCentralDirectoryRawNameSha256',
+        'zipCentralDirectoryExtraFieldOffset',
         'zipCentralDirectoryExtraFieldBytes',
+        'zipCentralDirectoryExtraFieldSha256',
+        'zipCentralDirectoryRawCommentOffset',
         'zipCentralDirectoryRawCommentBytes',
+        'zipCentralDirectoryRawCommentSha256',
         'zipCentralDirectoryReviewFieldBytes',
         'zipSourceRecordBytes',
         'zipHasSourceRecordProvenance',
@@ -142,8 +154,12 @@ $expectedSourceRecord = static function (array $zipEntry): array {
         'zipLocalHeaderVariableFieldOffset' => $zipEntry['localHeaderVariableFieldOffset'],
         'zipLocalHeaderVariableFieldBytes' => $zipEntry['localHeaderVariableFieldBytes'],
         'zipLocalHeaderVariableFieldSha256' => $zipEntry['localHeaderVariableFieldSha256'],
+        'zipLocalHeaderRawNameOffset' => $zipEntry['localHeaderRawNameOffset'],
         'zipLocalHeaderRawNameBytes' => $zipEntry['localHeaderRawNameBytes'],
+        'zipLocalHeaderRawNameSha256' => $zipEntry['localHeaderRawNameSha256'],
+        'zipLocalHeaderExtraFieldOffset' => $zipEntry['localHeaderExtraFieldOffset'],
         'zipLocalHeaderExtraFieldBytes' => $zipEntry['localHeaderExtraFieldBytes'],
+        'zipLocalHeaderExtraFieldSha256' => $zipEntry['localHeaderExtraFieldSha256'],
         'zipLocalHeaderReviewFieldBytes' => $zipEntry['localHeaderReviewFieldBytes'],
         'zipLocalRecordOffset' => $zipEntry['localRecordOffset'],
         'zipLocalRecordBytes' => $zipEntry['localRecordBytes'],
@@ -163,10 +179,18 @@ $expectedSourceRecord = static function (array $zipEntry): array {
         'zipCentralDirectoryRecordEnd' => $zipEntry['centralDirectoryRecordEnd'],
         'zipCentralDirectoryRecordSha256' => $zipEntry['centralDirectoryRecordSha256'],
         'zipCentralDirectoryFixedHeaderBytes' => $zipEntry['centralDirectoryFixedHeaderBytes'],
+        'zipCentralDirectoryVariableFieldOffset' => $zipEntry['centralDirectoryVariableFieldOffset'],
         'zipCentralDirectoryVariableFieldBytes' => $zipEntry['centralDirectoryVariableFieldBytes'],
+        'zipCentralDirectoryVariableFieldSha256' => $zipEntry['centralDirectoryVariableFieldSha256'],
+        'zipCentralDirectoryRawNameOffset' => $zipEntry['centralDirectoryRawNameOffset'],
         'zipCentralDirectoryRawNameBytes' => $zipEntry['centralDirectoryRawNameBytes'],
+        'zipCentralDirectoryRawNameSha256' => $zipEntry['centralDirectoryRawNameSha256'],
+        'zipCentralDirectoryExtraFieldOffset' => $zipEntry['centralDirectoryExtraFieldOffset'],
         'zipCentralDirectoryExtraFieldBytes' => $zipEntry['centralDirectoryExtraFieldBytes'],
+        'zipCentralDirectoryExtraFieldSha256' => $zipEntry['centralDirectoryExtraFieldSha256'],
+        'zipCentralDirectoryRawCommentOffset' => $zipEntry['centralDirectoryRawCommentOffset'],
         'zipCentralDirectoryRawCommentBytes' => $zipEntry['centralDirectoryRawCommentBytes'],
+        'zipCentralDirectoryRawCommentSha256' => $zipEntry['centralDirectoryRawCommentSha256'],
         'zipCentralDirectoryReviewFieldBytes' => $zipEntry['centralDirectoryReviewFieldBytes'],
         'zipSourceRecordBytes' => $zipEntry['localRecordBytes'] + $zipEntry['centralDirectoryRecordBytes'],
         'zipHasSourceRecordProvenance' => true,
@@ -222,8 +246,32 @@ return [
             $richContent['zipCompressedDataSha256']
         );
         $t->same(
+            hash('sha256', substr($zipBytes, $richContent['zipLocalHeaderRawNameOffset'], $richContent['zipLocalHeaderRawNameBytes'])),
+            $richContent['zipLocalHeaderRawNameSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zipBytes, $richContent['zipLocalHeaderExtraFieldOffset'], $richContent['zipLocalHeaderExtraFieldBytes'])),
+            $richContent['zipLocalHeaderExtraFieldSha256']
+        );
+        $t->same(
             hash('sha256', substr($zipBytes, $richContent['zipCentralDirectoryRecordOffset'], $richContent['zipCentralDirectoryRecordBytes'])),
             $richContent['zipCentralDirectoryRecordSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zipBytes, $richContent['zipCentralDirectoryVariableFieldOffset'], $richContent['zipCentralDirectoryVariableFieldBytes'])),
+            $richContent['zipCentralDirectoryVariableFieldSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zipBytes, $richContent['zipCentralDirectoryRawNameOffset'], $richContent['zipCentralDirectoryRawNameBytes'])),
+            $richContent['zipCentralDirectoryRawNameSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zipBytes, $richContent['zipCentralDirectoryExtraFieldOffset'], $richContent['zipCentralDirectoryExtraFieldBytes'])),
+            $richContent['zipCentralDirectoryExtraFieldSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zipBytes, $richContent['zipCentralDirectoryRawCommentOffset'], $richContent['zipCentralDirectoryRawCommentBytes'])),
+            $richContent['zipCentralDirectoryRawCommentSha256']
         );
         $t->same(true, $richIdentityParts['content.xml']['zipHasSourceRecordProvenance']);
         $t->true($richIdentity['identitySha256'] !== $changedIdentity['identitySha256']);
