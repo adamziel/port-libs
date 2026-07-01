@@ -5375,7 +5375,7 @@ return [
             $rawBlock = $document->children[0];
             $rawInline = null;
             foreach ($document->children[1]->children as $inline) {
-                if ($inline->type === 'raw_tex') {
+                if ($inline->type === 'raw_tex_inline') {
                     $rawInline = $inline;
                     break;
                 }
@@ -5392,7 +5392,7 @@ return [
             $t->same($rawBlockFormat, $rawBlock->attr('formatNative'), "{$source} raw block format native payload");
             $t->same('html', $rawBlock->attr('format'), "{$source} raw block format");
             $t->same('<section data-review="yes">Source</section>', $rawBlock->attr('text'), "{$source} raw block text");
-            $t->same('raw_tex', $rawInline->type, "{$source} raw inline type");
+            $t->same('raw_tex_inline', $rawInline->type, "{$source} raw inline type");
             $t->same('Format', $rawInline->attr('formatConstructor'), "{$source} raw inline format constructor");
             $t->same($rawInlineFormat, $rawInline->attr('formatNative'), "{$source} raw inline format native payload");
             $t->same('latex', $rawInline->attr('format'), "{$source} raw inline format");
@@ -5406,7 +5406,7 @@ return [
                     'html' => '<aside>Edited</aside>',
                 ])),
                 new AstNode('paragraph', [], [
-                    new AstNode('raw_tex', array_replace($rawInline->attrs, [
+                    new AstNode('raw_tex_inline', array_replace($rawInline->attrs, [
                         'text' => '\\beta',
                         'tex' => '\\beta',
                     ])),
@@ -9974,7 +9974,7 @@ return [
             'raw inline format helper' => [
                 'packet' => ['pandoc-api-version' => [1, 23, 1], 'meta' => [], 'blocks' => [['t' => 'Para', 'c' => [$rawInline]]]],
                 'path' => [0, 0],
-                'type' => 'raw_tex',
+                'type' => 'raw_tex_inline',
                 'constructor' => 'RawInline',
                 'native' => $rawInline,
                 'text' => '\\alpha',
@@ -15679,7 +15679,7 @@ NATIVE;
         $t->same('raw_markdown', $roundTrip->children[0]->type);
         $t->same('raw_tex', $roundTrip->children[1]->type);
         $t->same('raw_markdown', $roundTrip->children[2]->children[0]->type);
-        $t->same('raw_tex', $roundTrip->children[2]->children[2]->type);
+        $t->same('raw_tex_inline', $roundTrip->children[2]->children[2]->type);
     },
     'preserves textual native str and space constructors through writers' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
@@ -15760,7 +15760,7 @@ NATIVE;
         $t->same(['t' => 'RawInline', 'c' => ['tex', '\\alpha']], $jsonPacket['blocks'][0]['c'][2]);
         $t->same($jsonPacket['blocks'][0]['c'][2], $nativePacket['blocks'][0]['c'][2]);
         $t->same(['t' => 'RawInline', 'c' => ['latex', '\\beta']], $manualPacket['blocks'][0]['c'][0]);
-        $t->same('raw_tex', $roundTrip->children[0]->children[2]->type);
+        $t->same('raw_tex_inline', $roundTrip->children[0]->children[2]->type);
         $t->same('\\alpha', $roundTrip->children[0]->children[2]->attr('tex'));
     },
     'serializes native text markdown raw format constructors through pandoc json writers' => static function (TestRunner $t): void {
@@ -15797,7 +15797,7 @@ NATIVE;
         $t->same($jsonPacket['blocks'][1]['c'][2], $nativePacket['blocks'][1]['c'][2]);
         $t->same('raw_markdown', $roundTrip->children[0]->type);
         $t->same('raw_markdown', $roundTrip->children[1]->children[2]->type);
-        $t->same('raw_tex', $roundTrip->children[1]->children[4]->type);
+        $t->same('raw_tex_inline', $roundTrip->children[1]->children[4]->type);
     },
     'preserves single wrapped raw format constructors through json and native stacks' => static function (TestRunner $t): void {
         $blockFormat = ['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-block-format-source'];
@@ -15833,7 +15833,7 @@ NATIVE;
             $t->same('raw_html', $rawBlock->type, "{$source} raw block type");
             $t->same('html', $rawBlock->attr('format'), "{$source} raw block format");
             $t->same($blockFormat, $rawBlock->attr('formatNative'), "{$source} raw block format native");
-            $t->same('raw_tex', $rawInline->type, "{$source} raw inline type");
+            $t->same('raw_tex_inline', $rawInline->type, "{$source} raw inline type");
             $t->same($inlineFormat, $rawInline->attr('formatNative'), "{$source} raw inline format native");
             $t->same('raw_inline', $genericInline->type, "{$source} generic raw inline type");
             $t->same('opml', $genericInline->attr('format'), "{$source} generic raw inline format");

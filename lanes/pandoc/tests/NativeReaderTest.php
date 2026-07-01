@@ -353,7 +353,7 @@ return [
                 new AstNode('quoted', ['kind' => 'single'], [new AstNode('text', ['text' => 'quote'])]),
                 new AstNode('math', ['display' => true, 'text' => 'E = mc^2']),
                 new AstNode('raw_html_inline', ['html' => '<span data-review="raw">html</span>']),
-                new AstNode('raw_tex', ['tex' => '\\alpha']),
+                new AstNode('raw_tex_inline', ['tex' => '\\alpha']),
                 new AstNode('raw_markdown', ['format' => 'markdown+tex_math_dollars', 'markdown' => '$raw$']),
                 new AstNode('raw_inline', ['format' => 'opml', 'text' => '<outline/>']),
                 new AstNode('span', [
@@ -403,7 +403,7 @@ return [
             'quoted',
             'math',
             'raw_html_inline',
-            'raw_tex',
+            'raw_tex_inline',
             'raw_markdown',
             'raw_inline',
             'span',
@@ -1802,7 +1802,7 @@ return [
             'text',
             'quoted',
             'text',
-            'raw_tex',
+            'raw_tex_inline',
             'text',
             'math',
         ], array_map(static fn ($node): string => $node->type, $paragraph->children));
