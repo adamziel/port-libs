@@ -83,11 +83,13 @@ final class PptxReader
                 'payloadExposurePolicy' => 'xml-text-and-media-reference-only',
                 'upstreamEvidence' => [
                     'denominator' => 1,
+                    'covered' => 1,
                     'fixtures' => [
                         'test/pptx-reader/basic.pptx',
                         'test/pptx-reader/basic.native',
                     ],
-                    'source' => 'Pandoc 912bfa5e src/Text/Pandoc/Readers/Pptx.hs and src/Text/Pandoc/Readers/Pptx/{Parse,Slides,Shapes,SmartArt}.hs',
+                    'fixtureCommit' => '612e143fbe6d735b612c4800d21e61b7d44e4dca',
+                    'source' => 'Pandoc test/Tests/Readers/Pptx.hs plus src/Text/Pandoc/Readers/Pptx.hs and src/Text/Pandoc/Readers/Pptx/{Parse,Slides,Shapes,SmartArt}.hs',
                 ],
             ],
         ], $blocks);

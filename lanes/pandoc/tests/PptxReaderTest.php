@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PptxReader;
 use PortLibs\Pandoc\WordPressBlockWriter;
@@ -460,6 +461,85 @@ $nodesWithClass = static function (array $nodes, string $class): array {
     }));
 };
 
+$pandocReaderContentSignature = static function (AstNode $node) use (&$pandocReaderContentSignature): array {
+    $childSignatures = static function (array $children) use (&$pandocReaderContentSignature): array {
+        $signatures = [];
+        foreach ($children as $child) {
+            $signature = $pandocReaderContentSignature($child);
+            if (($signature['type'] ?? null) === 'text' && ($signature['text'] ?? '') === '') {
+                continue;
+            }
+            if (($signature['type'] ?? null) === 'table_foot' && ($signature['children'] ?? []) === []) {
+                continue;
+            }
+            $signatures[] = $signature;
+        }
+
+        return $signatures;
+    };
+
+    return match ($node->type) {
+        'document' => [
+            'type' => 'document',
+            'children' => $childSignatures($node->children),
+        ],
+        'heading' => [
+            'type' => 'heading',
+            'level' => (int) $node->attr('level'),
+            'id' => (string) $node->attr('id'),
+            'inlines' => $childSignatures($node->children),
+        ],
+        'paragraph', 'plain' => [
+            'type' => $node->type,
+            'inlines' => $childSignatures($node->children),
+        ],
+        'text' => [
+            'type' => 'text',
+            'text' => (string) $node->attr('text'),
+        ],
+        'space' => [
+            'type' => 'space',
+        ],
+        'softbreak', 'linebreak' => [
+            'type' => $node->type,
+        ],
+        'strong' => [
+            'type' => 'strong',
+            'inlines' => $childSignatures($node->children),
+        ],
+        'image' => [
+            'type' => 'image',
+            'url' => (string) $node->attr('url', $node->attr('src', '')),
+            'title' => (string) $node->attr('title', ''),
+            'alt' => (string) $node->attr('alt', ''),
+        ],
+        'div' => [
+            'type' => 'div',
+            'classes' => $node->attr('classes', []),
+            'attributes' => $node->attr('attributes', []),
+            'children' => $childSignatures($node->children),
+        ],
+        'table' => [
+            'type' => 'table',
+            'children' => $childSignatures($node->children),
+        ],
+        'bullet_list',
+        'list_item',
+        'table_head',
+        'table_body',
+        'table_foot',
+        'table_row',
+        'table_cell' => [
+            'type' => $node->type,
+            'children' => $childSignatures($node->children),
+        ],
+        default => [
+            'type' => $node->type,
+            'children' => $childSignatures($node->children),
+        ],
+    };
+};
+
 return [
     'matches pinned upstream pptx reader basic fixture semantics' => static function (TestRunner $t) use ($buildPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildPptxPackage());
@@ -640,6 +720,33 @@ return [
         $t->contains('data-pandoc-comment-author="Ada Reviewer"', $blocks);
         $t->contains('Inherited Layout Body', $blocks);
         $t->contains('Inherited Master Footer', $blocks);
+    },
+
+    'matches checked-in current upstream pptx reader basic golden content' => static function (TestRunner $t) use ($pandocReaderContentSignature): void {
+        $fixtureRoot = dirname(__DIR__) . '/fixtures/upstream-current-pptx-reader';
+        $pptxPath = $fixtureRoot . '/basic.pptx';
+        $nativePath = $fixtureRoot . '/basic.native';
+
+        $t->same('e48fd9c2f8369d1792197e301d5fea676bf6e51097a24af7d85831a6f96dc2dc', hash_file('sha256', $pptxPath));
+        $t->same('42804b9b1954094a4b0ff0be20084e2e6d9bc0a84272f34f7f219f82505da6b4', hash_file('sha256', $nativePath));
+
+        $pptxBytes = file_get_contents($pptxPath);
+        $native = file_get_contents($nativePath);
+        if (!is_string($pptxBytes) || !is_string($native)) {
+            throw new RuntimeException('Unable to read checked-in upstream PPTX reader fixtures');
+        }
+
+        $expected = (new NativeReader())->read($native);
+        $actual = (new PptxReader())->read($pptxBytes);
+        $review = $actual->attr('pptx');
+
+        $t->same(1, $review['upstreamEvidence']['denominator'] ?? null);
+        $t->same(1, $review['upstreamEvidence']['covered'] ?? null);
+        $t->same('612e143fbe6d735b612c4800d21e61b7d44e4dca', $review['upstreamEvidence']['fixtureCommit'] ?? null);
+        $t->same(['test/pptx-reader/basic.pptx', 'test/pptx-reader/basic.native'], $review['upstreamEvidence']['fixtures'] ?? null);
+        $t->same(4, $review['slideCount'] ?? null);
+        $t->same(49, $review['entryCount'] ?? null);
+        $t->same($pandocReaderContentSignature($expected), $pandocReaderContentSignature($actual));
     },
 
     'resolves pptx table style relationship provenance' => static function (TestRunner $t) use ($buildPptxPackage, $nodesOfType): void {
