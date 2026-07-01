@@ -12260,6 +12260,7 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestCentralDirectoryExtraFieldBytes'] = (int) ($zipPackageManifest['centralDirectoryExtraFieldBytes'] ?? 0);
         $summary['zipPackageManifestCentralDirectoryRawCommentBytes'] = (int) ($zipPackageManifest['centralDirectoryRawCommentBytes'] ?? 0);
         $summary['zipPackageManifestCentralDirectoryReviewFieldBytes'] = (int) ($zipPackageManifest['centralDirectoryReviewFieldBytes'] ?? 0);
+        $summary['zipPackageManifestSourceRecordBytes'] = (int) ($zipPackageManifest['sourceRecordBytes'] ?? 0);
         $summary['zipPackageManifestCentralExtraFieldEntryCount'] = (int) ($zipPackageManifest['centralExtraFieldEntryCount'] ?? 0);
         $summary['zipPackageManifestEntryCommentCount'] = (int) ($zipPackageManifest['entryCommentCount'] ?? 0);
         $summary['zipPackageManifestHasCentralDirectoryReviewFields'] = ($zipPackageManifest['hasCentralDirectoryReviewFields'] ?? false) === true;
@@ -13293,6 +13294,7 @@ final class DocxOpenXmlReader
             'storedEntryCount' => 0,
             'deflatedEntryCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
+            'sourceRecordBytes' => 0,
             'maxPathSegmentCount' => 0,
             'maxDirectoryDepth' => 0,
             'deepestEntryNames' => [],
@@ -13482,6 +13484,7 @@ final class DocxOpenXmlReader
             'packageManifestCentralDirectoryExtraFieldBytes' => (int) ($packageManifest['centralDirectoryExtraFieldBytes'] ?? 0),
             'packageManifestCentralDirectoryRawCommentBytes' => (int) ($packageManifest['centralDirectoryRawCommentBytes'] ?? 0),
             'packageManifestCentralDirectoryReviewFieldBytes' => (int) ($packageManifest['centralDirectoryReviewFieldBytes'] ?? 0),
+            'packageManifestSourceRecordBytes' => (int) ($packageManifest['sourceRecordBytes'] ?? 0),
             'packageManifestCentralExtraFieldEntryCount' => (int) ($packageManifest['centralExtraFieldEntryCount'] ?? 0),
             'packageManifestEntryCommentCount' => (int) ($packageManifest['entryCommentCount'] ?? 0),
             'packageManifestHasCentralDirectoryReviewFields' => ($packageManifest['hasCentralDirectoryReviewFields'] ?? false) === true,

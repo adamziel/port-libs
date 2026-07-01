@@ -129,6 +129,7 @@ $aggregateFields = [
     'centralDirectoryExtraFieldBytes' => 'zipPackageManifestCentralDirectoryExtraFieldBytes',
     'centralDirectoryRawCommentBytes' => 'zipPackageManifestCentralDirectoryRawCommentBytes',
     'centralDirectoryReviewFieldBytes' => 'zipPackageManifestCentralDirectoryReviewFieldBytes',
+    'sourceRecordBytes' => 'zipPackageManifestSourceRecordBytes',
     'centralExtraFieldEntryCount' => 'zipPackageManifestCentralExtraFieldEntryCount',
     'entryCommentCount' => 'zipPackageManifestEntryCommentCount',
     'hasPackageComment' => 'zipPackageManifestHasPackageComment',

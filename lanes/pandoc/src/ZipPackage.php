@@ -13743,6 +13743,7 @@ final class ZipPackage
         $centralDirectoryExtraFieldBytes = 0;
         $centralDirectoryRawCommentBytes = 0;
         $centralDirectoryReviewFieldBytes = 0;
+        $sourceRecordBytes = 0;
         $centralExtraFieldEntryCount = 0;
         $entryCommentCount = 0;
         $maxPathSegmentCount = 0;
@@ -14087,6 +14088,8 @@ final class ZipPackage
             if ($entryCentralDirectoryRecordBytes !== null && $entryCentralDirectoryRecordBytes >= 0) {
                 $centralDirectoryRecordBytes += $entryCentralDirectoryRecordBytes;
             }
+            $entrySourceRecordBytes = $localRecordLength + max(0, $entryCentralDirectoryRecordBytes ?? 0);
+            $sourceRecordBytes += $entrySourceRecordBytes;
             $centralDirectoryFixedHeaderBytes += $entryCentralDirectoryFixedHeaderBytes;
             $centralDirectoryVariableFieldBytes += $entryCentralDirectoryVariableFieldBytes;
             $centralDirectoryRawNameBytes += $entryCentralDirectoryRawNameBytes;
@@ -14176,6 +14179,7 @@ final class ZipPackage
                 'centralDirectoryRawCommentBytes' => $entryCentralDirectoryRawCommentBytes,
                 'centralDirectoryRawCommentSha256' => $entryCentralDirectoryRawCommentSha256,
                 'centralDirectoryReviewFieldBytes' => $entryCentralDirectoryReviewFieldBytes,
+                'sourceRecordBytes' => $entrySourceRecordBytes,
             ];
             $entries[] = $summary;
             if ($hasCaseInsensitiveNameCollision) {
@@ -14269,6 +14273,7 @@ final class ZipPackage
                 'centralDirectoryRawCommentBytes' => $summary['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $summary['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $summary['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $summary['sourceRecordBytes'],
             ];
         }
 
@@ -14342,6 +14347,7 @@ final class ZipPackage
             'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
             'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+            'sourceRecordBytes' => $sourceRecordBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
             'maxPathSegmentCount' => $maxPathSegmentCount,
@@ -14449,6 +14455,7 @@ final class ZipPackage
             'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
             'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+            'sourceRecordBytes' => $sourceRecordBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
             'entryCommentCount' => $entryCommentCount,
             'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,

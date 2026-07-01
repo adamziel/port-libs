@@ -889,6 +889,7 @@ return [
                     'centralDirectoryRawCommentBytes' => $manifestEntry['centralDirectoryRawCommentBytes'],
                     'centralDirectoryRawCommentSha256' => hash('sha256', ''),
                     'centralDirectoryReviewFieldBytes' => $manifestEntry['centralDirectoryReviewFieldBytes'],
+                    'sourceRecordBytes' => $manifestEntry['localRecordBytes'] + $centralDirectoryRecordBytes,
                 ];
             }
 
@@ -1096,6 +1097,7 @@ return [
             'centralDirectoryExtraFieldBytes' => 0,
             'centralDirectoryRawCommentBytes' => 0,
             'centralDirectoryReviewFieldBytes' => 0,
+            'sourceRecordBytes' => array_sum(array_column($expectedEntries, 'sourceRecordBytes')),
             'centralExtraFieldEntryCount' => 0,
             'entryCommentCount' => 0,
             'maxPathSegmentCount' => 2,
@@ -1185,6 +1187,7 @@ return [
         $t->same(0, $manifest['centralDirectoryExtraFieldBytes']);
         $t->same(0, $manifest['centralDirectoryRawCommentBytes']);
         $t->same(0, $manifest['centralDirectoryReviewFieldBytes']);
+        $t->same(array_sum(array_column($expectedEntries, 'sourceRecordBytes')), $manifest['sourceRecordBytes']);
         $t->same(0, $manifest['centralExtraFieldEntryCount']);
         $t->same(0, $manifest['entryCommentCount']);
         $t->same(false, $manifest['hasCentralDirectoryReviewFields']);
@@ -1288,6 +1291,7 @@ return [
                 'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $entry['sourceRecordBytes'],
             ],
             $manifest['entries']
         ));
@@ -1822,6 +1826,7 @@ return [
                 'centralDirectoryRawCommentBytes' => $documentEntry['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $documentEntry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $documentEntry['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'],
             ],
             [
                 'name' => 'word/comments.xml',
@@ -1881,6 +1886,7 @@ return [
                 'centralDirectoryRawCommentBytes' => $commentsEntry['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $commentsEntry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $commentsEntry['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $commentsEntry['sourceRecordBytes'],
             ],
         ];
         $expectedCompressionMethodSummaries = [
@@ -2049,6 +2055,7 @@ return [
             'centralDirectoryExtraFieldBytes' => $manifest['centralDirectoryExtraFieldBytes'],
             'centralDirectoryRawCommentBytes' => $manifest['centralDirectoryRawCommentBytes'],
             'centralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'],
+            'sourceRecordBytes' => $manifest['sourceRecordBytes'],
             'centralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'],
             'entryCommentCount' => $manifest['entryCommentCount'],
             'maxPathSegmentCount' => 2,
@@ -2083,6 +2090,10 @@ return [
         $t->same(1, $manifest['dataDescriptorEntryCount']);
         $t->same(16, $manifest['dataDescriptorBytes']);
         $t->same($documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'], $manifest['localRecordBytes']);
+        $t->same(
+            $documentEntry['sourceRecordBytes'] + $commentsEntry['sourceRecordBytes'],
+            $manifest['sourceRecordBytes']
+        );
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
         $t->same(['word/document.xml', 'word/comments.xml'], $manifest['deepestEntryNames']);
@@ -2176,6 +2187,7 @@ return [
                 'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
+                'sourceRecordBytes' => $entry['sourceRecordBytes'],
             ],
             $manifest['entries']
         ));

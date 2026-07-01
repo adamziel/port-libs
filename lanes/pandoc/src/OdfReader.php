@@ -4507,6 +4507,7 @@ final class OdfReader
             'zipPackageManifestCentralDirectoryExtraFieldBytes' => $manifest['centralDirectoryExtraFieldBytes'] ?? 0,
             'zipPackageManifestCentralDirectoryRawCommentBytes' => $manifest['centralDirectoryRawCommentBytes'] ?? 0,
             'zipPackageManifestCentralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'] ?? 0,
+            'zipPackageManifestSourceRecordBytes' => $manifest['sourceRecordBytes'] ?? 0,
             'zipPackageManifestCentralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'] ?? 0,
             'zipPackageManifestEntryCommentCount' => $manifest['entryCommentCount'] ?? 0,
             'zipPackageManifestHasPackageComment' => ($manifest['hasPackageComment'] ?? false) === true,
