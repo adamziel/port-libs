@@ -1425,10 +1425,13 @@ return [
         $t->same(2, $summary['entryCount']);
         $t->same(2, $summary['totalEntryCount']);
         $t->same(strlen($zip), $summary['archiveLength']);
+        $t->same(hash('sha256', $zip), $summary['archiveSha256']);
         $t->same(0, $summary['prefixByteCount']);
         $t->same(false, $summary['hasPackagePrefix']);
+        $t->same(null, $summary['prefixSha256']);
         $t->same(0, $summary['localRegionOffset']);
         $t->same($localRegionBytes, $summary['localRegionBytes']);
+        $t->same(hash('sha256', substr($zip, 0, $localRegionBytes)), $summary['localRegionSha256']);
         $t->same(60, $summary['localHeaderFixedBytes']);
         $t->same(strlen($documentName) + strlen($mediaName), $summary['localHeaderVariableFieldBytes']);
         $t->same($localHeaderBytes, $summary['localHeaderBytes']);
@@ -1441,6 +1444,10 @@ return [
         $t->same(1, $summary['interEntryGapCount']);
         $t->same($localRegionBytes, $summary['centralDirectoryOffset']);
         $t->same($centralDirectoryBytes, $summary['centralDirectoryBytes']);
+        $t->same(
+            hash('sha256', substr($zip, $localRegionBytes, $centralDirectoryBytes)),
+            $summary['centralDirectorySha256']
+        );
         $t->same($localRegionBytes + $centralDirectoryBytes, $summary['centralDirectoryEnd']);
         $t->same($summary['centralDirectoryEnd'], $summary['eocdOffset']);
         $t->same(null, $summary['centralDirectoryToEocdGapOffset']);
@@ -1448,17 +1455,25 @@ return [
         $t->same(null, $summary['centralDirectoryToEocdGapSignature']);
         $t->same('', $summary['centralDirectoryToEocdGapPreviewHex']);
         $t->same(0, $summary['centralDirectoryToEocdGapPreviewByteCount']);
+        $t->same(null, $summary['centralDirectoryToEocdGapSha256']);
         $t->same(false, $summary['isCentralDirectoryToEocdGapExplainedBySignature']);
         $t->same(22, $summary['eocdFixedHeaderBytes']);
+        $t->same(hash('sha256', substr($zip, $summary['eocdOffset'], 22)), $summary['eocdFixedHeaderSha256']);
         $t->same($summary['eocdOffset'] + 22, $summary['packageCommentOffset']);
         $t->same(strlen($packageComment), $summary['packageCommentBytes']);
         $t->same(strlen($zip), $summary['packageCommentEnd']);
         $t->same(bin2hex(substr($packageComment, 0, 16)), $summary['packageCommentPreviewHex']);
         $t->same(16, $summary['packageCommentPreviewByteCount']);
+        $t->same(hash('sha256', $packageComment), $summary['packageCommentSha256']);
         $t->same(true, $summary['hasPackageComment']);
         $t->same(22 + strlen($packageComment), $summary['endOfCentralDirectoryBytes']);
+        $t->same(
+            hash('sha256', substr($zip, $summary['eocdOffset'], 22 + strlen($packageComment))),
+            $summary['endOfCentralDirectorySha256']
+        );
         $t->same(strlen($zip), $summary['declaredArchiveEndOffset']);
         $t->same(0, $summary['trailingByteCount']);
+        $t->same(null, $summary['trailingBytesSha256']);
         $t->same(strlen($zip), $summary['accountedArchiveBytes']);
         $t->same(0, $summary['unaccountedArchiveBytes']);
         $t->same(false, $summary['isLocalRegionContiguous']);
@@ -1506,6 +1521,8 @@ return [
         $t->same($safeSummary['packageCommentOffset'], $safeSummary['packageCommentEnd']);
         $t->same('', $safeSummary['packageCommentPreviewHex']);
         $t->same(0, $safeSummary['packageCommentPreviewByteCount']);
+        $t->same(null, $safeSummary['packageCommentSha256']);
+        $t->same(hash('sha256', substr($safeZip, $safeSummary['eocdOffset'], 22)), $safeSummary['endOfCentralDirectorySha256']);
         $t->same(false, $safeSummary['hasPackageComment']);
         $t->same([], $safeSummary['issues']);
         $t->same($safeSummary, $safeRaw['packageByteLayout']);
@@ -1540,8 +1557,13 @@ return [
         $t->same(strlen($zip), $summary['packageCommentEnd']);
         $t->same(bin2hex(substr($packageComment, 0, 16)), $summary['packageCommentPreviewHex']);
         $t->same(16, $summary['packageCommentPreviewByteCount']);
+        $t->same(hash('sha256', $packageComment), $summary['packageCommentSha256']);
         $t->same(true, $summary['hasPackageComment']);
         $t->same(22 + strlen($packageComment), $summary['endOfCentralDirectoryBytes']);
+        $t->same(
+            hash('sha256', substr($zip, $summary['eocdOffset'], 22 + strlen($packageComment))),
+            $summary['endOfCentralDirectorySha256']
+        );
         $t->same(strlen($zip), $summary['declaredArchiveEndOffset']);
         $t->same(0, $summary['trailingByteCount']);
         $t->same(true, $summary['isSupportedByBoundedReader']);
@@ -5131,6 +5153,7 @@ return [
         $prefix = "MZhidden-review-stub\n";
         $archive = ZipPackage::endOfCentralDirectoryPreflight($zip);
         $summary = ZipPackage::packagePrefixPreflight($zip);
+        $layout = ZipPackage::packageByteLayoutPreflight($zip);
         $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 512, 20.0, 512);
 
         $t->same(1, $summary['entryCount']);
@@ -5149,11 +5172,19 @@ return [
         $t->same(true, $summary['isPackageLayoutOtherwiseContiguous']);
         $t->same(false, $summary['isSupportedByBoundedReader']);
         $t->same(['package-prefix-bytes', 'package-prefix-mz-executable-stub'], $summary['issues']);
+        $t->same(true, $layout['hasPackagePrefix']);
+        $t->same(strlen($prefix), $layout['prefixByteCount']);
+        $t->same(hash('sha256', $prefix), $layout['prefixSha256']);
+        $t->same(
+            hash('sha256', substr($zip, strlen($prefix), $layout['localRegionBytes'])),
+            $layout['localRegionSha256']
+        );
 
         $t->same(false, $rawStrict['isValid']);
         $t->same(false, $rawStrict['canInstantiate']);
         $t->same(1, $rawStrict['entryCount']);
         $t->same($summary, $rawStrict['packagePrefix']);
+        $t->same($layout, $rawStrict['packageByteLayout']);
         $t->same(1, $rawStrict['localHeaderSpans']['entryCount']);
         $t->same(0, $rawStrict['localHeaderSpans']['issueEntryCount']);
         $t->same(['local-header-prefix-bytes'], $rawStrict['localHeaderSpans']['issues']);
@@ -5211,8 +5242,10 @@ return [
     },
 
     'preflights zip central directory digital signatures before package import handoff' => static function (TestRunner $t) use ($buildCentralDirectorySignaturePackage): void {
-        $package = ZipPackage::fromString($buildCentralDirectorySignaturePackage());
+        $signedZip = $buildCentralDirectorySignaturePackage();
+        $package = ZipPackage::fromString($signedZip);
         $signature = $package->centralDirectorySignaturePreflight();
+        $layout = ZipPackage::packageByteLayoutPreflight($signedZip);
 
         $t->true($package->hasCentralDirectorySignature());
         $t->same('central-signature', $package->centralDirectorySignature());
@@ -5222,6 +5255,14 @@ return [
         $t->same(strlen('central-signature'), $signature['signatureLength']);
         $t->same(hash('sha256', 'central-signature'), $signature['signatureSha256']);
         $t->same('not-performed-native-bounded-reader', $signature['cryptographicVerification']);
+        $t->same(strlen('central-signature') + 6, $layout['centralDirectoryToEocdGapBytes']);
+        $t->same(
+            hash(
+                'sha256',
+                substr($signedZip, (int) $layout['centralDirectoryToEocdGapOffset'], $layout['centralDirectoryToEocdGapBytes'])
+            ),
+            $layout['centralDirectoryToEocdGapSha256']
+        );
         $t->same('<w:document><w:body><w:p>digitally signed central directory</w:p></w:body></w:document>', $package->read('/word/document.xml'));
 
         $includedSizePackage = ZipPackage::fromString($buildCentralDirectorySignaturePackage(true));

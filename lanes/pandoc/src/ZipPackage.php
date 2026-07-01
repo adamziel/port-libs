@@ -1731,10 +1731,13 @@ final class ZipPackage
      *     entryCount:int,
      *     totalEntryCount:int,
      *     archiveLength:int,
+     *     archiveSha256:string,
      *     prefixByteCount:int,
      *     hasPackagePrefix:bool,
+     *     prefixSha256:?string,
      *     localRegionOffset:int,
      *     localRegionBytes:int,
+     *     localRegionSha256:string,
      *     localHeaderFixedBytes:int,
      *     localHeaderVariableFieldBytes:int,
      *     localHeaderBytes:int,
@@ -1747,6 +1750,7 @@ final class ZipPackage
      *     interEntryGapCount:int,
      *     centralDirectoryOffset:int,
      *     centralDirectoryBytes:int,
+     *     centralDirectorySha256:string,
      *     centralDirectoryEnd:int,
      *     eocdOffset:int,
      *     centralDirectoryToEocdGapOffset:?int,
@@ -1754,17 +1758,22 @@ final class ZipPackage
      *     centralDirectoryToEocdGapSignature:?string,
      *     centralDirectoryToEocdGapPreviewHex:string,
      *     centralDirectoryToEocdGapPreviewByteCount:int,
+     *     centralDirectoryToEocdGapSha256:?string,
      *     isCentralDirectoryToEocdGapExplainedBySignature:bool,
      *     eocdFixedHeaderBytes:int,
+     *     eocdFixedHeaderSha256:string,
      *     packageCommentOffset:int,
      *     packageCommentBytes:int,
      *     packageCommentEnd:int,
      *     packageCommentPreviewHex:string,
      *     packageCommentPreviewByteCount:int,
+     *     packageCommentSha256:?string,
      *     hasPackageComment:bool,
      *     endOfCentralDirectoryBytes:int,
+     *     endOfCentralDirectorySha256:string,
      *     declaredArchiveEndOffset:int,
      *     trailingByteCount:int,
+     *     trailingBytesSha256:?string,
      *     accountedArchiveBytes:int,
      *     unaccountedArchiveBytes:int,
      *     isLocalRegionContiguous:bool,
@@ -1885,6 +1894,32 @@ final class ZipPackage
             + $trailingByteCount;
         $unaccountedArchiveBytes = $archiveLength - $accountedArchiveBytes;
         $issues = $localHeaderSpans['issues'];
+        $archiveSha256 = hash('sha256', $bytes);
+        $prefixSha256 = $prefixByteCount > 0
+            ? hash('sha256', substr($bytes, 0, $prefixByteCount))
+            : null;
+        $localRegionSha256 = hash('sha256', substr($bytes, $prefixByteCount, $localRegionBytes));
+        $centralDirectorySha256 = hash(
+            'sha256',
+            substr($bytes, $archive['centralDirectoryOffset'], $archive['centralDirectorySize'])
+        );
+        $centralDirectoryToEocdGapSha256 = $centralDirectoryToEocdGapBytes > 0
+            ? hash(
+                'sha256',
+                substr($bytes, (int) $centralDirectoryToEocdGapOffset, $centralDirectoryToEocdGapBytes)
+            )
+            : null;
+        $eocdFixedHeaderSha256 = hash('sha256', substr($bytes, $archive['eocdOffset'], $eocdFixedHeaderBytes));
+        $packageCommentSha256 = $packageCommentBytes > 0
+            ? hash('sha256', substr($bytes, $packageCommentOffset, $packageCommentBytes))
+            : null;
+        $endOfCentralDirectorySha256 = hash(
+            'sha256',
+            substr($bytes, $archive['eocdOffset'], $endOfCentralDirectoryBytes)
+        );
+        $trailingBytesSha256 = $trailingByteCount > 0
+            ? hash('sha256', substr($bytes, $declaredArchiveEndOffset, $trailingByteCount))
+            : null;
 
         if ($prefixByteCount > 0) {
             $issues[] = 'package-prefix-bytes';
@@ -1905,10 +1940,13 @@ final class ZipPackage
             'entryCount' => count($entries),
             'totalEntryCount' => $archive['totalEntryCount'],
             'archiveLength' => $archiveLength,
+            'archiveSha256' => $archiveSha256,
             'prefixByteCount' => $prefixByteCount,
             'hasPackagePrefix' => $prefixByteCount > 0,
+            'prefixSha256' => $prefixSha256,
             'localRegionOffset' => $prefixByteCount,
             'localRegionBytes' => $localRegionBytes,
+            'localRegionSha256' => $localRegionSha256,
             'localHeaderFixedBytes' => $localHeaderBytes - $localHeaderVariableFieldBytes,
             'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
             'localHeaderBytes' => $localHeaderBytes,
@@ -1921,6 +1959,7 @@ final class ZipPackage
             'interEntryGapCount' => $interEntryGapCount,
             'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
             'centralDirectoryBytes' => $archive['centralDirectorySize'],
+            'centralDirectorySha256' => $centralDirectorySha256,
             'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
             'eocdOffset' => $archive['eocdOffset'],
             'centralDirectoryToEocdGapOffset' => $centralDirectoryToEocdGapOffset,
@@ -1928,17 +1967,22 @@ final class ZipPackage
             'centralDirectoryToEocdGapSignature' => $centralDirectoryToEocdGapSignature,
             'centralDirectoryToEocdGapPreviewHex' => $centralDirectoryToEocdGapPreviewHex,
             'centralDirectoryToEocdGapPreviewByteCount' => $centralDirectoryToEocdGapPreviewByteCount,
+            'centralDirectoryToEocdGapSha256' => $centralDirectoryToEocdGapSha256,
             'isCentralDirectoryToEocdGapExplainedBySignature' => $isCentralDirectoryToEocdGapExplainedBySignature,
             'eocdFixedHeaderBytes' => $eocdFixedHeaderBytes,
+            'eocdFixedHeaderSha256' => $eocdFixedHeaderSha256,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentEnd' => $packageCommentOffset + $packageCommentBytes,
             'packageCommentPreviewHex' => $packageCommentPreviewHex,
             'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'packageCommentSha256' => $packageCommentSha256,
             'hasPackageComment' => $packageCommentBytes > 0,
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
             'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
             'trailingByteCount' => $trailingByteCount,
+            'trailingBytesSha256' => $trailingBytesSha256,
             'accountedArchiveBytes' => $accountedArchiveBytes,
             'unaccountedArchiveBytes' => $unaccountedArchiveBytes,
             'isLocalRegionContiguous' => $localHeaderSpans['issueEntryCount'] === 0
