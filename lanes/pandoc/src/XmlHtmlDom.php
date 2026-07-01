@@ -17813,7 +17813,8 @@ final class XmlHtmlDom
     private static function rubySummary(\DOMElement $element, string $name): array
     {
         if ($name === 'ruby') {
-            $baseTexts = self::rubyBaseTexts($element);
+            $baseRecords = self::rubyBaseRecords($element);
+            $baseTexts = self::rubyBaseTextsFromRecords($baseRecords);
             $annotations = self::rubyAnnotationSummaries($element);
             $fallbackTexts = self::rubyFallbackTexts($element);
 
@@ -17821,7 +17822,14 @@ final class XmlHtmlDom
                 'ruby' => 'ruby',
                 'rubyText' => self::normalizedText($element),
                 'rubyBaseTexts' => $baseTexts,
+                'rubyBaseRecords' => $baseRecords,
                 'rubyBaseCount' => count($baseTexts),
+                'rubyBaseRecordCount' => count($baseRecords),
+                'rubyImplicitBaseTexts' => self::rubyImplicitBaseTexts($baseRecords),
+                'rubyImplicitBaseCount' => count(array_filter(
+                    $baseRecords,
+                    static fn (array $base): bool => ($base['source'] ?? null) === 'implicit-element'
+                )),
                 'rubyAnnotationTexts' => array_values(array_map(
                     static fn (array $annotation): string => (string) $annotation['text'],
                     $annotations
@@ -17830,7 +17838,7 @@ final class XmlHtmlDom
                 'rubyAnnotationCount' => count($annotations),
                 'rubyFallbackTexts' => $fallbackTexts,
                 'rubyFallbackCount' => count($fallbackTexts),
-            ];
+            ] + self::rubyStructureReviewSummary($baseRecords, $annotations);
         }
 
         if ($name === 'rb') {
@@ -17867,32 +17875,122 @@ final class XmlHtmlDom
     }
 
     /**
-     * @return list<string>
+     * @return list<array{source:string, tag:?string, text:string}>
      */
-    private static function rubyBaseTexts(\DOMElement $ruby): array
+    private static function rubyBaseRecords(\DOMElement $ruby): array
     {
-        $baseTexts = [];
+        $records = [];
         foreach ($ruby->childNodes as $child) {
             if ($child instanceof \DOMText) {
                 $text = preg_replace('/[ \t\r\n\f]+/u', ' ', $child->nodeValue ?? '') ?? ($child->nodeValue ?? '');
                 $text = trim($text);
                 if ($text !== '') {
-                    $baseTexts[] = $text;
+                    $records[] = [
+                        'source' => 'text',
+                        'tag' => null,
+                        'text' => $text,
+                    ];
                 }
                 continue;
             }
 
-            if (!$child instanceof \DOMElement || self::htmlElementName($child) !== 'rb') {
+            if (!$child instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = self::htmlElementName($child);
+            if (in_array($name, ['rp', 'rt', 'rtc'], true)) {
                 continue;
             }
 
             $text = self::normalizedText($child);
-            if ($text !== '') {
-                $baseTexts[] = $text;
+            $records[] = [
+                'source' => $name === 'rb' ? 'rb' : 'implicit-element',
+                'tag' => $name,
+                'text' => $text,
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array{source:string, tag:?string, text:string}> $records
+     * @return list<string>
+     */
+    private static function rubyBaseTextsFromRecords(array $records): array
+    {
+        return array_values(array_map(
+            static fn (array $record): string => (string) $record['text'],
+            array_filter($records, static fn (array $record): bool => (string) $record['text'] !== '')
+        ));
+    }
+
+    /**
+     * @param list<array{source:string, tag:?string, text:string}> $records
+     * @return list<string>
+     */
+    private static function rubyImplicitBaseTexts(array $records): array
+    {
+        return array_values(array_map(
+            static fn (array $record): string => (string) $record['text'],
+            array_filter(
+                $records,
+                static fn (array $record): bool => ($record['source'] ?? null) === 'implicit-element'
+                    && (string) $record['text'] !== ''
+            )
+        ));
+    }
+
+    /**
+     * @param list<array{source:string, tag:?string, text:string}> $baseRecords
+     * @param list<array{container:string|null, text:string}> $annotations
+     * @return array<string, mixed>
+     */
+    private static function rubyStructureReviewSummary(array $baseRecords, array $annotations): array
+    {
+        $issues = [];
+        if ($baseRecords === []) {
+            $issues[] = ['code' => 'missing-ruby-base'];
+        }
+
+        foreach ($baseRecords as $index => $base) {
+            if ((string) $base['text'] === '') {
+                $issues[] = [
+                    'code' => 'empty-ruby-base',
+                    'index' => $index,
+                    'source' => $base['source'],
+                    'tag' => $base['tag'],
+                ];
             }
         }
 
-        return $baseTexts;
+        if ($annotations === []) {
+            $issues[] = ['code' => 'missing-ruby-annotation'];
+        }
+
+        foreach ($annotations as $index => $annotation) {
+            if ((string) $annotation['text'] === '') {
+                $issues[] = [
+                    'code' => 'empty-ruby-annotation',
+                    'index' => $index,
+                    'container' => $annotation['container'],
+                ];
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) $issue['code'],
+            $issues
+        )));
+
+        return [
+            'rubyStructureReviewPolicy' => 'html-ruby-annotation-structure-review',
+            'rubyStructureValid' => $issues === [],
+            'rubyIssueCodes' => $issueCodes,
+            'rubyIssueCount' => count($issues),
+            'rubyIssues' => $issues,
+        ];
     }
 
     /**
