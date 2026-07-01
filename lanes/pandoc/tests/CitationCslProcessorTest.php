@@ -21940,9 +21940,10 @@ XML);
             'id' => 'direct-issue-title',
             'title' => 'Direct Issue Source',
             'issue-title' => 'Direct Special Issue',
+            'issue-subtitle' => 'Direct Audit Week',
             'issue-title-addon' => 'Direct supplement',
         ]])->item('direct-issue-title');
-        $t->same('Direct Special Issue', $direct['issueTitle'] ?? null);
+        $t->same('Direct Special Issue: Direct Audit Week', $direct['issueTitle'] ?? null);
         $t->same('Direct supplement', $direct['issueTitleAddon'] ?? null);
 
         $document = (new MarkdownReader())->read('Special issue @special-issue-source and archive issue [@plain-issue-source] keep imported issue titles visible.');
