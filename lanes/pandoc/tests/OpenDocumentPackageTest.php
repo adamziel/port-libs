@@ -1512,6 +1512,110 @@ XML;
         $t->same('Pictures/source hero.png', $inventoryPart['manifestPackagePath']);
         $t->same('image/png', $inventoryPart['manifestMediaType']);
     },
+    'preflights compact ODT manifest and package path shapes without exposing bytes' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $audioBytes = 'OGGDATA';
+        $payloadBytes = 'PAYLOAD';
+        $privateBytes = 'PRIVATE';
+        $manifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>'
+            . '<manifest:file-entry manifest:media-type="" manifest:full-path="Pictures/"/>'
+            . '<manifest:file-entry manifest:media-type="audio/ogg" manifest:full-path="Media/source%20audio.ogg" manifest:size="' . strlen($audioBytes) . '"/>'
+            . '<manifest:file-entry manifest:media-type="application/octet-stream" manifest:full-path="Payloads/review.bin" manifest:size="' . strlen($payloadBytes) . '"/>',
+            $manifestXml
+        );
+
+        $summary = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/', 'data' => '', 'compressionMethod' => 0],
+                ['name' => 'Media/source audio.ogg', 'data' => $audioBytes, 'compressionMethod' => 0],
+                ['name' => 'Payloads/review.bin', 'data' => $payloadBytes, 'compressionMethod' => 0],
+                ['name' => 'Notes/private.txt', 'data' => $privateBytes, 'compressionMethod' => 0],
+            ],
+        ))->summarize();
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
+        $reviewByPath = [];
+        foreach ($review['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $mediaByPath = [];
+        foreach ($summary['mediaParts'] as $item) {
+            $mediaByPath[$item['path']] = $item;
+        }
+
+        $t->same([
+            'directory' => 1,
+            'file' => 6,
+            'root' => 1,
+        ], $review['manifestPathKindCounts']);
+        $t->same([
+            'Media' => 1,
+            'Payloads' => 1,
+            'Pictures' => 2,
+            'content.xml' => 1,
+            'meta.xml' => 1,
+            'styles.xml' => 1,
+        ], $review['manifestTopLevelSegmentCounts']);
+        $t->same([
+            'bin' => 1,
+            'ogg' => 1,
+            'png' => 1,
+            'xml' => 3,
+        ], $review['manifestPathExtensionCounts']);
+
+        $t->same('root', $reviewByPath['/']['pathShape']['kind']);
+        $t->same('file', $reviewByPath['Pictures/hero.png']['pathShape']['kind']);
+        $t->same('Pictures', $reviewByPath['Pictures/hero.png']['pathShape']['topLevelSegment']);
+        $t->same('Pictures/', $reviewByPath['Pictures/hero.png']['pathShape']['directory']);
+        $t->same('hero.png', $reviewByPath['Pictures/hero.png']['pathShape']['basename']);
+        $t->same('png', $reviewByPath['Pictures/hero.png']['pathShape']['extension']);
+        $t->same(['Pictures', 'hero.png'], $reviewByPath['Pictures/hero.png']['pathShape']['segments']);
+        $t->same(2, $reviewByPath['Pictures/hero.png']['pathShape']['segmentCount']);
+        $t->same(1, $reviewByPath['Pictures/hero.png']['pathShape']['directorySegmentCount']);
+        $t->same('directory', $reviewByPath['Pictures/']['pathShape']['kind']);
+        $t->same('Pictures/', $reviewByPath['Pictures/']['pathShape']['directory']);
+        $t->same(1, $reviewByPath['Pictures/']['pathShape']['directorySegmentCount']);
+        $t->same('source%20audio.ogg', $reviewByPath['Media/source%20audio.ogg']['pathShape']['basename']);
+        $t->same('source audio.ogg', $reviewByPath['Media/source%20audio.ogg']['packagePathShape']['basename']);
+        $t->same('source audio.ogg', $mediaByPath['Media/source%20audio.ogg']['packagePathShape']['basename']);
+        $t->same('file', $review['manifestFileEntryOrder'][6]['pathShape']['kind']);
+        $t->same('source audio.ogg', $review['manifestPathShapeItems'][6]['packagePathShape']['basename']);
+
+        $t->same([
+            'directory' => 1,
+            'file' => 9,
+        ], $inventory['packagePathKindCounts']);
+        $t->same([
+            'META-INF' => 1,
+            'Media' => 1,
+            'Notes' => 1,
+            'Payloads' => 1,
+            'Pictures' => 2,
+            'content.xml' => 1,
+            'meta.xml' => 1,
+            'mimetype' => 1,
+            'styles.xml' => 1,
+        ], $inventory['packageTopLevelSegmentCounts']);
+        $t->same([
+            'bin' => 1,
+            'ogg' => 1,
+            'png' => 1,
+            'txt' => 1,
+            'xml' => 4,
+        ], $inventory['packagePathExtensionCounts']);
+        $t->same('private.txt', $inventory['parts']['Notes/private.txt']['pathShape']['basename']);
+        $t->same('file', $identity['manifestEntries'][6]['pathShape']['kind']);
+        $t->same('source audio.ogg', $identity['manifestEntries'][6]['packagePathShape']['basename']);
+        $t->same('private.txt', $identity['packageEntries'][9]['pathShape']['basename']);
+        $t->same($inventory['packagePathKindCounts'], $identity['packagePathKindCounts']);
+        $t->same($inventory['packageTopLevelSegmentCounts'], $identity['packageTopLevelSegmentCounts']);
+        $t->same($inventory['packagePathExtensionCounts'], $identity['packagePathExtensionCounts']);
+        $t->same('undeclared-package-entry-no-bytes', $inventory['parts']['Notes/private.txt']['byteExposurePolicy']);
+        $t->same(null, $inventory['parts']['Notes/private.txt']['byteSha256']);
+    },
     'preserves compact ODT raw ZIP entry name provenance in package inventory' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $manifestXml, $contentXml, $stylesXml, $metaXml): void {
         $decodedName = "Pictures/caf\xc3\xa9.png";
         $rawName = "Pictures/caf\x82.png";
