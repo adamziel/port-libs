@@ -260,8 +260,14 @@ final class PptxWriter
                 continue;
             }
 
+            if ($this->isImageOnlyBlock($block) && $current !== null && $this->isImageOnlySlide($current)) {
+                $slides[] = $current;
+                $current = null;
+            }
             if ($current === null) {
-                $current = $this->newSlide((string) $metadata['title']);
+                $current = $this->isImageOnlyBlock($block)
+                    ? $this->newSlide('', null, [])
+                    : $this->newSlide((string) $metadata['title']);
                 if ($pendingMetadataNotes !== []) {
                     array_push($current['notes'], ...$pendingMetadataNotes);
                     $pendingMetadataNotes = [];
@@ -294,6 +300,36 @@ final class PptxWriter
             'notes' => [],
             'backgroundImage' => $backgroundImage,
         ];
+    }
+
+    private function isImageOnlySlide(array $slide): bool
+    {
+        return $slide['titleInlines'] === []
+            && count($slide['blocks']) === 1
+            && $this->isImageOnlyBlock($slide['blocks'][0]);
+    }
+
+    private function isImageOnlyBlock(AstNode $block): bool
+    {
+        if ($block->type === 'image') {
+            return true;
+        }
+        if ($block->type !== 'plain' && $block->type !== 'paragraph') {
+            return false;
+        }
+
+        $imageCount = 0;
+        foreach ($block->children as $child) {
+            if ($child->type === 'image') {
+                $imageCount++;
+                continue;
+            }
+            if ($this->blockText($child) !== '') {
+                return false;
+            }
+        }
+
+        return $imageCount > 0;
     }
 
     /**
@@ -428,8 +464,9 @@ final class PptxWriter
         $shapeId = 2;
         $slot = 0;
         $backgroundXml = $this->slideBackgroundXml($slide['backgroundImage'], $relationships);
-        $shapes = [
-            $this->textShapeXml(
+        $shapes = [];
+        if ($slide['titleInlines'] !== []) {
+            $shapes[] = $this->textShapeXml(
                 $shapeId++,
                 'Title ' . $slideNumber,
                 [$this->paragraphXml($slide['titleInlines'], [], $relationships)],
@@ -438,8 +475,8 @@ final class PptxWriter
                 10820400,
                 914400,
                 'title'
-            ),
-        ];
+            );
+        }
 
         foreach ($slide['blocks'] as $block) {
             foreach ($this->blockShapes($block, $shapeId, $slot, $relationships) as $shapeXml) {
@@ -524,9 +561,19 @@ final class PptxWriter
             $nonImageInlines = [];
             foreach ($block->children as $child) {
                 if ($child->type === 'image') {
-                    $picture = $this->pictureShapeXml($child, $shapeId++, $slot++, $relationships);
+                    $imageSlot = $slot++;
+                    $picture = $this->pictureShapeXml($child, $shapeId++, $imageSlot, $relationships);
                     if ($picture !== null) {
                         $shapes[] = $picture;
+                        $caption = $this->figureCaption($child);
+                        if ($caption !== '') {
+                            $shapes[] = $this->textShapeXml(
+                                $shapeId++,
+                                'Caption',
+                                [$this->paragraphXml($this->textInlines($caption), [], $relationships)],
+                                ...$this->captionRect($imageSlot)
+                            );
+                        }
                     } else {
                         $fallback = $this->imageFallbackText($child);
                         if ($fallback !== '') {
@@ -551,7 +598,22 @@ final class PptxWriter
         }
 
         if ($block->type === 'image') {
-            $picture = $this->pictureShapeXml($block, $shapeId++, $slot++, $relationships);
+            $imageSlot = $slot++;
+            $picture = $this->pictureShapeXml($block, $shapeId++, $imageSlot, $relationships);
+            if ($picture !== null) {
+                $caption = $this->figureCaption($block);
+                if ($caption !== '') {
+                    return [
+                        $picture,
+                        $this->textShapeXml(
+                            $shapeId++,
+                            'Caption',
+                            [$this->paragraphXml($this->textInlines($caption), [], $relationships)],
+                            ...$this->captionRect($imageSlot)
+                        ),
+                    ];
+                }
+            }
 
             return $picture === null ? [] : [$picture];
         }
@@ -578,6 +640,16 @@ final class PptxWriter
         $height = max(609600, min(1219200, self::SLIDE_HEIGHT_EMU - $y - 304800));
 
         return [914400, $y, 10363200, $height];
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int,3:int}
+     */
+    private function captionRect(int $slot): array
+    {
+        [$x, $y, $cx, $cy] = $this->bodyRect($slot);
+
+        return [$x, $y + min($cy, 1371600) + 152400, $cx, 457200];
     }
 
     /**
@@ -934,7 +1006,7 @@ final class PptxWriter
         $cy = min($cy, 1371600);
         $alt = (string) $image->attr('alt', $this->inlineText($image->children));
         $name = (string) $image->attr('title', '');
-        if ($name === '') {
+        if ($name === '' || str_starts_with($name, 'fig:')) {
             $name = $alt !== '' ? $alt : basename((string) $media['name']);
         }
 
@@ -943,6 +1015,16 @@ final class PptxWriter
             . '      <p:blipFill><a:blip r:embed="' . $this->xml((string) $media['relationshipId']) . '"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>' . "\n"
             . '      <p:spPr><a:xfrm><a:off x="' . $x . '" y="' . $y . '"/><a:ext cx="' . $cx . '" cy="' . $cy . '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>' . "\n"
             . '    </p:pic>';
+    }
+
+    private function figureCaption(AstNode $image): string
+    {
+        $title = (string) $image->attr('title', '');
+        if (!str_starts_with($title, 'fig:')) {
+            return '';
+        }
+
+        return $this->imageFallbackText($image);
     }
 
     /**

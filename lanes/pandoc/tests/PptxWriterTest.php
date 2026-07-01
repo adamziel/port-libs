@@ -153,6 +153,14 @@ $upstreamRemoveEmptySlidesNative = <<<'NATIVE'
 ,Para [Str "More",Space,Str "content"]]
 NATIVE;
 
+$upstreamImagesNative = <<<'NATIVE'
+Pandoc (Meta {unMeta = fromList []})
+[Para [Image ("",[],[]) [] ("lalune.jpg","")]
+,Para [Image ("",[],[]) [Str "The",Space,Str "Moon"] ("lalune.jpg","fig:")]
+,Header 1 ("one-more",[],[]) [Str "One",Space,Str "More"]
+,Para [Image ("",[],[]) [Str "The",Space,Str "Moon"] ("lalune.jpg","fig:")]]
+NATIVE;
+
 $upstreamSlideLevelZeroNative = <<<'NATIVE'
 [Header 1 ("hello",[],[]) [Str "Hello"]
 ,Para [Image ("",[],[]) [Str "An",Space,Str "image"] ("lalune.jpg","fig:")]]
@@ -558,6 +566,46 @@ return [
         $slide2Text = trim(preg_replace('/\s+/u', ' ', strip_tags($package->read('ppt/slides/slide2.xml'))) ?? '');
         $t->contains('More content', $slide2Text);
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream image-only and figure-caption slides' => static function (TestRunner $t) use ($upstreamImagesNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamImagesNative);
+        $imageOptions = array_replace($mediaOptions, [
+            'mediaResources' => [
+                'lalune.jpg' => ['data' => "\xff\xd8moon", 'mimeType' => 'image/jpeg'],
+            ],
+        ]);
+        $package = ZipPackage::fromString((new PptxWriter($imageOptions))->write($document));
+        $names = $package->names();
+
+        foreach ([
+            'ppt/slides/slide1.xml',
+            'ppt/slides/slide2.xml',
+            'ppt/slides/slide3.xml',
+            'ppt/media/image1.jpg',
+        ] as $partName) {
+            $t->true(in_array($partName, $names, true), "Missing upstream images fixture part {$partName}");
+        }
+        $t->true(!in_array('ppt/slides/slide4.xml', $names, true), 'Images fixture should produce exactly three slides');
+        $t->true(!in_array('ppt/media/image2.jpg', $names, true), 'Repeated fixture image should reuse one media part');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<p:pic>', $slide1);
+        $t->true(!str_contains($slide1, 'type="title"'), 'Pre-heading image-only slide must not inherit the first heading title');
+        $t->true(!str_contains($slide1, '<a:t>One More</a:t>'), 'First image-only slide must not render the later heading title');
+        $t->true(!str_contains($slide1, '<a:t>The Moon</a:t>'), 'Empty-alt image must not create a visible caption');
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $t->contains('<p:pic>', $slide2);
+        $t->contains('<a:t>The Moon</a:t>', $slide2);
+        $t->true(!str_contains($slide2, 'type="title"'), 'Pre-heading figure slide must stay titleless');
+        $t->true(!str_contains($slide2, '<a:t>One More</a:t>'), 'Figure slide must not render the later heading title');
+
+        $slide3 = $package->read('ppt/slides/slide3.xml');
+        $t->contains('<a:t>One More</a:t>', $slide3);
+        $t->contains('<p:pic>', $slide3);
+        $t->contains('<a:t>The Moon</a:t>', $slide3);
+        $t->contains('<Slides>3</Slides>', $package->read('docProps/app.xml'));
     },
 
     'uses the first heading as the slide title when slide level is zero' => static function (TestRunner $t) use ($upstreamSlideLevelZeroNative, $mediaOptions): void {
