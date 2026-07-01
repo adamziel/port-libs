@@ -824,6 +824,104 @@ final class PandocFormatRegistry
     /**
      * @return array<string, mixed>
      */
+    public static function wikiUnsupportedTaxonomyMatrix(): array
+    {
+        $registry = self::wikiFormatRegistry();
+        $readerUnsupportedReasonPayloads = [];
+        $writerUnsupportedReasonPayloads = [];
+        $emptyNativeImplementationRecords = [
+            'readers' => [],
+            'writers' => [],
+        ];
+        $nativeImplementationRecords = [
+            'readers' => [],
+            'writers' => [],
+        ];
+        $extensionAliasesByFormat = [];
+        $formats = [];
+
+        foreach (self::WIKI_EXTENSION_INFERENCE as $extension => $format) {
+            $extensionAliasesByFormat[$format][] = $extension;
+        }
+
+        foreach ($registry as $format => $entry) {
+            $reader = self::wikiTaxonomyDirection(
+                $format,
+                'reader',
+                (bool) in_array($format, self::WIKI_INPUT_FORMATS, true),
+                $entry['input'],
+            );
+            $writer = self::wikiTaxonomyDirection(
+                $format,
+                'writer',
+                (bool) in_array($format, self::WIKI_OUTPUT_FORMATS, true),
+                $entry['output'],
+            );
+
+            if ($reader['unsupported']) {
+                $readerUnsupportedReasonPayloads[$format] = $reader['unsupportedReason'];
+            }
+            if ($writer['unsupported']) {
+                $writerUnsupportedReasonPayloads[$format] = $writer['unsupportedReason'];
+            }
+
+            if ($reader['nativeImplementationRecords'] === []) {
+                $emptyNativeImplementationRecords['readers'][$format] = [];
+            } else {
+                $nativeImplementationRecords['readers'][$format] = $reader['nativeImplementationRecords'];
+            }
+
+            if ($writer['nativeImplementationRecords'] === []) {
+                $emptyNativeImplementationRecords['writers'][$format] = [];
+            } else {
+                $nativeImplementationRecords['writers'][$format] = $writer['nativeImplementationRecords'];
+            }
+
+            $formats[$format] = [
+                'label' => $entry['label'],
+                'direction' => $entry['direction'],
+                'extensionAliases' => $extensionAliasesByFormat[$format] ?? [],
+                'reader' => $reader,
+                'writer' => $writer,
+            ];
+        }
+
+        $directReaderParitySupported = self::allDirectionTaxonomyParitySupported($formats, 'reader');
+        $directWriterParitySupported = self::allDirectionTaxonomyParitySupported($formats, 'writer');
+
+        return [
+            'upstreamManualDate' => self::UPSTREAM_MANUAL_DATE,
+            'upstreamManualUrl' => self::UPSTREAM_MANUAL_URL,
+            'upstreamSourceCommit' => self::UPSTREAM_SOURCE_COMMIT,
+            'inputTokens' => self::WIKI_INPUT_FORMATS,
+            'outputTokens' => self::WIKI_OUTPUT_FORMATS,
+            'uniqueTokens' => array_keys($registry),
+            'extensionAliases' => self::WIKI_EXTENSION_INFERENCE,
+            'extensionAliasesByFormat' => $extensionAliasesByFormat,
+            'externalToolFree' => true,
+            'directReaderParitySupported' => $directReaderParitySupported,
+            'directWriterParitySupported' => $directWriterParitySupported,
+            'directParityStatus' => $directReaderParitySupported && $directWriterParitySupported ? 'supported' : 'unsupported',
+            'readerUnsupportedReasonPayloads' => $readerUnsupportedReasonPayloads,
+            'writerUnsupportedReasonPayloads' => $writerUnsupportedReasonPayloads,
+            'emptyNativeImplementationRecords' => $emptyNativeImplementationRecords,
+            'nativeImplementationRecords' => $nativeImplementationRecords,
+            'formats' => $formats,
+            'reviewNote' => 'Pandoc wiki-family tokens are tracked as registry taxonomy evidence only; this packet does not invoke external wiki converters or claim direct wiki reader/writer parity.',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function wikiFormatReviewPacket(): array
+    {
+        return self::wikiUnsupportedTaxonomyMatrix();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public static function richPackageUnsupportedFormatSummary(): array
     {
         return RichPackageUnsupportedFormatRegistry::unsupportedFormatSummary();
@@ -1487,6 +1585,86 @@ final class PandocFormatRegistry
         }
 
         return $extensions;
+    }
+
+    /**
+     * @param array{status:string, implementation:string, notes:string} $support
+     * @return array<string, mixed>
+     */
+    private static function wikiTaxonomyDirection(string $format, string $direction, bool $upstreamToken, array $support): array
+    {
+        $implementation = $support['implementation'];
+        $status = $support['status'];
+        $nativeImplementationRecords = $implementation === ''
+            ? []
+            : [[
+                'format' => $format,
+                'direction' => $direction,
+                'implementation' => $implementation,
+                'status' => $status,
+            ]];
+        $directParitySupported = $upstreamToken && $status === 'complete';
+
+        return [
+            'upstreamToken' => $upstreamToken,
+            'status' => $status,
+            'implementation' => $implementation,
+            'nativeImplementationRegistered' => $implementation !== '',
+            'nativeImplementationRecords' => $nativeImplementationRecords,
+            'directParitySupported' => $directParitySupported,
+            'unsupported' => !$directParitySupported,
+            'unsupportedReason' => self::wikiUnsupportedReasonPayload($format, $direction, $upstreamToken, $support),
+            'notes' => $support['notes'],
+            'externalToolFree' => true,
+        ];
+    }
+
+    /**
+     * @param array{status:string, implementation:string, notes:string} $support
+     * @return array<string, mixed>
+     */
+    private static function wikiUnsupportedReasonPayload(string $format, string $direction, bool $upstreamToken, array $support): array
+    {
+        $status = $support['status'];
+        $implementation = $support['implementation'];
+        $reason = 'direct-parity-supported';
+
+        if (!$upstreamToken || $status === 'not-applicable') {
+            $reason = 'not-upstream-pandoc-wiki-' . $direction . '-format';
+        } elseif ($implementation === '') {
+            $reason = 'no-native-php-wiki-' . $direction;
+        } elseif ($status !== 'complete') {
+            $reason = 'partial-native-php-wiki-' . $direction . '-parity';
+        }
+
+        return [
+            'format' => $format,
+            'direction' => $direction,
+            'status' => $status,
+            'reason' => $reason,
+            'implementation' => $implementation,
+            'nativeImplementationRegistered' => $implementation !== '',
+            'externalToolFree' => true,
+            'notes' => $support['notes'],
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $formats
+     */
+    private static function allDirectionTaxonomyParitySupported(array $formats, string $direction): bool
+    {
+        foreach ($formats as $entry) {
+            if (($entry[$direction]['upstreamToken'] ?? false) !== true) {
+                continue;
+            }
+
+            if (($entry[$direction]['directParitySupported'] ?? false) !== true) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
