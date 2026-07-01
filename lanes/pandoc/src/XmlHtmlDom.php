@@ -22243,6 +22243,7 @@ final class XmlHtmlDom
         $propertyCounts = [];
         $customProperties = [];
         $importantProperties = [];
+        $urlReferences = [];
 
         foreach (self::styleDeclarationFragments($raw) as $index => $fragment) {
             $declaration = trim($fragment);
@@ -22305,6 +22306,10 @@ final class XmlHtmlDom
                 'important' => $important,
             ];
 
+            foreach (self::styleUrlReferenceSummaries($index, $property, $value) as $reference) {
+                $urlReferences[] = $reference;
+            }
+
             if (!isset($propertyCounts[$property])) {
                 $propertyCounts[$property] = 0;
                 $propertyNames[] = $property;
@@ -22340,6 +22345,270 @@ final class XmlHtmlDom
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
                 $issues
             ))),
+        ] + self::styleUrlReferenceAggregateSummary($urlReferences);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function styleUrlReferenceSummaries(int $declarationIndex, string $property, string $value): array
+    {
+        if (stripos($value, 'url(') === false) {
+            return [];
+        }
+
+        $references = [];
+        $offset = 0;
+        $functionIndex = 0;
+        while (($position = stripos($value, 'url(', $offset)) !== false) {
+            [$argumentRaw, $closeOffset, $closed] = self::styleUrlFunctionArgument($value, $position + 4);
+            $functionRaw = substr($value, $position, ($closed ? $closeOffset + 1 : strlen($value)) - $position);
+            $references[] = self::styleUrlReferenceSummary(
+                $declarationIndex,
+                $functionIndex++,
+                $property,
+                $functionRaw,
+                $argumentRaw,
+                $closed
+            );
+            $offset = max($position + 4, $closed ? $closeOffset + 1 : strlen($value));
+        }
+
+        return $references;
+    }
+
+    /**
+     * @return array{0:string, 1:int, 2:bool}
+     */
+    private static function styleUrlFunctionArgument(string $value, int $offset): array
+    {
+        $argument = '';
+        $quote = null;
+        $escaped = false;
+        $depth = 0;
+        $length = strlen($value);
+
+        for ($index = $offset; $index < $length; ++$index) {
+            $char = $value[$index];
+
+            if ($escaped) {
+                $argument .= $char;
+                $escaped = false;
+                continue;
+            }
+            if ($char === '\\') {
+                $argument .= $char;
+                $escaped = true;
+                continue;
+            }
+            if ($quote !== null) {
+                $argument .= $char;
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $argument .= $char;
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $argument .= $char;
+                ++$depth;
+                continue;
+            }
+            if ($char === ')') {
+                if ($depth === 0) {
+                    return [$argument, $index, true];
+                }
+
+                $argument .= $char;
+                --$depth;
+                continue;
+            }
+
+            $argument .= $char;
+        }
+
+        return [$argument, $length, false];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function styleUrlReferenceSummary(
+        int $declarationIndex,
+        int $functionIndex,
+        string $property,
+        string $functionRaw,
+        string $argumentRaw,
+        bool $closed
+    ): array {
+        $argument = trim($argumentRaw);
+        $quoted = false;
+        $quote = null;
+        $urlRaw = $argument;
+        if (strlen($argument) >= 2 && ($argument[0] === '"' || $argument[0] === "'") && $argument[strlen($argument) - 1] === $argument[0]) {
+            $quoted = true;
+            $quote = $argument[0];
+            $urlRaw = substr($argument, 1, -1);
+        }
+
+        $url = trim($urlRaw);
+        $decodedUrl = self::decodeStyleUrlCssEscapes($urlRaw);
+        $review = $decodedUrl === null
+            ? ['kind' => 'invalid', 'scheme' => null, 'unsafe' => true]
+            : self::hyperlinkUrlReviewSummary($decodedUrl);
+        $issueCodes = [];
+        if (!$closed) {
+            $issueCodes[] = 'malformed-style-url-function';
+        }
+        if ($url === '') {
+            $issueCodes[] = 'empty-style-url-reference';
+        }
+        if ($decodedUrl === null || ($review['kind'] ?? null) === 'invalid') {
+            $issueCodes[] = 'invalid-style-url-reference';
+        }
+        if (($review['unsafe'] ?? false) === true) {
+            $issueCodes[] = 'unsafe-style-url-reference';
+        }
+
+        return [
+            'declarationIndex' => $declarationIndex,
+            'functionIndex' => $functionIndex,
+            'property' => $property,
+            'raw' => $functionRaw,
+            'argumentRaw' => $argumentRaw,
+            'urlRaw' => $urlRaw,
+            'url' => $url === '' ? null : $url,
+            'urlDecoded' => $decodedUrl,
+            'quoted' => $quoted,
+            'quote' => $quote,
+            'closed' => $closed,
+            'kind' => $review['kind'],
+            'scheme' => $review['scheme'],
+            'unsafe' => ($review['unsafe'] ?? false) === true,
+            'issueCodes' => $issueCodes,
+        ];
+    }
+
+    private static function decodeStyleUrlCssEscapes(string $value): ?string
+    {
+        $invalid = false;
+        $decoded = preg_replace_callback(
+            '/\\\\(?:([0-9A-Fa-f]{1,6})(?:\r\n|[ \t\r\n\f])?|(.))/su',
+            static function (array $matches) use (&$invalid): string {
+                if (isset($matches[1]) && $matches[1] !== '') {
+                    $codepoint = hexdec((string) $matches[1]);
+                    if (!is_int($codepoint) || !self::isValidStyleUrlCodepoint($codepoint)) {
+                        $invalid = true;
+
+                        return '';
+                    }
+
+                    return self::styleUrlCodepointToUtf8($codepoint);
+                }
+
+                $escaped = (string) ($matches[2] ?? '');
+                if ($escaped === '' || preg_match('/[\r\n\f]/', $escaped) === 1) {
+                    $invalid = true;
+
+                    return '';
+                }
+
+                return $escaped;
+            },
+            $value
+        );
+
+        if (!is_string($decoded) || $invalid) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    private static function isValidStyleUrlCodepoint(int $codepoint): bool
+    {
+        return $codepoint > 0
+            && $codepoint <= 0x10FFFF
+            && ($codepoint < 0xD800 || $codepoint > 0xDFFF);
+    }
+
+    private static function styleUrlCodepointToUtf8(int $codepoint): string
+    {
+        if ($codepoint <= 0x7F) {
+            return chr($codepoint);
+        }
+        if ($codepoint <= 0x7FF) {
+            return chr(0xC0 | ($codepoint >> 6))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+        if ($codepoint <= 0xFFFF) {
+            return chr(0xE0 | ($codepoint >> 12))
+                . chr(0x80 | (($codepoint >> 6) & 0x3F))
+                . chr(0x80 | ($codepoint & 0x3F));
+        }
+
+        return chr(0xF0 | ($codepoint >> 18))
+            . chr(0x80 | (($codepoint >> 12) & 0x3F))
+            . chr(0x80 | (($codepoint >> 6) & 0x3F))
+            . chr(0x80 | ($codepoint & 0x3F));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $references
+     * @return array<string, mixed>
+     */
+    private static function styleUrlReferenceAggregateSummary(array $references): array
+    {
+        if ($references === []) {
+            return [
+                'styleUrlReferenceCount' => 0,
+                'styleUrlReferences' => [],
+                'styleUrlReferenceProperties' => [],
+                'styleUrlReferenceKinds' => [],
+                'styleUrlReferenceSchemes' => [],
+                'styleUnsafeUrlReferenceCount' => 0,
+                'styleUnsafeUrlReferences' => [],
+                'styleUrlIssueCodes' => [],
+                'styleUrlValid' => true,
+            ];
+        }
+
+        $properties = [];
+        $kinds = [];
+        $schemes = [];
+        $unsafe = [];
+        $issueCodes = [];
+        foreach ($references as $reference) {
+            self::appendUniqueString($properties, (string) $reference['property']);
+            self::appendUniqueString($kinds, (string) $reference['kind']);
+            if (is_string($reference['scheme'] ?? null) && $reference['scheme'] !== '') {
+                self::appendUniqueString($schemes, $reference['scheme']);
+            }
+            if (($reference['unsafe'] ?? false) === true) {
+                $unsafe[] = $reference;
+            }
+            foreach (($reference['issueCodes'] ?? []) as $issueCode) {
+                if (is_string($issueCode) && $issueCode !== '') {
+                    self::appendUniqueString($issueCodes, $issueCode);
+                }
+            }
+        }
+
+        return [
+            'styleUrlReviewPolicy' => 'html-style-url-reference-review',
+            'styleUrlReferenceCount' => count($references),
+            'styleUrlReferences' => $references,
+            'styleUrlReferenceProperties' => $properties,
+            'styleUrlReferenceKinds' => $kinds,
+            'styleUrlReferenceSchemes' => $schemes,
+            'styleUnsafeUrlReferenceCount' => count($unsafe),
+            'styleUnsafeUrlReferences' => $unsafe,
+            'styleUrlIssueCodes' => $issueCodes,
+            'styleUrlValid' => $issueCodes === [],
         ];
     }
 
