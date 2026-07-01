@@ -6222,7 +6222,8 @@ final class MarkdownWriter
                 continue;
             }
 
-            $renderedLine = $this->renderInlines($this->lineBlockLineInlines($lineNode));
+            [$leadingSpaces, $lineInlines] = $this->lineBlockLeadingSpacesAndContent($this->lineBlockLineInlines($lineNode));
+            $renderedLine = str_repeat(' ', $leadingSpaces) . $this->renderInlines($lineInlines, $leadingSpaces === 0);
             if ($renderedLine === '') {
                 $lines[] = $prefix . '|';
                 continue;
@@ -6295,9 +6296,60 @@ final class MarkdownWriter
             return $lineNode->children;
         }
 
-        $text = (string) $lineNode->attr('text', '');
+        $text = $this->lineBlockLineText($lineNode);
 
         return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+    }
+
+    private function lineBlockLineText(AstNode $lineNode): string
+    {
+        foreach (['text', 'value', 'literal', 'content', 'string'] as $name) {
+            $text = $lineNode->attr($name, null);
+            if (is_string($text)) {
+                return $text;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @return array{0:int, 1:list<AstNode>}
+     */
+    private function lineBlockLeadingSpacesAndContent(array $inlines): array
+    {
+        $leadingSpaces = 0;
+        $remaining = $inlines;
+        $nbsp = "\u{00A0}";
+
+        while ($remaining !== []) {
+            $first = $remaining[0];
+            if ($first->type !== 'text') {
+                break;
+            }
+
+            $text = (string) $first->attr('text', '');
+            if ($text === '' || !str_starts_with($text, $nbsp)) {
+                break;
+            }
+
+            while (str_starts_with($text, $nbsp)) {
+                $text = substr($text, strlen($nbsp));
+                $leadingSpaces++;
+            }
+
+            if ($text !== '') {
+                $attrs = $first->attrs;
+                $attrs['text'] = $text;
+                $remaining[0] = new AstNode('text', $attrs, $first->children);
+                break;
+            }
+
+            array_shift($remaining);
+        }
+
+        return [$leadingSpaces, array_values($remaining)];
     }
 
     /**
@@ -6580,7 +6632,8 @@ final class MarkdownWriter
                 $escapeInitialPlainMarker,
                 (bool) $node->attr('preserveSmartPunctuation', false),
                 $this->previousInlineCouldRenderReference($previous),
-                $this->previousBreakFollowsReference($previous, $beforePrevious)
+                $this->previousBreakFollowsReference($previous, $beforePrevious),
+                $this->previousSoftBreakRendersSpace($previous, (string) $node->attr('text', ''))
             ),
             'softbreak' => $this->renderSoftBreak($following, $previous),
             'space' => ' ',
@@ -6687,7 +6740,7 @@ final class MarkdownWriter
     private function renderPlainQuoted(AstNode $node): string
     {
         $content = $this->renderPlainInlines($node->children);
-        if ($this->smartEnabled()) {
+        if (!$this->smartEnabled()) {
             $quote = $node->attr('kind') === 'single' ? "'" : '"';
 
             return $quote . $content . $quote;
@@ -6779,7 +6832,7 @@ final class MarkdownWriter
 
     private function renderLineBreak(): string
     {
-        if ((bool) ($this->options['hardLineBreaks'] ?? false)) {
+        if ($this->hardLineBreaksEnabled()) {
             return "\n";
         }
 
@@ -6809,6 +6862,15 @@ final class MarkdownWriter
             return "\n";
         }
 
+        $softBreak = strtolower(str_replace('_', '-', (string) ($this->options['softBreak'] ?? '')));
+        if (in_array($softBreak, ['space', 'spaces'], true)) {
+            return ' ';
+        }
+
+        if (in_array($softBreak, ['preserve', 'newline', 'line-break'], true)) {
+            return "\n";
+        }
+
         if ($this->linkLabelRenderDepth > 0) {
             return "\n";
         }
@@ -6820,7 +6882,53 @@ final class MarkdownWriter
             return "\n";
         }
 
+        if ($this->followingStartsSmartPunctuationRun($following)) {
+            return "\n";
+        }
+
         return $this->writerWrapText() === 'preserve' ? "\n" : ' ';
+    }
+
+    /**
+     * @param list<AstNode> $following
+     */
+    private function followingStartsSmartPunctuationRun(array $following): bool
+    {
+        if (!$this->smartEnabled()) {
+            return false;
+        }
+
+        $next = $following[0] ?? null;
+        if (!$next instanceof AstNode || $next->type !== 'text') {
+            return false;
+        }
+
+        $text = (string) $next->attr('text', '');
+
+        return str_starts_with($text, '---') || preg_match('/^\.{4,}/', $text) === 1;
+    }
+
+    private function previousSoftBreakRendersSpace(?AstNode $previous, string $currentText): bool
+    {
+        if (!$previous instanceof AstNode || $previous->type !== 'softbreak') {
+            return false;
+        }
+
+        $softBreak = strtolower(str_replace('_', '-', (string) ($this->options['softBreak'] ?? '')));
+        if (in_array($softBreak, ['space', 'spaces'], true)) {
+            return true;
+        }
+
+        if (in_array($softBreak, ['preserve', 'newline', 'line-break'], true)) {
+            return false;
+        }
+
+        if ($this->linkLabelRenderDepth > 0 || $this->writerWrapText() === 'preserve') {
+            return false;
+        }
+
+        return !$this->smartEnabled()
+            || (!str_starts_with($currentText, '---') && preg_match('/^\.{4,}/', $currentText) !== 1);
     }
 
     private function previousBreakFollowsReference(?AstNode $previous, ?AstNode $beforePrevious): bool
@@ -7292,7 +7400,7 @@ final class MarkdownWriter
     private function renderQuoted(AstNode $node): string
     {
         $content = $this->renderInlines($node->children);
-        if ($this->smartEnabled()) {
+        if (!$this->smartEnabled()) {
             $delimiter = $node->attr('kind') === 'single' ? "'" : '"';
 
             return $delimiter . $content . $delimiter;
@@ -7429,7 +7537,7 @@ final class MarkdownWriter
             $first = mb_substr($suffix, 0, 1, 'UTF-8');
             $key .= ($first === ' ' || in_array($first, [',', ';', ']', '@'], true))
                 ? $suffix
-                : ' ' . $suffix;
+                : ', ' . $suffix;
         }
 
         return $this->joinInlinePartsWithSpace($prefix, $key);
@@ -7541,19 +7649,19 @@ final class MarkdownWriter
             return $text;
         }
 
-        if ($this->rawAttributeEnabled()) {
-            return $this->renderRawAttributeInline(new AstNode($node->type, [
-                'format' => $format,
-                'text' => $text,
-            ]));
-        }
-
         if ($this->isRawHtmlFormat($format) && $this->rawHtmlEnabled()) {
             return $text;
         }
 
         if (in_array($format, ['latex', 'tex'], true) && $this->rawTexEnabled()) {
             return $text;
+        }
+
+        if ($this->rawAttributeEnabled()) {
+            return $this->renderRawAttributeInline(new AstNode($node->type, [
+                'format' => $format,
+                'text' => $text,
+            ]));
         }
 
         return '';
@@ -7578,7 +7686,7 @@ final class MarkdownWriter
             return [$format === '' ? 'markdown' : $format, $this->rawNodeText($node, ['text', 'markdown', 'value', 'literal', 'content', 'raw'])];
         }
 
-        return [$format, $this->rawNodeText($node, ['text', 'markdown', 'html', 'content', 'literal', 'value', 'raw'])];
+        return [$format, $this->rawNodeText($node, ['text', 'markdown', 'html', 'tex', 'content', 'literal', 'value', 'raw'])];
     }
 
     /**
@@ -7744,7 +7852,16 @@ final class MarkdownWriter
 
     private function renderReferenceLabelText(string $label): string
     {
-        return $this->restoreBalancedLinkLabelBrackets($this->escapeText($label));
+        return $this->restoreBalancedLinkLabelBrackets($this->escapeReferenceLabelText($label));
+    }
+
+    private function escapeReferenceLabelText(string $label): string
+    {
+        return strtr($label, [
+            '\\' => '\\\\',
+            '[' => '\\[',
+            ']' => '\\]',
+        ]);
     }
 
     private function restoreBalancedLinkLabelBrackets(string $text): string
@@ -8125,7 +8242,8 @@ final class MarkdownWriter
         bool $escapeInitialPlainMarker = false,
         bool $preserveSmartPunctuation = false,
         bool $escapeAfterReference = false,
-        bool $escapeAfterReferenceBreak = false
+        bool $escapeAfterReferenceBreak = false,
+        bool $suppressInitialBlockMarkerEscapes = false
     ): string {
         $escaped = '';
         $length = strlen($text);
@@ -8136,6 +8254,13 @@ final class MarkdownWriter
         for ($i = 0; $i < $length; $i++) {
             $char = $text[$i];
             $tail = substr($text, $i);
+
+            $unsafeEntity = $this->markdownEntityForUnsafeTextCharacterAt($tail);
+            if ($unsafeEntity !== null) {
+                $escaped .= $unsafeEntity['entity'];
+                $i += $unsafeEntity['bytes'] - 1;
+                continue;
+            }
 
             if ($i === 0 && $escapeAfterReference && preg_match('/^\t+(?=\{)/', $text, $match) === 1) {
                 $tabRunLength = strlen($match[0]);
@@ -8159,7 +8284,7 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($i === 0 && $char === '#' && $this->startsWithAtxHeadingMarker($text)) {
+            if (!$suppressInitialBlockMarkerEscapes && $i === 0 && $char === '#' && $this->startsWithAtxHeadingMarker($text)) {
                 $escaped .= '\\#';
                 continue;
             }
@@ -8169,15 +8294,27 @@ final class MarkdownWriter
                 continue;
             }
 
+            if (
+                !$suppressInitialBlockMarkerEscapes
+                && $i === 0
+                && ($char === ':' || $char === '~')
+                && $this->plainMarkerIsBoundary($text, 1, $following)
+            ) {
+                $escaped .= '\\' . $char;
+                continue;
+            }
+
             if ($this->smartEnabled() && str_starts_with($tail, '...')) {
-                $escaped .= '\\...';
-                $i += 2;
+                $dotRun = strspn($tail, '.');
+                $escaped .= $dotRun === 3 ? '\\...' : str_repeat('\\.', $dotRun);
+                $i += $dotRun - 1;
                 continue;
             }
 
             if ($this->smartEnabled() && str_starts_with($tail, '--')) {
-                $escaped .= '\\--';
-                $i++;
+                $dashRun = strspn($tail, '-');
+                $escaped .= $dashRun === 2 ? '\\--' : str_repeat('\\-', $dashRun);
+                $i += $dashRun - 1;
                 continue;
             }
 
@@ -8201,8 +8338,9 @@ final class MarkdownWriter
             }
 
             if (str_starts_with($tail, '~~')) {
-                $escaped .= '\\~~';
-                $i++;
+                $tildeRun = strspn($tail, '~');
+                $escaped .= str_repeat('\\~', $tildeRun);
+                $i += $tildeRun - 1;
                 continue;
             }
 
@@ -8211,8 +8349,8 @@ final class MarkdownWriter
                 continue;
             }
 
-            if ($char === '&' && preg_match('/^&(?:#[0-9]+|#x[0-9A-Fa-f]+|[A-Za-z][A-Za-z0-9]+);/', $tail) === 1) {
-                $escaped .= '\\&';
+            if ($char === '&' && $this->startsWithMarkdownEntityReference($tail)) {
+                $escaped .= '&amp;';
                 continue;
             }
 
@@ -8250,6 +8388,59 @@ final class MarkdownWriter
         return $this->writerPreferAscii()
             ? $this->toHtml5Entities($escaped)
             : $escaped;
+    }
+
+    /**
+     * @return array{entity:string, bytes:int}|null
+     */
+    private function markdownEntityForUnsafeTextCharacterAt(string $tail): ?array
+    {
+        if ($tail === '') {
+            return null;
+        }
+
+        $byte = ord($tail[0]);
+        if (($byte < 0x20 && $tail[0] !== "\n" && $tail[0] !== "\r") || $byte === 0x7F) {
+            return [
+                'entity' => $byte === 0x09 ? '&#9;' : sprintf('&#x%X;', $byte),
+                'bytes' => 1,
+            ];
+        }
+
+        $entities = [
+            "\u{00A0}" => '&nbsp;',
+            "\u{1680}" => '&#x1680;',
+            "\u{2000}" => '&#x2000;',
+            "\u{2001}" => '&#x2001;',
+            "\u{2002}" => '&#x2002;',
+            "\u{2003}" => '&#x2003;',
+            "\u{2004}" => '&#x2004;',
+            "\u{2005}" => '&#x2005;',
+            "\u{2006}" => '&#x2006;',
+            "\u{2007}" => '&#x2007;',
+            "\u{2008}" => '&#x2008;',
+            "\u{2009}" => '&#x2009;',
+            "\u{200A}" => '&#x200A;',
+            "\u{202F}" => '&#x202F;',
+            "\u{205F}" => '&#x205F;',
+            "\u{3000}" => '&#x3000;',
+        ];
+
+        foreach ($entities as $character => $entity) {
+            if (str_starts_with($tail, $character)) {
+                return [
+                    'entity' => $entity,
+                    'bytes' => strlen($character),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    private function startsWithMarkdownEntityReference(string $tail): bool
+    {
+        return preg_match('/^&(?:#[0-9]{1,7}|#[xX][0-9A-Fa-f]{1,6}|[A-Za-z][A-Za-z0-9]+);/', $tail) === 1;
     }
 
     /**
@@ -9470,7 +9661,18 @@ final class MarkdownWriter
             return (bool) $this->options['lineBlocks'];
         }
 
-        return !$this->isCommonMarkVariant();
+        $format = $this->options['format'] ?? $this->options['variant'] ?? null;
+        $overrides = MarkdownFormatProfile::markdownExtensionOverrides($format);
+        foreach (['line_blocks', 'line_block'] as $extension) {
+            if (array_key_exists($extension, $overrides)) {
+                return $overrides[$extension];
+            }
+        }
+
+        $enabled = !in_array($this->writerVariant(), ['commonmark', 'gfm'], true);
+        $enabled = $this->optionsExtensionOverride('line_blocks', $enabled);
+
+        return $this->optionsExtensionOverride('line_block', $enabled);
     }
 
     private function rawHtmlEnabled(): bool
@@ -9564,7 +9766,7 @@ final class MarkdownWriter
 
     private function writerWrapText(): string
     {
-        if ((bool) ($this->options['hardLineBreaks'] ?? false)) {
+        if ($this->hardLineBreaksEnabled()) {
             return 'none';
         }
 
@@ -9655,7 +9857,27 @@ final class MarkdownWriter
 
     private function smartEnabled(): bool
     {
-        return (bool) ($this->options['smart'] ?? true);
+        if (array_key_exists('smart', $this->options)) {
+            return (bool) $this->options['smart'];
+        }
+
+        $override = $this->markdownExtensionOverride('smart');
+        if ($override !== null) {
+            return $override;
+        }
+
+        return $this->writerVariant() === 'markdown';
+    }
+
+    private function hardLineBreaksEnabled(): bool
+    {
+        if (array_key_exists('hardLineBreaks', $this->options)) {
+            return (bool) $this->options['hardLineBreaks'];
+        }
+
+        $override = $this->markdownExtensionOverride('hard_line_breaks');
+
+        return $override ?? false;
     }
 
     private function emojiShortcodesEnabled(): bool
