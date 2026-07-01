@@ -8906,6 +8906,89 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Smith, Ada. Review Checklist. Import Handbook: Volume Desk Edition. Main title: Migration Source Dossier: Multi-volume Reviewer Set. Main title addendum: Internal archive packet. Vol. 2 of 4. Part 1. Chap. 7. 320 pp. 2026. 33-39.</dd>', $blocks);
         $t->contains('<dt>Curator 2025</dt><dd>Curator, Eli. Migration Source Dossier: Multi-volume Reviewer Set. 4 vols. Review Press, 2025.</dd>', $blocks);
     },
+    'maps compact biblatex extent count aliases into csl metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@report{compact-extent-alias,
+  author          = {Ng, Nia},
+  title           = {Compact Extent Alias Packet},
+  date            = {2026},
+  pages           = {10--12},
+  numberofvolumes = {4},
+  page-total      = {120},
+  chapternumber   = {7}
+}
+
+@book{hyphen-extent-alias,
+  author         = {Roe, Riley},
+  title          = {Hyphen Extent Alias Packet},
+  date           = {2025},
+  num-volumes    = {2},
+  total-pages    = {88},
+  chapter-number = {5}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('4', $items[0]['number-of-volumes'] ?? null);
+        $t->same('120', $items[0]['number-of-pages'] ?? null);
+        $t->same('7', $items[0]['chapter-number'] ?? null);
+        $t->same('2', $items[1]['number-of-volumes'] ?? null);
+        $t->same('88', $items[1]['number-of-pages'] ?? null);
+        $t->same('5', $items[1]['chapter-number'] ?? null);
+        $t->same('4', $items[0]['rawBibtex']['fields']['numberofvolumes'] ?? null);
+        $t->same('120', $items[0]['rawBibtex']['fields']['page-total'] ?? null);
+        $t->same('7', $items[0]['rawBibtex']['fields']['chapternumber'] ?? null);
+        $t->same('2', $items[1]['rawBibtex']['fields']['num-volumes'] ?? null);
+        $t->same('88', $items[1]['rawBibtex']['fields']['total-pages'] ?? null);
+        $t->same('5', $items[1]['rawBibtex']['fields']['chapter-number'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $compact = $processor->item('compact-extent-alias');
+        $hyphen = $processor->item('hyphen-extent-alias');
+        $t->same('4', $compact['numberOfVolumes'] ?? null);
+        $t->same('120', $compact['numberOfPages'] ?? null);
+        $t->same('7', $compact['chapterNumber'] ?? null);
+        $t->same('2', $hyphen['numberOfVolumes'] ?? null);
+        $t->same('88', $hyphen['numberOfPages'] ?? null);
+        $t->same('5', $hyphen['chapterNumber'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="number-of-volumes"/>
+        <text variable="number-of-pages"/>
+        <text variable="chapter-number"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="number-of-volumes"/>
+      <text variable="number-of-pages"/>
+      <text variable="chapter-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Ng | 4 | 120 | 7; Roe | 2 | 88 | 5]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'compact-extent-alias', 'text' => '[@compact-extent-alias]']),
+            new AstNode('citation', ['id' => 'hyphen-extent-alias', 'text' => '[@hyphen-extent-alias]']),
+        ]));
+        $t->same('Compact Extent Alias Packet :: 4 :: 120 :: 7', $styled->renderBibliographyEntry('compact-extent-alias'));
+        $t->same('Hyphen Extent Alias Packet :: 2 :: 88 :: 5', $styled->renderBibliographyEntry('hyphen-extent-alias'));
+
+        $document = (new MarkdownReader())->read('Extent aliases [@compact-extent-alias; @hyphen-extent-alias] remain visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Extent aliases [Ng | 4 | 120 | 7; Roe | 2 | 88 | 5] remain visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Compact Extent Alias Packet :: 4 :: 120 :: 7</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Extent Alias Packet :: 2 :: 88 :: 5</dd>', $blocks);
+    },
     'maps bounded biblatex note addendum and howpublished review metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{review-note-source,
