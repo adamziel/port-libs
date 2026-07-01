@@ -31,7 +31,7 @@ final class PptxReader
     private function readPackage(ZipPackage $package, int $sourceBytes): AstNode
     {
         $rootRelationships = $this->relationshipsOrEmpty($package, '/');
-        $presentationRelationship = $this->presentationRelationship($rootRelationships);
+        $presentationRelationship = $this->presentationRelationship($package);
         $presentationPart = $presentationRelationship->target;
         $presentation = $this->loadPackageXmlFromUpstreamPath($package, $presentationPart, 'PPTX presentation');
         $slides = $this->parsePresentationSlides($presentation);
@@ -121,15 +121,44 @@ final class PptxReader
         ], $blocks);
     }
 
-    private function presentationRelationship(OpcRelationships $relationships): OpcRelationship
+    private function presentationRelationship(ZipPackage $package): OpcRelationship
     {
-        foreach ($relationships->all() as $relationship) {
-            if (str_ends_with($relationship->type, '/officeDocument')) {
-                return $relationship;
+        $relationshipPart = $this->upstreamRelationshipPart('/');
+        if (!$package->has($relationshipPart)) {
+            throw new \RuntimeException('Missing _rels/.rels');
+        }
+
+        $document = $this->loadPackageXml($package, $relationshipPart, 'PPTX relationships');
+        $root = XmlHtmlDom::rootElement($document);
+        $relationshipCount = 0;
+        if ($root instanceof \DOMElement) {
+            foreach ($this->childElements($root, null) as $relationshipElement) {
+                $relationshipCount++;
+                $type = $relationshipElement->getAttribute('Type');
+                if (!str_ends_with($type, '/officeDocument')) {
+                    continue;
+                }
+                if (!$relationshipElement->hasAttribute('Target')) {
+                    throw new \RuntimeException('Missing Target attribute');
+                }
+
+                $targetMode = $relationshipElement->getAttribute('TargetMode');
+
+                return new OpcRelationship(
+                    $relationshipElement->hasAttribute('Id') ? $relationshipElement->getAttribute('Id') : '',
+                    $type,
+                    $relationshipElement->getAttribute('Target'),
+                    $targetMode === OpcRelationship::TARGET_MODE_EXTERNAL
+                        ? OpcRelationship::TARGET_MODE_EXTERNAL
+                        : OpcRelationship::TARGET_MODE_INTERNAL,
+                    $targetMode !== '',
+                    false,
+                    false
+                );
             }
         }
 
-        throw new \RuntimeException('PPTX package does not declare a presentation relationship');
+        throw new \RuntimeException('No presentation.xml relationship found. Found ' . $relationshipCount . ' relationships.');
     }
 
     private function relationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
