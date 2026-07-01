@@ -12306,7 +12306,7 @@ final class PdfEngineHandoff
 
         $timingsFile = $timingsOutput['path'];
         if (!array_key_exists($timingsFile, $files)) {
-            return [];
+            return $this->typstTimingSourcePolicyFromEntries($timingsFile, [], ['timing-source-sidecar-missing']);
         }
 
         $bytes = $files[$timingsFile];

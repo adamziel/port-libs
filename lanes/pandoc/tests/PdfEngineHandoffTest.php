@@ -4501,6 +4501,75 @@ return [
         $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
+    'flags missing typst timings sidecar as timing provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/main.typ',
+            'outputPath' => 'build/missing-timing-sidecar.pdf',
+            'source' => '= Typst Missing Timing Sidecar Packet',
+            'engineOptions' => ['--root=workspace', '--timings=build/missing-timing-sidecar.json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst missing timing sidecar packet\n%%EOF\n";
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'timingsFile' => 'build/missing-timing-sidecar.json',
+            'sourceFiles' => [],
+            'sourceFileCount' => 0,
+            'insideRootCount' => 0,
+            'outsideRootCount' => 0,
+            'unboundedCount' => 0,
+            'externalSourceCount' => 0,
+            'unknownSourceCount' => 0,
+            'issues' => ['timing-source-sidecar-missing'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/missing-timing-sidecar.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/missing-timing-sidecar.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(['build/missing-timing-sidecar.json'], $plan['expectedEngineArtifacts']);
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstTimingSourcePolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstTimingSourcePolicy']);
+        $t->same(['build/missing-timing-sidecar.json'], $result['artifactProvenanceReview']['missingExpectedEngineArtifacts']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-timing-source-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('missing-expected-engine-artifact:build/missing-timing-sidecar.json', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('typst-timing-source-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-timing-source-files:0', implode(',', $result['diagnostics']));
+        $t->contains('typst-timing-source-issues:1', implode(',', $result['diagnostics']));
+        $t->same('timing-provenance', $cases['timing-provenance']['case']);
+        $t->same('review', $cases['timing-provenance']['reviewStatus']);
+        $t->same(0, $cases['timing-provenance']['observed']);
+        $t->same([
+            'timingsFile' => 'build/missing-timing-sidecar.json',
+            'sourceFileCount' => 0,
+            'sourceFiles' => [],
+            'insideRootCount' => 0,
+            'outsideRootCount' => 0,
+            'unboundedCount' => 0,
+            'externalSourceCount' => 0,
+            'unknownSourceCount' => 0,
+        ], $cases['timing-provenance']['details']);
+        $t->same(['timing-source-sidecar-missing'], $cases['timing-provenance']['issues']);
+        $t->contains('timing-provenance:timing-source-sidecar-missing', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($expectedPolicy, $sequence['finalTypstTimingSourcePolicy']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst short timings sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
