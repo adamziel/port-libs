@@ -1955,6 +1955,11 @@ final class PptxReader
             $plot['varyColors'] = $this->xmlBooleanValue($varyColors->getAttribute('val'));
         }
 
+        $dataLabels = $this->chartDataLabels($chartTypeElement);
+        if ($dataLabels !== []) {
+            $plot['dataLabels'] = $dataLabels;
+        }
+
         $axisIds = [];
         foreach ($this->childElements($chartTypeElement, 'axId') as $axisIdElement) {
             $axisId = trim($axisIdElement->getAttribute('val'));
@@ -1976,6 +1981,59 @@ final class PptxReader
         }
 
         return $plot;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function chartDataLabels(\DOMElement $chartContainer): array
+    {
+        $dataLabels = $this->firstChildElement($chartContainer, 'dLbls');
+        if (!$dataLabels instanceof \DOMElement) {
+            return [];
+        }
+
+        $metadata = [];
+        $position = $this->firstChildElement($dataLabels, 'dLblPos');
+        if ($position instanceof \DOMElement && trim($position->getAttribute('val')) !== '') {
+            $metadata['position'] = trim($position->getAttribute('val'));
+        }
+
+        foreach ([
+            'showLegendKey' => 'showLegendKey',
+            'showVal' => 'showValue',
+            'showCatName' => 'showCategoryName',
+            'showSerName' => 'showSeriesName',
+            'showPercent' => 'showPercent',
+            'showBubbleSize' => 'showBubbleSize',
+            'showLeaderLines' => 'showLeaderLines',
+        ] as $source => $target) {
+            $element = $this->firstChildElement($dataLabels, $source);
+            if ($element instanceof \DOMElement && $element->hasAttribute('val')) {
+                $metadata[$target] = $this->xmlBooleanValue($element->getAttribute('val'));
+            }
+        }
+
+        $numberFormat = $this->firstChildElement($dataLabels, 'numFmt');
+        if ($numberFormat instanceof \DOMElement) {
+            $format = trim($numberFormat->getAttribute('formatCode'));
+            if ($format !== '') {
+                $metadata['numberFormat'] = $format;
+            }
+            if ($numberFormat->hasAttribute('sourceLinked')) {
+                $metadata['sourceLinked'] = $this->xmlBooleanValue($numberFormat->getAttribute('sourceLinked'));
+            }
+        }
+
+        $separator = $this->firstChildElement($dataLabels, 'separator');
+        if ($separator instanceof \DOMElement) {
+            $text = trim($this->allDescendantText($separator));
+            if ($text !== '') {
+                $metadata['separator'] = $text;
+            }
+        }
+
+        return $metadata;
     }
 
     /**

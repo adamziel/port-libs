@@ -269,6 +269,18 @@ XML);
           <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
           <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
         </c:ser>
+        <c:dLbls>
+          <c:dLblPos val="outEnd"/>
+          <c:numFmt formatCode="0.0" sourceLinked="0"/>
+          <c:separator>, </c:separator>
+          <c:showLegendKey val="0"/>
+          <c:showVal val="1"/>
+          <c:showCatName val="1"/>
+          <c:showSerName val="0"/>
+          <c:showPercent val="0"/>
+          <c:showBubbleSize val="0"/>
+          <c:showLeaderLines val="1"/>
+        </c:dLbls>
         <c:axId val="10"/><c:axId val="20"/>
       </c:barChart>
       <c:lineChart>
@@ -657,6 +669,19 @@ return [
         $t->same('gap', $chartDivs[0]->attr('pptxChart')['displayBlanksAs'] ?? null);
         $t->same(false, $chartDivs[0]->attr('pptxChart')['showDataLabelsOverMaximum'] ?? null);
         $t->same('col', $chartDivs[0]->attr('pptxChart')['plots'][0]['barDirection'] ?? null);
+        $t->same([
+            'position' => 'outEnd',
+            'showLegendKey' => false,
+            'showValue' => true,
+            'showCategoryName' => true,
+            'showSeriesName' => false,
+            'showPercent' => false,
+            'showBubbleSize' => false,
+            'showLeaderLines' => true,
+            'numberFormat' => '0.0',
+            'sourceLinked' => false,
+            'separator' => ',',
+        ], $chartDivs[0]->attr('pptxChart')['plots'][0]['dataLabels'] ?? null);
         $t->same(['10', '20'], $chartDivs[0]->attr('pptxChart')['plots'][0]['axisIds'] ?? null);
         $t->same('line', $chartDivs[0]->attr('pptxChart')['plots'][1]['type'] ?? null);
         $t->same('standard', $chartDivs[0]->attr('pptxChart')['plots'][1]['grouping'] ?? null);
