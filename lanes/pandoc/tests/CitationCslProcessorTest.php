@@ -4807,6 +4807,82 @@ XML);
         $t->contains('Available Source Packet :: 2026-06 :: uncertain :: 2026-05-28 :: Date markers: available-date uncertain (2026-06?) :: Date times: submitted 09:30', $markdown);
         $t->true(strpos($markdown, 'Submitted Review Packet') < strpos($markdown, 'Available Source Packet'), 'submitted sort key orders bibliography entries before available source');
     },
+    'normalizes bounded direct csl submission date aliases into submitted metadata' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-submission-camel',
+                'type' => 'article',
+                'title' => 'Direct Submission Camel Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'submissionDate' => [
+                    'date-parts' => [[2026, 6, 3]],
+                    'time' => '11:20',
+                ],
+            ],
+            [
+                'id' => 'direct-submission-compact',
+                'type' => 'report',
+                'title' => 'Direct Submission Compact Packet',
+                'author' => [
+                    ['family' => 'Bell', 'given' => 'Bo'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'submissiondate' => [
+                    'date-parts' => [[2025, 4]],
+                    'circa' => true,
+                    'raw' => '2025-04~',
+                ],
+            ],
+        ])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="submission-date"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="submission-date"/>
+        <text variable="submission-date-status"/>
+        <text variable="submission-date-time"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="submissiondate"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="submissiondate"/>
+      <text variable="submission-status"/>
+      <text variable="submission-time"/>
+      <text variable="date-marker-summary"/>
+      <text variable="date-time-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $camel = $processor->item('direct-submission-camel');
+        $compact = $processor->item('direct-submission-compact');
+        $t->same([2026, 6, 3], $camel['submittedDate']['parts'] ?? null);
+        $t->same('11:20', $camel['submittedDate']['time'] ?? null);
+        $t->same([2025, 4], $compact['submittedDate']['parts'] ?? null);
+        $t->same(true, $compact['submittedDate']['circa'] ?? null);
+        $t->same('Date markers: submitted circa (2025-04~)', $compact['dateMarkerSummary'] ?? null);
+        $t->same('Date times: submitted 11:20', $camel['dateTimeSummary'] ?? null);
+        $t->same('[Bell | 2025-04 | circa; Ames | 2026-06-03 | 11:20]', $processor->renderCitationCluster([
+            $citation('direct-submission-camel', '[@direct-submission-camel]'),
+            $citation('direct-submission-compact', '[@direct-submission-compact]'),
+        ]));
+        $t->same('Direct Submission Compact Packet :: 2025-04 :: circa :: Date markers: submitted circa (2025-04~)', $processor->renderBibliographyEntry('direct-submission-compact'));
+        $t->same('Direct Submission Camel Packet :: 2026-06-03 :: 11:20 :: Date times: submitted 11:20', $processor->renderBibliographyEntry('direct-submission-camel'));
+    },
     'maps bounded bibtex csl available and submitted dates into metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @online{available-bibtex,
@@ -4994,6 +5070,93 @@ XML);
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Availability Sources'));
         $t->contains('<p>Availability alias (Alias | 2026-08-09 | uncertain | 2026-07-01/2026-07-03) remains visible.</p>', $blocks);
         $t->contains('<dt>Alias 2026</dt><dd>Hyphen Availability Packet :: 2026-08-09 :: uncertain :: 2026-07-01/2026-07-03 :: Date markers: available-date uncertain (2026-08-09?)</dd>', $blocks);
+    },
+    'maps bounded biblatex submission date aliases into submitted csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@online{submission-date-bibtex,
+  author            = {Chen, Cora},
+  title             = {Submission Date Alias Packet},
+  date              = {2026},
+  url               = {https://example.test/submission-date},
+  submissiondate    = {2026-06-01?},
+  submissiondateera = {ce},
+  submittedhour     = {9},
+  submittedminute   = {45},
+  submittedtimezone = {Z}
+}
+
+@report{submission-range-bibtex,
+  author            = {Diaz, Dev},
+  title             = {Submission Range Alias Packet},
+  date              = {2025},
+  submittedyear     = {2025},
+  submittedmonth    = {4},
+  submissionenddate = {2025-08-15}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same(['date-parts' => [[2026, 6, 1]], 'uncertain' => true, 'raw' => '2026-06-01?', 'time' => '09:45Z', 'era' => 'ce'], $items[0]['submitted'] ?? null);
+        $t->same(['date-parts' => [[2025, 4], [2025, 8, 15]]], $items[1]['submitted'] ?? null);
+        $t->same('2026-06-01?', $items[0]['rawBibtex']['fields']['submissiondate'] ?? null);
+        $t->same('2025-08-15', $items[1]['rawBibtex']['fields']['submissionenddate'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex)->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <sort>
+      <key variable="submission-date"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="submission-date"/>
+        <text variable="submission-date-status"/>
+        <text variable="submission-date-time"/>
+        <text variable="date-marker-summary"/>
+        <text variable="date-time-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="submissiondate"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="submissiondate"/>
+      <text variable="submission-status"/>
+      <text variable="submission-time"/>
+      <text variable="date-marker-summary"/>
+      <text variable="date-time-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $date = $processor->item('submission-date-bibtex');
+        $range = $processor->item('submission-range-bibtex');
+        $t->same('2026-06-01', $date['submittedDate']['display'] ?? null);
+        $t->same(true, $date['submittedDate']['uncertain'] ?? null);
+        $t->same('09:45Z', $date['submittedDate']['time'] ?? null);
+        $t->same('ce', $date['submittedDate']['era'] ?? null);
+        $t->same('2025-04/2025-08-15', $range['submittedDate']['display'] ?? null);
+        $t->same('Date markers: submitted uncertain (2026-06-01?)', $date['dateMarkerSummary'] ?? null);
+        $t->same('Date times: submitted 09:45Z', $date['dateTimeSummary'] ?? null);
+        $t->same('[Diaz | 2025-04/2025-08-15; Chen | 2026-06-01 | uncertain | 09:45Z | Date markers: submitted uncertain (2026-06-01?) | Date times: submitted 09:45Z]', $processor->renderCitationCluster([
+            $citation('submission-date-bibtex', '[@submission-date-bibtex]'),
+            $citation('submission-range-bibtex', '[@submission-range-bibtex]'),
+        ]));
+        $t->same('Submission Range Alias Packet :: 2025-04/2025-08-15', $processor->renderBibliographyEntry('submission-range-bibtex'));
+        $t->same('Submission Date Alias Packet :: 2026-06-01 :: uncertain :: 09:45Z :: Date markers: submitted uncertain (2026-06-01?) :: Date times: submitted 09:45Z', $processor->renderBibliographyEntry('submission-date-bibtex'));
+
+        $document = (new MarkdownReader())->read('Submission aliases [@submission-date-bibtex; @submission-range-bibtex] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Submission Sources'));
+        $t->contains('<p>Submission aliases [Diaz | 2025-04/2025-08-15; Chen | 2026-06-01 | uncertain | 09:45Z | Date markers: submitted uncertain (2026-06-01?) | Date times: submitted 09:45Z] stay visible.</p>', $blocks);
+        $t->contains('<dt>Diaz 2025</dt><dd>Submission Range Alias Packet :: 2025-04/2025-08-15</dd>', $blocks);
+        $t->contains('<dt>Chen 2026</dt><dd>Submission Date Alias Packet :: 2026-06-01 :: uncertain :: 09:45Z :: Date markers: submitted uncertain (2026-06-01?) :: Date times: submitted 09:45Z</dd>', $blocks);
     },
     'maps bounded biblatex split url date fields into accessed csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'

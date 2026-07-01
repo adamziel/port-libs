@@ -4382,6 +4382,93 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Legacy Availability Packet :: 2025-04-03/2025-04-05 :: 2024-03/2024-04</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Submitted Literal Packet :: 2025-01 :: 2025-02-10</dd>', $blocks);
     },
+    'carries biblatex submission date aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-submission-date,
+  author             = {Chen, Cora},
+  title              = {Legacy Submission Date Packet},
+  date               = {2026},
+  submissiondate     = {2026-06-01?},
+  submissiondateera  = {CE},
+  submittedhour      = {9},
+  submittedminute    = {45},
+  submittedtimezone  = {Z},
+  url                = {https://example.test/legacy-submission-date}
+}
+
+@report{legacy-submission-range,
+  author            = {Diaz, Dev},
+  title             = {Legacy Submission Range Packet},
+  date              = {2025},
+  submittedyear     = {2025},
+  submittedmonth    = {4},
+  submissionenddate = {2025-08-15}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $date = $items['legacy-submission-date'];
+        $range = $items['legacy-submission-range'];
+
+        $t->same([[2026, 6, 1]], $date['submitted']['date-parts']);
+        $t->same(true, $date['submitted']['uncertain'] ?? null);
+        $t->same('09:45Z', $date['submitted']['time'] ?? null);
+        $t->same('ce', $date['submitted']['era'] ?? null);
+        $t->same([[2025, 4], [2025, 8, 15]], $range['submitted']['date-parts']);
+        $t->same('2026-06-01?', $date['rawBibtex']['fields']['submissiondate']);
+        $t->same('2025-08-15', $range['rawBibtex']['fields']['submissionenddate']);
+        $t->contains('Submitted date: 2026-06-01', $processor->renderBibliographyText($date));
+        $t->contains('Date eras: submitted ce', $processor->renderBibliographyText($date));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <date variable="submission-date"/>
+        <text variable="submission-date-status"/>
+        <text variable="submission-time"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="submissiondate"/>
+      <text variable="submission-status"/>
+      <text variable="submission-date-time"/>
+      <text variable="date-era-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledDate = $styled->item('legacy-submission-date');
+        $styledRange = $styled->item('legacy-submission-range');
+        $t->same('2026-06-01', $styledDate['submittedDate']['display'] ?? null);
+        $t->same('09:45Z', $styledDate['submittedDate']['time'] ?? null);
+        $t->same('2025-04/2025-08-15', $styledRange['submittedDate']['display'] ?? null);
+        $t->same('[Chen | 2026-06-01 | uncertain | 09:45Z; Diaz | 2025-04/2025-08-15]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-submission-date', 'text' => '[@legacy-submission-date]']),
+            new AstNode('citation', ['id' => 'legacy-submission-range', 'text' => '[@legacy-submission-range]']),
+        ]));
+        $t->same('Legacy Submission Date Packet :: 2026-06-01 :: uncertain :: 09:45Z :: Date eras: submitted ce', $styled->renderBibliographyEntry('legacy-submission-date'));
+        $t->same('Legacy Submission Range Packet :: 2025-04/2025-08-15', $styled->renderBibliographyEntry('legacy-submission-range'));
+
+        $document = (new MarkdownReader())->read('Submission aliases cite [@legacy-submission-date; @legacy-submission-range].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Submission Sources'));
+
+        $t->same(['legacy-submission-date', 'legacy-submission-range'], $handoff['citedKeys']);
+        $t->same('ce', $handoff['items'][0]['submitted']['era'] ?? null);
+        $t->same([[2025, 4], [2025, 8, 15]], $handoff['bibliography']->children[1]->attr('cslItem')['submitted']['date-parts'] ?? null);
+        $t->contains('<p>Submission aliases cite [Chen | 2026-06-01 | uncertain | 09:45Z; Diaz | 2025-04/2025-08-15].</p>', $blocks);
+        $t->contains('<dt>Chen 2026</dt><dd>Legacy Submission Date Packet :: 2026-06-01 :: uncertain :: 09:45Z :: Date eras: submitted ce</dd>', $blocks);
+        $t->contains('<dt>Diaz 2025</dt><dd>Legacy Submission Range Packet :: 2025-04/2025-08-15</dd>', $blocks);
+    },
     'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-date-addendum,
