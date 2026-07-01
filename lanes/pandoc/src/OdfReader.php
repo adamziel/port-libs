@@ -2031,6 +2031,7 @@ final class OdfReader
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
+        $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
         sort($manifestCustomAttributeNames, SORT_STRING);
         sort($manifestCustomChildElementNames, SORT_STRING);
 
@@ -2134,6 +2135,11 @@ final class OdfReader
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
             'roleByteLengths' => $roleByteLengths,
             'roleCompressedByteLengths' => $roleCompressedByteLengths,
+            'centralDirectoryOrderMismatchRoleCount' => $centralDirectoryOrderMismatchRoles['roleCount'],
+            'centralDirectoryOrderMismatchRoleCounts' => $centralDirectoryOrderMismatchRoles['roleCounts'],
+            'centralDirectoryOrderMismatchRoleByteLengths' => $centralDirectoryOrderMismatchRoles['roleByteLengths'],
+            'centralDirectoryOrderMismatchRoleCompressedByteLengths' => $centralDirectoryOrderMismatchRoles['roleCompressedByteLengths'],
+            'centralDirectoryOrderMismatchRoleSummaries' => $centralDirectoryOrderMismatchRoles['roleSummaries'],
             'packagePartByteExposurePolicyCounts' => $packagePartByteExposurePolicyCounts,
             'packagePartByteExposurePolicyByteLengths' => $packagePartByteExposurePolicyByteLengths,
             'packagePartByteExposurePolicyCompressedByteLengths' => $packagePartByteExposurePolicyCompressedByteLengths,
@@ -2705,6 +2711,11 @@ final class OdfReader
             'manifestPackageCoverage' => $provenance['manifestPackageCoverage'] ?? [],
             'roleCounts' => $provenance['roleCounts'] ?? [],
             'undeclaredRoleCounts' => $provenance['undeclaredRoleCounts'] ?? [],
+            'centralDirectoryOrderMismatchRoleCount' => $provenance['centralDirectoryOrderMismatchRoleCount'] ?? 0,
+            'centralDirectoryOrderMismatchRoleCounts' => $provenance['centralDirectoryOrderMismatchRoleCounts'] ?? [],
+            'centralDirectoryOrderMismatchRoleByteLengths' => $provenance['centralDirectoryOrderMismatchRoleByteLengths'] ?? [],
+            'centralDirectoryOrderMismatchRoleCompressedByteLengths' => $provenance['centralDirectoryOrderMismatchRoleCompressedByteLengths'] ?? [],
+            'centralDirectoryOrderMismatchRoleSummaries' => $provenance['centralDirectoryOrderMismatchRoleSummaries'] ?? [],
             'extensionlessPackagePartCount' => $provenance['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
             'packageBasenameCounts' => $provenance['packageBasenameCounts'] ?? [],
@@ -2893,6 +2904,11 @@ final class OdfReader
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'roleCounts' => $provenance['roleCounts'] ?? [],
+            'centralDirectoryOrderMismatchRoleCount' => $provenance['centralDirectoryOrderMismatchRoleCount'] ?? 0,
+            'centralDirectoryOrderMismatchRoleCounts' => $provenance['centralDirectoryOrderMismatchRoleCounts'] ?? [],
+            'centralDirectoryOrderMismatchRoleByteLengths' => $provenance['centralDirectoryOrderMismatchRoleByteLengths'] ?? [],
+            'centralDirectoryOrderMismatchRoleCompressedByteLengths' => $provenance['centralDirectoryOrderMismatchRoleCompressedByteLengths'] ?? [],
+            'centralDirectoryOrderMismatchRoleSummaries' => $provenance['centralDirectoryOrderMismatchRoleSummaries'] ?? [],
             'extensionlessPackagePartCount' => $provenance['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $provenance['packagePartExtensionCounts'] ?? [],
             'packageBasenameCounts' => $provenance['packageBasenameCounts'] ?? [],
@@ -3068,6 +3084,82 @@ final class OdfReader
         $stem = pathinfo($basename, PATHINFO_FILENAME);
 
         return $stem === '' ? $basename : $stem;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     roleCount:int,
+     *     roleCounts:array<string, int>,
+     *     roleByteLengths:array<string, int>,
+     *     roleCompressedByteLengths:array<string, int>,
+     *     roleSummaries:list<array<string, mixed>>
+     * }
+     */
+    private static function centralDirectoryOrderMismatchRoleInventory(array $parts): array
+    {
+        $summaries = [];
+
+        foreach ($parts as $name => $part) {
+            if (($part['matchesCentralDirectoryOrder'] ?? null) !== false) {
+                continue;
+            }
+
+            $entryName = is_string($part['part'] ?? null) && $part['part'] !== ''
+                ? $part['part']
+                : (string) $name;
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            $byteLength = is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0;
+            $compressedByteLength = is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0;
+            $centralDirectoryIndex = $part['centralDirectoryIndex'] ?? null;
+            $localHeaderOrder = $part['localHeaderOrder'] ?? null;
+
+            foreach ($roles as $role) {
+                if (!isset($summaries[$role])) {
+                    $summaries[$role] = [
+                        'role' => $role,
+                        'mismatchedEntryCount' => 0,
+                        'byteLength' => 0,
+                        'compressedByteLength' => 0,
+                        'mismatchedEntryNames' => [],
+                        'centralDirectoryIndexes' => [],
+                        'localHeaderOrders' => [],
+                    ];
+                }
+
+                ++$summaries[$role]['mismatchedEntryCount'];
+                $summaries[$role]['byteLength'] += $byteLength;
+                $summaries[$role]['compressedByteLength'] += $compressedByteLength;
+                $summaries[$role]['mismatchedEntryNames'][] = $entryName;
+                if (is_int($centralDirectoryIndex)) {
+                    $summaries[$role]['centralDirectoryIndexes'][] = $centralDirectoryIndex;
+                }
+                if (is_int($localHeaderOrder)) {
+                    $summaries[$role]['localHeaderOrders'][] = $localHeaderOrder;
+                }
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        $roleCounts = [];
+        $roleByteLengths = [];
+        $roleCompressedByteLengths = [];
+        foreach ($summaries as $role => $summary) {
+            $roleCounts[$role] = $summary['mismatchedEntryCount'];
+            $roleByteLengths[$role] = $summary['byteLength'];
+            $roleCompressedByteLengths[$role] = $summary['compressedByteLength'];
+        }
+
+        return [
+            'roleCount' => count($summaries),
+            'roleCounts' => $roleCounts,
+            'roleByteLengths' => $roleByteLengths,
+            'roleCompressedByteLengths' => $roleCompressedByteLengths,
+            'roleSummaries' => array_values($summaries),
+        ];
     }
 
     /**

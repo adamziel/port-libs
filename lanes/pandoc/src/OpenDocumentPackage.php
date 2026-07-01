@@ -1099,6 +1099,7 @@ final class OpenDocumentPackage
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($this->manifestEntries, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($this->package, $parts, 'path');
+        $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
 
         return [
             'entryCount' => count($parts),
@@ -1222,6 +1223,11 @@ final class OpenDocumentPackage
             'canExposeBytes' => false,
             'roles' => array_keys($roleCounts),
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
+            'centralDirectoryOrderMismatchRoleCount' => $centralDirectoryOrderMismatchRoles['roleCount'],
+            'centralDirectoryOrderMismatchRoleCounts' => $centralDirectoryOrderMismatchRoles['roleCounts'],
+            'centralDirectoryOrderMismatchRoleByteLengths' => $centralDirectoryOrderMismatchRoles['roleByteLengths'],
+            'centralDirectoryOrderMismatchRoleCompressedByteLengths' => $centralDirectoryOrderMismatchRoles['roleCompressedByteLengths'],
+            'centralDirectoryOrderMismatchRoleSummaries' => $centralDirectoryOrderMismatchRoles['roleSummaries'],
             'zipPackageManifest' => $packageManifest,
             'zipPackageManifestSha256' => $packageManifest['manifestSha256'],
             ...$zipPackageManifestSummary,
@@ -1762,6 +1768,11 @@ final class OpenDocumentPackage
             'maxPackagePathDepth' => $packageInventory['maxPackagePathDepth'] ?? 0,
             'byteExposurePolicyCounts' => $packageInventory['byteExposurePolicyCounts'] ?? [],
             'roleCounts' => $packageInventory['roleCounts'] ?? [],
+            'centralDirectoryOrderMismatchRoleCount' => $packageInventory['centralDirectoryOrderMismatchRoleCount'] ?? 0,
+            'centralDirectoryOrderMismatchRoleCounts' => $packageInventory['centralDirectoryOrderMismatchRoleCounts'] ?? [],
+            'centralDirectoryOrderMismatchRoleByteLengths' => $packageInventory['centralDirectoryOrderMismatchRoleByteLengths'] ?? [],
+            'centralDirectoryOrderMismatchRoleCompressedByteLengths' => $packageInventory['centralDirectoryOrderMismatchRoleCompressedByteLengths'] ?? [],
+            'centralDirectoryOrderMismatchRoleSummaries' => $packageInventory['centralDirectoryOrderMismatchRoleSummaries'] ?? [],
             'undeclaredEntryCount' => $packageInventory['undeclaredEntryCount'] ?? 0,
             'unsupportedCompressionMethodCount' => $packageInventory['unsupportedCompressionMethodCount'] ?? 0,
             'encryptedCount' => count($this->encryptedManifestEntries()),
@@ -2285,6 +2296,82 @@ final class OpenDocumentPackage
         $stem = pathinfo($basename, PATHINFO_FILENAME);
 
         return $stem === '' ? $basename : $stem;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     roleCount:int,
+     *     roleCounts:array<string, int>,
+     *     roleByteLengths:array<string, int>,
+     *     roleCompressedByteLengths:array<string, int>,
+     *     roleSummaries:list<array<string, mixed>>
+     * }
+     */
+    private static function centralDirectoryOrderMismatchRoleInventory(array $parts): array
+    {
+        $summaries = [];
+
+        foreach ($parts as $name => $part) {
+            if (($part['matchesCentralDirectoryOrder'] ?? null) !== false) {
+                continue;
+            }
+
+            $entryName = is_string($part['path'] ?? null) && $part['path'] !== ''
+                ? $part['path']
+                : (string) $name;
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== ''
+            )));
+            $byteLength = is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0;
+            $compressedByteLength = is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0;
+            $centralDirectoryIndex = $part['centralDirectoryIndex'] ?? null;
+            $localHeaderOrder = $part['localHeaderOrder'] ?? null;
+
+            foreach ($roles as $role) {
+                if (!isset($summaries[$role])) {
+                    $summaries[$role] = [
+                        'role' => $role,
+                        'mismatchedEntryCount' => 0,
+                        'byteLength' => 0,
+                        'compressedByteLength' => 0,
+                        'mismatchedEntryNames' => [],
+                        'centralDirectoryIndexes' => [],
+                        'localHeaderOrders' => [],
+                    ];
+                }
+
+                ++$summaries[$role]['mismatchedEntryCount'];
+                $summaries[$role]['byteLength'] += $byteLength;
+                $summaries[$role]['compressedByteLength'] += $compressedByteLength;
+                $summaries[$role]['mismatchedEntryNames'][] = $entryName;
+                if (is_int($centralDirectoryIndex)) {
+                    $summaries[$role]['centralDirectoryIndexes'][] = $centralDirectoryIndex;
+                }
+                if (is_int($localHeaderOrder)) {
+                    $summaries[$role]['localHeaderOrders'][] = $localHeaderOrder;
+                }
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        $roleCounts = [];
+        $roleByteLengths = [];
+        $roleCompressedByteLengths = [];
+        foreach ($summaries as $role => $summary) {
+            $roleCounts[$role] = $summary['mismatchedEntryCount'];
+            $roleByteLengths[$role] = $summary['byteLength'];
+            $roleCompressedByteLengths[$role] = $summary['compressedByteLength'];
+        }
+
+        return [
+            'roleCount' => count($summaries),
+            'roleCounts' => $roleCounts,
+            'roleByteLengths' => $roleByteLengths,
+            'roleCompressedByteLengths' => $roleCompressedByteLengths,
+            'roleSummaries' => array_values($summaries),
+        ];
     }
 
     /**
