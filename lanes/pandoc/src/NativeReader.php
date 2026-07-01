@@ -1182,8 +1182,13 @@ final class NativeReader
         $this->expectSymbol(',');
         $classes = $this->parseList(fn (): string => $this->expectString());
         $this->expectSymbol(',');
-        $attributes = $this->parsePairList(fn (): string => $this->expectString());
+        $attributePairs = $this->parseStringPairList();
         $this->expectSymbol(')');
+
+        $attributes = [];
+        foreach ($attributePairs as [$key, $value]) {
+            $attributes[$key] = $value;
+        }
 
         $attrs = [];
         if ($id !== '') {
@@ -1194,6 +1199,10 @@ final class NativeReader
         }
         if ($attributes !== []) {
             $attrs['attributes'] = $attributes;
+        }
+        if ($id !== '' || $classes !== [] || $attributePairs !== []) {
+            $attrs['attrConstructor'] = 'Attr';
+            $attrs['attrNative'] = [$id, $classes, $attributePairs];
         }
 
         return $attrs;
@@ -1480,6 +1489,30 @@ final class NativeReader
             $key = $this->expectString();
             $this->expectSymbol(',');
             $pairs[$key] = $valueParser();
+            $this->expectSymbol(')');
+        } while ($this->acceptSymbol(','));
+
+        $this->expectSymbol(']');
+
+        return $pairs;
+    }
+
+    /**
+     * @return list<array{0:string, 1:string}>
+     */
+    private function parseStringPairList(): array
+    {
+        $this->expectSymbol('[');
+        $pairs = [];
+        if ($this->acceptSymbol(']')) {
+            return $pairs;
+        }
+
+        do {
+            $this->expectSymbol('(');
+            $key = $this->expectString();
+            $this->expectSymbol(',');
+            $pairs[] = [$key, $this->expectString()];
             $this->expectSymbol(')');
         } while ($this->acceptSymbol(','));
 
