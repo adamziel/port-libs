@@ -9583,6 +9583,103 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same('Object fallback', $object['fallbackText']);
         $t->same('<picture><source media="(min-width: 60em)" srcset="hero.avif 1x, hero@2x.avif 2x" type="image/avif"><source srcset="hero.webp 800w" type="image/webp"><img alt="Hero &amp; Source" decoding="async" loading="lazy" sizes="100vw" src="hero.jpg" srcset="hero-small.jpg 400w, hero-large.jpg 1200w"></picture><video controls poster="poster.jpg" preload="metadata"><source src="clip.webm" type="video/webm"><source media="screen" src="clip.mp4" type="video/mp4"><track default kind="captions" label="English" src="captions.vtt" srclang="en"></video><audio controls src="chapter.mp3"><source src="chapter.ogg" type="audio/ogg"></audio><iframe allowfullscreen height="360" loading="lazy" referrerpolicy="no-referrer" sandbox="allow-scripts allow-forms" src="frame.html" srcdoc="&lt;p&gt;Preview&lt;/p&gt;" width="640">Legacy frame fallback</iframe><embed height="32" src="plugin.swf" type="application/x-shockwave-flash" width="320"><object data="diagram.svg" height="480" name="diagram" type="image/svg+xml" width="640"><param name="quality" value="high"></param><param name="review-url" type="text/html" value="packet.html" valuetype="ref"></param>Object fallback</object>', $html);
     },
+    'summarizes html fragment resource url base provenance without fetching resources' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<base href="../assets/">'
+                . '<link rel="stylesheet preload" href="css/site.css" imagesrcset="icons/app.png 1x, //cdn.example.test/app@2x.png 2x" as="style">'
+                . '<img id="cover" src="../media/cover.png" srcset="../media/cover.png 1x, data:image/png;base64,AAAA 2x" alt="Cover">'
+                . '<video poster="poster.jpg"><source src="video/chapter.mp4" type="video/mp4"><track kind="captions" src="#captions"></video>'
+                . '<object data="objects/diagram.svg"><param name="movie" value="clips/diagram.swf" valuetype="ref" type="application/x-shockwave-flash"></object>'
+                . '<a href="#note">note</a><form action="/submit"></form>',
+            'resource url provenance fragment'
+        );
+        $packet = XmlHtmlDom::summarizeHtmlFragmentResourceUrls($dom, 'https://example.test/book/chapter.xhtml');
+        $find = static function (array $packet, string $element, string $attribute, ?string $role = null, ?int $candidateIndex = null) use ($t): array {
+            foreach ($packet['resources'] as $resource) {
+                if (($resource['element'] ?? null) !== $element || ($resource['attribute'] ?? null) !== $attribute) {
+                    continue;
+                }
+                if ($role !== null && ($resource['role'] ?? null) !== $role) {
+                    continue;
+                }
+                if ($candidateIndex !== null && ($resource['candidateIndex'] ?? null) !== $candidateIndex) {
+                    continue;
+                }
+
+                return $resource;
+            }
+
+            $t->true(false, 'Expected resource URL record was not found');
+
+            return [];
+        };
+
+        $t->same('html-fragment-resource-url-base-provenance', $packet['resourceUrlReviewPolicy']);
+        $t->same(false, $packet['directReaderParity']);
+        $t->same(['html-fragment-resource-url-review-only'], $packet['directReaderDiagnosticCodes']);
+        $t->same('https://example.test/book/chapter.xhtml', $packet['providedBaseUrl']);
+        $t->same('active-base-href', $packet['effectiveBaseSource']);
+        $t->same('https://example.test/assets/', $packet['effectiveBaseUrl']);
+        $t->same('../assets/', $packet['activeBaseHref']);
+        $t->same('relative', $packet['activeBaseHrefKind']);
+        $t->same(true, $packet['activeBaseHrefUsable']);
+        $t->same([], $packet['baseIssueCodes']);
+        $t->same(14, $packet['resourceCount']);
+        $t->same(13, $packet['resolvedResourceCount']);
+        $t->same(1, $packet['unsafeResourceCount']);
+        $t->same(['base', 'link', 'img', 'video', 'source', 'track', 'object', 'param', 'a', 'form'], $packet['resourceElements']);
+        $t->same(['href', 'imagesrcset', 'src', 'srcset', 'poster', 'data', 'value', 'action'], $packet['resourceAttributes']);
+        $t->same(['unsafe-resource-url'], $packet['resourceIssueCodes']);
+
+        $base = $find($packet, 'base', 'href');
+        $link = $find($packet, 'link', 'href');
+        $image = $find($packet, 'img', 'src');
+        $cdnCandidate = $find($packet, 'link', 'imagesrcset', 'image-srcset-candidate', 1);
+        $unsafeCandidate = $find($packet, 'img', 'srcset', 'srcset-candidate', 1);
+        $track = $find($packet, 'track', 'src');
+        $param = $find($packet, 'param', 'value');
+        $form = $find($packet, 'form', 'action');
+
+        $t->same('https://example.test/assets/', $base['resolvedUrl']);
+        $t->same('https://example.test/assets/css/site.css', $link['resolvedUrl']);
+        $t->same('https://example.test/media/cover.png', $image['resolvedUrl']);
+        $t->same('cover', $image['elementId']);
+        $t->same('img[1]', $image['elementPath']);
+        $t->same('https://cdn.example.test/app@2x.png', $cdnCandidate['resolvedUrl']);
+        $t->same('scheme-relative', $cdnCandidate['urlKind']);
+        $t->same('data', $unsafeCandidate['urlScheme']);
+        $t->same(true, $unsafeCandidate['urlUnsafe']);
+        $t->same(false, $unsafeCandidate['resolved']);
+        $t->same(['unsafe-resource-url'], $unsafeCandidate['issueCodes']);
+        $t->same('https://example.test/assets/#captions', $track['resolvedUrl']);
+        $t->same('https://example.test/assets/clips/diagram.swf', $param['resolvedUrl']);
+        $t->same('https://example.test/submit', $form['resolvedUrl']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
+    'summarizes unresolved html fragment resources when no usable base is present' => static function (TestRunner $t): void {
+        $dom = XmlHtmlDom::loadHtmlFragment(
+            '<img src="cover.png" alt="Cover"><a href="#local">local</a><base href="javascript:alert(1)">',
+            'unbased resource url provenance fragment'
+        );
+        $packet = XmlHtmlDom::summarizeHtmlFragmentResourceUrls($dom);
+        $resources = $packet['resources'];
+
+        $t->same(null, $packet['effectiveBaseUrl']);
+        $t->same('none', $packet['effectiveBaseSource']);
+        $t->same(['unusable-active-base-href'], $packet['baseIssueCodes']);
+        $t->same(3, $packet['resourceCount']);
+        $t->same(1, $packet['resolvedResourceCount']);
+        $t->same(2, $packet['unresolvedResourceCount']);
+        $t->same(1, $packet['unsafeResourceCount']);
+        $t->same(['missing-resource-base-url', 'unsafe-resource-url'], $packet['resourceIssueCodes']);
+        $t->same('cover.png', $resources[0]['value']);
+        $t->same(false, $resources[0]['resolved']);
+        $t->same(['missing-resource-base-url'], $resources[0]['issueCodes']);
+        $t->same('#local', $resources[1]['resolvedUrl']);
+        $t->same('javascript', $resources[2]['urlScheme']);
+        $t->same(['unsafe-resource-url'], $resources[2]['issueCodes']);
+        json_encode($packet, JSON_THROW_ON_ERROR);
+    },
     'summarizes html image loading policy metadata for reviewer handoff' => static function (TestRunner $t): void {
         $dom = XmlHtmlDom::loadHtmlFragment(
             '<img src="hero.avif" alt="Hero" loading="lazy" decoding="async" fetchpriority="high" crossorigin="use-credentials" referrerpolicy="no-referrer">'

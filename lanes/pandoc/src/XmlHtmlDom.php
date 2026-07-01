@@ -1030,6 +1030,71 @@ final class XmlHtmlDom
         return self::summarizeChildNodes($root);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
+    public static function summarizeHtmlFragmentResourceUrls(\DOMDocument $dom, ?string $baseUrl = null): array
+    {
+        $root = self::requireFragmentRoot($dom);
+        $base = self::htmlFragmentResourceBaseSummary($root, $baseUrl);
+        $resources = self::htmlFragmentResourceUrlRecords($root, $base['effectiveBaseUrl']);
+        $resolvedCount = 0;
+        $unsafeCount = 0;
+        $issueCodes = [];
+        $elements = [];
+        $attributes = [];
+
+        foreach ($resources as $resource) {
+            if (($resource['resolved'] ?? false) === true) {
+                ++$resolvedCount;
+            }
+            if (($resource['urlUnsafe'] ?? false) === true) {
+                ++$unsafeCount;
+            }
+            $element = $resource['element'] ?? null;
+            if (is_string($element) && $element !== '' && !in_array($element, $elements, true)) {
+                $elements[] = $element;
+            }
+            $attribute = $resource['attribute'] ?? null;
+            if (is_string($attribute) && $attribute !== '' && !in_array($attribute, $attributes, true)) {
+                $attributes[] = $attribute;
+            }
+            foreach (($resource['issueCodes'] ?? []) as $code) {
+                if (is_string($code) && $code !== '' && !in_array($code, $issueCodes, true)) {
+                    $issueCodes[] = $code;
+                }
+            }
+        }
+
+        return [
+            'formatFamily' => 'xml-html5-dom',
+            'format' => 'html',
+            'resourceUrlReviewPolicy' => 'html-fragment-resource-url-base-provenance',
+            'directReaderParity' => false,
+            'directReaderDiagnosticCodes' => ['html-fragment-resource-url-review-only'],
+            'providedBaseUrl' => $base['providedBaseUrl'],
+            'providedBaseUrlKind' => $base['providedBaseUrlKind'],
+            'providedBaseUrlUnsafe' => $base['providedBaseUrlUnsafe'],
+            'providedBaseUrlUsable' => $base['providedBaseUrlUsable'],
+            'activeBaseHref' => $base['activeBaseHref'],
+            'activeBaseHrefKind' => $base['activeBaseHrefKind'],
+            'activeBaseHrefUnsafe' => $base['activeBaseHrefUnsafe'],
+            'activeBaseHrefUsable' => $base['activeBaseHrefUsable'],
+            'effectiveBaseUrl' => $base['effectiveBaseUrl'],
+            'effectiveBaseSource' => $base['effectiveBaseSource'],
+            'baseIssueCodes' => $base['baseIssueCodes'],
+            'baseIssues' => $base['baseIssues'],
+            'resourceCount' => count($resources),
+            'resolvedResourceCount' => $resolvedCount,
+            'unresolvedResourceCount' => count($resources) - $resolvedCount,
+            'unsafeResourceCount' => $unsafeCount,
+            'resourceElements' => $elements,
+            'resourceAttributes' => $attributes,
+            'resourceIssueCodes' => $issueCodes,
+            'resources' => $resources,
+        ];
+    }
+
     public static function serializeHtmlFragment(\DOMDocument $dom): string
     {
         $root = self::requireFragmentRoot($dom);
@@ -25712,6 +25777,449 @@ final class XmlHtmlDom
         }
 
         return ['kind' => 'relative', 'scheme' => null, 'unsafe' => false];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function htmlFragmentResourceBaseSummary(\DOMElement $root, ?string $providedBaseUrl): array
+    {
+        $provided = self::normalizedHtmlResourceUrl($providedBaseUrl);
+        $providedReview = self::hyperlinkUrlReviewSummary($provided);
+        $providedUsable = self::isUsableHtmlResourceBaseUrl($provided);
+        $baseElement = self::firstHtmlBaseHrefElement($root);
+        $activeHref = $baseElement instanceof \DOMElement
+            ? self::normalizedHtmlResourceUrl(self::attributeOrNull($baseElement, 'href'))
+            : null;
+        $activeReview = self::hyperlinkUrlReviewSummary($activeHref);
+        $activeResolved = $activeHref === null
+            ? null
+            : self::resolveHtmlBaseHrefUrl($activeHref, $providedUsable ? $provided : null);
+        $activeUsable = self::isUsableHtmlResourceBaseUrl($activeResolved);
+        $issues = [];
+
+        if ($provided !== null && !$providedUsable) {
+            $issues[] = [
+                'code' => 'unusable-provided-base-url',
+                'baseUrl' => $provided,
+                'kind' => $providedReview['kind'],
+                'scheme' => $providedReview['scheme'],
+                'unsafe' => $providedReview['unsafe'],
+            ];
+        }
+        if ($activeHref !== null && !$activeUsable) {
+            $issues[] = [
+                'code' => 'unusable-active-base-href',
+                'baseHref' => $activeHref,
+                'kind' => $activeReview['kind'],
+                'scheme' => $activeReview['scheme'],
+                'unsafe' => $activeReview['unsafe'],
+            ];
+        }
+
+        $effectiveBase = null;
+        $effectiveSource = 'none';
+        if ($activeUsable) {
+            $effectiveBase = $activeResolved;
+            $effectiveSource = 'active-base-href';
+        } elseif ($providedUsable) {
+            $effectiveBase = $provided;
+            $effectiveSource = 'provided-base-url';
+        }
+
+        return [
+            'providedBaseUrl' => $provided,
+            'providedBaseUrlKind' => $providedReview['kind'],
+            'providedBaseUrlUnsafe' => $providedReview['unsafe'],
+            'providedBaseUrlUsable' => $providedUsable,
+            'activeBaseHref' => $activeHref,
+            'activeBaseHrefKind' => $activeReview['kind'],
+            'activeBaseHrefUnsafe' => $activeReview['unsafe'],
+            'activeBaseHrefUsable' => $activeUsable,
+            'activeBaseHrefResolvedUrl' => $activeResolved,
+            'effectiveBaseUrl' => $effectiveBase,
+            'effectiveBaseSource' => $effectiveSource,
+            'baseIssues' => $issues,
+            'baseIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            ))),
+        ];
+    }
+
+    private static function firstHtmlBaseHrefElement(\DOMElement $root): ?\DOMElement
+    {
+        foreach ($root->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement || strtolower(self::htmlElementName($element)) !== 'base') {
+                continue;
+            }
+            if ($element->hasAttribute('href')) {
+                return $element;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function htmlFragmentResourceUrlRecords(\DOMElement $root, ?string $baseUrl): array
+    {
+        $records = [];
+        $index = 0;
+
+        foreach ($root->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $name = strtolower(self::htmlElementName($element));
+            foreach (self::htmlResourceUrlAttributes($element, $name) as $attribute => $role) {
+                $value = self::attributeOrNull($element, $attribute);
+                if ($value === null) {
+                    continue;
+                }
+                $records[] = self::htmlResourceUrlRecord($index++, $element, $name, $attribute, $value, $role, $baseUrl);
+            }
+
+            foreach (['srcset' => 'srcset-candidate', 'imagesrcset' => 'image-srcset-candidate'] as $attribute => $role) {
+                if (!$element->hasAttribute($attribute)) {
+                    continue;
+                }
+                foreach (self::srcsetCandidateSummaries($element->getAttribute($attribute)) as $candidateIndex => $candidate) {
+                    $records[] = self::htmlResourceUrlRecord(
+                        $index++,
+                        $element,
+                        $name,
+                        $attribute,
+                        $candidate['url'],
+                        $role,
+                        $baseUrl,
+                        [
+                            'candidateIndex' => $candidateIndex,
+                            'candidateRaw' => $candidate['raw'],
+                            'candidateDescriptor' => $candidate['descriptor'],
+                            'candidateDescriptors' => $candidate['descriptors'],
+                        ]
+                    );
+                }
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function htmlResourceUrlAttributes(\DOMElement $element, string $name): array
+    {
+        $attributes = match ($name) {
+            'a', 'area' => ['href' => 'hyperlink'],
+            'audio' => ['src' => 'media-source'],
+            'base' => ['href' => 'document-base'],
+            'blockquote', 'del', 'ins', 'q' => ['cite' => 'citation'],
+            'embed' => ['src' => 'embedded-source'],
+            'form' => ['action' => 'form-action'],
+            'iframe' => ['src' => 'iframe-source'],
+            'img' => ['src' => 'image-source'],
+            'input' => ['src' => 'input-image-source'],
+            'link' => ['href' => 'document-link'],
+            'object' => ['data' => 'object-data'],
+            'script' => ['src' => 'script-source'],
+            'source' => ['src' => 'media-source'],
+            'track' => ['src' => 'track-source'],
+            'video' => ['src' => 'media-source', 'poster' => 'video-poster'],
+            default => [],
+        };
+
+        if ($name === 'param') {
+            $valueType = self::paramValueTypeSummary(self::attributeOrNull($element, 'valuetype'));
+            if ($valueType['state'] === 'ref') {
+                $attributes['value'] = 'object-param-ref';
+            }
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<string, mixed> $extra
+     * @return array<string, mixed>
+     */
+    private static function htmlResourceUrlRecord(
+        int $index,
+        \DOMElement $element,
+        string $name,
+        string $attribute,
+        string $rawValue,
+        string $role,
+        ?string $baseUrl,
+        array $extra = []
+    ): array {
+        $value = self::normalizedHtmlResourceUrl($rawValue);
+        $review = self::hyperlinkUrlReviewSummary($value);
+        $resolvedUrl = ($review['unsafe'] ?? false) === true || in_array($review['kind'], ['missing', 'empty', 'invalid'], true)
+            ? null
+            : self::resolveHtmlResourceUrl($value, $baseUrl);
+        $issueCodes = self::htmlResourceUrlIssueCodes($review, $resolvedUrl, $baseUrl);
+        $record = [
+            'index' => $index,
+            'element' => $name,
+            'attribute' => $attribute,
+            'role' => $role,
+            'value' => $rawValue,
+            'normalizedValue' => $value,
+            'urlKind' => $review['kind'],
+            'urlScheme' => $review['scheme'],
+            'urlUnsafe' => $review['unsafe'],
+            'resolved' => $resolvedUrl !== null,
+            'resolvedUrl' => $resolvedUrl,
+            'baseUrl' => $baseUrl,
+            'elementPath' => self::htmlResourceElementPath($element),
+            'issueCodes' => $issueCodes,
+        ] + $extra;
+
+        $id = self::attributeOrNull($element, 'id');
+        if ($id !== null && trim($id) !== '') {
+            $record['elementId'] = $id;
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array{kind:string, scheme:?string, unsafe:bool} $review
+     * @return list<string>
+     */
+    private static function htmlResourceUrlIssueCodes(array $review, ?string $resolvedUrl, ?string $baseUrl): array
+    {
+        if ($review['kind'] === 'empty') {
+            return ['empty-resource-url'];
+        }
+        if ($review['kind'] === 'invalid') {
+            return ['invalid-resource-url'];
+        }
+        if ($review['unsafe']) {
+            return ['unsafe-resource-url'];
+        }
+        if ($resolvedUrl === null && in_array($review['kind'], ['relative', 'scheme-relative'], true) && $baseUrl === null) {
+            return ['missing-resource-base-url'];
+        }
+        if ($resolvedUrl === null && !in_array($review['kind'], ['missing'], true)) {
+            return ['unresolved-resource-url'];
+        }
+
+        return [];
+    }
+
+    private static function normalizedHtmlResourceUrl(?string $url): ?string
+    {
+        return $url === null ? null : trim($url);
+    }
+
+    private static function isUsableHtmlResourceBaseUrl(?string $baseUrl): bool
+    {
+        $review = self::hyperlinkUrlReviewSummary($baseUrl);
+        if ($baseUrl === null || $review['unsafe'] || in_array($review['kind'], ['missing', 'empty', 'invalid', 'fragment', 'scheme-relative'], true)) {
+            return false;
+        }
+        if ($review['kind'] === 'absolute') {
+            return self::htmlUrlPartsForResolution($baseUrl) !== null;
+        }
+
+        return true;
+    }
+
+    private static function resolveHtmlBaseHrefUrl(string $href, ?string $providedBaseUrl): ?string
+    {
+        $review = self::hyperlinkUrlReviewSummary($href);
+        if ($review['unsafe'] || in_array($review['kind'], ['missing', 'empty', 'invalid', 'fragment'], true)) {
+            return null;
+        }
+        if ($review['kind'] === 'relative' && $providedBaseUrl === null) {
+            return self::normalizeHtmlRelativeUrlReference($href);
+        }
+
+        return self::resolveHtmlResourceUrl($href, $providedBaseUrl);
+    }
+
+    private static function resolveHtmlResourceUrl(?string $url, ?string $baseUrl): ?string
+    {
+        $url = self::normalizedHtmlResourceUrl($url);
+        $review = self::hyperlinkUrlReviewSummary($url);
+        if ($url === null || $review['unsafe'] || in_array($review['kind'], ['missing', 'empty', 'invalid'], true)) {
+            return null;
+        }
+        if ($review['kind'] === 'absolute') {
+            return $url;
+        }
+        if ($review['kind'] === 'fragment') {
+            return $baseUrl === null ? $url : self::stripHtmlUrlFragment($baseUrl) . $url;
+        }
+
+        $baseParts = $baseUrl === null ? null : self::htmlUrlPartsForResolution($baseUrl);
+        if ($review['kind'] === 'scheme-relative') {
+            return $baseParts !== null && $baseParts['scheme'] !== ''
+                ? $baseParts['scheme'] . $url
+                : null;
+        }
+        if ($baseParts === null) {
+            return null;
+        }
+
+        return self::resolveHtmlRelativeUrlAgainstBase($url, $baseParts);
+    }
+
+    /**
+     * @param array{scheme:string, authority:string, path:string} $baseParts
+     */
+    private static function resolveHtmlRelativeUrlAgainstBase(string $relativeUrl, array $baseParts): string
+    {
+        [$relativePath, $query, $fragment] = self::splitHtmlUrlPathQueryFragment($relativeUrl);
+        if ($relativePath === '') {
+            $targetPath = $baseParts['path'];
+        } elseif (str_starts_with($relativePath, '/')) {
+            $targetPath = self::normalizeHtmlUrlPath($relativePath);
+        } else {
+            $targetPath = self::normalizeHtmlUrlPath(self::htmlUrlDirectory($baseParts['path']) . $relativePath);
+        }
+
+        return $baseParts['scheme'] . $baseParts['authority'] . $targetPath . $query . $fragment;
+    }
+
+    /**
+     * @return array{scheme:string, authority:string, path:string}|null
+     */
+    private static function htmlUrlPartsForResolution(string $url): ?array
+    {
+        [$pathAndAuthority] = self::splitHtmlUrlPathQueryFragment($url);
+        if (preg_match('/^([A-Za-z][A-Za-z0-9+.-]*:)(\/\/[^\/?#]*)(.*)$/', $pathAndAuthority, $matches) === 1) {
+            return [
+                'scheme' => (string) $matches[1],
+                'authority' => (string) $matches[2],
+                'path' => (string) $matches[3],
+            ];
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9+.-]*:/', $pathAndAuthority) === 1) {
+            return null;
+        }
+
+        return [
+            'scheme' => '',
+            'authority' => '',
+            'path' => $pathAndAuthority,
+        ];
+    }
+
+    /**
+     * @return array{0:string, 1:string, 2:string}
+     */
+    private static function splitHtmlUrlPathQueryFragment(string $url): array
+    {
+        $fragment = '';
+        $fragmentOffset = strpos($url, '#');
+        if ($fragmentOffset !== false) {
+            $fragment = substr($url, $fragmentOffset);
+            $url = substr($url, 0, $fragmentOffset);
+        }
+
+        $query = '';
+        $queryOffset = strpos($url, '?');
+        if ($queryOffset !== false) {
+            $query = substr($url, $queryOffset);
+            $url = substr($url, 0, $queryOffset);
+        }
+
+        return [$url, $query, $fragment];
+    }
+
+    private static function normalizeHtmlRelativeUrlReference(string $url): ?string
+    {
+        [$path, $query, $fragment] = self::splitHtmlUrlPathQueryFragment($url);
+        if ($path === '') {
+            return null;
+        }
+
+        return self::normalizeHtmlUrlPath($path) . $query . $fragment;
+    }
+
+    private static function stripHtmlUrlFragment(string $url): string
+    {
+        $fragmentOffset = strpos($url, '#');
+
+        return $fragmentOffset === false ? $url : substr($url, 0, $fragmentOffset);
+    }
+
+    private static function htmlUrlDirectory(string $path): string
+    {
+        if ($path === '' || str_ends_with($path, '/')) {
+            return $path;
+        }
+
+        $slash = strrpos($path, '/');
+
+        return $slash === false ? '' : substr($path, 0, $slash + 1);
+    }
+
+    private static function normalizeHtmlUrlPath(string $path): string
+    {
+        if ($path === '') {
+            return '';
+        }
+
+        $absolute = str_starts_with($path, '/');
+        $trailingSlash = str_ends_with($path, '/');
+        $segments = [];
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                $last = $segments === [] ? null : $segments[count($segments) - 1];
+                if ($last !== null && $last !== '..') {
+                    array_pop($segments);
+                    continue;
+                }
+                if (!$absolute) {
+                    $segments[] = '..';
+                }
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        $normalized = ($absolute ? '/' : '') . implode('/', $segments);
+        if ($normalized === '' && $absolute) {
+            $normalized = '/';
+        }
+        if ($trailingSlash && $normalized !== '' && !str_ends_with($normalized, '/')) {
+            $normalized .= '/';
+        }
+
+        return $normalized;
+    }
+
+    private static function htmlResourceElementPath(\DOMElement $element): string
+    {
+        $segments = [];
+        for ($current = $element; $current instanceof \DOMElement; $current = $current->parentNode) {
+            if ($current->getAttribute(self::FRAGMENT_ROOT_ATTRIBUTE) === '1') {
+                break;
+            }
+
+            $name = strtolower(self::htmlElementName($current));
+            $ordinal = 1;
+            for ($sibling = $current->previousSibling; $sibling instanceof \DOMNode; $sibling = $sibling->previousSibling) {
+                if ($sibling instanceof \DOMElement && strtolower(self::htmlElementName($sibling)) === $name) {
+                    ++$ordinal;
+                }
+            }
+            array_unshift($segments, $name . '[' . $ordinal . ']');
+        }
+
+        return implode('/', $segments);
     }
 
     private static function referrerPolicyState(string $value): ?string
