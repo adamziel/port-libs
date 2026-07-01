@@ -2072,8 +2072,15 @@ final class XmlHtmlDom
             'fundingReferenceBacklinkReviewPolicy' => 'jats-bits-funding-reference-backlinks-metadata-only',
             'fundingReferenceBacklinks' => $fundingReview['fundingReferenceBacklinks'],
             'fundingReferenceBacklinkCount' => $fundingReview['fundingReferenceBacklinkCount'],
+            'resolvedFundingReferenceBacklinkCount' => $fundingReview['resolvedFundingReferenceBacklinkCount'],
+            'resolvedFundingReferenceBacklinkIds' => $fundingReview['resolvedFundingReferenceBacklinkIds'],
             'missingFundingReferenceBacklinkCount' => $fundingReview['missingFundingReferenceBacklinkCount'],
+            'missingFundingReferenceBacklinkIds' => $fundingReview['missingFundingReferenceBacklinkIds'],
             'duplicateFundingReferenceBacklinkCount' => $fundingReview['duplicateFundingReferenceBacklinkCount'],
+            'duplicateFundingReferenceBacklinkIds' => $fundingReview['duplicateFundingReferenceBacklinkIds'],
+            'fundingReferenceBacklinkTargetIds' => $fundingReview['fundingReferenceBacklinkTargetIds'],
+            'fundingReferenceBacklinkLinkCount' => $fundingReview['fundingReferenceBacklinkLinkCount'],
+            'duplicateFundingReferenceBacklinkLinkCount' => $fundingReview['duplicateFundingReferenceBacklinkLinkCount'],
             'fundingDiagnostics' => $fundingReview['fundingDiagnostics'],
             'fundingDiagnosticCodes' => $fundingReview['fundingDiagnosticCodes'],
             'fundingDiagnosticCount' => $fundingReview['fundingDiagnosticCount'],
@@ -8919,6 +8926,26 @@ final class XmlHtmlDom
             $fundingInstitutionSourceMismatches,
             $fundingReferenceBacklinks
         );
+        $resolvedFundingReferenceBacklinks = array_values(array_filter(
+            $fundingReferenceBacklinks,
+            static fn (array $backlink): bool => ($backlink['found'] ?? null) === true
+        ));
+        $missingFundingReferenceBacklinks = array_values(array_filter(
+            $fundingReferenceBacklinks,
+            static fn (array $backlink): bool => ($backlink['found'] ?? null) === false
+        ));
+        $duplicateFundingReferenceBacklinks = array_values(array_filter(
+            $fundingReferenceBacklinks,
+            static fn (array $backlink): bool => ($backlink['duplicate'] ?? null) === true
+        ));
+        $fundingReferenceBacklinkLinkCount = array_sum(array_map(
+            static fn (array $backlink): int => (int) ($backlink['linkCount'] ?? 0),
+            $fundingReferenceBacklinks
+        ));
+        $duplicateFundingReferenceBacklinkLinkCount = array_sum(array_map(
+            static fn (array $backlink): int => (int) ($backlink['linkCount'] ?? 0),
+            $duplicateFundingReferenceBacklinks
+        ));
 
         return [
             'fundingGroups' => $fundingGroups,
@@ -8961,14 +8988,15 @@ final class XmlHtmlDom
             'fundingLinkedReferenceCount' => count($fundingLinkedReferences),
             'fundingReferenceBacklinks' => $fundingReferenceBacklinks,
             'fundingReferenceBacklinkCount' => count($fundingReferenceBacklinks),
-            'missingFundingReferenceBacklinkCount' => count(array_filter(
-                $fundingReferenceBacklinks,
-                static fn (array $backlink): bool => ($backlink['found'] ?? null) === false
-            )),
-            'duplicateFundingReferenceBacklinkCount' => count(array_filter(
-                $fundingReferenceBacklinks,
-                static fn (array $backlink): bool => ($backlink['duplicate'] ?? null) === true
-            )),
+            'resolvedFundingReferenceBacklinkCount' => count($resolvedFundingReferenceBacklinks),
+            'resolvedFundingReferenceBacklinkIds' => self::jatsFundingReferenceBacklinkIds($resolvedFundingReferenceBacklinks),
+            'missingFundingReferenceBacklinkCount' => count($missingFundingReferenceBacklinks),
+            'missingFundingReferenceBacklinkIds' => self::jatsFundingReferenceBacklinkIds($missingFundingReferenceBacklinks),
+            'duplicateFundingReferenceBacklinkCount' => count($duplicateFundingReferenceBacklinks),
+            'duplicateFundingReferenceBacklinkIds' => self::jatsFundingReferenceBacklinkIds($duplicateFundingReferenceBacklinks),
+            'fundingReferenceBacklinkTargetIds' => self::jatsFundingReferenceBacklinkIds($fundingReferenceBacklinks),
+            'fundingReferenceBacklinkLinkCount' => $fundingReferenceBacklinkLinkCount,
+            'duplicateFundingReferenceBacklinkLinkCount' => $duplicateFundingReferenceBacklinkLinkCount,
             'fundingDiagnostics' => $fundingDiagnostics,
             'fundingDiagnosticCodes' => array_values(array_map(
                 static fn (array $diagnostic): string => (string) $diagnostic['code'],
@@ -10027,6 +10055,21 @@ final class XmlHtmlDom
         );
 
         return $orderedBacklinks;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $backlinks
+     * @return list<string>
+     */
+    private static function jatsFundingReferenceBacklinkIds(array $backlinks): array
+    {
+        return array_values(array_filter(
+            array_map(
+                static fn (array $backlink): ?string => self::stringOrNull($backlink['referenceId'] ?? null),
+                $backlinks
+            ),
+            static fn (?string $id): bool => $id !== null
+        ));
     }
 
     /**
