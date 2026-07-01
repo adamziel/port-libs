@@ -1152,6 +1152,7 @@ final class CitationCslProcessor
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origLocation', 'origaddress', 'origAddress']);
         $originalCollectionTitle = self::firstStringField($item, ['original-collection-title', 'originalCollectionTitle', 'originalcollectiontitle', 'origseries', 'origSeries', 'orig-series', 'original-series', 'originalSeries', 'originalseries']);
         $originalCollectionNumber = self::firstStringField($item, ['original-collection-number', 'originalCollectionNumber', 'originalcollectionnumber', 'origseriesnumber', 'origSeriesNumber', 'orig-series-number', 'original-series-number', 'originalSeriesNumber', 'originalseriesnumber']);
+        $originalEdition = self::firstStringField($item, ['original-edition', 'originalEdition', 'originaledition', 'origedition', 'origEdition', 'orig-edition']);
         $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'archivePrefix', 'eprinttype', 'eprint-type', 'eprintType']);
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass']);
@@ -1666,6 +1667,7 @@ final class CitationCslProcessor
             'originalLanguage' => $originalLanguage,
             'originalLanguageList' => $originalLanguageList !== [] ? $originalLanguageList : ($originalLanguage !== '' ? [$originalLanguage] : []),
             'originalGenre' => $originalGenre,
+            'originalEdition' => $originalEdition,
             'originalCollectionTitle' => $originalCollectionTitle,
             'originalCollectionNumber' => $originalCollectionNumber,
             'originalDate' => $originalDate,
@@ -11400,6 +11402,7 @@ final class CitationCslProcessor
             'original-publisher-place-list', 'originalpublisherplacelist', 'origlocationlist', 'origaddresslist' => implode('; ', is_array($item['originalPublisherPlaceList'] ?? null) ? $item['originalPublisherPlaceList'] : []),
             'original-language', 'originallanguage', 'origlanguage' => (string) ($item['originalLanguage'] ?? ''),
             'original-language-list', 'originallanguagelist', 'origlanguagelist' => implode('; ', is_array($item['originalLanguageList'] ?? null) ? $item['originalLanguageList'] : []),
+            'original-edition', 'originaledition', 'origedition', 'orig-edition' => (string) ($item['originalEdition'] ?? ''),
             'keyword', 'keywords' => implode(', ', is_array($item['keywords'] ?? null) ? $item['keywords'] : []),
             'keyword-list', 'keywordlist' => (string) ($item['keywordSummary'] ?? ''),
             'keyword-summary', 'keywords-summary' => (string) ($item['keywordSummary'] ?? ''),
