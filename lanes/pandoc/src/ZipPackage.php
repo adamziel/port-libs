@@ -19780,6 +19780,10 @@ final class ZipPackage
         $caseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries($entries);
         $caseFoldLeafNameCollisionSummaries = self::entryHandoffCaseFoldLeafNameCollisionSummaries($entries);
         $expansionRatioBucketSummaries = self::entryHandoffExpansionRatioBucketSummaries($entries);
+        $manifestOrderSummary = self::entryHandoffOrderSummary($entries);
+        $manifestOrderIssueCodes = $manifestOrderSummary['centralDirectoryOrderMatchesLocalHeaderOrder']
+            ? []
+            : ['central-directory-local-header-order-mismatch'];
         $unknownExpansionRatioEntryCount = self::entryHandoffSummaryTotal(
             $expansionRatioBucketSummaries,
             'unknownExpansionRatioEntryCount'
@@ -19844,6 +19848,11 @@ final class ZipPackage
                 $caseFoldLeafNameCollisionSummaries,
                 'entryCount'
             ),
+            'manifestOrderReviewStatus' => $manifestOrderIssueCodes === [] ? 'ok' : 'review',
+            'manifestOrderIssueCodes' => $manifestOrderIssueCodes,
+            'manifestOrderIssueCount' => count($manifestOrderIssueCodes),
+            'manifestOrderMismatchEntryCount' => $manifestOrderSummary['mismatchEntryCount'],
+            'manifestOrderSummary' => $manifestOrderSummary,
             'directoryRootSummaries' => $directoryRootSummaries,
             'parentDirectorySummaries' => $parentDirectorySummaries,
             'packagePartKindSummaries' => $packagePartKindSummaries,
