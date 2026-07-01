@@ -15402,6 +15402,7 @@ final class DocxOpenXmlReader
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partBaseNameCharacters = $this->packagePartBaseNameCharacterSummary($partInventory);
         $partXmlCdataSections = $this->packagePartXmlCdataSectionSummary($partInventory);
+        $partXmlComments = $this->packagePartXmlCommentSummary($partInventory);
         $partXmlProcessingInstructions = $this->packagePartXmlProcessingInstructionSummary($partInventory);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
@@ -18597,6 +18598,12 @@ final class DocxOpenXmlReader
             'partXmlCdataSectionPartNames' => $partXmlCdataSections['partNames'],
             'partXmlCdataSections' => $partXmlCdataSections['sections'],
             'partXmlCdataSectionsTruncated' => $partXmlCdataSections['truncated'],
+            'partXmlCommentPartCount' => $partXmlComments['partCount'],
+            'partXmlCommentCount' => $partXmlComments['commentCount'],
+            'partXmlCommentByteLength' => $partXmlComments['byteLength'],
+            'partXmlCommentPartNames' => $partXmlComments['partNames'],
+            'partXmlComments' => $partXmlComments['comments'],
+            'partXmlCommentsTruncated' => $partXmlComments['truncated'],
             'partXmlProcessingInstructionPartCount' => $partXmlProcessingInstructions['partCount'],
             'partXmlProcessingInstructionCount' => $partXmlProcessingInstructions['instructionCount'],
             'partXmlProcessingInstructionDataByteLength' => $partXmlProcessingInstructions['dataByteLength'],
@@ -30939,6 +30946,58 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
+     * @return array{partCount:int, commentCount:int, byteLength:int, partNames:list<string>, comments:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlCommentSummary(array $partInventory): array
+    {
+        $partNames = [];
+        $comments = [];
+        $commentCount = 0;
+        $byteLength = 0;
+        $truncated = false;
+        $summaryLimit = 64;
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $partCommentCount = (int) ($part['xmlCommentCount'] ?? 0);
+            if ($partCommentCount <= 0) {
+                continue;
+            }
+
+            $commentCount += $partCommentCount;
+            $byteLength += (int) ($part['xmlCommentByteLength'] ?? 0);
+            $this->appendUniqueString($partNames, $partName);
+            if (($part['xmlCommentsTruncated'] ?? false) === true) {
+                $truncated = true;
+            }
+
+            foreach (($part['xmlComments'] ?? []) as $comment) {
+                if (!is_array($comment)) {
+                    continue;
+                }
+                if (count($comments) >= $summaryLimit) {
+                    $truncated = true;
+                    continue;
+                }
+
+                $comments[] = ['partName' => $partName] + $comment;
+            }
+        }
+
+        sort($partNames, SORT_STRING);
+
+        return [
+            'partCount' => count($partNames),
+            'commentCount' => $commentCount,
+            'byteLength' => $byteLength,
+            'partNames' => $partNames,
+            'comments' => $comments,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
      * @return array{partCount:int, instructionCount:int, dataByteLength:int, targets:list<string>, partNames:list<string>, instructions:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlProcessingInstructionSummary(array $partInventory): array
@@ -31062,6 +31121,73 @@ final class DocxOpenXmlReader
             'count' => $count,
             'byteLength' => $byteLength,
             'sections' => $sections,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @return array{count:int, byteLength:int, comments:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlCommentMetadata(
+        string $xml,
+        string $partName,
+        string $contentTypeBase,
+        ?string $partExtension,
+    ): array {
+        $empty = [
+            'count' => 0,
+            'byteLength' => 0,
+            'comments' => [],
+            'truncated' => false,
+        ];
+        if (!$this->isXmlPackagePart($partName, $contentTypeBase, $partExtension)) {
+            return $empty;
+        }
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return $empty;
+        }
+
+        $comments = [];
+        $count = 0;
+        $byteLength = 0;
+        $truncated = false;
+        $itemLimit = 32;
+        $walk = function (\DOMNode $node) use (&$walk, &$comments, &$count, &$byteLength, &$truncated, $itemLimit): void {
+            if ($node instanceof \DOMComment) {
+                ++$count;
+                $value = (string) $node->nodeValue;
+                $valueByteLength = strlen($value);
+                $byteLength += $valueByteLength;
+                if (count($comments) >= $itemLimit) {
+                    $truncated = true;
+                } else {
+                    $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+                    $parentPath = $this->domElementPath($parent);
+                    $comments[] = [
+                        'index' => $count - 1,
+                        'parentPath' => $parentPath,
+                        'parentDepth' => $this->domElementPathDepth($parentPath),
+                        'byteLength' => $valueByteLength,
+                        'crc32' => sprintf('%08x', crc32($value)),
+                        'sha256' => hash('sha256', $value),
+                    ];
+                }
+            }
+
+            foreach ($node->childNodes as $child) {
+                if ($child instanceof \DOMNode) {
+                    $walk($child);
+                }
+            }
+        };
+        $walk($dom);
+
+        return [
+            'count' => $count,
+            'byteLength' => $byteLength,
+            'comments' => $comments,
             'truncated' => $truncated,
         ];
     }
@@ -35846,6 +35972,12 @@ final class DocxOpenXmlReader
                 (string) $contentTypeResolution['contentTypeBase'],
                 $partExtension,
             );
+            $xmlComments = $this->packagePartXmlCommentMetadata(
+                $contents,
+                $partName,
+                (string) $contentTypeResolution['contentTypeBase'],
+                $partExtension,
+            );
             $xmlProcessingInstructions = $this->packagePartXmlProcessingInstructionMetadata(
                 $contents,
                 $partName,
@@ -35892,6 +36024,10 @@ final class DocxOpenXmlReader
                 'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
                 'xmlCdataSections' => $xmlCdataSections['sections'],
                 'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
+                'xmlCommentCount' => $xmlComments['count'],
+                'xmlCommentByteLength' => $xmlComments['byteLength'],
+                'xmlComments' => $xmlComments['comments'],
+                'xmlCommentsTruncated' => $xmlComments['truncated'],
                 'xmlProcessingInstructionCount' => $xmlProcessingInstructions['count'],
                 'xmlProcessingInstructionDataByteLength' => $xmlProcessingInstructions['dataByteLength'],
                 'xmlProcessingInstructionTargets' => $xmlProcessingInstructions['targets'],
