@@ -43,7 +43,7 @@ Text-box-level `a:hlinkClick` relationships on non-visual drawing properties now
 
 Picture-level `a:hlinkClick` relationships on non-visual drawing properties now wrap the emitted image inline in a Pandoc `link`, so whole-picture links survive while the image media relationship remains separate and auditable.
 
-DrawingML text runs now preserve explicit `a:br` and `a:tab` markers in text boxes as structured Pandoc inlines. Breaks become `linebreak` nodes and tabs preserve separation as `space`, while paragraphs without those structural markers keep the previous fixture-stable flattened text path.
+DrawingML text boxes now follow upstream text extraction for explicit `a:br` and `a:tab` markers: only `<a:t>` descendants contribute visible text, joined with spaces, so break/tab markers do not become native `LineBreak` or tab-like inline nodes.
 
 DrawingML auto-numbered paragraphs using `a:buAutoNum` now import as Pandoc `ordered_list` blocks. The reader preserves the first `startAt` value, maps common PowerPoint auto-numbering type prefixes into Pandoc list styles, maps period/parenthesis/plain suffixes into Pandoc delimiters, and keeps the raw PPTX auto-numbering type as reviewable AST metadata.
 

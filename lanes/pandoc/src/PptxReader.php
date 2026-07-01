@@ -1868,18 +1868,6 @@ final class PptxReader
         $inlines = [];
         $hasStructuredInline = false;
         foreach ($this->childElements($paragraphElement, null) as $child) {
-            if ($child->localName === 'br') {
-                $hasStructuredInline = true;
-                $inlines[] = new AstNode('linebreak');
-                continue;
-            }
-
-            if ($child->localName === 'tab') {
-                $hasStructuredInline = true;
-                $inlines[] = new AstNode('space');
-                continue;
-            }
-
             if (!in_array($child->localName, ['r', 'fld'], true)) {
                 continue;
             }
@@ -1918,16 +1906,6 @@ final class PptxReader
                 if ($child->textContent !== '') {
                     $inlines[] = new AstNode('text', ['text' => $child->textContent]);
                 }
-                continue;
-            }
-
-            if ($child->localName === 'br') {
-                $inlines[] = new AstNode('linebreak');
-                continue;
-            }
-
-            if ($child->localName === 'tab') {
-                $inlines[] = new AstNode('space');
                 continue;
             }
         }

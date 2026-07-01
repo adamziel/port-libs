@@ -2685,7 +2685,7 @@ return [
         $t->contains('Link ( "" , [  ] , [  ] ) [ Str "the" , Space , Str "spec" ] ( "https://example.test/spec?x=1" , "Spec link" )', $native);
     },
 
-    'preserves pptx drawing text breaks and tabs as inlines' => static function (TestRunner $t) use ($buildBreakTabTextPptxPackage, $nodesOfType): void {
+    'ignores pptx drawing text breaks and tabs like upstream' => static function (TestRunner $t) use ($buildBreakTabTextPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildBreakTabTextPptxPackage());
         $paragraphs = $nodesOfType($document, 'paragraph');
         $native = PandocConverter::write($document, 'native');
@@ -2695,12 +2695,12 @@ return [
         ));
 
         $t->same(1, count($bodyParagraphs));
-        $t->same(['text', 'linebreak', 'text', 'space', 'text'], array_map(static fn (AstNode $inline): string => $inline->type, $bodyParagraphs[0]->children));
-        $t->same('Line one', $bodyParagraphs[0]->children[0]->attr('text'));
-        $t->same('Line two', $bodyParagraphs[0]->children[2]->attr('text'));
-        $t->same('Tabbed', $bodyParagraphs[0]->children[4]->attr('text'));
-        $t->same(1, count($nodesOfType($document, 'linebreak')));
-        $t->contains('Para [ Str "Line" , Space , Str "one" , LineBreak , Str "Line" , Space , Str "two" , Space , Str "Tabbed" ]', $native);
+        $t->same('Line one Line two Tabbed', $bodyParagraphs[0]->attr('text'));
+        $t->same(['text'], array_map(static fn (AstNode $inline): string => $inline->type, $bodyParagraphs[0]->children));
+        $t->same('Line one Line two Tabbed', $bodyParagraphs[0]->children[0]->attr('text'));
+        $t->same(0, count($nodesOfType($document, 'linebreak')));
+        $t->contains('Para [ Str "Line" , Space , Str "one" , Space , Str "Line" , Space , Str "two" , Space , Str "Tabbed" ]', $native);
+        $t->true(!str_contains($native, 'LineBreak'), 'DrawingML break markers should not become native LineBreak nodes');
     },
 
     'preserves pptx auto-numbered paragraphs as ordered lists' => static function (TestRunner $t) use ($buildNumberedListPptxPackage, $nodesOfType): void {
