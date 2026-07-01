@@ -21,8 +21,9 @@ final class OpcRelationship
         public readonly string $targetMode = self::TARGET_MODE_INTERNAL,
         ?bool $targetModeExplicit = null,
         bool $validateId = true,
+        bool $validateRequiredFields = true,
     ) {
-        if ($id === '' || $type === '' || $target === '') {
+        if ($validateRequiredFields && ($id === '' || $type === '' || $target === '')) {
             throw new \InvalidArgumentException('OPC relationship Id, Type, and Target must be non-empty');
         }
 

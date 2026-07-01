@@ -139,11 +139,11 @@ final class PptxReader
         }
 
         foreach ($this->childElements($root, null) as $relationshipElement) {
-            $id = $relationshipElement->getAttribute('Id');
-            $target = $relationshipElement->getAttribute('Target');
-            if ($id === '' || $target === '') {
+            if (!$relationshipElement->hasAttribute('Id') || !$relationshipElement->hasAttribute('Target')) {
                 continue;
             }
+            $id = $relationshipElement->getAttribute('Id');
+            $target = $relationshipElement->getAttribute('Target');
             if ($relationships->byId($id) instanceof OpcRelationship) {
                 continue;
             }
@@ -158,6 +158,7 @@ final class PptxReader
                     ? OpcRelationship::TARGET_MODE_EXTERNAL
                     : OpcRelationship::TARGET_MODE_INTERNAL,
                 $targetMode !== '',
+                false,
                 false
             ));
         }
@@ -215,8 +216,8 @@ final class PptxReader
         $slides = [];
         $index = 1;
         foreach ($this->presentationChildElements($slideIdList, 'sldId') as $slideIdElement) {
-            $relationshipId = $this->relationshipId($slideIdElement, 'id');
-            if ($relationshipId === '') {
+            $relationshipId = $this->relationshipAttribute($slideIdElement, 'id');
+            if ($relationshipId === null) {
                 throw new \RuntimeException('PPTX presentation slide is missing r:id');
             }
 
@@ -1732,12 +1733,12 @@ final class PptxReader
         }
 
         $relationshipAttribute = 'embed';
-        $relationshipId = $this->relationshipId($blip, $relationshipAttribute);
-        if ($relationshipId === '') {
+        $relationshipId = $this->relationshipAttribute($blip, $relationshipAttribute);
+        if ($relationshipId === null) {
             $relationshipAttribute = 'link';
-            $relationshipId = $this->relationshipId($blip, $relationshipAttribute);
+            $relationshipId = $this->relationshipAttribute($blip, $relationshipAttribute);
         }
-        if ($relationshipId === '') {
+        if ($relationshipId === null) {
             $imageIssues[] = ['issue' => 'missing-image-relationship-id'];
 
             return null;
@@ -2629,9 +2630,9 @@ final class PptxReader
             return $this->paragraph('[Graphic: diagram-no-relIds]');
         }
 
-        $dataRelId = $this->relationshipId($relIds, 'dm');
-        $layoutRelId = $this->relationshipId($relIds, 'lo');
-        if ($dataRelId === '' || $layoutRelId === '') {
+        $dataRelId = $this->relationshipAttribute($relIds, 'dm');
+        $layoutRelId = $this->relationshipAttribute($relIds, 'lo');
+        if ($dataRelId === null || $layoutRelId === null) {
             return $this->paragraph('[Graphic: diagram-missing-rels]');
         }
 
@@ -2928,7 +2929,14 @@ final class PptxReader
 
     private function relationshipId(\DOMElement $element, string $localName): string
     {
-        return $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName);
+        return $this->relationshipAttribute($element, $localName) ?? '';
+    }
+
+    private function relationshipAttribute(\DOMElement $element, string $localName): ?string
+    {
+        return $element->hasAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName)
+            ? $element->getAttributeNS(self::RELATIONSHIP_NAMESPACE, $localName)
+            : null;
     }
 
     /**
