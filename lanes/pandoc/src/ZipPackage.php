@@ -19607,6 +19607,7 @@ final class ZipPackage
                 'crc32Hex' => $entry->crc32Hex(),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
+                'expansionRatio' => self::expansionRatio($entry->uncompressedSize, $entry->compressedSize),
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
@@ -19646,6 +19647,11 @@ final class ZipPackage
         $sharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($leafNameSummaries);
         $caseFoldNameCollisionSummaries = self::entryHandoffCaseFoldNameCollisionSummaries($entries);
         $caseFoldLeafNameCollisionSummaries = self::entryHandoffCaseFoldLeafNameCollisionSummaries($entries);
+        $expansionRatioBucketSummaries = self::entryHandoffExpansionRatioBucketSummaries($entries);
+        $unknownExpansionRatioEntryCount = self::entryHandoffSummaryTotal(
+            $expansionRatioBucketSummaries,
+            'unknownExpansionRatioEntryCount'
+        );
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
@@ -19665,6 +19671,7 @@ final class ZipPackage
             'directoryEntryCount' => $directoryEntryCount,
             'compressedBytes' => $compressedBytes,
             'uncompressedBytes' => $uncompressedBytes,
+            'expansionRatio' => self::expansionRatio($uncompressedBytes, $compressedBytes),
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
@@ -19682,6 +19689,9 @@ final class ZipPackage
             'pathDepthBucketCount' => count($pathDepthSummaries),
             'maxPathDepth' => self::entryHandoffMaxPathDepth($pathDepthSummaries),
             'pathPrefixCount' => count($pathPrefixSummaries),
+            'unknownExpansionRatioEntryCount' => $unknownExpansionRatioEntryCount,
+            'hasUnknownExpansionRatioEntries' => $unknownExpansionRatioEntryCount > 0,
+            'expansionRatioBucketCount' => count($expansionRatioBucketSummaries),
             'leafNameCount' => count($leafNameSummaries),
             'sharedLeafNameCount' => count($sharedLeafNameSummaries),
             'sharedLeafNameEntryCount' => array_sum(array_map(
@@ -19705,6 +19715,7 @@ final class ZipPackage
             'entryExtensionSummaries' => $entryExtensionSummaries,
             'pathDepthSummaries' => $pathDepthSummaries,
             'pathPrefixSummaries' => $pathPrefixSummaries,
+            'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
             'leafNameSummaries' => $leafNameSummaries,
             'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
             'caseFoldNameCollisionSummaries' => $caseFoldNameCollisionSummaries,

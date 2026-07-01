@@ -836,6 +836,156 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'summarizes zip package manifest expansion ratio buckets without changing manifest hash contract' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = str_repeat('D', 2048);
+        $styleXml = '<style/>';
+        $emptyBytes = '';
+        $mediaBytes = str_repeat('M', 70000);
+        $unknownName = 'word/media/zero-compressed.bin';
+        $unknownUncompressedSize = 37;
+        $zip = $buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8],
+            ['name' => 'word/styles.xml', 'data' => $styleXml, 'method' => 0],
+            ['name' => 'word/media/empty.bin', 'data' => $emptyBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $mediaBytes, 'method' => 8],
+            [
+                'name' => $unknownName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $unknownUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $unknownUncompressedSize,
+            ],
+        ]);
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $mediaCompressed = strlen(gzdeflate($mediaBytes));
+        $documentRatio = strlen($documentXml) / $documentCompressed;
+        $mediaRatio = strlen($mediaBytes) / $mediaCompressed;
+        $largestHighRatioName = $mediaRatio > $documentRatio ? 'word/media/large.bin' : 'word/document.xml';
+        $largestHighRatio = max($documentRatio, $mediaRatio);
+        $totalCompressedBytes = $documentCompressed + strlen($styleXml) + $mediaCompressed;
+        $totalUncompressedBytes = strlen($documentXml)
+            + strlen($styleXml)
+            + strlen($mediaBytes)
+            + $unknownUncompressedSize;
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(131072, 100000.0, 131072);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 131072, 100000.0, 131072);
+        $buckets = array_column($manifest['expansionRatioBucketSummaries'], null, 'expansionRatioBucket');
+        $expectedManifestJson = json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'entries' => array_map(
+                static fn (array $entry): array => [
+                    'name' => $entry['name'],
+                    'isDirectory' => $entry['isDirectory'],
+                    'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                    'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'crc32Hex' => $entry['crc32Hex'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                    'localHeaderSha256' => $entry['localHeaderSha256'],
+                    'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                ],
+                $manifest['entries']
+            ),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same(hash('sha256', $expectedManifestJson), $manifest['manifestSha256']);
+        $t->same(6, $manifest['entryCount']);
+        $t->same(5, $manifest['fileEntryCount']);
+        $t->same(1, $manifest['directoryEntryCount']);
+        $t->same($totalCompressedBytes, $manifest['compressedBytes']);
+        $t->same($totalUncompressedBytes, $manifest['uncompressedBytes']);
+        $t->same($totalUncompressedBytes / $totalCompressedBytes, $manifest['expansionRatio']);
+        $t->same(3, $manifest['storedEntryCount']);
+        $t->same(2, $manifest['deflatedEntryCount']);
+        $t->same(1, $manifest['unsupportedCompressionMethodCount']);
+        $t->same(1, $manifest['unknownExpansionRatioEntryCount']);
+        $t->same(true, $manifest['hasUnknownExpansionRatioEntries']);
+        $t->same(4, $manifest['expansionRatioBucketCount']);
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x', 'unknown'], array_keys($buckets));
+
+        $t->same($documentRatio, $manifest['entries'][0]['expansionRatio']);
+        $t->same(1.0, $manifest['entries'][1]['expansionRatio']);
+        $t->same(0.0, $manifest['entries'][2]['expansionRatio']);
+        $t->same(0.0, $manifest['entries'][3]['expansionRatio']);
+        $t->same($mediaRatio, $manifest['entries'][4]['expansionRatio']);
+        $t->same(null, $manifest['entries'][5]['expansionRatio']);
+
+        $t->same([
+            'expansionRatioBucket' => 'zero-byte',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 0.0,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roles' => [],
+            'entryNames' => ['word/media/empty.bin', 'word/media/'],
+            'largestExpansionRatioEntryName' => 'word/media/empty.bin',
+            'largestExpansionRatio' => 0.0,
+        ], $buckets['zero-byte']);
+        $t->same([
+            'expansionRatioBucket' => 'up-to-1x',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 1.0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => strlen($styleXml),
+            'uncompressedBytes' => strlen($styleXml),
+            'roles' => [],
+            'entryNames' => ['word/styles.xml'],
+            'largestExpansionRatioEntryName' => 'word/styles.xml',
+            'largestExpansionRatio' => 1.0,
+        ], $buckets['up-to-1x']);
+        $t->same([
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => $documentCompressed + $mediaCompressed,
+            'uncompressedBytes' => strlen($documentXml) + strlen($mediaBytes),
+            'roles' => [],
+            'entryNames' => ['word/document.xml', 'word/media/large.bin'],
+            'largestExpansionRatioEntryName' => $largestHighRatioName,
+            'largestExpansionRatio' => $largestHighRatio,
+        ], $buckets['over-100x']);
+        $t->same([
+            'expansionRatioBucket' => 'unknown',
+            'minExpansionRatio' => null,
+            'maxExpansionRatio' => null,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => $unknownUncompressedSize,
+            'roles' => [],
+            'entryNames' => [$unknownName],
+            'largestExpansionRatioEntryName' => null,
+            'largestExpansionRatio' => null,
+        ], $buckets['unknown']);
+
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
         $mediaBytes = "stored image bytes\n";
