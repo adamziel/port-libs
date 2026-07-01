@@ -427,6 +427,123 @@ return [
                 'certificate-external-boundary',
                 'open-output-side-effect-boundary',
             ],
+            'optionFamilyCount' => 12,
+            'optionFamilyReviewCount' => 4,
+            'optionFamilyIssueCount' => 4,
+            'optionFamilyCounts' => [
+                'certificate' => 2,
+                'diagnostic-output' => 2,
+                'execution-policy' => 1,
+                'feature-gate' => 2,
+                'font-access' => 2,
+                'font-path' => 2,
+                'input-variable' => 1,
+                'open-output' => 1,
+                'package-storage' => 2,
+                'pdf-export' => 3,
+                'root-boundary' => 1,
+                'sidecar-output' => 2,
+            ],
+            'optionFamilyIssueCounts' => [
+                'certificate' => 1,
+                'diagnostic-output' => 0,
+                'execution-policy' => 0,
+                'feature-gate' => 0,
+                'font-access' => 0,
+                'font-path' => 1,
+                'input-variable' => 0,
+                'open-output' => 1,
+                'package-storage' => 1,
+                'pdf-export' => 0,
+                'root-boundary' => 0,
+                'sidecar-output' => 0,
+            ],
+            'optionFamilies' => [
+                [
+                    'family' => 'root-boundary',
+                    'observed' => 1,
+                    'reviewStatus' => 'ok',
+                    'issueCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'family' => 'font-path',
+                    'observed' => 2,
+                    'reviewStatus' => 'review',
+                    'issueCount' => 1,
+                    'issues' => ['font-path-external-boundary'],
+                ],
+                [
+                    'family' => 'certificate',
+                    'observed' => 2,
+                    'reviewStatus' => 'review',
+                    'issueCount' => 1,
+                    'issues' => ['certificate-external-boundary'],
+                ],
+                [
+                    'family' => 'package-storage',
+                    'observed' => 2,
+                    'reviewStatus' => 'review',
+                    'issueCount' => 1,
+                    'issues' => ['package-cache-external-boundary'],
+                ],
+                [
+                    'family' => 'input-variable',
+                    'observed' => 1,
+                    'reviewStatus' => 'ok',
+                    'issueCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'family' => 'sidecar-output',
+                    'observed' => 2,
+                    'reviewStatus' => 'ok',
+                    'issueCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'family' => 'diagnostic-output',
+                    'observed' => 2,
+                    'reviewStatus' => 'ok',
+                    'issueCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'family' => 'font-access',
+                    'observed' => 2,
+                    'reviewStatus' => 'ok',
+                    'issueCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'family' => 'pdf-export',
+                    'observed' => 3,
+                    'reviewStatus' => 'ok',
+                    'issueCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'family' => 'feature-gate',
+                    'observed' => 2,
+                    'reviewStatus' => 'ok',
+                    'issueCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'family' => 'execution-policy',
+                    'observed' => 1,
+                    'reviewStatus' => 'ok',
+                    'issueCount' => 0,
+                    'issues' => [],
+                ],
+                [
+                    'family' => 'open-output',
+                    'observed' => 1,
+                    'reviewStatus' => 'review',
+                    'issueCount' => 1,
+                    'issues' => ['open-output-side-effect-boundary'],
+                ],
+            ],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -450,6 +567,8 @@ return [
         $t->contains('typst-boundary-summary-unsafe-paths:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-sidecars:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-font-access-controls:2', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-option-families:12', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-review-families:4', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-summary-issues:4', implode(',', $plan['diagnostics']));
         $t->contains('pdf-engine-artifacts:2', implode(',', $plan['diagnostics']));
         $t->same(['build/boundary-summary.d', 'build/boundary-summary-timings.json'], $plan['expectedEngineArtifacts']);

@@ -619,6 +619,12 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['outputFormatEntryCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-output-formats:' . $typstBoundarySummary['outputFormatEntryCount'];
             }
+            if (($typstBoundarySummary['optionFamilyCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-option-families:' . $typstBoundarySummary['optionFamilyCount'];
+            }
+            if (($typstBoundarySummary['optionFamilyReviewCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-review-families:' . $typstBoundarySummary['optionFamilyReviewCount'];
+            }
             if ($typstBoundarySummary['issueCount'] > 0) {
                 $diagnostics[] = 'typst-boundary-summary-issues:' . $typstBoundarySummary['issueCount'];
             }
@@ -8999,6 +9005,40 @@ final class PdfEngineHandoff
             is_array($provenance['issues'] ?? null) ? $provenance['issues'] : [],
             static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
         ));
+        $optionFamilies = $this->typstBoundaryOptionFamilySummaries(
+            $provenance,
+            [
+                'fontPathCount' => is_array($provenance['fontPaths'] ?? null) ? count($provenance['fontPaths']) : 0,
+                'certificateCount' => is_array($provenance['certificates'] ?? null) ? count($provenance['certificates']) : 0,
+                'packageStorageEntryCount' => is_array($provenance['packageStoragePolicy'] ?? null) && is_int($provenance['packageStoragePolicy']['storageEntryCount'] ?? null)
+                    ? $provenance['packageStoragePolicy']['storageEntryCount']
+                    : (int) is_array($provenance['packagePath'] ?? null) + (int) is_array($provenance['packageCache'] ?? null),
+                'sidecarOutputCount' => (int) $dependencyOutputPresent + (int) $timingsOutputPresent,
+                'diagnosticOutputCount' => (int) is_array($provenance['diagnosticOutput']['format'] ?? null)
+                    + (int) is_array($provenance['diagnosticOutput']['color'] ?? null),
+                'fontAccessControlCount' => (int) $systemFontAccessDisabled + (int) $embeddedFontAccessDisabled,
+                'outputFormatEntryCount' => $outputFormatEntryCount,
+                'pdfExportControlCount' => $pdfExportControlCount,
+                'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
+                'openOutputSideEffectCount' => is_array($provenance['openOutput'] ?? null) && is_int($provenance['openOutput']['flagCount'] ?? null) ? $provenance['openOutput']['flagCount'] : 0,
+                'overrideCount' => is_array($provenance['overrides'] ?? null) ? count($provenance['overrides']) : 0,
+            ]
+        );
+        $optionFamilyCounts = [];
+        $optionFamilyIssueCounts = [];
+        $optionFamilyReviewCount = 0;
+        $optionFamilyIssueCount = 0;
+        foreach ($optionFamilies as $family) {
+            $familyName = (string) $family['family'];
+            $optionFamilyCounts[$familyName] = (int) $family['observed'];
+            $optionFamilyIssueCounts[$familyName] = (int) $family['issueCount'];
+            $optionFamilyIssueCount += (int) $family['issueCount'];
+            if (($family['reviewStatus'] ?? 'ok') !== 'ok') {
+                ++$optionFamilyReviewCount;
+            }
+        }
+        ksort($optionFamilyCounts);
+        ksort($optionFamilyIssueCounts);
 
         return [
             'reviewStatus' => is_string($provenance['reviewStatus'] ?? null) ? $provenance['reviewStatus'] : ($issues === [] ? 'ok' : 'review'),
@@ -9040,7 +9080,163 @@ final class PdfEngineHandoff
             'historyEntryCount' => $historyEntryCount,
             'issueCount' => count($issues),
             'issues' => $issues,
+            'optionFamilyCount' => count($optionFamilies),
+            'optionFamilyReviewCount' => $optionFamilyReviewCount,
+            'optionFamilyIssueCount' => $optionFamilyIssueCount,
+            'optionFamilyCounts' => $optionFamilyCounts,
+            'optionFamilyIssueCounts' => $optionFamilyIssueCounts,
+            'optionFamilies' => $optionFamilies,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @param array<string, int> $summaryCounts
+     * @return list<array{family:string, observed:int, reviewStatus:string, issueCount:int, issues:list<string>}>
+     */
+    private function typstBoundaryOptionFamilySummaries(array $provenance, array $summaryCounts): array
+    {
+        $collectIssues = static function (mixed ...$items): array {
+            $issues = [];
+            $visit = static function (mixed $item) use (&$visit, &$issues): void {
+                if (!is_array($item)) {
+                    return;
+                }
+                if (is_string($item['issue'] ?? null) && $item['issue'] !== '') {
+                    $issues[] = $item['issue'];
+                }
+                if (is_array($item['issues'] ?? null)) {
+                    foreach ($item['issues'] as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $issues[] = $issue;
+                        }
+                    }
+                }
+                foreach ($item as $key => $value) {
+                    if ($key === 'issue' || $key === 'issues') {
+                        continue;
+                    }
+                    if (is_array($value)) {
+                        $visit($value);
+                    }
+                }
+            };
+            foreach ($items as $item) {
+                $visit($item);
+            }
+            $issues = array_values(array_unique($issues));
+            sort($issues);
+
+            return $issues;
+        };
+
+        $families = [];
+        $appendFamily = static function (string $family, int $observed, array $issues) use (&$families): void {
+            if ($observed <= 0 && $issues === []) {
+                return;
+            }
+            $families[] = [
+                'family' => $family,
+                'observed' => $observed,
+                'reviewStatus' => $issues === [] ? 'ok' : 'review',
+                'issueCount' => count($issues),
+                'issues' => $issues,
+            ];
+        };
+
+        $rootObserved = is_array($provenance['rootHistory'] ?? null) && $provenance['rootHistory'] !== []
+            ? count($provenance['rootHistory'])
+            : (int) is_array($provenance['root'] ?? null);
+        $appendFamily('root-boundary', $rootObserved, $collectIssues(
+            $provenance['root'] ?? null,
+            $provenance['rootHistory'] ?? null,
+            $provenance['rootEnvironment'] ?? null
+        ));
+        $appendFamily('environment', is_array($provenance['environmentVariables'] ?? null) ? count($provenance['environmentVariables']) : 0, $collectIssues(
+            $provenance['rootEnvironment'] ?? null,
+            $provenance['certificateEnvironment'] ?? null,
+            $provenance['packagePathEnvironment'] ?? null,
+            $provenance['packageCacheEnvironment'] ?? null,
+            $provenance['featureGateEnvironment'] ?? null,
+            $provenance['creationTimestampEnvironment'] ?? null,
+            $provenance['systemFonts'] ?? null,
+            $provenance['embeddedFonts'] ?? null
+        ));
+        $appendFamily('font-path', $summaryCounts['fontPathCount'] ?? 0, $collectIssues(
+            $provenance['fontPaths'] ?? null,
+            $provenance['fontPathPolicy'] ?? null
+        ));
+        $appendFamily('certificate', $summaryCounts['certificateCount'] ?? 0, $collectIssues(
+            $provenance['certificates'] ?? null,
+            $provenance['certificateEnvironment'] ?? null,
+            $provenance['certificatePolicy'] ?? null
+        ));
+        $appendFamily('package-storage', $summaryCounts['packageStorageEntryCount'] ?? 0, $collectIssues(
+            $provenance['packagePath'] ?? null,
+            $provenance['packagePathHistory'] ?? null,
+            $provenance['packagePathEnvironment'] ?? null,
+            $provenance['packageCache'] ?? null,
+            $provenance['packageCacheHistory'] ?? null,
+            $provenance['packageCacheEnvironment'] ?? null,
+            $provenance['packageStoragePolicy'] ?? null
+        ));
+        $appendFamily('input-variable', is_array($provenance['inputVariables'] ?? null) ? count($provenance['inputVariables']) : 0, $collectIssues(
+            $provenance['inputVariables'] ?? null,
+            $provenance['inputVariableOverrides'] ?? null,
+            $provenance['inputVariablePolicy'] ?? null
+        ));
+        $appendFamily('sidecar-output', $summaryCounts['sidecarOutputCount'] ?? 0, $collectIssues(
+            $provenance['dependencyOutput'] ?? null,
+            $provenance['dependencyOutputHistory'] ?? null,
+            $provenance['timingsOutput'] ?? null,
+            $provenance['timingsOutputHistory'] ?? null
+        ));
+        $appendFamily('diagnostic-output', $summaryCounts['diagnosticOutputCount'] ?? 0, $collectIssues(
+            $provenance['diagnosticOutput'] ?? null,
+            $provenance['diagnosticFormatHistory'] ?? null,
+            $provenance['diagnosticColorHistory'] ?? null
+        ));
+        $appendFamily('font-access', $summaryCounts['fontAccessControlCount'] ?? 0, $collectIssues(
+            $provenance['systemFonts'] ?? null,
+            $provenance['embeddedFonts'] ?? null
+        ));
+        $appendFamily('output-format', $summaryCounts['outputFormatEntryCount'] ?? 0, $collectIssues(
+            $provenance['outputFormat'] ?? null,
+            $provenance['outputFormatHistory'] ?? null,
+            $provenance['outputFormatPolicy'] ?? null
+        ));
+        $appendFamily('pdf-export', $summaryCounts['pdfExportControlCount'] ?? 0, $collectIssues(
+            $provenance['pdfExport'] ?? null,
+            $provenance['pdfStandard'] ?? null,
+            $provenance['pdfStandardHistory'] ?? null,
+            $provenance['pdfStandardPolicy'] ?? null
+        ));
+        $appendFamily('feature-gate', $summaryCounts['featureGateCount'] ?? 0, $collectIssues(
+            $provenance['featureGates'] ?? null,
+            $provenance['featureGateHistory'] ?? null,
+            $provenance['featureGateEnvironment'] ?? null
+        ));
+        $appendFamily('execution-policy', is_array($provenance['executionPolicy'] ?? null) ? 1 : 0, $collectIssues(
+            $provenance['executionPolicy'] ?? null,
+            $provenance['jobsHistory'] ?? null
+        ));
+        $creationTimestampObserved = is_array($provenance['creationTimestampHistory'] ?? null) && $provenance['creationTimestampHistory'] !== []
+            ? count($provenance['creationTimestampHistory'])
+            : (int) is_array($provenance['creationTimestamp'] ?? null);
+        $appendFamily('creation-timestamp', $creationTimestampObserved, $collectIssues(
+            $provenance['creationTimestamp'] ?? null,
+            $provenance['creationTimestampHistory'] ?? null,
+            $provenance['creationTimestampEnvironment'] ?? null
+        ));
+        $appendFamily('open-output', $summaryCounts['openOutputSideEffectCount'] ?? 0, $collectIssues(
+            $provenance['openOutput'] ?? null
+        ));
+        $appendFamily('override', $summaryCounts['overrideCount'] ?? 0, $collectIssues(
+            $provenance['overrides'] ?? null,
+            $provenance['inputVariableOverrides'] ?? null
+        ));
+
+        return $families;
     }
 
     /**
