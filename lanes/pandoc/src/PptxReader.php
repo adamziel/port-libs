@@ -1206,14 +1206,8 @@ final class PptxReader
 
             $paragraphs = $this->parseParagraphs($textBody, $slideRelationships);
             if ($this->paragraphsContainText($paragraphs)) {
-                $blocks = $this->withShapeHyperlink(
-                    $this->paragraphsToBlocks($paragraphs),
-                    $shapeElement,
-                    $slideRelationships
-                );
-
                 return $this->withShapeMetadata(
-                    $blocks,
+                    $this->paragraphsToBlocks($paragraphs),
                     $shapeElement,
                     $zOrder
                 );
@@ -1221,7 +1215,6 @@ final class PptxReader
 
             $blocks = $this->inheritedPlaceholderBlocks($shapeElement, $slideContext);
             $blocks = $blocks !== [] ? $blocks : $this->paragraphsToBlocks($paragraphs);
-            $blocks = $this->withShapeHyperlink($blocks, $shapeElement, $slideRelationships);
 
             return $this->withShapeMetadata($blocks, $shapeElement, $zOrder);
         }
@@ -1329,63 +1322,6 @@ final class PptxReader
         }
 
         return new AstNode($node->type, $attrs, $changed ? $children : $node->children);
-    }
-
-    /**
-     * @param list<AstNode> $blocks
-     * @return list<AstNode>
-     */
-    private function withShapeHyperlink(array $blocks, \DOMElement $shapeElement, OpcRelationships $slideRelationships): array
-    {
-        if ($blocks === []) {
-            return [];
-        }
-
-        $properties = $this->nonVisualDrawingProperties($shapeElement);
-        if (!$properties instanceof \DOMElement) {
-            return $blocks;
-        }
-
-        $linkAttrs = $this->drawingHyperlinkAttrsFromContainer($properties, $slideRelationships);
-        if ($linkAttrs === null) {
-            return $blocks;
-        }
-
-        return array_map(fn (AstNode $block): AstNode => $this->withShapeHyperlinkNode($block, $linkAttrs), $blocks);
-    }
-
-    /**
-     * @param array<string, mixed> $linkAttrs
-     */
-    private function withShapeHyperlinkNode(AstNode $node, array $linkAttrs): AstNode
-    {
-        if (in_array($node->type, ['paragraph', 'plain'], true) && $node->children !== [] && !$this->containsInlineLink($node->children)) {
-            return new AstNode($node->type, $node->attrs, [
-                new AstNode('link', $linkAttrs, $node->children),
-            ]);
-        }
-
-        if (!in_array($node->type, ['bullet_list', 'ordered_list', 'list_item'], true)) {
-            return $node;
-        }
-
-        $children = array_map(fn (AstNode $child): AstNode => $this->withShapeHyperlinkNode($child, $linkAttrs), $node->children);
-
-        return new AstNode($node->type, $node->attrs, $children);
-    }
-
-    /**
-     * @param list<AstNode> $inlines
-     */
-    private function containsInlineLink(array $inlines): bool
-    {
-        foreach ($inlines as $inline) {
-            if ($inline->type === 'link') {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     /**
@@ -1786,15 +1722,8 @@ final class PptxReader
                 continue;
             }
 
-            $linkAttrs = $relationships instanceof OpcRelationships ? $this->drawingRunHyperlinkAttrs($child, $relationships) : null;
-            $runInlines = $this->drawingRunStructuredInlines($child, $linkAttrs !== null);
+            $runInlines = $this->drawingRunStructuredInlines($child);
             if ($runInlines === []) {
-                continue;
-            }
-
-            if ($linkAttrs !== null) {
-                $hasStructuredInline = true;
-                $inlines[] = new AstNode('link', $linkAttrs, $runInlines);
                 continue;
             }
 
@@ -1812,7 +1741,7 @@ final class PptxReader
     /**
      * @return list<AstNode>
      */
-    private function drawingRunStructuredInlines(\DOMElement $runElement, bool $insideLink): array
+    private function drawingRunStructuredInlines(\DOMElement $runElement): array
     {
         $inlines = [];
         foreach ($this->childElements($runElement, null) as $child) {
@@ -1824,97 +1753,7 @@ final class PptxReader
             }
         }
 
-        if ($inlines === [] && $insideLink) {
-            $text = $this->drawingText($runElement);
-            if ($text !== '') {
-                return $this->textInlines($text);
-            }
-        }
-
         return $inlines;
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function drawingRunHyperlinkAttrs(\DOMElement $runElement, OpcRelationships $relationships): ?array
-    {
-        $runProperties = $this->firstChildElement($runElement, 'rPr');
-        if (!$runProperties instanceof \DOMElement) {
-            return null;
-        }
-
-        return $this->drawingHyperlinkAttrsFromContainer($runProperties, $relationships);
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function drawingHyperlinkAttrsFromContainer(\DOMElement $container, OpcRelationships $relationships): ?array
-    {
-        $hyperlink = $this->firstDrawingHyperlinkElement($container);
-        if (!$hyperlink instanceof \DOMElement) {
-            return null;
-        }
-
-        $relationshipId = $this->relationshipId($hyperlink, 'id');
-        $attrs = [
-            'url' => '',
-            'hyperlinkKind' => $hyperlink->localName,
-        ];
-
-        foreach (['tooltip' => 'title', 'action' => 'action', 'tgtFrame' => 'targetFrame'] as $source => $target) {
-            $value = trim($hyperlink->getAttribute($source));
-            if ($value !== '') {
-                $attrs[$target] = $value;
-            }
-        }
-
-        if ($relationshipId === '') {
-            $attrs['relationshipIssue'] = 'missing-hyperlink-relationship-id';
-
-            return $attrs;
-        }
-
-        $attrs['relationshipId'] = $relationshipId;
-        $relationship = $relationships->byId($relationshipId);
-        if (!$relationship instanceof OpcRelationship) {
-            $attrs['relationshipIssue'] = 'unknown-hyperlink-relationship';
-
-            return $attrs;
-        }
-
-        $attrs['relationshipType'] = $relationship->type;
-        $attrs['target'] = $relationship->target;
-        $attrs['targetMode'] = $relationship->targetMode;
-        $attrs['external'] = $relationship->isExternal();
-        $attrs['url'] = $relationship->isExternal()
-            ? $relationship->target
-            : ltrim(OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship)), '/');
-
-        if ($relationship->isExternal()) {
-            $preflight = $relationship->externalTargetPreflight();
-            $attrs['externalTargetAllowed'] = $preflight['allowed'];
-            if ($preflight['issues'] !== []) {
-                $attrs['externalTargetIssues'] = $preflight['issues'];
-            }
-            if ($preflight['scheme'] !== null) {
-                $attrs['externalTargetScheme'] = $preflight['scheme'];
-            }
-        }
-
-        return $attrs;
-    }
-
-    private function firstDrawingHyperlinkElement(\DOMElement $container): ?\DOMElement
-    {
-        foreach ($this->childElements($container, null) as $candidate) {
-            if (in_array($candidate->localName, ['hlinkClick', 'hlinkMouseOver'], true)) {
-                return $candidate;
-            }
-        }
-
-        return null;
     }
 
     private function paragraphLevel(\DOMElement $paragraphElement): int
@@ -2069,9 +1908,8 @@ final class PptxReader
             'relationshipId' => $relationshipId,
             'relationshipAttribute' => $relationshipAttribute,
         ], $this->textInlines($alt));
-        $hyperlinkAttrs = $properties instanceof \DOMElement ? $this->drawingHyperlinkAttrsFromContainer($properties, $slideRelationships) : null;
 
-        return $hyperlinkAttrs !== null ? new AstNode('link', $hyperlinkAttrs, [$image]) : $image;
+        return $image;
     }
 
     private function upstreamPictureMediaPart(string $target): ?string

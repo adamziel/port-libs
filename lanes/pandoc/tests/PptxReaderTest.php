@@ -2523,51 +2523,42 @@ return [
         $t->true(!str_contains($native, 'ppt/media/internal-linked.png'), 'Internal linked image target should not leak into visible native content');
     },
 
-    'wraps pptx pictures with shape-level hyperlinks' => static function (TestRunner $t) use ($buildHyperlinkedPicturePptxPackage, $nodesOfType): void {
+    'ignores pptx picture shape hyperlinks like upstream' => static function (TestRunner $t) use ($buildHyperlinkedPicturePptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildHyperlinkedPicturePptxPackage());
         $review = $document->attr('pptx');
         $links = $nodesOfType($document, 'link');
         $images = $nodesOfType($document, 'image');
+        $native = PandocConverter::write($document, 'native');
 
-        $t->same(1, count($links));
+        $t->same(0, count($links));
         $t->same(1, count($images));
-        $t->same('image', $links[0]->children[0]->type);
-        $t->same('https://example.test/picture', $links[0]->attr('url'));
-        $t->same('Open figure', $links[0]->attr('title'));
-        $t->same('rIdPictureLink', $links[0]->attr('relationshipId'));
-        $t->same('External', $links[0]->attr('targetMode'));
-        $t->same(true, $links[0]->attr('external'));
         $t->same('ppt/media/picture.png', $images[0]->attr('url'));
         $t->same('Linked Picture', $images[0]->attr('title'));
         $t->same('Picture alt', $images[0]->attr('alt'));
         $t->same('embed', $images[0]->attr('relationshipAttribute'));
         $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
-        $t->same(1, $review['slides'][0]['linkCount'] ?? null);
-        $t->same('https://example.test/picture', $review['slides'][0]['links'][0]['url'] ?? null);
-        $t->same('rIdPictureLink', $review['slides'][0]['links'][0]['relationshipId'] ?? null);
+        $t->same(0, $review['slides'][0]['linkCount'] ?? null);
+        $t->same([], $review['slides'][0]['links'] ?? null);
+        $t->contains('Image', $native);
+        $t->true(!str_contains($native, 'https://example.test/picture'), 'Picture hlinkClick target should not enter visible native output');
+        $t->true(!str_contains($native, 'Link ('), 'Picture hlinkClick should not emit a native Link inline');
     },
 
-    'wraps pptx text boxes with shape-level hyperlinks' => static function (TestRunner $t) use ($buildHyperlinkedTextBoxPptxPackage, $nodesOfType): void {
+    'ignores pptx text box shape hyperlinks like upstream' => static function (TestRunner $t) use ($buildHyperlinkedTextBoxPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildHyperlinkedTextBoxPptxPackage());
         $review = $document->attr('pptx');
         $links = $nodesOfType($document, 'link');
+        $paragraphs = $nodesOfType($document, 'paragraph');
         $native = PandocConverter::write($document, 'native');
-        $textBoxLinks = array_values(array_filter(
-            $links,
-            static fn (AstNode $link): bool => $link->attr('relationshipId') === 'rIdTextBoxLink'
-        ));
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
 
-        $t->same(1, count($textBoxLinks));
-        $t->same('https://example.test/text-box', $textBoxLinks[0]->attr('url'));
-        $t->same('Open text box', $textBoxLinks[0]->attr('title'));
-        $t->same('External', $textBoxLinks[0]->attr('targetMode'));
-        $t->same(true, $textBoxLinks[0]->attr('external'));
-        $t->same(['text'], array_map(static fn (AstNode $inline): string => $inline->type, $textBoxLinks[0]->children));
-        $t->same('Open the text box', $textBoxLinks[0]->children[0]->attr('text'));
-        $t->same(1, $review['slides'][0]['linkCount'] ?? null);
-        $t->same('https://example.test/text-box', $review['slides'][0]['links'][0]['url'] ?? null);
-        $t->same('rIdTextBoxLink', $review['slides'][0]['links'][0]['relationshipId'] ?? null);
-        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "Open" , Space , Str "the" , Space , Str "text" , Space , Str "box" ] ( "https://example.test/text-box" , "Open text box" )', $native);
+        $t->same(0, count($links));
+        $t->same(true, in_array('Open the text box', $texts, true));
+        $t->same(0, $review['slides'][0]['linkCount'] ?? null);
+        $t->same([], $review['slides'][0]['links'] ?? null);
+        $t->contains('Para [ Str "Open" , Space , Str "the" , Space , Str "text" , Space , Str "box" ]', $native);
+        $t->true(!str_contains($native, 'https://example.test/text-box'), 'Text box hlinkClick target should not enter visible native output');
+        $t->true(!str_contains($native, 'Link ('), 'Text box hlinkClick should not emit a native Link inline');
     },
 
     'skips grouped pptx shapes to match upstream reader output' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
@@ -2662,27 +2653,21 @@ return [
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
 
-    'preserves pptx text run hyperlinks with relationship metadata' => static function (TestRunner $t) use ($buildHyperlinkedTextPptxPackage, $nodesOfType): void {
+    'ignores pptx text run hyperlinks like upstream' => static function (TestRunner $t) use ($buildHyperlinkedTextPptxPackage, $nodesOfType): void {
         $document = (new PptxReader())->read($buildHyperlinkedTextPptxPackage());
         $review = $document->attr('pptx');
         $links = $nodesOfType($document, 'link');
+        $paragraphs = $nodesOfType($document, 'paragraph');
         $native = PandocConverter::write($document, 'native');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
 
-        $t->same(1, count($links));
-        $t->same('the spec', $links[0]->children[0]->attr('text'));
-        $t->same('https://example.test/spec?x=1', $links[0]->attr('url'));
-        $t->same('Spec link', $links[0]->attr('title'));
-        $t->same('rIdLink', $links[0]->attr('relationshipId'));
-        $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink', $links[0]->attr('relationshipType'));
-        $t->same('External', $links[0]->attr('targetMode'));
-        $t->same(true, $links[0]->attr('external'));
-        $t->same(true, $links[0]->attr('externalTargetAllowed'));
-        $t->same('https', $links[0]->attr('externalTargetScheme'));
-        $t->same(1, $review['slides'][0]['linkCount'] ?? null);
-        $t->same('https://example.test/spec?x=1', $review['slides'][0]['links'][0]['url'] ?? null);
-        $t->same('rIdLink', $review['slides'][0]['links'][0]['relationshipId'] ?? null);
-        $t->same('External', $review['slides'][0]['links'][0]['targetMode'] ?? null);
-        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "the" , Space , Str "spec" ] ( "https://example.test/spec?x=1" , "Spec link" )', $native);
+        $t->same(0, count($links));
+        $t->same(true, count(array_filter($texts, static fn (string $text): bool => str_contains($text, 'the spec'))) > 0);
+        $t->same(0, $review['slides'][0]['linkCount'] ?? null);
+        $t->same([], $review['slides'][0]['links'] ?? null);
+        $t->contains('Str "the" , Space , Str "spec"', $native);
+        $t->true(!str_contains($native, 'https://example.test/spec?x=1'), 'Run hlinkClick target should not enter visible native output');
+        $t->true(!str_contains($native, 'Link ('), 'Run hlinkClick should not emit a native Link inline');
     },
 
     'ignores pptx drawing text breaks and tabs like upstream' => static function (TestRunner $t) use ($buildBreakTabTextPptxPackage, $nodesOfType): void {
