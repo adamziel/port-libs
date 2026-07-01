@@ -37,12 +37,14 @@ return [
         $t->same(2, $summary['partXmlProcessingInstructionPartCount']);
         $t->same(3, $summary['partXmlProcessingInstructionCount']);
         $t->same($expectedDataByteLength, $summary['partXmlProcessingInstructionDataByteLength']);
+        $t->same([0 => 1, 1 => 1, 2 => 1], $summary['partXmlProcessingInstructionParentDepthCounts']);
         $t->same(['review-inner', 'review-packet', 'settings-state'], $summary['partXmlProcessingInstructionTargets']);
         $t->same(['customXml/pi-review.xml', 'word/settings.xml'], $summary['partXmlProcessingInstructionPartNames']);
         $t->same(false, $summary['partXmlProcessingInstructionsTruncated']);
 
         $t->same(2, $reviewPart['xmlProcessingInstructionCount']);
         $t->same(strlen($reviewPacketData) + strlen($reviewInnerData), $reviewPart['xmlProcessingInstructionDataByteLength']);
+        $t->same([0 => 1, 2 => 1], $reviewPart['xmlProcessingInstructionParentDepthCounts']);
         $t->same(['review-inner', 'review-packet'], $reviewPart['xmlProcessingInstructionTargets']);
         $t->same(false, $reviewPart['xmlProcessingInstructionsTruncated']);
         $t->same('review-packet', $reviewPart['xmlProcessingInstructions'][0]['target']);
@@ -58,6 +60,7 @@ return [
 
         $t->same(1, $settingsPart['xmlProcessingInstructionCount']);
         $t->same(strlen($settingsData), $settingsPart['xmlProcessingInstructionDataByteLength']);
+        $t->same([1 => 1], $settingsPart['xmlProcessingInstructionParentDepthCounts']);
         $t->same(['settings-state'], $settingsPart['xmlProcessingInstructionTargets']);
         $t->same('/w:settings', $settingsPart['xmlProcessingInstructions'][0]['parentPath']);
         $t->same(1, $settingsPart['xmlProcessingInstructions'][0]['parentDepth']);
