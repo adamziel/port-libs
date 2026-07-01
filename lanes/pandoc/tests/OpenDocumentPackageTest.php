@@ -174,6 +174,22 @@ $buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array
     );
 };
 
+$addCentralDirectorySignatureRecord = static function (ZipPackage $package, string $signatureData): ZipPackage {
+    $bytes = $package->bytes();
+    $eocdOffset = strrpos($bytes, "PK\x05\x06");
+    if ($eocdOffset === false) {
+        throw new RuntimeException('Unable to locate ZIP end of central directory record');
+    }
+
+    $signatureRecord = "PK\x05\x05" . pack('v', strlen($signatureData)) . $signatureData;
+
+    return ZipPackage::fromString(
+        substr($bytes, 0, $eocdOffset)
+        . $signatureRecord
+        . substr($bytes, $eocdOffset)
+    );
+};
+
 return [
     'maps ODT manifest root and package parts from a ZIP package' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $odt = OpenDocumentPackage::fromPackage($buildOdtPackage());
@@ -4915,6 +4931,71 @@ XML;
         $t->same('Pictures/hero.png', $summary['mediaParts'][0]['path']);
         $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
         $t->same(false, $inventory['canExposeBytes']);
+    },
+    'surfaces compact ODT central directory signatures as metadata-only provenance' => static function (TestRunner $t) use ($manifestXml, $contentXml, $stylesXml, $metaXml, $addCentralDirectorySignatureRecord): void {
+        $signatureData = 'central-directory-signature-review';
+        $signatureRecord = "PK\x05\x05" . pack('v', strlen($signatureData)) . $signatureData;
+        $package = $addCentralDirectorySignatureRecord(ZipPackage::fromParts([
+            ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'styles.xml', 'data' => $stylesXml],
+            ['name' => 'meta.xml', 'data' => $metaXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+        ]), $signatureData);
+
+        $summary = OpenDocumentPackage::fromPackage($package)->summarize();
+        $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
+        $packageManifest = $package->packageManifestPreflight();
+        $signatureOffset = $packageManifest['centralDirectorySignatureOffset'];
+        $signaturePreviewByteCount = min(16, strlen($signatureData));
+        $expectedSignatureProvenance = [
+            'hasCentralDirectorySignature' => true,
+            'centralDirectorySignatureOffset' => $packageManifest['centralDirectoryEnd'],
+            'centralDirectorySignatureDataOffset' => $signatureOffset + 6,
+            'centralDirectorySignatureEnd' => $packageManifest['endOfCentralDirectoryOffset'],
+            'centralDirectorySignatureBytes' => strlen($signatureData),
+            'centralDirectorySignatureRecordBytes' => strlen($signatureRecord),
+            'centralDirectorySignaturePreviewHex' => bin2hex(substr($signatureData, 0, $signaturePreviewByteCount)),
+            'centralDirectorySignaturePreviewByteCount' => $signaturePreviewByteCount,
+            'centralDirectorySignatureSha256' => hash('sha256', $signatureData),
+            'centralDirectorySignatureLocation' => 'between-central-directory-and-eocd',
+            'centralDirectorySignatureVerification' => 'not-performed-native-bounded-reader',
+            'centralDirectorySignatureByteExposurePolicy' => 'central-directory-signature-metadata-only',
+            'centralDirectorySignatureCanExposeBytes' => false,
+        ];
+
+        $t->same($packageManifest, $inventory['zipPackageManifest']);
+        $t->same($packageManifest['manifestSha256'], $inventory['zipPackageManifestSha256']);
+        $t->same($packageManifest['packageSource'], $inventory['packageSource']);
+        $t->same($packageManifest['packageSource'], $identity['packageSource']);
+        $t->same($packageManifest['manifestSha256'], $identity['zipPackageManifestSha256']);
+        $t->same(strlen($signatureRecord), $packageManifest['centralDirectoryToEocdGapBytes']);
+        $t->same(hash('sha256', $signatureRecord), $packageManifest['centralDirectoryToEocdGapSha256']);
+        $t->same($packageManifest['centralDirectoryToEocdGapBytes'], $inventory['centralDirectoryToEocdGapBytes']);
+        $t->same($packageManifest['centralDirectoryToEocdGapSha256'], $inventory['centralDirectoryToEocdGapSha256']);
+        $t->same($inventory['centralDirectoryToEocdGapBytes'], $identity['centralDirectoryToEocdGapBytes']);
+        $t->same($inventory['centralDirectoryToEocdGapSha256'], $identity['centralDirectoryToEocdGapSha256']);
+
+        foreach ([
+            'packageSource' => $packageManifest['packageSource'],
+            'packageManifest' => $packageManifest,
+            'packageInventory' => $inventory,
+            'packageIdentity' => $identity,
+        ] as $surface => $metadata) {
+            foreach ($expectedSignatureProvenance as $key => $expected) {
+                $t->same($expected, $metadata[$key], "{$surface} {$key}");
+            }
+
+            $t->same(false, array_key_exists('centralDirectorySignatureData', $metadata));
+            $t->same(false, array_key_exists('signatureData', $metadata));
+        }
+
+        $t->same('odf-package-inventory-metadata-only', $inventory['byteExposurePolicy']);
+        $t->same(false, $inventory['canExposeBytes']);
+        $t->same('odf-package-identity-metadata-only', $identity['byteExposurePolicy']);
+        $t->same(false, $identity['canExposeBytes']);
     },
     'surfaces compact ODT ZIP extra fields as metadata-only package provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifestWithReviewImage = str_replace(

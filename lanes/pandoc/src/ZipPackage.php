@@ -13569,6 +13569,37 @@ final class ZipPackage
             'sha256',
             substr($this->bytes, $endOfCentralDirectoryOffset, $endOfCentralDirectoryBytes)
         );
+        $centralDirectorySignatureBytes = $this->centralDirectorySignatureData === null
+            ? 0
+            : strlen($this->centralDirectorySignatureData);
+        $centralDirectorySignatureDataOffset = $this->centralDirectorySignatureOffset === null
+            ? null
+            : $this->centralDirectorySignatureOffset + 6;
+        $centralDirectorySignatureEnd = $centralDirectorySignatureDataOffset === null
+            ? null
+            : $centralDirectorySignatureDataOffset + $centralDirectorySignatureBytes;
+        $centralDirectorySignatureRecordBytes = $this->centralDirectorySignatureOffset === null
+            ? 0
+            : 6 + $centralDirectorySignatureBytes;
+        $centralDirectorySignaturePreviewByteCount = min(16, $centralDirectorySignatureBytes);
+        $centralDirectorySignaturePreviewHex = $this->centralDirectorySignatureData === null
+            ? ''
+            : bin2hex(substr($this->centralDirectorySignatureData, 0, $centralDirectorySignaturePreviewByteCount));
+        $centralDirectorySignatureSha256 = $this->centralDirectorySignatureData === null
+            ? null
+            : hash('sha256', $this->centralDirectorySignatureData);
+        $centralDirectorySignatureLocation = null;
+        if ($this->centralDirectorySignatureOffset !== null) {
+            $centralDirectorySignatureLocation = $this->centralDirectorySignatureOffset === $centralDirectoryEnd
+                ? 'between-central-directory-and-eocd'
+                : 'central-directory-trailing-record';
+        }
+        $centralDirectorySignatureVerification = $this->centralDirectorySignatureData === null
+            ? 'not-present'
+            : 'not-performed-native-bounded-reader';
+        $centralDirectorySignatureByteExposurePolicy = $this->centralDirectorySignatureData === null
+            ? 'not-present'
+            : 'central-directory-signature-metadata-only';
         $packageSource = [
             'archiveLength' => $archiveBytes,
             'archiveSha256' => $archiveSha256,
@@ -13587,13 +13618,20 @@ final class ZipPackage
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentSha256' => $packageCommentSha256,
             'hasPackageComment' => $packageCommentBytes > 0,
+            'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
+            'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
+            'centralDirectorySignatureDataOffset' => $centralDirectorySignatureDataOffset,
+            'centralDirectorySignatureEnd' => $centralDirectorySignatureEnd,
+            'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureRecordBytes' => $centralDirectorySignatureRecordBytes,
+            'centralDirectorySignaturePreviewHex' => $centralDirectorySignaturePreviewHex,
+            'centralDirectorySignaturePreviewByteCount' => $centralDirectorySignaturePreviewByteCount,
+            'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
+            'centralDirectorySignatureLocation' => $centralDirectorySignatureLocation,
+            'centralDirectorySignatureVerification' => $centralDirectorySignatureVerification,
+            'centralDirectorySignatureByteExposurePolicy' => $centralDirectorySignatureByteExposurePolicy,
+            'centralDirectorySignatureCanExposeBytes' => false,
         ];
-        $centralDirectorySignatureBytes = $this->centralDirectorySignatureData === null
-            ? 0
-            : strlen($this->centralDirectorySignatureData);
-        $centralDirectorySignatureSha256 = $this->centralDirectorySignatureData === null
-            ? null
-            : hash('sha256', $this->centralDirectorySignatureData);
         $localEntries = $this->localEntries();
         $localOrderByName = [];
         foreach ($localEntries as $localHeaderOrder => $entry) {
@@ -13956,9 +13994,19 @@ final class ZipPackage
             'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
             'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
+            'centralDirectorySignatureDataOffset' => $centralDirectorySignatureDataOffset,
+            'centralDirectorySignatureEnd' => $centralDirectorySignatureEnd,
             'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureRecordBytes' => $centralDirectorySignatureRecordBytes,
+            'centralDirectorySignaturePreviewHex' => $centralDirectorySignaturePreviewHex,
+            'centralDirectorySignaturePreviewByteCount' => $centralDirectorySignaturePreviewByteCount,
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
+            'centralDirectorySignatureLocation' => $centralDirectorySignatureLocation,
+            'centralDirectorySignatureVerification' => $centralDirectorySignatureVerification,
+            'centralDirectorySignatureByteExposurePolicy' => $centralDirectorySignatureByteExposurePolicy,
+            'centralDirectorySignatureCanExposeBytes' => false,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'localHeaderBytes' => $localHeaderBytes,
@@ -14032,8 +14080,17 @@ final class ZipPackage
             'hasPackageComment' => $packageCommentBytes > 0,
             'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
             'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
+            'centralDirectorySignatureDataOffset' => $centralDirectorySignatureDataOffset,
+            'centralDirectorySignatureEnd' => $centralDirectorySignatureEnd,
             'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureRecordBytes' => $centralDirectorySignatureRecordBytes,
+            'centralDirectorySignaturePreviewHex' => $centralDirectorySignaturePreviewHex,
+            'centralDirectorySignaturePreviewByteCount' => $centralDirectorySignaturePreviewByteCount,
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
+            'centralDirectorySignatureLocation' => $centralDirectorySignatureLocation,
+            'centralDirectorySignatureVerification' => $centralDirectorySignatureVerification,
+            'centralDirectorySignatureByteExposurePolicy' => $centralDirectorySignatureByteExposurePolicy,
+            'centralDirectorySignatureCanExposeBytes' => false,
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
             'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
