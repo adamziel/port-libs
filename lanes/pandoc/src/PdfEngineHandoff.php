@@ -826,7 +826,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceInput:array<string, mixed>, handoffInputProvenance:array<string, mixed>, sourceSha256:string|null, pdfSha256:string|null, pdfEofMarkerPolicy:array<string, mixed>, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstPackageDependencyPolicy:array<string, mixed>, typstImportPathPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, typstDependencyEdgePackageProvenance:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>, packageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceInput:array<string, mixed>, handoffInputProvenance:array<string, mixed>, sourceSha256:string|null, pdfSha256:string|null, pdfEofMarkerPolicy:array<string, mixed>, pdfStartXrefPolicy:array<string, mixed>, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstPackageDependencyPolicy:array<string, mixed>, typstImportPathPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, typstDependencyEdgePackageProvenance:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>, packageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -841,6 +841,7 @@ final class PdfEngineHandoff
      *     pdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     pdfTrailerIdPolicy: array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{},
      *     pdfStartXrefOffsets: list<int>,
+     *     pdfStartXrefPolicy: array{reviewStatus:string, revisionCount:int, startXrefCount:int, missingStartXrefCount:int, outOfBoundsCount:int, duplicateOffsetCount:int, latestStartXref:int|null, targetKindCounts:array<string, int>, targets:list<array{revision:int, startxref:int|null, prev:int|null, inBounds:bool|null, targetKind:string|null, targetPreview:string|null}>, issues:list<string>}|array{},
      *     pdfIncrementalUpdates: bool,
      *     pdfXrefStreams: list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     pdfXrefStreamFilters: array<string, int>,
@@ -1646,6 +1647,7 @@ final class PdfEngineHandoff
         $pdfTrailerRevisions = [];
         $pdfTrailerIdPolicy = [];
         $pdfStartXrefOffsets = [];
+        $pdfStartXrefPolicy = [];
         $pdfIncrementalUpdates = false;
         $pdfXrefStreams = [];
         $pdfXrefStreamFilters = [];
@@ -1803,6 +1805,7 @@ final class PdfEngineHandoff
                 $pdfTrailerRevisions = $pdfInspection['trailerRevisions'];
                 $pdfTrailerIdPolicy = $pdfInspection['trailerIdPolicy'];
                 $pdfStartXrefOffsets = $pdfInspection['startXrefOffsets'];
+                $pdfStartXrefPolicy = $pdfInspection['startXrefPolicy'];
                 $pdfIncrementalUpdates = $pdfInspection['incrementalUpdates'];
                 $pdfXrefStreams = $pdfInspection['xrefStreams'];
                 $pdfXrefStreamFilters = $pdfInspection['xrefStreamFilters'];
@@ -2639,6 +2642,28 @@ final class PdfEngineHandoff
                 }
                 if ($pdfStartXrefOffsets !== []) {
                     $diagnostics[] = 'pdf-byte-startxref:' . count($pdfStartXrefOffsets);
+                }
+                if ($pdfStartXrefPolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-startxref-policy:' . $pdfStartXrefPolicy['reviewStatus'];
+                    if (($pdfStartXrefPolicy['missingStartXrefCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-startxref-missing:' . $pdfStartXrefPolicy['missingStartXrefCount'];
+                    }
+                    if (($pdfStartXrefPolicy['outOfBoundsCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-startxref-out-of-bounds:' . $pdfStartXrefPolicy['outOfBoundsCount'];
+                    }
+                    if (($pdfStartXrefPolicy['duplicateOffsetCount'] ?? 0) > 0) {
+                        $diagnostics[] = 'pdf-byte-startxref-duplicates:' . $pdfStartXrefPolicy['duplicateOffsetCount'];
+                    }
+                    foreach (($pdfStartXrefPolicy['targetKindCounts'] ?? []) as $targetKind => $targetKindCount) {
+                        if (is_string($targetKind) && is_int($targetKindCount)) {
+                            $diagnostics[] = 'pdf-byte-startxref-target:' . $targetKind . ':' . $targetKindCount;
+                        }
+                    }
+                    foreach (($pdfStartXrefPolicy['issues'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $diagnostics[] = 'pdf-byte-startxref-policy-issue:' . $issue;
+                        }
+                    }
                 }
                 if ($pdfIncrementalUpdates) {
                     $diagnostics[] = 'pdf-byte-incremental-updates';
@@ -5414,6 +5439,7 @@ final class PdfEngineHandoff
             'sourceSha256' => $sourceSha256,
             'pdfSha256' => is_string($pdfBytes) ? hash('sha256', $pdfBytes) : null,
             'pdfEofMarkerPolicy' => $pdfEofMarkerPolicy,
+            'pdfStartXrefPolicy' => $pdfStartXrefPolicy,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
             'missingExpectedEngineArtifacts' => $missingExpectedEngineArtifacts,
             'producedEngineArtifactsSha256' => $producedArtifactsSha256,
@@ -5519,6 +5545,7 @@ final class PdfEngineHandoff
             'pdfTrailerRevisions' => $pdfTrailerRevisions,
             'pdfTrailerIdPolicy' => $pdfTrailerIdPolicy,
             'pdfStartXrefOffsets' => $pdfStartXrefOffsets,
+            'pdfStartXrefPolicy' => $pdfStartXrefPolicy,
             'pdfIncrementalUpdates' => $pdfIncrementalUpdates,
             'pdfXrefStreams' => $pdfXrefStreams,
             'pdfXrefStreamFilters' => $pdfXrefStreamFilters,
@@ -5730,6 +5757,7 @@ final class PdfEngineHandoff
      *     finalPdfTrailerRevisions: list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     finalPdfTrailerIdPolicy: array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{},
      *     finalPdfStartXrefOffsets: list<int>,
+     *     finalPdfStartXrefPolicy: array{reviewStatus:string, revisionCount:int, startXrefCount:int, missingStartXrefCount:int, outOfBoundsCount:int, duplicateOffsetCount:int, latestStartXref:int|null, targetKindCounts:array<string, int>, targets:list<array{revision:int, startxref:int|null, prev:int|null, inBounds:bool|null, targetKind:string|null, targetPreview:string|null}>, issues:list<string>}|array{},
      *     finalPdfIncrementalUpdates: bool,
      *     finalPdfXrefStreams: list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     finalPdfXrefStreamFilters: array<string, int>,
@@ -6066,6 +6094,7 @@ final class PdfEngineHandoff
             'finalPdfTrailerRevisions' => is_array($finalRun) && is_array($finalRun['pdfTrailerRevisions'] ?? null) ? $finalRun['pdfTrailerRevisions'] : [],
             'finalPdfTrailerIdPolicy' => is_array($finalRun) && is_array($finalRun['pdfTrailerIdPolicy'] ?? null) ? $finalRun['pdfTrailerIdPolicy'] : [],
             'finalPdfStartXrefOffsets' => is_array($finalRun) && is_array($finalRun['pdfStartXrefOffsets'] ?? null) ? $finalRun['pdfStartXrefOffsets'] : [],
+            'finalPdfStartXrefPolicy' => is_array($finalRun) && is_array($finalRun['pdfStartXrefPolicy'] ?? null) ? $finalRun['pdfStartXrefPolicy'] : [],
             'finalPdfIncrementalUpdates' => is_array($finalRun) && ($finalRun['pdfIncrementalUpdates'] ?? false) === true,
             'finalPdfXrefStreams' => is_array($finalRun) && is_array($finalRun['pdfXrefStreams'] ?? null) ? $finalRun['pdfXrefStreams'] : [],
             'finalPdfXrefStreamFilters' => is_array($finalRun) && is_array($finalRun['pdfXrefStreamFilters'] ?? null) ? $finalRun['pdfXrefStreamFilters'] : [],
@@ -13799,6 +13828,7 @@ final class PdfEngineHandoff
      *     trailerRevisions:list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}>,
      *     trailerIdPolicy:array{reviewStatus:string, trailerCount:int, trailerIdCount:int, missingIdCount:int, incompleteIdCount:int, changedIdCount:int, uniqueFirstIdCount:int, uniqueSecondIdCount:int, firstId:string|null, latestId:string|null, stableFirstId:bool|null, stableSecondId:bool|null, revisions:list<array{revision:int, id:list<string>, complete:bool}>, issues:list<string>}|array{},
      *     startXrefOffsets:list<int>,
+     *     startXrefPolicy:array{reviewStatus:string, revisionCount:int, startXrefCount:int, missingStartXrefCount:int, outOfBoundsCount:int, duplicateOffsetCount:int, latestStartXref:int|null, targetKindCounts:array<string, int>, targets:list<array{revision:int, startxref:int|null, prev:int|null, inBounds:bool|null, targetKind:string|null, targetPreview:string|null}>, issues:list<string>}|array{},
      *     incrementalUpdates:bool,
      *     xrefStreams:list<array{object:string, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, index:list<int>, w:list<int>, filters:list<string>, streamBytes:int|null, streamSha256:string|null, streamSkipped:string|null}>,
      *     xrefStreamFilters:array<string, int>,
@@ -14043,6 +14073,7 @@ final class PdfEngineHandoff
             'trailerRevisions' => $trailerRevisions,
             'trailerIdPolicy' => $this->summarizePdfTrailerIdPolicy($trailerRevisions),
             'startXrefOffsets' => $this->pdfStartXrefOffsets($trailerRevisions),
+            'startXrefPolicy' => $this->summarizePdfStartXrefPolicy($pdfBytes, $trailerRevisions),
             'incrementalUpdates' => $this->pdfHasIncrementalUpdates($trailerRevisions),
             'xrefStreams' => $xrefStreams,
             'xrefStreamFilters' => $this->summarizePdfStructuralStreamFilters($xrefStreams),
@@ -14358,6 +14389,110 @@ final class PdfEngineHandoff
         }
 
         return $offsets;
+    }
+
+    /**
+     * @param list<array{revision:int, size:int|null, root:string|null, info:string|null, encrypt:string|null, prev:int|null, startxref:int|null, id:list<string>}> $revisions
+     * @return array{reviewStatus:string, revisionCount:int, startXrefCount:int, missingStartXrefCount:int, outOfBoundsCount:int, duplicateOffsetCount:int, latestStartXref:int|null, targetKindCounts:array<string, int>, targets:list<array{revision:int, startxref:int|null, prev:int|null, inBounds:bool|null, targetKind:string|null, targetPreview:string|null}>, issues:list<string>}|array{}
+     */
+    private function summarizePdfStartXrefPolicy(string $pdfBytes, array $revisions): array
+    {
+        if ($revisions === []) {
+            return [];
+        }
+
+        $fileBytes = strlen($pdfBytes);
+        $targets = [];
+        $offsetCounts = [];
+        $targetKindCounts = [];
+        $missingStartXrefCount = 0;
+        $outOfBoundsCount = 0;
+        $latestStartXref = null;
+
+        foreach ($revisions as $revision) {
+            $startXref = $revision['startxref'];
+            $inBounds = null;
+            $targetKind = null;
+            $targetPreview = null;
+
+            if ($startXref === null) {
+                $missingStartXrefCount++;
+            } else {
+                $latestStartXref = $startXref;
+                $offsetCounts[$startXref] = ($offsetCounts[$startXref] ?? 0) + 1;
+                $inBounds = $startXref >= 0 && $startXref < $fileBytes;
+                if ($inBounds) {
+                    $targetKind = $this->pdfStartXrefTargetKind($pdfBytes, $startXref);
+                    $targetPreview = $this->pdfStartXrefTargetPreview($pdfBytes, $startXref);
+                    $targetKindCounts[$targetKind] = ($targetKindCounts[$targetKind] ?? 0) + 1;
+                } else {
+                    $outOfBoundsCount++;
+                }
+            }
+
+            $targets[] = [
+                'revision' => $revision['revision'],
+                'startxref' => $startXref,
+                'prev' => $revision['prev'],
+                'inBounds' => $inBounds,
+                'targetKind' => $targetKind,
+                'targetPreview' => $targetPreview,
+            ];
+        }
+
+        ksort($targetKindCounts);
+        $duplicateOffsetCount = 0;
+        foreach ($offsetCounts as $offsetCount) {
+            if ($offsetCount > 1) {
+                $duplicateOffsetCount += $offsetCount - 1;
+            }
+        }
+
+        $issues = [];
+        if ($missingStartXrefCount > 0) {
+            $issues[] = 'startxref-missing';
+        }
+        if ($outOfBoundsCount > 0) {
+            $issues[] = 'startxref-out-of-bounds';
+        }
+        if ($duplicateOffsetCount > 0) {
+            $issues[] = 'startxref-duplicate-offset';
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'revisionCount' => count($revisions),
+            'startXrefCount' => count($revisions) - $missingStartXrefCount,
+            'missingStartXrefCount' => $missingStartXrefCount,
+            'outOfBoundsCount' => $outOfBoundsCount,
+            'duplicateOffsetCount' => $duplicateOffsetCount,
+            'latestStartXref' => $latestStartXref,
+            'targetKindCounts' => $targetKindCounts,
+            'targets' => $targets,
+            'issues' => $issues,
+        ];
+    }
+
+    private function pdfStartXrefTargetKind(string $pdfBytes, int $offset): string
+    {
+        $sample = substr($pdfBytes, $offset, 2048);
+        if (preg_match('/\Axref\b/', $sample) === 1) {
+            return 'xref-table';
+        }
+        if (preg_match('/\A\d+\s+\d+\s+obj\b/s', $sample) === 1) {
+            return preg_match('/\A\d+\s+\d+\s+obj\s*<<.*?\/Type\s*\/XRef\b/s', $sample) === 1
+                ? 'xref-stream'
+                : 'object';
+        }
+
+        return 'unknown';
+    }
+
+    private function pdfStartXrefTargetPreview(string $pdfBytes, int $offset): string
+    {
+        $preview = preg_replace('/\s+/', ' ', substr($pdfBytes, $offset, 64));
+
+        return trim(is_string($preview) ? $preview : '');
     }
 
     /**
