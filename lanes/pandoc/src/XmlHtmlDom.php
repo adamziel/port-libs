@@ -91,6 +91,7 @@ final class XmlHtmlDom
         'autoplay' => true,
         'checked' => true,
         'controls' => true,
+        'credentialless' => true,
         'default' => true,
         'defer' => true,
         'disablepictureinpicture' => true,
@@ -26105,6 +26106,9 @@ final class XmlHtmlDom
             'loading' => self::attributeOrNull($iframe, 'loading'),
             'referrerpolicy' => self::attributeOrNull($iframe, 'referrerpolicy'),
             'allow' => self::attributeOrNull($iframe, 'allow'),
+            'csp' => self::attributeOrNull($iframe, 'csp'),
+            'credentialless' => $iframe->hasAttribute('credentialless'),
+            'credentiallessRaw' => self::attributeOrNull($iframe, 'credentialless'),
             'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
             'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
         ];
@@ -26171,9 +26175,57 @@ final class XmlHtmlDom
             }
         }
 
+        if ($iframe->hasAttribute('credentialless')) {
+            $summary += self::iframeCredentiallessPolicySummary($iframe->getAttribute('credentialless'));
+        }
+
+        if ($iframe->hasAttribute('csp')) {
+            $csp = self::iframeContentSecurityPolicySummary($iframe->getAttribute('csp'));
+            $summary += $csp;
+            if (($csp['iframeCspValid'] ?? true) !== true) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-csp-policy';
+            }
+        }
+
         $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeCredentiallessPolicySummary(string $value): array
+    {
+        return [
+            'iframeCredentiallessReviewPolicy' => 'iframe-credentialless-attribute-review',
+            'iframeCredentiallessRaw' => $value,
+            'iframeCredentialless' => true,
+            'iframeCredentialMode' => 'credentialless',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeContentSecurityPolicySummary(string $value): array
+    {
+        $csp = self::metaContentSecurityPolicySummary($value, 'iframe-csp');
+        $issueCodes = array_values(array_map(
+            static fn (string $code): string => $code === 'missing-meta-csp-content'
+                ? 'empty-iframe-csp'
+                : $code,
+            $csp['cspIssueCodes']
+        ));
+
+        return $csp + [
+            'iframeCspReviewPolicy' => 'iframe-csp-attribute-review',
+            'iframeCspRaw' => $value,
+            'iframeCspByteLength' => strlen($value),
+            'iframeCspSha256' => hash('sha256', $value),
+            'iframeCspIssueCodes' => $issueCodes,
+            'iframeCspValid' => $issueCodes === [],
+        ];
     }
 
     /**
