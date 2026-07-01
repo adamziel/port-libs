@@ -1514,6 +1514,7 @@ final class PdfEngineHandoff
             $typstRoot
         );
         $typstWarningSourceIssueCount = $this->countTypstWarningSourceIssues($typstWarningProvenance);
+        $typstWarningSourcePolicy = $this->typstWarningSourcePolicyFor($typstWarningProvenance);
         $engineMissingDependencies = $this->extractEngineMissingDependencies($engineTexts);
         $engineMissingDependencyKinds = $this->summarizeEngineMissingDependencyKinds($engineMissingDependencies);
         $bibliographyMessages = $this->extractBibliographyMessages(array_merge($engineTexts, $bibliographyLogTexts));
@@ -1537,6 +1538,18 @@ final class PdfEngineHandoff
                 ) {
                     $diagnostics[] = 'typst-warning-source-outside-root:' . $warning['sourceFile'];
                 }
+            }
+        }
+        if ($typstWarningSourcePolicy !== []) {
+            $diagnostics[] = 'typst-warning-source-policy:' . $typstWarningSourcePolicy['reviewStatus'];
+            foreach ($typstWarningSourcePolicy['sourceKindCounts'] as $sourceKind => $count) {
+                $diagnostics[] = 'typst-warning-source-kind:' . $sourceKind . ':' . $count;
+            }
+            foreach ($typstWarningSourcePolicy['sourceClassCounts'] as $sourceClass => $count) {
+                $diagnostics[] = 'typst-warning-source-class:' . $sourceClass . ':' . $count;
+            }
+            if ($typstWarningSourcePolicy['packageReferenceCount'] > 0) {
+                $diagnostics[] = 'typst-warning-source-packages:' . $typstWarningSourcePolicy['packageReferenceCount'];
             }
         }
         $typstBoundaryMatrix = $this->typstBoundaryMatrixFor(
@@ -5374,6 +5387,7 @@ final class PdfEngineHandoff
             'engineLogFiles' => $engineLogFiles,
             'engineWarnings' => $engineMessages['warnings'],
             'typstWarningProvenance' => $typstWarningProvenance,
+            'typstWarningSourcePolicy' => $typstWarningSourcePolicy,
             'engineErrors' => $engineMessages['errors'],
             'bibliographyLogFiles' => $bibliographyLogFiles,
             'bibliographyWarnings' => $bibliographyMessages['warnings'],
@@ -5449,6 +5463,7 @@ final class PdfEngineHandoff
             'engineLogFiles' => $engineLogFiles,
             'engineWarnings' => $engineMessages['warnings'],
             'typstWarningProvenance' => $typstWarningProvenance,
+            'typstWarningSourcePolicy' => $typstWarningSourcePolicy,
             'engineErrors' => $engineMessages['errors'],
             'engineMissingDependencies' => $engineMissingDependencies,
             'engineMissingDependencyKinds' => $engineMissingDependencyKinds,
@@ -6148,6 +6163,7 @@ final class PdfEngineHandoff
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
             'finalTypstTimingSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstTimingSourcePolicy'] ?? null) ? $finalRun['typstTimingSourcePolicy'] : [],
             'finalTypstWarningProvenance' => is_array($finalRun) && is_array($finalRun['typstWarningProvenance'] ?? null) ? $finalRun['typstWarningProvenance'] : [],
+            'finalTypstWarningSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstWarningSourcePolicy'] ?? null) ? $finalRun['typstWarningSourcePolicy'] : [],
             'finalEngineBoundaryRoot' => is_array($finalRun) && is_string($finalRun['engineBoundaryRoot'] ?? null) ? $finalRun['engineBoundaryRoot'] : null,
             'finalEngineBoundaryViolations' => is_array($finalRun) && is_array($finalRun['engineBoundaryViolations'] ?? null) ? $finalRun['engineBoundaryViolations'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
@@ -9053,6 +9069,7 @@ final class PdfEngineHandoff
 
         if ($warningProvenance !== []) {
             $warningIssues = $listIssues($warningProvenance);
+            $warningSourcePolicy = $this->typstWarningSourcePolicyFor($warningProvenance);
             $insideRootCount = 0;
             $outsideRootCount = 0;
             $unboundedCount = 0;
@@ -9088,6 +9105,11 @@ final class PdfEngineHandoff
                 'externalSourceCount' => $externalSourceCount,
                 'unknownSourceCount' => $unknownSourceCount,
                 'hintCount' => $hintCount,
+                'totalSourceIssueCount' => is_int($warningSourcePolicy['sourceIssueCount'] ?? null) ? $warningSourcePolicy['sourceIssueCount'] : count($warningIssues),
+                'sourceKindCounts' => is_array($warningSourcePolicy['sourceKindCounts'] ?? null) ? $warningSourcePolicy['sourceKindCounts'] : [],
+                'sourceClassCounts' => is_array($warningSourcePolicy['sourceClassCounts'] ?? null) ? $warningSourcePolicy['sourceClassCounts'] : [],
+                'packageReferenceCount' => is_int($warningSourcePolicy['packageReferenceCount'] ?? null) ? $warningSourcePolicy['packageReferenceCount'] : 0,
+                'packageReferences' => is_array($warningSourcePolicy['packageReferences'] ?? null) ? $warningSourcePolicy['packageReferences'] : [],
             ], $warningIssues);
         }
 
@@ -13206,6 +13228,150 @@ final class PdfEngineHandoff
             'boundaryStatus' => $boundaryStatus,
             'issues' => $issues,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $warnings
+     * @return array<string, mixed>
+     */
+    private function typstWarningSourcePolicyFor(array $warnings): array
+    {
+        if ($warnings === []) {
+            return [];
+        }
+
+        $sourceKindCounts = [];
+        $sourceClassCounts = [];
+        $boundaryStatusCounts = [];
+        $sourceFiles = [];
+        $locatedSourceCount = 0;
+        $packageReferences = [];
+        $issues = [];
+        $sourceIssueCount = 0;
+
+        foreach ($warnings as $warning) {
+            if (!is_array($warning)) {
+                continue;
+            }
+
+            $sourceFile = is_string($warning['sourceFile'] ?? null) ? $warning['sourceFile'] : null;
+            if ($sourceFile !== null && $sourceFile !== '') {
+                ++$locatedSourceCount;
+                $sourceFiles[$sourceFile] = true;
+            }
+
+            $sourceKind = $this->typstWarningSourceKindFor($warning);
+            $sourceClass = $this->typstWarningSourceClassFor($warning, $sourceKind);
+            $sourceKindCounts[$sourceKind] = ($sourceKindCounts[$sourceKind] ?? 0) + 1;
+            $sourceClassCounts[$sourceClass] = ($sourceClassCounts[$sourceClass] ?? 0) + 1;
+
+            $boundaryStatus = is_string($warning['boundaryStatus'] ?? null) && $warning['boundaryStatus'] !== ''
+                ? $warning['boundaryStatus']
+                : 'unknown-source';
+            $boundaryStatusCounts[$boundaryStatus] = ($boundaryStatusCounts[$boundaryStatus] ?? 0) + 1;
+
+            $dependency = $sourceKind === 'typst-package'
+                ? $this->typstWarningPackageDependencyFor($warning)
+                : null;
+            if ($dependency !== null) {
+                $packageReferences[$dependency['reference']] = true;
+            }
+
+            if (!is_array($warning['issues'] ?? null)) {
+                continue;
+            }
+            foreach ($warning['issues'] as $issue) {
+                if (!is_string($issue) || $issue === '') {
+                    continue;
+                }
+
+                ++$sourceIssueCount;
+                $issues[] = $issue;
+            }
+        }
+
+        ksort($sourceKindCounts);
+        ksort($sourceClassCounts);
+        ksort($boundaryStatusCounts);
+        $sourceFileList = array_keys($sourceFiles);
+        sort($sourceFileList);
+        $packageReferenceList = array_keys($packageReferences);
+        sort($packageReferenceList);
+        $issues = array_values(array_unique($issues));
+        sort($issues);
+
+        return [
+            'reviewStatus' => $sourceIssueCount === 0 ? 'ok' : 'review',
+            'warningCount' => count($warnings),
+            'locatedSourceCount' => $locatedSourceCount,
+            'sourceFileCount' => count($sourceFileList),
+            'sourceFiles' => $sourceFileList,
+            'sourceKindCounts' => $sourceKindCounts,
+            'sourceClassCounts' => $sourceClassCounts,
+            'boundaryStatusCounts' => $boundaryStatusCounts,
+            'packageReferenceCount' => count($packageReferenceList),
+            'packageReferences' => $packageReferenceList,
+            'sourceIssueCount' => $sourceIssueCount,
+            'distinctSourceIssueCount' => count($issues),
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $warning
+     */
+    private function typstWarningSourceKindFor(array $warning): string
+    {
+        $sourceFile = is_string($warning['sourceFile'] ?? null) ? $warning['sourceFile'] : '';
+        if ($sourceFile === '') {
+            return 'unknown';
+        }
+        if ($this->typstPackageInputForDependencyPath($sourceFile) !== null) {
+            return 'typst-package';
+        }
+
+        return match ($warning['boundaryStatus'] ?? null) {
+            'inside-root', 'outside-root', 'unbounded' => 'local',
+            'external-source' => 'external',
+            default => 'unknown',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $warning
+     */
+    private function typstWarningSourceClassFor(array $warning, string $sourceKind): string
+    {
+        if ($sourceKind === 'typst-package') {
+            $dependency = $this->typstWarningPackageDependencyFor($warning);
+
+            return $dependency['sourceClass'] ?? 'typst-package';
+        }
+
+        return match ($sourceKind) {
+            'local' => 'local-file',
+            'external' => 'external-resource',
+            default => 'unknown-source',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $warning
+     * @return array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}|null
+     */
+    private function typstWarningPackageDependencyFor(array $warning): ?array
+    {
+        $sourceFile = is_string($warning['sourceFile'] ?? null) ? $warning['sourceFile'] : '';
+        if ($sourceFile === '') {
+            return null;
+        }
+
+        $input = $this->typstPackageInputForDependencyPath($sourceFile);
+        if ($input === null) {
+            return null;
+        }
+
+        return $this->typstPackageDependenciesFor([$input])[0] ?? null;
     }
 
     /**
