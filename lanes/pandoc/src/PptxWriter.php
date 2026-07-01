@@ -634,38 +634,52 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      * @return list<string>
      */
     private function inlineRuns(array $inlines, array $style, array &$relationships): array
     {
         $runs = [];
+        $textBuffer = '';
+        $flushText = function () use (&$runs, &$textBuffer, $style): void {
+            if ($textBuffer === '') {
+                return;
+            }
+            $runs[] = $this->runXml($textBuffer, $style);
+            $textBuffer = '';
+        };
+
         foreach ($inlines as $inline) {
             switch ($inline->type) {
                 case 'text':
                     $text = (string) $inline->attr('text', '');
                     if ($text !== '') {
-                        $runs[] = $this->runXml($text, $style);
+                        $textBuffer .= $text;
                     }
                     break;
                 case 'softbreak':
                 case 'linebreak':
-                    $runs[] = $this->runXml(' ', $style);
+                    $textBuffer .= ' ';
                     break;
                 case 'strong':
+                    $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['bold' => true], $relationships));
                     break;
                 case 'emph':
+                    $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['italic' => true], $relationships));
                     break;
                 case 'underline':
+                    $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['underline' => true], $relationships));
                     break;
                 case 'strikeout':
+                    $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['strike' => true], $relationships));
                     break;
                 case 'link':
+                    $flushText();
                     $url = (string) $inline->attr('url', $inline->attr('target', ''));
                     $linkStyle = $style;
                     if ($url !== '') {
@@ -676,12 +690,14 @@ final class PptxWriter
                 case 'code':
                     $code = (string) $inline->attr('text', '');
                     if ($code !== '') {
+                        $flushText();
                         $runs[] = $this->runXml($code, $style);
                     }
                     break;
                 case 'note':
                     $noteId = $this->endnoteId($inline);
                     if ($noteId !== null) {
+                        $flushText();
                         $noteStyle = $style + ['baseline' => 30000];
                         if ($this->endnotesSlideNumber > 0) {
                             $noteStyle['hyperlinkId'] = $this->addInternalRelationship(
@@ -699,6 +715,7 @@ final class PptxWriter
                     if ($this->isOpenXmlRaw($inline)) {
                         $xml = $this->rawOpenXml($inline);
                         if ($xml !== '') {
+                            $flushText();
                             $runs[] = $xml;
                         }
                     }
@@ -709,15 +726,22 @@ final class PptxWriter
                 case 'raw_tex_inline':
                 case 'raw_markdown':
                     break;
-                case 'span':
+                case 'small_caps':
                 case 'smallcaps':
+                    $flushText();
+                    $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['smallCaps' => true], $relationships));
+                    break;
+                case 'span':
                 case 'quoted':
+                    $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style, $relationships));
                     break;
                 case 'superscript':
+                    $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['baseline' => 30000], $relationships));
                     break;
                 case 'subscript':
+                    $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['baseline' => -25000], $relationships));
                     break;
                 case 'image':
@@ -725,17 +749,18 @@ final class PptxWriter
                 default:
                     $text = $this->inlineText([$inline]);
                     if ($text !== '') {
-                        $runs[] = $this->runXml($text, $style);
+                        $textBuffer .= $text;
                     }
                     break;
             }
         }
+        $flushText();
 
         return $runs;
     }
 
     /**
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
      */
     private function runXml(string $text, array $style): string
     {
@@ -751,6 +776,9 @@ final class PptxWriter
         }
         if (($style['strike'] ?? false) === true) {
             $attrs[] = 'strike="sngStrike"';
+        }
+        if (($style['smallCaps'] ?? false) === true) {
+            $attrs[] = 'cap="small"';
         }
         if (isset($style['baseline'])) {
             $attrs[] = 'baseline="' . (int) $style['baseline'] . '"';
@@ -1541,47 +1569,66 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool} $style
      * @return list<string>
      */
     private function noteInlineRuns(array $inlines, array $style): array
     {
         $runs = [];
+        $textBuffer = '';
+        $flushText = function () use (&$runs, &$textBuffer, $style): void {
+            if ($textBuffer === '') {
+                return;
+            }
+            $runs[] = $this->runXml($textBuffer, $style);
+            $textBuffer = '';
+        };
+
         foreach ($inlines as $inline) {
             switch ($inline->type) {
                 case 'text':
                     $text = (string) $inline->attr('text', '');
                     if ($text !== '') {
-                        $runs[] = $this->runXml($text, $style);
+                        $textBuffer .= $text;
                     }
                     break;
                 case 'softbreak':
                 case 'linebreak':
-                    $runs[] = $this->runXml(' ', $style);
+                    $textBuffer .= ' ';
                     break;
                 case 'strong':
+                    $flushText();
                     $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['bold' => true]));
                     break;
                 case 'emph':
+                    $flushText();
                     $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['italic' => true]));
                     break;
                 case 'underline':
+                    $flushText();
                     $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['underline' => true]));
                     break;
                 case 'strikeout':
+                    $flushText();
                     $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['strike' => true]));
+                    break;
+                case 'small_caps':
+                case 'smallcaps':
+                    $flushText();
+                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['smallCaps' => true]));
                     break;
                 case 'link':
                 case 'span':
-                case 'smallcaps':
                 case 'superscript':
                 case 'subscript':
                 case 'quoted':
+                    $flushText();
                     $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style));
                     break;
                 case 'code':
                     $code = (string) $inline->attr('text', '');
                     if ($code !== '') {
+                        $flushText();
                         $runs[] = $this->runXml($code, $style);
                     }
                     break;
@@ -1590,17 +1637,18 @@ final class PptxWriter
                 case 'image':
                     $text = $this->imageFallbackText($inline);
                     if ($text !== '') {
-                        $runs[] = $this->runXml($text, $style);
+                        $textBuffer .= $text;
                     }
                     break;
                 default:
                     $text = $this->inlineText([$inline]);
                     if ($text !== '') {
-                        $runs[] = $this->runXml($text, $style);
+                        $textBuffer .= $text;
                     }
                     break;
             }
         }
+        $flushText();
 
         return $runs;
     }

@@ -98,6 +98,14 @@ $upstreamRawOpenXmlNative = <<<'NATIVE'
 ,RawBlock (Format "openxml") "<p:sp>\n        <p:nvSpPr>\n          <p:cNvPr id=\"3\" name=\"Content Placeholder 2\" />\n          <p:cNvSpPr>\n            <a:spLocks noGrp=\"1\" />\n          </p:cNvSpPr>\n          <p:nvPr>\n            <p:ph idx=\"1\" />\n          </p:nvPr>\n        </p:nvSpPr>\n        <p:spPr />\n        <p:txBody>\n          <a:bodyPr />\n          <a:lstStyle />\n          <a:p>\n            <a:pPr lvl=\"1\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Bulleted bulleted lists.</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"1\" />\n            <a:r>\n              <a:rPr />\n              <a:t>And go to arbitrary depth.</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"2\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Like this</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"3\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Or this</a:t>\n            </a:r>\n          </a:p>\n          <a:p>\n            <a:pPr lvl=\"2\" />\n            <a:r>\n              <a:rPr />\n              <a:t>Back to here.</a:t>\n            </a:r>\n          </a:p>\n        </p:txBody>\n      </p:sp>"]
 NATIVE;
 
+$upstreamInlineFormattingNative = <<<'NATIVE'
+[Para [Str "Here",Space,Str "are",Space,Str "examples",Space,Str "of",Space,Emph [Str "italics"],Str ",",Space,Strong [Str "bold"],Str ",",Space,Str "and",Space,Strong [Emph [Str "bold",Space,Str "italics"]],Str "."]
+,Para [Str "Here",Space,Str "is",Space,Strikeout [Str "strook-three"],Space,Str "strike-through",Space,Str "and",Space,SmallCaps [Str "small",Space,Str "caps"],Str "."]
+,Para [Str "Here",Space,Str "is",Space,Span ("",["underline"],[]) [Str "some",Space,Emph [Str "underlined"],Space,Strong [Str "text"]],Str "."]
+,Para [Str "We",Space,Str "can",Space,Str "also",Space,Str "do",Space,Str "subscripts",Space,Str "(H",Subscript [Str "2"],Str "0)",Space,Str "and",Space,Str "super",Superscript [Str "script"],Str "."]
+,RawBlock (Format "html") "<!-- Comments don't show up. -->"]
+NATIVE;
+
 $upstreamEndnotesNative = <<<'NATIVE'
 Pandoc (Meta {unMeta = fromList []})
 [Para [Str "Here",Space,Str "is",Space,Str "one",Space,Str "note.",Note [Para [Str "Here",Space,Str "is",Space,Str "the",Space,Str "note."]],Space,Str "And",Space,Str "one",Space,Str "more",Space,Str "note.",Note [Para [Str "And",Space,Str "another",Space,Str "note."]]]]
@@ -356,6 +364,27 @@ return [
         $t->contains('<a:t>Back to here.</a:t>', $slide2);
         $t->true(!str_contains($slide2, '&lt;p:sp'), 'Raw block OpenXML must not be XML-escaped');
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream inline formatting fixture into run properties' => static function (TestRunner $t) use ($upstreamInlineFormattingNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamInlineFormattingNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $slideText = trim(preg_replace('/\s+/u', ' ', strip_tags($slide)) ?? '');
+
+        $t->contains('Here are examples of italics, bold, and bold italics.', $slideText);
+        $t->contains('Here is strook-three strike-through and small caps.', $slideText);
+        $t->contains('We can also do subscripts (H20) and superscript.', $slideText);
+        $t->contains('i="1"', $slide);
+        $t->contains('b="1"', $slide);
+        $t->contains('b="1" i="1"', $slide);
+        $t->contains('strike="sngStrike"', $slide);
+        $t->contains('cap="small"', $slide);
+        $t->same(1, substr_count($slide, 'cap="small"'));
+        $t->contains('baseline="-25000"', $slide);
+        $t->contains('baseline="30000"', $slide);
+        $t->true(!str_contains($slide, "Comments don't show up."), 'Raw HTML comments must not render as slide text');
+        $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
     },
 
     'maps upstream inline notes into a public endnotes slide' => static function (TestRunner $t) use ($upstreamEndnotesNative, $mediaOptions): void {
