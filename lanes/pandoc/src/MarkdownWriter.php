@@ -10,11 +10,17 @@ final class MarkdownWriter
     private const TEMPLATE_BREAKABLE_SPACE = "\x1F";
     private const TEMPLATE_BLOCK_KEY = "\0pandoc_plain_template_block";
 
-    /** @var list<array{number:int, node:AstNode}> */
+    /** @var list<array{label:string, node:AstNode}> */
     private array $notes = [];
 
     /** @var list<array{label:string, url:string, title:string, attrs:array<string, mixed>}> */
     private array $references = [];
+
+    /** @var array<string, int> */
+    private array $noteLabelUses = [];
+
+    /** @var array<string, bool> */
+    private array $noteUsedLabels = [];
 
     /** @var array<string, int> */
     private array $referenceLabelUses = [];
@@ -52,6 +58,8 @@ final class MarkdownWriter
 
         $this->notes = [];
         $this->references = [];
+        $this->noteLabelUses = [];
+        $this->noteUsedLabels = [];
         $this->referenceLabelUses = [];
         $this->referenceUsedLabels = [];
         $this->referenceTargetLabels = [];
@@ -7428,9 +7436,9 @@ final class MarkdownWriter
 
     private function renderNoteReference(AstNode $node): string
     {
-        $number = $this->registerNote($node);
+        $label = $this->registerNote($node);
 
-        return '[^' . $number . ']';
+        return '[^' . $label . ']';
     }
 
     private function renderPlainNoteReference(AstNode $node): string
@@ -7438,15 +7446,72 @@ final class MarkdownWriter
         return '[' . $this->registerNote($node) . ']';
     }
 
-    private function registerNote(AstNode $node): int
+    private function registerNote(AstNode $node): string
     {
-        $number = $this->nextNoteNumber++;
+        $label = $this->actualNoteLabel($this->preferredNoteLabel($node));
         $this->notes[] = [
-            'number' => $number,
+            'label' => $label,
             'node' => $node,
         ];
 
-        return $number;
+        return $label;
+    }
+
+    private function preferredNoteLabel(AstNode $node): string
+    {
+        $label = $node->attr('label', $node->attr('noteLabel', $node->attr('identifier', '')));
+        if (!is_scalar($label)) {
+            return '';
+        }
+
+        return trim((string) $label);
+    }
+
+    private function actualNoteLabel(string $preferredLabel): string
+    {
+        if ($this->requiresGeneratedNoteLabel($preferredLabel)) {
+            return $this->nextGeneratedNoteLabel();
+        }
+
+        $key = strtolower($preferredLabel);
+        $use = $this->noteLabelUses[$key] ?? 0;
+        $this->noteLabelUses[$key] = $use + 1;
+        if ($use === 0 && !isset($this->noteUsedLabels[$key])) {
+            $this->noteUsedLabels[$key] = true;
+
+            return $preferredLabel;
+        }
+
+        $suffix = $use + 1;
+        do {
+            $candidate = $preferredLabel . '-' . $suffix;
+            $candidateKey = strtolower($candidate);
+            $suffix++;
+        } while (isset($this->noteUsedLabels[$candidateKey]));
+
+        $this->noteUsedLabels[$candidateKey] = true;
+
+        return $candidate;
+    }
+
+    private function requiresGeneratedNoteLabel(string $label): bool
+    {
+        return $label === ''
+            || preg_match('/\s/u', $label) === 1
+            || str_contains($label, '[')
+            || str_contains($label, ']');
+    }
+
+    private function nextGeneratedNoteLabel(): string
+    {
+        do {
+            $candidate = (string) $this->nextNoteNumber++;
+            $candidateKey = strtolower($candidate);
+        } while (isset($this->noteUsedLabels[$candidateKey]));
+
+        $this->noteUsedLabels[$candidateKey] = true;
+
+        return $candidate;
     }
 
     /**
@@ -8231,7 +8296,7 @@ final class MarkdownWriter
             $this->references = [];
 
             foreach ($notes as $note) {
-                $blocks[] = $this->renderNoteDefinition($note['number'], $note['node']);
+                $blocks[] = $this->renderNoteDefinition($note['label'], $note['node']);
             }
 
             $referenceDefinitions = [];
@@ -8246,24 +8311,24 @@ final class MarkdownWriter
         return $blocks;
     }
 
-    private function renderNoteDefinition(int $number, AstNode $node): string
+    private function renderNoteDefinition(string $label, AstNode $node): string
     {
         if ($this->isPlainTextVariant()) {
-            return $this->renderPlainNoteDefinition($number, $node);
+            return $this->renderPlainNoteDefinition($label, $node);
         }
 
         if ($this->opmlNoteMarkdownEnabled() && $this->writerWrapText() === 'auto') {
-            return $this->renderOpmlNoteDefinition($number, $node);
+            return $this->renderOpmlNoteDefinition($label, $node);
         }
 
         $body = $this->renderBlockCollection($node->children);
         if ($body === '') {
-            return '[^' . $number . ']:';
+            return '[^' . $label . ']:';
         }
 
         $lines = explode("\n", $body);
         $first = array_shift($lines);
-        $rendered = '[^' . $number . ']: ' . $first;
+        $rendered = '[^' . $label . ']: ' . $first;
         foreach ($lines as $line) {
             $rendered .= "\n" . ($line === '' ? '' : '    ' . $line);
         }
@@ -8271,10 +8336,10 @@ final class MarkdownWriter
         return $rendered;
     }
 
-    private function renderOpmlNoteDefinition(int $number, AstNode $node): string
+    private function renderOpmlNoteDefinition(string $label, AstNode $node): string
     {
         if ($node->children === []) {
-            return '[^' . $number . ']:';
+            return '[^' . $label . ']:';
         }
 
         $blocks = [];
@@ -8287,7 +8352,7 @@ final class MarkdownWriter
                 $lines = [];
                 $this->appendOpmlWrappedMarkdownLines(
                     $lines,
-                    $index === 0 ? '[^' . $number . ']: ' : '    ',
+                    $index === 0 ? '[^' . $label . ']: ' : '    ',
                     '    ',
                     $this->renderBlockInlines($child->children, true)
                 );
@@ -8296,7 +8361,7 @@ final class MarkdownWriter
             }
 
             if ($index === 0) {
-                $blocks[] = '[^' . $number . ']:';
+                $blocks[] = '[^' . $label . ']:';
             }
             array_push($blocks, ...$this->renderBlock($child, 4));
         }
@@ -8304,9 +8369,9 @@ final class MarkdownWriter
         return implode("\n", $blocks);
     }
 
-    private function renderPlainNoteDefinition(int $number, AstNode $node): string
+    private function renderPlainNoteDefinition(string $label, AstNode $node): string
     {
-        $marker = '[' . $number . ']';
+        $marker = '[' . $label . ']';
         $body = $this->renderBlockCollection($node->children);
         if ($body === '') {
             return $marker;
