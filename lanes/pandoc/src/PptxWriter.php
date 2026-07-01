@@ -193,7 +193,7 @@ final class PptxWriter
 
     /**
      * @param array<string, mixed> $metadata
-     * @return list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>}>
+     * @return list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}>
      */
     private function slides(AstNode $document, array $metadata): array
     {
@@ -216,7 +216,10 @@ final class PptxWriter
                     $slides[] = $current;
                 }
                 $title = $this->blockText($block);
-                $current = $this->newSlide($title !== '' ? $title : 'Slide ' . (count($slides) + 1));
+                $current = $this->newSlide(
+                    $title !== '' ? $title : 'Slide ' . (count($slides) + 1),
+                    $this->backgroundImageForBlock($block)
+                );
                 if ($pendingMetadataNotes !== []) {
                     array_push($current['notes'], ...$pendingMetadataNotes);
                     $pendingMetadataNotes = [];
@@ -226,7 +229,10 @@ final class PptxWriter
 
             if ($slideLevel === 0 && $block->type === 'heading' && $current === null) {
                 $title = $this->blockText($block);
-                $current = $this->newSlide($title !== '' ? $title : 'Slide ' . (count($slides) + 1));
+                $current = $this->newSlide(
+                    $title !== '' ? $title : 'Slide ' . (count($slides) + 1),
+                    $this->backgroundImageForBlock($block)
+                );
                 if ($pendingMetadataNotes !== []) {
                     array_push($current['notes'], ...$pendingMetadataNotes);
                     $pendingMetadataNotes = [];
@@ -268,19 +274,20 @@ final class PptxWriter
     }
 
     /**
-     * @return array{title:string, blocks:list<AstNode>, notes:list<AstNode>}
+     * @return array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}
      */
-    private function newSlide(string $title): array
+    private function newSlide(string $title, ?string $backgroundImage = null): array
     {
         return [
             'title' => $title,
             'blocks' => [],
             'notes' => [],
+            'backgroundImage' => $backgroundImage,
         ];
     }
 
     /**
-     * @param list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>}> $slides
+     * @param list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}> $slides
      */
     private function appendEndnotesSlide(array &$slides, AstNode $document): void
     {
@@ -296,7 +303,7 @@ final class PptxWriter
     }
 
     /**
-     * @param list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>}> $slides
+     * @param list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}> $slides
      */
     private function collectEndnotesFromSlides(array $slides): void
     {
@@ -383,14 +390,34 @@ final class PptxWriter
         return 2;
     }
 
+    private function backgroundImageForBlock(AstNode $block): ?string
+    {
+        $attributes = $block->attr('attributes', []);
+        if (!is_array($attributes)) {
+            return null;
+        }
+
+        foreach (['background-image', 'data-background-image'] as $key) {
+            if (isset($attributes[$key]) && is_scalar($attributes[$key])) {
+                $source = trim((string) $attributes[$key]);
+                if ($source !== '') {
+                    return $source;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /**
-     * @param array{title:string, blocks:list<AstNode>, notes:list<AstNode>} $slide
+     * @param array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string} $slide
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      */
     private function slideXml(array $slide, int $slideNumber, array &$relationships): string
     {
         $shapeId = 2;
         $slot = 0;
+        $backgroundXml = $this->slideBackgroundXml($slide['backgroundImage'], $relationships);
         $shapes = [
             $this->textShapeXml(
                 $shapeId++,
@@ -412,11 +439,14 @@ final class PptxWriter
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<p:sld xmlns:a="' . self::NS_A . '" xmlns:p="' . self::NS_P . '" xmlns:r="' . self::NS_R . '">' . "\n"
-            . '  <p:cSld><p:spTree>' . "\n"
+            . '  <p:cSld>' . "\n"
+            . $backgroundXml
+            . '    <p:spTree>' . "\n"
             . '    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>' . "\n"
             . '    <p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' . self::SLIDE_WIDTH_EMU . '" cy="' . self::SLIDE_HEIGHT_EMU . '"/><a:chOff x="0" y="0"/><a:chExt cx="' . self::SLIDE_WIDTH_EMU . '" cy="' . self::SLIDE_HEIGHT_EMU . '"/></a:xfrm></p:grpSpPr>' . "\n"
             . implode("\n", $shapes) . "\n"
-            . '  </p:spTree></p:cSld>' . "\n"
+            . '    </p:spTree>' . "\n"
+            . '  </p:cSld>' . "\n"
             . '  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>' . "\n"
             . '</p:sld>' . "\n";
     }
@@ -788,6 +818,26 @@ final class PptxWriter
             . '      <p:blipFill><a:blip r:embed="' . $this->xml((string) $media['relationshipId']) . '"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>' . "\n"
             . '      <p:spPr><a:xfrm><a:off x="' . $x . '" y="' . $y . '"/><a:ext cx="' . $cx . '" cy="' . $cy . '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>' . "\n"
             . '    </p:pic>';
+    }
+
+    /**
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     */
+    private function slideBackgroundXml(?string $source, array &$relationships): string
+    {
+        $source = trim((string) $source);
+        if ($source === '') {
+            return '';
+        }
+
+        $media = $this->addImageMediaRelationship(new AstNode('image', ['url' => $source]), $relationships);
+        if ($media === null) {
+            return '';
+        }
+
+        return '    <p:bg><p:bgPr><a:blipFill dpi="0" rotWithShape="1"><a:blip r:embed="'
+            . $this->xml((string) $media['relationshipId'])
+            . '"><a:lum/></a:blip><a:srcRect/><a:stretch><a:fillRect/></a:stretch></a:blipFill><a:effectLst/></p:bgPr></p:bg>' . "\n";
     }
 
     /**

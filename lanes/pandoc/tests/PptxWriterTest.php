@@ -116,6 +116,26 @@ $upstreamSlideLevelZeroNative = <<<'NATIVE'
 ,Para [Image ("",[],[]) [Str "An",Space,Str "image"] ("lalune.jpg","fig:")]]
 NATIVE;
 
+$upstreamBackgroundImageNative = <<<'NATIVE'
+[Header 1 ("section-header-with-background-image",[],[("background-image","movie.jpg")]) [Str "Section",Space,Str "Header",Space,Str "(with",Space,Str "background",Space,Str "image)"]
+,Header 2 ("slide-1",[],[("background-image","lalune.jpg")]) [Str "Slide",Space,Str "1"]
+,Para [Str "This",Space,Str "slide",Space,Str "has",Space,Str "a",Space,Str "moon",Space,Str "background."]
+,Header 2 ("slide-2",[],[("background-image","movie.jpg")]) [Str "Slide",Space,Str "2"]
+,Para [Str "This",Space,Str "slide",Space,Str "has",Space,Str "a",Space,Str "movie",Space,Str "background."]
+,Header 2 ("slide-3",[],[("background-image","movie.jpg")]) [Str "Slide",Space,Str "3"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[("width","0.5")])
+  [Para [Str "One"]]
+ ,Div ("",["column"],[("width","0.5")])
+  [Para [Str "Two"]]]
+,Header 2 ("slide-4",[],[("background-image","movie.jpg")]) [Str "Slide",Space,Str "4"]
+,Para [Str "This",Space,Str "slide",Space,Str "has",Space,Str "a",Space,Str "movie",Space,Str "background",Space,Str "and",Space,Str "a",Space,Str "moon",Space,Str "picture."]
+,Para [Image ("",[],[]) [Str "An",Space,Str "image"] ("lalune.jpg","fig:")]
+,Header 2 ("section",[],[("background-image","lalune.jpg")]) []
+,Div ("",["notes"],[])
+ [Para [Str "This",Space,Str "slide",Space,Str "has",Space,Str "a",Space,Str "moon",Space,Str "background",Space,Str "and",Space,Str "speaker",Space,Str "notes."]]]
+NATIVE;
+
 $collectText = static function (AstNode $node) use (&$collectText): string {
     $text = '';
     if (isset($node->attrs['text']) && is_scalar($node->attrs['text'])) {
@@ -404,6 +424,66 @@ return [
         $t->true(!str_contains($slideText, 'Untitled'), 'First heading should replace the metadata fallback title');
         $t->same(1, substr_count($slideText, 'Hello'));
         $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream background-image heading attributes into slide backgrounds' => static function (TestRunner $t) use ($upstreamBackgroundImageNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamBackgroundImageNative);
+        $backgroundOptions = array_replace($mediaOptions, [
+            'mediaResources' => [
+                'movie.jpg' => ['data' => "\xff\xd8movie", 'mimeType' => 'image/jpeg'],
+                'lalune.jpg' => ['data' => "\xff\xd8moon", 'mimeType' => 'image/jpeg'],
+            ],
+        ]);
+        $package = ZipPackage::fromString((new PptxWriter($backgroundOptions))->write($document));
+        $names = $package->names();
+
+        foreach ([
+            'ppt/slides/slide1.xml',
+            'ppt/slides/slide2.xml',
+            'ppt/slides/slide3.xml',
+            'ppt/slides/slide4.xml',
+            'ppt/slides/slide5.xml',
+            'ppt/slides/slide6.xml',
+            'ppt/media/image1.jpg',
+            'ppt/media/image2.jpg',
+            'ppt/notesSlides/notesSlide1.xml',
+        ] as $partName) {
+            $t->true(in_array($partName, $names, true), "Missing background-image fixture part {$partName}");
+        }
+        $t->true(!in_array('ppt/media/image3.jpg', $names, true), 'Repeated background images should reuse media parts by source');
+
+        $contentTypes = $package->read('[Content_Types].xml');
+        $t->contains('Extension="jpg" ContentType="image/jpeg"', $contentTypes);
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<p:bg>', $slide1);
+        $t->contains('<a:blipFill dpi="0" rotWithShape="1">', $slide1);
+        $t->contains('<a:lum/>', $slide1);
+        $t->contains('<a:effectLst/>', $slide1);
+
+        $slide1Rels = $package->read('ppt/slides/_rels/slide1.xml.rels');
+        $slide2Rels = $package->read('ppt/slides/_rels/slide2.xml.rels');
+        $slide3Rels = $package->read('ppt/slides/_rels/slide3.xml.rels');
+        $slide5Rels = $package->read('ppt/slides/_rels/slide5.xml.rels');
+        $slide6Rels = $package->read('ppt/slides/_rels/slide6.xml.rels');
+        $t->contains('relationships/image', $slide1Rels);
+        $t->contains('Target="../media/image1.jpg"', $slide1Rels);
+        $t->contains('Target="../media/image2.jpg"', $slide2Rels);
+        $t->contains('Target="../media/image1.jpg"', $slide3Rels);
+        $t->same(2, substr_count($slide5Rels, 'relationships/image'));
+        $t->contains('Target="../media/image1.jpg"', $slide5Rels);
+        $t->contains('Target="../media/image2.jpg"', $slide5Rels);
+        $t->contains('relationships/notesSlide', $slide6Rels);
+        $t->contains('Target="../media/image2.jpg"', $slide6Rels);
+
+        $slide5 = $package->read('ppt/slides/slide5.xml');
+        $t->contains('<p:bg>', $slide5);
+        $t->contains('<p:pic>', $slide5);
+
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $t->contains('speaker', $notes);
+        $t->contains('<Slides>6</Slides>', $package->read('docProps/app.xml'));
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 
     'rejects non-document roots' => static function (TestRunner $t): void {
