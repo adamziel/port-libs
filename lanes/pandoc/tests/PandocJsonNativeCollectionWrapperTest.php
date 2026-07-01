@@ -110,4 +110,87 @@ return [
             }
         }
     },
+    'accepts single wrapped multi-item table column spec collections' => static function (TestRunner $t): void {
+        $firstSpec = [
+            ['t' => 'AlignLeft', 'reviewQueue' => 'first-align-source'],
+            ['t' => 'ColWidth', 'c' => [0.45], 'reviewQueue' => 'first-width-source'],
+        ];
+        $secondSpec = [
+            ['t' => 'AlignDefault', 'reviewQueue' => 'second-align-source'],
+            ['t' => 'ColWidthDefault', 'reviewQueue' => 'second-width-source'],
+        ];
+        $columnSpecs = [$firstSpec, $secondSpec];
+        $tableBlock = [
+            't' => 'Table',
+            'c' => [
+                ['wrapped-colspec-collection', ['json-native'], []],
+                ['t' => 'Caption', 'c' => [['t' => 'Nothing'], []]],
+                [$columnSpecs],
+                ['t' => 'TableHead', 'c' => [['', [], []], []]],
+                [],
+                ['t' => 'TableFoot', 'c' => [['', [], []], []]],
+            ],
+            'reviewQueue' => 'wrapped-colspec-table-source',
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$tableBlock],
+        ];
+        $withoutNativeWrapper = static function (AstNode $node): array {
+            $attrs = $node->attrs;
+            unset($attrs['constructor'], $attrs['native']);
+
+            return $attrs;
+        };
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $table = $document->children[0];
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($withoutNativeWrapper($table), [
+                    'id' => 'rebuilt-wrapped-colspec-collection',
+                ]), $table->children),
+            ]);
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('table', array_replace($withoutNativeWrapper($table), [
+                    'widths' => [0.5, null],
+                ]), $table->children),
+            ]);
+
+            $t->same(['left', 'default'], $table->attr('alignments'), "{$source} table column alignments");
+            $t->same([0.45, null], $table->attr('widths'), "{$source} table column widths");
+            $t->same([$columnSpecs], $table->attr('columnSpecsNative'), "{$source} records collection wrapper sidecar");
+            $t->same([$firstSpec, $secondSpec], $table->attr('columnSpecNatives'), "{$source} records per-spec sidecars");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($document),
+                'native' => json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same([$columnSpecs], $encoded['blocks'][0]['c'][2], "{$source} {$writer} writer preserves unchanged collection wrapper");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same('rebuilt-wrapped-colspec-collection', $encoded['blocks'][0]['c'][0][0], "{$source} {$writer} writer rebuilds table attrs");
+                $t->same([$columnSpecs], $encoded['blocks'][0]['c'][2], "{$source} {$writer} writer preserves rebuilt collection wrapper");
+                $t->same(false, array_key_exists('reviewQueue', $encoded['blocks'][0]), "{$source} {$writer} writer drops stale table wrapper sidecar");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $editedSpecs = $encoded['blocks'][0]['c'][2][0];
+
+                $t->same($firstSpec[0], $editedSpecs[0][0], "{$source} {$writer} writer preserves edited-column alignment sidecar");
+                $t->same(['t' => 'ColWidth', 'c' => 0.5], $editedSpecs[0][1], "{$source} {$writer} writer regenerates edited column width");
+                $t->same($secondSpec, $editedSpecs[1], "{$source} {$writer} writer preserves untouched default spec");
+            }
+        }
+    },
 ];

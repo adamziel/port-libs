@@ -26,6 +26,7 @@ final class PandocJsonWriter
         'colSpanConstructor',
         'colSpanNative',
         'columnSpecNatives',
+        'columnSpecsNative',
         'columnWidthConstructors',
         'columnWidthNatives',
         'constructor',
@@ -1201,7 +1202,7 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return list<array{0:array{t:string}, 1:array<string, mixed>}>
+     * @return list<mixed>
      */
     private function writeTableColumnSpecs(AstNode $node): array
     {
@@ -1228,7 +1229,33 @@ final class PandocJsonWriter
             $specs[] = $this->columnSpecNativeAt($columnSpecNatives, $index, $spec) ?? $spec;
         }
 
-        return $specs;
+        return $this->columnSpecsNative($node->attr('columnSpecsNative'), $specs) ?? $specs;
+    }
+
+    /**
+     * @param list<array{0:array{t:string}, 1:array<string, mixed>}> $generated
+     * @return list<mixed>|null
+     */
+    private function columnSpecsNative(mixed $native, array $generated): ?array
+    {
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $generated) {
+            return $native;
+        }
+
+        if (
+            count($native) === 1
+            && is_array($native[0])
+            && array_is_list($native[0])
+            && count($native[0]) > 1
+        ) {
+            return [$generated];
+        }
+
+        return null;
     }
 
     /**

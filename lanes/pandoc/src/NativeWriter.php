@@ -25,6 +25,7 @@ final class NativeWriter
         'colSpanConstructor',
         'colSpanNative',
         'columnSpecNatives',
+        'columnSpecsNative',
         'columnWidthConstructors',
         'columnWidthNatives',
         'constructor',

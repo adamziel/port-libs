@@ -1413,7 +1413,8 @@ final class PandocJsonReader
         $columnSpecNatives = [];
         $columnWidthConstructors = [];
         $columnWidthNatives = [];
-        foreach ($this->listContent($colSpecs, 'Table column specs') as $colSpec) {
+        $columnSpecs = $this->tableColumnSpecCollectionContent($colSpecs);
+        foreach ($columnSpecs as $colSpec) {
             $tuple = $this->singleWrappedTupleContent($colSpec, 2, 'Table column spec');
             $alignmentConstructor = $this->enumTag($tuple[0], 'table alignment');
             $columnWidthConstructor = $this->tableColumnWidthConstructor($tuple[1]);
@@ -1430,7 +1431,7 @@ final class PandocJsonReader
             return [];
         }
 
-        return [
+        $attrs = [
             'alignments' => $alignments,
             'widths' => $widths,
             'alignmentConstructors' => $alignmentConstructors,
@@ -1439,6 +1440,75 @@ final class PandocJsonReader
             'columnWidthConstructors' => $columnWidthConstructors,
             'columnWidthNatives' => $columnWidthNatives,
         ];
+
+        if ($columnSpecs !== $colSpecs) {
+            $attrs['columnSpecsNative'] = $colSpecs;
+        }
+
+        return $attrs;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function tableColumnSpecCollectionContent(mixed $colSpecs): array
+    {
+        $items = $this->listContent($colSpecs, 'Table column specs');
+        if (
+            count($items) === 1
+            && is_array($items[0])
+            && array_is_list($items[0])
+            && count($items[0]) > 1
+            && $this->allColumnSpecPayloads($items[0])
+        ) {
+            return $items[0];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function allColumnSpecPayloads(array $items): bool
+    {
+        foreach ($items as $item) {
+            if (!$this->looksLikeColumnSpecPayload($item)) {
+                return false;
+            }
+        }
+
+        return $items !== [];
+    }
+
+    private function looksLikeColumnSpecPayload(mixed $item): bool
+    {
+        if (!is_array($item) || !array_is_list($item)) {
+            return false;
+        }
+
+        if (
+            count($item) === 1
+            && is_array($item[0])
+            && array_is_list($item[0])
+        ) {
+            $item = $item[0];
+        }
+
+        return count($item) === 2
+            && $this->looksLikeEnumConstructor($item[0])
+            && (is_int($item[1]) || is_float($item[1]) || $this->looksLikeEnumConstructor($item[1]));
+    }
+
+    private function looksLikeEnumConstructor(mixed $value): bool
+    {
+        return is_string($value)
+            || (
+                is_array($value)
+                && !array_is_list($value)
+                && isset($value['t'])
+                && is_string($value['t'])
+            );
     }
 
     private function readTableSection(mixed $section, string $constructor, string $type): AstNode
