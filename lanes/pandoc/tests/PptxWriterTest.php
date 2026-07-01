@@ -278,6 +278,33 @@ $upstreamContentWithCaptionHeadingTextImageNative = <<<'NATIVE'
 ,Para [Image ("",[],[]) [Str "Followed",Space,Str "by",Space,Str "a",Space,Str "picture"] ("lalune.jpg","fig:")]]
 NATIVE;
 
+$upstreamTwoColumnAllTextNative = <<<'NATIVE'
+Pandoc (Meta {unMeta = fromList []})
+[Header 1 ("two-column-layout",[],[]) [Str "Two-Column",Space,Str "Layout"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[])
+  [Para [Str "One",Space,Str "paragraph."]
+  ,Para [Str "Another",Space,Str "paragraph."]]
+ ,Div ("",["column"],[])
+  [Para [Str "Second",Space,Str "column",Space,Str "paragraph."]
+  ,Para [Str "Another",Space,Str "second",Space,Str "paragraph."]]]]
+NATIVE;
+
+$upstreamTwoColumnTextImageNative = <<<'NATIVE'
+[Header 1 ("slide-1",[],[]) [Str "Slide",Space,Str "1"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[])
+  [Para [Image ("",[],[]) [Str "an",Space,Str "image"] ("lalune.jpg","fig:")]]
+ ,Div ("",["column"],[])
+  [Para [Str "This",Space,Str "should",Space,Str "use",Space,Str "Two",Space,Str "Content,",Emph [Str "not"],Space,Str "Comparison!"]]]
+,Header 1 ("slide-2",[],[]) [Str "Slide",Space,Str "2"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[])
+  [Para [Str "This",Space,Str "should",Space,Str "also",Space,Str "use",Space,Str "Two",Space,Str "Content"]]
+ ,Div ("",["column"],[])
+  [Para [Image ("",[],[]) [Str "an",Space,Str "image"] ("lalune.jpg","fig:")]]]]
+NATIVE;
+
 $upstreamSlideLevelZeroNative = <<<'NATIVE'
 [Header 1 ("hello",[],[]) [Str "Hello"]
 ,Para [Image ("",[],[]) [Str "An",Space,Str "image"] ("lalune.jpg","fig:")]]
@@ -967,6 +994,53 @@ return [
         $t->contains('<a:t>Some text here</a:t>', $headingSlide);
         $t->contains('<p:pic>', $headingSlide);
         $t->contains('<a:t>Followed by a picture</a:t>', $headingSlide);
+    },
+
+    'maps upstream two-column text layout into separate content placeholders' => static function (TestRunner $t) use ($upstreamTwoColumnAllTextNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamTwoColumnAllTextNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+
+        $t->true(!in_array('ppt/slides/slide2.xml', $package->names(), true), 'Two-column all-text fixture should produce one slide');
+
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Two-Column Layout</a:t>', $slide);
+        $t->contains('idx="1"', $slide);
+        $t->contains('idx="2"', $slide);
+        $t->same(3, substr_count($slide, '<p:sp>'));
+        $t->true(preg_match('/idx="1".*<a:t>One paragraph\\.<\\/a:t>.*<a:t>Another paragraph\\.<\\/a:t>/s', $slide) === 1, 'First column paragraphs should share one placeholder');
+        $t->true(preg_match('/idx="2".*<a:t>Second column paragraph\\.<\\/a:t>.*<a:t>Another second paragraph\\.<\\/a:t>/s', $slide) === 1, 'Second column paragraphs should share one placeholder');
+        $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream two-column text and image layout into column regions' => static function (TestRunner $t) use ($upstreamTwoColumnTextImageNative, $mediaOptions): void {
+        $imageOptions = array_replace($mediaOptions, [
+            'mediaResources' => [
+                'lalune.jpg' => ['data' => "\xff\xd8moon", 'mimeType' => 'image/jpeg'],
+            ],
+        ]);
+        $package = ZipPackage::fromString((new PptxWriter($imageOptions))->write((new NativeReader())->read($upstreamTwoColumnTextImageNative)));
+
+        $names = $package->names();
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected first two-column slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected second two-column slide');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'Two-column text/image fixture should produce exactly two slides');
+        $t->true(in_array('ppt/media/image1.jpg', $names, true), 'Expected packed column image');
+        $t->true(!in_array('ppt/media/image2.jpg', $names, true), 'Repeated column image should reuse one media part');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<p:pic>', $slide1);
+        $t->contains('idx="2"', $slide1);
+        $t->contains('<a:t>This should use Two Content,</a:t>', $slide1);
+        $t->contains('<a:t>not</a:t>', $slide1);
+        $t->contains('<a:t> Comparison!</a:t>', $slide1);
+        $t->true(strpos($slide1, '<p:pic>') < strpos($slide1, 'idx="2"'), 'Slide 1 should keep the image in the left column before right-column text');
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $t->contains('idx="1"', $slide2);
+        $t->contains('<a:t>This should also use Two Content</a:t>', $slide2);
+        $t->contains('<p:pic>', $slide2);
+        $t->true(strpos($slide2, 'idx="1"') < strpos($slide2, '<p:pic>'), 'Slide 2 should keep text in the left column before the right-column image');
+        $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
     },
 
     'uses the first heading as the slide title when slide level is zero' => static function (TestRunner $t) use ($upstreamSlideLevelZeroNative, $mediaOptions): void {

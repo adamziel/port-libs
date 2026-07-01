@@ -596,6 +596,10 @@ final class PptxWriter
             return [];
         }
 
+        if ($this->isColumnsBlock($block)) {
+            return $this->columnShapes($block, $shapeId, $slot, $relationships);
+        }
+
         if ($block->type === 'div' || $block->type === 'block_quote') {
             $shapes = [];
             foreach ($block->children as $child) {
@@ -728,6 +732,154 @@ final class PptxWriter
     }
 
     /**
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     * @return list<string>
+     */
+    private function columnShapes(AstNode $block, int &$shapeId, int &$slot, array &$relationships): array
+    {
+        $columns = $this->columnBlocks($block);
+        if ($columns === []) {
+            return [];
+        }
+
+        $rects = $this->columnRects($slot++, count($columns));
+        $shapes = [];
+        foreach ($columns as $index => $column) {
+            [$x, $y, $cx, $cy] = $rects[$index];
+            $image = $this->imageFromSingleImageColumn($column->children);
+            if ($image !== null) {
+                $picture = $this->pictureShapeXmlAtRect($image, $shapeId++, $x, $y, $cx, min($cy, 3048000), $relationships);
+                if ($picture !== null) {
+                    $shapes[] = $picture;
+                }
+                continue;
+            }
+
+            $paragraphs = $this->columnParagraphXmls($column->children, $relationships);
+            if ($paragraphs === []) {
+                continue;
+            }
+            $shapes[] = $this->textShapeXml(
+                $shapeId++,
+                'Content Placeholder ' . ($index + 2),
+                $paragraphs,
+                $x,
+                $y,
+                $cx,
+                $cy,
+                null,
+                $index + 1
+            );
+        }
+
+        return $shapes;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function columnBlocks(AstNode $block): array
+    {
+        $columns = [];
+        foreach ($block->children as $child) {
+            if (!$this->isColumnBlock($child)) {
+                continue;
+            }
+            $columns[] = $child;
+        }
+
+        return $columns;
+    }
+
+    private function isColumnsBlock(AstNode $block): bool
+    {
+        if ($block->type !== 'div') {
+            return false;
+        }
+        $classes = $block->attr('classes', []);
+
+        return is_array($classes) && in_array('columns', $classes, true);
+    }
+
+    private function isColumnBlock(AstNode $block): bool
+    {
+        if ($block->type !== 'div') {
+            return false;
+        }
+        $classes = $block->attr('classes', []);
+
+        return is_array($classes) && in_array('column', $classes, true);
+    }
+
+    private function imageFromSingleImageColumn(array $blocks): ?AstNode
+    {
+        if (count($blocks) !== 1) {
+            return null;
+        }
+        $block = $blocks[0];
+        if (!$this->isImageOnlyBlock($block)) {
+            return null;
+        }
+        if ($block->type === 'image') {
+            return $block;
+        }
+        foreach ($block->children as $child) {
+            if ($child->type === 'image') {
+                return $child;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     * @return list<string>
+     */
+    private function columnParagraphXmls(array $blocks, array &$relationships): array
+    {
+        $paragraphs = [];
+        foreach ($blocks as $block) {
+            if ($this->isSpeakerNotesBlock($block)) {
+                continue;
+            }
+            if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
+                array_push($paragraphs, ...$this->columnParagraphXmls($block->children, $relationships));
+                continue;
+            }
+            if ($block->type === 'bullet_list' || $block->type === 'ordered_list') {
+                array_push($paragraphs, ...$this->listParagraphXmls($block, $block->type === 'ordered_list', $relationships));
+                continue;
+            }
+            if ($block->type === 'code_block') {
+                $text = (string) $block->attr('text', '');
+                if ($text !== '') {
+                    $paragraphs[] = $this->paragraphXml([$this->codeInline($text)], [], $relationships);
+                }
+                continue;
+            }
+            if ($block->type === 'plain' || $block->type === 'paragraph' || $block->type === 'heading') {
+                $inlines = array_values(array_filter(
+                    $block->children,
+                    static fn (AstNode $child): bool => $child->type !== 'image'
+                ));
+                if ($this->inlineText($inlines) !== '') {
+                    $paragraphs[] = $this->paragraphXml($inlines, [], $relationships);
+                }
+                continue;
+            }
+
+            $text = $this->blockText($block);
+            if ($text !== '') {
+                $paragraphs[] = $this->paragraphXml($this->textInlines($text), [], $relationships);
+            }
+        }
+
+        return $paragraphs;
+    }
+
+    /**
      * @return array{0:int,1:int,2:int,3:int}
      */
     private function bodyRect(int $slot): array
@@ -736,6 +888,28 @@ final class PptxWriter
         $height = max(609600, min(1219200, self::SLIDE_HEIGHT_EMU - $y - 304800));
 
         return [914400, $y, 10363200, $height];
+    }
+
+    /**
+     * @return list<array{0:int,1:int,2:int,3:int}>
+     */
+    private function columnRects(int $slot, int $count): array
+    {
+        $count = max(1, $count);
+        $x = 914400;
+        $y = 1524000 + ($slot * 838200);
+        $cx = 10363200;
+        $cy = max(1219200, self::SLIDE_HEIGHT_EMU - $y - 304800);
+        $gap = $count > 1 ? 457200 : 0;
+        $columnWidth = intdiv(max(914400, $cx - ($gap * ($count - 1))), $count);
+        $rects = [];
+        for ($index = 0; $index < $count; $index++) {
+            $columnX = $x + (($columnWidth + $gap) * $index);
+            $columnCx = $index === $count - 1 ? ($x + $cx) - $columnX : $columnWidth;
+            $rects[] = [$columnX, $y, $columnCx, $cy];
+        }
+
+        return $rects;
     }
 
     /**
@@ -751,9 +925,16 @@ final class PptxWriter
     /**
      * @param list<string> $paragraphs
      */
-    private function textShapeXml(int $id, string $name, array $paragraphs, int $x, int $y, int $cx, int $cy, ?string $placeholder = null): string
+    private function textShapeXml(int $id, string $name, array $paragraphs, int $x, int $y, int $cx, int $cy, ?string $placeholder = null, ?int $placeholderIndex = null): string
     {
-        $placeholderXml = $placeholder === null ? '' : '<p:ph type="' . $this->xml($placeholder) . '"/>';
+        $placeholderAttributes = [];
+        if ($placeholder !== null) {
+            $placeholderAttributes[] = 'type="' . $this->xml($placeholder) . '"';
+        }
+        if ($placeholderIndex !== null) {
+            $placeholderAttributes[] = 'idx="' . max(1, $placeholderIndex) . '"';
+        }
+        $placeholderXml = $placeholderAttributes === [] ? '' : '<p:ph ' . implode(' ', $placeholderAttributes) . '/>';
         $paragraphXml = $paragraphs === [] ? '<a:p/>' : implode('', $paragraphs);
 
         return '    <p:sp>' . "\n"
@@ -1179,13 +1360,18 @@ final class PptxWriter
 
     private function pictureShapeXml(AstNode $image, int $shapeId, int $slot, array &$relationships): ?string
     {
+        [$x, $y, $cx, $cy] = $this->bodyRect($slot);
+
+        return $this->pictureShapeXmlAtRect($image, $shapeId, $x, $y, $cx, min($cy, 1371600), $relationships);
+    }
+
+    private function pictureShapeXmlAtRect(AstNode $image, int $shapeId, int $x, int $y, int $cx, int $cy, array &$relationships): ?string
+    {
         $media = $this->addImageMediaRelationship($image, $relationships);
         if ($media === null) {
             return null;
         }
 
-        [$x, $y, $cx, $cy] = $this->bodyRect($slot);
-        $cy = min($cy, 1371600);
         $alt = (string) $image->attr('alt', $this->inlineText($image->children));
         $name = (string) $image->attr('title', '');
         if ($name === '' || str_starts_with($name, 'fig:')) {
