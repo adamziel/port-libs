@@ -1120,6 +1120,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateExternalTargetKindCounts'] = $attachedTemplates['externalTargetKindCounts'];
         $packageProvenance['summary']['attachedTemplateExternalTargetSchemeCounts'] = $attachedTemplates['externalTargetSchemeCounts'];
         $packageProvenance['summary']['attachedTemplateExternalTargetIssueCodes'] = $attachedTemplates['externalTargetIssueCodes'];
+        $packageProvenance['summary']['attachedTemplateTargetReferenceSuffixCount'] = $attachedTemplates['targetReferenceSuffixCount'];
+        $packageProvenance['summary']['attachedTemplateTargetReferenceSuffixes'] = $attachedTemplates['targetReferenceSuffixes'];
         $packageProvenance['summary']['attachedTemplateExistingCount'] = $attachedTemplates['existingCount'];
         $packageProvenance['summary']['attachedTemplateMissingCount'] = $attachedTemplates['missingCount'];
         $packageProvenance['summary']['attachedTemplateUnresolvedCount'] = $attachedTemplates['unresolvedCount'];
@@ -1453,6 +1455,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectAllowedExternalCount'] = $vbaProjects['allowedExternalProjectCount'];
         $packageProvenance['summary']['vbaProjectUnsafeExternalCount'] = $vbaProjects['unsafeExternalProjectCount'];
         $packageProvenance['summary']['vbaProjectExternalTargetIssueCodes'] = $vbaProjects['projectExternalTargetIssueCodes'];
+        $packageProvenance['summary']['vbaProjectTargetReferenceSuffixCount'] = $vbaProjects['targetReferenceSuffixCount'];
+        $packageProvenance['summary']['vbaProjectTargetReferenceSuffixes'] = $vbaProjects['targetReferenceSuffixes'];
         $packageProvenance['summary']['vbaProjectSignatureCount'] = $vbaProjects['signatureCount'];
         $packageProvenance['summary']['vbaProjectExistingSignatureCount'] = $vbaProjects['existingSignatureCount'];
         $packageProvenance['summary']['vbaProjectMissingSignatureCount'] = $vbaProjects['missingSignatureCount'];
@@ -1460,6 +1464,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaProjectSignatureAllowedExternalCount'] = $vbaProjects['allowedExternalSignatureCount'];
         $packageProvenance['summary']['vbaProjectSignatureUnsafeExternalCount'] = $vbaProjects['unsafeExternalSignatureCount'];
         $packageProvenance['summary']['vbaProjectSignatureExternalTargetIssueCodes'] = $vbaProjects['signatureExternalTargetIssueCodes'];
+        $packageProvenance['summary']['vbaProjectSignatureTargetReferenceSuffixCount'] = $vbaProjects['signatureTargetReferenceSuffixCount'];
+        $packageProvenance['summary']['vbaProjectSignatureTargetReferenceSuffixes'] = $vbaProjects['signatureTargetReferenceSuffixes'];
         $packageProvenance['summary']['vbaDataPartCount'] = $vbaProjects['dataPartCount'];
         $packageProvenance['summary']['vbaDataExistingCount'] = $vbaProjects['existingDataPartCount'];
         $packageProvenance['summary']['vbaDataMissingCount'] = $vbaProjects['missingDataPartCount'];
@@ -1467,6 +1473,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['vbaDataAllowedExternalCount'] = $vbaProjects['allowedExternalDataPartCount'];
         $packageProvenance['summary']['vbaDataUnsafeExternalCount'] = $vbaProjects['unsafeExternalDataPartCount'];
         $packageProvenance['summary']['vbaDataExternalTargetIssueCodes'] = $vbaProjects['dataPartExternalTargetIssueCodes'];
+        $packageProvenance['summary']['vbaDataTargetReferenceSuffixCount'] = $vbaProjects['dataPartTargetReferenceSuffixCount'];
+        $packageProvenance['summary']['vbaDataTargetReferenceSuffixes'] = $vbaProjects['dataPartTargetReferenceSuffixes'];
         $packageProvenance['summary']['vbaDataInvalidXmlCount'] = $vbaProjects['dataPartInvalidXmlCount'];
         $packageProvenance['summary']['vbaDataUnexpectedRootCount'] = $vbaProjects['dataPartUnexpectedRootCount'];
         $packageProvenance['summary']['vbaProjectIssueCount'] = $vbaProjects['issueCount'];
@@ -9327,6 +9335,9 @@ final class DocxOpenXmlReader
         $dataPartNames = [];
         $externalTargets = [];
         $unsafeExternalTargets = [];
+        $targetReferenceSuffixes = [];
+        $signatureTargetReferenceSuffixes = [];
+        $dataPartTargetReferenceSuffixes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
         $projectExternalTargetIssueCodes = [];
@@ -9344,6 +9355,7 @@ final class DocxOpenXmlReader
             $byRelationshipId[(string) $item['relationshipId']] = $item;
             $relationshipIds[] = (string) $item['relationshipId'];
             $this->appendUniqueString($partNames, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            $this->appendUniqueString($targetReferenceSuffixes, is_string($item['targetReferenceSuffix'] ?? null) ? $item['targetReferenceSuffix'] : null);
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             if (($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
@@ -9367,6 +9379,7 @@ final class DocxOpenXmlReader
                     continue;
                 }
                 $this->appendUniqueString($signaturePartNames, is_string($signature['targetPart'] ?? null) ? $signature['targetPart'] : null);
+                $this->appendUniqueString($signatureTargetReferenceSuffixes, is_string($signature['targetReferenceSuffix'] ?? null) ? $signature['targetReferenceSuffix'] : null);
                 $this->appendUniqueString($contentTypesSeen, is_string($signature['contentType'] ?? null) ? $signature['contentType'] : null);
                 if (($signature['external'] ?? false) === true) {
                     $this->appendUniqueString($externalTargets, is_string($signature['target'] ?? null) ? $signature['target'] : null);
@@ -9391,6 +9404,7 @@ final class DocxOpenXmlReader
                     continue;
                 }
                 $this->appendUniqueString($dataPartNames, is_string($dataPart['targetPart'] ?? null) ? $dataPart['targetPart'] : null);
+                $this->appendUniqueString($dataPartTargetReferenceSuffixes, is_string($dataPart['targetReferenceSuffix'] ?? null) ? $dataPart['targetReferenceSuffix'] : null);
                 $this->appendUniqueString($contentTypesSeen, is_string($dataPart['contentType'] ?? null) ? $dataPart['contentType'] : null);
                 if (($dataPart['external'] ?? false) === true) {
                     $this->appendUniqueString($externalTargets, is_string($dataPart['target'] ?? null) ? $dataPart['target'] : null);
@@ -9451,6 +9465,12 @@ final class DocxOpenXmlReader
             'dataPartNames' => $dataPartNames,
             'externalTargets' => $externalTargets,
             'unsafeExternalTargets' => $unsafeExternalTargets,
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'targetReferenceSuffixCount' => count($targetReferenceSuffixes),
+            'signatureTargetReferenceSuffixes' => $signatureTargetReferenceSuffixes,
+            'signatureTargetReferenceSuffixCount' => count($signatureTargetReferenceSuffixes),
+            'dataPartTargetReferenceSuffixes' => $dataPartTargetReferenceSuffixes,
+            'dataPartTargetReferenceSuffixCount' => count($dataPartTargetReferenceSuffixes),
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
             'projectExternalTargetIssueCodes' => array_keys($projectExternalTargetIssueCodes),
@@ -10047,11 +10067,13 @@ final class DocxOpenXmlReader
         $externalTargetKindCounts = [];
         $externalTargetSchemeCounts = [];
         $externalTargetIssueCodes = [];
+        $targetReferenceSuffixes = [];
         $contentTypesSeen = [];
         $issueCodes = [];
         $issueCount = 0;
         foreach ($items as $item) {
             $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+            $this->appendUniqueString($targetReferenceSuffixes, is_string($item['targetReferenceSuffix'] ?? null) ? $item['targetReferenceSuffix'] : null);
             $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
             if (($item['relationshipType'] ?? null) === self::ATTACHED_TEMPLATE_REL && ($item['external'] ?? false) === true) {
                 $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
@@ -10103,6 +10125,8 @@ final class DocxOpenXmlReader
             'unreferencedRelationshipIds' => $unreferencedRelationshipIds,
             'partNames' => $partNames,
             'externalTargets' => $externalTargets,
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'targetReferenceSuffixCount' => count($targetReferenceSuffixes),
             'contentTypes' => $contentTypesSeen,
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
