@@ -2029,6 +2029,127 @@ XML);
         $t->contains('<dd>Publication Detail Packet :: section :: chapter :: B :: 3 :: Legacy Packet A; Legacy Packet B :: 21 cm :: Part II :: 1:24000 :: migration appendix</dd>', $styledBlocks);
         $t->contains('<dd>Hyphenated Publication Detail Packet :: folio :: 7 :: 2 :: folded map :: Appendix</dd>', $styledBlocks);
     },
+    'carries biblatex pagination and printing number metadata in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@inbook{column-printing,
+  author          = {Ng, Nia},
+  title           = {Column Printing Packet},
+  booktitle       = {Review Sourcebook},
+  date            = {2026},
+  pages           = {12--14},
+  page-label      = {column},
+  bookpagination  = {section},
+  part            = {A},
+  printing        = {2},
+  supplement-number = {1}
+}
+
+@article{folio-range,
+  author            = {Roe, Pat},
+  title             = {Folio Range Packet},
+  journaltitle      = {Migration Review},
+  year              = {2025},
+  pages             = {4--6},
+  pagination        = {folio},
+  book-pagination   = {line},
+  part-number       = {B},
+  printing-number   = {3-4},
+  supplementnumber  = {2-3}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $column = $items['column-printing'];
+        $folio = $items['folio-range'];
+
+        $t->same('column', $column['pagination']);
+        $t->same('section', $column['book-pagination']);
+        $t->same('A', $column['part']);
+        $t->same('2', $column['printing-number']);
+        $t->same('1', $column['supplement-number']);
+        $t->same('folio', $folio['pagination']);
+        $t->same('line', $folio['book-pagination']);
+        $t->same('B', $folio['part']);
+        $t->same('3-4', $folio['printing-number']);
+        $t->same('2-3', $folio['supplement-number']);
+        $t->same('column', $column['rawBibtex']['fields']['page-label']);
+        $t->same('section', $column['rawBibtex']['fields']['bookpagination']);
+        $t->same('2', $column['rawBibtex']['fields']['printing']);
+        $t->same('1', $column['rawBibtex']['fields']['supplement-number']);
+        $t->same('line', $folio['rawBibtex']['fields']['book-pagination']);
+        $t->same('3-4', $folio['rawBibtex']['fields']['printing-number']);
+        $t->same(
+            'Nia Ng. Column Printing Packet. Review Sourcebook. 2026. 12-14. Pagination: column. Book pagination: section. Part: A. Printing number: 2. Supplement number: 1.',
+            $processor->renderBibliographyText($column)
+        );
+        $t->same(
+            'Pat Roe. Folio Range Packet. Migration Review. 2025. 4-6. Pagination: folio. Book pagination: line. Part: B. Printing number: 3-4. Supplement number: 2-3.',
+            $processor->renderBibliographyText($folio)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <info>
+    <title>Bounded Legacy BibLaTeX Pagination Printing Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-pagination-printing-review</id>
+    <updated>2026-06-30T23:58:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" ">
+        <names variable="author"/>
+        <label variable="page" form="long"/>
+        <text variable="page"/>
+        <text variable="page-label" prefix="[" suffix="]"/>
+        <label variable="printing-number" form="short"/>
+        <number variable="printing-number" form="ordinal"/>
+        <label variable="supplement-number" form="short"/>
+        <number variable="supplement-number" form="roman"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="book-pagination"/>
+      <text variable="part"/>
+      <text variable="printing"/>
+      <text variable="supplement-number"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Legacy BibLaTeX Pagination Printing Review', $summary['title'] ?? null);
+        $t->same('page-label', $citationChildren[3]['variable'] ?? null);
+        $t->same('printing-number', $citationChildren[4]['variable'] ?? null);
+        $t->same('ordinal', $citationChildren[5]['form'] ?? null);
+        $t->same('supplement-number', $citationChildren[6]['variable'] ?? null);
+        $t->same('roman', $citationChildren[7]['form'] ?? null);
+        $t->same('[Ng columns 12-14 [column] printing no. 2nd supp. no. i; Roe folios 4-6 [folio] printing nos. 3rd-4th supp. nos. ii-iii]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'column-printing', 'text' => '[@column-printing]']),
+            new AstNode('citation', ['id' => 'folio-range', 'text' => '[@folio-range]']),
+        ]));
+        $t->same('Column Printing Packet :: section :: A :: 2 :: 1', $styled->renderBibliographyEntry('column-printing'));
+        $t->same('Folio Range Packet :: line :: B :: 3-4 :: 2-3', $styled->renderBibliographyEntry('folio-range'));
+
+        $document = (new MarkdownReader())->read('Pagination metadata [@column-printing; @folio-range] stays visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['column-printing', 'folio-range'], $handoff['citedKeys']);
+        $t->same('column', $handoff['items'][0]['pagination']);
+        $t->same('3-4', $handoff['bibliography']->children[1]->attr('cslItem')['printing-number'] ?? null);
+        $t->same('2-3', $handoff['bibliography']->children[1]->attr('cslItem')['supplement-number'] ?? null);
+        $t->contains('Pagination: column', $blocks);
+        $t->contains('Book pagination: line', $blocks);
+        $t->contains('Printing number: 3-4', $blocks);
+        $t->contains('Supplement number: 2-3', $blocks);
+    },
     'inherits legacy biblatex crossref and xdata metadata into csl items' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @xdata{shared-review-source,
