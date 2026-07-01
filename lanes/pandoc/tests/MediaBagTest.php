@@ -956,6 +956,114 @@ return [
         $t->same('casefold-path-collision-disambiguated', explode(',', $roundTrip->children[0]->children[8]->attr('attributes')['data-pandoc-media-path-repair'])[1]);
     },
 
+    'summarizes media bag resource mappings without exposing payload bytes' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $localSource = 'assets/review%20figure.png';
+        $reportSource = 'downloads/report.pdf?download=1';
+        $remoteSource = 'https://cdn.example.test/media/photo.png?rev=1';
+        $localBytes = "review figure bytes\n";
+        $reportBytes = "%PDF review packet bytes\n";
+        $remoteBytes = "jpeg photo bytes\n";
+        $link = static fn (string $url, string $title, string $text): AstNode => new AstNode('link', [
+            'url' => $url,
+            'title' => $title,
+        ], [new AstNode('text', ['text' => $text])]);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $localSource,
+                    'title' => 'Review figure',
+                ], [new AstNode('text', ['text' => 'Review figure'])]),
+                new AstNode('space'),
+                $link($reportSource, 'Review packet', 'packet'),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'url' => $remoteSource,
+                    'title' => 'Remote photo',
+                ], [new AstNode('text', ['text' => 'Remote photo'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            'assets/review figure.png' => [
+                'contents' => $localBytes,
+                'mimeType' => 'image/png',
+            ],
+            'downloads/report.pdf' => [
+                'contents' => $reportBytes,
+                'mimeType' => 'application/pdf',
+            ],
+            'https://cdn.example.test/media/photo.png' => [
+                'contents' => $remoteBytes,
+                'mimeType' => 'image/jpeg',
+            ],
+        ]);
+        $summary = $bag->resourceMappingSummary($filled['document'], 'mapped-media');
+        $localPath = 'assets/review figure.png';
+        $reportPath = sha1($reportBytes) . '.pdf';
+        $remotePath = sha1($remoteBytes) . '.jpg';
+
+        $t->same([
+            'media-resource-loaded:' . $localSource,
+            'media-resource-link-loaded:' . $reportSource,
+            'media-resource-content-type-conflict:' . $remoteSource,
+            'media-resource-loaded:' . $remoteSource,
+        ], $filled['diagnostics']);
+        $t->same(3, $summary['entryCount']);
+        $t->same(2, $summary['mappedImageCount']);
+        $t->same(1, $summary['mappedLinkCount']);
+        $t->same(strlen($localBytes) + strlen($reportBytes) + strlen($remoteBytes), $summary['totalBytes']);
+        $t->same(3, $summary['sourcePathRepairCount']);
+        $t->same(3, $summary['extractionPathRepairCount']);
+        $t->same([$localSource, $reportSource, $remoteSource], $summary['sources']);
+        $t->same([
+            $localSource => $localPath,
+            $reportSource => $reportPath,
+            $remoteSource => $remotePath,
+        ], $summary['mediaPathBySource']);
+        $t->same([
+            $localSource => 'mapped-media/' . $localPath,
+            $reportSource => 'mapped-media/' . $reportPath,
+            $remoteSource => 'mapped-media/' . $remotePath,
+        ], $summary['targetPathBySource']);
+        $t->same([
+            $localSource => 'image/png',
+            $reportSource => 'application/pdf',
+            $remoteSource => 'image/jpeg',
+        ], $summary['mimeTypeBySource']);
+        $t->same([
+            'application/pdf' => 1,
+            'image/jpeg' => 1,
+            'image/png' => 1,
+        ], $summary['mimeTypeCounts']);
+        $t->same(['declared' => 3], $summary['mimeTypeSourceCounts']);
+        $t->same(['relative-path' => 2, 'uri' => 1], $summary['sourceClassCounts']);
+        $t->same([
+            'percent-decoded-path' => 1,
+            'uri-hash-path' => 1,
+            'url-suffix-hash-path' => 1,
+        ], $summary['pathRepairSummaryCounts']);
+        $t->same($summary['pathRepairSummaryCounts'], $summary['extractionPathRepairSummaryCounts']);
+        $t->same([
+            'media-resource-content-type-conflict' => 1,
+            'media-resource-link-mapped' => 1,
+            'media-resource-mapped' => 2,
+        ], $summary['diagnosticCounts']);
+        $t->same([
+            'media-resource-content-type-conflict' => [$remoteSource],
+            'media-resource-link-mapped' => [$reportSource],
+            'media-resource-mapped' => [$localSource, $remoteSource],
+        ], $summary['diagnosticSourcesByCode']);
+        $t->same('needs-review', $summary['reviewStatus']);
+        $t->same('metadata-only', $summary['byteExposurePolicy']);
+
+        $summaryJson = json_encode($summary, JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($summaryJson, $localBytes), 'Mapping summary must not expose local resource payload bytes');
+        $t->true(!str_contains($summaryJson, $reportBytes), 'Mapping summary must not expose linked resource payload bytes');
+        $t->true(!str_contains($summaryJson, $remoteBytes), 'Mapping summary must not expose URI resource payload bytes');
+    },
+
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $badDataUri = 'data:image/png;base64,not valid base64 %%';
