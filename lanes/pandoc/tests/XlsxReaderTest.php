@@ -416,23 +416,25 @@ XML,
 <xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"
           xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
           xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
-  <xdr:twoCellAnchor>
+  <xdr:twoCellAnchor editAs="oneCell">
     <xdr:from><xdr:col>1</xdr:col><xdr:colOff>1000</xdr:colOff><xdr:row>1</xdr:row><xdr:rowOff>2000</xdr:rowOff></xdr:from>
     <xdr:to><xdr:col>3</xdr:col><xdr:colOff>3000</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>4000</xdr:rowOff></xdr:to>
     <xdr:pic>
-      <xdr:nvPicPr><xdr:cNvPr id="2" name="Logo" descr="Quarter logo"/></xdr:nvPicPr>
+      <xdr:nvPicPr><xdr:cNvPr id="2" name="Logo" descr="Quarter logo" title="Quarterly report logo" hidden="0"/></xdr:nvPicPr>
       <xdr:blipFill><a:blip r:embed="rImage"/></xdr:blipFill>
       <xdr:spPr/>
     </xdr:pic>
+    <xdr:clientData fLocksWithSheet="1" fPrintsWithSheet="0"/>
   </xdr:twoCellAnchor>
   <xdr:oneCellAnchor>
     <xdr:from><xdr:col>4</xdr:col><xdr:colOff>9525</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>19050</xdr:rowOff></xdr:from>
     <xdr:ext cx="95250" cy="190500"/>
     <xdr:pic>
-      <xdr:nvPicPr><xdr:cNvPr id="3" name="Inline logo" descr="Inline placement"/></xdr:nvPicPr>
+      <xdr:nvPicPr><xdr:cNvPr id="3" name="Inline logo" descr="Inline placement" hidden="1"/></xdr:nvPicPr>
       <xdr:blipFill><a:blip r:embed="rImage"/></xdr:blipFill>
       <xdr:spPr/>
     </xdr:pic>
+    <xdr:clientData fLocksWithSheet="0" fPrintsWithSheet="1"/>
   </xdr:oneCellAnchor>
   <xdr:absoluteAnchor>
     <xdr:pos x="9525" y="19050"/>
@@ -442,6 +444,7 @@ XML,
       <xdr:blipFill><a:blip r:embed="rImage"/></xdr:blipFill>
       <xdr:spPr/>
     </xdr:pic>
+    <xdr:clientData/>
   </xdr:absoluteAnchor>
 </xdr:wsDr>
 XML,
@@ -1008,6 +1011,7 @@ return [
         $t->same(1, $image['imageHeightPixels']);
         $t->same(3, $image['drawingAnchorCount']);
         $t->same('twoCellAnchor', $image['drawingAnchors'][0]['anchorType'] ?? null);
+        $t->same('oneCell', $image['drawingAnchors'][0]['editAs'] ?? null);
         $t->same('xl/drawings/drawing1.xml', $image['drawingAnchors'][0]['sourcePart'] ?? null);
         $t->same('rImage', $image['drawingAnchors'][0]['relationshipId'] ?? null);
         $t->same('xl/media/image1.png', $image['drawingAnchors'][0]['targetPart'] ?? null);
@@ -1017,22 +1021,32 @@ return [
         $t->same(3, $image['drawingAnchors'][0]['to']['column'] ?? null);
         $t->same(4, $image['drawingAnchors'][0]['to']['row'] ?? null);
         $t->same('D5', $image['drawingAnchors'][0]['toCell'] ?? null);
+        $t->same(2, $image['drawingAnchors'][0]['nonVisualPropertyId'] ?? null);
         $t->same('Logo', $image['drawingAnchors'][0]['name'] ?? null);
         $t->same('Quarter logo', $image['drawingAnchors'][0]['description'] ?? null);
+        $t->same('Quarterly report logo', $image['drawingAnchors'][0]['title'] ?? null);
+        $t->same(false, $image['drawingAnchors'][0]['hidden'] ?? null);
+        $t->same(['locksWithSheet' => true, 'printsWithSheet' => false], $image['drawingAnchors'][0]['clientData'] ?? null);
         $t->same('oneCellAnchor', $image['drawingAnchors'][1]['anchorType'] ?? null);
+        $t->same(null, $image['drawingAnchors'][1]['editAs'] ?? null);
         $t->same('E3', $image['drawingAnchors'][1]['fromCell'] ?? null);
         $t->same(null, $image['drawingAnchors'][1]['toCell'] ?? null);
         $t->same(1.0, $image['drawingAnchors'][1]['from']['columnOffsetPixels'] ?? null);
         $t->same(2.0, $image['drawingAnchors'][1]['from']['rowOffsetPixels'] ?? null);
         $t->same(['cx' => 95250, 'cy' => 190500], $image['drawingAnchors'][1]['extentEmu'] ?? null);
         $t->same(['width' => 10.0, 'height' => 20.0], $image['drawingAnchors'][1]['extentPixels'] ?? null);
+        $t->same(3, $image['drawingAnchors'][1]['nonVisualPropertyId'] ?? null);
         $t->same('Inline logo', $image['drawingAnchors'][1]['name'] ?? null);
+        $t->same(true, $image['drawingAnchors'][1]['hidden'] ?? null);
+        $t->same(['locksWithSheet' => false, 'printsWithSheet' => true], $image['drawingAnchors'][1]['clientData'] ?? null);
         $t->same('absoluteAnchor', $image['drawingAnchors'][2]['anchorType'] ?? null);
         $t->same(null, $image['drawingAnchors'][2]['fromCell'] ?? null);
         $t->same(['x' => 9525, 'y' => 19050], $image['drawingAnchors'][2]['positionEmu'] ?? null);
         $t->same(['x' => 1.0, 'y' => 2.0], $image['drawingAnchors'][2]['positionPixels'] ?? null);
         $t->same(['width' => 3.0, 'height' => 4.0], $image['drawingAnchors'][2]['extentPixels'] ?? null);
+        $t->same(4, $image['drawingAnchors'][2]['nonVisualPropertyId'] ?? null);
         $t->same('Absolute placement', $image['drawingAnchors'][2]['description'] ?? null);
+        $t->same(['locksWithSheet' => null, 'printsWithSheet' => null], $image['drawingAnchors'][2]['clientData'] ?? null);
         $t->same('xl/drawings/drawing1.xml', $image['relationshipRefs'][0]['sourcePart'] ?? null);
         $t->same('xl/media/image1.png', $image['relationshipRefs'][0]['targetPart'] ?? null);
         $bmpImage = $findPart($features['byKind']['image']['items'], 'xl/media/image2.bmp');

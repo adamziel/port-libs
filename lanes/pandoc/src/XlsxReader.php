@@ -946,6 +946,7 @@ final class XlsxReader
             'targetFragment' => is_string($relationshipRef['targetFragment'] ?? null) ? $relationshipRef['targetFragment'] : null,
             'targetSuffix' => is_string($relationshipRef['targetSuffix'] ?? null) ? $relationshipRef['targetSuffix'] : '',
             'anchorType' => $anchor->localName,
+            'editAs' => $anchor->hasAttribute('editAs') && trim($anchor->getAttribute('editAs')) !== '' ? trim($anchor->getAttribute('editAs')) : null,
             'from' => $from,
             'fromCell' => $this->drawingMarkerCellReference($from),
             'to' => $to,
@@ -954,8 +955,27 @@ final class XlsxReader
             'positionPixels' => $this->drawingPointPixels($positionEmu),
             'extentEmu' => $extentEmu,
             'extentPixels' => $this->drawingExtentPixels($extentEmu),
+            'nonVisualPropertyId' => $properties instanceof \DOMElement ? $this->integerAttribute($properties, 'id') : null,
             'name' => $properties instanceof \DOMElement && trim($properties->getAttribute('name')) !== '' ? trim($properties->getAttribute('name')) : null,
             'description' => $properties instanceof \DOMElement && trim($properties->getAttribute('descr')) !== '' ? trim($properties->getAttribute('descr')) : null,
+            'title' => $properties instanceof \DOMElement && trim($properties->getAttribute('title')) !== '' ? trim($properties->getAttribute('title')) : null,
+            'hidden' => $properties instanceof \DOMElement ? $this->booleanAttribute($properties, 'hidden') : null,
+            'clientData' => $this->drawingAnchorClientData($this->firstChildElement($anchor, 'clientData')),
+        ];
+    }
+
+    /**
+     * @return array{locksWithSheet:?bool, printsWithSheet:?bool}|null
+     */
+    private function drawingAnchorClientData(?\DOMElement $clientData): ?array
+    {
+        if (!$clientData instanceof \DOMElement) {
+            return null;
+        }
+
+        return [
+            'locksWithSheet' => $this->booleanAttribute($clientData, 'fLocksWithSheet'),
+            'printsWithSheet' => $this->booleanAttribute($clientData, 'fPrintsWithSheet'),
         ];
     }
 
