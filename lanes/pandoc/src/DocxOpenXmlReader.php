@@ -16837,6 +16837,7 @@ final class DocxOpenXmlReader
         ksort($relationshipTargetPartExtensionCounts, SORT_STRING);
         ksort($relationshipTargetExistingPartExtensionCounts, SORT_STRING);
         ksort($relationshipTargetMissingPartExtensionCounts, SORT_STRING);
+        $relationshipTargetNameCharacters = $this->relationshipTargetNameCharacterSummary($relationshipTargets);
         $relationshipSourceRoles = $this->relationshipSourceRoleSummary($relationshipSources);
         $relationshipSourceRoleBucketCounts = [];
         foreach ($relationshipSourceRoles as $sourceRoleSummary) {
@@ -17103,6 +17104,16 @@ final class DocxOpenXmlReader
             'relationshipTargetPathSegmentPositionOccurrenceCount' => $relationshipTargetPathSegmentPositionOccurrenceCount,
             'relationshipTargetPathSegmentPositionCounts' => $relationshipTargetPathSegmentPositionCounts,
             'relationshipTargetPathSegmentPositions' => $relationshipTargetPathSegmentPositions,
+            'relationshipTargetNameCharacterReviewRelationshipCount' => $relationshipTargetNameCharacters['relationshipCount'],
+            'relationshipTargetNameCharacterReviewTargetPartCount' => count($relationshipTargetNameCharacters['targetParts']),
+            'relationshipTargetNameUppercaseRelationshipCount' => (int) ($relationshipTargetNameCharacters['flagRelationshipCounts']['uppercase'] ?? 0),
+            'relationshipTargetNameWhitespaceRelationshipCount' => (int) ($relationshipTargetNameCharacters['flagRelationshipCounts']['whitespace'] ?? 0),
+            'relationshipTargetNamePercentEncodedOctetRelationshipCount' => (int) ($relationshipTargetNameCharacters['flagRelationshipCounts']['percent-encoded-octet'] ?? 0),
+            'relationshipTargetNameNonAsciiRelationshipCount' => (int) ($relationshipTargetNameCharacters['flagRelationshipCounts']['non-ascii'] ?? 0),
+            'relationshipTargetNameCharacterFlagRelationshipCounts' => $relationshipTargetNameCharacters['flagRelationshipCounts'],
+            'relationshipTargetNameCharacterFlagTargetParts' => $relationshipTargetNameCharacters['flagTargetParts'],
+            'relationshipTargetNameCharacterReviewTargetParts' => $relationshipTargetNameCharacters['targetParts'],
+            'relationshipTargetNameCharacterReviewTargets' => $relationshipTargetNameCharacters['targets'],
             'relationshipTargetContentTypeCounts' => $relationshipTargetContentTypeCounts,
             'relationshipTargetContentTypeSourceCounts' => $relationshipTargetContentTypeSourceCounts,
             'relationshipTargetContentTypeSourceBucketCount' => count($relationshipTargetContentTypeSources),
@@ -23213,6 +23224,107 @@ final class DocxOpenXmlReader
             'flagCounts' => $flagCounts,
             'flagPartNames' => $flagPartNames,
             'parts' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipTargets
+     * @return array{relationshipCount:int, targetParts:list<string>, flagRelationshipCounts:array<string, int>, flagTargetParts:array<string, list<string>>, targets:list<array<string, mixed>>}
+     */
+    private function relationshipTargetNameCharacterSummary(array $relationshipTargets): array
+    {
+        $flagRelationshipCounts = [];
+        $flagTargetParts = [];
+        $targetParts = [];
+        $items = [];
+
+        foreach ($relationshipTargets as $target) {
+            $targetPart = is_string($target['targetPart'] ?? null) ? $target['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $flags = $this->packagePartNameCharacterFlags($targetPart);
+            if ($flags === []) {
+                continue;
+            }
+
+            $targetParts[$targetPart] = true;
+            foreach ($flags as $flag) {
+                if ($flag === '') {
+                    continue;
+                }
+
+                $flagRelationshipCounts[$flag] = ($flagRelationshipCounts[$flag] ?? 0) + 1;
+                $flagTargetParts[$flag][$targetPart] = true;
+            }
+
+            $targetPathSegments = $this->packagePartPathSegments($targetPart);
+            $targetDirectory = is_string($target['targetDirectory'] ?? null)
+                ? $target['targetDirectory']
+                : $this->packagePartDirectory($targetPart);
+            $targetBaseName = is_string($target['targetBaseName'] ?? null)
+                ? $target['targetBaseName']
+                : $this->packagePartBaseName($targetPart);
+            $targetPathDepth = is_int($target['targetPathDepth'] ?? null)
+                ? (int) $target['targetPathDepth']
+                : count($targetPathSegments);
+            $targetRoles = is_array($target['targetRoles'] ?? null)
+                ? array_values(array_map('strval', $target['targetRoles']))
+                : [];
+
+            $items[] = [
+                'targetPart' => $targetPart,
+                'targetDirectory' => $targetDirectory,
+                'targetBaseName' => $targetBaseName,
+                'targetPathDepth' => $targetPathDepth,
+                'targetPathSegments' => $targetPathSegments,
+                'targetPartExtension' => is_string($target['targetPartExtension'] ?? null)
+                    ? $target['targetPartExtension']
+                    : $this->packagePartExtension($targetPart),
+                'targetExists' => ($target['targetExists'] ?? false) === true,
+                'targetContentTypeBase' => is_string($target['targetContentTypeBase'] ?? null)
+                    ? $target['targetContentTypeBase']
+                    : '',
+                'targetContentTypeSource' => is_string($target['targetContentTypeSource'] ?? null)
+                    ? $target['targetContentTypeSource']
+                    : 'missing',
+                'targetRoles' => $targetRoles,
+                'sourcePart' => is_string($target['sourcePart'] ?? null) ? $target['sourcePart'] : '',
+                'relationshipsPart' => is_string($target['relationshipsPart'] ?? null) ? $target['relationshipsPart'] : '',
+                'relationshipId' => is_string($target['relationshipId'] ?? null) ? $target['relationshipId'] : '',
+                'relationshipType' => is_string($target['relationshipType'] ?? null) ? $target['relationshipType'] : '',
+                'flags' => $flags,
+                'reviewPolicy' => 'relationship-target-name-character-metadata-only',
+            ];
+        }
+
+        ksort($flagRelationshipCounts, SORT_STRING);
+        ksort($flagTargetParts, SORT_STRING);
+        foreach ($flagTargetParts as &$partNames) {
+            $partNames = array_keys($partNames);
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+
+        $targetParts = array_keys($targetParts);
+        sort($targetParts, SORT_STRING);
+
+        usort(
+            $items,
+            static function (array $left, array $right): int {
+                return strcmp((string) $left['targetPart'], (string) $right['targetPart'])
+                    ?: strcmp((string) $left['relationshipsPart'], (string) $right['relationshipsPart'])
+                    ?: strcmp((string) $left['relationshipId'], (string) $right['relationshipId']);
+            },
+        );
+
+        return [
+            'relationshipCount' => count($items),
+            'targetParts' => $targetParts,
+            'flagRelationshipCounts' => $flagRelationshipCounts,
+            'flagTargetParts' => $flagTargetParts,
+            'targets' => $items,
         ];
     }
 
