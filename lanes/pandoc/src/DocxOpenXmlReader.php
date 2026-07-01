@@ -12894,6 +12894,67 @@ final class DocxOpenXmlReader
         $summary['zipSourceCentralDirectoryExtraFieldBytes'] = (int) ($zipSourceRecords['centralDirectoryExtraFieldBytes'] ?? 0);
         $summary['zipSourceCentralDirectoryRawCommentBytes'] = (int) ($zipSourceRecords['centralDirectoryRawCommentBytes'] ?? 0);
         $summary['zipSourceCentralDirectoryReviewFieldBytes'] = (int) ($zipSourceRecords['centralDirectoryReviewFieldBytes'] ?? 0);
+        $summary['zipSourceHasArchiveTrailer'] = ($zipSourceRecords['hasArchiveTrailer'] ?? false) === true;
+        $summary['zipSourceArchiveTrailerOffset'] = is_int($zipSourceRecords['archiveTrailerOffset'] ?? null)
+            ? $zipSourceRecords['archiveTrailerOffset']
+            : null;
+        $summary['zipSourceArchiveTrailerBytes'] = (int) ($zipSourceRecords['archiveTrailerBytes'] ?? 0);
+        $summary['zipSourceArchiveTrailerEnd'] = is_int($zipSourceRecords['archiveTrailerEnd'] ?? null)
+            ? $zipSourceRecords['archiveTrailerEnd']
+            : null;
+        $summary['zipSourceArchiveTrailerSha256'] = is_string($zipSourceRecords['archiveTrailerSha256'] ?? null)
+            ? $zipSourceRecords['archiveTrailerSha256']
+            : null;
+        $summary['zipSourceArchiveTrailerReviewFieldBytes'] =
+            (int) ($zipSourceRecords['archiveTrailerReviewFieldBytes'] ?? 0);
+        $summary['zipSourceArchiveTrailerByteExposurePolicy'] =
+            is_string($zipSourceRecords['archiveTrailerByteExposurePolicy'] ?? null)
+                ? $zipSourceRecords['archiveTrailerByteExposurePolicy']
+                : 'not-present';
+        $summary['zipSourceArchiveTrailerCanExposeBytes'] =
+            ($zipSourceRecords['archiveTrailerCanExposeBytes'] ?? false) === true;
+        $summary['zipSourceEndOfCentralDirectoryOffset'] =
+            is_int($zipSourceRecords['endOfCentralDirectoryOffset'] ?? null)
+                ? $zipSourceRecords['endOfCentralDirectoryOffset']
+                : null;
+        $summary['zipSourceEndOfCentralDirectoryBytes'] =
+            (int) ($zipSourceRecords['endOfCentralDirectoryBytes'] ?? 0);
+        $summary['zipSourceEndOfCentralDirectorySha256'] =
+            is_string($zipSourceRecords['endOfCentralDirectorySha256'] ?? null)
+                ? $zipSourceRecords['endOfCentralDirectorySha256']
+                : null;
+        $summary['zipSourceEndOfCentralDirectoryFixedHeaderBytes'] =
+            (int) ($zipSourceRecords['endOfCentralDirectoryFixedHeaderBytes'] ?? 0);
+        $summary['zipSourceEndOfCentralDirectoryFixedHeaderSha256'] =
+            is_string($zipSourceRecords['endOfCentralDirectoryFixedHeaderSha256'] ?? null)
+                ? $zipSourceRecords['endOfCentralDirectoryFixedHeaderSha256']
+                : null;
+        $summary['zipSourcePackageCommentOffset'] = is_int($zipSourceRecords['packageCommentOffset'] ?? null)
+            ? $zipSourceRecords['packageCommentOffset']
+            : null;
+        $summary['zipSourcePackageCommentBytes'] = (int) ($zipSourceRecords['packageCommentBytes'] ?? 0);
+        $summary['zipSourcePackageCommentEnd'] = is_int($zipSourceRecords['packageCommentEnd'] ?? null)
+            ? $zipSourceRecords['packageCommentEnd']
+            : null;
+        $summary['zipSourcePackageCommentSha256'] = is_string($zipSourceRecords['packageCommentSha256'] ?? null)
+            ? $zipSourceRecords['packageCommentSha256']
+            : null;
+        $summary['zipSourcePackageCommentPreviewHex'] =
+            is_string($zipSourceRecords['packageCommentPreviewHex'] ?? null)
+                ? $zipSourceRecords['packageCommentPreviewHex']
+                : '';
+        $summary['zipSourcePackageCommentPreviewByteCount'] =
+            (int) ($zipSourceRecords['packageCommentPreviewByteCount'] ?? 0);
+        $summary['zipSourcePackageCommentByteExposurePolicy'] =
+            is_string($zipSourceRecords['packageCommentByteExposurePolicy'] ?? null)
+                ? $zipSourceRecords['packageCommentByteExposurePolicy']
+                : 'not-present';
+        $summary['zipSourceCanExposePackageCommentBytes'] =
+            ($zipSourceRecords['canExposePackageCommentBytes'] ?? false) === true;
+        $summary['zipSourceHasPackageComment'] = ($zipSourceRecords['hasPackageComment'] ?? false) === true;
+        $summary['zipSourceArchiveTrailer'] = is_array($zipSourceRecords['archiveTrailer'] ?? null)
+            ? $zipSourceRecords['archiveTrailer']
+            : [];
         $summary['zipSourcePlatformAttributeProvenanceEntryCount'] = (int) ($zipSourceRecords['platformAttributeProvenanceEntryCount'] ?? 0);
         $summary['zipSourceExternalAttributeEntryCount'] = (int) ($zipSourceRecords['externalAttributeEntryCount'] ?? 0);
         $summary['zipSourceInternalAttributeEntryCount'] = (int) ($zipSourceRecords['internalAttributeEntryCount'] ?? 0);
@@ -13526,6 +13587,29 @@ final class DocxOpenXmlReader
             'centralDirectoryExtraFieldBytes' => 0,
             'centralDirectoryRawCommentBytes' => 0,
             'centralDirectoryReviewFieldBytes' => 0,
+            'hasArchiveTrailer' => false,
+            'archiveTrailerOffset' => null,
+            'archiveTrailerBytes' => 0,
+            'archiveTrailerEnd' => null,
+            'archiveTrailerSha256' => null,
+            'archiveTrailerReviewFieldBytes' => 0,
+            'archiveTrailerByteExposurePolicy' => 'not-present',
+            'archiveTrailerCanExposeBytes' => false,
+            'endOfCentralDirectoryOffset' => null,
+            'endOfCentralDirectoryBytes' => 0,
+            'endOfCentralDirectorySha256' => null,
+            'endOfCentralDirectoryFixedHeaderBytes' => 0,
+            'endOfCentralDirectoryFixedHeaderSha256' => null,
+            'packageCommentOffset' => null,
+            'packageCommentBytes' => 0,
+            'packageCommentEnd' => null,
+            'packageCommentSha256' => null,
+            'packageCommentPreviewHex' => '',
+            'packageCommentPreviewByteCount' => 0,
+            'packageCommentByteExposurePolicy' => 'not-present',
+            'canExposePackageCommentBytes' => false,
+            'hasPackageComment' => false,
+            'archiveTrailer' => [],
             'platformAttributeProvenanceEntryCount' => 0,
             'externalAttributeEntryCount' => 0,
             'internalAttributeEntryCount' => 0,
@@ -13640,6 +13724,9 @@ final class DocxOpenXmlReader
                 : [],
             static fn (mixed $issue): bool => is_string($issue)
         ));
+        $archiveTrailer = is_array($preflight['selectedSourceArchiveTrailer'] ?? null)
+            ? $preflight['selectedSourceArchiveTrailer']
+            : [];
 
         return [
             'present' => true,
@@ -13663,6 +13750,64 @@ final class DocxOpenXmlReader
             'centralDirectoryExtraFieldBytes' => (int) ($preflight['selectedSourceCentralDirectoryExtraFieldBytes'] ?? 0),
             'centralDirectoryRawCommentBytes' => (int) ($preflight['selectedSourceCentralDirectoryRawCommentBytes'] ?? 0),
             'centralDirectoryReviewFieldBytes' => (int) ($preflight['selectedSourceCentralDirectoryReviewFieldBytes'] ?? 0),
+            'hasArchiveTrailer' => ($preflight['selectedSourceHasArchiveTrailer'] ?? false) === true,
+            'archiveTrailerOffset' => is_int($preflight['selectedSourceArchiveTrailerOffset'] ?? null)
+                ? $preflight['selectedSourceArchiveTrailerOffset']
+                : null,
+            'archiveTrailerBytes' => (int) ($preflight['selectedSourceArchiveTrailerBytes'] ?? 0),
+            'archiveTrailerEnd' => is_int($preflight['selectedSourceArchiveTrailerEnd'] ?? null)
+                ? $preflight['selectedSourceArchiveTrailerEnd']
+                : null,
+            'archiveTrailerSha256' => is_string($preflight['selectedSourceArchiveTrailerSha256'] ?? null)
+                ? $preflight['selectedSourceArchiveTrailerSha256']
+                : null,
+            'archiveTrailerReviewFieldBytes' =>
+                (int) ($preflight['selectedSourceArchiveTrailerReviewFieldBytes'] ?? 0),
+            'archiveTrailerByteExposurePolicy' =>
+                is_string($preflight['selectedSourceArchiveTrailerByteExposurePolicy'] ?? null)
+                    ? $preflight['selectedSourceArchiveTrailerByteExposurePolicy']
+                    : 'not-present',
+            'archiveTrailerCanExposeBytes' =>
+                ($preflight['selectedSourceArchiveTrailerCanExposeBytes'] ?? false) === true,
+            'endOfCentralDirectoryOffset' =>
+                is_int($preflight['selectedSourceEndOfCentralDirectoryOffset'] ?? null)
+                    ? $preflight['selectedSourceEndOfCentralDirectoryOffset']
+                    : null,
+            'endOfCentralDirectoryBytes' => (int) ($preflight['selectedSourceEndOfCentralDirectoryBytes'] ?? 0),
+            'endOfCentralDirectorySha256' =>
+                is_string($preflight['selectedSourceEndOfCentralDirectorySha256'] ?? null)
+                    ? $preflight['selectedSourceEndOfCentralDirectorySha256']
+                    : null,
+            'endOfCentralDirectoryFixedHeaderBytes' =>
+                (int) ($preflight['selectedSourceEndOfCentralDirectoryFixedHeaderBytes'] ?? 0),
+            'endOfCentralDirectoryFixedHeaderSha256' =>
+                is_string($preflight['selectedSourceEndOfCentralDirectoryFixedHeaderSha256'] ?? null)
+                    ? $preflight['selectedSourceEndOfCentralDirectoryFixedHeaderSha256']
+                    : null,
+            'packageCommentOffset' => is_int($preflight['selectedSourcePackageCommentOffset'] ?? null)
+                ? $preflight['selectedSourcePackageCommentOffset']
+                : null,
+            'packageCommentBytes' => (int) ($preflight['selectedSourcePackageCommentBytes'] ?? 0),
+            'packageCommentEnd' => is_int($preflight['selectedSourcePackageCommentEnd'] ?? null)
+                ? $preflight['selectedSourcePackageCommentEnd']
+                : null,
+            'packageCommentSha256' => is_string($preflight['selectedSourcePackageCommentSha256'] ?? null)
+                ? $preflight['selectedSourcePackageCommentSha256']
+                : null,
+            'packageCommentPreviewHex' =>
+                is_string($preflight['selectedSourcePackageCommentPreviewHex'] ?? null)
+                    ? $preflight['selectedSourcePackageCommentPreviewHex']
+                    : '',
+            'packageCommentPreviewByteCount' =>
+                (int) ($preflight['selectedSourcePackageCommentPreviewByteCount'] ?? 0),
+            'packageCommentByteExposurePolicy' =>
+                is_string($preflight['selectedSourcePackageCommentByteExposurePolicy'] ?? null)
+                    ? $preflight['selectedSourcePackageCommentByteExposurePolicy']
+                    : 'not-present',
+            'canExposePackageCommentBytes' =>
+                ($preflight['selectedSourceCanExposePackageCommentBytes'] ?? false) === true,
+            'hasPackageComment' => ($preflight['selectedSourceHasPackageComment'] ?? false) === true,
+            'archiveTrailer' => $archiveTrailer,
             'platformAttributeProvenanceEntryCount' => (int) ($preflight['selectedPlatformAttributeProvenanceEntryCount'] ?? 0),
             'externalAttributeEntryCount' => (int) ($preflight['selectedExternalAttributeEntryCount'] ?? 0),
             'internalAttributeEntryCount' => (int) ($preflight['selectedInternalAttributeEntryCount'] ?? 0),

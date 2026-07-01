@@ -14726,6 +14726,8 @@ return [
         $commentsSpan = $sourceSpansByName['word/comments.xml'];
         $documentEntry = $summary['entries'][0];
         $commentsEntry = $summary['entries'][1];
+        $layout = ZipPackage::packageByteLayoutPreflight($zip);
+        $archiveTrailer = $summary['selectedSourceArchiveTrailer'];
 
         $t->same(2, $summary['selectedSourceByteSpanEntryCount']);
         $t->same(0, $summary['selectedSourceByteSpanIssueCount']);
@@ -14803,6 +14805,35 @@ return [
         $t->same(['word/comments.xml'], $sourceBucketsByName['local-review-fields']['nonZeroEntryNames']);
         $t->same(2, $sourceBucketsByName['central-directory-review-fields']['nonZeroEntryCount']);
         $t->same(['word/document.xml', 'word/comments.xml'], $sourceBucketsByName['central-directory-review-fields']['nonZeroEntryNames']);
+
+        $t->same(true, $summary['selectedSourceHasArchiveTrailer']);
+        $t->same($layout['eocdOffset'], $summary['selectedSourceArchiveTrailerOffset']);
+        $t->same($layout['endOfCentralDirectoryBytes'], $summary['selectedSourceArchiveTrailerBytes']);
+        $t->same($layout['eocdOffset'] + $layout['endOfCentralDirectoryBytes'], $summary['selectedSourceArchiveTrailerEnd']);
+        $t->same($layout['endOfCentralDirectorySha256'], $summary['selectedSourceArchiveTrailerSha256']);
+        $t->same(strlen('source-span-review'), $summary['selectedSourceArchiveTrailerReviewFieldBytes']);
+        $t->same('zip-selected-source-archive-trailer-metadata-only', $summary['selectedSourceArchiveTrailerByteExposurePolicy']);
+        $t->same(false, $summary['selectedSourceArchiveTrailerCanExposeBytes']);
+        $t->same($layout['eocdOffset'], $summary['selectedSourceEndOfCentralDirectoryOffset']);
+        $t->same($layout['endOfCentralDirectoryBytes'], $summary['selectedSourceEndOfCentralDirectoryBytes']);
+        $t->same($layout['endOfCentralDirectorySha256'], $summary['selectedSourceEndOfCentralDirectorySha256']);
+        $t->same(22, $summary['selectedSourceEndOfCentralDirectoryFixedHeaderBytes']);
+        $t->same(hash('sha256', substr($zip, $layout['eocdOffset'], 22)), $summary['selectedSourceEndOfCentralDirectoryFixedHeaderSha256']);
+        $t->same($layout['packageCommentOffset'], $summary['selectedSourcePackageCommentOffset']);
+        $t->same(strlen('source-span-review'), $summary['selectedSourcePackageCommentBytes']);
+        $t->same($layout['packageCommentEnd'], $summary['selectedSourcePackageCommentEnd']);
+        $t->same(hash('sha256', 'source-span-review'), $summary['selectedSourcePackageCommentSha256']);
+        $t->same(bin2hex(substr('source-span-review', 0, 16)), $summary['selectedSourcePackageCommentPreviewHex']);
+        $t->same(16, $summary['selectedSourcePackageCommentPreviewByteCount']);
+        $t->same('zip-package-comment-source-metadata-only', $summary['selectedSourcePackageCommentByteExposurePolicy']);
+        $t->same(false, $summary['selectedSourceCanExposePackageCommentBytes']);
+        $t->same(true, $summary['selectedSourceHasPackageComment']);
+        $t->same(true, $archiveTrailer['hasArchiveTrailerSourceProvenance']);
+        $t->same($summary['selectedSourceArchiveTrailerOffset'], $archiveTrailer['archiveTrailerOffset']);
+        $t->same($summary['selectedSourceArchiveTrailerBytes'], $archiveTrailer['archiveTrailerBytes']);
+        $t->same($summary['selectedSourceArchiveTrailerSha256'], $archiveTrailer['archiveTrailerSha256']);
+        $t->same($summary['selectedSourcePackageCommentSha256'], $archiveTrailer['packageCommentSha256']);
+        $t->same($summary['selectedSourceArchiveTrailerReviewFieldBytes'], $archiveTrailer['archiveTrailerReviewFieldBytes']);
 
         $t->same(true, $documentSpan['hasSourceByteSpanProvenance']);
         $t->same(0, $documentSpan['localRecordOffset']);

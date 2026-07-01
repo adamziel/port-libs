@@ -634,9 +634,12 @@ XML,
         }
 
         $zip = ZipPackage::fromParts($zipParts, 'docx zip provenance fixture');
+        $zipBytes = $zip->bytes();
+        $layout = ZipPackage::packageByteLayoutPreflight($zipBytes);
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $zipPackage = $package['zipPackage'];
+        $sourceRecords = $zipPackage['sourceRecords'];
         $inventory = $package['parts'];
         $summary = $package['summary'];
         $orderNames = array_column($zipParts, 'name');
@@ -660,6 +663,20 @@ XML,
         $t->true(in_array('word/document.xml', $zipPackage['loadedPartNames'], true), 'document part missing from zip loaded parts');
         $t->same('docx-zip-entry-metadata-only', $zipPackage['byteExposurePolicy']);
         $t->same(false, $zipPackage['canExposeBytes']);
+        $t->same(true, $sourceRecords['hasArchiveTrailer']);
+        $t->same($layout['eocdOffset'], $sourceRecords['archiveTrailerOffset']);
+        $t->same($layout['endOfCentralDirectoryBytes'], $sourceRecords['archiveTrailerBytes']);
+        $t->same($layout['endOfCentralDirectorySha256'], $sourceRecords['archiveTrailerSha256']);
+        $t->same(strlen('docx zip provenance fixture'), $sourceRecords['archiveTrailerReviewFieldBytes']);
+        $t->same('zip-selected-source-archive-trailer-metadata-only', $sourceRecords['archiveTrailerByteExposurePolicy']);
+        $t->same(false, $sourceRecords['archiveTrailerCanExposeBytes']);
+        $t->same($layout['packageCommentOffset'], $sourceRecords['packageCommentOffset']);
+        $t->same(strlen('docx zip provenance fixture'), $sourceRecords['packageCommentBytes']);
+        $t->same(hash('sha256', 'docx zip provenance fixture'), $sourceRecords['packageCommentSha256']);
+        $t->same(bin2hex(substr('docx zip provenance fixture', 0, 16)), $sourceRecords['packageCommentPreviewHex']);
+        $t->same(16, $sourceRecords['packageCommentPreviewByteCount']);
+        $t->same(true, $sourceRecords['hasPackageComment']);
+        $t->same($sourceRecords['packageCommentSha256'], $sourceRecords['archiveTrailer']['packageCommentSha256']);
 
         $directory = $zipPackage['byPackagePath']['word/media/'];
         $t->same(true, $directory['isDirectory']);
@@ -706,6 +723,14 @@ XML,
         $t->same($zipPackage['localHeaderOrder']['entryCount'], $summary['zipLocalHeaderOrderEntryCount']);
         $t->same(0, $summary['zipLocalHeaderOrderMismatchCount']);
         $t->same([], $summary['zipLocalHeaderOrderMismatches']);
+        $t->same($sourceRecords['archiveTrailerOffset'], $summary['zipSourceArchiveTrailerOffset']);
+        $t->same($sourceRecords['archiveTrailerBytes'], $summary['zipSourceArchiveTrailerBytes']);
+        $t->same($sourceRecords['archiveTrailerSha256'], $summary['zipSourceArchiveTrailerSha256']);
+        $t->same($sourceRecords['archiveTrailerReviewFieldBytes'], $summary['zipSourceArchiveTrailerReviewFieldBytes']);
+        $t->same($sourceRecords['packageCommentOffset'], $summary['zipSourcePackageCommentOffset']);
+        $t->same($sourceRecords['packageCommentBytes'], $summary['zipSourcePackageCommentBytes']);
+        $t->same($sourceRecords['packageCommentSha256'], $summary['zipSourcePackageCommentSha256']);
+        $t->same($sourceRecords['archiveTrailer'], $summary['zipSourceArchiveTrailer']);
         $t->same(2, $methodBuckets[0]['entryCount']);
         $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
     },

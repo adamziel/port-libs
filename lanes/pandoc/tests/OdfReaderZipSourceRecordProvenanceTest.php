@@ -202,6 +202,7 @@ return [
     'carries ODT ZIP source record provenance through compact and rich package review' => static function (TestRunner $t) use ($buildPackage, $indexBy, $sourceRecordSubset, $expectedSourceRecord, $parts, $contentXml): void {
         $package = $buildPackage();
         $zipBytes = $package->bytes();
+        $layout = ZipPackage::packageByteLayoutPreflight($zipBytes);
         $zipManifestByName = $indexBy($package->packageManifestPreflight()['entries'], 'name');
         $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
         $compactInventory = $compactSummary['packageInventory'];
@@ -282,11 +283,26 @@ return [
         $t->same(true, $richIdentityParts['content.xml']['zipHasSourceRecordProvenance']);
         $t->same($compactHandoff, $compactInventoryHandoff);
         $t->same($compactHandoff['selectedSourceManifest'], $richHandoff['selectedSourceManifest']);
+        $t->same($compactHandoff['selectedSourceArchiveTrailer'], $richHandoff['selectedSourceArchiveTrailer']);
         $t->same($compactHandoff['selectedHandoffManifest'], $richHandoff['selectedHandoffManifest']);
         $t->same('zip-selected-source-manifest-v2', $richHandoff['selectedSourceManifestVersion']);
         $t->same($richHandoff['selectedSourceManifest']['manifestSha256'], $richHandoff['selectedSourceManifestSha256']);
         $t->same('zip-selected-handoff-manifest-v1', $richHandoff['selectedHandoffManifestVersion']);
         $t->same($richHandoff['selectedHandoffManifest']['manifestSha256'], $richHandoff['selectedHandoffManifestSha256']);
+        $t->same(true, $richHandoff['selectedSourceHasArchiveTrailer']);
+        $t->same($layout['eocdOffset'], $richHandoff['selectedSourceArchiveTrailerOffset']);
+        $t->same($layout['endOfCentralDirectoryBytes'], $richHandoff['selectedSourceArchiveTrailerBytes']);
+        $t->same($layout['endOfCentralDirectorySha256'], $richHandoff['selectedSourceArchiveTrailerSha256']);
+        $t->same(strlen('odt source record provenance'), $richHandoff['selectedSourceArchiveTrailerReviewFieldBytes']);
+        $t->same('zip-selected-source-archive-trailer-metadata-only', $richHandoff['selectedSourceArchiveTrailerByteExposurePolicy']);
+        $t->same(false, $richHandoff['selectedSourceArchiveTrailerCanExposeBytes']);
+        $t->same($layout['packageCommentOffset'], $richHandoff['selectedSourcePackageCommentOffset']);
+        $t->same(strlen('odt source record provenance'), $richHandoff['selectedSourcePackageCommentBytes']);
+        $t->same(hash('sha256', 'odt source record provenance'), $richHandoff['selectedSourcePackageCommentSha256']);
+        $t->same(bin2hex(substr('odt source record provenance', 0, 16)), $richHandoff['selectedSourcePackageCommentPreviewHex']);
+        $t->same(16, $richHandoff['selectedSourcePackageCommentPreviewByteCount']);
+        $t->same(true, $richHandoff['selectedSourceHasPackageComment']);
+        $t->same($richHandoff['selectedSourcePackageCommentSha256'], $richHandoff['selectedSourceArchiveTrailer']['packageCommentSha256']);
         $t->same(4, $richHandoff['requestCount']);
         $t->same(4, $richHandoff['requestedEntryCount']);
         $t->same(4, $richHandoff['selectedUniqueEntryCount']);

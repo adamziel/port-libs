@@ -5222,6 +5222,7 @@ final class ZipPackage
      *     selectedSourceByteSpanBuckets:list<array<string, mixed>>,
      *     selectedSourceManifestVersion:string,
      *     selectedSourceManifestSha256:string,
+     *     selectedSourceArchiveTrailer:array<string, mixed>,
      *     selectedSourceManifest:array<string, mixed>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
@@ -6077,6 +6078,7 @@ final class ZipPackage
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $selectedSourceByteSpanBuckets = self::entryHandoffSourceByteSpanBuckets($selectedSourceByteSpanEntries);
         $selectedSourceManifest = self::selectedSourceByteSpanManifest($selectedSourceByteSpanEntries);
+        $selectedSourceArchiveTrailer = $this->selectedSourceArchiveTrailerHandoffProvenance();
         $selectedHandoffManifest = self::selectedEntryHandoffManifest($entries, $issues);
 
         return [
@@ -6186,6 +6188,28 @@ final class ZipPackage
             'selectedSourceByteSpanBucketCount' => count($selectedSourceByteSpanBuckets),
             'selectedSourceManifestVersion' => $selectedSourceManifest['manifestVersion'],
             'selectedSourceManifestSha256' => $selectedSourceManifest['manifestSha256'],
+            'selectedSourceHasArchiveTrailer' => $selectedSourceArchiveTrailer['hasArchiveTrailerSourceProvenance'],
+            'selectedSourceArchiveTrailerOffset' => $selectedSourceArchiveTrailer['archiveTrailerOffset'],
+            'selectedSourceArchiveTrailerBytes' => $selectedSourceArchiveTrailer['archiveTrailerBytes'],
+            'selectedSourceArchiveTrailerEnd' => $selectedSourceArchiveTrailer['archiveTrailerEnd'],
+            'selectedSourceArchiveTrailerSha256' => $selectedSourceArchiveTrailer['archiveTrailerSha256'],
+            'selectedSourceArchiveTrailerReviewFieldBytes' => $selectedSourceArchiveTrailer['archiveTrailerReviewFieldBytes'],
+            'selectedSourceArchiveTrailerByteExposurePolicy' => $selectedSourceArchiveTrailer['archiveTrailerByteExposurePolicy'],
+            'selectedSourceArchiveTrailerCanExposeBytes' => $selectedSourceArchiveTrailer['canExposeArchiveTrailerBytes'],
+            'selectedSourceEndOfCentralDirectoryOffset' => $selectedSourceArchiveTrailer['endOfCentralDirectoryOffset'],
+            'selectedSourceEndOfCentralDirectoryBytes' => $selectedSourceArchiveTrailer['endOfCentralDirectoryBytes'],
+            'selectedSourceEndOfCentralDirectorySha256' => $selectedSourceArchiveTrailer['endOfCentralDirectorySha256'],
+            'selectedSourceEndOfCentralDirectoryFixedHeaderBytes' => $selectedSourceArchiveTrailer['endOfCentralDirectoryFixedHeaderBytes'],
+            'selectedSourceEndOfCentralDirectoryFixedHeaderSha256' => $selectedSourceArchiveTrailer['endOfCentralDirectoryFixedHeaderSha256'],
+            'selectedSourcePackageCommentOffset' => $selectedSourceArchiveTrailer['packageCommentOffset'],
+            'selectedSourcePackageCommentBytes' => $selectedSourceArchiveTrailer['packageCommentBytes'],
+            'selectedSourcePackageCommentEnd' => $selectedSourceArchiveTrailer['packageCommentEnd'],
+            'selectedSourcePackageCommentSha256' => $selectedSourceArchiveTrailer['packageCommentSha256'],
+            'selectedSourcePackageCommentPreviewHex' => $selectedSourceArchiveTrailer['packageCommentPreviewHex'],
+            'selectedSourcePackageCommentPreviewByteCount' => $selectedSourceArchiveTrailer['packageCommentPreviewByteCount'],
+            'selectedSourcePackageCommentByteExposurePolicy' => $selectedSourceArchiveTrailer['packageCommentByteExposurePolicy'],
+            'selectedSourceCanExposePackageCommentBytes' => $selectedSourceArchiveTrailer['canExposePackageCommentBytes'],
+            'selectedSourceHasPackageComment' => $selectedSourceArchiveTrailer['hasPackageComment'],
             'selectedHandoffManifestVersion' => $selectedHandoffManifest['manifestVersion'],
             'selectedHandoffManifestSha256' => $selectedHandoffManifest['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
@@ -6217,12 +6241,103 @@ final class ZipPackage
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanBuckets' => $selectedSourceByteSpanBuckets,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
+            'selectedSourceArchiveTrailer' => $selectedSourceArchiveTrailer,
             'selectedSourceManifest' => $selectedSourceManifest,
             'selectedHandoffManifest' => $selectedHandoffManifest,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     hasArchiveTrailerSourceProvenance:bool,
+     *     archiveTrailerOffset:int,
+     *     archiveTrailerBytes:int,
+     *     archiveTrailerEnd:int,
+     *     archiveTrailerSha256:string,
+     *     archiveTrailerReviewFieldBytes:int,
+     *     archiveTrailerByteExposurePolicy:string,
+     *     canExposeArchiveTrailerBytes:bool,
+     *     endOfCentralDirectoryOffset:int,
+     *     endOfCentralDirectoryBytes:int,
+     *     endOfCentralDirectoryEnd:int,
+     *     endOfCentralDirectorySha256:string,
+     *     endOfCentralDirectoryFixedHeaderBytes:int,
+     *     endOfCentralDirectoryFixedHeaderSha256:string,
+     *     packageCommentOffset:int,
+     *     packageCommentBytes:int,
+     *     packageCommentEnd:int,
+     *     packageCommentSha256:?string,
+     *     packageCommentPreviewHex:string,
+     *     packageCommentPreviewByteCount:int,
+     *     packageCommentByteExposurePolicy:string,
+     *     canExposePackageCommentBytes:bool,
+     *     hasPackageComment:bool
+     * }
+     */
+    private function selectedSourceArchiveTrailerHandoffProvenance(): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($this->bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before selected archive trailer provenance can be scanned');
+        }
+
+        $endOfCentralDirectoryOffset = $archive['eocdOffset'];
+        $endOfCentralDirectoryFixedHeaderBytes = 22;
+        $packageCommentOffset = $endOfCentralDirectoryOffset + $endOfCentralDirectoryFixedHeaderBytes;
+        $packageCommentBytes = $archive['packageCommentLength'];
+        $packageCommentEnd = $packageCommentOffset + $packageCommentBytes;
+        $endOfCentralDirectoryBytes = $endOfCentralDirectoryFixedHeaderBytes + $packageCommentBytes;
+        $endOfCentralDirectoryEnd = $endOfCentralDirectoryOffset + $endOfCentralDirectoryBytes;
+        self::assertRange(
+            $this->bytes,
+            $endOfCentralDirectoryOffset,
+            $endOfCentralDirectoryBytes,
+            'selected package source archive trailer'
+        );
+
+        $packageCommentPreviewByteCount = min(16, $packageCommentBytes);
+        $packageCommentSha256 = $packageCommentBytes > 0
+            ? hash('sha256', substr($this->bytes, $packageCommentOffset, $packageCommentBytes))
+            : null;
+        $packageCommentPreviewHex = $packageCommentPreviewByteCount > 0
+            ? bin2hex(substr($this->bytes, $packageCommentOffset, $packageCommentPreviewByteCount))
+            : '';
+        $endOfCentralDirectorySha256 = hash(
+            'sha256',
+            substr($this->bytes, $endOfCentralDirectoryOffset, $endOfCentralDirectoryBytes)
+        );
+
+        return [
+            'hasArchiveTrailerSourceProvenance' => true,
+            'archiveTrailerOffset' => $endOfCentralDirectoryOffset,
+            'archiveTrailerBytes' => $endOfCentralDirectoryBytes,
+            'archiveTrailerEnd' => $endOfCentralDirectoryEnd,
+            'archiveTrailerSha256' => $endOfCentralDirectorySha256,
+            'archiveTrailerReviewFieldBytes' => $packageCommentBytes,
+            'archiveTrailerByteExposurePolicy' => 'zip-selected-source-archive-trailer-metadata-only',
+            'canExposeArchiveTrailerBytes' => false,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'endOfCentralDirectoryFixedHeaderBytes' => $endOfCentralDirectoryFixedHeaderBytes,
+            'endOfCentralDirectoryFixedHeaderSha256' => hash(
+                'sha256',
+                substr($this->bytes, $endOfCentralDirectoryOffset, $endOfCentralDirectoryFixedHeaderBytes)
+            ),
+            'packageCommentOffset' => $packageCommentOffset,
+            'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentEnd' => $packageCommentEnd,
+            'packageCommentSha256' => $packageCommentSha256,
+            'packageCommentPreviewHex' => $packageCommentPreviewHex,
+            'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'packageCommentByteExposurePolicy' => 'zip-package-comment-source-metadata-only',
+            'canExposePackageCommentBytes' => false,
+            'hasPackageComment' => $packageCommentBytes > 0,
         ];
     }
 
