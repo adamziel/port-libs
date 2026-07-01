@@ -1527,6 +1527,10 @@ final class OdfReader
         $packagePathDepthCounts = [];
         $packagePathsByPathDepth = [];
         $maxPackagePathDepth = 0;
+        $zipPackageManifestPathSegmentPositionRoleCounts = [];
+        $entryNamesByZipPackageManifestPathSegmentPositionRole = [];
+        $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts = [];
+        $entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy = [];
         $packagePartXmlCdataSections = [
             'partCount' => 0,
             'sectionCount' => 0,
@@ -1909,6 +1913,18 @@ final class OdfReader
                 'undeclared' => $isUndeclared,
             ] + $rawNameProvenance + $extraFieldProvenance + $generalPurposeFlagProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
 
+            self::recordZipPackageManifestPathSegmentPositionInventory(
+                $zipPackageManifestPathSegmentPositionRoleCounts,
+                $entryNamesByZipPackageManifestPathSegmentPositionRole,
+                $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts,
+                $entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy,
+                is_array($parts[$entry->name]['zipPackageManifestPathSegmentPositionReviews'] ?? null)
+                    ? $parts[$entry->name]['zipPackageManifestPathSegmentPositionReviews']
+                    : [],
+                $entry->name,
+                $roles,
+                is_string($byteExposurePolicy) ? $byteExposurePolicy : null
+            );
             self::recordPackageTopologySummary(
                 $packageAreaCounts,
                 $packageAreaByteLengths,
@@ -2042,6 +2058,10 @@ final class OdfReader
         ksort($packagePathExtensionCounts, SORT_STRING);
         ksort($packagePathDepthCounts, SORT_NUMERIC);
         self::sortPackageStringListMap($packagePathsByPathDepth, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionRoleCounts);
+        self::sortPackageNestedStringListMap($entryNamesByZipPackageManifestPathSegmentPositionRole);
+        self::sortPackageNestedCountMap($zipPackageManifestPathSegmentPositionByteExposurePolicyCounts);
+        self::sortPackageNestedStringListMap($entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy);
         $packageAreaSummaries = self::finalizePackageAreaSummaries($packageAreaSummaries);
         $embeddedObjectPackages = $this->embeddedObjectPackageProvenance($package, $manifest, $objectPackageRootParts);
         $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
@@ -2195,6 +2215,10 @@ final class OdfReader
             'packagePathDepthCounts' => $packagePathDepthCounts,
             'packagePathsByPathDepth' => $packagePathsByPathDepth,
             'maxPackagePathDepth' => $maxPackagePathDepth,
+            'zipPackageManifestPathSegmentPositionRoleCounts' => $zipPackageManifestPathSegmentPositionRoleCounts,
+            'entryNamesByZipPackageManifestPathSegmentPositionRole' => $entryNamesByZipPackageManifestPathSegmentPositionRole,
+            'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $zipPackageManifestPathSegmentPositionByteExposurePolicyCounts,
+            'entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy' => $entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy,
             'packagePartByteExposurePolicyItemCount' => count($packagePartByteExposurePolicyItems),
             'packagePartByteExposurePolicyItems' => $packagePartByteExposurePolicyItems,
             'corePackagePartCount' => $corePackagePartCount,
@@ -3004,6 +3028,10 @@ final class OdfReader
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $provenance['packagePathsByPathDepth'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
+            'zipPackageManifestPathSegmentPositionRoleCounts' => $provenance['zipPackageManifestPathSegmentPositionRoleCounts'] ?? [],
+            'entryNamesByZipPackageManifestPathSegmentPositionRole' => $provenance['entryNamesByZipPackageManifestPathSegmentPositionRole'] ?? [],
+            'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $provenance['zipPackageManifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
+            'entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy' => $provenance['entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy'] ?? [],
             'manifestCustomAttributeNames' => $provenance['manifestCustomAttributeNames'] ?? [],
             'rawNameProvenanceEntries' => $provenance['rawNameProvenanceEntries'] ?? [],
             'zipNamePolicyValid' => ($provenance['zipNamePolicyValid'] ?? false) === true,
@@ -3236,6 +3264,10 @@ final class OdfReader
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $provenance['packagePathsByPathDepth'] ?? [],
             'maxPackagePathDepth' => $provenance['maxPackagePathDepth'] ?? 0,
+            'zipPackageManifestPathSegmentPositionRoleCounts' => $provenance['zipPackageManifestPathSegmentPositionRoleCounts'] ?? [],
+            'entryNamesByZipPackageManifestPathSegmentPositionRole' => $provenance['entryNamesByZipPackageManifestPathSegmentPositionRole'] ?? [],
+            'zipPackageManifestPathSegmentPositionByteExposurePolicyCounts' => $provenance['zipPackageManifestPathSegmentPositionByteExposurePolicyCounts'] ?? [],
+            'entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy' => $provenance['entryNamesByZipPackageManifestPathSegmentPositionByteExposurePolicy'] ?? [],
             'zipNamePolicyValid' => ($provenance['zipNamePolicyValid'] ?? false) === true,
             'zipNamePolicyIssueCount' => $provenance['zipNamePolicyIssueCount'] ?? 0,
             'zipNamePolicyIssueCodes' => $provenance['zipNamePolicyIssueCodes'] ?? [],
@@ -4735,6 +4767,72 @@ final class OdfReader
             sort($paths, SORT_STRING);
         }
         unset($paths);
+    }
+
+    private static function sortPackageNestedCountMap(array &$map): void
+    {
+        ksort($map, SORT_STRING);
+        foreach ($map as &$counts) {
+            ksort($counts, SORT_STRING);
+        }
+        unset($counts);
+    }
+
+    private static function sortPackageNestedStringListMap(array &$map): void
+    {
+        ksort($map, SORT_STRING);
+        foreach ($map as &$nestedMap) {
+            self::sortPackageStringListMap($nestedMap, SORT_STRING);
+        }
+        unset($nestedMap);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $positionReviews
+     * @param list<string> $roles
+     */
+    private static function recordZipPackageManifestPathSegmentPositionInventory(
+        array &$roleCounts,
+        array &$entryNamesByRole,
+        array &$byteExposurePolicyCounts,
+        array &$entryNamesByByteExposurePolicy,
+        array $positionReviews,
+        string $entryName,
+        array $roles,
+        ?string $byteExposurePolicy
+    ): void {
+        $positions = [];
+        foreach ($positionReviews as $review) {
+            $position = is_array($review) && is_string($review['position'] ?? null)
+                ? $review['position']
+                : '';
+            if ($position !== '') {
+                $positions[$position] = true;
+            }
+        }
+
+        foreach (array_keys($positions) as $position) {
+            foreach ($roles as $role) {
+                if (!is_string($role) || $role === '') {
+                    continue;
+                }
+
+                $roleCounts[$position] ??= [];
+                $roleCounts[$position][$role] = ($roleCounts[$position][$role] ?? 0) + 1;
+                $entryNamesByRole[$position] ??= [];
+                $entryNamesByRole[$position][$role] ??= [];
+                $entryNamesByRole[$position][$role][$entryName] = true;
+            }
+
+            if ($byteExposurePolicy !== null && $byteExposurePolicy !== '') {
+                $byteExposurePolicyCounts[$position] ??= [];
+                $byteExposurePolicyCounts[$position][$byteExposurePolicy] =
+                    ($byteExposurePolicyCounts[$position][$byteExposurePolicy] ?? 0) + 1;
+                $entryNamesByByteExposurePolicy[$position] ??= [];
+                $entryNamesByByteExposurePolicy[$position][$byteExposurePolicy] ??= [];
+                $entryNamesByByteExposurePolicy[$position][$byteExposurePolicy][$entryName] = true;
+            }
+        }
     }
 
     private static function finalizePackageAreaSummaries(array $summaries): array
