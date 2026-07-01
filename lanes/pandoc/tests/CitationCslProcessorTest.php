@@ -32037,6 +32037,130 @@ XML);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Hyphenation Packet :: french :: french :: french</dd>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Langid Packet :: ngerman :: ngerman :: ngerman</dd>', $blocks);
     },
+    'normalizes bounded direct csl json lang id aliases into language metadata' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-lang-id-camel',
+                'type' => 'book',
+                'title' => 'Camel LangID Packet',
+                'author' => [
+                    ['family' => 'Aal', 'given' => 'Ada'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'langId' => 'danish',
+            ],
+            [
+                'id' => 'direct-language-id-camel',
+                'type' => 'book',
+                'title' => 'Camel LanguageID Packet',
+                'author' => [
+                    ['family' => 'Boa', 'given' => 'Bea'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'languageId' => 'portuguese',
+            ],
+            [
+                'id' => 'direct-language-id-hyphen',
+                'type' => 'book',
+                'title' => 'Hyphen Language ID Packet',
+                'author' => [
+                    ['family' => 'Cas', 'given' => 'Cia'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'language-id' => 'spanish',
+            ],
+            [
+                'id' => 'direct-lang-id-hyphen',
+                'type' => 'book',
+                'title' => 'Hyphen Lang ID Packet',
+                'author' => [
+                    ['family' => 'Dey', 'given' => 'Dia'],
+                ],
+                'issued' => ['date-parts' => [[2023]]],
+                'lang-id' => 'swedish',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $langId = $processor->item('direct-lang-id-camel');
+        $languageId = $processor->item('direct-language-id-camel');
+        $languageIdHyphen = $processor->item('direct-language-id-hyphen');
+        $langIdHyphen = $processor->item('direct-lang-id-hyphen');
+        $t->same('danish', $langId['language'] ?? null);
+        $t->same(['danish'], $langId['languageList'] ?? null);
+        $t->same('danish', $langId['raw']['langId'] ?? null);
+        $t->same('portuguese', $languageId['language'] ?? null);
+        $t->same(['portuguese'], $languageId['languageList'] ?? null);
+        $t->same('portuguese', $languageId['raw']['languageId'] ?? null);
+        $t->same('spanish', $languageIdHyphen['language'] ?? null);
+        $t->same(['spanish'], $languageIdHyphen['languageList'] ?? null);
+        $t->same('spanish', $languageIdHyphen['raw']['language-id'] ?? null);
+        $t->same('swedish', $langIdHyphen['language'] ?? null);
+        $t->same(['swedish'], $langIdHyphen['languageList'] ?? null);
+        $t->same('swedish', $langIdHyphen['raw']['lang-id'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Lang ID Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-lang-id-alias-review</id>
+    <updated>2026-06-13T08:13:00+00:00</updated>
+  </info>
+  <citation>
+    <sort>
+      <key variable="lang-id"/>
+    </sort>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="lang-id"/>
+        <text variable="language-id"/>
+        <text variable="languageId"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <sort>
+      <key variable="lang-id"/>
+    </sort>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="lang-id"/>
+      <text variable="language-id"/>
+      <text variable="languageId"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $sortKey = $summary['citationSort'][0] ?? [];
+        $t->same('Bounded Direct CSL Lang ID Alias Review', $summary['title'] ?? null);
+        $t->same('lang-id', $sortKey['variable'] ?? null);
+        $t->same('lang-id', $citationChildren[1]['variable'] ?? null);
+        $t->same('language-id', $citationChildren[2]['variable'] ?? null);
+        $t->same('languageId', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Aal | danish | danish | danish; Boa | portuguese | portuguese | portuguese; Cas | spanish | spanish | spanish; Dey | swedish | swedish | swedish]', $styled->renderCitationCluster([
+            $citation('direct-lang-id-camel', '[@direct-lang-id-camel]'),
+            $citation('direct-language-id-camel', '[@direct-language-id-camel]'),
+            $citation('direct-language-id-hyphen', '[@direct-language-id-hyphen]'),
+            $citation('direct-lang-id-hyphen', '[@direct-lang-id-hyphen]'),
+        ]));
+        $t->same('Camel LangID Packet :: danish :: danish :: danish', $styled->renderBibliographyEntry('direct-lang-id-camel'));
+        $t->same('Camel LanguageID Packet :: portuguese :: portuguese :: portuguese', $styled->renderBibliographyEntry('direct-language-id-camel'));
+        $t->same('Hyphen Language ID Packet :: spanish :: spanish :: spanish', $styled->renderBibliographyEntry('direct-language-id-hyphen'));
+        $t->same('Hyphen Lang ID Packet :: swedish :: swedish :: swedish', $styled->renderBibliographyEntry('direct-lang-id-hyphen'));
+
+        $document = (new MarkdownReader())->read('Direct language id aliases [@direct-lang-id-camel; @direct-language-id-camel; @direct-language-id-hyphen; @direct-lang-id-hyphen] remain reviewable.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct language id aliases [Aal | danish | danish | danish; Boa | portuguese | portuguese | portuguese; Cas | spanish | spanish | spanish; Dey | swedish | swedish | swedish] remain reviewable.</p>', $blocks);
+        $t->contains('<dt>Aal 2026</dt><dd>Camel LangID Packet :: danish :: danish :: danish</dd>', $blocks);
+        $t->contains('<dt>Boa 2025</dt><dd>Camel LanguageID Packet :: portuguese :: portuguese :: portuguese</dd>', $blocks);
+        $t->contains('<dt>Cas 2024</dt><dd>Hyphen Language ID Packet :: spanish :: spanish :: spanish</dd>', $blocks);
+        $t->contains('<dt>Dey 2023</dt><dd>Hyphen Lang ID Packet :: swedish :: swedish :: swedish</dd>', $blocks);
+    },
     'parses bounded endnote xml records with locator and import diagnostics' => static function (TestRunner $t) use ($citation): void {
         $xml = <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>

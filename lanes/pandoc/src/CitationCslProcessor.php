@@ -1226,7 +1226,7 @@ final class CitationCslProcessor
         $originalPublisherList = self::stringListFromFirstField($item, ['original-publisher-list', 'originalPublisherList', 'originalpublisherlist', 'origpublisherlist', 'origPublisherList']);
         $originalPublisherPlaceList = self::stringListFromFirstField($item, ['original-publisher-place-list', 'originalPublisherPlaceList', 'originalpublisherplacelist', 'origlocationlist', 'origLocationList', 'origaddresslist', 'origAddressList']);
         $languageList = self::stringListFromFirstField($item, ['language-list', 'languageList', 'languagelist']);
-        $language = self::firstStringField($item, ['language', 'langid', 'language-id', 'languageId', 'languageid', 'hyphenation']);
+        $language = self::firstStringField($item, ['language', 'langid', 'langId', 'lang-id', 'language-id', 'languageId', 'languageid', 'hyphenation']);
         if ($language === '' && $languageList !== []) {
             $language = implode('; ', $languageList);
         }
@@ -6928,7 +6928,7 @@ final class CitationCslProcessor
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
             'publisher' => $this->normalizeSortText((string) $item['publisher']),
-            'language', 'langid', 'language-id', 'languageid', 'hyphenation', 'language-list', 'languagelist' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
+            'language', 'langid', 'lang-id', 'language-id', 'languageid', 'hyphenation', 'language-list', 'languagelist' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
             'source', 'source-title', 'sourcetitle' => $this->normalizeSortText((string) ($item['source'] ?? '')),
             'status', 'publication-status', 'publicationstatus', 'pubstate',
             'keyword-list', 'keywordlist', 'category-list', 'categorylist',
@@ -11305,7 +11305,7 @@ final class CitationCslProcessor
             'archive_location', 'archive-location', 'archivelocation' => (string) $item['archiveLocation'],
             'archive-summary', 'archive-summary-text', 'archivesummary', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
             'call-number', 'callnumber' => (string) $item['callNumber'],
-            'language', 'langid', 'language-id', 'languageid', 'hyphenation' => (string) $item['language'],
+            'language', 'langid', 'lang-id', 'language-id', 'languageid', 'hyphenation' => (string) $item['language'],
             'language-list', 'languagelist' => implode('; ', is_array($item['languageList'] ?? null) ? $item['languageList'] : []),
             'abstract' => (string) $item['abstract'],
             'annotation', 'annote' => (string) ($item['annotation'] ?? ''),
