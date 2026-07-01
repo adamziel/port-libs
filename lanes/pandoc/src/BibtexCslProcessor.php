@@ -388,19 +388,44 @@ final class BibtexCslProcessor
             'citation-label' => 'Citation label',
             'shorthand-intro' => 'Shorthand intro',
             'sort-shorthand' => 'Sort shorthand',
+            'shorthand-list-sort-key' => 'Shorthand list sort key',
             'presort' => 'Presort',
             'sort-key' => 'Sort key',
+            'sort-name' => 'Sort name',
+            'sort-title' => 'Sort title',
+            'sort-year' => 'Sort year',
+            'sort-initial' => 'Sort initial',
+            'sort-initial-hash' => 'Sort initial hash',
             'label-prefix' => 'Label prefix',
+            'label-alpha' => 'Label alpha',
+            'label-title' => 'Label title',
             'extra-alpha' => 'Extra alpha',
+            'extra-date' => 'Extra date',
+            'extra-title' => 'Extra title',
             'date-addon' => 'Date addendum',
             'original-date-addon' => 'Original date addendum',
             'reprint-date-addon' => 'Reprint date addendum',
             'event-date-addon' => 'Event date addendum',
             'accessed-date-addon' => 'Accessed date addendum',
+            'collection-title' => 'Collection title',
+            'collection-title-short' => 'Collection title abbreviation',
+            'collection-number' => 'Collection number',
+            'version' => 'Version',
+            'status' => 'Status',
+            'medium' => 'Medium',
+            'related' => 'Related',
+            'related-type' => 'Related type',
+            'related-string' => 'Related string',
         ] as $field => $label) {
             if (($item[$field] ?? '') !== '') {
                 $value = (string) $item[$field];
-                if ($field === 'volume-title-short') {
+                if (
+                    $field === 'shorthand-list-sort-key'
+                    && ($value === (string) ($item['sort-shorthand'] ?? '') || $value === (string) ($item['shorthand'] ?? ''))
+                ) {
+                    continue;
+                }
+                if ($field === 'volume-title-short' || $field === 'collection-title-short') {
                     $value = rtrim($value, '.');
                 }
                 $parts[] = $label . ': ' . $value;
@@ -441,6 +466,17 @@ final class BibtexCslProcessor
         if ($relatedOptionSummary !== '') {
             $parts[] = 'Related options: ' . $relatedOptionSummary;
         }
+        $emittedXrefSummary = false;
+        $crossrefSummary = trim((string) ($item['crossrefSummary'] ?? ''));
+        $xrefSummary = trim((string) ($item['xrefSummary'] ?? $item['xref-summary'] ?? ''));
+        $shouldRenderXrefSummary = $crossrefSummary === '' || ($item['related'] ?? '') !== '';
+        if ($xrefSummary !== '' && $shouldRenderXrefSummary) {
+            $parts[] = $xrefSummary;
+            $emittedXrefSummary = true;
+        } elseif (($item['xref'] ?? '') !== '' && $shouldRenderXrefSummary) {
+            $parts[] = 'Xref: ' . (string) $item['xref'];
+            $emittedXrefSummary = true;
+        }
         $referenceContextSummary = $this->biblatexReferenceContextSummary(
             (string) ($item['biblatex-refsection'] ?? ''),
             (string) ($item['biblatex-refsegment'] ?? '')
@@ -451,8 +487,8 @@ final class BibtexCslProcessor
         if (($item['entrySetSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX entry set: ' . (string) $item['entrySetSummary'];
         }
-        if (($item['crossrefSummary'] ?? '') !== '') {
-            $parts[] = 'BibLaTeX crossref parent: ' . (string) $item['crossrefSummary'];
+        if ($crossrefSummary !== '' && !$emittedXrefSummary) {
+            $parts[] = 'BibLaTeX crossref parent: ' . $crossrefSummary;
         }
         if (($item['xdataSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX xdata packets: ' . (string) $item['xdataSummary'];
@@ -494,6 +530,9 @@ final class BibtexCslProcessor
             }
         }
         if (($item['URL'] ?? '') !== '') {
+            if (($item['URL-label'] ?? '') !== '') {
+                $parts[] = 'URL label: ' . (string) $item['URL-label'];
+            }
             $parts[] = (string) $item['URL'];
         }
         foreach ([

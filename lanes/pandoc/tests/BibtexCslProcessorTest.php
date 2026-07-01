@@ -509,6 +509,7 @@ BIB;
   status       = {approved},
   langid       = {en},
   series       = {Review Standards Series},
+  urldescription = {canonical standard URL},
   url          = {https://example.test/standard}
 }
 
@@ -532,12 +533,13 @@ BIB;
         $t->same('approved', $standard['status']);
         $t->same('en', $standard['language']);
         $t->same('Review Standards Series', $standard['collection-title']);
+        $t->same('canonical standard URL', $standard['URL-label']);
         $t->same('STD-1581', $standard['rawBibtex']['fields']['number']);
         $t->same('article-journal', $journal['type']);
         $t->same('3', $journal['issue']);
         $t->same(false, array_key_exists('number', $journal));
         $t->same(
-            'Nia Ng. Migration Package Standard. Standards Office. 2026. Number: STD-1581. https://example.test/standard.',
+            'Nia Ng. Migration Package Standard. Standards Office. 2026. Number: STD-1581. Collection title: Review Standards Series. Status: approved. URL label: canonical standard URL. https://example.test/standard.',
             $processor->renderBibliographyText($standard)
         );
 
@@ -583,6 +585,9 @@ XML);
         $t->same('STD-1581', $handoff['items'][0]['number']);
         $t->same(false, array_key_exists('issue', $handoff['items'][0]));
         $t->contains('Number: STD-1581', $blocks);
+        $t->contains('Collection title: Review Standards Series', $blocks);
+        $t->contains('Status: approved', $blocks);
+        $t->contains('URL label: canonical standard URL', $blocks);
     },
     'carries extended biblatex creator roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -986,7 +991,7 @@ BIB;
         $t->same('2.1.0', $item['version']);
         $t->same('revised', $item['status']);
         $t->same('print-on-demand packet', $item['medium']);
-        $t->same('Gia Garcia. Migration Manual. Review Press. 2026.', $bibliography);
+        $t->same('Gia Garcia. Migration Manual. Review Press. 2026. Collection title: Review Sources. Collection title abbreviation: RS. Collection number: 7. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
     },
     'carries biblatex literal list metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -2445,10 +2450,14 @@ XML);
   sortname       = {Archive Desk},
   sorttitle      = {Label Manual Legacy},
   sortyear       = {2025},
+  sortinit       = {S},
+  sortinithash   = {smith-archive},
   labelprefix    = {WP},
   labelalpha     = {Smi26},
   labeltitle     = {legacy label},
-  extraalpha     = {b}
+  extraalpha     = {b},
+  extradate      = {2026b},
+  extratitle     = {archive appendix}
 }
 
 @book{fallback-shorthand,
@@ -2473,16 +2482,20 @@ BIB;
         $t->same('Archive Desk', $labels['sort-name']);
         $t->same('Label Manual Legacy', $labels['sort-title']);
         $t->same('2025', $labels['sort-year']);
+        $t->same('S', $labels['sort-initial']);
+        $t->same('smith-archive', $labels['sort-initial-hash']);
         $t->same('WP', $labels['label-prefix']);
         $t->same('Smi26', $labels['label-alpha']);
         $t->same('legacy label', $labels['label-title']);
         $t->same('b', $labels['extra-alpha']);
+        $t->same('2026b', $labels['extra-date']);
+        $t->same('archive appendix', $labels['extra-title']);
         $t->same('LLM', $labels['rawBibtex']['fields']['shorthand']);
         $t->same('010 legacy label', $labels['rawBibtex']['fields']['sortshorthand']);
         $t->same('FSH', $fallback['citation-label']);
         $t->same('FSH', $fallback['shorthand-list-sort-key']);
         $t->same(
-            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Label prefix: WP. Extra alpha: b.',
+            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Sort name: Archive Desk. Sort title: Label Manual Legacy. Sort year: 2025. Sort initial: S. Sort initial hash: smith-archive. Label prefix: WP. Label alpha: Smi26. Label title: legacy label. Extra alpha: b. Extra date: 2026b. Extra title: archive appendix.',
             $processor->renderBibliographyText($labels)
         );
 
@@ -2495,6 +2508,9 @@ BIB;
         $t->same('010 legacy label', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('FSH', $handoff['bibliography']->children[1]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->contains('Citation label: LLM', $blocks);
+        $t->contains('Sort name: Archive Desk', $blocks);
+        $t->contains('Label alpha: Smi26', $blocks);
+        $t->contains('Extra title: archive appendix', $blocks);
         $t->contains('Fallback Shorthand Manual', $blocks);
     },
     'carries biblatex relation aliases and explicit shorthand list metadata in legacy csl handoff' => static function (TestRunner $t): void {
@@ -2560,8 +2576,14 @@ BIB;
         $t->same(['source-proceedings'], $item['xref-keys']);
         $t->same('Source Proceedings', $item['xrefItems'][0]['title'] ?? null);
         $t->same('Xref: Source Proceedings (2023)', $item['xrefSummary']);
-        $t->contains('Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related', $processor->renderBibliographyText($item));
-        $t->contains('Related options: dataonly; skipbib', $processor->renderBibliographyText($item));
+        $directBibliography = $processor->renderBibliographyText($item);
+        $t->contains('Shorthand list sort key: 005 explicit relation list', $directBibliography);
+        $t->contains('Related: source-appendix, missing-related, source-license', $directBibliography);
+        $t->contains('Related type: updated-by', $directBibliography);
+        $t->contains('Related string: Updated source', $directBibliography);
+        $t->contains('Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related', $directBibliography);
+        $t->contains('Related options: dataonly; skipbib', $directBibliography);
+        $t->contains('Xref: Source Proceedings (2023)', $directBibliography);
 
         $document = (new MarkdownReader())->read('Relation source [@legacy-relation] keeps relation handoff metadata.');
         $handoff = $processor->citationHandoff($document, $source);
@@ -2571,6 +2593,10 @@ BIB;
         $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
         $t->same(['missing-related'], $handoff['bibliography']->children[0]->attr('cslItem')['missing-related-keys'] ?? null);
+        $directBlocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+        $t->contains('Shorthand list sort key: 005 explicit relation list', $directBlocks);
+        $t->contains('Related: source-appendix, missing-related, source-license', $directBlocks);
+        $t->contains('Xref: Source Proceedings (2023)', $directBlocks);
 
         $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
