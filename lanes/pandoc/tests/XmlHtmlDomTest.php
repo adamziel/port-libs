@@ -7315,6 +7315,15 @@ XML, 'DocBook bibliography media crosslink XML', preserveWhiteSpace: false);
         $t->same(0, $packet['emptyCommentCount']);
         $t->same(1, $packet['multilineCommentCount']);
         $t->same(['declaration-like-comment-text', 'unsafe-comment-boundary'], $packet['commentIssueCodes']);
+        $t->same(3, $packet['commentIssueCount']);
+        $t->same([
+            'declaration-like-comment-text' => 1,
+            'unsafe-comment-boundary' => 2,
+        ], $packet['commentIssueCodeCounts']);
+        $t->same([
+            'declaration-like-comment-text' => [0],
+            'unsafe-comment-boundary' => [1, 3],
+        ], $packet['commentIssueCodeCommentIndexes']);
 
         $t->same('comment()[1]', $comments[0]['nodePath']);
         $t->same(null, $comments[0]['parentElement']);
