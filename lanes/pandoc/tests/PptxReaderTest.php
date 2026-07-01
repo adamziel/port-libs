@@ -2388,6 +2388,84 @@ XML);
     }
 };
 
+$buildWrongNamespaceTablePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-wrong-ns-table-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:bad="urn:not-drawingml">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Table namespaces</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="8" name="Mixed Namespace Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table"><a:tbl>
+        <a:tblGrid><a:gridCol w="1828800"/><bad:gridCol w="999999"/></a:tblGrid>
+        <a:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Visible header</a:t></a:r></a:p></a:txBody></a:tc>
+          <bad:tc><a:txBody><a:p><a:r><a:t>Wrong namespace cell</a:t></a:r></a:p></a:txBody></bad:tc>
+        </a:tr>
+        <bad:tr>
+          <a:tc><a:txBody><a:p><a:r><a:t>Wrong namespace row</a:t></a:r></a:p></a:txBody></a:tc>
+        </bad:tr>
+        <a:tr>
+          <a:tc><bad:txBody><a:p><a:r><a:t>Wrong namespace text body</a:t></a:r></a:p></bad:txBody></a:tc>
+        </a:tr>
+      </a:tbl></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $nodesOfType = static function (AstNode $node, string $type) use (&$nodesOfType): array {
     $nodes = $node->type === $type ? [$node] : [];
     foreach ($node->children as $child) {
@@ -3042,6 +3120,24 @@ return [
 
     'requires pptx presentation slide relationship ids to use the relationship namespace like upstream' => static function (TestRunner $t) use ($buildUnqualifiedPresentationRelationshipPptxPackage): void {
         $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($buildUnqualifiedPresentationRelationshipPptxPackage()));
+    },
+
+    'ignores pptx table rows cells and text bodies outside the drawing namespace like upstream' => static function (TestRunner $t) use ($buildWrongNamespaceTablePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildWrongNamespaceTablePptxPackage());
+        $tables = $nodesOfType($document, 'table');
+        $cellTexts = array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $nodesOfType($document, 'table_cell'));
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($tables));
+        $t->same([1828800], $tables[0]->attr('columnWidths'));
+        $t->same(true, in_array('Visible header', $cellTexts, true));
+        $t->same(false, in_array('Wrong namespace cell', $cellTexts, true));
+        $t->same(false, in_array('Wrong namespace row', $cellTexts, true));
+        $t->same(false, in_array('Wrong namespace text body', $cellTexts, true));
+        $t->contains('Str "Visible" , Space , Str "header"', $native);
+        $t->true(!str_contains($native, 'Wrong namespace cell'), 'Non-drawing namespace table cells should stay out of upstream-compatible output');
+        $t->true(!str_contains($native, 'Wrong namespace row'), 'Non-drawing namespace table rows should stay out of upstream-compatible output');
+        $t->true(!str_contains($native, 'Wrong namespace text body'), 'Non-drawing namespace table text bodies should stay out of upstream-compatible output');
     },
 
     'uses upstream pptx graphic placeholders for missing graphic metadata' => static function (TestRunner $t) use ($buildGraphicPlaceholderPptxPackage, $nodesOfType): void {

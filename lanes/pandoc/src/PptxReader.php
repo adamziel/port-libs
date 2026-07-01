@@ -2202,9 +2202,9 @@ final class PptxReader
     {
         $theme = is_array($slideContext['theme'] ?? null) ? $slideContext['theme'] : [];
         $rows = [];
-        foreach ($this->childElements($tableElement, 'tr') as $rowElement) {
+        foreach ($this->drawingChildElements($tableElement, 'tr') as $rowElement) {
             $row = [];
-            foreach ($this->childElements($rowElement, 'tc') as $cellElement) {
+            foreach ($this->drawingChildElements($rowElement, 'tc') as $cellElement) {
                 $row[] = $this->tableCellData($cellElement, $theme);
             }
             $rows[] = $row;
@@ -2239,7 +2239,8 @@ final class PptxReader
      */
     private function tableCellData(\DOMElement $cellElement, array $theme): array
     {
-        $text = $this->drawingText($cellElement);
+        $textBody = $this->firstDrawingChildElement($cellElement, 'txBody');
+        $text = $textBody instanceof \DOMElement ? $this->drawingText($textBody) : '';
         $attrs = ['text' => $text];
         $pptxCell = [];
 
@@ -2355,13 +2356,13 @@ final class PptxReader
      */
     private function tableColumnWidths(\DOMElement $tableElement): array
     {
-        $grid = $this->firstChildElement($tableElement, 'tblGrid');
+        $grid = $this->firstDrawingChildElement($tableElement, 'tblGrid');
         if (!$grid instanceof \DOMElement) {
             return [];
         }
 
         $widths = [];
-        foreach ($this->childElements($grid, 'gridCol') as $column) {
+        foreach ($this->drawingChildElements($grid, 'gridCol') as $column) {
             $width = $this->integerAttribute($column, 'w');
             if ($width !== null) {
                 $widths[] = $width;
