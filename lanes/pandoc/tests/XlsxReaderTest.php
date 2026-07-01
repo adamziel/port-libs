@@ -415,6 +415,24 @@ XML,
       <xdr:spPr/>
     </xdr:pic>
   </xdr:twoCellAnchor>
+  <xdr:oneCellAnchor>
+    <xdr:from><xdr:col>4</xdr:col><xdr:colOff>9525</xdr:colOff><xdr:row>2</xdr:row><xdr:rowOff>19050</xdr:rowOff></xdr:from>
+    <xdr:ext cx="95250" cy="190500"/>
+    <xdr:pic>
+      <xdr:nvPicPr><xdr:cNvPr id="3" name="Inline logo" descr="Inline placement"/></xdr:nvPicPr>
+      <xdr:blipFill><a:blip r:embed="rImage"/></xdr:blipFill>
+      <xdr:spPr/>
+    </xdr:pic>
+  </xdr:oneCellAnchor>
+  <xdr:absoluteAnchor>
+    <xdr:pos x="9525" y="19050"/>
+    <xdr:ext cx="28575" cy="38100"/>
+    <xdr:pic>
+      <xdr:nvPicPr><xdr:cNvPr id="4" name="Absolute logo" descr="Absolute placement"/></xdr:nvPicPr>
+      <xdr:blipFill><a:blip r:embed="rImage"/></xdr:blipFill>
+      <xdr:spPr/>
+    </xdr:pic>
+  </xdr:absoluteAnchor>
 </xdr:wsDr>
 XML,
         ],
@@ -913,16 +931,33 @@ return [
         $t->same(hash('sha256', $tinyPngBytes()), $image['sha256']);
         $t->same(1, $image['imageWidthPixels']);
         $t->same(1, $image['imageHeightPixels']);
-        $t->same(1, $image['drawingAnchorCount']);
+        $t->same(3, $image['drawingAnchorCount']);
         $t->same('twoCellAnchor', $image['drawingAnchors'][0]['anchorType'] ?? null);
         $t->same('xl/drawings/drawing1.xml', $image['drawingAnchors'][0]['sourcePart'] ?? null);
         $t->same('rImage', $image['drawingAnchors'][0]['relationshipId'] ?? null);
+        $t->same('xl/media/image1.png', $image['drawingAnchors'][0]['targetPart'] ?? null);
         $t->same(1, $image['drawingAnchors'][0]['from']['column'] ?? null);
         $t->same(1, $image['drawingAnchors'][0]['from']['row'] ?? null);
+        $t->same('B2', $image['drawingAnchors'][0]['fromCell'] ?? null);
         $t->same(3, $image['drawingAnchors'][0]['to']['column'] ?? null);
         $t->same(4, $image['drawingAnchors'][0]['to']['row'] ?? null);
+        $t->same('D5', $image['drawingAnchors'][0]['toCell'] ?? null);
         $t->same('Logo', $image['drawingAnchors'][0]['name'] ?? null);
         $t->same('Quarter logo', $image['drawingAnchors'][0]['description'] ?? null);
+        $t->same('oneCellAnchor', $image['drawingAnchors'][1]['anchorType'] ?? null);
+        $t->same('E3', $image['drawingAnchors'][1]['fromCell'] ?? null);
+        $t->same(null, $image['drawingAnchors'][1]['toCell'] ?? null);
+        $t->same(1.0, $image['drawingAnchors'][1]['from']['columnOffsetPixels'] ?? null);
+        $t->same(2.0, $image['drawingAnchors'][1]['from']['rowOffsetPixels'] ?? null);
+        $t->same(['cx' => 95250, 'cy' => 190500], $image['drawingAnchors'][1]['extentEmu'] ?? null);
+        $t->same(['width' => 10.0, 'height' => 20.0], $image['drawingAnchors'][1]['extentPixels'] ?? null);
+        $t->same('Inline logo', $image['drawingAnchors'][1]['name'] ?? null);
+        $t->same('absoluteAnchor', $image['drawingAnchors'][2]['anchorType'] ?? null);
+        $t->same(null, $image['drawingAnchors'][2]['fromCell'] ?? null);
+        $t->same(['x' => 9525, 'y' => 19050], $image['drawingAnchors'][2]['positionEmu'] ?? null);
+        $t->same(['x' => 1.0, 'y' => 2.0], $image['drawingAnchors'][2]['positionPixels'] ?? null);
+        $t->same(['width' => 3.0, 'height' => 4.0], $image['drawingAnchors'][2]['extentPixels'] ?? null);
+        $t->same('Absolute placement', $image['drawingAnchors'][2]['description'] ?? null);
         $t->same('xl/drawings/drawing1.xml', $image['relationshipRefs'][0]['sourcePart'] ?? null);
         $t->same('xl/media/image1.png', $image['relationshipRefs'][0]['targetPart'] ?? null);
     },

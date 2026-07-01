@@ -10,6 +10,7 @@ final class XlsxReader
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const MAX_XML_PART_BYTES = 8_388_608;
     private const MAX_MEDIA_METADATA_BYTES = 16_777_216;
+    private const EMUS_PER_PIXEL = 9525;
     private const FEATURE_SPECS = [
         'drawing' => [
             'relationshipTypes' => ['http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing'],
@@ -802,7 +803,7 @@ final class XlsxReader
                     continue;
                 }
 
-                $anchors[] = $this->drawingAnchorMetadata($anchor, $sourcePart, $relationshipId);
+                $anchors[] = $this->drawingAnchorMetadata($anchor, $sourcePart, $relationshipId, $relationshipRef);
             }
         }
 
@@ -846,28 +847,45 @@ final class XlsxReader
     /**
      * @return array<string, mixed>
      */
-    private function drawingAnchorMetadata(\DOMElement $anchor, string $sourcePart, string $relationshipId): array
+    private function drawingAnchorMetadata(\DOMElement $anchor, string $sourcePart, string $relationshipId, array $relationshipRef): array
     {
         $extent = $this->firstChildElement($anchor, 'ext');
+        $position = $this->firstChildElement($anchor, 'pos');
         $properties = $this->firstDescendantElement($anchor, 'cNvPr');
+        $from = $this->drawingMarker($this->firstChildElement($anchor, 'from'));
+        $to = $this->drawingMarker($this->firstChildElement($anchor, 'to'));
+        $extentEmu = $extent instanceof \DOMElement ? [
+            'cx' => $this->integerAttribute($extent, 'cx'),
+            'cy' => $this->integerAttribute($extent, 'cy'),
+        ] : null;
+        $positionEmu = $position instanceof \DOMElement ? [
+            'x' => $this->integerAttribute($position, 'x'),
+            'y' => $this->integerAttribute($position, 'y'),
+        ] : null;
 
         return [
             'sourcePart' => ltrim($sourcePart, '/'),
             'relationshipId' => $relationshipId,
+            'targetPart' => is_string($relationshipRef['targetPart'] ?? null) ? $relationshipRef['targetPart'] : null,
+            'targetQuery' => is_string($relationshipRef['targetQuery'] ?? null) ? $relationshipRef['targetQuery'] : null,
+            'targetFragment' => is_string($relationshipRef['targetFragment'] ?? null) ? $relationshipRef['targetFragment'] : null,
+            'targetSuffix' => is_string($relationshipRef['targetSuffix'] ?? null) ? $relationshipRef['targetSuffix'] : '',
             'anchorType' => $anchor->localName,
-            'from' => $this->drawingMarker($this->firstChildElement($anchor, 'from')),
-            'to' => $this->drawingMarker($this->firstChildElement($anchor, 'to')),
-            'extentEmu' => $extent instanceof \DOMElement ? [
-                'cx' => $this->integerAttribute($extent, 'cx'),
-                'cy' => $this->integerAttribute($extent, 'cy'),
-            ] : null,
+            'from' => $from,
+            'fromCell' => $this->drawingMarkerCellReference($from),
+            'to' => $to,
+            'toCell' => $this->drawingMarkerCellReference($to),
+            'positionEmu' => $positionEmu,
+            'positionPixels' => $this->drawingPointPixels($positionEmu),
+            'extentEmu' => $extentEmu,
+            'extentPixels' => $this->drawingExtentPixels($extentEmu),
             'name' => $properties instanceof \DOMElement && trim($properties->getAttribute('name')) !== '' ? trim($properties->getAttribute('name')) : null,
             'description' => $properties instanceof \DOMElement && trim($properties->getAttribute('descr')) !== '' ? trim($properties->getAttribute('descr')) : null,
         ];
     }
 
     /**
-     * @return array{column:int|null, row:int|null, columnOffsetEmu:int|null, rowOffsetEmu:int|null}|null
+     * @return array{column:int|null, row:int|null, columnOffsetEmu:int|null, rowOffsetEmu:int|null, columnOffsetPixels:float|null, rowOffsetPixels:float|null}|null
      */
     private function drawingMarker(?\DOMElement $marker): ?array
     {
@@ -875,12 +893,68 @@ final class XlsxReader
             return null;
         }
 
-        return [
+        $markerData = [
             'column' => $this->firstChildIntegerText($marker, 'col'),
             'row' => $this->firstChildIntegerText($marker, 'row'),
             'columnOffsetEmu' => $this->firstChildIntegerText($marker, 'colOff'),
             'rowOffsetEmu' => $this->firstChildIntegerText($marker, 'rowOff'),
         ];
+
+        $markerData['columnOffsetPixels'] = $this->emuToPixels($markerData['columnOffsetEmu']);
+        $markerData['rowOffsetPixels'] = $this->emuToPixels($markerData['rowOffsetEmu']);
+
+        return $markerData;
+    }
+
+    /**
+     * @param array<string, mixed>|null $marker
+     */
+    private function drawingMarkerCellReference(?array $marker): ?string
+    {
+        $column = $marker['column'] ?? null;
+        $row = $marker['row'] ?? null;
+        if (!is_int($column) || !is_int($row) || $column < 0 || $row < 0) {
+            return null;
+        }
+
+        return $this->cellReferenceFromCoordinates($row + 1, $column + 1);
+    }
+
+    /**
+     * @param array{x:int|null, y:int|null}|null $point
+     * @return array{x:float|null, y:float|null}|null
+     */
+    private function drawingPointPixels(?array $point): ?array
+    {
+        if ($point === null) {
+            return null;
+        }
+
+        return [
+            'x' => $this->emuToPixels($point['x']),
+            'y' => $this->emuToPixels($point['y']),
+        ];
+    }
+
+    /**
+     * @param array{cx:int|null, cy:int|null}|null $extent
+     * @return array{width:float|null, height:float|null}|null
+     */
+    private function drawingExtentPixels(?array $extent): ?array
+    {
+        if ($extent === null) {
+            return null;
+        }
+
+        return [
+            'width' => $this->emuToPixels($extent['cx']),
+            'height' => $this->emuToPixels($extent['cy']),
+        ];
+    }
+
+    private function emuToPixels(?int $emu): ?float
+    {
+        return $emu === null ? null : round($emu / self::EMUS_PER_PIXEL, 4);
     }
 
     /**
