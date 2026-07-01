@@ -11334,7 +11334,11 @@ final class ZipPackage
                     'entryCount' => 0,
                     'fileEntryCount' => 0,
                     'directoryEntryCount' => 0,
+                    'entryBaseNames' => [],
+                    'entryExtensionKeys' => [],
+                    'directoryRoots' => [],
                     'parentDirectories' => [],
+                    'packagePartKinds' => [],
                     'compressedBytes' => 0,
                     'uncompressedBytes' => 0,
                     'roles' => [],
@@ -11342,8 +11346,9 @@ final class ZipPackage
                 ];
             }
 
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
             ++$summaries[$leafName]['entryCount'];
-            if (($entry['isDirectory'] ?? false) === true) {
+            if ($isDirectory) {
                 ++$summaries[$leafName]['directoryEntryCount'];
             } else {
                 ++$summaries[$leafName]['fileEntryCount'];
@@ -11353,11 +11358,46 @@ final class ZipPackage
             $summaries[$leafName]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
             $summaries[$leafName]['entryNames'][] = $name;
 
+            $entryBaseName = is_string($entry['entryBaseName'] ?? null) && $entry['entryBaseName'] !== ''
+                ? $entry['entryBaseName']
+                : self::entryHandoffBaseName($name);
+            if ($entryBaseName !== '' && !in_array($entryBaseName, $summaries[$leafName]['entryBaseNames'], true)) {
+                $summaries[$leafName]['entryBaseNames'][] = $entryBaseName;
+            }
+
+            $entryExtensionKey = is_string($entry['entryExtensionKey'] ?? null) && $entry['entryExtensionKey'] !== ''
+                ? $entry['entryExtensionKey']
+                : null;
+            if ($entryExtensionKey === null) {
+                $entryExtension = $entry['entryExtension']
+                    ?? ($entry['extension'] ?? self::entryHandoffExtension($name, $isDirectory));
+                $entryExtensionKey = is_string($entryExtension) && $entryExtension !== ''
+                    ? strtolower($entryExtension)
+                    : '(none)';
+            }
+            if (!in_array($entryExtensionKey, $summaries[$leafName]['entryExtensionKeys'], true)) {
+                $summaries[$leafName]['entryExtensionKeys'][] = $entryExtensionKey;
+            }
+
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null) && $entry['directoryRoot'] !== ''
+                ? $entry['directoryRoot']
+                : self::entryHandoffDirectoryRoot($name);
+            if (!in_array($directoryRoot, $summaries[$leafName]['directoryRoots'], true)) {
+                $summaries[$leafName]['directoryRoots'][] = $directoryRoot;
+            }
+
             $parentDirectory = is_string($entry['parentDirectory'] ?? null) && $entry['parentDirectory'] !== ''
                 ? $entry['parentDirectory']
                 : self::entryHandoffParentDirectory($name);
             if (!in_array($parentDirectory, $summaries[$leafName]['parentDirectories'], true)) {
                 $summaries[$leafName]['parentDirectories'][] = $parentDirectory;
+            }
+
+            $packagePartKind = is_string($entry['packagePartKind'] ?? null) && $entry['packagePartKind'] !== ''
+                ? $entry['packagePartKind']
+                : self::entryHandoffPackagePartKind($name, $isDirectory);
+            if (!in_array($packagePartKind, $summaries[$leafName]['packagePartKinds'], true)) {
+                $summaries[$leafName]['packagePartKinds'][] = $packagePartKind;
             }
 
             foreach (self::entryHandoffRolesForSummary($entry) as $role) {
@@ -11368,8 +11408,12 @@ final class ZipPackage
         }
 
         foreach ($summaries as &$summary) {
+            sort($summary['entryBaseNames'], SORT_STRING);
+            sort($summary['entryExtensionKeys'], SORT_STRING);
+            sort($summary['directoryRoots'], SORT_STRING);
             sort($summary['roles'], SORT_STRING);
             sort($summary['parentDirectories'], SORT_STRING);
+            sort($summary['packagePartKinds'], SORT_STRING);
         }
         unset($summary);
 
