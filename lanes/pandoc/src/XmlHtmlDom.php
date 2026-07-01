@@ -28034,6 +28034,7 @@ final class XmlHtmlDom
         $targetOpenerAllowed = $targetBlank && $hasOpener && !$hasNoopener && !$hasNoreferrer;
         $downloadRaw = self::attributeOrNull($element, 'download');
         $downloadRequested = $element->hasAttribute('download');
+        $downloadReview = self::hyperlinkDownloadReviewSummary($downloadRequested, $downloadRaw, $hrefSummary);
         $referrerPolicyRaw = self::attributeOrNull($element, 'referrerpolicy');
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
         $fragmentTarget = self::hyperlinkFragmentTargetSummary($element, $href);
@@ -28079,6 +28080,11 @@ final class XmlHtmlDom
 
         if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
             $issues[] = ['code' => 'invalid-referrer-policy', 'referrerPolicyRaw' => $referrerPolicyRaw];
+        }
+        foreach (($downloadReview['downloadIssues'] ?? []) as $issue) {
+            if (is_array($issue)) {
+                $issues[] = $issue;
+            }
         }
 
         foreach ($pingUrls as $url) {
@@ -28168,7 +28174,67 @@ final class XmlHtmlDom
             'pingValid' => $pingUrls === [] ? null : $pingIssueCodes === [],
             'navigationIssues' => $issues,
             'navigationIssueCodes' => $navigationIssueCodes,
-        ] + $fragmentTarget;
+        ] + $fragmentTarget + $downloadReview;
+    }
+
+    /**
+     * @param array{kind:string, scheme:?string, unsafe:bool} $hrefSummary
+     * @return array<string, mixed>
+     */
+    private static function hyperlinkDownloadReviewSummary(
+        bool $downloadRequested,
+        ?string $downloadRaw,
+        array $hrefSummary
+    ): array {
+        if (!$downloadRequested) {
+            return [];
+        }
+
+        $suggestedFilename = trim($downloadRaw ?? '');
+        $hasSuggestedFilename = $suggestedFilename !== '';
+        $issues = [];
+
+        if (in_array($hrefSummary['kind'], ['missing', 'empty'], true)) {
+            $issues[] = ['code' => 'download-without-href'];
+        }
+        if ($hrefSummary['unsafe'] === true) {
+            $issues[] = [
+                'code' => 'unsafe-download-href',
+                'scheme' => $hrefSummary['scheme'],
+            ];
+        }
+        if ($hasSuggestedFilename && preg_match('/[\p{Cc}\p{Zl}\p{Zp}]/u', $suggestedFilename) === 1) {
+            $issues[] = [
+                'code' => 'download-filename-control-character',
+                'filename' => $suggestedFilename,
+            ];
+        }
+        if ($hasSuggestedFilename && (str_contains($suggestedFilename, '/') || str_contains($suggestedFilename, '\\'))) {
+            $issues[] = [
+                'code' => 'download-filename-path-separator',
+                'filename' => $suggestedFilename,
+            ];
+        }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'downloadReviewPolicy' => 'hyperlink-download-filename-review',
+            'downloadHasSuggestedFilename' => $hasSuggestedFilename,
+            'downloadSuggestedFilenameValid' => $hasSuggestedFilename
+                ? !in_array('download-filename-control-character', $issueCodes, true)
+                    && !in_array('download-filename-path-separator', $issueCodes, true)
+                : null,
+            'downloadWouldRequestNavigationDownload' => $downloadRequested
+                && !in_array($hrefSummary['kind'], ['missing', 'empty'], true)
+                && $hrefSummary['unsafe'] === false,
+            'downloadReviewOnlyNoNetworkRequest' => true,
+            'downloadIssues' => $issues,
+            'downloadIssueCodes' => $issueCodes,
+            'downloadValid' => $issues === [],
+        ];
     }
 
     /**
