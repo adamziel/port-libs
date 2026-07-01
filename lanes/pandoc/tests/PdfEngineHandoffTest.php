@@ -10871,6 +10871,85 @@ MARKDOWN);
         $t->same($expected, $sequence['finalPdfOutlines']);
     },
 
+    'fake runner reports bounded pdf outline policy issues from produced bytes' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/outline-policy.pdf']);
+        $pdfBytes = implode("\n", [
+            '%PDF-1.7',
+            '1 0 obj',
+            '<< /Type /Catalog /Pages 2 0 R /Outlines 5 0 R >>',
+            'endobj',
+            '2 0 obj',
+            '<< /Type /Pages /Count 1 /Kids [3 0 R] >>',
+            'endobj',
+            '3 0 obj',
+            '<< /Type /Page /Parent 2 0 R >>',
+            'endobj',
+            '5 0 obj',
+            '<< /Type /Outlines /First 6 0 R /Last 8 0 R /Count 3 >>',
+            'endobj',
+            '6 0 obj',
+            '<< /Title (Overview) /Parent 5 0 R /Prev 99 0 R /Next 7 0 R >>',
+            'endobj',
+            '7 0 obj',
+            '<< /Title (Missing page target) /Parent 5 0 R /Prev 6 0 R /Dest [4 0 R /Fit] >>',
+            'endobj',
+            'trailer',
+            '<< /Root 1 0 R >>',
+            '%%EOF',
+            '',
+        ]);
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'packets/outline-policy.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [
+            [
+                'files' => [
+                    'packets/outline-policy.pdf' => $pdfBytes,
+                ],
+            ],
+        ]);
+
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'rootObject' => '5 0 R',
+            'firstObject' => '6 0 R',
+            'lastObject' => '8 0 R',
+            'declaredCount' => 3,
+            'outlineCount' => 2,
+            'topLevelCount' => 2,
+            'destinationCount' => 1,
+            'actionCount' => 0,
+            'openCount' => 0,
+            'closedCount' => 0,
+            'parentMismatchCount' => 0,
+            'siblingMismatchCount' => 0,
+            'unresolvedReferences' => ['8 0 R', '99 0 R'],
+            'cyclicReferences' => [],
+            'missingDestinationPageReferences' => ['4 0 R'],
+            'orphanOutlineObjects' => [],
+            'issues' => [
+                'outline-destination-page-missing',
+                'outline-root-count-mismatch',
+                'unresolved-outline-reference',
+            ],
+        ];
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['pdfOutlinePolicy']);
+        $t->contains('pdf-byte-outline-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-policy-declared-count:3', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-policy-top-level:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-policy-unresolved-references:2', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-policy-missing-destination-pages:1', implode(',', $result['diagnostics']));
+        $t->contains('pdf-byte-outline-policy-issue:outline-root-count-mismatch', implode(',', $result['diagnostics']));
+        $t->same(true, $sequence['ok']);
+        $t->same($expectedPolicy, $sequence['finalPdfOutlinePolicy']);
+    },
+
     'fake runner extracts bounded pdf outline display metadata from produced bytes' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), ['engine' => 'xelatex', 'outputPath' => 'packets/outline-display.pdf']);

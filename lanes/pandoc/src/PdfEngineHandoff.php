@@ -858,6 +858,7 @@ final class PdfEngineHandoff
      *     pdfGraphicsStateBlendModes: array<string, int>,
      *     pdfOutlineTitles: list<string>,
      *     pdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
+     *     pdfOutlinePolicy: array<string, mixed>,
      *     pdfOutlineDisplayMetadata: list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     pdfDocumentInfo: array<string, string>,
      *     pdfDocumentInfoDateMetadata: list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
@@ -1631,6 +1632,7 @@ final class PdfEngineHandoff
         $pdfGraphicsStateBlendModes = [];
         $pdfOutlineTitles = [];
         $pdfOutlines = [];
+        $pdfOutlinePolicy = [];
         $pdfOutlineDisplayMetadata = [];
         $pdfDocumentInfo = [];
         $pdfDocumentInfoDateMetadata = [];
@@ -1787,6 +1789,7 @@ final class PdfEngineHandoff
                 $pdfGraphicsStateBlendModes = $pdfInspection['graphicsStateBlendModes'];
                 $pdfOutlineTitles = $pdfInspection['outlineTitles'];
                 $pdfOutlines = $pdfInspection['outlines'];
+                $pdfOutlinePolicy = $pdfInspection['outlinePolicy'];
                 $pdfOutlineDisplayMetadata = $pdfInspection['outlineDisplayMetadata'];
                 $pdfDocumentInfo = $pdfInspection['documentInfo'];
                 $pdfDocumentInfoDateMetadata = $pdfInspection['documentInfoDateMetadata'];
@@ -2674,6 +2677,48 @@ final class PdfEngineHandoff
                     }
                     if ($outlineActionCount > 0) {
                         $diagnostics[] = 'pdf-byte-outline-actions:' . $outlineActionCount;
+                    }
+                }
+                if ($pdfOutlinePolicy !== []) {
+                    $diagnostics[] = 'pdf-byte-outline-policy:' . $pdfOutlinePolicy['reviewStatus'];
+                    foreach ([
+                        'declaredCount' => 'declared-count',
+                        'outlineCount' => 'items',
+                        'topLevelCount' => 'top-level',
+                        'destinationCount' => 'destinations',
+                        'actionCount' => 'actions',
+                        'openCount' => 'open',
+                        'closedCount' => 'closed',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfOutlinePolicy[$policyKey]) && is_int($pdfOutlinePolicy[$policyKey])) {
+                            $diagnostics[] = 'pdf-byte-outline-policy-' . $diagnosticName . ':' . $pdfOutlinePolicy[$policyKey];
+                        }
+                    }
+                    foreach ([
+                        'unresolvedReferences' => 'unresolved-references',
+                        'cyclicReferences' => 'cycles',
+                        'missingDestinationPageReferences' => 'missing-destination-pages',
+                        'orphanOutlineObjects' => 'orphan-objects',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfOutlinePolicy[$policyKey]) && is_array($pdfOutlinePolicy[$policyKey]) && $pdfOutlinePolicy[$policyKey] !== []) {
+                            $diagnostics[] = 'pdf-byte-outline-policy-' . $diagnosticName . ':' . count($pdfOutlinePolicy[$policyKey]);
+                        }
+                    }
+                    foreach ([
+                        'parentMismatchCount' => 'parent-mismatches',
+                        'siblingMismatchCount' => 'sibling-mismatches',
+                    ] as $policyKey => $diagnosticName) {
+                        if (isset($pdfOutlinePolicy[$policyKey]) && is_int($pdfOutlinePolicy[$policyKey]) && $pdfOutlinePolicy[$policyKey] > 0) {
+                            $diagnostics[] = 'pdf-byte-outline-policy-' . $diagnosticName . ':' . $pdfOutlinePolicy[$policyKey];
+                        }
+                    }
+                    if (isset($pdfOutlinePolicy['issues']) && is_array($pdfOutlinePolicy['issues']) && $pdfOutlinePolicy['issues'] !== []) {
+                        $diagnostics[] = 'pdf-byte-outline-policy-issues:' . count($pdfOutlinePolicy['issues']);
+                        foreach ($pdfOutlinePolicy['issues'] as $issue) {
+                            if (is_string($issue) && $issue !== '') {
+                                $diagnostics[] = 'pdf-byte-outline-policy-issue:' . $issue;
+                            }
+                        }
                     }
                 }
                 if ($pdfOutlineDisplayMetadata !== []) {
@@ -5453,6 +5498,7 @@ final class PdfEngineHandoff
             'pdfGraphicsStateBlendModes' => $pdfGraphicsStateBlendModes,
             'pdfOutlineTitles' => $pdfOutlineTitles,
             'pdfOutlines' => $pdfOutlines,
+            'pdfOutlinePolicy' => $pdfOutlinePolicy,
             'pdfOutlineDisplayMetadata' => $pdfOutlineDisplayMetadata,
             'pdfDocumentInfo' => $pdfDocumentInfo,
             'pdfDocumentInfoDateMetadata' => $pdfDocumentInfoDateMetadata,
@@ -5630,6 +5676,7 @@ final class PdfEngineHandoff
      *     finalPdfObjectStreamFilters: array<string, int>,
      *     finalPdfOutlineTitles: list<string>,
      *     finalPdfOutlines: list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
+     *     finalPdfOutlinePolicy: array<string, mixed>,
      *     finalPdfOutlineDisplayMetadata: list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     finalPdfDocumentInfo: array<string, string>,
      *     finalPdfDocumentInfoDateMetadata: list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
@@ -5964,6 +6011,7 @@ final class PdfEngineHandoff
             'finalPdfObjectStreamFilters' => is_array($finalRun) && is_array($finalRun['pdfObjectStreamFilters'] ?? null) ? $finalRun['pdfObjectStreamFilters'] : [],
             'finalPdfOutlineTitles' => is_array($finalRun) && is_array($finalRun['pdfOutlineTitles'] ?? null) ? $finalRun['pdfOutlineTitles'] : [],
             'finalPdfOutlines' => is_array($finalRun) && is_array($finalRun['pdfOutlines'] ?? null) ? $finalRun['pdfOutlines'] : [],
+            'finalPdfOutlinePolicy' => is_array($finalRun) && is_array($finalRun['pdfOutlinePolicy'] ?? null) ? $finalRun['pdfOutlinePolicy'] : [],
             'finalPdfOutlineDisplayMetadata' => is_array($finalRun) && is_array($finalRun['pdfOutlineDisplayMetadata'] ?? null) ? $finalRun['pdfOutlineDisplayMetadata'] : [],
             'finalPdfDocumentInfo' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfo'] ?? null) ? $finalRun['pdfDocumentInfo'] : [],
             'finalPdfDocumentInfoDateMetadata' => is_array($finalRun) && is_array($finalRun['pdfDocumentInfoDateMetadata'] ?? null) ? $finalRun['pdfDocumentInfoDateMetadata'] : [],
@@ -13360,6 +13408,7 @@ final class PdfEngineHandoff
      *     formXObjectFilters:array<string, int>,
      *     outlineTitles:list<string>,
      *     outlines:list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}>,
+     *     outlinePolicy:array<string, mixed>,
      *     outlineDisplayMetadata:list<array{object:string, title:string, color:list<float>|null, flags:int, flagNames:list<string>}>,
      *     documentInfo:array<string, string>,
      *     documentInfoDateMetadata:list<array{key:string, source:string, raw:string, normalized:string|null, precision:string|null, timezone:string|null, timezoneOffsetMinutes:int|null, year:int|null, month:int|null, day:int|null, hour:int|null, minute:int|null, second:int|null, valid:bool}>,
@@ -13560,6 +13609,8 @@ final class PdfEngineHandoff
         sort($embeddedFileNames);
         $pageCount = $this->extractPdfPageCount($pdfBytes);
         $pageTreePolicy = $this->extractPdfPageTreePolicy($pdfBytes, $catalog);
+        $outlines = $this->extractPdfOutlines($pdfBytes, $catalog);
+        $outlinePolicy = $this->summarizePdfOutlinePolicy($pdfBytes, $catalog, $outlines);
 
         return [
             'trailerCount' => count($trailerRevisions),
@@ -13605,7 +13656,8 @@ final class PdfEngineHandoff
             'graphicsStates' => $graphicsStates,
             'graphicsStateBlendModes' => $this->summarizePdfGraphicsStateBlendModes($graphicsStates),
             'outlineTitles' => $this->extractPdfOutlineTitles($pdfBytes),
-            'outlines' => $this->extractPdfOutlines($pdfBytes, $catalog),
+            'outlines' => $outlines,
+            'outlinePolicy' => $outlinePolicy,
             'outlineDisplayMetadata' => $this->extractPdfOutlineDisplayMetadata($pdfBytes, $catalog),
             'documentInfo' => $documentInfo,
             'documentInfoDateMetadata' => $this->extractPdfDocumentInfoDateMetadata($documentInfo),
@@ -32091,6 +32143,265 @@ final class PdfEngineHandoff
         }
 
         return $outlines;
+    }
+
+    /**
+     * @param list<array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}> $outlines
+     * @return array<string, mixed>
+     */
+    private function summarizePdfOutlinePolicy(string $pdfBytes, ?string $catalog, array $outlines): array
+    {
+        $objects = $this->pdfObjectBodiesByReference($pdfBytes);
+        $rootReference = $catalog === null ? null : $this->extractPdfReferenceToken($catalog, 'Outlines');
+        if ($rootReference === null && $outlines === []) {
+            return [];
+        }
+
+        $objectReferences = [];
+        $outlineObjects = [];
+        foreach ($objects as $reference => $body) {
+            $formatted = $reference . ' R';
+            $objectReferences[$formatted] = true;
+            if (
+                str_contains($body, '/Title')
+                && preg_match('/\/(?:Parent|Dest|A|Next|Prev|First|Last)\b/s', $body) === 1
+            ) {
+                $outlineObjects[$formatted] = true;
+            }
+        }
+
+        $pageObjects = [];
+        foreach ($this->pdfPageObjectReferences($pdfBytes) as $pageObject) {
+            $pageObjects[$pageObject] = true;
+        }
+
+        $outlinesByObject = [];
+        foreach ($outlines as $outline) {
+            if (is_string($outline['object'] ?? null) && $outline['object'] !== '') {
+                $outlinesByObject[$outline['object']] = $outline;
+            }
+        }
+
+        $rootObject = $rootReference === null ? null : $this->formatPdfIndirectReference($rootReference);
+        $rootBody = $rootReference === null ? null : ($objects[$this->pdfReferenceKey($rootReference)] ?? null);
+        $declaredCount = $rootBody === null ? null : $this->extractPdfIntegerToken($rootBody, 'Count');
+        $rootFirst = $rootBody === null ? null : $this->extractPdfReferenceToken($rootBody, 'First');
+        $rootLast = $rootBody === null ? null : $this->extractPdfReferenceToken($rootBody, 'Last');
+        $rootFirst = $rootFirst === null ? null : $this->formatPdfIndirectReference($rootFirst);
+        $rootLast = $rootLast === null ? null : $this->formatPdfIndirectReference($rootLast);
+
+        $topLevelObjects = [];
+        $destinationCount = 0;
+        $actionCount = 0;
+        $openCount = 0;
+        $closedCount = 0;
+        $parentMismatchCount = 0;
+        $siblingMismatchCount = 0;
+        $unresolvedReferences = [];
+        $missingDestinationPageReferences = [];
+        foreach ($outlines as $outline) {
+            $object = $outline['object'];
+            if ($rootObject !== null && ($outline['parent'] ?? null) === $rootObject) {
+                $topLevelObjects[] = $object;
+            }
+            if (($outline['open'] ?? null) === true) {
+                $openCount++;
+            } elseif (($outline['open'] ?? null) === false) {
+                $closedCount++;
+            }
+            if (($outline['destPageObject'] ?? null) !== null || ($outline['destFit'] ?? null) !== null) {
+                $destinationCount++;
+            }
+            if (($outline['actionType'] ?? null) !== null) {
+                $actionCount++;
+            }
+
+            foreach (['parent', 'prev', 'next', 'first', 'last'] as $referenceKey) {
+                $reference = $outline[$referenceKey] ?? null;
+                if (!is_string($reference) || $reference === '') {
+                    continue;
+                }
+                $reference = $this->formatPdfIndirectReference($reference);
+                if (!isset($objectReferences[$reference])) {
+                    $unresolvedReferences[$reference] = true;
+                }
+            }
+
+            $parent = is_string($outline['parent'] ?? null) ? $this->formatPdfIndirectReference($outline['parent']) : null;
+            if ($parent === null) {
+                $parentMismatchCount++;
+            } elseif ($rootObject !== null && $parent !== $rootObject && !isset($outlinesByObject[$parent])) {
+                $parentMismatchCount++;
+            }
+
+            $prev = is_string($outline['prev'] ?? null) ? $this->formatPdfIndirectReference($outline['prev']) : null;
+            if ($prev !== null && isset($outlinesByObject[$prev])) {
+                $prevNext = is_string($outlinesByObject[$prev]['next'] ?? null)
+                    ? $this->formatPdfIndirectReference($outlinesByObject[$prev]['next'])
+                    : null;
+                if ($prevNext !== $object) {
+                    $siblingMismatchCount++;
+                }
+            }
+
+            $next = is_string($outline['next'] ?? null) ? $this->formatPdfIndirectReference($outline['next']) : null;
+            if ($next !== null && isset($outlinesByObject[$next])) {
+                $nextPrev = is_string($outlinesByObject[$next]['prev'] ?? null)
+                    ? $this->formatPdfIndirectReference($outlinesByObject[$next]['prev'])
+                    : null;
+                if ($nextPrev !== $object) {
+                    $siblingMismatchCount++;
+                }
+            }
+
+            foreach (['first', 'last'] as $childKey) {
+                $child = is_string($outline[$childKey] ?? null) ? $this->formatPdfIndirectReference($outline[$childKey]) : null;
+                if ($child !== null && isset($outlinesByObject[$child])) {
+                    $childParent = is_string($outlinesByObject[$child]['parent'] ?? null)
+                        ? $this->formatPdfIndirectReference($outlinesByObject[$child]['parent'])
+                        : null;
+                    if ($childParent !== $object) {
+                        $parentMismatchCount++;
+                    }
+                }
+            }
+
+            $destinationPage = is_string($outline['destPageObject'] ?? null)
+                ? $this->formatPdfIndirectReference($outline['destPageObject'])
+                : null;
+            if ($destinationPage !== null && !isset($pageObjects[$destinationPage])) {
+                $missingDestinationPageReferences[$destinationPage] = true;
+            }
+
+            $actionTarget = is_string($outline['actionTarget'] ?? null)
+                ? $this->formatPdfIndirectReference($outline['actionTarget'])
+                : null;
+            if (($outline['actionType'] ?? null) === 'GoTo' && $actionTarget !== null && !isset($pageObjects[$actionTarget])) {
+                $missingDestinationPageReferences[$actionTarget] = true;
+            }
+        }
+
+        if ($rootFirst !== null && !isset($objectReferences[$rootFirst])) {
+            $unresolvedReferences[$rootFirst] = true;
+        }
+        if ($rootLast !== null && !isset($objectReferences[$rootLast])) {
+            $unresolvedReferences[$rootLast] = true;
+        }
+
+        $topLevelCount = count($topLevelObjects);
+        if ($rootFirst !== null && isset($outlinesByObject[$rootFirst])) {
+            $firstParent = is_string($outlinesByObject[$rootFirst]['parent'] ?? null)
+                ? $this->formatPdfIndirectReference($outlinesByObject[$rootFirst]['parent'])
+                : null;
+            if ($firstParent !== $rootObject) {
+                $parentMismatchCount++;
+            }
+        }
+        if ($rootLast !== null && isset($outlinesByObject[$rootLast])) {
+            $lastParent = is_string($outlinesByObject[$rootLast]['parent'] ?? null)
+                ? $this->formatPdfIndirectReference($outlinesByObject[$rootLast]['parent'])
+                : null;
+            if ($lastParent !== $rootObject) {
+                $parentMismatchCount++;
+            }
+            if ($topLevelObjects !== [] && $rootLast !== $topLevelObjects[count($topLevelObjects) - 1]) {
+                $siblingMismatchCount++;
+            }
+        }
+
+        $cyclicReferences = $this->detectPdfOutlineNextCycles($outlinesByObject);
+        $orphanOutlineObjects = [];
+        foreach ($outlineObjects as $object => $_present) {
+            if (!isset($outlinesByObject[$object])) {
+                $orphanOutlineObjects[$object] = true;
+            }
+        }
+
+        $issues = [];
+        if ($rootReference === null) {
+            $issues[] = 'missing-outline-root';
+        } elseif ($rootBody === null) {
+            $issues[] = 'unresolved-outline-root';
+        }
+        if ($rootBody !== null && $declaredCount !== null && $declaredCount !== $topLevelCount) {
+            $issues[] = 'outline-root-count-mismatch';
+        }
+        if ($rootBody !== null && $declaredCount !== null && $declaredCount > 0 && $rootFirst === null) {
+            $issues[] = 'outline-root-missing-first';
+        }
+        if ($rootBody !== null && $declaredCount !== null && $declaredCount > 0 && $rootLast === null) {
+            $issues[] = 'outline-root-missing-last';
+        }
+        if ($unresolvedReferences !== []) {
+            $issues[] = 'unresolved-outline-reference';
+        }
+        if ($cyclicReferences !== []) {
+            $issues[] = 'cyclic-outline-reference';
+        }
+        if ($parentMismatchCount > 0) {
+            $issues[] = 'outline-parent-mismatch';
+        }
+        if ($siblingMismatchCount > 0) {
+            $issues[] = 'outline-sibling-mismatch';
+        }
+        if ($missingDestinationPageReferences !== []) {
+            $issues[] = 'outline-destination-page-missing';
+        }
+        if ($orphanOutlineObjects !== []) {
+            $issues[] = 'orphan-outline-object';
+        }
+        $issues = $this->uniqueStrings($issues);
+        sort($issues, SORT_STRING);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'rootObject' => $rootObject,
+            'firstObject' => $rootFirst,
+            'lastObject' => $rootLast,
+            'declaredCount' => $declaredCount,
+            'outlineCount' => count($outlines),
+            'topLevelCount' => $topLevelCount,
+            'destinationCount' => $destinationCount,
+            'actionCount' => $actionCount,
+            'openCount' => $openCount,
+            'closedCount' => $closedCount,
+            'parentMismatchCount' => $parentMismatchCount,
+            'siblingMismatchCount' => $siblingMismatchCount,
+            'unresolvedReferences' => $this->sortedPdfReferenceKeys($unresolvedReferences),
+            'cyclicReferences' => $this->sortedPdfReferenceKeys($cyclicReferences),
+            'missingDestinationPageReferences' => $this->sortedPdfReferenceKeys($missingDestinationPageReferences),
+            'orphanOutlineObjects' => $this->sortedPdfReferenceKeys($orphanOutlineObjects),
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, array{object:string, title:string, parent:string|null, prev:string|null, next:string|null, first:string|null, last:string|null, count:int|null, open:bool|null, destPageObject:string|null, destFit:string|null, actionType:string|null, actionTarget:string|null}> $outlinesByObject
+     * @return array<string, bool>
+     */
+    private function detectPdfOutlineNextCycles(array $outlinesByObject): array
+    {
+        $cycles = [];
+        foreach (array_keys($outlinesByObject) as $start) {
+            $seen = [];
+            $cursor = $start;
+            $steps = 0;
+            while ($steps < 256 && isset($outlinesByObject[$cursor])) {
+                if (isset($seen[$cursor])) {
+                    $cycles[$cursor] = true;
+                    break;
+                }
+                $seen[$cursor] = true;
+                $next = $outlinesByObject[$cursor]['next'] ?? null;
+                if (!is_string($next) || $next === '') {
+                    break;
+                }
+                $cursor = $this->formatPdfIndirectReference($next);
+                $steps++;
+            }
+        }
+
+        return $cycles;
     }
 
     /**
