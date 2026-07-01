@@ -7382,7 +7382,15 @@ return [
             @unlink($path);
         }
 
-        $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($bytes));
+        try {
+            (new PptxReader())->read($bytes);
+        } catch (RuntimeException $exception) {
+            $t->same('No presentation.xml relationship found. Found 0 relationships.', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected missing presentation relationship to reject the PPTX package');
     },
 
     'rejects pptx packages without root relationships like upstream' => static function (TestRunner $t): void {
