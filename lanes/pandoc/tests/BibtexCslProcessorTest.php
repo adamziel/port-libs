@@ -856,6 +856,84 @@ XML);
         $t->contains('<p>Date range review [Date Range Packet | 2026-06-01/2026-06-03 | 2026-06-04/2026-06-05 | 2026-05/2026-06 | 2020/2021 | 2025-11/ | 2026-06-01/2026-06-03] remains style-visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Date Range Packet :: 2026-06-01/2026-06-03 :: 2026-06-04/2026-06-05 :: 2026-05/2026-06 :: 2020/2021 :: 2025-11/</dd>', $blocks);
     },
+    'maps split biblatex URL access dates into CSL accessed dates' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{split-url-date,
+  author   = {Ng, Nia},
+  title    = {Split URL Date Packet},
+  date     = {2026},
+  urlyear  = {2026},
+  urlmonth = jun,
+  urlday   = {17},
+  url      = {https://example.test/split-url-date}
+}
+
+@online{split-accessed-date,
+  author        = {Roe, Pat},
+  title         = {Split Accessed Date Packet},
+  date          = {2025},
+  accessedyear  = {2025},
+  accessedmonth = {11},
+  accessedday   = {3},
+  url           = {https://example.test/split-accessed-date}
+}
+
+@online{split-access-date,
+  author      = {Lee, Lia},
+  title       = {Split Access Date Packet},
+  date        = {2024},
+  accessyear  = {2024},
+  accessmonth = {4},
+  accessday   = {9},
+  url         = {https://example.test/split-access-date}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+
+        $t->same([2026, 6, 17], $items['split-url-date']['accessed']['date-parts'][0]);
+        $t->same([2025, 11, 3], $items['split-accessed-date']['accessed']['date-parts'][0]);
+        $t->same([2024, 4, 9], $items['split-access-date']['accessed']['date-parts'][0]);
+        $t->same('6', $items['split-url-date']['rawBibtex']['fields']['urlmonth']);
+        $t->same('2025', $items['split-accessed-date']['rawBibtex']['fields']['accessedyear']);
+        $t->same('2024', $items['split-access-date']['rawBibtex']['fields']['accessyear']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="accessed"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="accessed"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same(
+            '[Split URL Date Packet | 2026-06-17; Split Accessed Date Packet | 2025-11-03; Split Access Date Packet | 2024-04-09]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'split-url-date', 'text' => '[@split-url-date]']),
+                new AstNode('citation', ['id' => 'split-accessed-date', 'text' => '[@split-accessed-date]']),
+                new AstNode('citation', ['id' => 'split-access-date', 'text' => '[@split-access-date]']),
+            ])
+        );
+        $t->same('Split URL Date Packet :: 2026-06-17', $styled->renderBibliographyEntry('split-url-date'));
+
+        $document = (new MarkdownReader())->read('Split access dates [@split-url-date; @split-accessed-date; @split-access-date] stay style-visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Split access dates [Split URL Date Packet | 2026-06-17; Split Accessed Date Packet | 2025-11-03; Split Access Date Packet | 2024-04-09] stay style-visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Split URL Date Packet :: 2026-06-17</dd>', $blocks);
+    },
     'maps biblatex speech entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @talk{legacy-talk,

@@ -1064,7 +1064,9 @@ final class BibtexCslProcessor
             $item['issued'] = $date;
         }
 
-        $accessed = $this->dateVariableFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
+        $accessed = $this->dateVariableFromFields($fields, ['urldate', 'accessed', 'accessdate'], ['urlyear', 'urlmonth', 'urlday'])
+            ?? $this->dateVariableFromFields($fields, [], ['accessedyear', 'accessedmonth', 'accessedday'])
+            ?? $this->dateVariableFromFields($fields, [], ['accessyear', 'accessmonth', 'accessday']);
         if ($accessed !== null) {
             $item['accessed'] = $accessed;
         }
