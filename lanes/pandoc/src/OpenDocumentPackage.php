@@ -10382,7 +10382,11 @@ final class OpenDocumentPackage
         $items = [];
         $issueCodes = [];
         $areas = [];
+        $areaCounts = [];
         $kinds = [];
+        $kindCounts = [];
+        $mediaTypeBaseCounts = [];
+        $byteExposurePolicyCounts = [];
         foreach ($candidatesByPath as $packagePath => $entry) {
             $isDirectory = str_ends_with($packagePath, '/');
             $zipEntry = $package->has($packagePath) ? $package->entry($packagePath) : null;
@@ -10415,11 +10419,21 @@ final class OpenDocumentPackage
             }
 
             if (($pathInfo['configurationArea'] ?? null) !== null) {
-                $areas[(string) $pathInfo['configurationArea']] = true;
+                $area = (string) $pathInfo['configurationArea'];
+                $areas[$area] = true;
+                $areaCounts[$area] = ($areaCounts[$area] ?? 0) + 1;
             }
             if (($pathInfo['configurationKind'] ?? null) !== null) {
-                $kinds[(string) $pathInfo['configurationKind']] = true;
+                $kind = (string) $pathInfo['configurationKind'];
+                $kinds[$kind] = true;
+                $kindCounts[$kind] = ($kindCounts[$kind] ?? 0) + 1;
             }
+            $mediaTypeBaseKey = $mediaTypeReport['mediaTypeBase'] === '' ? '(empty)' : $mediaTypeReport['mediaTypeBase'];
+            $mediaTypeBaseCounts[$mediaTypeBaseKey] = ($mediaTypeBaseCounts[$mediaTypeBaseKey] ?? 0) + 1;
+            $byteExposurePolicy = is_string($entry['byteExposurePolicy'] ?? null) && $entry['byteExposurePolicy'] !== ''
+                ? $entry['byteExposurePolicy']
+                : 'configuration-package-bytes-blocked';
+            $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
 
             $items[] = [
                 'fullPath' => $entry['path'] ?? $packagePath,
@@ -10457,7 +10471,7 @@ final class OpenDocumentPackage
                 'declaredSizeMismatch' => ($entry['declaredSizeMismatch'] ?? false) === true,
                 'canExposeBytes' => false,
                 'canExposeAsDocumentMedia' => false,
-                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'configuration-package-bytes-blocked',
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'reviewPolicy' => 'configuration-package-metadata-only',
                 'issues' => $issues,
             ];
@@ -10465,7 +10479,11 @@ final class OpenDocumentPackage
 
         ksort($issueCodes, SORT_STRING);
         ksort($areas, SORT_STRING);
+        ksort($areaCounts, SORT_STRING);
         ksort($kinds, SORT_STRING);
+        ksort($kindCounts, SORT_STRING);
+        ksort($mediaTypeBaseCounts, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -10485,8 +10503,13 @@ final class OpenDocumentPackage
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'configurationAreaCounts' => $areaCounts,
             'configurationAreas' => array_keys($areas),
+            'configurationKindCounts' => $kindCounts,
             'configurationKinds' => array_keys($kinds),
+            'configurationMediaTypeBaseCounts' => $mediaTypeBaseCounts,
+            'configurationMediaTypeBases' => array_keys($mediaTypeBaseCounts),
+            'configurationByteExposurePolicyCounts' => $byteExposurePolicyCounts,
             'byteExposurePolicy' => 'configuration-package-bytes-blocked',
             'reviewPolicy' => 'configuration-package-metadata-only',
             'items' => $items,
