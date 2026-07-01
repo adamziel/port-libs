@@ -911,6 +911,29 @@ return [
                 'dataDescriptorBytes' => 0,
             ],
         ];
+        $expectedGeneralPurposeFlagSummaries = [
+            [
+                'generalPurposeFlags' => 0x0800,
+                'generalPurposeFlagsHex' => '0800',
+                'flagNames' => ['utf-8-names'],
+                'unsupportedFlagBits' => 0,
+                'unsupportedFlagBitsHex' => '0000',
+                'isSupportedByReader' => true,
+                'usesUtf8Names' => true,
+                'usesDataDescriptor' => false,
+                'deflateOptionFlags' => 0,
+                'deflateOptionName' => null,
+                'entryCount' => 3,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 1,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)) + strlen($mimetype),
+                'uncompressedBytes' => strlen($contentXhtml) + strlen($mimetype),
+                'localRecordBytes' => array_sum(array_column($expectedEntries, 'localRecordBytes')),
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'entryNames' => $expectedCentralOrder,
+            ],
+        ];
         $expectedDirectoryRootSummaries = [
             [
                 'directoryRoot' => '/',
@@ -1028,6 +1051,7 @@ return [
             'caseInsensitiveNameCollisionGroups' => [],
             'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
+            'generalPurposeFlagSummaries' => $expectedGeneralPurposeFlagSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 1,
             'packagePartExtensions' => $expectedPackagePartExtensions,
@@ -1096,6 +1120,11 @@ return [
         $t->same([], $manifest['caseInsensitiveNameCollisionEntries']);
         $t->same(2, $manifest['compressionMethodSummaryCount']);
         $t->same($expectedCompressionMethodSummaries, $manifest['compressionMethodSummaries']);
+        $t->same(1, $manifest['generalPurposeFlagSummaryCount']);
+        $t->same(3, $manifest['generalPurposeUtf8NameEntryCount']);
+        $t->same(0, $manifest['generalPurposeDataDescriptorEntryCount']);
+        $t->same(0, $manifest['generalPurposeDeflateOptionEntryCount']);
+        $t->same($expectedGeneralPurposeFlagSummaries, $manifest['generalPurposeFlagSummaries']);
         $t->same(2, $manifest['directoryRootCount']);
         $t->same($expectedDirectoryRoots, $manifest['directoryRoots']);
         $t->same($expectedDirectoryRootSummaries, $manifest['directoryRootSummaries']);
@@ -1595,6 +1624,50 @@ return [
                 'dataDescriptorBytes' => strlen($descriptorBytes),
             ],
         ];
+        $expectedGeneralPurposeFlagSummaries = [
+            [
+                'generalPurposeFlags' => 0x0800,
+                'generalPurposeFlagsHex' => '0800',
+                'flagNames' => ['utf-8-names'],
+                'unsupportedFlagBits' => 0,
+                'unsupportedFlagBitsHex' => '0000',
+                'isSupportedByReader' => true,
+                'usesUtf8Names' => true,
+                'usesDataDescriptor' => false,
+                'deflateOptionFlags' => 0,
+                'deflateOptionName' => null,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($documentXml),
+                'uncompressedBytes' => strlen($documentXml),
+                'localRecordBytes' => $documentEntry['localRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'entryNames' => ['word/document.xml'],
+            ],
+            [
+                'generalPurposeFlags' => 0x0808,
+                'generalPurposeFlagsHex' => '0808',
+                'flagNames' => ['data-descriptor', 'utf-8-names'],
+                'unsupportedFlagBits' => 0,
+                'unsupportedFlagBitsHex' => '0000',
+                'isSupportedByReader' => true,
+                'usesUtf8Names' => true,
+                'usesDataDescriptor' => true,
+                'deflateOptionFlags' => 0,
+                'deflateOptionName' => null,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($commentsCompressed),
+                'uncompressedBytes' => strlen($commentsXml),
+                'localRecordBytes' => $commentsEntry['localRecordBytes'],
+                'dataDescriptorEntryCount' => 1,
+                'dataDescriptorBytes' => strlen($descriptorBytes),
+                'entryNames' => ['word/comments.xml'],
+            ],
+        ];
         $expectedDirectoryRootSummaries = [
             [
                 'directoryRoot' => 'word/',
@@ -1673,6 +1746,7 @@ return [
             'caseInsensitiveNameCollisionGroups' => [],
             'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
+            'generalPurposeFlagSummaries' => $expectedGeneralPurposeFlagSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 0,
             'packagePartExtensions' => $expectedPackagePartExtensions,
@@ -1696,6 +1770,11 @@ return [
         $t->same(1, $manifest['packagePartExtensionSummaryCount']);
         $t->same($expectedPackagePartExtensions, $manifest['packagePartExtensions']);
         $t->same($expectedPackagePartExtensionSummaries, $manifest['packagePartExtensionSummaries']);
+        $t->same(2, $manifest['generalPurposeFlagSummaryCount']);
+        $t->same(2, $manifest['generalPurposeUtf8NameEntryCount']);
+        $t->same(1, $manifest['generalPurposeDataDescriptorEntryCount']);
+        $t->same(0, $manifest['generalPurposeDeflateOptionEntryCount']);
+        $t->same($expectedGeneralPurposeFlagSummaries, $manifest['generalPurposeFlagSummaries']);
         $t->same($expectedHash, $manifest['manifestSha256']);
         $t->same($expectedManifestEntries, array_map(
             static fn (array $entry): array => [

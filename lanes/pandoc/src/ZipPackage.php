@@ -13744,6 +13744,10 @@ final class ZipPackage
         $deepestEntryNames = [];
         $extensionlessPackagePartCount = 0;
         $compressionMethodSummaries = [];
+        $generalPurposeFlagSummaries = [];
+        $generalPurposeUtf8NameEntryCount = 0;
+        $generalPurposeDataDescriptorEntryCount = 0;
+        $generalPurposeDeflateOptionEntryCount = 0;
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
             $localHeader = $this->readLocalHeader($entry);
@@ -13889,6 +13893,57 @@ final class ZipPackage
                 ++$compressionMethodSummaries[$compressionMethodKey]['dataDescriptorEntryCount'];
                 $compressionMethodSummaries[$compressionMethodKey]['dataDescriptorBytes'] += $dataDescriptorLength;
             }
+            $generalPurposeFlags = $entry->generalPurposeFlags;
+            $generalPurposeFlagKey = (string) $generalPurposeFlags;
+            $generalPurposeUnsupportedFlagBits = $generalPurposeFlags & ~self::SUPPORTED_GENERAL_PURPOSE_FLAGS;
+            $usesUtf8Names = ($generalPurposeFlags & self::UTF8_GENERAL_PURPOSE_FLAG) !== 0;
+            $deflateOptionFlags = $generalPurposeFlags & self::DEFLATE_OPTION_GENERAL_PURPOSE_FLAGS;
+            if ($usesUtf8Names) {
+                ++$generalPurposeUtf8NameEntryCount;
+            }
+            if ($usesDataDescriptor) {
+                ++$generalPurposeDataDescriptorEntryCount;
+            }
+            if ($deflateOptionFlags !== 0) {
+                ++$generalPurposeDeflateOptionEntryCount;
+            }
+            if (!isset($generalPurposeFlagSummaries[$generalPurposeFlagKey])) {
+                $generalPurposeFlagSummaries[$generalPurposeFlagKey] = [
+                    'generalPurposeFlags' => $generalPurposeFlags,
+                    'generalPurposeFlagsHex' => sprintf('%04x', $generalPurposeFlags),
+                    'flagNames' => self::generalPurposeFlagNames($generalPurposeFlags),
+                    'unsupportedFlagBits' => $generalPurposeUnsupportedFlagBits,
+                    'unsupportedFlagBitsHex' => sprintf('%04x', $generalPurposeUnsupportedFlagBits),
+                    'isSupportedByReader' => $generalPurposeUnsupportedFlagBits === 0,
+                    'usesUtf8Names' => $usesUtf8Names,
+                    'usesDataDescriptor' => $usesDataDescriptor,
+                    'deflateOptionFlags' => $deflateOptionFlags,
+                    'deflateOptionName' => self::deflateOptionFlagName($deflateOptionFlags),
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'entryNames' => [],
+                ];
+            }
+            ++$generalPurposeFlagSummaries[$generalPurposeFlagKey]['entryCount'];
+            if ($isDirectory) {
+                ++$generalPurposeFlagSummaries[$generalPurposeFlagKey]['directoryEntryCount'];
+            } else {
+                ++$generalPurposeFlagSummaries[$generalPurposeFlagKey]['fileEntryCount'];
+            }
+            $generalPurposeFlagSummaries[$generalPurposeFlagKey]['compressedBytes'] += $entry->compressedSize;
+            $generalPurposeFlagSummaries[$generalPurposeFlagKey]['uncompressedBytes'] += $entry->uncompressedSize;
+            $generalPurposeFlagSummaries[$generalPurposeFlagKey]['localRecordBytes'] += $localRecordLength;
+            if ($usesDataDescriptor) {
+                ++$generalPurposeFlagSummaries[$generalPurposeFlagKey]['dataDescriptorEntryCount'];
+                $generalPurposeFlagSummaries[$generalPurposeFlagKey]['dataDescriptorBytes'] += $dataDescriptorLength;
+            }
+            $generalPurposeFlagSummaries[$generalPurposeFlagKey]['entryNames'][] = $entry->name;
             $centralDirectoryRecordSha256 = null;
             $entryCentralDirectoryRecordBytes = null;
             if ($entry->centralDirectoryRecordOffset !== null && $entry->centralDirectoryRecordEnd !== null) {
@@ -14089,6 +14144,8 @@ final class ZipPackage
         $localHeaderOrderNames = $this->localNames();
         ksort($compressionMethodSummaries, SORT_NUMERIC);
         $compressionMethodSummaries = array_values($compressionMethodSummaries);
+        ksort($generalPurposeFlagSummaries, SORT_NUMERIC);
+        $generalPurposeFlagSummaries = array_values($generalPurposeFlagSummaries);
         $directoryRootSummaries = self::packageManifestDirectoryRootSummaries($entries);
         $directoryRoots = array_map(
             static fn (array $summary): string => (string) $summary['directoryRoot'],
@@ -14152,6 +14209,7 @@ final class ZipPackage
             'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNameCollisionGroups,
             'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
             'compressionMethodSummaries' => $compressionMethodSummaries,
+            'generalPurposeFlagSummaries' => $generalPurposeFlagSummaries,
             'directoryRootSummaries' => $directoryRootSummaries,
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensions' => $packagePartExtensions,
@@ -14237,6 +14295,11 @@ final class ZipPackage
             'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
             'compressionMethodSummaryCount' => count($compressionMethodSummaries),
             'compressionMethodSummaries' => $compressionMethodSummaries,
+            'generalPurposeFlagSummaryCount' => count($generalPurposeFlagSummaries),
+            'generalPurposeUtf8NameEntryCount' => $generalPurposeUtf8NameEntryCount,
+            'generalPurposeDataDescriptorEntryCount' => $generalPurposeDataDescriptorEntryCount,
+            'generalPurposeDeflateOptionEntryCount' => $generalPurposeDeflateOptionEntryCount,
+            'generalPurposeFlagSummaries' => $generalPurposeFlagSummaries,
             'directoryRootCount' => count($directoryRootSummaries),
             'directoryRoots' => $directoryRoots,
             'directoryRootSummaries' => $directoryRootSummaries,
