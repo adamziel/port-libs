@@ -15877,6 +15877,7 @@ final class DocxOpenXmlReader
         $partXmlCdataSections = $this->packagePartXmlCdataSectionSummary($partInventory);
         $partXmlComments = $this->packagePartXmlCommentSummary($partInventory);
         $partXmlProcessingInstructions = $this->packagePartXmlProcessingInstructionSummary($partInventory);
+        $partXmlTextNodes = $this->packagePartXmlTextNodeSummary($partInventory);
         $partContentTypeSyntaxSuffixes = $this->packagePartContentTypeSyntaxSuffixSummary($partInventory);
         $partContentTypeSyntaxSuffixCounts = [];
         $partContentTypeStructuredSyntaxPartCount = 0;
@@ -19726,6 +19727,15 @@ final class DocxOpenXmlReader
             'partXmlProcessingInstructionPartNames' => $partXmlProcessingInstructions['partNames'],
             'partXmlProcessingInstructions' => $partXmlProcessingInstructions['instructions'],
             'partXmlProcessingInstructionsTruncated' => $partXmlProcessingInstructions['truncated'],
+            'partXmlTextNodePartCount' => $partXmlTextNodes['partCount'],
+            'partXmlTextNodeCount' => $partXmlTextNodes['textNodeCount'],
+            'partXmlTextNodeByteLength' => $partXmlTextNodes['byteLength'],
+            'partXmlTextNodeNonWhitespaceCount' => $partXmlTextNodes['nonWhitespaceCount'],
+            'partXmlTextNodeNonWhitespaceByteLength' => $partXmlTextNodes['nonWhitespaceByteLength'],
+            'partXmlTextNodeWhitespaceOnlyCount' => $partXmlTextNodes['whitespaceOnlyCount'],
+            'partXmlTextNodePartNames' => $partXmlTextNodes['partNames'],
+            'partXmlTextNodes' => $partXmlTextNodes['textNodes'],
+            'partXmlTextNodesTruncated' => $partXmlTextNodes['truncated'],
             'partContentTypeSyntaxSuffixCount' => count($partContentTypeSyntaxSuffixes),
             'partContentTypeSyntaxSuffixCounts' => $partContentTypeSyntaxSuffixCounts,
             'partContentTypeStructuredSyntaxPartCount' => $partContentTypeStructuredSyntaxPartCount,
@@ -37649,6 +37659,67 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array{partCount:int, textNodeCount:int, byteLength:int, nonWhitespaceCount:int, nonWhitespaceByteLength:int, whitespaceOnlyCount:int, partNames:list<string>, textNodes:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlTextNodeSummary(array $partInventory): array
+    {
+        $partNames = [];
+        $textNodes = [];
+        $textNodeCount = 0;
+        $byteLength = 0;
+        $nonWhitespaceCount = 0;
+        $nonWhitespaceByteLength = 0;
+        $whitespaceOnlyCount = 0;
+        $truncated = false;
+        $summaryLimit = 64;
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $partTextNodeCount = (int) ($part['xmlTextNodeCount'] ?? 0);
+            if ($partTextNodeCount <= 0) {
+                continue;
+            }
+
+            $textNodeCount += $partTextNodeCount;
+            $byteLength += (int) ($part['xmlTextNodeByteLength'] ?? 0);
+            $nonWhitespaceCount += (int) ($part['xmlTextNodeNonWhitespaceCount'] ?? 0);
+            $nonWhitespaceByteLength += (int) ($part['xmlTextNodeNonWhitespaceByteLength'] ?? 0);
+            $whitespaceOnlyCount += (int) ($part['xmlTextNodeWhitespaceOnlyCount'] ?? 0);
+            $this->appendUniqueString($partNames, $partName);
+            if (($part['xmlTextNodesTruncated'] ?? false) === true) {
+                $truncated = true;
+            }
+
+            foreach (($part['xmlTextNodes'] ?? []) as $textNode) {
+                if (!is_array($textNode)) {
+                    continue;
+                }
+                if (count($textNodes) >= $summaryLimit) {
+                    $truncated = true;
+                    continue;
+                }
+
+                $textNodes[] = ['partName' => $partName] + $textNode;
+            }
+        }
+
+        sort($partNames, SORT_STRING);
+
+        return [
+            'partCount' => count($partNames),
+            'textNodeCount' => $textNodeCount,
+            'byteLength' => $byteLength,
+            'nonWhitespaceCount' => $nonWhitespaceCount,
+            'nonWhitespaceByteLength' => $nonWhitespaceByteLength,
+            'whitespaceOnlyCount' => $whitespaceOnlyCount,
+            'partNames' => $partNames,
+            'textNodes' => $textNodes,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
      * @return array{count:int, byteLength:int, sections:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCdataSectionMetadata(
@@ -37856,6 +37927,96 @@ final class DocxOpenXmlReader
             'dataByteLength' => $dataByteLength,
             'targets' => $targets,
             'instructions' => $instructions,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @return array{count:int, byteLength:int, nonWhitespaceCount:int, nonWhitespaceByteLength:int, whitespaceOnlyCount:int, textNodes:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlTextNodeMetadata(
+        string $xml,
+        string $partName,
+        string $contentTypeBase,
+        ?string $partExtension,
+    ): array {
+        $empty = [
+            'count' => 0,
+            'byteLength' => 0,
+            'nonWhitespaceCount' => 0,
+            'nonWhitespaceByteLength' => 0,
+            'whitespaceOnlyCount' => 0,
+            'textNodes' => [],
+            'truncated' => false,
+        ];
+        if (!$this->isXmlPackagePart($partName, $contentTypeBase, $partExtension)) {
+            return $empty;
+        }
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument) {
+            return $empty;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $nodes = $xpath->query('//text()');
+        if (!$nodes instanceof \DOMNodeList) {
+            return $empty;
+        }
+
+        $textNodes = [];
+        $count = 0;
+        $byteLength = 0;
+        $nonWhitespaceCount = 0;
+        $nonWhitespaceByteLength = 0;
+        $whitespaceOnlyCount = 0;
+        $truncated = false;
+        $itemLimit = 32;
+        foreach ($nodes as $node) {
+            if (!$node instanceof \DOMNode || $node->nodeType !== XML_TEXT_NODE) {
+                continue;
+            }
+
+            ++$count;
+            $value = (string) $node->nodeValue;
+            $valueByteLength = strlen($value);
+            $trimmedValue = trim($value);
+            $trimmedByteLength = strlen($trimmedValue);
+            $whitespaceOnly = $trimmedValue === '';
+            $byteLength += $valueByteLength;
+            if ($whitespaceOnly) {
+                ++$whitespaceOnlyCount;
+            } else {
+                ++$nonWhitespaceCount;
+                $nonWhitespaceByteLength += $valueByteLength;
+            }
+
+            if (count($textNodes) >= $itemLimit) {
+                $truncated = true;
+                continue;
+            }
+
+            $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+            $parentPath = $this->domElementPath($parent);
+            $textNodes[] = [
+                'index' => $count - 1,
+                'parentPath' => $parentPath,
+                'parentDepth' => $this->domElementPathDepth($parentPath),
+                'byteLength' => $valueByteLength,
+                'trimmedByteLength' => $trimmedByteLength,
+                'whitespaceOnly' => $whitespaceOnly,
+                'crc32' => sprintf('%08x', crc32($value)),
+                'sha256' => hash('sha256', $value),
+            ];
+        }
+
+        return [
+            'count' => $count,
+            'byteLength' => $byteLength,
+            'nonWhitespaceCount' => $nonWhitespaceCount,
+            'nonWhitespaceByteLength' => $nonWhitespaceByteLength,
+            'whitespaceOnlyCount' => $whitespaceOnlyCount,
+            'textNodes' => $textNodes,
             'truncated' => $truncated,
         ];
     }
@@ -44116,6 +44277,12 @@ final class DocxOpenXmlReader
                 (string) $contentTypeResolution['contentTypeBase'],
                 $partExtension,
             );
+            $xmlTextNodes = $this->packagePartXmlTextNodeMetadata(
+                $contents,
+                $partName,
+                (string) $contentTypeResolution['contentTypeBase'],
+                $partExtension,
+            );
 
             $entry = [
                 'partName' => $partName,
@@ -44170,6 +44337,13 @@ final class DocxOpenXmlReader
                 'xmlProcessingInstructionTargets' => $xmlProcessingInstructions['targets'],
                 'xmlProcessingInstructions' => $xmlProcessingInstructions['instructions'],
                 'xmlProcessingInstructionsTruncated' => $xmlProcessingInstructions['truncated'],
+                'xmlTextNodeCount' => $xmlTextNodes['count'],
+                'xmlTextNodeByteLength' => $xmlTextNodes['byteLength'],
+                'xmlTextNodeNonWhitespaceCount' => $xmlTextNodes['nonWhitespaceCount'],
+                'xmlTextNodeNonWhitespaceByteLength' => $xmlTextNodes['nonWhitespaceByteLength'],
+                'xmlTextNodeWhitespaceOnlyCount' => $xmlTextNodes['whitespaceOnlyCount'],
+                'xmlTextNodes' => $xmlTextNodes['textNodes'],
+                'xmlTextNodesTruncated' => $xmlTextNodes['truncated'],
                 'isRelationshipPart' => $this->isRelationshipPartName($partName),
                 'roles' => $roles,
                 'partNameCharacterFlags' => $partNameCharacterFlags,

@@ -58,6 +58,8 @@
     "docxContentTypeDefaultDeclarationParameterRollupAssertions": 8,
     "mappedDocxSelectedXmlRootByteAggregateCases": 1,
     "docxSelectedXmlRootByteAggregateAssertions": 38,
+    "mappedDocxPackageXmlTextNodeProvenanceCases": 1,
+    "docxPackageXmlTextNodeProvenanceAssertions": 45,
     "upstream": {
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",
@@ -2196,6 +2198,8 @@
     "odfPackageIdentityLookupMapAssertions": 12,
     "mappedDocxXmlCdataSectionProvenanceCases": 1,
     "docxXmlCdataSectionProvenanceAssertions": 32,
+    "mappedDocxPackageXmlTextNodeProvenanceCases": 1,
+    "docxPackageXmlTextNodeProvenanceAssertions": 45,
     "mappedMarkdownReaderAbbreviationCommandFixtureCases": 3,
     "markdownReaderAbbreviationCommandFixtureAssertions": 14,
     "mappedMarkdownReaderGfmDetailsListFixtureCases": 6,
