@@ -665,6 +665,124 @@ XML;
         $t->same('xml-part', $document['role']);
         $t->same('xml', $document['handoffKind']);
     },
+    'preflights raw OPC central directory local header metadata mismatches before package construction' => static function (TestRunner $t): void {
+        $documentXml = '<w:document><w:p>local metadata mismatch</w:p></w:document>';
+        $zip = ZipPackage::build([
+            ['name' => '[Content_Types].xml', 'data' => '<Types/>', 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'compressionMethod' => 0,
+                'modifiedDosTime' => 0x4a21,
+                'modifiedDosDate' => 0x5b63,
+            ],
+        ]);
+
+        $documentEntry = null;
+        foreach (ZipPackage::centralDirectorySizePreflight($zip)['entries'] as $entry) {
+            if ($entry['name'] === 'word/document.xml') {
+                $documentEntry = $entry;
+                break;
+            }
+        }
+        $t->true(is_array($documentEntry));
+        $localHeaderOffset = $documentEntry['localHeaderOffset'];
+        $zip = substr_replace($zip, pack('v', 10), $localHeaderOffset + 4, 2);
+        $zip = substr_replace($zip, pack('v', 8), $localHeaderOffset + 8, 2);
+        $zip = substr_replace($zip, pack('v', 0x4a22), $localHeaderOffset + 10, 2);
+        $zip = substr_replace($zip, pack('v', 0x5b64), $localHeaderOffset + 12, 2);
+        $zip = substr_replace($zip, pack('V', 0x12345678), $localHeaderOffset + 14, 4);
+        $zip = substr_replace($zip, pack('V', strlen($documentXml) + 2), $localHeaderOffset + 18, 4);
+        $zip = substr_replace($zip, pack('V', strlen($documentXml) + 3), $localHeaderOffset + 22, 4);
+        $t->throws(RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+
+        $summary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $document = $entries['word/document.xml'];
+        $expectedIssues = [
+            'local-header-version-needed-mismatch',
+            'local-header-compression-method-mismatch',
+            'local-header-modification-time-mismatch',
+            'local-header-crc32-mismatch',
+            'local-header-compressed-size-mismatch',
+            'local-header-uncompressed-size-mismatch',
+        ];
+
+        $t->same(false, $summary['valid']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same(true, $summary['zipCentralDirectoryValid']);
+        $t->same([], $summary['centralDirectoryIssues']);
+        $t->same(true, $summary['localHeaderNamesValid']);
+        $t->same([], $summary['localHeaderNameIssues']);
+        $t->same(null, $summary['localHeaderNamePreflightError']);
+        $t->same(0, $summary['localHeaderNameMismatchEntryCount']);
+        $t->same(false, $summary['localHeaderMetadataValid']);
+        $t->same($expectedIssues, $summary['localHeaderMetadataIssues']);
+        $t->same(null, $summary['localHeaderMetadataPreflightError']);
+        $t->same(1, $summary['localHeaderMetadataMismatchEntryCount']);
+        $t->same('word/document.xml', $summary['localHeaderMetadataMismatchedEntries'][0]['centralName']);
+        $t->same($expectedIssues, $summary['localHeaderMetadataMismatchedEntries'][0]['issues']);
+        $t->same([
+            'local-header-compressed-size-mismatch' => 1,
+            'local-header-compression-method-mismatch' => 1,
+            'local-header-crc32-mismatch' => 1,
+            'local-header-modification-time-mismatch' => 1,
+            'local-header-uncompressed-size-mismatch' => 1,
+            'local-header-version-needed-mismatch' => 1,
+        ], $summary['issueCounts']);
+        $t->same($expectedIssues, $summary['issues']);
+        $t->same([
+            'local-header-compressed-size-mismatch' => ['word/document.xml'],
+            'local-header-compression-method-mismatch' => ['word/document.xml'],
+            'local-header-crc32-mismatch' => ['word/document.xml'],
+            'local-header-modification-time-mismatch' => ['word/document.xml'],
+            'local-header-uncompressed-size-mismatch' => ['word/document.xml'],
+            'local-header-version-needed-mismatch' => ['word/document.xml'],
+        ], $summary['entryNamesByIssue']);
+        $t->same([
+            'local-header-compressed-size-mismatch' => ['/word/document.xml'],
+            'local-header-compression-method-mismatch' => ['/word/document.xml'],
+            'local-header-crc32-mismatch' => ['/word/document.xml'],
+            'local-header-modification-time-mismatch' => ['/word/document.xml'],
+            'local-header-uncompressed-size-mismatch' => ['/word/document.xml'],
+            'local-header-version-needed-mismatch' => ['/word/document.xml'],
+        ], $summary['partNamesByIssue']);
+
+        $t->same('word/document.xml', $document['centralName']);
+        $t->same('word/document.xml', $document['localHeaderName']);
+        $t->same(true, $document['localHeaderNameMatchesCentral']);
+        $t->same(true, $document['localHeaderDecodedNameMatchesCentral']);
+        $t->same(true, $document['localHeaderGeneralPurposeFlagsMatchCentral']);
+        $t->same([], $document['localHeaderNameIssues']);
+        $t->same(false, $document['localHeaderMetadataMatchesCentral']);
+        $t->same(true, $document['localHeaderHasMetadataMismatch']);
+        $t->same($expectedIssues, $document['localHeaderMetadataIssues']);
+        $t->same(20, $document['centralVersionNeededToExtract']);
+        $t->same(10, $document['localVersionNeededToExtract']);
+        $t->same(0, $document['centralCompressionMethod']);
+        $t->same(8, $document['localCompressionMethod']);
+        $t->same(0x4a21, $document['centralModifiedDosTime']);
+        $t->same(0x4a22, $document['localModifiedDosTime']);
+        $t->same(0x5b63, $document['centralModifiedDosDate']);
+        $t->same(0x5b64, $document['localModifiedDosDate']);
+        $t->same((int) sprintf('%u', crc32($documentXml)), $document['centralCrc32']);
+        $t->same(0x12345678, $document['localCrc32']);
+        $t->same(sprintf('%08x', crc32($documentXml)), $document['centralCrc32Hex']);
+        $t->same('12345678', $document['localCrc32Hex']);
+        $t->same(strlen($documentXml), $document['centralCompressedSize']);
+        $t->same(strlen($documentXml) + 2, $document['localCompressedSize']);
+        $t->same(strlen($documentXml), $document['centralUncompressedSize']);
+        $t->same(strlen($documentXml) + 3, $document['localUncompressedSize']);
+        $t->same(false, $document['usesDataDescriptor']);
+        $t->same(null, $document['hasZeroLocalHeaderPlaceholders']);
+        $t->same($expectedIssues, $document['issues']);
+        $t->same(false, $document['valid']);
+        $t->same($summary['localHeaderMetadata'], ZipPackage::localHeaderMetadataPreflight($zip));
+    },
     'preflights raw OPC central directory manifest ZIP64 byte sentinels before package construction' => static function (TestRunner $t): void {
         $contentTypesXml = '<Types/>';
         $rootRelationshipsXml = '<Relationships/>';

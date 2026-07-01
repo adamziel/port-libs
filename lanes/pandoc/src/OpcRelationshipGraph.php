@@ -1331,11 +1331,24 @@ final class OpcRelationshipGraph
         } catch (\Throwable $exception) {
             $localHeaderNamePreflightError = $exception->getMessage();
         }
+        $localHeaderMetadata = null;
+        $localHeaderMetadataPreflightError = null;
+        $localHeaderMetadataByCentralDirectoryIndex = [];
+        try {
+            $localHeaderMetadata = ZipPackage::localHeaderMetadataPreflight($bytes);
+            foreach ($localHeaderMetadata['entries'] as $metadataEntry) {
+                $localHeaderMetadataByCentralDirectoryIndex[$metadataEntry['centralDirectoryIndex']] = $metadataEntry;
+            }
+        } catch (\Throwable $exception) {
+            $localHeaderMetadataPreflightError = $exception->getMessage();
+        }
         $entries = [];
         $contentTypesItems = [];
         $contentTypesEntryIndexes = [];
         $packagePartNamesByEquivalenceKey = [];
         $packagePartEntryIndexesByEquivalenceKey = [];
+        $localHeaderMetadataManifestIssues = [];
+        $localHeaderMetadataManifestMismatchedEntries = [];
 
         foreach ($centralDirectory['entries'] as $entryIndex => $centralEntry) {
             $isDirectory = $centralEntry['isDirectory'];
@@ -1347,8 +1360,29 @@ final class OpcRelationshipGraph
             $byteCountsAreExact = !$centralEntry['hasZip64SizeSentinel'];
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderNameEntry = $localHeaderNameByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $localHeaderMetadataEntry = $localHeaderMetadataByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $localHeaderMetadataIssues = $localHeaderMetadataEntry['issues'] ?? [];
+            if (($centralEntry['hasZip64SizeSentinel'] ?? false) === true) {
+                $localHeaderMetadataIssues = array_values(array_diff(
+                    $localHeaderMetadataIssues,
+                    [
+                        'local-header-compressed-size-mismatch',
+                        'local-header-uncompressed-size-mismatch',
+                    ],
+                ));
+            }
             if ($localHeaderNameEntry !== null && $localHeaderNameEntry['issues'] !== []) {
                 $issues = array_values(array_unique(array_merge($issues, $localHeaderNameEntry['issues'])));
+            }
+            if ($localHeaderMetadataEntry !== null && $localHeaderMetadataIssues !== []) {
+                $issues = array_values(array_unique(array_merge($issues, $localHeaderMetadataIssues)));
+                $mismatchedMetadataEntry = $localHeaderMetadataEntry;
+                $mismatchedMetadataEntry['issues'] = $localHeaderMetadataIssues;
+                $mismatchedMetadataEntry['hasMetadataMismatch'] = true;
+                $localHeaderMetadataManifestMismatchedEntries[] = $mismatchedMetadataEntry;
+                foreach ($localHeaderMetadataIssues as $metadataIssue) {
+                    self::appendUniqueString($localHeaderMetadataManifestIssues, $metadataIssue);
+                }
             }
 
             if (!$isDirectory) {
@@ -1390,6 +1424,37 @@ final class OpcRelationshipGraph
                 'localHeaderDecodedNameMatchesCentral' => $localHeaderNameEntry['decodedNameMatchesCentral'] ?? null,
                 'localHeaderGeneralPurposeFlagsMatchCentral' => $localHeaderNameEntry['generalPurposeFlagsMatchCentral'] ?? null,
                 'localHeaderNameIssues' => $localHeaderNameEntry['issues'] ?? [],
+                'localHeaderMetadataMatchesCentral' => $localHeaderMetadataEntry === null
+                    ? null
+                    : $localHeaderMetadataIssues === [],
+                'localHeaderHasMetadataMismatch' => $localHeaderMetadataEntry === null
+                    ? null
+                    : $localHeaderMetadataIssues !== [],
+                'localHeaderMetadataIssues' => $localHeaderMetadataIssues,
+                'centralVersionNeededToExtract' => $localHeaderMetadataEntry['centralVersionNeededToExtract'] ?? null,
+                'localVersionNeededToExtract' => $localHeaderMetadataEntry['localVersionNeededToExtract'] ?? null,
+                'centralGeneralPurposeFlags' => $localHeaderMetadataEntry['centralGeneralPurposeFlags'] ?? null,
+                'localGeneralPurposeFlags' => $localHeaderMetadataEntry['localGeneralPurposeFlags'] ?? null,
+                'centralCompressionMethod' => $localHeaderMetadataEntry['centralCompressionMethod'] ?? $centralEntry['compressionMethod'],
+                'localCompressionMethod' => $localHeaderMetadataEntry['localCompressionMethod'] ?? null,
+                'centralModifiedDosTime' => $localHeaderMetadataEntry['centralModifiedDosTime'] ?? null,
+                'localModifiedDosTime' => $localHeaderMetadataEntry['localModifiedDosTime'] ?? null,
+                'centralModifiedDosDate' => $localHeaderMetadataEntry['centralModifiedDosDate'] ?? null,
+                'localModifiedDosDate' => $localHeaderMetadataEntry['localModifiedDosDate'] ?? null,
+                'centralCrc32' => $localHeaderMetadataEntry['centralCrc32'] ?? null,
+                'localCrc32' => $localHeaderMetadataEntry['localCrc32'] ?? null,
+                'centralCrc32Hex' => isset($localHeaderMetadataEntry['centralCrc32'])
+                    ? sprintf('%08x', $localHeaderMetadataEntry['centralCrc32'])
+                    : null,
+                'localCrc32Hex' => isset($localHeaderMetadataEntry['localCrc32'])
+                    ? sprintf('%08x', $localHeaderMetadataEntry['localCrc32'])
+                    : null,
+                'centralCompressedSize' => $localHeaderMetadataEntry['centralCompressedSize'] ?? $centralEntry['compressedSize'],
+                'localCompressedSize' => $localHeaderMetadataEntry['localCompressedSize'] ?? null,
+                'centralUncompressedSize' => $localHeaderMetadataEntry['centralUncompressedSize'] ?? $centralEntry['uncompressedSize'],
+                'localUncompressedSize' => $localHeaderMetadataEntry['localUncompressedSize'] ?? null,
+                'usesDataDescriptor' => $localHeaderMetadataEntry['usesDataDescriptor'] ?? null,
+                'hasZeroLocalHeaderPlaceholders' => $localHeaderMetadataEntry['hasZeroLocalHeaderPlaceholders'] ?? null,
                 'isDirectory' => $isDirectory,
                 'isPackagePart' => !$isDirectory,
                 'centralDirectoryIndex' => $centralEntry['centralDirectoryIndex'],
@@ -1538,6 +1603,10 @@ final class OpcRelationshipGraph
         if ($localHeaderNamePreflightError !== null) {
             $issueCounts['local-header-name-preflight-error'] = 1;
             self::appendUniqueString($issues, 'local-header-name-preflight-error');
+        }
+        if ($localHeaderMetadataPreflightError !== null) {
+            $issueCounts['local-header-metadata-preflight-error'] = 1;
+            self::appendUniqueString($issues, 'local-header-metadata-preflight-error');
         }
         $roleCounts = [];
         $byteCountsByRole = [];
@@ -1792,6 +1861,14 @@ final class OpcRelationshipGraph
             'localHeaderNamePreflightError' => $localHeaderNamePreflightError,
             'localHeaderNameMismatchEntryCount' => $localHeaderNames['mismatchedEntryCount'] ?? 0,
             'localHeaderNameMismatchedEntries' => $localHeaderNames['mismatchedEntries'] ?? [],
+            'localHeaderMetadataValid' => $localHeaderMetadata !== null
+                && $localHeaderMetadataManifestIssues === [],
+            'localHeaderMetadataIssues' => $localHeaderMetadata !== null ? $localHeaderMetadataManifestIssues : (
+                $localHeaderMetadataPreflightError === null ? [] : ['local-header-metadata-preflight-error']
+            ),
+            'localHeaderMetadataPreflightError' => $localHeaderMetadataPreflightError,
+            'localHeaderMetadataMismatchEntryCount' => count($localHeaderMetadataManifestMismatchedEntries),
+            'localHeaderMetadataMismatchedEntries' => $localHeaderMetadataManifestMismatchedEntries,
             'byteCountsAreExact' => $centralDirectory['totalsAreExact'],
             'unknownByteCountEntryCount' => count($unknownByteCountEntries),
             'declaredEntryCount' => $centralDirectory['declaredEntryCount'],
@@ -1844,6 +1921,7 @@ final class OpcRelationshipGraph
             'unknownByteCountEntries' => $unknownByteCountEntries,
             'localHeaderOrder' => $localHeaderOrder,
             'localHeaderNames' => $localHeaderNames,
+            'localHeaderMetadata' => $localHeaderMetadata,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
             'relationshipParts' => $relationshipParts,
