@@ -1221,6 +1221,9 @@ final class OpenDocumentPackage
             'packageZipSourceRecordByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordByteLength'],
             'packageZipSourceRecordLocalRecordByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordLocalRecordByteLength'],
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordCentralDirectoryRecordByteLength'],
+            'packageZipSourceRecordLocalHeaderReviewFieldByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordLocalHeaderReviewFieldByteLength'],
+            'packageZipSourceRecordCentralDirectoryReviewFieldByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordCentralDirectoryReviewFieldByteLength'],
+            'packageZipSourceRecordReviewFieldByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordReviewFieldByteLength'],
             'packageZipSourceRecordDataDescriptorEntryCount' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDataDescriptorEntryCount'],
             'packageZipSourceRecordDirectoryRoots' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDirectoryRoots'],
             'packageZipSourceRecordCompressionMethodCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCount'],
@@ -2188,6 +2191,9 @@ final class OpenDocumentPackage
             'packageZipSourceRecordByteLength' => $packageInventory['packageZipSourceRecordByteLength'] ?? 0,
             'packageZipSourceRecordLocalRecordByteLength' => $packageInventory['packageZipSourceRecordLocalRecordByteLength'] ?? 0,
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $packageInventory['packageZipSourceRecordCentralDirectoryRecordByteLength'] ?? 0,
+            'packageZipSourceRecordLocalHeaderReviewFieldByteLength' => $packageInventory['packageZipSourceRecordLocalHeaderReviewFieldByteLength'] ?? 0,
+            'packageZipSourceRecordCentralDirectoryReviewFieldByteLength' => $packageInventory['packageZipSourceRecordCentralDirectoryReviewFieldByteLength'] ?? 0,
+            'packageZipSourceRecordReviewFieldByteLength' => $packageInventory['packageZipSourceRecordReviewFieldByteLength'] ?? 0,
             'packageZipSourceRecordDataDescriptorEntryCount' => $packageInventory['packageZipSourceRecordDataDescriptorEntryCount'] ?? 0,
             'packageZipSourceRecordDirectoryRoots' => $packageInventory['packageZipSourceRecordDirectoryRoots'] ?? [],
             'packageZipSourceRecordCompressionMethodCount' => $packageInventory['packageZipSourceRecordCompressionMethodCount'] ?? 0,
@@ -3080,6 +3086,9 @@ final class OpenDocumentPackage
      *     packageZipSourceRecordByteLength:int,
      *     packageZipSourceRecordLocalRecordByteLength:int,
      *     packageZipSourceRecordCentralDirectoryRecordByteLength:int,
+     *     packageZipSourceRecordLocalHeaderReviewFieldByteLength:int,
+     *     packageZipSourceRecordCentralDirectoryReviewFieldByteLength:int,
+     *     packageZipSourceRecordReviewFieldByteLength:int,
      *     packageZipSourceRecordDataDescriptorEntryCount:int,
      *     packageZipSourceRecordDirectoryRoots:list<array<string, mixed>>
      * }
@@ -3264,6 +3273,8 @@ final class OpenDocumentPackage
         $sourceRecordByteLength = 0;
         $localRecordByteLength = 0;
         $centralDirectoryRecordByteLength = 0;
+        $localHeaderReviewFieldByteLength = 0;
+        $centralDirectoryReviewFieldByteLength = 0;
         $dataDescriptorEntryCount = 0;
         ksort($roots, SORT_STRING);
         foreach ($roots as $directoryRoot => $summary) {
@@ -3280,6 +3291,8 @@ final class OpenDocumentPackage
             $sourceRecordByteLength += $summary['sourceRecordBytes'];
             $localRecordByteLength += $summary['localRecordBytes'];
             $centralDirectoryRecordByteLength += $summary['centralDirectoryRecordBytes'];
+            $localHeaderReviewFieldByteLength += $summary['localHeaderReviewFieldBytes'];
+            $centralDirectoryReviewFieldByteLength += $summary['centralDirectoryReviewFieldBytes'];
             $dataDescriptorEntryCount += $summary['dataDescriptorEntryCount'];
         }
 
@@ -3291,6 +3304,9 @@ final class OpenDocumentPackage
             'packageZipSourceRecordByteLength' => $sourceRecordByteLength,
             'packageZipSourceRecordLocalRecordByteLength' => $localRecordByteLength,
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $centralDirectoryRecordByteLength,
+            'packageZipSourceRecordLocalHeaderReviewFieldByteLength' => $localHeaderReviewFieldByteLength,
+            'packageZipSourceRecordCentralDirectoryReviewFieldByteLength' => $centralDirectoryReviewFieldByteLength,
+            'packageZipSourceRecordReviewFieldByteLength' => $localHeaderReviewFieldByteLength + $centralDirectoryReviewFieldByteLength,
             'packageZipSourceRecordDataDescriptorEntryCount' => $dataDescriptorEntryCount,
             'packageZipSourceRecordDirectoryRoots' => array_values($roots),
         ];

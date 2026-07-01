@@ -49,6 +49,8 @@ $metaXml = <<<'XML'
 </office:document-meta>
 XML;
 
+$pictureExtraField = pack('vva*', 0xcafe, strlen('picture-root'), 'picture-root');
+
 $buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
     ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
     ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
@@ -56,7 +58,7 @@ $buildPackage = static fn (): ZipPackage => ZipPackage::fromParts([
     ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
     ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
     ['name' => 'Pictures/source.png', 'data' => str_repeat('P', 512), 'compressionMethod' => 0, 'comment' => 'source-root-image'],
-    ['name' => 'Pictures/extra.bin', 'data' => str_repeat('B', 64), 'compressionMethod' => 8],
+    ['name' => 'Pictures/extra.bin', 'data' => str_repeat('B', 64), 'compressionMethod' => 8, 'extraFieldData' => $pictureExtraField],
     ['name' => 'Notes/private.txt', 'data' => 'PRIVATE-NOTE', 'compressionMethod' => 0],
 ], 'odt zip source record directory root provenance');
 
@@ -113,8 +115,11 @@ return [
         $expectedRootBytes = $sumByRoot($compactInventory['parts'], 'zipSourceRecordBytes');
         $expectedLocalRecordBytes = array_sum($sumByRoot($compactInventory['parts'], 'zipLocalRecordBytes'));
         $expectedCentralRecordBytes = array_sum($sumByRoot($compactInventory['parts'], 'zipCentralDirectoryRecordBytes'));
+        $expectedLocalReviewFieldBytes = array_sum($sumByRoot($compactInventory['parts'], 'zipLocalHeaderReviewFieldBytes'));
+        $expectedCentralReviewFieldBytes = array_sum($sumByRoot($compactInventory['parts'], 'zipCentralDirectoryReviewFieldBytes'));
+        $expectedReviewFieldBytes = $expectedLocalReviewFieldBytes + $expectedCentralReviewFieldBytes;
 
-        foreach ([$compactInventory, $compactIdentity, $richProvenance, $richIdentity] as $handoff) {
+        foreach ([$compactInventory, $compactIdentity, $richProvenance, $richIdentity, $documentProvenance] as $handoff) {
             $t->same(4, $handoff['packageZipSourceRecordDirectoryRootCount']);
             $t->same($expectedRootCounts, $handoff['packageZipSourceRecordDirectoryRootCounts']);
             $t->same($expectedRootBytes, $handoff['packageZipSourceRecordDirectoryRootBytes']);
@@ -122,6 +127,9 @@ return [
             $t->same(array_sum($expectedRootBytes), $handoff['packageZipSourceRecordByteLength']);
             $t->same($expectedLocalRecordBytes, $handoff['packageZipSourceRecordLocalRecordByteLength']);
             $t->same($expectedCentralRecordBytes, $handoff['packageZipSourceRecordCentralDirectoryRecordByteLength']);
+            $t->same($expectedLocalReviewFieldBytes, $handoff['packageZipSourceRecordLocalHeaderReviewFieldByteLength']);
+            $t->same($expectedCentralReviewFieldBytes, $handoff['packageZipSourceRecordCentralDirectoryReviewFieldByteLength']);
+            $t->same($expectedReviewFieldBytes, $handoff['packageZipSourceRecordReviewFieldByteLength']);
             $t->same(0, $handoff['packageZipSourceRecordDataDescriptorEntryCount']);
         }
 
@@ -137,7 +145,9 @@ return [
             $t->same($sumForRoot($compactInventory['parts'], 'Pictures/', 'zipLocalHeaderBytes'), $pictures['localHeaderBytes']);
             $t->same($sumForRoot($compactInventory['parts'], 'Pictures/', 'zipCompressedDataBytes'), $pictures['compressedDataBytes']);
             $t->same($sumForRoot($compactInventory['parts'], 'Pictures/', 'zipCentralDirectoryRecordBytes'), $pictures['centralDirectoryRecordBytes']);
+            $t->same($sumForRoot($compactInventory['parts'], 'Pictures/', 'zipLocalHeaderReviewFieldBytes'), $pictures['localHeaderReviewFieldBytes']);
             $t->same($sumForRoot($compactInventory['parts'], 'Pictures/', 'zipCentralDirectoryRawCommentBytes'), $pictures['centralDirectoryRawCommentBytes']);
+            $t->same($sumForRoot($compactInventory['parts'], 'Pictures/', 'zipCentralDirectoryReviewFieldBytes'), $pictures['centralDirectoryReviewFieldBytes']);
             $t->same([0 => 1, 8 => 1], $pictures['compressionMethodCounts']);
             $t->same(['application/octet-stream' => 1, 'image/png' => 1], $pictures['manifestMediaTypeBaseCounts']);
             $t->same(['manifest-declared' => 2, 'media-resource' => 2], $pictures['roleCounts']);

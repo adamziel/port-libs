@@ -2217,6 +2217,9 @@ final class OdfReader
             'packageZipSourceRecordByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordByteLength'],
             'packageZipSourceRecordLocalRecordByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordLocalRecordByteLength'],
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordCentralDirectoryRecordByteLength'],
+            'packageZipSourceRecordLocalHeaderReviewFieldByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordLocalHeaderReviewFieldByteLength'],
+            'packageZipSourceRecordCentralDirectoryReviewFieldByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordCentralDirectoryReviewFieldByteLength'],
+            'packageZipSourceRecordReviewFieldByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordReviewFieldByteLength'],
             'packageZipSourceRecordDataDescriptorEntryCount' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDataDescriptorEntryCount'],
             'packageZipSourceRecordDirectoryRoots' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDirectoryRoots'],
             'packageZipSourceRecordCompressionMethodCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCount'],
@@ -3167,6 +3170,9 @@ final class OdfReader
             'packageZipSourceRecordByteLength' => $provenance['packageZipSourceRecordByteLength'] ?? 0,
             'packageZipSourceRecordLocalRecordByteLength' => $provenance['packageZipSourceRecordLocalRecordByteLength'] ?? 0,
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $provenance['packageZipSourceRecordCentralDirectoryRecordByteLength'] ?? 0,
+            'packageZipSourceRecordLocalHeaderReviewFieldByteLength' => $provenance['packageZipSourceRecordLocalHeaderReviewFieldByteLength'] ?? 0,
+            'packageZipSourceRecordCentralDirectoryReviewFieldByteLength' => $provenance['packageZipSourceRecordCentralDirectoryReviewFieldByteLength'] ?? 0,
+            'packageZipSourceRecordReviewFieldByteLength' => $provenance['packageZipSourceRecordReviewFieldByteLength'] ?? 0,
             'packageZipSourceRecordDataDescriptorEntryCount' => $provenance['packageZipSourceRecordDataDescriptorEntryCount'] ?? 0,
             'packageZipSourceRecordDirectoryRoots' => $provenance['packageZipSourceRecordDirectoryRoots'] ?? [],
             'packageZipSourceRecordCompressionMethodCount' => $provenance['packageZipSourceRecordCompressionMethodCount'] ?? 0,
@@ -3404,6 +3410,9 @@ final class OdfReader
             'packageZipSourceRecordByteLength' => $provenance['packageZipSourceRecordByteLength'] ?? 0,
             'packageZipSourceRecordLocalRecordByteLength' => $provenance['packageZipSourceRecordLocalRecordByteLength'] ?? 0,
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $provenance['packageZipSourceRecordCentralDirectoryRecordByteLength'] ?? 0,
+            'packageZipSourceRecordLocalHeaderReviewFieldByteLength' => $provenance['packageZipSourceRecordLocalHeaderReviewFieldByteLength'] ?? 0,
+            'packageZipSourceRecordCentralDirectoryReviewFieldByteLength' => $provenance['packageZipSourceRecordCentralDirectoryReviewFieldByteLength'] ?? 0,
+            'packageZipSourceRecordReviewFieldByteLength' => $provenance['packageZipSourceRecordReviewFieldByteLength'] ?? 0,
             'packageZipSourceRecordDataDescriptorEntryCount' => $provenance['packageZipSourceRecordDataDescriptorEntryCount'] ?? 0,
             'packageZipSourceRecordDirectoryRoots' => $provenance['packageZipSourceRecordDirectoryRoots'] ?? [],
             'packageZipSourceRecordCompressionMethodCount' => $provenance['packageZipSourceRecordCompressionMethodCount'] ?? 0,
@@ -3910,6 +3919,9 @@ final class OdfReader
      *     packageZipSourceRecordByteLength:int,
      *     packageZipSourceRecordLocalRecordByteLength:int,
      *     packageZipSourceRecordCentralDirectoryRecordByteLength:int,
+     *     packageZipSourceRecordLocalHeaderReviewFieldByteLength:int,
+     *     packageZipSourceRecordCentralDirectoryReviewFieldByteLength:int,
+     *     packageZipSourceRecordReviewFieldByteLength:int,
      *     packageZipSourceRecordDataDescriptorEntryCount:int,
      *     packageZipSourceRecordDirectoryRoots:list<array<string, mixed>>
      * }
@@ -4093,6 +4105,8 @@ final class OdfReader
         $sourceRecordByteLength = 0;
         $localRecordByteLength = 0;
         $centralDirectoryRecordByteLength = 0;
+        $localHeaderReviewFieldByteLength = 0;
+        $centralDirectoryReviewFieldByteLength = 0;
         $dataDescriptorEntryCount = 0;
         ksort($roots, SORT_STRING);
         foreach ($roots as $directoryRoot => $summary) {
@@ -4109,6 +4123,8 @@ final class OdfReader
             $sourceRecordByteLength += $summary['sourceRecordBytes'];
             $localRecordByteLength += $summary['localRecordBytes'];
             $centralDirectoryRecordByteLength += $summary['centralDirectoryRecordBytes'];
+            $localHeaderReviewFieldByteLength += $summary['localHeaderReviewFieldBytes'];
+            $centralDirectoryReviewFieldByteLength += $summary['centralDirectoryReviewFieldBytes'];
             $dataDescriptorEntryCount += $summary['dataDescriptorEntryCount'];
         }
 
@@ -4120,6 +4136,9 @@ final class OdfReader
             'packageZipSourceRecordByteLength' => $sourceRecordByteLength,
             'packageZipSourceRecordLocalRecordByteLength' => $localRecordByteLength,
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $centralDirectoryRecordByteLength,
+            'packageZipSourceRecordLocalHeaderReviewFieldByteLength' => $localHeaderReviewFieldByteLength,
+            'packageZipSourceRecordCentralDirectoryReviewFieldByteLength' => $centralDirectoryReviewFieldByteLength,
+            'packageZipSourceRecordReviewFieldByteLength' => $localHeaderReviewFieldByteLength + $centralDirectoryReviewFieldByteLength,
             'packageZipSourceRecordDataDescriptorEntryCount' => $dataDescriptorEntryCount,
             'packageZipSourceRecordDirectoryRoots' => array_values($roots),
         ];
