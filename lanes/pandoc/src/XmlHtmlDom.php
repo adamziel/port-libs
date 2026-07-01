@@ -16895,6 +16895,7 @@ final class XmlHtmlDom
                 'activeReviewPolicy' => $element->hasAttribute('src') ? 'external-script-source' : 'inline-script-source',
             ] + $scriptType
                 + $loading
+                + self::scriptIntegrityReviewSummary($element, $scriptType['scriptPayloadKind'])
                 + self::scriptAttributionSrcReviewSummary($element)
                 + self::activeContentNonceSummary($element);
 
@@ -17133,6 +17134,67 @@ final class XmlHtmlDom
                 $issues
             ))),
             'scriptLoadingPolicyValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function scriptIntegrityReviewSummary(\DOMElement $script, string $payloadKind): array
+    {
+        $raw = self::attributeOrNull($script, 'integrity');
+        if ($raw === null) {
+            return [];
+        }
+
+        $tokens = self::spaceSeparatedTokens($raw);
+        $algorithms = [];
+        $algorithmCounts = [];
+        $invalidTokens = [];
+        foreach ($tokens as $token) {
+            if (preg_match('/^(sha256|sha384|sha512)-[A-Za-z0-9+\/_-]+=*$/i', $token, $matches) !== 1) {
+                $invalidTokens[] = $token;
+                continue;
+            }
+
+            $algorithm = strtolower((string) $matches[1]);
+            self::appendUniqueString($algorithms, $algorithm);
+            $algorithmCounts[$algorithm] = ($algorithmCounts[$algorithm] ?? 0) + 1;
+        }
+
+        $externalExecutable = $script->hasAttribute('src') && in_array($payloadKind, ['classic', 'module'], true);
+        $issues = [];
+        if ($tokens === []) {
+            $issues[] = ['code' => 'empty-script-integrity'];
+        }
+        foreach ($invalidTokens as $token) {
+            $issues[] = ['code' => 'invalid-script-integrity-token', 'token' => $token];
+        }
+        if (!$externalExecutable) {
+            $issues[] = [
+                'code' => 'script-integrity-without-external-executable',
+                'scriptPayloadKind' => $payloadKind,
+                'scriptSourceKind' => $script->hasAttribute('src') ? 'external' : 'inline',
+            ];
+        }
+
+        return [
+            'scriptIntegrityReviewPolicy' => 'script-subresource-integrity-review',
+            'scriptIntegrityRaw' => $raw,
+            'scriptIntegrityTokens' => $tokens,
+            'scriptIntegrityTokenCount' => count($tokens),
+            'scriptIntegrityPresent' => true,
+            'scriptIntegrityEmpty' => $tokens === [],
+            'scriptIntegrityAlgorithms' => $algorithms,
+            'scriptIntegrityAlgorithmCounts' => $algorithmCounts,
+            'invalidScriptIntegrityTokens' => $invalidTokens,
+            'scriptIntegrityAppliesToExternalExecutable' => $externalExecutable,
+            'scriptIntegrityIssues' => $issues,
+            'scriptIntegrityIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'scriptIntegrityValid' => $issues === [],
         ];
     }
 
