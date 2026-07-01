@@ -803,6 +803,37 @@ return [
 
             throw new RuntimeException('Expected manifest entry is missing from source provenance fixture');
         }, $expectedEntries);
+        $expectedEntriesByName = [];
+        foreach ($expectedEntries as $entry) {
+            $expectedEntriesByName[$entry['name']] = $entry;
+        }
+        $expectedCompressionMethodSummaries = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 2,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 1,
+                'compressedBytes' => strlen($mimetype),
+                'uncompressedBytes' => strlen($mimetype),
+                'localRecordBytes' => $expectedEntriesByName['OEBPS/images/']['localRecordBytes']
+                    + $expectedEntriesByName['mimetype']['localRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)),
+                'uncompressedBytes' => strlen($contentXhtml),
+                'localRecordBytes' => $expectedEntriesByName['OEBPS/content.xhtml']['localRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+            ],
+        ];
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'archiveBytes' => $manifest['archiveBytes'],
@@ -818,6 +849,7 @@ return [
             'centralDirectorySignatureSha256' => $manifest['centralDirectorySignatureSha256'],
             'centralDirectoryOrderNames' => $expectedCentralOrder,
             'localHeaderOrderNames' => $expectedLocalOrder,
+            'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'entries' => $expectedEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -851,6 +883,8 @@ return [
         $t->same(null, $manifest['centralDirectorySignatureOffset']);
         $t->same(0, $manifest['centralDirectorySignatureBytes']);
         $t->same(null, $manifest['centralDirectorySignatureSha256']);
+        $t->same(2, $manifest['compressionMethodSummaryCount']);
+        $t->same($expectedCompressionMethodSummaries, $manifest['compressionMethodSummaries']);
         $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
         $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);
         $t->same(false, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
