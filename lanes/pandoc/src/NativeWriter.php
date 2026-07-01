@@ -1190,7 +1190,7 @@ final class NativeWriter
     private function renderCaption(AstNode $node): string
     {
         $shortCaption = $this->captionInlines($node->attr('shortCaptionInlines', null), $node->attr('shortCaption', null));
-        $short = $shortCaption === null ? 'Nothing' : '(Just ' . $this->renderInlineList($shortCaption) . ')';
+        $short = $shortCaption === null ? 'Nothing' : '(Just (ShortCaption ' . $this->renderInlineList($shortCaption) . '))';
         $longBlocks = $this->captionBlocks($node);
 
         return '(Caption ' . $short . ' ' . $this->renderBlockList($longBlocks, 0) . ')';

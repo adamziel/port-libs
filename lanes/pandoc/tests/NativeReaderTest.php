@@ -1737,6 +1737,48 @@ return [
         $t->same('shortCaptionInlines', $roundTripPacket['captions']['short']['source'] ?? null);
         $t->same(['text', 'emph'], $roundTripPacket['captions']['short']['inlineTypes'] ?? null);
     },
+    'round trips text native table caption short caption constructors' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ Table ( "native-text-table" , [ "caption-slice" ] , [ ( "data-source" , "native-text" ) ] )
+    (Caption (Just (ShortCaption [ Str "Short" , Space , Strong [ Str "queue" ] ]))
+      [ Para [ Str "Long" , Space , Emph [ Str "caption" ] ] ])
+    [ ( AlignLeft , ColWidth 0.5 ) ]
+    (TableHead ( "" , [  ] , [  ] ) [  ])
+    [ TableBody ( "" , [  ] , [  ] ) (RowHeadColumns 0) [  ]
+      [ Row ( "" , [  ] , [  ] )
+        [ Cell ( "" , [  ] , [  ] ) AlignDefault (RowSpan 1) (ColSpan 1)
+          [ Plain [ Str "Cell" ] ] ] ] ]
+    (TableFoot ( "" , [  ] , [  ] ) [  ])
+]
+NATIVE;
+
+        $legacyNative = str_replace(
+            '(Just (ShortCaption [ Str "Short" , Space , Strong [ Str "queue" ] ]))',
+            '(Just [ Str "Short" , Space , Strong [ Str "queue" ] ])',
+            $native
+        );
+
+        foreach (['current' => $native, 'legacy' => $legacyNative] as $label => $source) {
+            $document = (new NativeReader())->read($source);
+            $table = $document->children[0];
+            $shortCaptionInlines = $table->attr('shortCaptionInlines');
+            $roundTripNative = (new NativeWriter())->write($document);
+            $roundTrip = (new NativeReader())->read($roundTripNative);
+
+            $t->same('table', $table->type, "{$label} text native table maps to shared table");
+            $t->same('native-text-table', $table->attr('id'), "{$label} table attr id");
+            $t->same(['caption-slice'], $table->attr('classes'), "{$label} table classes");
+            $t->same(['data-source' => 'native-text'], $table->attr('attributes'), "{$label} table attributes");
+            $t->same('Short queue', $table->attr('shortCaption'), "{$label} short caption text");
+            $t->same(true, is_array($shortCaptionInlines), "{$label} short caption inline list");
+            $t->same(['text', 'text', 'strong'], array_map(static fn (AstNode $node): string => $node->type, $shortCaptionInlines), "{$label} short caption inline types");
+            $t->same('Long caption', $table->attr('caption'), "{$label} long caption text");
+            $t->same(['left'], $table->attr('alignments'), "{$label} table alignment");
+            $t->contains('(Just (ShortCaption [ Str "Short" , Space , Strong [ Str "queue" ] ]))', $roundTripNative, "{$label} writer emits current ShortCaption constructor");
+            $t->same('Short queue', $roundTrip->children[0]->attr('shortCaption'), "{$label} writer output reads back short caption");
+            $t->same('Long caption', $roundTrip->children[0]->attr('caption'), "{$label} writer output reads back long caption");
+        }
+    },
     'maps native inline command constructors into latex writer output' => static function (TestRunner $t): void {
         $native = [
             'pandoc-api-version' => [1, 23, 1],
