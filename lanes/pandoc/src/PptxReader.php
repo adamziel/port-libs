@@ -1800,7 +1800,12 @@ final class PptxReader
             return null;
         }
 
-        $relationshipId = $this->relationshipId($blip, 'embed');
+        $relationshipAttribute = 'embed';
+        $relationshipId = $this->relationshipId($blip, $relationshipAttribute);
+        if ($relationshipId === '') {
+            $relationshipAttribute = 'link';
+            $relationshipId = $this->relationshipId($blip, $relationshipAttribute);
+        }
         if ($relationshipId === '') {
             $imageIssues[] = ['issue' => 'missing-image-relationship-id'];
 
@@ -1812,6 +1817,7 @@ final class PptxReader
             $imageIssues[] = [
                 'issue' => 'unknown-image-relationship',
                 'relationshipId' => $relationshipId,
+                'relationshipAttribute' => $relationshipAttribute,
             ];
 
             return null;
@@ -1821,6 +1827,7 @@ final class PptxReader
             $imageIssues[] = [
                 'issue' => 'external-image-target',
                 'relationshipId' => $relationshipId,
+                'relationshipAttribute' => $relationshipAttribute,
                 'target' => $relationship->target,
                 'externalTargetPolicy' => $relationship->externalTargetPreflight(),
             ];
@@ -1834,6 +1841,7 @@ final class PptxReader
             $imageIssues[] = [
                 'issue' => 'missing-image-part',
                 'relationshipId' => $relationshipId,
+                'relationshipAttribute' => $relationshipAttribute,
                 'target' => $relationship->target,
                 'partName' => $partName,
             ];
@@ -1847,6 +1855,7 @@ final class PptxReader
             'title' => $title,
             'alt' => $alt,
             'relationshipId' => $relationshipId,
+            'relationshipAttribute' => $relationshipAttribute,
         ], $this->textInlines($alt));
     }
 

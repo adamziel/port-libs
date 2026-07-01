@@ -516,6 +516,78 @@ XML);
     }
 };
 
+$buildExternalLinkedImagePptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-linked-image-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Linked image</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="Linked Picture" descr="External alt"/></p:nvPicPr>
+      <p:blipFill><a:blip r:link="rIdLinkedImage"/></p:blipFill>
+    </p:pic>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdLinkedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://example.test/linked.png" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildGroupedShapesPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-grouped-shapes-');
     if ($path === false) {
@@ -1181,6 +1253,23 @@ return [
             'emusPerInch' => 914400,
             'source' => 'default',
         ], $review['slideSize'] ?? null);
+    },
+
+    'records external linked pptx images without fetching target' => static function (TestRunner $t) use ($buildExternalLinkedImagePptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildExternalLinkedImagePptxPackage());
+        $review = $document->attr('pptx');
+        $issue = $review['slides'][0]['imageIssues'][0] ?? [];
+
+        $t->same([], $nodesOfType($document, 'image'));
+        $t->same(1, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same('external-image-target', $issue['issue'] ?? null);
+        $t->same('rIdLinkedImage', $issue['relationshipId'] ?? null);
+        $t->same('link', $issue['relationshipAttribute'] ?? null);
+        $t->same('https://example.test/linked.png', $issue['target'] ?? null);
+        $t->same('absolute-uri', $issue['externalTargetPolicy']['kind'] ?? null);
+        $t->same('https', $issue['externalTargetPolicy']['scheme'] ?? null);
+        $t->same(true, $issue['externalTargetPolicy']['allowed'] ?? null);
+        $t->same([], $issue['externalTargetPolicy']['issues'] ?? null);
     },
 
     'reads text and images inside grouped pptx shapes' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
