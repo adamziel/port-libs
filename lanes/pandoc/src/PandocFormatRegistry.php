@@ -352,7 +352,7 @@ final class PandocFormatRegistry
         'pptx' => [
             'status' => 'partial',
             'implementation' => PptxReader::class,
-            'notes' => 'Bounded PPTX OpenXML package reader maps presentation slide order, slide-size metadata, title placeholders, text boxes including grouped text boxes, run-level/text-box/picture hyperlink relationships, DrawingML line breaks/tabs, Wingdings/explicit bullet groups, simple tables, verified image references including grouped pictures with missing/linked-media diagnostics, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, unsupported drawable-shape diagnostics, and internal rich-media references into the shared AST with checked-in current upstream pptx-reader/basic package/native content parity.',
+            'notes' => 'Bounded PPTX OpenXML package reader maps presentation slide order, slide-size metadata, title placeholders, text boxes including grouped text boxes, run-level/text-box/picture hyperlink relationships, DrawingML line breaks/tabs, Wingdings/explicit bullet groups, auto-numbered DrawingML list groups with start/style/delimiter metadata, simple tables, verified image references including grouped pictures with missing/linked-media diagnostics, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, unsupported drawable-shape diagnostics, and internal rich-media references into the shared AST with checked-in current upstream pptx-reader/basic package/native content parity.',
         ],
         'ris' => [
             'status' => 'partial',

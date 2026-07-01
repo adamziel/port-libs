@@ -1253,7 +1253,7 @@ final class PptxReader
             ]);
         }
 
-        if (!in_array($node->type, ['bullet_list', 'list_item'], true)) {
+        if (!in_array($node->type, ['bullet_list', 'ordered_list', 'list_item'], true)) {
             return $node;
         }
 
@@ -1564,7 +1564,7 @@ final class PptxReader
     }
 
     /**
-     * @param list<array{level:int, bullet:bool, text:string, inlines?:list<AstNode>}> $paragraphs
+     * @param list<array{level:int, bullet:bool, listType:string, text:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>}> $paragraphs
      * @return list<AstNode>
      */
     private function paragraphsToBlocks(array $paragraphs): array
@@ -1573,14 +1573,14 @@ final class PptxReader
             return [];
         }
 
-        $hasBullets = false;
+        $hasLists = false;
         foreach ($paragraphs as $paragraph) {
-            if ($paragraph['bullet']) {
-                $hasBullets = true;
+            if (($paragraph['listType'] ?? '') !== '') {
+                $hasLists = true;
                 break;
             }
         }
-        if (!$hasBullets) {
+        if (!$hasLists) {
             return array_map(fn (array $paragraph): AstNode => $this->parsedParagraphBlock($paragraph), $paragraphs);
         }
 
@@ -1589,7 +1589,8 @@ final class PptxReader
         $count = count($paragraphs);
         while ($index < $count) {
             $paragraph = $paragraphs[$index];
-            if (!$paragraph['bullet']) {
+            $listType = (string) ($paragraph['listType'] ?? '');
+            if ($listType === '') {
                 $blocks[] = $this->parsedParagraphBlock($paragraph);
                 $index++;
                 continue;
@@ -1597,20 +1598,53 @@ final class PptxReader
 
             $items = [];
             $level = $paragraph['level'];
-            while ($index < $count && $paragraphs[$index]['bullet'] && $paragraphs[$index]['level'] === $level) {
+            $style = (string) ($paragraph['style'] ?? 'decimal');
+            $delimiter = (string) ($paragraph['delimiter'] ?? 'period');
+            while ($index < $count && $this->paragraphContinuesList($paragraphs[$index], $listType, $level, $style, $delimiter, $items === [])) {
                 $items[] = new AstNode('list_item', [], [
                     new AstNode('plain', [], $this->parsedParagraphInlines($paragraphs[$index])),
                 ]);
                 $index++;
             }
-            $blocks[] = new AstNode('bullet_list', [], $items);
+            $attrs = [];
+            if ($listType === 'ordered_list') {
+                $attrs = [
+                    'start' => max(1, (int) ($paragraph['start'] ?? 1)),
+                    'style' => $style,
+                    'delimiter' => $delimiter,
+                ];
+                if (isset($paragraph['pptxAutoNumberType']) && is_string($paragraph['pptxAutoNumberType'])) {
+                    $attrs['pptxAutoNumberType'] = $paragraph['pptxAutoNumberType'];
+                }
+            }
+            $blocks[] = new AstNode($listType, $attrs, $items);
         }
 
         return $blocks;
     }
 
     /**
-     * @param array{level:int, bullet:bool, text:string, inlines?:list<AstNode>} $paragraph
+     * @param array{level:int, bullet:bool, listType:string, text:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>} $paragraph
+     */
+    private function paragraphContinuesList(array $paragraph, string $listType, int $level, string $style, string $delimiter, bool $first): bool
+    {
+        if (($paragraph['listType'] ?? '') !== $listType || $paragraph['level'] !== $level) {
+            return false;
+        }
+
+        if ($listType !== 'ordered_list') {
+            return true;
+        }
+
+        if ((string) ($paragraph['style'] ?? 'decimal') !== $style || (string) ($paragraph['delimiter'] ?? 'period') !== $delimiter) {
+            return false;
+        }
+
+        return $first || !((bool) ($paragraph['startExplicit'] ?? false) && max(1, (int) ($paragraph['start'] ?? 1)) > 1);
+    }
+
+    /**
+     * @param array{level:int, bullet:bool, listType:string, text:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>} $paragraph
      */
     private function parsedParagraphBlock(array $paragraph): AstNode
     {
@@ -1618,7 +1652,7 @@ final class PptxReader
     }
 
     /**
-     * @param array{level:int, bullet:bool, text:string, inlines?:list<AstNode>} $paragraph
+     * @param array{level:int, bullet:bool, listType:string, text:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>} $paragraph
      * @return list<AstNode>
      */
     private function parsedParagraphInlines(array $paragraph): array
@@ -1629,17 +1663,18 @@ final class PptxReader
     }
 
     /**
-     * @return list<array{level:int, bullet:bool, text:string, inlines?:list<AstNode>}>
+     * @return list<array{level:int, bullet:bool, listType:string, text:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>}>
      */
     private function parseParagraphs(\DOMElement $textBody, ?OpcRelationships $relationships = null): array
     {
         return array_map(
             function (\DOMElement $paragraphElement) use ($relationships): array {
-                $paragraph = [
+                $paragraph = array_replace([
                     'level' => $this->paragraphLevel($paragraphElement),
-                    'bullet' => $this->paragraphHasBullet($paragraphElement),
+                    'bullet' => false,
+                    'listType' => '',
                     'text' => $this->drawingText($paragraphElement),
-                ];
+                ], $this->paragraphListMetadata($paragraphElement));
                 if ($relationships instanceof OpcRelationships) {
                     $inlines = $this->drawingParagraphStructuredInlines($paragraphElement, $relationships);
                 } else {
@@ -1832,24 +1867,73 @@ final class PptxReader
         return preg_match('/^\d+$/', $level) === 1 ? (int) $level : 0;
     }
 
-    private function paragraphHasBullet(\DOMElement $paragraphElement): bool
+    /**
+     * @return array{bullet:bool, listType:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string}
+     */
+    private function paragraphListMetadata(\DOMElement $paragraphElement): array
     {
         $properties = $this->firstChildElement($paragraphElement, 'pPr');
-        if ($properties instanceof \DOMElement && $this->firstChildElement($properties, 'buChar') instanceof \DOMElement) {
-            return true;
+        if ($properties instanceof \DOMElement) {
+            $autoNumber = $this->firstChildElement($properties, 'buAutoNum');
+            if ($autoNumber instanceof \DOMElement) {
+                $type = trim($autoNumber->getAttribute('type'));
+                $effectiveType = $type !== '' ? $type : 'arabicPeriod';
+                $metadata = [
+                    'bullet' => false,
+                    'listType' => 'ordered_list',
+                    'start' => max(1, $this->integerAttribute($autoNumber, 'startAt') ?? 1),
+                    'startExplicit' => $autoNumber->hasAttribute('startAt'),
+                    'style' => $this->autoNumberListStyle($effectiveType),
+                    'delimiter' => $this->autoNumberListDelimiter($effectiveType),
+                ];
+                if ($type !== '') {
+                    $metadata['pptxAutoNumberType'] = $type;
+                }
+
+                return $metadata;
+            }
+
+            if ($this->firstChildElement($properties, 'buChar') instanceof \DOMElement) {
+                return ['bullet' => true, 'listType' => 'bullet_list'];
+            }
         }
 
         foreach ($paragraphElement->getElementsByTagName('*') as $descendant) {
             if ($descendant instanceof \DOMElement && $descendant->localName === 'sym' && str_contains($descendant->getAttribute('typeface'), 'Wingdings')) {
-                return true;
+                return ['bullet' => true, 'listType' => 'bullet_list'];
             }
         }
 
-        return false;
+        return ['bullet' => false, 'listType' => ''];
+    }
+
+    private function autoNumberListStyle(string $type): string
+    {
+        $type = strtolower($type);
+
+        return match (true) {
+            str_starts_with($type, 'alphalc') => 'lower_alpha',
+            str_starts_with($type, 'alphauc') => 'upper_alpha',
+            str_starts_with($type, 'romanlc') => 'lower_roman',
+            str_starts_with($type, 'romanuc') => 'upper_roman',
+            default => 'decimal',
+        };
+    }
+
+    private function autoNumberListDelimiter(string $type): string
+    {
+        $type = strtolower($type);
+
+        return match (true) {
+            str_ends_with($type, 'parenboth') => 'two_parens',
+            str_ends_with($type, 'parenr') => 'one_paren',
+            str_ends_with($type, 'plain') => 'default',
+            default => 'period',
+        };
     }
 
     /**
-     * @param list<array{level:int, bullet:bool, text:string, inlines?:list<AstNode>}> $paragraphs
+     * @param list<array{level:int, bullet:bool, listType:string, text:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>}> $paragraphs
      */
     private function paragraphsContainText(array $paragraphs): bool
     {

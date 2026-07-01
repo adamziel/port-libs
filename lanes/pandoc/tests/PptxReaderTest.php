@@ -1041,6 +1041,76 @@ XML);
     }
 };
 
+$buildNumberedListPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-numbered-list-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Numbered slide</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Numbered body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:pPr><a:buAutoNum type="arabicPeriod" startAt="3"/></a:pPr><a:r><a:t>Third item</a:t></a:r></a:p>
+        <a:p><a:pPr><a:buAutoNum type="arabicPeriod"/></a:pPr><a:r><a:t>Fourth item</a:t></a:r></a:p>
+        <a:p><a:pPr><a:buAutoNum type="alphaUcParenR"/></a:pPr><a:r><a:t>Alpha item</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $nodesOfType = static function (AstNode $node, string $type) use (&$nodesOfType): array {
     $nodes = $node->type === $type ? [$node] : [];
     foreach ($node->children as $child) {
@@ -1538,6 +1608,40 @@ return [
         $t->same('Tabbed', $bodyParagraphs[0]->children[4]->attr('text'));
         $t->same(1, count($nodesOfType($document, 'linebreak')));
         $t->contains('Para [ Str "Line" , Space , Str "one" , LineBreak , Str "Line" , Space , Str "two" , Space , Str "Tabbed" ]', $native);
+    },
+
+    'preserves pptx auto-numbered paragraphs as ordered lists' => static function (TestRunner $t) use ($buildNumberedListPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildNumberedListPptxPackage());
+        $orderedLists = $nodesOfType($document, 'ordered_list');
+        $native = PandocConverter::write($document, 'native');
+        $itemText = static function (AstNode $item): string {
+            $plain = $item->children[0] ?? new AstNode('plain');
+            $text = '';
+            foreach ($plain->children as $inline) {
+                if ($inline->type === 'text') {
+                    $text .= (string) $inline->attr('text');
+                } elseif ($inline->type === 'space') {
+                    $text .= ' ';
+                }
+            }
+
+            return $text;
+        };
+
+        $t->same(2, count($orderedLists));
+        $t->same(3, $orderedLists[0]->attr('start'));
+        $t->same('decimal', $orderedLists[0]->attr('style'));
+        $t->same('period', $orderedLists[0]->attr('delimiter'));
+        $t->same('arabicPeriod', $orderedLists[0]->attr('pptxAutoNumberType'));
+        $t->same(['Third item', 'Fourth item'], array_map($itemText, $orderedLists[0]->children));
+
+        $t->same(1, $orderedLists[1]->attr('start'));
+        $t->same('upper_alpha', $orderedLists[1]->attr('style'));
+        $t->same('one_paren', $orderedLists[1]->attr('delimiter'));
+        $t->same('alphaUcParenR', $orderedLists[1]->attr('pptxAutoNumberType'));
+        $t->same('Alpha item', $itemText($orderedLists[1]->children[0]));
+        $t->contains('OrderedList ( 3 , Decimal , Period )', $native);
+        $t->contains('OrderedList ( 1 , UpperAlpha , OneParen )', $native);
     },
 
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {
