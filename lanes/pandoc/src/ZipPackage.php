@@ -19540,11 +19540,20 @@ final class ZipPackage
             foreach ($sourceByteSpanProvenance['sourceByteSpanIssues'] as $issue) {
                 self::appendUniqueIssue($sourceByteSpanIssues, $issue);
             }
+            $entryExtension = self::entryHandoffExtension($entry->name, $isDirectory);
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => $localHeaderOrder,
+                'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
+                'parentDirectory' => self::entryHandoffParentDirectory($entry->name),
+                'leafName' => self::entryHandoffLeafName($entry->name),
+                'entryBaseName' => self::entryHandoffBaseName($entry->name),
+                'entryExtension' => $entryExtension,
+                'entryExtensionKey' => $entryExtension ?? '(none)',
+                'pathDepth' => self::entryHandoffPathDepth($entry->name),
+                'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32,
@@ -19579,6 +19588,8 @@ final class ZipPackage
 
         $centralDirectoryOrderNames = $this->names();
         $localHeaderOrderNames = $this->localNames();
+        $leafNameSummaries = self::entryHandoffLeafNameSummaries($entries);
+        $sharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($leafNameSummaries);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
@@ -19601,6 +19612,14 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'leafNameCount' => count($leafNameSummaries),
+            'sharedLeafNameCount' => count($sharedLeafNameSummaries),
+            'sharedLeafNameEntryCount' => array_sum(array_map(
+                static fn (array $summary): int => (int) ($summary['entryCount'] ?? 0),
+                $sharedLeafNameSummaries
+            )),
+            'leafNameSummaries' => $leafNameSummaries,
+            'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
             'sourceByteSpanEntryCount' => count($this->entries),
             'sourceLocalRecordBytes' => $sourceLocalRecordBytes,
             'sourceLocalHeaderBytes' => $sourceLocalHeaderBytes,
@@ -19662,6 +19681,8 @@ final class ZipPackage
                 'localHeaderOrder' => $localOrderByName[$entry->name] ?? null,
                 'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
                 'parentDirectory' => self::entryHandoffParentDirectory($entry->name),
+                'leafName' => self::entryHandoffLeafName($entry->name),
+                'entryBaseName' => self::entryHandoffBaseName($entry->name),
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
                 'extension' => $isDirectory ? null : self::entryHandoffFileExtension($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
@@ -19675,6 +19696,8 @@ final class ZipPackage
         $packagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($entries);
         $extensionSummaries = self::entryHandoffExtensionSummaries($entries);
         $pathDepthSummaries = self::entryHandoffPathDepthSummaries($entries);
+        $leafNameSummaries = self::entryHandoffLeafNameSummaries($entries);
+        $sharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($leafNameSummaries);
 
         return [
             'entryCount' => count($entries),
@@ -19693,11 +19716,19 @@ final class ZipPackage
             'extensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($extensionSummaries),
             'pathDepthBucketCount' => count($pathDepthSummaries),
             'maxPathDepth' => self::entryHandoffMaxPathDepth($pathDepthSummaries),
+            'leafNameCount' => count($leafNameSummaries),
+            'sharedLeafNameCount' => count($sharedLeafNameSummaries),
+            'sharedLeafNameEntryCount' => array_sum(array_map(
+                static fn (array $summary): int => (int) ($summary['entryCount'] ?? 0),
+                $sharedLeafNameSummaries
+            )),
             'directoryRootSummaries' => $directoryRootSummaries,
             'parentDirectorySummaries' => $parentDirectorySummaries,
             'packagePartKindSummaries' => $packagePartKindSummaries,
             'extensionSummaries' => $extensionSummaries,
             'pathDepthSummaries' => $pathDepthSummaries,
+            'leafNameSummaries' => $leafNameSummaries,
+            'sharedLeafNameSummaries' => $sharedLeafNameSummaries,
             'entries' => $entries,
         ];
     }

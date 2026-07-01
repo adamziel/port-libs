@@ -999,6 +999,9 @@ return [
         $t->same(1, $profile['extensionlessFileEntryCount']);
         $t->same(3, $profile['pathDepthBucketCount']);
         $t->same(3, $profile['maxPathDepth']);
+        $t->same(9, $profile['leafNameCount']);
+        $t->same(0, $profile['sharedLeafNameCount']);
+        $t->same(0, $profile['sharedLeafNameEntryCount']);
 
         $t->same(1, $kinds['content-types']['entryCount']);
         $t->same(1, $kinds['root-relationships']['entryCount']);
@@ -1033,6 +1036,8 @@ return [
             'localHeaderOrder' => 5,
             'directoryRoot' => 'word/',
             'parentDirectory' => 'word/media/',
+            'leafName' => 'image.PNG',
+            'entryBaseName' => 'image.PNG',
             'pathDepth' => 3,
             'extension' => 'png',
             'packagePartKind' => 'media',
@@ -1041,6 +1046,114 @@ return [
         ], $profile['entries'][5]);
         $t->same($profile, $strict['packagePartProfile']);
         $t->same($profile, $raw['packagePartProfile']);
+        $t->same($profile, $raw['strictImport']['packagePartProfile']);
+    },
+
+    'summarizes zip package manifest leaf names without changing manifest hash contract' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $mainDocumentXml = '<w:document><w:body><w:p>manifest leaf names</w:p></w:body></w:document>';
+        $customDocumentXml = '<audit><source>custom package leaf</source></audit>';
+        $wordImageBytes = "word manifest leaf image\n";
+        $slideImageBytes = "slide manifest leaf image\n";
+        $coreXml = '<cp:coreProperties/>';
+        $zip = $buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $mainDocumentXml, 'method' => 0],
+            ['name' => 'customXml/document.xml', 'data' => $customDocumentXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $wordImageBytes, 'method' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $slideImageBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'method' => 0],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $profile = $package->packagePartProfilePreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $manifestByLeaf = array_column($manifest['leafNameSummaries'], null, 'leafName');
+        $profileByLeaf = array_column($profile['leafNameSummaries'], null, 'leafName');
+        $manifestSharedByLeaf = array_column($manifest['sharedLeafNameSummaries'], null, 'leafName');
+        $profileSharedByLeaf = array_column($profile['sharedLeafNameSummaries'], null, 'leafName');
+        $expectedManifestJson = json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'entries' => array_map(
+                static fn (array $entry): array => [
+                    'name' => $entry['name'],
+                    'isDirectory' => $entry['isDirectory'],
+                    'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                    'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'crc32Hex' => $entry['crc32Hex'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                    'localHeaderSha256' => $entry['localHeaderSha256'],
+                    'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                ],
+                $manifest['entries']
+            ),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same(hash('sha256', $expectedManifestJson), $manifest['manifestSha256']);
+        $t->same(4, $manifest['leafNameCount']);
+        $t->same(2, $manifest['sharedLeafNameCount']);
+        $t->same(4, $manifest['sharedLeafNameEntryCount']);
+        $t->same($manifest['leafNameSummaries'], $profile['leafNameSummaries']);
+        $t->same($manifest['sharedLeafNameSummaries'], $profile['sharedLeafNameSummaries']);
+
+        $expectedDocumentLeaf = [
+            'leafName' => 'document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['customXml/', 'word/'],
+            'compressedBytes' => strlen($mainDocumentXml) + strlen($customDocumentXml),
+            'uncompressedBytes' => strlen($mainDocumentXml) + strlen($customDocumentXml),
+            'roles' => [],
+            'entryNames' => ['word/document.xml', 'customXml/document.xml'],
+        ];
+        $expectedImageLeaf = [
+            'leafName' => 'image.png',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'compressedBytes' => strlen($wordImageBytes) + strlen($slideImageBytes),
+            'uncompressedBytes' => strlen($wordImageBytes) + strlen($slideImageBytes),
+            'roles' => [],
+            'entryNames' => ['word/media/image.png', 'ppt/media/image.png'],
+        ];
+
+        $t->same($expectedDocumentLeaf, $manifestByLeaf['document.xml']);
+        $t->same($expectedImageLeaf, $manifestByLeaf['image.png']);
+        $t->same($expectedDocumentLeaf, $profileByLeaf['document.xml']);
+        $t->same($expectedImageLeaf, $profileByLeaf['image.png']);
+        $t->same($expectedDocumentLeaf, $manifestSharedByLeaf['document.xml']);
+        $t->same($expectedImageLeaf, $manifestSharedByLeaf['image.png']);
+        $t->same($expectedDocumentLeaf, $profileSharedByLeaf['document.xml']);
+        $t->same($expectedImageLeaf, $profileSharedByLeaf['image.png']);
+
+        $t->same('document.xml', $manifest['entries'][0]['leafName']);
+        $t->same('document.xml', $manifest['entries'][0]['entryBaseName']);
+        $t->same('xml', $manifest['entries'][0]['entryExtension']);
+        $t->same('xml', $manifest['entries'][0]['entryExtensionKey']);
+        $t->same(2, $manifest['entries'][0]['pathDepth']);
+        $t->same('markup-part', $manifest['entries'][0]['packagePartKind']);
+        $t->same('image.png', $profile['entries'][2]['leafName']);
+        $t->same('image.png', $profile['entries'][2]['entryBaseName']);
+        $t->same('png', $profile['entries'][2]['extension']);
+        $t->same('media', $profile['entries'][2]['packagePartKind']);
+        $t->same('media', $manifest['entries'][4]['leafName']);
+        $t->same(null, $manifest['entries'][4]['entryExtension']);
+        $t->same('(none)', $manifest['entries'][4]['entryExtensionKey']);
+        $t->same('directory', $manifest['entries'][4]['packagePartKind']);
+
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($profile, $strict['packagePartProfile']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($profile, $raw['packagePartProfile']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
         $t->same($profile, $raw['strictImport']['packagePartProfile']);
     },
 
