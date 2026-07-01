@@ -13346,6 +13346,13 @@ final class ZipPackage
         $unsupportedCompressionMethodCount = 0;
         $compressedBytes = 0;
         $uncompressedBytes = 0;
+        $localHeaderBytes = 0;
+        $localHeaderFixedHeaderBytes = 0;
+        $localHeaderVariableFieldBytes = 0;
+        $localHeaderRawNameBytes = 0;
+        $localHeaderExtraFieldBytes = 0;
+        $localHeaderReviewFieldBytes = 0;
+        $localExtraFieldEntryCount = 0;
         $localRecordBytes = 0;
         $dataDescriptorEntryCount = 0;
         $dataDescriptorBytes = 0;
@@ -13381,6 +13388,16 @@ final class ZipPackage
             $uncompressedBytes += $entry->uncompressedSize;
             $localHeaderOrder = $localOrderByName[$entry->name] ?? null;
             $localHeaderLength = (int) $localHeader['localHeaderLength'];
+            $entryLocalHeaderFixedHeaderBytes = 30;
+            $entryLocalHeaderRawNameBytes = (int) $localHeader['nameLength'];
+            $entryLocalHeaderExtraFieldBytes = (int) $localHeader['extraFieldLength'];
+            $entryLocalHeaderVariableFieldBytes = $entryLocalHeaderRawNameBytes + $entryLocalHeaderExtraFieldBytes;
+            $entryLocalHeaderReviewFieldBytes = $entryLocalHeaderExtraFieldBytes;
+            $entryLocalHeaderVariableFieldOffset = $entry->localHeaderOffset + $entryLocalHeaderFixedHeaderBytes;
+            $entryLocalHeaderVariableFieldSha256 = hash(
+                'sha256',
+                substr($this->bytes, $entryLocalHeaderVariableFieldOffset, $entryLocalHeaderVariableFieldBytes)
+            );
             $compressedDataOffset = (int) $localHeader['dataStart'];
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $compressedDataSha256 = hash(
@@ -13416,6 +13433,15 @@ final class ZipPackage
             }
 
             $localRecordLength = $localRecordEnd - $entry->localHeaderOffset;
+            $localHeaderBytes += $localHeaderLength;
+            $localHeaderFixedHeaderBytes += $entryLocalHeaderFixedHeaderBytes;
+            $localHeaderVariableFieldBytes += $entryLocalHeaderVariableFieldBytes;
+            $localHeaderRawNameBytes += $entryLocalHeaderRawNameBytes;
+            $localHeaderExtraFieldBytes += $entryLocalHeaderExtraFieldBytes;
+            $localHeaderReviewFieldBytes += $entryLocalHeaderReviewFieldBytes;
+            if ($entryLocalHeaderExtraFieldBytes > 0) {
+                ++$localExtraFieldEntryCount;
+            }
             $localRecordBytes += $localRecordLength;
             $localRecordSha256 = hash(
                 'sha256',
@@ -13499,6 +13525,13 @@ final class ZipPackage
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
+                'localHeaderFixedHeaderBytes' => $entryLocalHeaderFixedHeaderBytes,
+                'localHeaderVariableFieldOffset' => $entryLocalHeaderVariableFieldOffset,
+                'localHeaderVariableFieldBytes' => $entryLocalHeaderVariableFieldBytes,
+                'localHeaderVariableFieldSha256' => $entryLocalHeaderVariableFieldSha256,
+                'localHeaderRawNameBytes' => $entryLocalHeaderRawNameBytes,
+                'localHeaderExtraFieldBytes' => $entryLocalHeaderExtraFieldBytes,
+                'localHeaderReviewFieldBytes' => $entryLocalHeaderReviewFieldBytes,
                 'localRecordOffset' => $entry->localHeaderOffset,
                 'localRecordBytes' => $localRecordLength,
                 'localRecordEnd' => $localRecordEnd,
@@ -13534,6 +13567,12 @@ final class ZipPackage
                 'compressedSize' => $summary['compressedSize'],
                 'uncompressedSize' => $summary['uncompressedSize'],
                 'localHeaderSha256' => $summary['localHeaderSha256'],
+                'localHeaderFixedHeaderBytes' => $summary['localHeaderFixedHeaderBytes'],
+                'localHeaderVariableFieldBytes' => $summary['localHeaderVariableFieldBytes'],
+                'localHeaderVariableFieldSha256' => $summary['localHeaderVariableFieldSha256'],
+                'localHeaderRawNameBytes' => $summary['localHeaderRawNameBytes'],
+                'localHeaderExtraFieldBytes' => $summary['localHeaderExtraFieldBytes'],
+                'localHeaderReviewFieldBytes' => $summary['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $summary['localRecordBytes'],
                 'localRecordSha256' => $summary['localRecordSha256'],
                 'compressedDataSha256' => $summary['compressedDataSha256'],
@@ -13576,6 +13615,13 @@ final class ZipPackage
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
+            'localHeaderBytes' => $localHeaderBytes,
+            'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+            'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+            'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
+            'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+            'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+            'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
             'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
@@ -13606,6 +13652,14 @@ final class ZipPackage
             'directoryEntryCount' => $directoryEntryCount,
             'compressedBytes' => $compressedBytes,
             'uncompressedBytes' => $uncompressedBytes,
+            'localHeaderBytes' => $localHeaderBytes,
+            'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+            'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+            'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
+            'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+            'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+            'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'hasLocalHeaderReviewFields' => $localHeaderReviewFieldBytes > 0,
             'localRecordBytes' => $localRecordBytes,
             'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
             'dataDescriptorBytes' => $dataDescriptorBytes,
