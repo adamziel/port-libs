@@ -1249,6 +1249,15 @@ return [
             'endOfCentralDirectoryOffset' => $manifest['endOfCentralDirectoryOffset'],
             'endOfCentralDirectoryBytes' => $manifest['endOfCentralDirectoryBytes'],
             'endOfCentralDirectorySha256' => $manifest['endOfCentralDirectorySha256'],
+            'packageCommentOffset' => $manifest['packageCommentOffset'],
+            'packageCommentBytes' => $manifest['packageCommentBytes'],
+            'packageCommentEnd' => $manifest['packageCommentEnd'],
+            'packageCommentSha256' => $manifest['packageCommentSha256'],
+            'packageCommentPreviewHex' => $manifest['packageCommentPreviewHex'],
+            'packageCommentPreviewByteCount' => $manifest['packageCommentPreviewByteCount'],
+            'packageCommentByteExposurePolicy' => $manifest['packageCommentByteExposurePolicy'],
+            'canExposePackageCommentBytes' => $manifest['canExposePackageCommentBytes'],
+            'hasPackageComment' => $manifest['hasPackageComment'],
             'hasCentralDirectorySignature' => $manifest['hasCentralDirectorySignature'],
             'centralDirectorySignatureOffset' => $manifest['centralDirectorySignatureOffset'],
             'centralDirectorySignatureDataOffset' => $manifest['centralDirectorySignatureDataOffset'],
@@ -1434,7 +1443,15 @@ return [
             hash('sha256', substr($zip, $manifest['endOfCentralDirectoryOffset'], $manifest['endOfCentralDirectoryBytes'])),
             $manifest['endOfCentralDirectorySha256']
         );
+        $t->same($manifest['endOfCentralDirectoryOffset'] + 22, $manifest['packageCommentOffset']);
         $t->same(0, $manifest['packageCommentBytes']);
+        $t->same($manifest['packageCommentOffset'], $manifest['packageCommentEnd']);
+        $t->same(null, $manifest['packageCommentSha256']);
+        $t->same('', $manifest['packageCommentPreviewHex']);
+        $t->same(0, $manifest['packageCommentPreviewByteCount']);
+        $t->same('zip-package-comment-source-metadata-only', $manifest['packageCommentByteExposurePolicy']);
+        $t->same(false, $manifest['canExposePackageCommentBytes']);
+        $t->same(false, $manifest['hasPackageComment']);
         $t->same(false, $manifest['hasCentralDirectorySignature']);
         $t->same(null, $manifest['centralDirectorySignatureOffset']);
         $t->same(0, $manifest['centralDirectorySignatureBytes']);
@@ -2411,10 +2428,23 @@ return [
         $t->same(strlen($zip), $manifest['endOfCentralDirectoryEnd']);
         $t->same($manifest['endOfCentralDirectoryEnd'], $source['endOfCentralDirectoryEnd']);
         $t->same(strlen($comment), $manifest['packageCommentBytes']);
-        $t->same($layout['packageCommentOffset'], $source['packageCommentOffset']);
+        $t->same($layout['packageCommentOffset'], $manifest['packageCommentOffset']);
+        $t->same($manifest['packageCommentOffset'], $source['packageCommentOffset']);
         $t->same($manifest['packageCommentBytes'], $source['packageCommentBytes']);
-        $t->same(hash('sha256', $comment), $source['packageCommentSha256']);
-        $t->same(true, $source['hasPackageComment']);
+        $t->same($manifest['packageCommentOffset'] + strlen($comment), $manifest['packageCommentEnd']);
+        $t->same($manifest['packageCommentEnd'], $source['packageCommentEnd']);
+        $t->same(hash('sha256', $comment), $manifest['packageCommentSha256']);
+        $t->same($manifest['packageCommentSha256'], $source['packageCommentSha256']);
+        $t->same(bin2hex(substr($comment, 0, 16)), $manifest['packageCommentPreviewHex']);
+        $t->same($manifest['packageCommentPreviewHex'], $source['packageCommentPreviewHex']);
+        $t->same(16, $manifest['packageCommentPreviewByteCount']);
+        $t->same($manifest['packageCommentPreviewByteCount'], $source['packageCommentPreviewByteCount']);
+        $t->same('zip-package-comment-source-metadata-only', $manifest['packageCommentByteExposurePolicy']);
+        $t->same($manifest['packageCommentByteExposurePolicy'], $source['packageCommentByteExposurePolicy']);
+        $t->same(false, $manifest['canExposePackageCommentBytes']);
+        $t->same($manifest['canExposePackageCommentBytes'], $source['canExposePackageCommentBytes']);
+        $t->same(true, $manifest['hasPackageComment']);
+        $t->same($manifest['hasPackageComment'], $source['hasPackageComment']);
         $t->same(hash('sha256', substr($zip, $manifest['endOfCentralDirectoryOffset'], $manifest['endOfCentralDirectoryBytes'])), $manifest['endOfCentralDirectorySha256']);
         $t->same($manifest['endOfCentralDirectorySha256'], $source['endOfCentralDirectorySha256']);
         $t->same(false, $manifest['hasCentralDirectorySignature']);
@@ -2996,6 +3026,15 @@ return [
             'endOfCentralDirectoryOffset' => $manifest['endOfCentralDirectoryOffset'],
             'endOfCentralDirectoryBytes' => $manifest['endOfCentralDirectoryBytes'],
             'endOfCentralDirectorySha256' => $manifest['endOfCentralDirectorySha256'],
+            'packageCommentOffset' => $manifest['packageCommentOffset'],
+            'packageCommentBytes' => $manifest['packageCommentBytes'],
+            'packageCommentEnd' => $manifest['packageCommentEnd'],
+            'packageCommentSha256' => $manifest['packageCommentSha256'],
+            'packageCommentPreviewHex' => $manifest['packageCommentPreviewHex'],
+            'packageCommentPreviewByteCount' => $manifest['packageCommentPreviewByteCount'],
+            'packageCommentByteExposurePolicy' => $manifest['packageCommentByteExposurePolicy'],
+            'canExposePackageCommentBytes' => $manifest['canExposePackageCommentBytes'],
+            'hasPackageComment' => $manifest['hasPackageComment'],
             'hasCentralDirectorySignature' => $manifest['hasCentralDirectorySignature'],
             'centralDirectorySignatureOffset' => $manifest['centralDirectorySignatureOffset'],
             'centralDirectorySignatureDataOffset' => $manifest['centralDirectorySignatureDataOffset'],

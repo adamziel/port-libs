@@ -14656,9 +14656,16 @@ final class ZipPackage
         $endOfCentralDirectoryOffset = $archive['eocdOffset'];
         $packageCommentOffset = $endOfCentralDirectoryOffset + 22;
         $packageCommentBytes = $archive['packageCommentLength'];
+        $packageCommentEnd = $packageCommentOffset + $packageCommentBytes;
         $packageCommentSha256 = $packageCommentBytes > 0
             ? hash('sha256', substr($this->bytes, $packageCommentOffset, $packageCommentBytes))
             : null;
+        $packageCommentPreviewByteCount = min(16, $packageCommentBytes);
+        $packageCommentPreviewHex = $packageCommentPreviewByteCount > 0
+            ? bin2hex(substr($this->bytes, $packageCommentOffset, $packageCommentPreviewByteCount))
+            : '';
+        $packageCommentByteExposurePolicy = 'zip-package-comment-source-metadata-only';
+        $canExposePackageCommentBytes = false;
         $centralDirectoryToEocdGapBytes = max(0, $endOfCentralDirectoryOffset - $centralDirectoryEnd);
         $centralDirectoryToEocdGapOffset = $centralDirectoryToEocdGapBytes > 0
             ? $centralDirectoryEnd
@@ -14719,7 +14726,12 @@ final class ZipPackage
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
+            'packageCommentPreviewHex' => $packageCommentPreviewHex,
+            'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'packageCommentByteExposurePolicy' => $packageCommentByteExposurePolicy,
+            'canExposePackageCommentBytes' => $canExposePackageCommentBytes,
             'hasPackageComment' => $packageCommentBytes > 0,
             'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
             'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
@@ -15675,6 +15687,15 @@ final class ZipPackage
             'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'packageCommentOffset' => $packageCommentOffset,
+            'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentEnd' => $packageCommentEnd,
+            'packageCommentSha256' => $packageCommentSha256,
+            'packageCommentPreviewHex' => $packageCommentPreviewHex,
+            'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'packageCommentByteExposurePolicy' => $packageCommentByteExposurePolicy,
+            'canExposePackageCommentBytes' => $canExposePackageCommentBytes,
+            'hasPackageComment' => $packageCommentBytes > 0,
             'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
             'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
             'centralDirectorySignatureDataOffset' => $centralDirectorySignatureDataOffset,
@@ -15870,7 +15891,12 @@ final class ZipPackage
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
+            'packageCommentPreviewHex' => $packageCommentPreviewHex,
+            'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'packageCommentByteExposurePolicy' => $packageCommentByteExposurePolicy,
+            'canExposePackageCommentBytes' => $canExposePackageCommentBytes,
             'hasPackageComment' => $packageCommentBytes > 0,
             'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
             'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,

@@ -1449,7 +1449,12 @@ final class OpcRelationshipGraph
             'endOfCentralDirectorySha256' => $packageManifest['endOfCentralDirectorySha256'],
             'packageCommentOffset' => $packageManifest['packageCommentOffset'],
             'packageCommentBytes' => $packageManifest['packageCommentBytes'],
+            'packageCommentEnd' => $packageManifest['packageCommentEnd'],
             'packageCommentSha256' => $packageManifest['packageCommentSha256'],
+            'packageCommentPreviewHex' => $packageManifest['packageCommentPreviewHex'],
+            'packageCommentPreviewByteCount' => $packageManifest['packageCommentPreviewByteCount'],
+            'packageCommentByteExposurePolicy' => $packageManifest['packageCommentByteExposurePolicy'],
+            'canExposePackageCommentBytes' => $packageManifest['canExposePackageCommentBytes'],
             'hasPackageComment' => $packageManifest['hasPackageComment'],
             'hasCentralDirectorySignature' => $packageManifest['hasCentralDirectorySignature'],
             'centralDirectorySignatureOffset' => $packageManifest['centralDirectorySignatureOffset'],
@@ -1640,6 +1645,13 @@ final class OpcRelationshipGraph
         $endOfCentralDirectoryOffset = $archive['eocdOffset'];
         $packageCommentOffset = $endOfCentralDirectoryOffset + 22;
         $packageCommentBytes = $archive['packageCommentLength'];
+        $packageCommentEnd = $packageCommentOffset + $packageCommentBytes;
+        $packageCommentPreviewByteCount = min(16, $packageCommentBytes);
+        $packageCommentPreviewHex = $packageCommentPreviewByteCount > 0
+            ? bin2hex(substr($bytes, $packageCommentOffset, $packageCommentPreviewByteCount))
+            : '';
+        $packageCommentByteExposurePolicy = 'zip-package-comment-source-metadata-only';
+        $canExposePackageCommentBytes = false;
         $centralDirectoryToEocdGapBytes = max(0, $endOfCentralDirectoryOffset - $centralDirectoryEnd);
         $centralDirectoryToEocdGapOffset = $centralDirectoryToEocdGapBytes > 0 ? $centralDirectoryEnd : null;
         $endOfCentralDirectoryBytes = 22 + $packageCommentBytes;
@@ -1707,7 +1719,12 @@ final class OpcRelationshipGraph
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
+            'packageCommentPreviewHex' => $packageCommentPreviewHex,
+            'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'packageCommentByteExposurePolicy' => $packageCommentByteExposurePolicy,
+            'canExposePackageCommentBytes' => $canExposePackageCommentBytes,
             'hasPackageComment' => $packageCommentBytes > 0,
             'hasCentralDirectorySignature' => $centralDirectorySignatureOffset !== null,
             'centralDirectorySignatureOffset' => $centralDirectorySignatureOffset,
@@ -1741,7 +1758,12 @@ final class OpcRelationshipGraph
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentEnd' => $packageCommentEnd,
             'packageCommentSha256' => $packageCommentSha256,
+            'packageCommentPreviewHex' => $packageCommentPreviewHex,
+            'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'packageCommentByteExposurePolicy' => $packageCommentByteExposurePolicy,
+            'canExposePackageCommentBytes' => $canExposePackageCommentBytes,
             'hasPackageComment' => $packageCommentBytes > 0,
             'hasCentralDirectorySignature' => $centralDirectorySignatureOffset !== null,
             'centralDirectorySignatureOffset' => $centralDirectorySignatureOffset,
@@ -2694,7 +2716,12 @@ final class OpcRelationshipGraph
             'endOfCentralDirectorySha256' => $packageSource['endOfCentralDirectorySha256'],
             'packageCommentOffset' => $packageSource['packageCommentOffset'],
             'packageCommentBytes' => $packageSource['packageCommentBytes'],
+            'packageCommentEnd' => $packageSource['packageCommentEnd'],
             'packageCommentSha256' => $packageSource['packageCommentSha256'],
+            'packageCommentPreviewHex' => $packageSource['packageCommentPreviewHex'],
+            'packageCommentPreviewByteCount' => $packageSource['packageCommentPreviewByteCount'],
+            'packageCommentByteExposurePolicy' => $packageSource['packageCommentByteExposurePolicy'],
+            'canExposePackageCommentBytes' => $packageSource['canExposePackageCommentBytes'],
             'hasPackageComment' => $packageSource['hasPackageComment'],
             'hasCentralDirectorySignature' => $packageSource['hasCentralDirectorySignature'],
             'centralDirectorySignatureOffset' => $packageSource['centralDirectorySignatureOffset'],
