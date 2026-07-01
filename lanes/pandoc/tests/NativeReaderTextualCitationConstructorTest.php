@@ -60,13 +60,22 @@ NATIVE;
 
         $t->same('citation_group', $cluster->type);
         $t->same('[see @smith1899, p. 7; @doe1901]', $cluster->attr('text'));
+        $t->same('Cite', $cluster->attr('constructor'));
+        $t->same('Cite', $cluster->attr('native')['t']);
+        $t->same('smith1899', $cluster->attr('citationRecordsNative')[0]['citationId']);
+        $t->same('AuthorInText', $cluster->attr('citationRecordsNative')[1]['citationMode']['t']);
         $t->same(['smith1899', 'doe1901'], array_map(static fn (AstNode $node): string => $node->attr('id'), $cluster->children));
         $t->same('see', $cluster->children[0]->attr('prefix')[0]->attr('text'));
         $t->same('p. 7', $cluster->children[0]->attr('suffix')[0]->attr('text') . ' ' . $cluster->children[0]->attr('suffix')[2]->attr('text'));
         $t->same('author_in_text', $cluster->children[1]->attr('mode'));
         $t->same(3, $cluster->children[0]->attr('citationNoteNum'));
         $t->same(1901, $cluster->children[1]->attr('citationHash'));
+        $t->same('Citation', $cluster->children[0]->attr('citationConstructor'));
+        $t->same('see', $cluster->children[0]->attr('citationNative')['citationPrefix'][0]['c']);
+        $t->same([], $cluster->children[1]->attr('citationNative')['citationPrefix']);
         $t->same('citation', $singleCitation->type);
+        $t->same('Cite', $singleCitation->attr('constructor'));
+        $t->same('anonymous2026', $singleCitation->attr('citationRecordsNative')[0]['citationId']);
         $t->same('anonymous2026', $singleCitation->attr('id'));
         $t->same('suppress_author', $singleCitation->attr('mode'));
         $t->same('-@anonymous2026, appendix', $singleCitation->attr('text'));
@@ -80,9 +89,11 @@ NATIVE;
             $t->same('AuthorInText', $clusterCite['c'][0][1]['citationMode']['t'], "{$writer} keeps author-in-text mode");
             $t->same(3, $clusterCite['c'][0][0]['citationNoteNum'], "{$writer} keeps first note number");
             $t->same(1901, $clusterCite['c'][0][1]['citationHash'], "{$writer} keeps second citation hash");
+            $t->same($cluster->attr('citationRecordsNative'), $clusterCite['c'][0], "{$writer} preserves native text citation records");
             $t->same('[see', $clusterCite['c'][1][0]['c'], "{$writer} keeps group display inlines");
             $t->same('Cite', $singleCite['t'], "{$writer} emits single Cite constructor");
             $t->same('SuppressAuthor', $singleCite['c'][0][0]['citationMode']['t'], "{$writer} keeps suppress-author mode");
+            $t->same($singleCitation->attr('citationRecordsNative'), $singleCite['c'][0], "{$writer} preserves single native text citation record");
             $t->same('appendix', $singleCite['c'][0][0]['citationSuffix'][0]['c'], "{$writer} keeps single suffix");
         }
 
