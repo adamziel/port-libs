@@ -14,12 +14,29 @@ return [
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $methods = docx_zip_source_record_compression_method_index_by(
             $summary['partZipSourceRecordCompressionMethods'],
             'compressionMethodKey'
         );
         $expectedCounts = docx_zip_source_record_compression_method_counts($inventory);
+        $repeatIdentity = (new DocxOpenXmlReader())
+            ->readZipPackage(ZipPackage::fromParts(
+                docx_zip_source_record_compression_method_fixture_parts(),
+                'docx source compression review'
+            ))
+            ->attr('docx')['packageIdentity'];
+        $changedParts = docx_zip_source_record_compression_method_fixture_parts();
+        foreach ($changedParts as &$changedPart) {
+            if (($changedPart['name'] ?? null) === 'word/media/review.png') {
+                $changedPart['compressionMethod'] = 8;
+            }
+        }
+        unset($changedPart);
+        $changedIdentity = (new DocxOpenXmlReader())
+            ->readZipPackage(ZipPackage::fromParts($changedParts, 'docx source compression review'))
+            ->attr('docx')['packageIdentity'];
 
         $t->same('Source compression buckets.', $document->children[0]->attr('text'));
         $t->same(count($expectedCounts), $summary['partZipSourceRecordCompressionMethodCount']);
@@ -44,6 +61,40 @@ return [
         $t->same(0, $summary['partZipSourceRecordCompressionMethodIssuePartCount']);
         $t->same(0, $summary['partZipSourceRecordCompressionMethodUnsupportedPartCount']);
         $t->same($summary['partZipSourceRecordPartCount'], array_sum($summary['partZipSourceRecordCompressionMethodCounts']));
+        $t->same($identity, $document->attr('docx')['packageIdentity']);
+        $t->same($summary['partZipSourceRecordCompressionMethodCount'], $identity['partZipSourceRecordCompressionMethodCount']);
+        $t->same($summary['partZipSourceRecordCompressionMethodCounts'], $identity['partZipSourceRecordCompressionMethodCounts']);
+        $t->same($summary['partZipSourceRecordCompressionMethodBytes'], $identity['partZipSourceRecordCompressionMethodBytes']);
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodCompressedByteLengths'],
+            $identity['partZipSourceRecordCompressionMethodCompressedByteLengths']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodUncompressedByteLengths'],
+            $identity['partZipSourceRecordCompressionMethodUncompressedByteLengths']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodExpansionRatios'],
+            $identity['partZipSourceRecordCompressionMethodExpansionRatios']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodDataDescriptorPartCount'],
+            $identity['partZipSourceRecordCompressionMethodDataDescriptorPartCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodIssuePartCount'],
+            $identity['partZipSourceRecordCompressionMethodIssuePartCount']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodUnsupportedPartCount'],
+            $identity['partZipSourceRecordCompressionMethodUnsupportedPartCount']
+        );
+        $t->same($summary['partZipSourceRecordCompressionMethods'], $identity['partZipSourceRecordCompressionMethods']);
+        $t->same($identity['identitySha256'], $repeatIdentity['identitySha256']);
+        $t->true(
+            $identity['identitySha256'] !== $changedIdentity['identitySha256'],
+            'package identity must include ZIP source-record compression metadata even when payload bytes match'
+        );
 
         $stored = $methods['0'];
         $t->same(0, $stored['compressionMethod']);

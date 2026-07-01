@@ -34655,6 +34655,28 @@ final class DocxOpenXmlReader
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
             'zipEntryCount' => (int) ($summary['zipEntryCount'] ?? 0),
+            'partZipSourceRecordCompressionMethodCount' => (int) ($summary['partZipSourceRecordCompressionMethodCount'] ?? 0),
+            'partZipSourceRecordCompressionMethodCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordCompressionMethodCounts'] ?? []
+            ),
+            'partZipSourceRecordCompressionMethodBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordCompressionMethodBytes'] ?? []
+            ),
+            'partZipSourceRecordCompressionMethodCompressedByteLengths' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordCompressionMethodCompressedByteLengths'] ?? []
+            ),
+            'partZipSourceRecordCompressionMethodUncompressedByteLengths' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordCompressionMethodUncompressedByteLengths'] ?? []
+            ),
+            'partZipSourceRecordCompressionMethodExpansionRatios' => $this->packageIdentityNumericOrNullMap(
+                $summary['partZipSourceRecordCompressionMethodExpansionRatios'] ?? []
+            ),
+            'partZipSourceRecordCompressionMethodDataDescriptorPartCount' => (int) ($summary['partZipSourceRecordCompressionMethodDataDescriptorPartCount'] ?? 0),
+            'partZipSourceRecordCompressionMethodIssuePartCount' => (int) ($summary['partZipSourceRecordCompressionMethodIssuePartCount'] ?? 0),
+            'partZipSourceRecordCompressionMethodUnsupportedPartCount' => (int) ($summary['partZipSourceRecordCompressionMethodUnsupportedPartCount'] ?? 0),
+            'partZipSourceRecordCompressionMethods' => is_array($summary['partZipSourceRecordCompressionMethods'] ?? null)
+                ? array_values($summary['partZipSourceRecordCompressionMethods'])
+                : [],
             'packageBasenameCount' => (int) ($summary['partBaseNameCount'] ?? 0),
             'packageBasenameCounts' => $this->packageIdentityCountMap($summary['partBaseNameCounts'] ?? []),
             'entryNamesByPackageBasename' => $this->packageIdentityStringListMap(
@@ -34767,6 +34789,33 @@ final class DocxOpenXmlReader
             }
 
             $map[(string) $key] = (int) $count;
+        }
+        ksort($map, SORT_STRING);
+
+        return $map;
+    }
+
+    /**
+     * @return array<string, int|float|null>
+     */
+    private function packageIdentityNumericOrNullMap(mixed $values): array
+    {
+        if (!is_array($values)) {
+            return [];
+        }
+
+        $map = [];
+        foreach ($values as $key => $value) {
+            if (!is_string($key) && !is_int($key)) {
+                continue;
+            }
+            if ($value === null) {
+                $map[(string) $key] = null;
+                continue;
+            }
+            if (is_int($value) || is_float($value)) {
+                $map[(string) $key] = $value;
+            }
         }
         ksort($map, SORT_STRING);
 
