@@ -4,6 +4,11 @@ declare(strict_types=1);
 
 use PortLibs\Pandoc\JsonReader;
 use PortLibs\Pandoc\JsonWriter;
+use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\NativeReader;
+use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
 
 return [
     'accepts single-wrapped pandoc json constructor payloads in compatibility reader' => static function (TestRunner $t): void {
@@ -123,5 +128,61 @@ return [
         $t->same(2, count($decoded['blocks'][4]['c'][3]['c']));
         $t->same(1, $decoded['blocks'][4]['c'][4][0]['c'][1]);
         $t->same(2, $decoded['blocks'][4]['c'][4][0]['c'][3][0]['c'][1][0]['c'][2]);
+    },
+    'accepts single-wrapped attr class and key-value list payloads' => static function (TestRunner $t): void {
+        $wrappedAttr = [
+            't' => 'Attr',
+            'c' => [[
+                'wrapped-attr',
+                [['review', 'native-json']],
+                [[['data-source', 'single-wrapped-attr'], ['data-state', 'ready']]],
+            ]],
+            'reviewQueue' => 'attr-wrapper-source',
+        ];
+        $sourceBlock = [
+            't' => 'Header',
+            'c' => [[
+                2,
+                $wrappedAttr,
+                [
+                    ['t' => 'Str', 'c' => 'Wrapped'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'Attr'],
+                ],
+            ]],
+        ];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [$sourceBlock],
+        ];
+        $compatHeading = (new JsonReader())->read(json_encode($packet, JSON_THROW_ON_ERROR))->children[0];
+
+        $t->same('wrapped-attr', $compatHeading->attr('id'), 'compat reader reads wrapped attr id');
+        $t->same(['review', 'native-json'], $compatHeading->attr('classes'), 'compat reader unwraps attr classes');
+        $t->same(['data-source' => 'single-wrapped-attr', 'data-state' => 'ready'], $compatHeading->attr('attributes'), 'compat reader unwraps attr key-values');
+
+        foreach ([
+            'json-native' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $heading = $document->children[0];
+            $rebuiltAttrs = $heading->attrs;
+            unset($rebuiltAttrs['constructor'], $rebuiltAttrs['native']);
+            $rebuilt = new AstNode('document', $document->attrs, [
+                new AstNode('heading', $rebuiltAttrs, $heading->children),
+            ]);
+
+            $t->same('wrapped-attr', $heading->attr('id'), "{$source} reads wrapped attr id");
+            $t->same(['review', 'native-json'], $heading->attr('classes'), "{$source} unwraps attr classes");
+            $t->same(['data-source' => 'single-wrapped-attr', 'data-state' => 'ready'], $heading->attr('attributes'), "{$source} unwraps attr key-values");
+
+            foreach ([
+                'json-native' => (new PandocJsonWriter())->toArray($rebuilt),
+                'native' => json_decode((new NativeWriter())->write($rebuilt), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($wrappedAttr, $encoded['blocks'][0]['c'][1], "{$source} {$writer} writer reuses wrapped attr native payload");
+            }
+        }
     },
 ];
