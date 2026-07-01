@@ -42,10 +42,29 @@ $parts = [
     ['name' => 'Pictures/CON', 'data' => 'reserved-name-png', 'compressionMethod' => 0],
 ];
 
+$indexBy = static function (array $items, string $key): array {
+    $indexed = [];
+    foreach ($items as $item) {
+        $indexed[(string) $item[$key]] = $item;
+    }
+
+    return $indexed;
+};
+
+$packageManifestCaseFoldSubset = static function (array $item): array {
+    return [
+        'zipPackageManifestCaseFoldKey' => $item['zipPackageManifestCaseFoldKey'] ?? null,
+        'zipPackageManifestCaseInsensitiveEquivalentEntryNames' => $item['zipPackageManifestCaseInsensitiveEquivalentEntryNames'] ?? [],
+        'zipPackageManifestHasCaseInsensitiveNameCollision' => ($item['zipPackageManifestHasCaseInsensitiveNameCollision'] ?? false) === true,
+        'zipPackageManifestCaseInsensitiveNameCollisionIssues' => $item['zipPackageManifestCaseInsensitiveNameCollisionIssues'] ?? [],
+    ];
+};
+
 return [
-    'carries ODT ZIP name policy provenance through compact and rich package review' => static function (TestRunner $t) use ($parts): void {
+    'carries ODT ZIP name policy provenance through compact and rich package review' => static function (TestRunner $t) use ($parts, $indexBy, $packageManifestCaseFoldSubset): void {
         $package = ZipPackage::fromParts($parts, 'odt name policy package');
         $packageManifest = $package->packageManifestPreflight();
+        $packageManifestEntries = $indexBy($packageManifest['entries'], 'name');
         $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
         $compactInventory = $compactSummary['packageInventory'];
         $compactIdentity = $compactSummary['packageIdentity'];
@@ -53,6 +72,8 @@ return [
         $richProvenance = $richResult['importReport']['manifest']['packageProvenance'];
         $richIdentity = $richProvenance['packageIdentity'];
         $documentProvenance = $richResult['document']->attr('manifest')['packageProvenance'];
+        $compactIdentityEntries = $indexBy($compactIdentity['packageEntries'], 'path');
+        $richIdentityEntries = $indexBy($richIdentity['packageEntries'], 'part');
 
         $compactPolicy = $compactInventory['namePolicy'];
         $richPolicy = $richProvenance['namePolicy'];
@@ -90,6 +111,20 @@ return [
         $t->same('Pictures/Review.PNG', $packageManifest['caseInsensitiveNameCollisionEntries'][1]['name']);
         $t->same(['Pictures/review.png', 'Pictures/Review.PNG'], $packageManifest['caseInsensitiveNameCollisionEntries'][1]['caseInsensitiveEquivalentEntryNames']);
         $t->same(['case-insensitive-name-collision'], $packageManifest['caseInsensitiveNameCollisionEntries'][1]['caseInsensitiveNameCollisionIssues']);
+
+        foreach (['Pictures/review.png', 'Pictures/Review.PNG'] as $name) {
+            $expectedCaseFold = [
+                'zipPackageManifestCaseFoldKey' => $packageManifestEntries[$name]['caseFoldKey'],
+                'zipPackageManifestCaseInsensitiveEquivalentEntryNames' => $packageManifestEntries[$name]['caseInsensitiveEquivalentEntryNames'],
+                'zipPackageManifestHasCaseInsensitiveNameCollision' => true,
+                'zipPackageManifestCaseInsensitiveNameCollisionIssues' => ['case-insensitive-name-collision'],
+            ];
+
+            $t->same($expectedCaseFold, $packageManifestCaseFoldSubset($compactInventory['parts'][$name]), "{$name} compact inventory case-fold");
+            $t->same($expectedCaseFold, $packageManifestCaseFoldSubset($compactIdentityEntries[$name]), "{$name} compact identity case-fold");
+            $t->same($expectedCaseFold, $packageManifestCaseFoldSubset($richProvenance['parts'][$name]), "{$name} rich provenance case-fold");
+            $t->same($expectedCaseFold, $packageManifestCaseFoldSubset($richIdentityEntries[$name]), "{$name} rich identity case-fold");
+        }
 
         $t->same(0, $richPolicy['rawNameCollisionGroupCount']);
         $t->same(0, $richPolicy['rawNameCollisionEntryCount']);

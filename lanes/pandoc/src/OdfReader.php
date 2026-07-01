@@ -2436,6 +2436,10 @@ final class OdfReader
                 'crc32' => $item['crc32'] ?? null,
                 'byteSha256' => $item['byteSha256'] ?? null,
                 'zipPackageManifestEntry' => $item['zipPackageManifestEntry'] ?? [],
+                'zipPackageManifestCaseFoldKey' => $item['zipPackageManifestCaseFoldKey'] ?? null,
+                'zipPackageManifestCaseInsensitiveEquivalentEntryNames' => $item['zipPackageManifestCaseInsensitiveEquivalentEntryNames'] ?? [],
+                'zipPackageManifestHasCaseInsensitiveNameCollision' => ($item['zipPackageManifestHasCaseInsensitiveNameCollision'] ?? false) === true,
+                'zipPackageManifestCaseInsensitiveNameCollisionIssues' => $item['zipPackageManifestCaseInsensitiveNameCollisionIssues'] ?? [],
                 'zipPackageManifestDirectoryRoot' => $item['zipPackageManifestDirectoryRoot'] ?? null,
                 'zipPackageManifestPathSegments' => $item['zipPackageManifestPathSegments'] ?? [],
                 'zipPackageManifestPathSegmentCount' => $item['zipPackageManifestPathSegmentCount'] ?? null,
@@ -4391,6 +4395,10 @@ final class OdfReader
 
         return [
             'zipPackageManifestEntry' => $entry,
+            'zipPackageManifestCaseFoldKey' => $entry['caseFoldKey'] ?? null,
+            'zipPackageManifestCaseInsensitiveEquivalentEntryNames' => is_array($entry['caseInsensitiveEquivalentEntryNames'] ?? null) ? $entry['caseInsensitiveEquivalentEntryNames'] : [],
+            'zipPackageManifestHasCaseInsensitiveNameCollision' => ($entry['hasCaseInsensitiveNameCollision'] ?? false) === true,
+            'zipPackageManifestCaseInsensitiveNameCollisionIssues' => is_array($entry['caseInsensitiveNameCollisionIssues'] ?? null) ? $entry['caseInsensitiveNameCollisionIssues'] : [],
             'zipPackageManifestDirectoryRoot' => $entry['directoryRoot'] ?? null,
             'zipPackageManifestPathSegments' => is_array($entry['pathSegments'] ?? null) ? $entry['pathSegments'] : [],
             'zipPackageManifestPathSegmentCount' => $entry['pathSegmentCount'] ?? null,

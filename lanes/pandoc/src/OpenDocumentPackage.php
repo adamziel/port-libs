@@ -1452,6 +1452,10 @@ final class OpenDocumentPackage
                 'crc32' => $part['crc32'] ?? null,
                 'byteSha256' => $part['byteSha256'] ?? null,
                 'zipPackageManifestEntry' => $part['zipPackageManifestEntry'] ?? [],
+                'zipPackageManifestCaseFoldKey' => $part['zipPackageManifestCaseFoldKey'] ?? null,
+                'zipPackageManifestCaseInsensitiveEquivalentEntryNames' => $part['zipPackageManifestCaseInsensitiveEquivalentEntryNames'] ?? [],
+                'zipPackageManifestHasCaseInsensitiveNameCollision' => ($part['zipPackageManifestHasCaseInsensitiveNameCollision'] ?? false) === true,
+                'zipPackageManifestCaseInsensitiveNameCollisionIssues' => $part['zipPackageManifestCaseInsensitiveNameCollisionIssues'] ?? [],
                 'zipPackageManifestDirectoryRoot' => $part['zipPackageManifestDirectoryRoot'] ?? null,
                 'zipPackageManifestPathSegments' => $part['zipPackageManifestPathSegments'] ?? [],
                 'zipPackageManifestPathSegmentCount' => $part['zipPackageManifestPathSegmentCount'] ?? null,
@@ -2988,6 +2992,10 @@ final class OpenDocumentPackage
 
         return [
             'zipPackageManifestEntry' => $entry,
+            'zipPackageManifestCaseFoldKey' => $entry['caseFoldKey'] ?? null,
+            'zipPackageManifestCaseInsensitiveEquivalentEntryNames' => is_array($entry['caseInsensitiveEquivalentEntryNames'] ?? null) ? $entry['caseInsensitiveEquivalentEntryNames'] : [],
+            'zipPackageManifestHasCaseInsensitiveNameCollision' => ($entry['hasCaseInsensitiveNameCollision'] ?? false) === true,
+            'zipPackageManifestCaseInsensitiveNameCollisionIssues' => is_array($entry['caseInsensitiveNameCollisionIssues'] ?? null) ? $entry['caseInsensitiveNameCollisionIssues'] : [],
             'zipPackageManifestDirectoryRoot' => $entry['directoryRoot'] ?? null,
             'zipPackageManifestPathSegments' => is_array($entry['pathSegments'] ?? null) ? $entry['pathSegments'] : [],
             'zipPackageManifestPathSegmentCount' => $entry['pathSegmentCount'] ?? null,
