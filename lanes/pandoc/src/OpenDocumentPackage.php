@@ -394,6 +394,7 @@ final class OpenDocumentPackage
             'manifestVersion' => $this->manifestVersion,
             'manifestRootAttributes' => $this->manifestRootAttributes,
             'manifestRootExtensionElements' => $this->manifestRootExtensionElements,
+            'manifestPackageCoverage' => $packageInventory['manifestPackageCoverage'],
             'contentXml' => isset($this->manifestEntriesByPath['content.xml']),
             'stylesXml' => isset($this->manifestEntriesByPath['styles.xml']),
             'metaXml' => isset($this->manifestEntriesByPath['meta.xml']),
@@ -1073,10 +1074,17 @@ final class OpenDocumentPackage
         self::sortPackageStringListMap($packagePathsByPathDepth, SORT_NUMERIC);
         $packageAreaSummaries = self::finalizePackageAreaSummaries($packageAreaSummaries);
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
+        $manifestPackageCoverage = self::manifestPackageCoverageProvenance($this->manifestEntries, $parts, $undeclaredEntries);
 
         return [
             'entryCount' => count($parts),
             'manifestDeclaredPartCount' => $manifestDeclaredPartCount,
+            'manifestPackageCoverage' => $manifestPackageCoverage,
+            'manifestPackageCoverageIssueCount' => $manifestPackageCoverage['issueCount'],
+            'manifestPackageCoverageIssueCodes' => $manifestPackageCoverage['issueCodes'],
+            'manifestPackageCoveredReferenceCount' => $manifestPackageCoverage['manifestPackageCoveredReferenceCount'],
+            'manifestPackageMissingReferenceCount' => $manifestPackageCoverage['manifestPackageMissingReferenceCount'],
+            'manifestPackageUndeclaredZipEntryCount' => $manifestPackageCoverage['packageUndeclaredZipEntryCount'],
             'undeclaredEntryCount' => count($undeclaredEntries),
             'undeclaredEntries' => $undeclaredEntries,
             'packageDirectoryCount' => $packageDirectoryCount,
@@ -1581,6 +1589,7 @@ final class OpenDocumentPackage
             'manifestRootExtensionElements' => $this->manifestRootExtensionElements['extensionElements'] ?? [],
             'manifestPaths' => array_column($manifestEntries, 'path'),
             'packagePaths' => array_column($packageEntries, 'path'),
+            'manifestPackageCoverage' => $packageInventory['manifestPackageCoverage'] ?? [],
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
@@ -2043,6 +2052,159 @@ final class OpenDocumentPackage
         unset($summary);
 
         return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @param array<string, array<string, mixed>> $packageParts
+     * @param list<array<string, mixed>> $undeclaredPackageEntries
+     * @return array<string, mixed>
+     */
+    private static function manifestPackageCoverageProvenance(array $manifestEntries, array $packageParts, array $undeclaredPackageEntries): array
+    {
+        $manifestReferences = [];
+        $manifestPackageReferencePaths = [];
+        $existingPackageReferencePaths = [];
+        $coveredPackageReferencePaths = [];
+        $missingPackageReferencePaths = [];
+        $directoryPackageReferencePaths = [];
+        $virtualDirectoryPackageReferencePaths = [];
+        $packagePaths = [];
+        $declaredZipEntryPaths = [];
+        $undeclaredZipEntryPaths = [];
+        $manifestPackageFileReferenceCount = 0;
+        $manifestPackageDirectoryReferenceCount = 0;
+        $manifestPackageExistingReferenceCount = 0;
+        $manifestPackageCoveredReferenceCount = 0;
+        $manifestPackageMissingReferenceCount = 0;
+        $manifestPackageVirtualDirectoryReferenceCount = 0;
+        $packageFileEntryCount = 0;
+        $packageDirectoryEntryCount = 0;
+        $packageDeclaredZipEntryCount = 0;
+
+        foreach ($packageParts as $name => $part) {
+            $path = is_string($part['path'] ?? null) ? $part['path'] : (string) $name;
+            $packagePaths[] = $path;
+            if (($part['isDirectory'] ?? false) === true) {
+                ++$packageDirectoryEntryCount;
+            } else {
+                ++$packageFileEntryCount;
+            }
+            if (($part['declaredInManifest'] ?? false) === true) {
+                ++$packageDeclaredZipEntryCount;
+                $declaredZipEntryPaths[] = $path;
+            }
+        }
+
+        foreach ($undeclaredPackageEntries as $entry) {
+            $path = $entry['path'] ?? null;
+            if (is_string($path) && $path !== '') {
+                $undeclaredZipEntryPaths[] = $path;
+            }
+        }
+
+        foreach ($manifestEntries as $entry) {
+            $packagePath = $entry['packagePath'] ?? null;
+            if (!is_string($packagePath) || $packagePath === '') {
+                continue;
+            }
+
+            $manifestPath = is_string($entry['path'] ?? null) ? $entry['path'] : $packagePath;
+            $isDirectory = ($entry['isDirectory'] ?? false) === true || str_ends_with($packagePath, '/');
+            $exists = ($entry['exists'] ?? false) === true;
+            $hasZipEntry = isset($packageParts[$packagePath]);
+            $manifestPackageReferencePaths[] = $packagePath;
+            if ($isDirectory) {
+                ++$manifestPackageDirectoryReferenceCount;
+                $directoryPackageReferencePaths[] = $packagePath;
+            } else {
+                ++$manifestPackageFileReferenceCount;
+            }
+            if ($exists) {
+                ++$manifestPackageExistingReferenceCount;
+                $existingPackageReferencePaths[] = $packagePath;
+            }
+            if ($hasZipEntry) {
+                ++$manifestPackageCoveredReferenceCount;
+                $coveredPackageReferencePaths[] = $packagePath;
+            }
+            if (!$exists) {
+                ++$manifestPackageMissingReferenceCount;
+                $missingPackageReferencePaths[] = $packagePath;
+            }
+            if ($isDirectory && $exists && !$hasZipEntry) {
+                ++$manifestPackageVirtualDirectoryReferenceCount;
+                $virtualDirectoryPackageReferencePaths[] = $packagePath;
+            }
+
+            $part = is_array($packageParts[$packagePath] ?? null) ? $packageParts[$packagePath] : null;
+            $manifestReferences[] = self::withoutEmptyValues([
+                'manifestIndex' => $entry['manifestIndex'] ?? null,
+                'manifestPath' => $manifestPath,
+                'packagePath' => $packagePath,
+                'isDirectory' => $isDirectory,
+                'exists' => $exists,
+                'hasZipEntry' => $hasZipEntry,
+                'virtualDirectoryReference' => $isDirectory && $exists && !$hasZipEntry,
+                'missingPackageReference' => !$exists,
+                'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
+                'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+                'roles' => is_array($part) ? ($part['roles'] ?? []) : [],
+            ]);
+        }
+
+        $sortStringList = static function (array $items): array {
+            $items = array_values(array_unique(array_filter(
+                $items,
+                static fn (mixed $item): bool => is_string($item) && $item !== ''
+            )));
+            sort($items, SORT_STRING);
+
+            return $items;
+        };
+
+        $issueCodes = [];
+        if ($manifestPackageMissingReferenceCount > 0) {
+            $issueCodes[] = 'missing-manifest-declared-package-references';
+        }
+        if ($undeclaredZipEntryPaths !== []) {
+            $issueCodes[] = 'undeclared-zip-package-entries';
+        }
+
+        $manifestPackageReferenceCount = count($manifestPackageReferencePaths);
+
+        return [
+            'present' => true,
+            'manifestPackageReferenceCount' => $manifestPackageReferenceCount,
+            'manifestPackageFileReferenceCount' => $manifestPackageFileReferenceCount,
+            'manifestPackageDirectoryReferenceCount' => $manifestPackageDirectoryReferenceCount,
+            'manifestPackageExistingReferenceCount' => $manifestPackageExistingReferenceCount,
+            'manifestPackageCoveredReferenceCount' => $manifestPackageCoveredReferenceCount,
+            'manifestPackageMissingReferenceCount' => $manifestPackageMissingReferenceCount,
+            'manifestPackageVirtualDirectoryReferenceCount' => $manifestPackageVirtualDirectoryReferenceCount,
+            'manifestPackageCoverageComplete' => $manifestPackageMissingReferenceCount === 0,
+            'manifestPackageZipCoverageComplete' => $manifestPackageCoveredReferenceCount === ($manifestPackageReferenceCount - $manifestPackageVirtualDirectoryReferenceCount),
+            'manifestPackageReferencePaths' => $sortStringList($manifestPackageReferencePaths),
+            'manifestPackageExistingReferencePaths' => $sortStringList($existingPackageReferencePaths),
+            'manifestPackageCoveredReferencePaths' => $sortStringList($coveredPackageReferencePaths),
+            'manifestPackageMissingReferencePaths' => $sortStringList($missingPackageReferencePaths),
+            'manifestPackageDirectoryReferencePaths' => $sortStringList($directoryPackageReferencePaths),
+            'manifestPackageVirtualDirectoryReferencePaths' => $sortStringList($virtualDirectoryPackageReferencePaths),
+            'packageEntryCount' => count($packageParts),
+            'packageFileEntryCount' => $packageFileEntryCount,
+            'packageDirectoryEntryCount' => $packageDirectoryEntryCount,
+            'packageDeclaredZipEntryCount' => $packageDeclaredZipEntryCount,
+            'packageUndeclaredZipEntryCount' => count($undeclaredZipEntryPaths),
+            'packageEntryPaths' => $sortStringList($packagePaths),
+            'packageDeclaredZipEntryPaths' => $sortStringList($declaredZipEntryPaths),
+            'packageUndeclaredZipEntryPaths' => $sortStringList($undeclaredZipEntryPaths),
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'byteExposurePolicy' => 'odf-manifest-package-coverage-metadata-only',
+            'canExposeBytes' => false,
+            'manifestReferences' => $manifestReferences,
+        ];
     }
 
     /**
