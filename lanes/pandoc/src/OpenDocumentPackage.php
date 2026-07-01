@@ -2234,6 +2234,7 @@ final class OpenDocumentPackage
                 'zipPackageManifestCompressedSize' => $part['zipPackageManifestCompressedSize'] ?? null,
                 'zipPackageManifestUncompressedSize' => $part['zipPackageManifestUncompressedSize'] ?? null,
                 'zipPackageManifestExpansionRatio' => $part['zipPackageManifestExpansionRatio'] ?? null,
+                'zipPackageManifestExpansionRatioBucket' => $part['zipPackageManifestExpansionRatioBucket'] ?? null,
                 'zipPackageManifestVersionMadeBy' => $part['zipPackageManifestVersionMadeBy'] ?? null,
                 'zipPackageManifestMadeByHostSystem' => $part['zipPackageManifestMadeByHostSystem'] ?? null,
                 'zipPackageManifestMadeByHostSystemName' => $part['zipPackageManifestMadeByHostSystemName'] ?? null,
@@ -5842,6 +5843,7 @@ final class OpenDocumentPackage
             return [];
         }
 
+        $expansionRatioBucket = self::zipPackageManifestExpansionRatioBucket($entry['expansionRatio'] ?? null);
         $localRecordBytes = is_int($entry['localRecordBytes'] ?? null) ? $entry['localRecordBytes'] : null;
         $centralDirectoryRecordBytes = is_int($entry['centralDirectoryRecordBytes'] ?? null)
             ? $entry['centralDirectoryRecordBytes']
@@ -5857,6 +5859,9 @@ final class OpenDocumentPackage
             'zipPackageManifestCompressedSize' => $entry['compressedSize'] ?? null,
             'zipPackageManifestUncompressedSize' => $entry['uncompressedSize'] ?? null,
             'zipPackageManifestExpansionRatio' => $entry['expansionRatio'] ?? null,
+            'zipPackageManifestExpansionRatioBucket' => $expansionRatioBucket['expansionRatioBucket'],
+            'zipPackageManifestExpansionRatioBucketMin' => $expansionRatioBucket['minExpansionRatio'],
+            'zipPackageManifestExpansionRatioBucketMax' => $expansionRatioBucket['maxExpansionRatio'],
             'zipPackageManifestVersionMadeBy' => $entry['versionMadeBy'] ?? null,
             'zipPackageManifestMadeByHostSystem' => $entry['madeByHostSystem'] ?? null,
             'zipPackageManifestMadeByHostSystemName' => $entry['madeByHostSystemName'] ?? null,
@@ -5933,6 +5938,61 @@ final class OpenDocumentPackage
             'zipSourceRecordBytes' => $sourceRecordBytes,
             'zipHasSourceRecordProvenance' => is_string($entry['localRecordSha256'] ?? null)
                 && is_string($entry['centralDirectoryRecordSha256'] ?? null),
+        ];
+    }
+
+    /**
+     * @return array{expansionRatioBucket:string,minExpansionRatio:?float,maxExpansionRatio:?float}
+     */
+    private static function zipPackageManifestExpansionRatioBucket(mixed $expansionRatio): array
+    {
+        $ratio = is_int($expansionRatio) || is_float($expansionRatio)
+            ? (float) $expansionRatio
+            : null;
+        if ($ratio === null) {
+            return [
+                'expansionRatioBucket' => 'unknown',
+                'minExpansionRatio' => null,
+                'maxExpansionRatio' => null,
+            ];
+        }
+
+        if ($ratio <= 0.0) {
+            return [
+                'expansionRatioBucket' => 'zero-byte',
+                'minExpansionRatio' => 0.0,
+                'maxExpansionRatio' => 0.0,
+            ];
+        }
+
+        if ($ratio <= 1.0) {
+            return [
+                'expansionRatioBucket' => 'up-to-1x',
+                'minExpansionRatio' => 0.0,
+                'maxExpansionRatio' => 1.0,
+            ];
+        }
+
+        if ($ratio <= 10.0) {
+            return [
+                'expansionRatioBucket' => '1x-to-10x',
+                'minExpansionRatio' => 1.0,
+                'maxExpansionRatio' => 10.0,
+            ];
+        }
+
+        if ($ratio <= 100.0) {
+            return [
+                'expansionRatioBucket' => '10x-to-100x',
+                'minExpansionRatio' => 10.0,
+                'maxExpansionRatio' => 100.0,
+            ];
+        }
+
+        return [
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
         ];
     }
 
