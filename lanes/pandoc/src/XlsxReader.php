@@ -711,11 +711,63 @@ final class XlsxReader
             return is_array($size) ? ['width' => (int) $size['width'], 'height' => (int) $size['height']] : null;
         }
 
+        if ($length >= 26 && substr($bytes, 0, 2) === 'BM') {
+            return $this->bmpDimensions($bytes);
+        }
+
         if ($length >= 4 && substr($bytes, 0, 2) === "\xff\xd8") {
             return $this->jpegDimensions($bytes);
         }
 
         return null;
+    }
+
+    /**
+     * @return array{width:int, height:int}|null
+     */
+    private function bmpDimensions(string $bytes): ?array
+    {
+        $header = unpack('VdibHeaderSize', substr($bytes, 14, 4));
+        if (!is_array($header)) {
+            return null;
+        }
+
+        $dibHeaderSize = (int) $header['dibHeaderSize'];
+        if ($dibHeaderSize === 12) {
+            $size = unpack('vwidth/vheight', substr($bytes, 18, 4));
+            if (!is_array($size)) {
+                return null;
+            }
+
+            $width = (int) $size['width'];
+            $height = (int) $size['height'];
+        } elseif ($dibHeaderSize >= 40) {
+            $width = $this->littleEndianSignedInt32(substr($bytes, 18, 4));
+            $height = $this->littleEndianSignedInt32(substr($bytes, 22, 4));
+        } else {
+            return null;
+        }
+
+        if ($width === 0 || $height === 0) {
+            return null;
+        }
+
+        return [
+            'width' => abs($width),
+            'height' => abs($height),
+        ];
+    }
+
+    private function littleEndianSignedInt32(string $bytes): int
+    {
+        $value = unpack('Vvalue', $bytes);
+        if (!is_array($value)) {
+            return 0;
+        }
+
+        $value = (int) $value['value'];
+
+        return $value >= 0x80000000 ? $value - 0x100000000 : $value;
     }
 
     /**

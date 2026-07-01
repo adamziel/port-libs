@@ -17,6 +17,15 @@ $tinyPngBytes = static function (): string {
     return $bytes;
 };
 
+$tinyBmpBytes = static function (): string {
+    $pixelBytes = str_repeat("\0", 24);
+
+    return 'BM'
+        . pack('VvvV', 78, 0, 0, 54)
+        . pack('V3v2V6', 40, 2, 3, 1, 24, 0, strlen($pixelBytes), 2835, 2835, 0, 0)
+        . $pixelBytes;
+};
+
 $buildXlsxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-xlsx-');
     if ($path === false) {
@@ -229,7 +238,7 @@ XML);
     }
 };
 
-$buildStyleCommentImageXlsxPackage = static function () use ($tinyPngBytes): string {
+$buildStyleCommentImageXlsxPackage = static function () use ($tinyPngBytes, $tinyBmpBytes): string {
     return ZipPackage::build([
         [
             'name' => '[Content_Types].xml',
@@ -239,6 +248,7 @@ $buildStyleCommentImageXlsxPackage = static function () use ($tinyPngBytes): str
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="bmp" ContentType="image/bmp"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
   <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
@@ -448,6 +458,10 @@ XML,
         [
             'name' => 'xl/media/image1.png',
             'data' => $tinyPngBytes(),
+        ],
+        [
+            'name' => 'xl/media/image2.bmp',
+            'data' => $tinyBmpBytes(),
         ],
     ]);
 };
@@ -855,7 +869,7 @@ return [
         $t->contains('<td><em>2024-01-15</em></td>', $html);
     },
 
-    'preserves xlsx number styles comments and image media provenance' => static function (TestRunner $t) use ($buildStyleCommentImageXlsxPackage, $tinyPngBytes): void {
+    'preserves xlsx number styles comments and image media provenance' => static function (TestRunner $t) use ($buildStyleCommentImageXlsxPackage, $tinyPngBytes, $tinyBmpBytes): void {
         $document = (new XlsxReader())->read($buildStyleCommentImageXlsxPackage());
         $review = $document->attr('xlsx');
         $features = $review['featureMetadata'];
@@ -981,7 +995,7 @@ return [
         $t->same(true, $comments['validRoot']);
         $t->same('xl/worksheets/sheet1.xml', $comments['relationshipRefs'][0]['sourcePart']);
 
-        $t->same(1, $features['byKind']['image']['count'] ?? null);
+        $t->same(2, $features['byKind']['image']['count'] ?? null);
         $image = $findPart($features['byKind']['image']['items'], 'xl/media/image1.png');
         $t->same('image/png', $image['contentTypeBase']);
         $t->same(strlen($tinyPngBytes()), $image['byteSize']);
@@ -1017,6 +1031,14 @@ return [
         $t->same('Absolute placement', $image['drawingAnchors'][2]['description'] ?? null);
         $t->same('xl/drawings/drawing1.xml', $image['relationshipRefs'][0]['sourcePart'] ?? null);
         $t->same('xl/media/image1.png', $image['relationshipRefs'][0]['targetPart'] ?? null);
+        $bmpImage = $findPart($features['byKind']['image']['items'], 'xl/media/image2.bmp');
+        $t->same('image/bmp', $bmpImage['contentTypeBase']);
+        $t->same(strlen($tinyBmpBytes()), $bmpImage['byteSize']);
+        $t->same(hash('sha256', $tinyBmpBytes()), $bmpImage['sha256']);
+        $t->same(2, $bmpImage['imageWidthPixels']);
+        $t->same(3, $bmpImage['imageHeightPixels']);
+        $t->same(0, $bmpImage['drawingAnchorCount']);
+        $t->same([], $bmpImage['issues']);
     },
 
     'preserves xlsx border style records as bounded cell metadata' => static function (TestRunner $t) use ($buildStyleCommentImageXlsxPackage): void {
