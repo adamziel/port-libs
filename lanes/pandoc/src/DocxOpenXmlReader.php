@@ -12772,6 +12772,42 @@ final class DocxOpenXmlReader
             ? $zipPackageManifest['deepestEntryNames']
             : [];
         $summary['zipPackageManifestDeepestEntryNameCount'] = count($summary['zipPackageManifestDeepestEntryNames']);
+        $summary['zipPackageManifestPathSegmentSummaryCount'] = (int) ($zipPackageManifest['pathSegmentSummaryCount'] ?? 0);
+        $summary['zipPackageManifestPathSegmentOccurrenceCount'] = (int) ($zipPackageManifest['pathSegmentOccurrenceCount'] ?? 0);
+        $summary['zipPackageManifestPathSegmentCounts'] = is_array($zipPackageManifest['pathSegmentCounts'] ?? null)
+            ? $zipPackageManifest['pathSegmentCounts']
+            : [];
+        $summary['zipPackageManifestPathSegmentEntryCounts'] = is_array($zipPackageManifest['pathSegmentEntryCounts'] ?? null)
+            ? $zipPackageManifest['pathSegmentEntryCounts']
+            : [];
+        $summary['zipPackageManifestPathSegmentSummaries'] = is_array($zipPackageManifest['pathSegmentSummaries'] ?? null)
+            ? $zipPackageManifest['pathSegmentSummaries']
+            : [];
+        $summary['zipPackageManifestCaseFoldPathSegmentSummaryCount'] = (int) ($zipPackageManifest['caseFoldPathSegmentSummaryCount'] ?? 0);
+        $summary['zipPackageManifestCaseFoldPathSegments'] = is_array($zipPackageManifest['caseFoldPathSegments'] ?? null)
+            ? $zipPackageManifest['caseFoldPathSegments']
+            : [];
+        $summary['zipPackageManifestCaseFoldPathSegmentOccurrenceCount'] = (int) ($zipPackageManifest['caseFoldPathSegmentOccurrenceCount'] ?? 0);
+        $summary['zipPackageManifestCaseFoldPathSegmentCounts'] = is_array($zipPackageManifest['caseFoldPathSegmentCounts'] ?? null)
+            ? $zipPackageManifest['caseFoldPathSegmentCounts']
+            : [];
+        $summary['zipPackageManifestCaseFoldPathSegmentEntryCounts'] = is_array($zipPackageManifest['caseFoldPathSegmentEntryCounts'] ?? null)
+            ? $zipPackageManifest['caseFoldPathSegmentEntryCounts']
+            : [];
+        $summary['zipPackageManifestCaseFoldPathSegmentSummaries'] = is_array($zipPackageManifest['caseFoldPathSegmentSummaries'] ?? null)
+            ? $zipPackageManifest['caseFoldPathSegmentSummaries']
+            : [];
+        $summary['zipPackageManifestPathSegmentPositionSummaryCount'] = (int) ($zipPackageManifest['pathSegmentPositionSummaryCount'] ?? 0);
+        $summary['zipPackageManifestPathSegmentPositionOccurrenceCount'] = (int) ($zipPackageManifest['pathSegmentPositionOccurrenceCount'] ?? 0);
+        $summary['zipPackageManifestPathSegmentPositionCounts'] = is_array($zipPackageManifest['pathSegmentPositionCounts'] ?? null)
+            ? $zipPackageManifest['pathSegmentPositionCounts']
+            : [];
+        $summary['zipPackageManifestPathSegmentPositionEntryCounts'] = is_array($zipPackageManifest['pathSegmentPositionEntryCounts'] ?? null)
+            ? $zipPackageManifest['pathSegmentPositionEntryCounts']
+            : [];
+        $summary['zipPackageManifestPathSegmentPositionSummaries'] = is_array($zipPackageManifest['pathSegmentPositionSummaries'] ?? null)
+            ? $zipPackageManifest['pathSegmentPositionSummaries']
+            : [];
         $summary['zipPackageManifestCaseInsensitiveNameCollisionGroupCount'] = (int) ($zipPackageManifest['caseInsensitiveNameCollisionGroupCount'] ?? 0);
         $summary['zipPackageManifestCaseInsensitiveNameCollisionEntryCount'] = (int) ($zipPackageManifest['caseInsensitiveNameCollisionEntryCount'] ?? 0);
         $summary['zipPackageManifestHasCaseInsensitiveNameCollisions'] = ($zipPackageManifest['hasCaseInsensitiveNameCollisions'] ?? false) === true;
@@ -14045,6 +14081,22 @@ final class DocxOpenXmlReader
             'maxPathSegmentCount' => 0,
             'maxDirectoryDepth' => 0,
             'deepestEntryNames' => [],
+            'pathSegmentSummaryCount' => 0,
+            'pathSegmentOccurrenceCount' => 0,
+            'pathSegmentCounts' => [],
+            'pathSegmentEntryCounts' => [],
+            'pathSegmentSummaries' => [],
+            'caseFoldPathSegmentSummaryCount' => 0,
+            'caseFoldPathSegments' => [],
+            'caseFoldPathSegmentOccurrenceCount' => 0,
+            'caseFoldPathSegmentCounts' => [],
+            'caseFoldPathSegmentEntryCounts' => [],
+            'caseFoldPathSegmentSummaries' => [],
+            'pathSegmentPositionSummaryCount' => 0,
+            'pathSegmentPositionOccurrenceCount' => 0,
+            'pathSegmentPositionCounts' => [],
+            'pathSegmentPositionEntryCounts' => [],
+            'pathSegmentPositionSummaries' => [],
             'caseInsensitiveNameCollisionGroupCount' => 0,
             'caseInsensitiveNameCollisionEntryCount' => 0,
             'hasCaseInsensitiveNameCollisions' => false,
@@ -14328,6 +14380,42 @@ final class DocxOpenXmlReader
             'packageManifestMaxDirectoryDepth' => (int) ($packageManifest['maxDirectoryDepth'] ?? 0),
             'packageManifestDeepestEntryNames' => $deepestEntryNames,
             'packageManifestDeepestEntryNameCount' => count($deepestEntryNames),
+            'packageManifestPathSegmentSummaryCount' => (int) ($packageManifest['pathSegmentSummaryCount'] ?? 0),
+            'packageManifestPathSegmentOccurrenceCount' => (int) ($packageManifest['pathSegmentOccurrenceCount'] ?? 0),
+            'packageManifestPathSegmentCounts' => is_array($packageManifest['pathSegmentCounts'] ?? null)
+                ? $packageManifest['pathSegmentCounts']
+                : [],
+            'packageManifestPathSegmentEntryCounts' => is_array($packageManifest['pathSegmentEntryCounts'] ?? null)
+                ? $packageManifest['pathSegmentEntryCounts']
+                : [],
+            'packageManifestPathSegmentSummaries' => is_array($packageManifest['pathSegmentSummaries'] ?? null)
+                ? $packageManifest['pathSegmentSummaries']
+                : [],
+            'packageManifestCaseFoldPathSegmentSummaryCount' => (int) ($packageManifest['caseFoldPathSegmentSummaryCount'] ?? 0),
+            'packageManifestCaseFoldPathSegments' => is_array($packageManifest['caseFoldPathSegments'] ?? null)
+                ? $packageManifest['caseFoldPathSegments']
+                : [],
+            'packageManifestCaseFoldPathSegmentOccurrenceCount' => (int) ($packageManifest['caseFoldPathSegmentOccurrenceCount'] ?? 0),
+            'packageManifestCaseFoldPathSegmentCounts' => is_array($packageManifest['caseFoldPathSegmentCounts'] ?? null)
+                ? $packageManifest['caseFoldPathSegmentCounts']
+                : [],
+            'packageManifestCaseFoldPathSegmentEntryCounts' => is_array($packageManifest['caseFoldPathSegmentEntryCounts'] ?? null)
+                ? $packageManifest['caseFoldPathSegmentEntryCounts']
+                : [],
+            'packageManifestCaseFoldPathSegmentSummaries' => is_array($packageManifest['caseFoldPathSegmentSummaries'] ?? null)
+                ? $packageManifest['caseFoldPathSegmentSummaries']
+                : [],
+            'packageManifestPathSegmentPositionSummaryCount' => (int) ($packageManifest['pathSegmentPositionSummaryCount'] ?? 0),
+            'packageManifestPathSegmentPositionOccurrenceCount' => (int) ($packageManifest['pathSegmentPositionOccurrenceCount'] ?? 0),
+            'packageManifestPathSegmentPositionCounts' => is_array($packageManifest['pathSegmentPositionCounts'] ?? null)
+                ? $packageManifest['pathSegmentPositionCounts']
+                : [],
+            'packageManifestPathSegmentPositionEntryCounts' => is_array($packageManifest['pathSegmentPositionEntryCounts'] ?? null)
+                ? $packageManifest['pathSegmentPositionEntryCounts']
+                : [],
+            'packageManifestPathSegmentPositionSummaries' => is_array($packageManifest['pathSegmentPositionSummaries'] ?? null)
+                ? $packageManifest['pathSegmentPositionSummaries']
+                : [],
             'packageManifestCaseInsensitiveNameCollisionGroupCount' => (int) ($packageManifest['caseInsensitiveNameCollisionGroupCount'] ?? 0),
             'packageManifestCaseInsensitiveNameCollisionEntryCount' => (int) ($packageManifest['caseInsensitiveNameCollisionEntryCount'] ?? 0),
             'packageManifestHasCaseInsensitiveNameCollisions' => ($packageManifest['hasCaseInsensitiveNameCollisions'] ?? false) === true,
@@ -44611,6 +44699,50 @@ final class DocxOpenXmlReader
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
             'zipEntryCount' => (int) ($summary['zipEntryCount'] ?? 0),
+            'zipPackageManifestPathSegmentSummaryCount' => (int) ($summary['zipPackageManifestPathSegmentSummaryCount'] ?? 0),
+            'zipPackageManifestPathSegmentOccurrenceCount' => (int) ($summary['zipPackageManifestPathSegmentOccurrenceCount'] ?? 0),
+            'zipPackageManifestPathSegmentCounts' => $this->packageIdentityCountMap(
+                $summary['zipPackageManifestPathSegmentCounts'] ?? []
+            ),
+            'zipPackageManifestPathSegmentEntryCounts' => $this->packageIdentityCountMap(
+                $summary['zipPackageManifestPathSegmentEntryCounts'] ?? []
+            ),
+            'zipPackageManifestPathSegmentSummaries' => is_array($summary['zipPackageManifestPathSegmentSummaries'] ?? null)
+                ? array_values($summary['zipPackageManifestPathSegmentSummaries'])
+                : [],
+            'zipPackageManifestCaseFoldPathSegmentSummaryCount' => (int) ($summary['zipPackageManifestCaseFoldPathSegmentSummaryCount'] ?? 0),
+            'zipPackageManifestCaseFoldPathSegments' => self::packageIdentityStringList(
+                $summary['zipPackageManifestCaseFoldPathSegments'] ?? []
+            ),
+            'zipPackageManifestCaseFoldPathSegmentOccurrenceCount' => (int) ($summary['zipPackageManifestCaseFoldPathSegmentOccurrenceCount'] ?? 0),
+            'zipPackageManifestCaseFoldPathSegmentCounts' => $this->packageIdentityCountMap(
+                $summary['zipPackageManifestCaseFoldPathSegmentCounts'] ?? []
+            ),
+            'zipPackageManifestCaseFoldPathSegmentEntryCounts' => $this->packageIdentityCountMap(
+                $summary['zipPackageManifestCaseFoldPathSegmentEntryCounts'] ?? []
+            ),
+            'zipPackageManifestCaseFoldPathSegmentSummaries' => is_array(
+                $summary['zipPackageManifestCaseFoldPathSegmentSummaries'] ?? null
+            )
+                ? array_values($summary['zipPackageManifestCaseFoldPathSegmentSummaries'])
+                : [],
+            'zipPackageManifestPathSegmentPositionSummaryCount' => (int) (
+                $summary['zipPackageManifestPathSegmentPositionSummaryCount'] ?? 0
+            ),
+            'zipPackageManifestPathSegmentPositionOccurrenceCount' => (int) (
+                $summary['zipPackageManifestPathSegmentPositionOccurrenceCount'] ?? 0
+            ),
+            'zipPackageManifestPathSegmentPositionCounts' => $this->packageIdentityCountMap(
+                $summary['zipPackageManifestPathSegmentPositionCounts'] ?? []
+            ),
+            'zipPackageManifestPathSegmentPositionEntryCounts' => $this->packageIdentityCountMap(
+                $summary['zipPackageManifestPathSegmentPositionEntryCounts'] ?? []
+            ),
+            'zipPackageManifestPathSegmentPositionSummaries' => is_array(
+                $summary['zipPackageManifestPathSegmentPositionSummaries'] ?? null
+            )
+                ? array_values($summary['zipPackageManifestPathSegmentPositionSummaries'])
+                : [],
             'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
                 ? $summary['zipUnixOwners']
                 : $this->emptyZipUnixOwnerMetadataProvenance(),
