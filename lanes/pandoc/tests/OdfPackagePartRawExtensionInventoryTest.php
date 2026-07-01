@@ -113,15 +113,24 @@ return [
             $t->same(2, $handoff['extensionlessPackagePartCount'], "{$label} extensionless count");
             $t->same(3, $handoff['packagePartRawExtensionUppercasePartCount'], "{$label} uppercase raw extension count");
             $t->same(3, $handoff['packagePartRawExtensionNormalizedPartCount'], "{$label} normalized raw extension count");
+            $t->same(2, $handoff['packagePartExtensionCaseVariantCount'], "{$label} extension case variant count");
+            $t->same(['png', 'xml'], $handoff['packagePartExtensionCaseVariantExtensions'], "{$label} extension case variant names");
+            $t->same(3, $handoff['packagePartExtensionUppercasePartCount'], "{$label} extension uppercase part count");
         }
 
         $compactRawExtensions = $indexBy($compactInventory['packagePartRawExtensionSummaries'], 'rawExtensionKey');
         $richRawExtensions = $indexBy($richProvenance['packagePartRawExtensionSummaries'], 'rawExtensionKey');
         $identityRawExtensions = $indexBy($richIdentity['packagePartRawExtensionSummaries'], 'rawExtensionKey');
+        $compactCaseVariants = $indexBy($compactInventory['packagePartExtensionCaseVariants'], 'packagePartExtension');
+        $richCaseVariants = $indexBy($richProvenance['packagePartExtensionCaseVariants'], 'packagePartExtension');
+        $identityCaseVariants = $indexBy($richIdentity['packagePartExtensionCaseVariants'], 'packagePartExtension');
 
         $t->same($compactInventory['packagePartRawExtensionSummaries'], $compactIdentity['packagePartRawExtensionSummaries']);
         $t->same($richProvenance['packagePartRawExtensionSummaries'], $richIdentity['packagePartRawExtensionSummaries']);
         $t->same($richIdentity['packagePartRawExtensionSummaries'], $documentIdentity['packagePartRawExtensionSummaries']);
+        $t->same($compactInventory['packagePartExtensionCaseVariants'], $compactIdentity['packagePartExtensionCaseVariants']);
+        $t->same($richProvenance['packagePartExtensionCaseVariants'], $richIdentity['packagePartExtensionCaseVariants']);
+        $t->same($richIdentity['packagePartExtensionCaseVariants'], $documentIdentity['packagePartExtensionCaseVariants']);
 
         $png = $compactRawExtensions['PNG'];
         $t->same('PNG', $png['rawPackagePartExtension']);
@@ -153,6 +162,36 @@ return [
         $t->same(['Pictures/icon.PnG'], $mixedPng['partNames']);
         $t->same(1, $mixedPng['uppercasePartCount']);
         $t->same(1, $mixedPng['normalizedPartCount']);
+
+        $pngVariant = $compactCaseVariants['png'];
+        $t->same(2, $pngVariant['partCount']);
+        $t->same(2, $pngVariant['uppercasePartCount']);
+        $t->same(['PNG' => 1, 'PnG' => 1], $pngVariant['rawExtensionCounts']);
+        $t->same([
+            'PNG' => ['Pictures/HERO.PNG'],
+            'PnG' => ['Pictures/icon.PnG'],
+        ], $pngVariant['rawExtensionPartNames']);
+        $t->same(['Pictures/HERO.PNG', 'Pictures/icon.PnG'], $pngVariant['partNames']);
+        $t->same('Pictures/HERO.PNG', $pngVariant['largestPart']['path']);
+        $t->same(false, array_key_exists('contents', $pngVariant['largestPart']));
+        foreach ([$richCaseVariants['png'], $identityCaseVariants['png']] as $richPngVariant) {
+            $t->same($pngVariant['rawExtensionCounts'], $richPngVariant['rawExtensionCounts']);
+            $t->same($pngVariant['rawExtensionPartNames'], $richPngVariant['rawExtensionPartNames']);
+            $t->same($pngVariant['partNames'], $richPngVariant['partNames']);
+            $t->same(false, array_key_exists('contents', $richPngVariant['largestPart']));
+        }
+
+        $xmlVariant = $compactCaseVariants['xml'];
+        $t->same(5, $xmlVariant['partCount']);
+        $t->same(1, $xmlVariant['uppercasePartCount']);
+        $t->same(['XML' => 1, 'xml' => 4], $xmlVariant['rawExtensionCounts']);
+        $t->same(['Basic/Standard/Review.XML'], $xmlVariant['rawExtensionPartNames']['XML']);
+        $t->same([
+            'META-INF/manifest.xml',
+            'content.xml',
+            'meta.xml',
+            'styles.xml',
+        ], $xmlVariant['rawExtensionPartNames']['xml']);
 
         $extensionless = $compactRawExtensions['(none)'];
         $t->same(null, $extensionless['rawPackagePartExtension']);
