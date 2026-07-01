@@ -129,7 +129,7 @@ final class PptxReader
 
     private function relationshipsOrEmpty(ZipPackage $package, string $sourcePart): OpcRelationships
     {
-        $relationshipPart = OpcRelationships::relationshipPartNameForSource($sourcePart);
+        $relationshipPart = $this->upstreamRelationshipPart($sourcePart);
         if (!$package->has($relationshipPart)) {
             return new OpcRelationships($sourcePart);
         }
@@ -166,6 +166,19 @@ final class PptxReader
         }
 
         return $relationships;
+    }
+
+    private function upstreamRelationshipPart(string $sourcePart): string
+    {
+        if ($sourcePart === '/' || $sourcePart === '') {
+            return '_rels/.rels';
+        }
+
+        $path = ltrim($sourcePart, '/');
+        $directory = dirname($path);
+        $file = basename($path);
+
+        return ($directory === '.' ? '' : $directory . '/') . '_rels/' . $file . '.rels';
     }
 
     private function upstreamPresentationSlidePart(string $target): string
