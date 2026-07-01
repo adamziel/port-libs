@@ -111,6 +111,11 @@ $upstreamRemoveEmptySlidesNative = <<<'NATIVE'
 ,Para [Str "More",Space,Str "content"]]
 NATIVE;
 
+$upstreamSlideLevelZeroNative = <<<'NATIVE'
+[Header 1 ("hello",[],[]) [Str "Hello"]
+,Para [Image ("",[],[]) [Str "An",Space,Str "image"] ("lalune.jpg","fig:")]]
+NATIVE;
+
 $collectText = static function (AstNode $node) use (&$collectText): string {
     $text = '';
     if (isset($node->attrs['text']) && is_scalar($node->attrs['text'])) {
@@ -382,6 +387,23 @@ return [
         $slide2Text = trim(preg_replace('/\s+/u', ' ', strip_tags($package->read('ppt/slides/slide2.xml'))) ?? '');
         $t->contains('More content', $slide2Text);
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'uses the first heading as the slide title when slide level is zero' => static function (TestRunner $t) use ($upstreamSlideLevelZeroNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamSlideLevelZeroNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions + ['writerSlideLevel' => 0]))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected generated slide');
+        $t->true(!in_array('ppt/slides/slide2.xml', $names, true), 'Slide-level-0 fixture should produce one slide');
+
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $slideText = trim(preg_replace('/\s+/u', ' ', strip_tags($slide)) ?? '');
+        $t->contains('Hello', $slideText);
+        $t->contains('An image', $slideText);
+        $t->true(!str_contains($slideText, 'Untitled'), 'First heading should replace the metadata fallback title');
+        $t->same(1, substr_count($slideText, 'Hello'));
+        $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
     },
 
     'rejects non-document roots' => static function (TestRunner $t): void {

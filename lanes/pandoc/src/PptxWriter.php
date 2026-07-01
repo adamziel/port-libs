@@ -224,6 +224,16 @@ final class PptxWriter
                 continue;
             }
 
+            if ($slideLevel === 0 && $block->type === 'heading' && $current === null) {
+                $title = $this->blockText($block);
+                $current = $this->newSlide($title !== '' ? $title : 'Slide ' . (count($slides) + 1));
+                if ($pendingMetadataNotes !== []) {
+                    array_push($current['notes'], ...$pendingMetadataNotes);
+                    $pendingMetadataNotes = [];
+                }
+                continue;
+            }
+
             if ($this->isSpeakerNotesBlock($block)) {
                 if ($current === null) {
                     $current = $this->newSlide((string) $metadata['title']);
