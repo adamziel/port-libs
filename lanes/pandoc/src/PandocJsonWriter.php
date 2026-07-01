@@ -60,6 +60,10 @@ final class PandocJsonWriter
         'shortCaptionMaybeConstructor',
         'shortCaptionMaybeNative',
         'shortCaptionNative',
+        'headRowsNative',
+        'tableBodiesNative',
+        'tableCellsNative',
+        'tableRowsNative',
         'targetConstructor',
         'targetNative',
     ];
@@ -917,7 +921,7 @@ final class PandocJsonWriter
                 $this->writeTableCaption($node),
                 $this->writeTableColumnSpecs($node),
                 $this->writeTableSection($this->firstTableSection($node, 'table_head') ?? new AstNode('table_head'), 'TableHead'),
-                array_map(fn (AstNode $body): array => $this->writeTableBody($body), $this->tableSections($node, 'table_body')),
+                $this->writeTableBodies($node),
                 $this->writeTableSection($this->firstTableSection($node, 'table_foot') ?? new AstNode('table_foot'), 'TableFoot'),
             ],
         ];
@@ -1265,11 +1269,21 @@ final class PandocJsonWriter
     {
         $payload = [
             $this->attrTuple($section),
-            $this->writeTableRows($section->children),
+            $this->writeTableRows($section->children, $section->attr('tableRowsNative')),
         ];
 
         return $this->reusableTaggedTableHelperNative($section, $constructor, $payload)
             ?? $this->taggedTableHelper($constructor, $payload);
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function writeTableBodies(AstNode $table): array
+    {
+        $bodies = array_map(fn (AstNode $body): array => $this->writeTableBody($body), $this->tableSections($table, 'table_body'));
+
+        return $this->reusableTableCollectionNative($table->attr('tableBodiesNative'), $bodies) ?? $bodies;
     }
 
     /**
@@ -1283,8 +1297,8 @@ final class PandocJsonWriter
             $this->attrTuple($body),
             $this->integerConstructorNative($body->attr('rowHeadColumnsNative'), 'RowHeadColumns', max(0, (int) $body->attr('rowHeadColumns', 0)))
                 ?? ['t' => 'RowHeadColumns', 'c' => max(0, (int) $body->attr('rowHeadColumns', 0))],
-            is_array($headRows) ? $this->writeTableRows(array_values($headRows)) : [],
-            $this->writeTableRows($body->children),
+            is_array($headRows) ? $this->writeTableRows(array_values($headRows), $body->attr('headRowsNative')) : [],
+            $this->writeTableRows($body->children, $body->attr('tableRowsNative')),
         ];
 
         return $this->reusableTaggedTableHelperNative($body, 'TableBody', $payload)
@@ -1295,7 +1309,7 @@ final class PandocJsonWriter
      * @param list<AstNode> $rows
      * @return list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:list<array<int, mixed>>}>
      */
-    private function writeTableRows(array $rows): array
+    private function writeTableRows(array $rows, mixed $native = null): array
     {
         $encoded = [];
         foreach ($rows as $row) {
@@ -1305,20 +1319,20 @@ final class PandocJsonWriter
 
             $payload = [
                 $this->attrTuple($row),
-                $this->writeTableCells($row->children),
+                $this->writeTableCells($row->children, $row->attr('tableCellsNative')),
             ];
             $encoded[] = $this->reusableTaggedTableHelperNative($row, 'Row', $payload)
                 ?? $this->taggedTableHelper('Row', $payload);
         }
 
-        return $encoded;
+        return $this->reusableTableCollectionNative($native, $encoded) ?? $encoded;
     }
 
     /**
      * @param list<AstNode> $cells
      * @return list<array<string, mixed>|array{0:array{0:string, 1:list<string>, 2:list<array{0:string, 1:string}>}, 1:array{t:string}, 2:array{t:string, c:int}, 3:array{t:string, c:int}, 4:list<array<string, mixed>>}>
      */
-    private function writeTableCells(array $cells): array
+    private function writeTableCells(array $cells, mixed $native = null): array
     {
         $encoded = [];
         foreach ($cells as $cell) {
@@ -1341,7 +1355,24 @@ final class PandocJsonWriter
                 ?? $this->taggedTableHelper('Cell', $payload);
         }
 
-        return $encoded;
+        return $this->reusableTableCollectionNative($native, $encoded) ?? $encoded;
+    }
+
+    /**
+     * @param list<mixed> $generated
+     * @return list<mixed>|null
+     */
+    private function reusableTableCollectionNative(mixed $native, array $generated): ?array
+    {
+        if (!is_array($native) || !array_is_list($native)) {
+            return null;
+        }
+
+        if ($native === $generated) {
+            return $native;
+        }
+
+        return $this->singleWrappedReusableListPayload($native, $generated);
     }
 
     /**

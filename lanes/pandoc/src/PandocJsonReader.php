@@ -1098,7 +1098,12 @@ final class PandocJsonReader
             $children[] = $head;
         }
 
-        foreach ($this->listContent($tuple[4], 'Table bodies') as $body) {
+        $bodyCollection = $this->tableBodyCollectionContent($tuple[4]);
+        if ($bodyCollection !== $tuple[4]) {
+            $attrs['tableBodiesNative'] = $tuple[4];
+        }
+
+        foreach ($bodyCollection as $body) {
             $bodyNode = $this->readTableBody($body);
             if ($this->tableSectionHasContent($bodyNode)) {
                 $children[] = $bodyNode;
@@ -1515,9 +1520,14 @@ final class PandocJsonReader
     {
         $content = $this->constructorContent($section, $constructor, $constructor, false);
         $tuple = $this->singleWrappedTupleContent($content, 2, $constructor);
+        $attrs = $this->readAttrTuple($tuple[0]);
+        $rows = $this->tableRowCollectionContent($tuple[1], $constructor . ' rows');
+        if ($rows !== $tuple[1]) {
+            $attrs['tableRowsNative'] = $tuple[1];
+        }
 
         return $this->withConstructorPayload(
-            new AstNode($type, $this->readAttrTuple($tuple[0]), $this->readTableRows($tuple[1])),
+            new AstNode($type, $attrs, $this->readTableRows($rows)),
             $constructor,
             $section
         );
@@ -1536,13 +1546,22 @@ final class PandocJsonReader
         $attrs['rowHeadColumnsConstructor'] = 'RowHeadColumns';
         $attrs['rowHeadColumnsNative'] = $tuple[1];
 
-        $headRows = $this->readTableRows($tuple[2]);
+        $headRowCollection = $this->tableRowCollectionContent($tuple[2], 'TableBody head rows');
+        if ($headRowCollection !== $tuple[2]) {
+            $attrs['headRowsNative'] = $tuple[2];
+        }
+        $headRows = $this->readTableRows($headRowCollection);
         if ($headRows !== []) {
             $attrs['headRows'] = $headRows;
         }
 
+        $rowCollection = $this->tableRowCollectionContent($tuple[3], 'TableBody rows');
+        if ($rowCollection !== $tuple[3]) {
+            $attrs['tableRowsNative'] = $tuple[3];
+        }
+
         return $this->withConstructorPayload(
-            new AstNode('table_body', $attrs, $this->readTableRows($tuple[3])),
+            new AstNode('table_body', $attrs, $this->readTableRows($rowCollection)),
             'TableBody',
             $body
         );
@@ -1603,14 +1622,76 @@ final class PandocJsonReader
         foreach ($this->listContent($rows, 'Table rows') as $row) {
             $content = $this->constructorContent($row, 'Row', 'Table row', false);
             $tuple = $this->singleWrappedTupleContent($content, 2, 'Table row');
+            $attrs = $this->readAttrTuple($tuple[0]);
+            $cells = $this->tableCellCollectionContent($tuple[1]);
+            if ($cells !== $tuple[1]) {
+                $attrs['tableCellsNative'] = $tuple[1];
+            }
             $nodes[] = $this->withConstructorPayload(
-                new AstNode('table_row', $this->readAttrTuple($tuple[0]), $this->readTableCells($tuple[1])),
+                new AstNode('table_row', $attrs, $this->readTableCells($cells)),
                 'Row',
                 $row
             );
         }
 
         return $nodes;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function tableBodyCollectionContent(mixed $bodies): array
+    {
+        return $this->singleWrappedTaggedCollection($bodies, 'Table bodies', 'TableBody');
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function tableRowCollectionContent(mixed $rows, string $context): array
+    {
+        return $this->singleWrappedTaggedCollection($rows, $context, 'Row');
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function tableCellCollectionContent(mixed $cells): array
+    {
+        return $this->singleWrappedTaggedCollection($cells, 'Table cells', 'Cell');
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function singleWrappedTaggedCollection(mixed $value, string $context, string $constructor): array
+    {
+        $items = $this->listContent($value, $context);
+        if (
+            count($items) === 1
+            && is_array($items[0])
+            && array_is_list($items[0])
+            && $items[0] !== []
+            && $this->allTaggedConstructorPayloads($items[0], $constructor)
+        ) {
+            return $items[0];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function allTaggedConstructorPayloads(array $items, string $constructor): bool
+    {
+        foreach ($items as $item) {
+            if (!$this->isTaggedConstructor($item, $constructor)) {
+                return false;
+            }
+        }
+
+        return $items !== [];
     }
 
     /**

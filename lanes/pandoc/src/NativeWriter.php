@@ -59,6 +59,10 @@ final class NativeWriter
         'shortCaptionMaybeConstructor',
         'shortCaptionMaybeNative',
         'shortCaptionNative',
+        'headRowsNative',
+        'tableBodiesNative',
+        'tableCellsNative',
+        'tableRowsNative',
         'targetConstructor',
         'targetNative',
     ];
