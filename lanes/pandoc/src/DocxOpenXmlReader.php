@@ -12765,6 +12765,18 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestSourceRecordBytes'] = (int) ($zipPackageManifest['sourceRecordBytes'] ?? 0);
         $summary['zipPackageManifestCentralExtraFieldEntryCount'] = (int) ($zipPackageManifest['centralExtraFieldEntryCount'] ?? 0);
         $summary['zipPackageManifestEntryCommentCount'] = (int) ($zipPackageManifest['entryCommentCount'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaryCount'] =
+            (int) ($zipPackageManifest['centralDirectoryVariableFieldMixSummaryCount'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryVariableFieldMixes'] = is_array(
+            $zipPackageManifest['centralDirectoryVariableFieldMixes'] ?? null
+        )
+            ? $zipPackageManifest['centralDirectoryVariableFieldMixes']
+            : [];
+        $summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaries'] = is_array(
+            $zipPackageManifest['centralDirectoryVariableFieldMixSummaries'] ?? null
+        )
+            ? $zipPackageManifest['centralDirectoryVariableFieldMixSummaries']
+            : [];
         $summary['zipPackageManifestHasCentralDirectoryReviewFields'] = ($zipPackageManifest['hasCentralDirectoryReviewFields'] ?? false) === true;
         $summary['zipPackageManifestMaxPathSegmentCount'] = (int) ($zipPackageManifest['maxPathSegmentCount'] ?? 0);
         $summary['zipPackageManifestMaxDirectoryDepth'] = (int) ($zipPackageManifest['maxDirectoryDepth'] ?? 0);
@@ -14042,6 +14054,9 @@ final class DocxOpenXmlReader
             'deflatedEntryCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
             'sourceRecordBytes' => 0,
+            'centralDirectoryVariableFieldMixSummaryCount' => 0,
+            'centralDirectoryVariableFieldMixes' => [],
+            'centralDirectoryVariableFieldMixSummaries' => [],
             'maxPathSegmentCount' => 0,
             'maxDirectoryDepth' => 0,
             'deepestEntryNames' => [],
@@ -14323,6 +14338,19 @@ final class DocxOpenXmlReader
             'packageManifestSourceRecordBytes' => (int) ($packageManifest['sourceRecordBytes'] ?? 0),
             'packageManifestCentralExtraFieldEntryCount' => (int) ($packageManifest['centralExtraFieldEntryCount'] ?? 0),
             'packageManifestEntryCommentCount' => (int) ($packageManifest['entryCommentCount'] ?? 0),
+            'packageManifestCentralDirectoryVariableFieldMixSummaryCount' => (int) (
+                $packageManifest['centralDirectoryVariableFieldMixSummaryCount'] ?? 0
+            ),
+            'packageManifestCentralDirectoryVariableFieldMixes' => is_array(
+                $packageManifest['centralDirectoryVariableFieldMixes'] ?? null
+            )
+                ? $packageManifest['centralDirectoryVariableFieldMixes']
+                : [],
+            'packageManifestCentralDirectoryVariableFieldMixSummaries' => is_array(
+                $packageManifest['centralDirectoryVariableFieldMixSummaries'] ?? null
+            )
+                ? $packageManifest['centralDirectoryVariableFieldMixSummaries']
+                : [],
             'packageManifestHasCentralDirectoryReviewFields' => ($packageManifest['hasCentralDirectoryReviewFields'] ?? false) === true,
             'packageManifestMaxPathSegmentCount' => (int) ($packageManifest['maxPathSegmentCount'] ?? 0),
             'packageManifestMaxDirectoryDepth' => (int) ($packageManifest['maxDirectoryDepth'] ?? 0),
@@ -44611,6 +44639,17 @@ final class DocxOpenXmlReader
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
             'zipEntryCount' => (int) ($summary['zipEntryCount'] ?? 0),
+            'zipPackageManifestCentralDirectoryVariableFieldMixSummaryCount' => (int) (
+                $summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaryCount'] ?? 0
+            ),
+            'zipPackageManifestCentralDirectoryVariableFieldMixes' => self::packageIdentityStringList(
+                $summary['zipPackageManifestCentralDirectoryVariableFieldMixes'] ?? []
+            ),
+            'zipPackageManifestCentralDirectoryVariableFieldMixSummaries' => is_array(
+                $summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaries'] ?? null
+            )
+                ? array_values($summary['zipPackageManifestCentralDirectoryVariableFieldMixSummaries'])
+                : [],
             'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
                 ? $summary['zipUnixOwners']
                 : $this->emptyZipUnixOwnerMetadataProvenance(),

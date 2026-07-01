@@ -1339,6 +1339,9 @@ return [
             'entryCommentSummaryCount' => 0,
             'entryCommentSourceRecordBytes' => 0,
             'entryCommentSummaries' => [],
+            'centralDirectoryVariableFieldMixSummaryCount' => $manifest['centralDirectoryVariableFieldMixSummaryCount'],
+            'centralDirectoryVariableFieldMixes' => $manifest['centralDirectoryVariableFieldMixes'],
+            'centralDirectoryVariableFieldMixSummaries' => $manifest['centralDirectoryVariableFieldMixSummaries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
@@ -1491,6 +1494,18 @@ return [
         $t->same(0, $manifest['entryCommentSummaryCount']);
         $t->same(0, $manifest['entryCommentSourceRecordBytes']);
         $t->same([], $manifest['entryCommentSummaries']);
+        $t->same(1, $manifest['centralDirectoryVariableFieldMixSummaryCount']);
+        $t->same(['raw-name-only'], $manifest['centralDirectoryVariableFieldMixes']);
+        $t->same('raw-name-only', $manifest['centralDirectoryVariableFieldMixSummaries'][0]['centralDirectoryVariableFieldMix']);
+        $t->same(3, $manifest['centralDirectoryVariableFieldMixSummaries'][0]['entryCount']);
+        $t->same(
+            $manifest['centralDirectoryVariableFieldBytes'],
+            $manifest['centralDirectoryVariableFieldMixSummaries'][0]['centralDirectoryVariableFieldBytes']
+        );
+        $t->same(
+            $manifest['sourceRecordBytes'],
+            $manifest['centralDirectoryVariableFieldMixSummaries'][0]['sourceRecordBytes']
+        );
         $t->same(false, $manifest['hasCentralDirectoryReviewFields']);
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
@@ -2915,6 +2930,131 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'preflights zip package manifest central directory variable field mix summaries' => static function (TestRunner $t): void {
+        $extraOnly = pack('vva*', 0xcafe, strlen('xml-extra'), 'xml-extra');
+        $directoryExtra = pack('vva*', 0xbeef, strlen('dir-extra'), 'dir-extra');
+        $commentOnly = 'comment XML source';
+        $directoryComment = 'media directory review';
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>raw name only</w:p></w:body></w:document>',
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/extra.xml',
+                'data' => '<w:extra/>',
+                'compressionMethod' => 0,
+                'extraFieldData' => $extraOnly,
+            ],
+            [
+                'name' => 'word/comment.xml',
+                'data' => '<w:comment/>',
+                'compressionMethod' => 0,
+                'comment' => $commentOnly,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'compressionMethod' => 0,
+                'extraFieldData' => $directoryExtra,
+                'comment' => $directoryComment,
+            ],
+        ]);
+        $manifest = $package->packageManifestPreflight();
+        $entries = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entries[$entry['name']] = $entry;
+        }
+
+        $summaryFor = static function (string $mix, array $entryNames) use ($entries): array {
+            $summary = [
+                'centralDirectoryVariableFieldMix' => $mix,
+                'entryCount' => count($entryNames),
+                'fileEntryCount' => 0,
+                'directoryEntryCount' => 0,
+                'centralExtraFieldEntryCount' => 0,
+                'entryCommentCount' => 0,
+                'centralDirectoryVariableFieldBytes' => 0,
+                'centralDirectoryRawNameBytes' => 0,
+                'centralDirectoryExtraFieldBytes' => 0,
+                'centralDirectoryRawCommentBytes' => 0,
+                'centralDirectoryReviewFieldBytes' => 0,
+                'sourceRecordBytes' => 0,
+                'directoryRoots' => [],
+                'entryNames' => $entryNames,
+            ];
+
+            foreach ($entryNames as $entryName) {
+                $entry = $entries[$entryName];
+                if ($entry['isDirectory']) {
+                    ++$summary['directoryEntryCount'];
+                } else {
+                    ++$summary['fileEntryCount'];
+                }
+                if ($entry['centralDirectoryExtraFieldBytes'] > 0) {
+                    ++$summary['centralExtraFieldEntryCount'];
+                }
+                if ($entry['centralDirectoryRawCommentBytes'] > 0) {
+                    ++$summary['entryCommentCount'];
+                }
+
+                $summary['centralDirectoryVariableFieldBytes'] += $entry['centralDirectoryVariableFieldBytes'];
+                $summary['centralDirectoryRawNameBytes'] += $entry['centralDirectoryRawNameBytes'];
+                $summary['centralDirectoryExtraFieldBytes'] += $entry['centralDirectoryExtraFieldBytes'];
+                $summary['centralDirectoryRawCommentBytes'] += $entry['centralDirectoryRawCommentBytes'];
+                $summary['centralDirectoryReviewFieldBytes'] += $entry['centralDirectoryReviewFieldBytes'];
+                $summary['sourceRecordBytes'] += $entry['sourceRecordBytes'];
+
+                if ($entry['directoryRoot'] !== '' && !in_array($entry['directoryRoot'], $summary['directoryRoots'], true)) {
+                    $summary['directoryRoots'][] = $entry['directoryRoot'];
+                }
+            }
+            sort($summary['directoryRoots'], SORT_STRING);
+
+            return $summary;
+        };
+        $expectedMixes = [
+            'raw-name-only',
+            'raw-name-with-extra-fields',
+            'raw-name-with-entry-comment',
+            'raw-name-with-extra-fields-and-entry-comment',
+        ];
+        $expectedSummaries = [
+            $summaryFor('raw-name-only', ['word/document.xml']),
+            $summaryFor('raw-name-with-extra-fields', ['word/extra.xml']),
+            $summaryFor('raw-name-with-entry-comment', ['word/comment.xml']),
+            $summaryFor('raw-name-with-extra-fields-and-entry-comment', ['word/media/']),
+        ];
+
+        $t->same(4, $manifest['centralDirectoryVariableFieldMixSummaryCount']);
+        $t->same($expectedMixes, $manifest['centralDirectoryVariableFieldMixes']);
+        $t->same($expectedSummaries, $manifest['centralDirectoryVariableFieldMixSummaries']);
+        $t->same(2, $manifest['centralExtraFieldEntryCount']);
+        $t->same(2, $manifest['entryCommentCount']);
+        $t->same(
+            $manifest['centralDirectoryVariableFieldBytes'],
+            array_sum(array_column($manifest['centralDirectoryVariableFieldMixSummaries'], 'centralDirectoryVariableFieldBytes'))
+        );
+        $t->same(
+            $manifest['centralDirectoryReviewFieldBytes'],
+            array_sum(array_column($manifest['centralDirectoryVariableFieldMixSummaries'], 'centralDirectoryReviewFieldBytes'))
+        );
+        $t->same(
+            $manifest['sourceRecordBytes'],
+            array_sum(array_column($manifest['centralDirectoryVariableFieldMixSummaries'], 'sourceRecordBytes'))
+        );
+        $t->same(0, $manifest['centralDirectoryVariableFieldMixSummaries'][0]['centralDirectoryReviewFieldBytes']);
+        $t->same(strlen($extraOnly), $manifest['centralDirectoryVariableFieldMixSummaries'][1]['centralDirectoryReviewFieldBytes']);
+        $t->same(strlen($commentOnly), $manifest['centralDirectoryVariableFieldMixSummaries'][2]['centralDirectoryReviewFieldBytes']);
+        $t->same(
+            strlen($directoryExtra) + strlen($directoryComment),
+            $manifest['centralDirectoryVariableFieldMixSummaries'][3]['centralDirectoryReviewFieldBytes']
+        );
+        $t->same(1, $manifest['centralDirectoryVariableFieldMixSummaries'][3]['directoryEntryCount']);
+        $t->same(['word/'], $manifest['centralDirectoryVariableFieldMixSummaries'][3]['directoryRoots']);
+    },
+
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
         $mediaBytes = "stored image bytes\n";
@@ -3390,6 +3530,9 @@ return [
             'entryCommentSummaryCount' => $manifest['entryCommentSummaryCount'],
             'entryCommentSourceRecordBytes' => $manifest['entryCommentSourceRecordBytes'],
             'entryCommentSummaries' => $manifest['entryCommentSummaries'],
+            'centralDirectoryVariableFieldMixSummaryCount' => $manifest['centralDirectoryVariableFieldMixSummaryCount'],
+            'centralDirectoryVariableFieldMixes' => $manifest['centralDirectoryVariableFieldMixes'],
+            'centralDirectoryVariableFieldMixSummaries' => $manifest['centralDirectoryVariableFieldMixSummaries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
@@ -3480,6 +3623,18 @@ return [
         $t->same(false, $manifest['hasCaseInsensitiveNameCollisions']);
         $t->same([], $manifest['caseInsensitiveNameCollisionGroups']);
         $t->same([], $manifest['caseInsensitiveNameCollisionEntries']);
+        $t->same(1, $manifest['centralDirectoryVariableFieldMixSummaryCount']);
+        $t->same(['raw-name-only'], $manifest['centralDirectoryVariableFieldMixes']);
+        $t->same('raw-name-only', $manifest['centralDirectoryVariableFieldMixSummaries'][0]['centralDirectoryVariableFieldMix']);
+        $t->same(2, $manifest['centralDirectoryVariableFieldMixSummaries'][0]['entryCount']);
+        $t->same(
+            $manifest['centralDirectoryVariableFieldBytes'],
+            $manifest['centralDirectoryVariableFieldMixSummaries'][0]['centralDirectoryVariableFieldBytes']
+        );
+        $t->same(
+            $manifest['sourceRecordBytes'],
+            $manifest['centralDirectoryVariableFieldMixSummaries'][0]['sourceRecordBytes']
+        );
         $t->same(0, $manifest['extensionlessPackagePartCount']);
         $t->same(false, $manifest['hasExtensionlessPackageParts']);
         $t->same(1, $manifest['packagePartExtensionSummaryCount']);

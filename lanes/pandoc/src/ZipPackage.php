@@ -15814,6 +15814,12 @@ final class ZipPackage
             static fn (array $summary): int => (int) $summary['sourceRecordBytes'],
             $entryCommentSummaries
         ));
+        $centralDirectoryVariableFieldMixSummaries =
+            self::packageManifestCentralDirectoryVariableFieldMixSummaries($entries);
+        $centralDirectoryVariableFieldMixes = array_map(
+            static fn (array $summary): string => (string) $summary['centralDirectoryVariableFieldMix'],
+            $centralDirectoryVariableFieldMixSummaries
+        );
         $nameLengthBucketSummaries = self::packageManifestNameLengthBucketSummaries($entries);
         $nameLengthBuckets = array_map(
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
@@ -15916,6 +15922,9 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            'centralDirectoryVariableFieldMixSummaryCount' => count($centralDirectoryVariableFieldMixSummaries),
+            'centralDirectoryVariableFieldMixes' => $centralDirectoryVariableFieldMixes,
+            'centralDirectoryVariableFieldMixSummaries' => $centralDirectoryVariableFieldMixSummaries,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
@@ -16106,6 +16115,9 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            'centralDirectoryVariableFieldMixSummaryCount' => count($centralDirectoryVariableFieldMixSummaries),
+            'centralDirectoryVariableFieldMixes' => $centralDirectoryVariableFieldMixes,
+            'centralDirectoryVariableFieldMixSummaries' => $centralDirectoryVariableFieldMixSummaries,
             'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
@@ -16669,6 +16681,95 @@ final class ZipPackage
         }
 
         return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestCentralDirectoryVariableFieldMixSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $extraFieldBytes = (int) ($entry['centralDirectoryExtraFieldBytes'] ?? 0);
+            $rawCommentBytes = (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+            $mix = match (true) {
+                $extraFieldBytes > 0 && $rawCommentBytes > 0 => 'raw-name-with-extra-fields-and-entry-comment',
+                $extraFieldBytes > 0 => 'raw-name-with-extra-fields',
+                $rawCommentBytes > 0 => 'raw-name-with-entry-comment',
+                default => 'raw-name-only',
+            };
+
+            $summaries[$mix] ??= [
+                'centralDirectoryVariableFieldMix' => $mix,
+                'entryCount' => 0,
+                'fileEntryCount' => 0,
+                'directoryEntryCount' => 0,
+                'centralExtraFieldEntryCount' => 0,
+                'entryCommentCount' => 0,
+                'centralDirectoryVariableFieldBytes' => 0,
+                'centralDirectoryRawNameBytes' => 0,
+                'centralDirectoryExtraFieldBytes' => 0,
+                'centralDirectoryRawCommentBytes' => 0,
+                'centralDirectoryReviewFieldBytes' => 0,
+                'sourceRecordBytes' => 0,
+                'directoryRoots' => [],
+                'entryNames' => [],
+            ];
+
+            ++$summaries[$mix]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$mix]['directoryEntryCount'];
+            } else {
+                ++$summaries[$mix]['fileEntryCount'];
+            }
+            if ($extraFieldBytes > 0) {
+                ++$summaries[$mix]['centralExtraFieldEntryCount'];
+            }
+            if ($rawCommentBytes > 0) {
+                ++$summaries[$mix]['entryCommentCount'];
+            }
+
+            $summaries[$mix]['centralDirectoryVariableFieldBytes'] +=
+                (int) ($entry['centralDirectoryVariableFieldBytes'] ?? 0);
+            $summaries[$mix]['centralDirectoryRawNameBytes'] +=
+                (int) ($entry['centralDirectoryRawNameBytes'] ?? 0);
+            $summaries[$mix]['centralDirectoryExtraFieldBytes'] += $extraFieldBytes;
+            $summaries[$mix]['centralDirectoryRawCommentBytes'] += $rawCommentBytes;
+            $summaries[$mix]['centralDirectoryReviewFieldBytes'] +=
+                (int) ($entry['centralDirectoryReviewFieldBytes'] ?? 0);
+            $summaries[$mix]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $summaries[$mix]['entryNames'][] = $name;
+
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '';
+            if ($directoryRoot !== '' && !in_array($directoryRoot, $summaries[$mix]['directoryRoots'], true)) {
+                $summaries[$mix]['directoryRoots'][] = $directoryRoot;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach ([
+            'raw-name-only',
+            'raw-name-with-extra-fields',
+            'raw-name-with-entry-comment',
+            'raw-name-with-extra-fields-and-entry-comment',
+        ] as $mix) {
+            if (isset($summaries[$mix])) {
+                $ordered[] = $summaries[$mix];
+            }
+        }
+
+        return $ordered;
     }
 
     /**

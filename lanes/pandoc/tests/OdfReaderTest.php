@@ -12918,6 +12918,19 @@ XML;
         $t->same(true, $provenance['hasEntryComments']);
         $t->same(3, $provenance['entryCommentCount']);
         $t->same(['META-INF/manifest.xml', 'content.xml', 'Pictures/hero.png'], $provenance['commentedEntryNames']);
+        foreach ([
+            'hasEntryComments' => 'zipPackageManifestHasEntryComments',
+            'commentedEntryNames' => 'zipPackageManifestCommentedEntryNames',
+            'entryCommentSummaryCount' => 'zipPackageManifestEntryCommentSummaryCount',
+            'entryCommentSourceRecordBytes' => 'zipPackageManifestEntryCommentSourceRecordBytes',
+            'entryCommentSummaries' => 'zipPackageManifestEntryCommentSummaries',
+        ] as $manifestKey => $provenanceKey) {
+            $t->same($packageManifest[$manifestKey], $provenance[$provenanceKey], "{$provenanceKey} provenance");
+            $t->same($packageManifest[$manifestKey], $identity[$provenanceKey], "{$provenanceKey} identity");
+            $t->same($packageManifest[$manifestKey], $documentProvenance[$provenanceKey], "{$provenanceKey} document provenance");
+        }
+        $t->same(3, $provenance['zipPackageManifestEntryCommentSummaryCount']);
+        $t->same('content.xml', $provenance['zipPackageManifestEntryCommentSummaries'][1]['name']);
 
         $t->same('body review', $content['zipEntryComment']);
         $t->same(strlen('body review'), $content['zipEntryCommentLength']);
