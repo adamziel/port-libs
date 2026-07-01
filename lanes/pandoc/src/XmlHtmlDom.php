@@ -16942,6 +16942,9 @@ final class XmlHtmlDom
     private static function styleLoadingReviewSummary(\DOMElement $style): array
     {
         $blocking = self::htmlBlockingTokenSummary($style);
+        $blockingTokens = $style->hasAttribute('blocking')
+            ? self::spaceSeparatedTokens($style->getAttribute('blocking'))
+            : [];
         $issues = [];
         foreach ($blocking['invalid'] as $token) {
             $issues[] = ['code' => 'invalid-style-blocking-token', 'token' => $token];
@@ -16956,15 +16959,19 @@ final class XmlHtmlDom
 
         return [
             'styleLoadingPolicyReview' => 'style-loading-policy-metadata-review',
+            'styleBlockingAttributePresent' => $style->hasAttribute('blocking'),
+            'styleBlockingTokens' => $blockingTokens,
             'styleBlockingTokenCounts' => $blocking['tokenCounts'],
             'duplicateStyleBlockingTokens' => $blocking['duplicates'],
             'invalidStyleBlockingTokens' => $blocking['invalid'],
+            'styleRenderBlockingTokenPresent' => isset($blocking['tokenCounts']['render']),
             'styleBlockingAllTokensValid' => $blocking['invalid'] === [],
             'styleLoadingIssues' => $issues,
             'styleLoadingIssueCodes' => array_values(array_unique(array_map(
                 static fn (array $issue): string => (string) ($issue['code'] ?? ''),
                 $issues
             ))),
+            'styleLoadingPolicyValid' => $issues === [],
         ];
     }
 
