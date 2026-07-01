@@ -52,11 +52,53 @@ $tests = [
             'docProps/review-audit.xml',
         ], $resources['targetPartsByCaseFoldBaseName']['review-audit.xml']);
         $t->same(['docProps/missing-audit.xml'], $resources['targetPartsByBaseName']['missing-audit.xml']);
+        $t->same(['customXml' => 1, 'docProps' => 3], $resources['targetTopLevelSegmentCounts']);
+        $t->same(['customxml' => 1, 'docprops' => 3], $resources['targetCaseFoldTopLevelSegmentCounts']);
+        $t->same(2, $resources['targetPathSegmentPositionBucketCount']);
+        $t->same(8, $resources['targetPathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 4, 'last' => 4], $resources['targetPathSegmentPositionCounts']);
+        $t->same(['first' => 4, 'last' => 4], $resources['targetPathSegmentPositionTargetCounts']);
+        $t->same([
+            'first' => ['customXml' => 1, 'docProps' => 3],
+            'last' => [
+                'Review-Audit.XML' => 1,
+                'missing-audit.xml' => 1,
+                'review-audit.xml' => 1,
+                'sidecar-audit.xml' => 1,
+            ],
+        ], $resources['targetPathSegmentPositionSegmentCounts']);
+        $t->same([
+            'first' => ['customxml' => 1, 'docprops' => 3],
+            'last' => ['missing-audit.xml' => 1, 'review-audit.xml' => 2, 'sidecar-audit.xml' => 1],
+        ], $resources['targetCaseFoldPathSegmentPositionSegmentCounts']);
+        $t->same([
+            'first' => [
+                'customXml/Review-Audit.XML',
+                'docProps/missing-audit.xml',
+                'docProps/review-audit.xml',
+                'docProps/sidecar-audit.xml',
+            ],
+            'last' => [
+                'customXml/Review-Audit.XML',
+                'docProps/missing-audit.xml',
+                'docProps/review-audit.xml',
+                'docProps/sidecar-audit.xml',
+            ],
+        ], $resources['targetPartsByPathSegmentPosition']);
 
         $t->same($resources['targetDirectoryCounts'], $summary['packageRootRelationshipResourceTargetDirectoryCounts']);
         $t->same($resources['targetBaseNameCounts'], $summary['packageRootRelationshipResourceTargetBaseNameCounts']);
         $t->same($resources['targetCaseFoldBaseNameCounts'], $summary['packageRootRelationshipResourceTargetCaseFoldBaseNameCounts']);
         $t->same($resources['targetPartsByCaseFoldBaseName'], $summary['packageRootRelationshipResourceTargetPartsByCaseFoldBaseName']);
+        $t->same($resources['targetTopLevelSegmentCounts'], $summary['packageRootRelationshipResourceTargetTopLevelSegmentCounts']);
+        $t->same($resources['targetCaseFoldTopLevelSegmentCounts'], $summary['packageRootRelationshipResourceTargetCaseFoldTopLevelSegmentCounts']);
+        $t->same($resources['targetPathSegmentPositionBucketCount'], $summary['packageRootRelationshipResourceTargetPathSegmentPositionBucketCount']);
+        $t->same($resources['targetPathSegmentPositionOccurrenceCount'], $summary['packageRootRelationshipResourceTargetPathSegmentPositionOccurrenceCount']);
+        $t->same($resources['targetPathSegmentPositionCounts'], $summary['packageRootRelationshipResourceTargetPathSegmentPositionCounts']);
+        $t->same($resources['targetPathSegmentPositionTargetCounts'], $summary['packageRootRelationshipResourceTargetPathSegmentPositionTargetCounts']);
+        $t->same($resources['targetPathSegmentPositionSegmentCounts'], $summary['packageRootRelationshipResourceTargetPathSegmentPositionSegmentCounts']);
+        $t->same($resources['targetCaseFoldPathSegmentPositionSegmentCounts'], $summary['packageRootRelationshipResourceTargetCaseFoldPathSegmentPositionSegmentCounts']);
+        $t->same($resources['targetPartsByPathSegmentPosition'], $summary['packageRootRelationshipResourceTargetPartsByPathSegmentPosition']);
 
         $t->same('docProps', $audit['targetDirectory']);
         $t->same('docProps', $audit['targetDirectoryBaseName']);
@@ -93,6 +135,51 @@ $tests = [
             'docProps/media/Preview.PNG',
             'docProps/media/preview.png',
         ], $resources['targetRelationshipTargetPartsByCaseFoldBaseName']['preview.png']);
+        $t->same(['docProps' => 3], $resources['targetRelationshipTargetTopLevelSegmentCounts']);
+        $t->same(['docprops' => 3], $resources['targetRelationshipTargetCaseFoldTopLevelSegmentCounts']);
+        $t->same(3, $resources['targetRelationshipTargetPathSegmentPositionBucketCount']);
+        $t->same(9, $resources['targetRelationshipTargetPathSegmentPositionOccurrenceCount']);
+        $t->same([
+            'first' => 3,
+            'last' => 3,
+            'middle' => 3,
+        ], $resources['targetRelationshipTargetPathSegmentPositionCounts']);
+        $t->same([
+            'first' => 3,
+            'last' => 3,
+            'middle' => 3,
+        ], $resources['targetRelationshipTargetPathSegmentPositionTargetCounts']);
+        $t->same([
+            'first' => ['docProps' => 3],
+            'last' => [
+                'Preview.PNG' => 1,
+                'missing-preview.PNG' => 1,
+                'preview.png' => 1,
+            ],
+            'middle' => ['media' => 3],
+        ], $resources['targetRelationshipTargetPathSegmentPositionSegmentCounts']);
+        $t->same([
+            'first' => ['docprops' => 3],
+            'last' => ['missing-preview.png' => 1, 'preview.png' => 2],
+            'middle' => ['media' => 3],
+        ], $resources['targetRelationshipTargetCaseFoldPathSegmentPositionSegmentCounts']);
+        $t->same([
+            'first' => [
+                'docProps/media/Preview.PNG',
+                'docProps/media/missing-preview.PNG',
+                'docProps/media/preview.png',
+            ],
+            'last' => [
+                'docProps/media/Preview.PNG',
+                'docProps/media/missing-preview.PNG',
+                'docProps/media/preview.png',
+            ],
+            'middle' => [
+                'docProps/media/Preview.PNG',
+                'docProps/media/missing-preview.PNG',
+                'docProps/media/preview.png',
+            ],
+        ], $resources['targetRelationshipTargetPartsByPathSegmentPosition']);
 
         $t->same(
             $resources['targetRelationshipTargetDirectoryCounts'],
@@ -106,6 +193,42 @@ $tests = [
             $resources['targetRelationshipTargetPartsByCaseFoldBaseName'],
             $summary['packageRootRelationshipResourceTargetRelationshipTargetPartsByCaseFoldBaseName']
         );
+        $t->same(
+            $resources['targetRelationshipTargetTopLevelSegmentCounts'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetTopLevelSegmentCounts']
+        );
+        $t->same(
+            $resources['targetRelationshipTargetCaseFoldTopLevelSegmentCounts'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetCaseFoldTopLevelSegmentCounts']
+        );
+        $t->same(
+            $resources['targetRelationshipTargetPathSegmentPositionBucketCount'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionBucketCount']
+        );
+        $t->same(
+            $resources['targetRelationshipTargetPathSegmentPositionOccurrenceCount'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionOccurrenceCount']
+        );
+        $t->same(
+            $resources['targetRelationshipTargetPathSegmentPositionCounts'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionCounts']
+        );
+        $t->same(
+            $resources['targetRelationshipTargetPathSegmentPositionTargetCounts'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionTargetCounts']
+        );
+        $t->same(
+            $resources['targetRelationshipTargetPathSegmentPositionSegmentCounts'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionSegmentCounts']
+        );
+        $t->same(
+            $resources['targetRelationshipTargetCaseFoldPathSegmentPositionSegmentCounts'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetCaseFoldPathSegmentPositionSegmentCounts']
+        );
+        $t->same(
+            $resources['targetRelationshipTargetPartsByPathSegmentPosition'],
+            $summary['packageRootRelationshipResourceTargetRelationshipTargetPartsByPathSegmentPosition']
+        );
 
         $previewUpper = $sidecarRelationships['rSidecarPreviewUpper'];
         $t->same('docProps/media/Preview.PNG', $previewUpper['targetPart']);
@@ -115,6 +238,32 @@ $tests = [
         $t->same('png', $previewUpper['targetPartExtension']);
         $t->same('PNG', $previewUpper['targetRawPartExtension']);
         $t->same(['docProps', 'media', 'Preview.PNG'], $previewUpper['targetPathSegments']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => 'docProps',
+                'position' => 'first',
+                'isFirst' => true,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'media',
+                'position' => 'middle',
+                'isFirst' => false,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 2,
+                'segment' => 'Preview.PNG',
+                'position' => 'last',
+                'isFirst' => false,
+                'isLast' => true,
+                'isOnly' => false,
+            ],
+        ], $previewUpper['targetPathSegmentPositionReviews']);
 
         $missingPreview = $sidecarRelationships['rSidecarMissingPreview'];
         $t->same(false, $missingPreview['exists']);

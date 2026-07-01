@@ -321,10 +321,28 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceTargetBaseNameCounts'] = $packageRootResources['targetBaseNameCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetCaseFoldBaseNameCounts'] = $packageRootResources['targetCaseFoldBaseNameCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetPartsByCaseFoldBaseName'] = $packageRootResources['targetPartsByCaseFoldBaseName'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetTopLevelSegmentCounts'] = $packageRootResources['targetTopLevelSegmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetCaseFoldTopLevelSegmentCounts'] = $packageRootResources['targetCaseFoldTopLevelSegmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetPathSegmentPositionBucketCount'] = $packageRootResources['targetPathSegmentPositionBucketCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetPathSegmentPositionOccurrenceCount'] = $packageRootResources['targetPathSegmentPositionOccurrenceCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetPathSegmentPositionCounts'] = $packageRootResources['targetPathSegmentPositionCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetPathSegmentPositionTargetCounts'] = $packageRootResources['targetPathSegmentPositionTargetCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetPathSegmentPositionSegmentCounts'] = $packageRootResources['targetPathSegmentPositionSegmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetCaseFoldPathSegmentPositionSegmentCounts'] = $packageRootResources['targetCaseFoldPathSegmentPositionSegmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetPartsByPathSegmentPosition'] = $packageRootResources['targetPartsByPathSegmentPosition'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetDirectoryCounts'] = $packageRootResources['targetRelationshipTargetDirectoryCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetBaseNameCounts'] = $packageRootResources['targetRelationshipTargetBaseNameCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetCaseFoldBaseNameCounts'] = $packageRootResources['targetRelationshipTargetCaseFoldBaseNameCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPartsByCaseFoldBaseName'] = $packageRootResources['targetRelationshipTargetPartsByCaseFoldBaseName'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetTopLevelSegmentCounts'] = $packageRootResources['targetRelationshipTargetTopLevelSegmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetCaseFoldTopLevelSegmentCounts'] = $packageRootResources['targetRelationshipTargetCaseFoldTopLevelSegmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionBucketCount'] = $packageRootResources['targetRelationshipTargetPathSegmentPositionBucketCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionOccurrenceCount'] = $packageRootResources['targetRelationshipTargetPathSegmentPositionOccurrenceCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionCounts'] = $packageRootResources['targetRelationshipTargetPathSegmentPositionCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionTargetCounts'] = $packageRootResources['targetRelationshipTargetPathSegmentPositionTargetCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPathSegmentPositionSegmentCounts'] = $packageRootResources['targetRelationshipTargetPathSegmentPositionSegmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetCaseFoldPathSegmentPositionSegmentCounts'] = $packageRootResources['targetRelationshipTargetCaseFoldPathSegmentPositionSegmentCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipTargetPartsByPathSegmentPosition'] = $packageRootResources['targetRelationshipTargetPartsByPathSegmentPosition'];
         $customUiParts = $this->packageCustomUiProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['customUiParts'] = $customUiParts;
         $packageProvenance['summary']['customUiPartCount'] = $customUiParts['count'];
@@ -34219,6 +34237,14 @@ final class DocxOpenXmlReader
             'targetCaseFoldBaseNameCounts' => $targetLookup['targetCaseFoldBaseNameCounts'],
             'targetCaseFoldBaseNameStemCounts' => $targetLookup['targetCaseFoldBaseNameStemCounts'],
             'targetPartExtensionCounts' => $targetLookup['targetPartExtensionCounts'],
+            'targetTopLevelSegmentCounts' => $targetLookup['targetTopLevelSegmentCounts'],
+            'targetCaseFoldTopLevelSegmentCounts' => $targetLookup['targetCaseFoldTopLevelSegmentCounts'],
+            'targetPathSegmentPositionBucketCount' => $targetLookup['targetPathSegmentPositionBucketCount'],
+            'targetPathSegmentPositionOccurrenceCount' => $targetLookup['targetPathSegmentPositionOccurrenceCount'],
+            'targetPathSegmentPositionCounts' => $targetLookup['targetPathSegmentPositionCounts'],
+            'targetPathSegmentPositionTargetCounts' => $targetLookup['targetPathSegmentPositionTargetCounts'],
+            'targetPathSegmentPositionSegmentCounts' => $targetLookup['targetPathSegmentPositionSegmentCounts'],
+            'targetCaseFoldPathSegmentPositionSegmentCounts' => $targetLookup['targetCaseFoldPathSegmentPositionSegmentCounts'],
             'targetExistingBaseNameCounts' => $targetLookup['targetExistingBaseNameCounts'],
             'targetMissingBaseNameCounts' => $targetLookup['targetMissingBaseNameCounts'],
             'targetExistingCaseFoldBaseNameCounts' => $targetLookup['targetExistingCaseFoldBaseNameCounts'],
@@ -34229,6 +34255,7 @@ final class DocxOpenXmlReader
             'targetPartsByBaseNameStem' => $targetLookup['targetPartsByBaseNameStem'],
             'targetPartsByCaseFoldBaseName' => $targetLookup['targetPartsByCaseFoldBaseName'],
             'targetPartsByCaseFoldBaseNameStem' => $targetLookup['targetPartsByCaseFoldBaseNameStem'],
+            'targetPartsByPathSegmentPosition' => $targetLookup['targetPartsByPathSegmentPosition'],
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'targetRelationshipTypes' => $targetRelationshipTypes,
@@ -34240,6 +34267,14 @@ final class DocxOpenXmlReader
             'targetRelationshipTargetCaseFoldBaseNameCounts' => $targetRelationshipLookup['targetCaseFoldBaseNameCounts'],
             'targetRelationshipTargetCaseFoldBaseNameStemCounts' => $targetRelationshipLookup['targetCaseFoldBaseNameStemCounts'],
             'targetRelationshipTargetPartExtensionCounts' => $targetRelationshipLookup['targetPartExtensionCounts'],
+            'targetRelationshipTargetTopLevelSegmentCounts' => $targetRelationshipLookup['targetTopLevelSegmentCounts'],
+            'targetRelationshipTargetCaseFoldTopLevelSegmentCounts' => $targetRelationshipLookup['targetCaseFoldTopLevelSegmentCounts'],
+            'targetRelationshipTargetPathSegmentPositionBucketCount' => $targetRelationshipLookup['targetPathSegmentPositionBucketCount'],
+            'targetRelationshipTargetPathSegmentPositionOccurrenceCount' => $targetRelationshipLookup['targetPathSegmentPositionOccurrenceCount'],
+            'targetRelationshipTargetPathSegmentPositionCounts' => $targetRelationshipLookup['targetPathSegmentPositionCounts'],
+            'targetRelationshipTargetPathSegmentPositionTargetCounts' => $targetRelationshipLookup['targetPathSegmentPositionTargetCounts'],
+            'targetRelationshipTargetPathSegmentPositionSegmentCounts' => $targetRelationshipLookup['targetPathSegmentPositionSegmentCounts'],
+            'targetRelationshipTargetCaseFoldPathSegmentPositionSegmentCounts' => $targetRelationshipLookup['targetCaseFoldPathSegmentPositionSegmentCounts'],
             'targetRelationshipTargetExistingBaseNameCounts' => $targetRelationshipLookup['targetExistingBaseNameCounts'],
             'targetRelationshipTargetMissingBaseNameCounts' => $targetRelationshipLookup['targetMissingBaseNameCounts'],
             'targetRelationshipTargetExistingCaseFoldBaseNameCounts' => $targetRelationshipLookup['targetExistingCaseFoldBaseNameCounts'],
@@ -34250,6 +34285,7 @@ final class DocxOpenXmlReader
             'targetRelationshipTargetPartsByBaseNameStem' => $targetRelationshipLookup['targetPartsByBaseNameStem'],
             'targetRelationshipTargetPartsByCaseFoldBaseName' => $targetRelationshipLookup['targetPartsByCaseFoldBaseName'],
             'targetRelationshipTargetPartsByCaseFoldBaseNameStem' => $targetRelationshipLookup['targetPartsByCaseFoldBaseNameStem'],
+            'targetRelationshipTargetPartsByPathSegmentPosition' => $targetRelationshipLookup['targetPartsByPathSegmentPosition'],
             'targetRelationshipExternalTargets' => $targetRelationshipExternalTargets,
             'targetRelationshipExistingTargetParts' => $targetRelationshipExistingTargetParts,
             'targetRelationshipMissingTargetParts' => $targetRelationshipMissingTargetParts,
@@ -34335,6 +34371,7 @@ final class DocxOpenXmlReader
                 'targetTopLevelSegment' => null,
                 'targetPathSegmentCount' => 0,
                 'targetPathSegments' => [],
+                'targetPathSegmentPositionReviews' => [],
             ];
         }
 
@@ -34344,6 +34381,7 @@ final class DocxOpenXmlReader
         $baseName = $this->packagePartBaseName($targetPart);
         $baseNameStem = $this->packagePartBaseNameStem($targetPart);
         $pathSegments = $this->packagePartPathSegments($targetPart);
+        $pathSegmentPositionReviews = $this->packagePartPathSegmentPositionReviews($pathSegments);
 
         return [
             'targetDirectory' => $directory,
@@ -34360,12 +34398,13 @@ final class DocxOpenXmlReader
             'targetTopLevelSegment' => $pathSegments[0] ?? '',
             'targetPathSegmentCount' => count($pathSegments),
             'targetPathSegments' => $pathSegments,
+            'targetPathSegmentPositionReviews' => $pathSegmentPositionReviews,
         ];
     }
 
     /**
      * @param list<array<string, mixed>> $items
-     * @return array<string, array<string, int>|array<string, list<string>>>
+     * @return array<string, mixed>
      */
     private function packageRootRelationshipTargetLookupMaps(array $items): array
     {
@@ -34377,10 +34416,16 @@ final class DocxOpenXmlReader
             'targetCaseFoldBaseNameCounts' => [],
             'targetCaseFoldBaseNameStemCounts' => [],
             'targetPartExtensionCounts' => [],
+            'targetTopLevelSegmentCounts' => [],
+            'targetCaseFoldTopLevelSegmentCounts' => [],
             'targetExistingBaseNameCounts' => [],
             'targetMissingBaseNameCounts' => [],
             'targetExistingCaseFoldBaseNameCounts' => [],
             'targetMissingCaseFoldBaseNameCounts' => [],
+            'targetPathSegmentPositionCounts' => [],
+            'targetPathSegmentPositionTargetCounts' => [],
+            'targetPathSegmentPositionSegmentCounts' => [],
+            'targetCaseFoldPathSegmentPositionSegmentCounts' => [],
         ];
         $maps = [
             'targetPartsByDirectory' => [],
@@ -34389,7 +34434,9 @@ final class DocxOpenXmlReader
             'targetPartsByBaseNameStem' => [],
             'targetPartsByCaseFoldBaseName' => [],
             'targetPartsByCaseFoldBaseNameStem' => [],
+            'targetPartsByPathSegmentPosition' => [],
         ];
+        $pathSegmentPositionOccurrenceCount = 0;
 
         foreach ($items as $item) {
             $targetPart = is_string($item['targetPart'] ?? null) ? $item['targetPart'] : '';
@@ -34404,6 +34451,11 @@ final class DocxOpenXmlReader
             $baseNameStem = (string) $fields['targetBaseNameStem'];
             $caseFoldBaseName = (string) $fields['targetCaseFoldBaseName'];
             $caseFoldBaseNameStem = (string) $fields['targetCaseFoldBaseNameStem'];
+            $topLevelSegment = (string) $fields['targetTopLevelSegment'];
+            $topLevelSegmentKey = $topLevelSegment === '' ? '(none)' : $topLevelSegment;
+            $caseFoldTopLevelSegmentKey = $topLevelSegment === ''
+                ? '(none)'
+                : $this->packagePartCaseFoldKey($topLevelSegment);
             $extension = $fields['targetPartExtension'];
             $extensionKey = is_string($extension) && $extension !== '' ? $extension : '(none)';
             $exists = ($item['exists'] ?? false) === true;
@@ -34420,6 +34472,10 @@ final class DocxOpenXmlReader
                 ($counts['targetCaseFoldBaseNameStemCounts'][$caseFoldBaseNameStem] ?? 0) + 1;
             $counts['targetPartExtensionCounts'][$extensionKey] =
                 ($counts['targetPartExtensionCounts'][$extensionKey] ?? 0) + 1;
+            $counts['targetTopLevelSegmentCounts'][$topLevelSegmentKey] =
+                ($counts['targetTopLevelSegmentCounts'][$topLevelSegmentKey] ?? 0) + 1;
+            $counts['targetCaseFoldTopLevelSegmentCounts'][$caseFoldTopLevelSegmentKey] =
+                ($counts['targetCaseFoldTopLevelSegmentCounts'][$caseFoldTopLevelSegmentKey] ?? 0) + 1;
 
             if ($exists) {
                 $counts['targetExistingBaseNameCounts'][$baseName] =
@@ -34439,10 +34495,50 @@ final class DocxOpenXmlReader
             $maps['targetPartsByBaseNameStem'][$baseNameStem][] = $targetPart;
             $maps['targetPartsByCaseFoldBaseName'][$caseFoldBaseName][] = $targetPart;
             $maps['targetPartsByCaseFoldBaseNameStem'][$caseFoldBaseNameStem][] = $targetPart;
+
+            $positionsSeenInTarget = [];
+            $positionReviews = is_array($fields['targetPathSegmentPositionReviews'] ?? null)
+                ? $fields['targetPathSegmentPositionReviews']
+                : [];
+            foreach ($positionReviews as $positionReview) {
+                if (!is_array($positionReview)) {
+                    continue;
+                }
+
+                $position = is_string($positionReview['position'] ?? null) ? $positionReview['position'] : '';
+                $segment = is_string($positionReview['segment'] ?? null) ? $positionReview['segment'] : '';
+                if ($position === '' || $segment === '') {
+                    continue;
+                }
+
+                ++$pathSegmentPositionOccurrenceCount;
+                $counts['targetPathSegmentPositionCounts'][$position] =
+                    ($counts['targetPathSegmentPositionCounts'][$position] ?? 0) + 1;
+                $counts['targetPathSegmentPositionSegmentCounts'][$position][$segment] =
+                    ($counts['targetPathSegmentPositionSegmentCounts'][$position][$segment] ?? 0) + 1;
+                $caseFoldSegment = $this->packagePartCaseFoldKey($segment);
+                $counts['targetCaseFoldPathSegmentPositionSegmentCounts'][$position][$caseFoldSegment] =
+                    ($counts['targetCaseFoldPathSegmentPositionSegmentCounts'][$position][$caseFoldSegment] ?? 0) + 1;
+
+                if (isset($positionsSeenInTarget[$position])) {
+                    continue;
+                }
+
+                $positionsSeenInTarget[$position] = true;
+                $counts['targetPathSegmentPositionTargetCounts'][$position] =
+                    ($counts['targetPathSegmentPositionTargetCounts'][$position] ?? 0) + 1;
+                $maps['targetPartsByPathSegmentPosition'][$position][] = $targetPart;
+            }
         }
 
         foreach ($counts as &$countMap) {
             ksort($countMap, SORT_STRING);
+            foreach ($countMap as &$nestedCountMap) {
+                if (is_array($nestedCountMap)) {
+                    ksort($nestedCountMap, SORT_STRING);
+                }
+            }
+            unset($nestedCountMap);
         }
         unset($countMap);
         foreach ($maps as &$map) {
@@ -34455,7 +34551,10 @@ final class DocxOpenXmlReader
         }
         unset($map);
 
-        return $counts + $maps;
+        return [
+            'targetPathSegmentPositionBucketCount' => count($counts['targetPathSegmentPositionCounts']),
+            'targetPathSegmentPositionOccurrenceCount' => $pathSegmentPositionOccurrenceCount,
+        ] + $counts + $maps;
     }
 
     /**
