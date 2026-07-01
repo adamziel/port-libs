@@ -19060,6 +19060,7 @@ final class XmlHtmlDom
             if ($accessKey['keys'] !== []) {
                 $summary += self::accessKeyCollisionSummary($element, $accessKey['keys']);
             }
+            $summary['accessKeyIssueCodes'] = self::accessKeyIssueCodes($summary);
         }
 
         if (array_key_exists('autofocus', $attributes)) {
@@ -19072,7 +19073,10 @@ final class XmlHtmlDom
             $summary['tabIndexRaw'] = $attributes['tabindex'];
             $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
             $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
+            $summary['tabIndexIssueCodes'] = $summary['tabIndexValid'] ? [] : ['invalid-tabindex-token'];
         }
+
+        $summary += self::focusNavigationReviewSummary($summary, $attributes);
 
         if (array_key_exists('inputmode', $attributes)) {
             $inputMode = self::inputModeState($attributes['inputmode']);
@@ -19160,6 +19164,46 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function focusNavigationReviewSummary(array $summary, array $attributes): array
+    {
+        $focusAttributes = [];
+        foreach (['accesskey', 'autofocus', 'tabindex'] as $attribute) {
+            if (array_key_exists($attribute, $attributes)) {
+                $focusAttributes[] = $attribute;
+            }
+        }
+
+        if ($focusAttributes === []) {
+            return [];
+        }
+
+        $issueCodes = [];
+        foreach (['accessKeyIssueCodes', 'tabIndexIssueCodes', 'autofocusIssueCodes', 'autofocusOrderIssueCodes'] as $field) {
+            $codes = $summary[$field] ?? [];
+            if (!is_array($codes)) {
+                continue;
+            }
+
+            foreach ($codes as $code) {
+                if (is_string($code) && $code !== '' && !in_array($code, $issueCodes, true)) {
+                    $issueCodes[] = $code;
+                }
+            }
+        }
+
+        return [
+            'focusNavigationReviewPolicy' => 'html-focus-navigation-review',
+            'focusNavigationAttributes' => $focusAttributes,
+            'focusNavigationIssueCodes' => $issueCodes,
+            'focusNavigationValid' => $issueCodes === [],
+        ];
     }
 
     /**
@@ -22104,6 +22148,31 @@ final class XmlHtmlDom
         }
 
         return preg_match_all('/./us', $token) === 1;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return list<string>
+     */
+    private static function accessKeyIssueCodes(array $summary): array
+    {
+        $issueCodes = [];
+
+        $tokens = $summary['accessKeyTokens'] ?? [];
+        if ($tokens === []) {
+            $issueCodes[] = 'empty-accesskey-token-list';
+        }
+        if (($summary['invalidAccessKeyTokens'] ?? []) !== []) {
+            $issueCodes[] = 'invalid-accesskey-token';
+        }
+        if (($summary['duplicateAccessKeyTokens'] ?? []) !== []) {
+            $issueCodes[] = 'duplicate-accesskey-token';
+        }
+        if (($summary['accessKeyHasConflict'] ?? false) === true) {
+            $issueCodes[] = 'document-accesskey-conflict';
+        }
+
+        return $issueCodes;
     }
 
     /**
