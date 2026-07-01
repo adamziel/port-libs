@@ -986,6 +986,126 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'summarizes zip package manifest crc32 value buckets without changing manifest hash contract' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
+        $contentTypesXml = '<Types/>';
+        $sharedXml = '<w:p>crc32 shared payload</w:p>';
+        $sharedMediaBytes = "shared crc32 media bytes\n";
+        $zip = $buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $sharedXml, 'method' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $sharedXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $sharedMediaBytes, 'method' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $sharedMediaBytes, 'method' => 0],
+            ['name' => 'word/media/empty.bin', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $crc32Buckets = array_column($manifest['crc32ValueSummaries'], null, 'crc32Hex');
+        $duplicateCrc32Buckets = array_column($manifest['duplicateCrc32ValueSummaries'], null, 'crc32Hex');
+        $sharedXmlCrc32Hex = sprintf('%08x', $crc32($sharedXml));
+        $mediaCrc32Hex = sprintf('%08x', $crc32($sharedMediaBytes));
+        $expectedManifestJson = json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'entries' => array_map(
+                static fn (array $entry): array => [
+                    'name' => $entry['name'],
+                    'isDirectory' => $entry['isDirectory'],
+                    'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                    'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'crc32Hex' => $entry['crc32Hex'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                    'localHeaderSha256' => $entry['localHeaderSha256'],
+                    'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                ],
+                $manifest['entries']
+            ),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $t->same(hash('sha256', $expectedManifestJson), $manifest['manifestSha256']);
+        $t->same(7, $manifest['entryCount']);
+        $t->same(4, $manifest['crc32ValueCount']);
+        $t->same(3, $manifest['duplicateCrc32ValueCount']);
+        $t->same(6, $manifest['duplicateCrc32EntryCount']);
+        $t->same(2, $manifest['zeroCrc32EntryCount']);
+        $t->same(
+            ['00000000', $sharedXmlCrc32Hex, $mediaCrc32Hex],
+            array_values(array_intersect(array_keys($crc32Buckets), array_keys($duplicateCrc32Buckets)))
+        );
+
+        $t->same([
+            'crc32' => $crc32($sharedXml),
+            'crc32Hex' => $sharedXmlCrc32Hex,
+            'isZeroCrc32' => false,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'zeroCrc32EntryCount' => 0,
+            'compressedBytes' => strlen($sharedXml) * 2,
+            'uncompressedBytes' => strlen($sharedXml) * 2,
+            'centralDirectoryIndexes' => [1, 2],
+            'localHeaderOrders' => [1, 2],
+            'directoryRoots' => ['customXml/', 'word/'],
+            'parentDirectories' => ['customXml/', 'word/'],
+            'entryExtensionKeys' => ['xml'],
+            'packagePartKinds' => ['markup-part'],
+            'roles' => [],
+            'entryNames' => ['word/document.xml', 'customXml/item1.xml'],
+        ], $duplicateCrc32Buckets[$sharedXmlCrc32Hex]);
+
+        $t->same([
+            'crc32' => $crc32($sharedMediaBytes),
+            'crc32Hex' => $mediaCrc32Hex,
+            'isZeroCrc32' => false,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'zeroCrc32EntryCount' => 0,
+            'compressedBytes' => strlen($sharedMediaBytes) * 2,
+            'uncompressedBytes' => strlen($sharedMediaBytes) * 2,
+            'centralDirectoryIndexes' => [3, 4],
+            'localHeaderOrders' => [3, 4],
+            'directoryRoots' => ['ppt/', 'word/'],
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'entryExtensionKeys' => ['png'],
+            'packagePartKinds' => ['media'],
+            'roles' => [],
+            'entryNames' => ['word/media/image.png', 'ppt/media/image.png'],
+        ], $duplicateCrc32Buckets[$mediaCrc32Hex]);
+
+        $t->same([
+            'crc32' => 0,
+            'crc32Hex' => '00000000',
+            'isZeroCrc32' => true,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'zeroCrc32EntryCount' => 2,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'centralDirectoryIndexes' => [5, 6],
+            'localHeaderOrders' => [5, 6],
+            'directoryRoots' => ['word/'],
+            'parentDirectories' => ['word/', 'word/media/'],
+            'entryExtensionKeys' => ['(none)', 'bin'],
+            'packagePartKinds' => ['directory', 'media'],
+            'roles' => [],
+            'entryNames' => ['word/media/empty.bin', 'word/media/'],
+        ], $duplicateCrc32Buckets['00000000']);
+
+        $t->same($manifest['crc32ValueSummaries'], $strict['packageManifest']['crc32ValueSummaries']);
+        $t->same($manifest['duplicateCrc32ValueSummaries'], $raw['strictImport']['packageManifest']['duplicateCrc32ValueSummaries']);
+        $t->same($manifest, $raw['packageManifest']);
+    },
+
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
         $mediaBytes = "stored image bytes\n";
