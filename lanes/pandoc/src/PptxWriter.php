@@ -772,10 +772,34 @@ final class PptxWriter
 
             $image = $this->imageFromSingleImageColumn($column->children);
             if ($image !== null) {
-                $picture = $this->pictureShapeXmlAtRect($image, $shapeId++, $x, $y, $cx, min($cy, 3048000), $relationships);
+                $pictureCy = min($cy, 3048000);
+                $picture = $this->pictureShapeXmlAtRect($image, $shapeId++, $x, $y, $cx, $pictureCy, $relationships);
                 if ($picture !== null) {
                     $shapes[] = $picture;
                 }
+                $caption = $this->figureCaption($image);
+                if ($caption !== '') {
+                    [$captionX, $captionY, $captionCx, $captionCy] = $this->columnCaptionRect($x, $y, $cx, $cy, $pictureCy);
+                    $shapes[] = $this->textShapeXml(
+                        $shapeId++,
+                        'Caption',
+                        [$this->paragraphXml($this->textInlines($caption), [], $relationships)],
+                        $captionX,
+                        $captionY,
+                        $captionCx,
+                        $captionCy,
+                        null,
+                        $index + 1
+                    );
+                }
+                continue;
+            }
+
+            if ($this->columnHasComplexBlocks($column->children)) {
+                array_push(
+                    $shapes,
+                    ...$this->columnBlockShapes($column->children, $shapeId, $relationships, $x, $y, $cx, $cy, $index + 1)
+                );
                 continue;
             }
 
@@ -858,6 +882,31 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $blocks
+     */
+    private function columnHasComplexBlocks(array $blocks): bool
+    {
+        foreach ($blocks as $block) {
+            if ($block->type === 'table' || $block->type === 'figure' || $block->type === 'image') {
+                return true;
+            }
+            if ($block->type === 'plain' || $block->type === 'paragraph') {
+                foreach ($block->children as $child) {
+                    if ($child->type === 'image') {
+                        return true;
+                    }
+                }
+                continue;
+            }
+            if (($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') && $this->columnHasComplexBlocks($block->children)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
      * @return array{image:AstNode, captionInlines:list<AstNode>}|null
      */
     private function figureFromSingleFigureColumn(array $blocks): ?array
@@ -895,6 +944,179 @@ final class PptxWriter
         }
 
         return null;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     * @return list<string>
+     */
+    private function columnBlockShapes(array $blocks, int &$shapeId, array &$relationships, int $x, int $y, int $cx, int $cy, int $placeholderIndex): array
+    {
+        $shapes = [];
+        $cursorY = $y;
+        $bottom = $y + $cy;
+        foreach ($blocks as $block) {
+            if ($this->isSpeakerNotesBlock($block)) {
+                continue;
+            }
+            if ($cursorY >= $bottom) {
+                break;
+            }
+            if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
+                foreach ($this->columnBlockShapes($block->children, $shapeId, $relationships, $x, $cursorY, $cx, max(0, $bottom - $cursorY), $placeholderIndex) as $shape) {
+                    $shapes[] = $shape;
+                }
+                $cursorY = min($bottom, $cursorY + $this->columnBlockGroupHeight($block->children));
+                continue;
+            }
+            if ($block->type === 'table') {
+                $height = min(914400, max(304800, $bottom - $cursorY));
+                $shapes[] = $this->tableShapeXmlAtRect($block, $shapeId++, $x, $cursorY, $cx, $height);
+                $cursorY += $height + 152400;
+                continue;
+            }
+            if ($block->type === 'figure') {
+                $image = $this->firstImageInBlocks($block->children);
+                if ($image === null) {
+                    continue;
+                }
+                $captionInlines = $block->attr('captionInlines', []);
+                $caption = is_array($captionInlines)
+                    ? array_values(array_filter($captionInlines, static fn (mixed $inline): bool => $inline instanceof AstNode))
+                    : [];
+                $cursorY = $this->appendColumnPictureShapes($shapes, $image, $caption, $shapeId, $relationships, $x, $cursorY, $cx, $bottom, $placeholderIndex);
+                continue;
+            }
+            if ($block->type === 'image') {
+                $caption = $this->figureCaption($block);
+                $cursorY = $this->appendColumnPictureShapes($shapes, $block, $this->textInlines($caption), $shapeId, $relationships, $x, $cursorY, $cx, $bottom, $placeholderIndex);
+                continue;
+            }
+            if ($block->type === 'plain' || $block->type === 'paragraph' || $block->type === 'heading') {
+                $cursorY = $this->appendColumnInlineBlockShapes($shapes, $block, $shapeId, $relationships, $x, $cursorY, $cx, $bottom, $placeholderIndex);
+                continue;
+            }
+            if ($block->type === 'bullet_list' || $block->type === 'ordered_list') {
+                $paragraphs = $this->listParagraphXmls($block, $block->type === 'ordered_list', $relationships);
+                if ($paragraphs !== []) {
+                    $height = min(max(609600, count($paragraphs) * 304800), max(304800, $bottom - $cursorY));
+                    $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, 'List'), $paragraphs, $x, $cursorY, $cx, $height, null, $placeholderIndex);
+                    $cursorY += $height + 152400;
+                }
+                continue;
+            }
+            if ($block->type === 'code_block') {
+                $text = (string) $block->attr('text', '');
+                if ($text !== '') {
+                    $height = min(609600, max(304800, $bottom - $cursorY));
+                    $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, 'Code'), [$this->paragraphXml([$this->codeInline($text)], [], $relationships)], $x, $cursorY, $cx, $height, null, $placeholderIndex);
+                    $cursorY += $height + 152400;
+                }
+                continue;
+            }
+
+            $text = $this->blockText($block);
+            if ($text !== '') {
+                $height = min(609600, max(304800, $bottom - $cursorY));
+                $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, 'Text'), [$this->paragraphXml($this->textInlines($text), [], $relationships)], $x, $cursorY, $cx, $height, null, $placeholderIndex);
+                $cursorY += $height + 152400;
+            }
+        }
+
+        return $shapes;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function columnBlockGroupHeight(array $blocks): int
+    {
+        $height = 0;
+        foreach ($blocks as $block) {
+            if ($block->type === 'table') {
+                $height += 1066800;
+                continue;
+            }
+            if ($block->type === 'image' || $block->type === 'figure') {
+                $height += 2286000;
+                continue;
+            }
+            if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
+                $height += $this->columnBlockGroupHeight($block->children);
+                continue;
+            }
+            $height += 762000;
+        }
+
+        return $height;
+    }
+
+    /**
+     * @param list<string> $shapes
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     */
+    private function appendColumnInlineBlockShapes(array &$shapes, AstNode $block, int &$shapeId, array &$relationships, int $x, int $cursorY, int $cx, int $bottom, int $placeholderIndex): int
+    {
+        $nonImageInlines = [];
+        foreach ($block->children as $child) {
+            if ($child->type === 'image') {
+                if ($this->inlineText($nonImageInlines) !== '') {
+                    $height = min(609600, max(304800, $bottom - $cursorY));
+                    $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, 'Text'), [$this->paragraphXml($nonImageInlines, [], $relationships)], $x, $cursorY, $cx, $height, null, $placeholderIndex);
+                    $cursorY += $height + 152400;
+                    $nonImageInlines = [];
+                }
+                $caption = $this->figureCaption($child);
+                $cursorY = $this->appendColumnPictureShapes($shapes, $child, $this->textInlines($caption), $shapeId, $relationships, $x, $cursorY, $cx, $bottom, $placeholderIndex);
+                continue;
+            }
+            $nonImageInlines[] = $child;
+        }
+        if ($this->inlineText($nonImageInlines) !== '' && $cursorY < $bottom) {
+            $height = min(609600, max(304800, $bottom - $cursorY));
+            $shapes[] = $this->textShapeXml($shapeId++, $this->shapeName($block, $block->type === 'heading' ? 'Heading' : 'Text'), [$this->paragraphXml($nonImageInlines, [], $relationships)], $x, $cursorY, $cx, $height, null, $placeholderIndex);
+            $cursorY += $height + 152400;
+        }
+
+        return $cursorY;
+    }
+
+    /**
+     * @param list<string> $shapes
+     * @param list<AstNode> $captionInlines
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     */
+    private function appendColumnPictureShapes(array &$shapes, AstNode $image, array $captionInlines, int &$shapeId, array &$relationships, int $x, int $cursorY, int $cx, int $bottom, int $placeholderIndex): int
+    {
+        if ($cursorY >= $bottom) {
+            return $cursorY;
+        }
+        $available = max(304800, $bottom - $cursorY);
+        $captionReserve = $captionInlines === [] ? 0 : 609600;
+        $pictureCy = min(1828800, max(304800, $available - $captionReserve));
+        $picture = $this->pictureShapeXmlAtRect($image, $shapeId++, $x, $cursorY, $cx, $pictureCy, $relationships);
+        if ($picture !== null) {
+            $shapes[] = $picture;
+        }
+        $cursorY += $pictureCy + 152400;
+        if ($captionInlines !== [] && $cursorY < $bottom) {
+            $captionCy = min(457200, max(304800, $bottom - $cursorY));
+            $shapes[] = $this->textShapeXml(
+                $shapeId++,
+                'Caption',
+                [$this->paragraphXml($captionInlines, [], $relationships)],
+                $x,
+                $cursorY,
+                $cx,
+                $captionCy,
+                null,
+                $placeholderIndex
+            );
+            $cursorY += $captionCy + 152400;
+        }
+
+        return $cursorY;
     }
 
     /**
@@ -1711,6 +1933,12 @@ final class PptxWriter
     private function tableShapeXml(AstNode $table, int $shapeId, int $slot): string
     {
         [$x, $y, $cx, $cy] = $this->bodyRect($slot);
+
+        return $this->tableShapeXmlAtRect($table, $shapeId, $x, $y, $cx, $cy);
+    }
+
+    private function tableShapeXmlAtRect(AstNode $table, int $shapeId, int $x, int $y, int $cx, int $cy): string
+    {
         $rows = $this->tableRows($table);
         if ($rows === []) {
             $rows = [[['text' => '', 'attrs' => []]]];

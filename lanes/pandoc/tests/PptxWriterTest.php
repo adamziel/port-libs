@@ -321,6 +321,59 @@ $upstreamSingleColumnImageNative = <<<'NATIVE'
    [Plain [Image ("",[],[]) [Str "an",Space,Str "image"] ("lalune.jpg","")]]]]]
 NATIVE;
 
+$upstreamComparisonBothColumnsNative = <<<'NATIVE'
+[Header 1 ("a-slide",[],[]) [Str "A",Space,Str "slide"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[])
+  [Para [Str "A",Space,Str "paragraph",Space,Str "here"]
+  ,Table ("",[],[]) (Caption Nothing
+   [])
+   [(AlignDefault,ColWidth 0.125)
+   ,(AlignDefault,ColWidth 0.125)]
+   (TableHead ("",[],[])
+   [])
+   [(TableBody ("",[],[]) (RowHeadColumns 0)
+    []
+    [Row ("",[],[])
+     [Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+      [Plain [Str "plus"]]
+     ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+      [Plain [Str "a",Space,Str "table"]]]])]
+   (TableFoot ("",[],[])
+   [])
+  ,Para [Str "Then",Space,Str "some",Space,Str "more",Space,Str "text"]]
+ ,Div ("",["column"],[])
+  [Para [Str "A",Space,Str "paragraph",Space,Str "here"]
+  ,Para [Image ("",[],[]) [Str "Plus",Space,Str "an",Space,Str "image"] ("lalune.jpg","fig:")]]]]
+NATIVE;
+
+$upstreamComparisonExtraImageNative = <<<'NATIVE'
+[Header 1 ("a-slide",[],[]) [Str "A",Space,Str "slide"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[])
+  [Para [Str "A",Space,Str "paragraph",Space,Str "here"]
+  ,Table ("",[],[]) (Caption Nothing
+   [])
+   [(AlignDefault,ColWidth 0.125)
+   ,(AlignDefault,ColWidth 0.125)]
+   (TableHead ("",[],[])
+   [])
+   [(TableBody ("",[],[]) (RowHeadColumns 0)
+    []
+    [Row ("",[],[])
+     [Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+      [Plain [Str "plus"]]
+     ,Cell ("",[],[]) AlignDefault (RowSpan 1) (ColSpan 1)
+      [Plain [Str "a",Space,Str "table"]]]])]
+   (TableFoot ("",[],[])
+   [])
+  ,Para [Str "Then",Space,Str "some",Space,Str "more",Space,Str "text"]]
+ ,Div ("",["column"],[])
+  [Para [Str "A",Space,Str "paragraph",Space,Str "here"]
+  ,Para [Image ("",[],[]) [Str "Plus",Space,Str "an",Space,Str "image"] ("lalune.jpg","fig:")]
+  ,Para [Image ("",[],[]) [Str "And",Space,Str "another",Space,Str "image"] ("lalune.jpg","fig:")]]]]
+NATIVE;
+
 $upstreamSlideLevelZeroNative = <<<'NATIVE'
 [Header 1 ("hello",[],[]) [Str "Hello"]
 ,Para [Image ("",[],[]) [Str "An",Space,Str "image"] ("lalune.jpg","fig:")]]
@@ -1092,6 +1145,35 @@ return [
         $t->contains('<a:t>an image</a:t>', $slide);
         $t->true(strpos($slide, '<p:pic>') < strrpos($slide, '<a:t>an image</a:t>'), 'Figure caption should render after the column picture');
         $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream comparison layout mixed columns into real table and image shapes' => static function (TestRunner $t) use ($upstreamComparisonBothColumnsNative, $upstreamComparisonExtraImageNative, $mediaOptions): void {
+        $imageOptions = array_replace($mediaOptions, [
+            'mediaResources' => [
+                'lalune.jpg' => ['data' => "\xff\xd8moon", 'mimeType' => 'image/jpeg'],
+            ],
+        ]);
+
+        $bothColumns = ZipPackage::fromString((new PptxWriter($imageOptions))->write((new NativeReader())->read($upstreamComparisonBothColumnsNative)));
+        $bothSlide = $bothColumns->read('ppt/slides/slide1.xml');
+        $t->true(!in_array('ppt/slides/slide2.xml', $bothColumns->names(), true), 'Comparison both-columns fixture should produce one slide');
+        $t->contains('<a:t>A slide</a:t>', $bothSlide);
+        $t->contains('<p:graphicFrame>', $bothSlide);
+        $t->contains('<a:t>plus</a:t>', $bothSlide);
+        $t->contains('<a:t>a table</a:t>', $bothSlide);
+        $t->contains('<a:t>Then some more text</a:t>', $bothSlide);
+        $t->contains('<p:pic>', $bothSlide);
+        $t->contains('<a:t>Plus an image</a:t>', $bothSlide);
+        $t->true(strpos($bothSlide, '<p:graphicFrame>') < strpos($bothSlide, '<p:pic>'), 'Table column should render before the image column');
+        $t->true(in_array('ppt/media/image1.jpg', $bothColumns->names(), true), 'Expected comparison image media part');
+        $t->true(!in_array('ppt/media/image2.jpg', $bothColumns->names(), true), 'Single repeated source should not create extra media in both-columns fixture');
+
+        $extraImage = ZipPackage::fromString((new PptxWriter($imageOptions))->write((new NativeReader())->read($upstreamComparisonExtraImageNative)));
+        $extraSlide = $extraImage->read('ppt/slides/slide1.xml');
+        $t->same(2, substr_count($extraSlide, '<p:pic>'));
+        $t->contains('<a:t>And another image</a:t>', $extraSlide);
+        $t->true(!in_array('ppt/media/image2.jpg', $extraImage->names(), true), 'Repeated comparison images should reuse one media part');
+        $t->contains('<Slides>1</Slides>', $extraImage->read('docProps/app.xml'));
     },
 
     'uses the first heading as the slide title when slide level is zero' => static function (TestRunner $t) use ($upstreamSlideLevelZeroNative, $mediaOptions): void {
