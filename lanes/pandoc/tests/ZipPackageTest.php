@@ -798,10 +798,17 @@ return [
                     'usesDataDescriptor' => $manifestEntry['usesDataDescriptor'],
                     'dataDescriptorBytes' => $manifestEntry['dataDescriptorBytes'],
                     'dataDescriptorSha256' => $manifestEntry['dataDescriptorSha256'],
+                    'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
                     'centralDirectoryRecordSha256' => hash(
                         'sha256',
                         substr($zip, $manifestEntry['centralDirectoryRecordOffset'], $centralDirectoryRecordBytes)
                     ),
+                    'centralDirectoryFixedHeaderBytes' => 46,
+                    'centralDirectoryVariableFieldBytes' => $manifestEntry['centralDirectoryVariableFieldBytes'],
+                    'centralDirectoryRawNameBytes' => $manifestEntry['centralDirectoryRawNameBytes'],
+                    'centralDirectoryExtraFieldBytes' => $manifestEntry['centralDirectoryExtraFieldBytes'],
+                    'centralDirectoryRawCommentBytes' => $manifestEntry['centralDirectoryRawCommentBytes'],
+                    'centralDirectoryReviewFieldBytes' => $manifestEntry['centralDirectoryReviewFieldBytes'],
                 ];
             }
 
@@ -884,6 +891,19 @@ return [
             'centralDirectorySignatureSha256' => $manifest['centralDirectorySignatureSha256'],
             'centralDirectoryOrderNames' => $expectedCentralOrder,
             'localHeaderOrderNames' => $expectedLocalOrder,
+            'centralDirectoryRecordBytes' => array_sum(array_column($expectedEntries, 'centralDirectoryRecordBytes')),
+            'centralDirectoryFixedHeaderBytes' => 46 * count($expectedEntries),
+            'centralDirectoryVariableFieldBytes' => strlen('OEBPS/content.xhtml')
+                + strlen('OEBPS/images/')
+                + strlen('mimetype'),
+            'centralDirectoryRawNameBytes' => strlen('OEBPS/content.xhtml')
+                + strlen('OEBPS/images/')
+                + strlen('mimetype'),
+            'centralDirectoryExtraFieldBytes' => 0,
+            'centralDirectoryRawCommentBytes' => 0,
+            'centralDirectoryReviewFieldBytes' => 0,
+            'centralExtraFieldEntryCount' => 0,
+            'entryCommentCount' => 0,
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'entries' => $expectedEntries,
@@ -919,6 +939,19 @@ return [
         $t->same(null, $manifest['centralDirectorySignatureOffset']);
         $t->same(0, $manifest['centralDirectorySignatureBytes']);
         $t->same(null, $manifest['centralDirectorySignatureSha256']);
+        $t->same(array_sum(array_column($expectedEntries, 'centralDirectoryRecordBytes')), $manifest['centralDirectoryRecordBytes']);
+        $t->same(46 * count($expectedEntries), $manifest['centralDirectoryFixedHeaderBytes']);
+        $t->same(
+            strlen('OEBPS/content.xhtml') + strlen('OEBPS/images/') + strlen('mimetype'),
+            $manifest['centralDirectoryVariableFieldBytes']
+        );
+        $t->same($manifest['centralDirectoryVariableFieldBytes'], $manifest['centralDirectoryRawNameBytes']);
+        $t->same(0, $manifest['centralDirectoryExtraFieldBytes']);
+        $t->same(0, $manifest['centralDirectoryRawCommentBytes']);
+        $t->same(0, $manifest['centralDirectoryReviewFieldBytes']);
+        $t->same(0, $manifest['centralExtraFieldEntryCount']);
+        $t->same(0, $manifest['entryCommentCount']);
+        $t->same(false, $manifest['hasCentralDirectoryReviewFields']);
         $t->same(2, $manifest['compressionMethodSummaryCount']);
         $t->same($expectedCompressionMethodSummaries, $manifest['compressionMethodSummaries']);
         $t->same(2, $manifest['directoryRootCount']);
@@ -945,7 +978,14 @@ return [
                 'usesDataDescriptor' => $entry['usesDataDescriptor'],
                 'dataDescriptorBytes' => $entry['dataDescriptorBytes'],
                 'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
+                'centralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'],
                 'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                'centralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'],
+                'centralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'],
+                'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
+                'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
             ],
             $manifest['entries']
         ));
@@ -1008,6 +1048,87 @@ return [
         );
         $t->same($signedManifest, $signedRaw['packageManifest']);
         $t->same($signedManifest, $signedRaw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest central directory review field byte totals for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>manifest central review fields</w:p></w:body></w:document>';
+        $mediaBytes = "manifest central review media\n";
+        $documentExtra = pack('vva*', 0xcafe, strlen('manifest-review'), 'manifest-review');
+        $documentComment = 'document manifest review';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+                'localExtra' => '',
+                'centralExtra' => $documentExtra,
+                'comment' => $documentComment,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ], 'manifest central wrapper');
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $variableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($zip);
+        $entries = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entries[$entry['name']] = $entry;
+        }
+        $documentEntry = $entries['word/document.xml'];
+        $mediaEntry = $entries['word/media/review.bin'];
+
+        $expectedRawNameBytes = strlen('word/document.xml') + strlen('word/media/review.bin');
+        $expectedReviewFieldBytes = strlen($documentExtra) + strlen($documentComment);
+        $expectedVariableFieldBytes = $expectedRawNameBytes + $expectedReviewFieldBytes;
+
+        $t->same(2, $manifest['entryCount']);
+        $t->same(46 * 2, $manifest['centralDirectoryFixedHeaderBytes']);
+        $t->same(
+            $documentEntry['centralDirectoryRecordBytes'] + $mediaEntry['centralDirectoryRecordBytes'],
+            $manifest['centralDirectoryRecordBytes']
+        );
+        $t->same($expectedVariableFieldBytes, $manifest['centralDirectoryVariableFieldBytes']);
+        $t->same($expectedRawNameBytes, $manifest['centralDirectoryRawNameBytes']);
+        $t->same(strlen($documentExtra), $manifest['centralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment), $manifest['centralDirectoryRawCommentBytes']);
+        $t->same($expectedReviewFieldBytes, $manifest['centralDirectoryReviewFieldBytes']);
+        $t->same(1, $manifest['centralExtraFieldEntryCount']);
+        $t->same(1, $manifest['entryCommentCount']);
+        $t->same(true, $manifest['hasCentralDirectoryReviewFields']);
+        $t->same($variableFields['centralDirectoryVariableFieldBytes'], $manifest['centralDirectoryVariableFieldBytes']);
+        $t->same($variableFields['centralDirectoryReviewFieldBytes'], $manifest['centralDirectoryReviewFieldBytes']);
+        $t->same($variableFields['centralExtraFieldEntryCount'], $manifest['centralExtraFieldEntryCount']);
+        $t->same($variableFields['entryCommentCount'], $manifest['entryCommentCount']);
+
+        $t->same(46 + strlen('word/document.xml') + strlen($documentExtra) + strlen($documentComment), $documentEntry['centralDirectoryRecordBytes']);
+        $t->same(46, $documentEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(strlen('word/document.xml') + strlen($documentExtra) + strlen($documentComment), $documentEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(strlen('word/document.xml'), $documentEntry['centralDirectoryRawNameBytes']);
+        $t->same(strlen($documentExtra), $documentEntry['centralDirectoryExtraFieldBytes']);
+        $t->same(strlen($documentComment), $documentEntry['centralDirectoryRawCommentBytes']);
+        $t->same($expectedReviewFieldBytes, $documentEntry['centralDirectoryReviewFieldBytes']);
+        $t->same(
+            hash('sha256', substr($zip, $documentEntry['centralDirectoryRecordOffset'], $documentEntry['centralDirectoryRecordBytes'])),
+            $documentEntry['centralDirectoryRecordSha256']
+        );
+
+        $t->same(46 + strlen('word/media/review.bin'), $mediaEntry['centralDirectoryRecordBytes']);
+        $t->same(46, $mediaEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(strlen('word/media/review.bin'), $mediaEntry['centralDirectoryVariableFieldBytes']);
+        $t->same(strlen('word/media/review.bin'), $mediaEntry['centralDirectoryRawNameBytes']);
+        $t->same(0, $mediaEntry['centralDirectoryExtraFieldBytes']);
+        $t->same(0, $mediaEntry['centralDirectoryRawCommentBytes']);
+        $t->same(0, $mediaEntry['centralDirectoryReviewFieldBytes']);
+        $t->same(
+            hash('sha256', substr($zip, $mediaEntry['centralDirectoryRecordOffset'], $mediaEntry['centralDirectoryRecordBytes'])),
+            $mediaEntry['centralDirectoryRecordSha256']
+        );
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {

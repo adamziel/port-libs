@@ -13251,6 +13251,15 @@ final class ZipPackage
         $localRecordBytes = 0;
         $dataDescriptorEntryCount = 0;
         $dataDescriptorBytes = 0;
+        $centralDirectoryRecordBytes = 0;
+        $centralDirectoryFixedHeaderBytes = 0;
+        $centralDirectoryVariableFieldBytes = 0;
+        $centralDirectoryRawNameBytes = 0;
+        $centralDirectoryExtraFieldBytes = 0;
+        $centralDirectoryRawCommentBytes = 0;
+        $centralDirectoryReviewFieldBytes = 0;
+        $centralExtraFieldEntryCount = 0;
+        $entryCommentCount = 0;
         $compressionMethodSummaries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
@@ -13343,14 +13352,39 @@ final class ZipPackage
                 $compressionMethodSummaries[$compressionMethodKey]['dataDescriptorBytes'] += $dataDescriptorLength;
             }
             $centralDirectoryRecordSha256 = null;
+            $entryCentralDirectoryRecordBytes = null;
             if ($entry->centralDirectoryRecordOffset !== null && $entry->centralDirectoryRecordEnd !== null) {
-                $centralDirectoryRecordBytes = $entry->centralDirectoryRecordEnd - $entry->centralDirectoryRecordOffset;
-                if ($centralDirectoryRecordBytes >= 0) {
+                $entryCentralDirectoryRecordBytes = $entry->centralDirectoryRecordEnd - $entry->centralDirectoryRecordOffset;
+                if ($entryCentralDirectoryRecordBytes >= 0) {
                     $centralDirectoryRecordSha256 = hash(
                         'sha256',
-                        substr($this->bytes, $entry->centralDirectoryRecordOffset, $centralDirectoryRecordBytes)
+                        substr($this->bytes, $entry->centralDirectoryRecordOffset, $entryCentralDirectoryRecordBytes)
                     );
                 }
+            }
+            $entryCentralDirectoryFixedHeaderBytes = 46;
+            $entryCentralDirectoryRawNameBytes = strlen($entry->rawName);
+            $entryCentralDirectoryExtraFieldBytes = strlen($entry->centralExtraFieldData);
+            $entryCentralDirectoryRawCommentBytes = strlen($entry->rawComment);
+            $entryCentralDirectoryVariableFieldBytes = $entryCentralDirectoryRawNameBytes
+                + $entryCentralDirectoryExtraFieldBytes
+                + $entryCentralDirectoryRawCommentBytes;
+            $entryCentralDirectoryReviewFieldBytes = $entryCentralDirectoryExtraFieldBytes
+                + $entryCentralDirectoryRawCommentBytes;
+            if ($entryCentralDirectoryRecordBytes !== null && $entryCentralDirectoryRecordBytes >= 0) {
+                $centralDirectoryRecordBytes += $entryCentralDirectoryRecordBytes;
+            }
+            $centralDirectoryFixedHeaderBytes += $entryCentralDirectoryFixedHeaderBytes;
+            $centralDirectoryVariableFieldBytes += $entryCentralDirectoryVariableFieldBytes;
+            $centralDirectoryRawNameBytes += $entryCentralDirectoryRawNameBytes;
+            $centralDirectoryExtraFieldBytes += $entryCentralDirectoryExtraFieldBytes;
+            $centralDirectoryRawCommentBytes += $entryCentralDirectoryRawCommentBytes;
+            $centralDirectoryReviewFieldBytes += $entryCentralDirectoryReviewFieldBytes;
+            if ($entryCentralDirectoryExtraFieldBytes > 0) {
+                ++$centralExtraFieldEntryCount;
+            }
+            if ($entryCentralDirectoryRawCommentBytes > 0) {
+                ++$entryCommentCount;
             }
             $summary = [
                 'name' => $entry->name,
@@ -13381,7 +13415,14 @@ final class ZipPackage
                 'dataDescriptorSha256' => $dataDescriptorSha256,
                 'centralDirectoryRecordOffset' => $entry->centralDirectoryRecordOffset,
                 'centralDirectoryRecordEnd' => $entry->centralDirectoryRecordEnd,
+                'centralDirectoryRecordBytes' => $entryCentralDirectoryRecordBytes,
                 'centralDirectoryRecordSha256' => $centralDirectoryRecordSha256,
+                'centralDirectoryFixedHeaderBytes' => $entryCentralDirectoryFixedHeaderBytes,
+                'centralDirectoryVariableFieldBytes' => $entryCentralDirectoryVariableFieldBytes,
+                'centralDirectoryRawNameBytes' => $entryCentralDirectoryRawNameBytes,
+                'centralDirectoryExtraFieldBytes' => $entryCentralDirectoryExtraFieldBytes,
+                'centralDirectoryRawCommentBytes' => $entryCentralDirectoryRawCommentBytes,
+                'centralDirectoryReviewFieldBytes' => $entryCentralDirectoryReviewFieldBytes,
             ];
             $entries[] = $summary;
             $manifestEntries[] = [
@@ -13401,7 +13442,14 @@ final class ZipPackage
                 'usesDataDescriptor' => $summary['usesDataDescriptor'],
                 'dataDescriptorBytes' => $summary['dataDescriptorBytes'],
                 'dataDescriptorSha256' => $summary['dataDescriptorSha256'],
+                'centralDirectoryRecordBytes' => $summary['centralDirectoryRecordBytes'],
                 'centralDirectoryRecordSha256' => $summary['centralDirectoryRecordSha256'],
+                'centralDirectoryFixedHeaderBytes' => $summary['centralDirectoryFixedHeaderBytes'],
+                'centralDirectoryVariableFieldBytes' => $summary['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryRawNameBytes' => $summary['centralDirectoryRawNameBytes'],
+                'centralDirectoryExtraFieldBytes' => $summary['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryRawCommentBytes' => $summary['centralDirectoryRawCommentBytes'],
+                'centralDirectoryReviewFieldBytes' => $summary['centralDirectoryReviewFieldBytes'],
             ];
         }
 
@@ -13429,6 +13477,15 @@ final class ZipPackage
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+            'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+            'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+            'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'entryCommentCount' => $entryCommentCount,
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'directoryRootSummaries' => $directoryRootSummaries,
             'entries' => $manifestEntries,
@@ -13467,6 +13524,16 @@ final class ZipPackage
             'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
             'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+            'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+            'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+            'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'entryCommentCount' => $entryCommentCount,
+            'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,
             'compressionMethodSummaryCount' => count($compressionMethodSummaries),
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'directoryRootCount' => count($directoryRootSummaries),
