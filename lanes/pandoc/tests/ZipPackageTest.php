@@ -860,6 +860,15 @@ return [
                     'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
                     'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
                     'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
+                    'internalFileAttributes' => 0,
+                    'internalFileAttributesHex' => '0000',
+                    'internalAttributeNames' => [],
+                    'hasInternalFileAttributes' => false,
+                    'hasTextInternalAttribute' => false,
+                    'unknownInternalAttributeBits' => 0,
+                    'unknownInternalAttributeBitsHex' => '0000',
+                    'hasUnknownInternalAttributeBits' => false,
+                    'internalAttributeIssues' => [],
                     'versionMadeBy' => 0x0314,
                     'madeByHostSystem' => 3,
                     'madeByHostSystemName' => 'unix',
@@ -1339,6 +1348,18 @@ return [
             'entryCommentSummaryCount' => 0,
             'entryCommentSourceRecordBytes' => 0,
             'entryCommentSummaries' => [],
+            'internalAttributeEntryCount' => 0,
+            'textInternalAttributeEntryCount' => 0,
+            'unknownInternalAttributeEntryCount' => 0,
+            'hasInternalFileAttributes' => false,
+            'hasTextInternalAttributes' => false,
+            'hasUnknownInternalAttributeBits' => false,
+            'internalAttributeHexes' => [],
+            'internalAttributeSummaryCount' => 0,
+            'internalAttributeSummaries' => [],
+            'internalAttributeEntries' => [],
+            'textInternalAttributeEntries' => [],
+            'unknownInternalAttributeEntries' => [],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
@@ -1558,6 +1579,15 @@ return [
                 'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
                 'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
                 'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
+                'internalFileAttributes' => $entry['internalFileAttributes'],
+                'internalFileAttributesHex' => $entry['internalFileAttributesHex'],
+                'internalAttributeNames' => $entry['internalAttributeNames'],
+                'hasInternalFileAttributes' => $entry['hasInternalFileAttributes'],
+                'hasTextInternalAttribute' => $entry['hasTextInternalAttribute'],
+                'unknownInternalAttributeBits' => $entry['unknownInternalAttributeBits'],
+                'unknownInternalAttributeBitsHex' => $entry['unknownInternalAttributeBitsHex'],
+                'hasUnknownInternalAttributeBits' => $entry['hasUnknownInternalAttributeBits'],
+                'internalAttributeIssues' => $entry['internalAttributeIssues'],
                 'versionMadeBy' => $entry['versionMadeBy'],
                 'madeByHostSystem' => $entry['madeByHostSystem'],
                 'madeByHostSystemName' => $entry['madeByHostSystemName'],
@@ -2995,6 +3025,15 @@ return [
                 'caseInsensitiveEquivalentEntryNames' => ['word/document.xml'],
                 'hasCaseInsensitiveNameCollision' => false,
                 'caseInsensitiveNameCollisionIssues' => [],
+                'internalFileAttributes' => 0,
+                'internalFileAttributesHex' => '0000',
+                'internalAttributeNames' => [],
+                'hasInternalFileAttributes' => false,
+                'hasTextInternalAttribute' => false,
+                'unknownInternalAttributeBits' => 0,
+                'unknownInternalAttributeBitsHex' => '0000',
+                'hasUnknownInternalAttributeBits' => false,
+                'internalAttributeIssues' => [],
                 'versionMadeBy' => 0x0314,
                 'madeByHostSystem' => 3,
                 'madeByHostSystemName' => 'unix',
@@ -3076,6 +3115,15 @@ return [
                 'caseInsensitiveEquivalentEntryNames' => ['word/comments.xml'],
                 'hasCaseInsensitiveNameCollision' => false,
                 'caseInsensitiveNameCollisionIssues' => [],
+                'internalFileAttributes' => 0,
+                'internalFileAttributesHex' => '0000',
+                'internalAttributeNames' => [],
+                'hasInternalFileAttributes' => false,
+                'hasTextInternalAttribute' => false,
+                'unknownInternalAttributeBits' => 0,
+                'unknownInternalAttributeBitsHex' => '0000',
+                'hasUnknownInternalAttributeBits' => false,
+                'internalAttributeIssues' => [],
                 'versionMadeBy' => 0x0314,
                 'madeByHostSystem' => 3,
                 'madeByHostSystemName' => 'unix',
@@ -3390,6 +3438,18 @@ return [
             'entryCommentSummaryCount' => $manifest['entryCommentSummaryCount'],
             'entryCommentSourceRecordBytes' => $manifest['entryCommentSourceRecordBytes'],
             'entryCommentSummaries' => $manifest['entryCommentSummaries'],
+            'internalAttributeEntryCount' => $manifest['internalAttributeEntryCount'],
+            'textInternalAttributeEntryCount' => $manifest['textInternalAttributeEntryCount'],
+            'unknownInternalAttributeEntryCount' => $manifest['unknownInternalAttributeEntryCount'],
+            'hasInternalFileAttributes' => $manifest['hasInternalFileAttributes'],
+            'hasTextInternalAttributes' => $manifest['hasTextInternalAttributes'],
+            'hasUnknownInternalAttributeBits' => $manifest['hasUnknownInternalAttributeBits'],
+            'internalAttributeHexes' => $manifest['internalAttributeHexes'],
+            'internalAttributeSummaryCount' => $manifest['internalAttributeSummaryCount'],
+            'internalAttributeSummaries' => $manifest['internalAttributeSummaries'],
+            'internalAttributeEntries' => $manifest['internalAttributeEntries'],
+            'textInternalAttributeEntries' => $manifest['textInternalAttributeEntries'],
+            'unknownInternalAttributeEntries' => $manifest['unknownInternalAttributeEntries'],
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
@@ -3534,6 +3594,15 @@ return [
                 'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
                 'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
                 'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
+                'internalFileAttributes' => $entry['internalFileAttributes'],
+                'internalFileAttributesHex' => $entry['internalFileAttributesHex'],
+                'internalAttributeNames' => $entry['internalAttributeNames'],
+                'hasInternalFileAttributes' => $entry['hasInternalFileAttributes'],
+                'hasTextInternalAttribute' => $entry['hasTextInternalAttribute'],
+                'unknownInternalAttributeBits' => $entry['unknownInternalAttributeBits'],
+                'unknownInternalAttributeBitsHex' => $entry['unknownInternalAttributeBitsHex'],
+                'hasUnknownInternalAttributeBits' => $entry['hasUnknownInternalAttributeBits'],
+                'internalAttributeIssues' => $entry['internalAttributeIssues'],
                 'versionMadeBy' => $entry['versionMadeBy'],
                 'madeByHostSystem' => $entry['madeByHostSystem'],
                 'madeByHostSystemName' => $entry['madeByHostSystemName'],
@@ -5662,7 +5731,7 @@ return [
     'preflights zip internal file attributes before strict media handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:p>internal text flag</w:p></w:document>';
         $binaryMedia = "binary media provenance\n";
-        $package = ZipPackage::fromString($buildZipPackage([
+        $zip = $buildZipPackage([
             [
                 'name' => 'word/document.xml',
                 'data' => $documentXml,
@@ -5680,11 +5749,17 @@ return [
                 'data' => 'ordinary media note',
                 'method' => 0,
             ],
-        ]));
+        ]);
+        $package = ZipPackage::fromString($zip);
 
         $document = $package->entry('/word/document.xml');
         $media = $package->entry('/word/media/review.bin');
         $summary = $package->internalAttributePreflight();
+        $manifest = $package->packageManifestPreflight();
+        $manifestByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $manifestByName[$entry['name']] = $entry;
+        }
 
         $t->same(0x0001, $document->internalFileAttributes);
         $t->same(true, $document->hasTextInternalAttribute());
@@ -5704,11 +5779,42 @@ return [
         $t->same(['unknown-internal-file-attribute-bits'], $summary['unknownInternalAttributeEntries'][0]['issues']);
         $t->same(false, $summary['entries'][2]['hasInternalFileAttributes']);
         $t->same([], $summary['entries'][2]['issues']);
+        $t->same(2, $manifest['internalAttributeEntryCount']);
+        $t->same(1, $manifest['textInternalAttributeEntryCount']);
+        $t->same(1, $manifest['unknownInternalAttributeEntryCount']);
+        $t->same(true, $manifest['hasInternalFileAttributes']);
+        $t->same(true, $manifest['hasTextInternalAttributes']);
+        $t->same(true, $manifest['hasUnknownInternalAttributeBits']);
+        $t->same(['0001', '8002'], $manifest['internalAttributeHexes']);
+        $t->same(2, $manifest['internalAttributeSummaryCount']);
+        $t->same(['0001', '8002'], array_map(
+            static fn (array $entry): string => $entry['internalFileAttributesHex'],
+            $manifest['internalAttributeSummaries']
+        ));
+        $t->same(0x0001, $manifestByName['word/document.xml']['internalFileAttributes']);
+        $t->same('0001', $manifestByName['word/document.xml']['internalFileAttributesHex']);
+        $t->same(['apparently-text'], $manifestByName['word/document.xml']['internalAttributeNames']);
+        $t->same(['internal-text-attribute'], $manifestByName['word/document.xml']['internalAttributeIssues']);
+        $t->same(0x8002, $manifestByName['word/media/review.bin']['internalFileAttributes']);
+        $t->same(0x8002, $manifestByName['word/media/review.bin']['unknownInternalAttributeBits']);
+        $t->same('8002', $manifestByName['word/media/review.bin']['unknownInternalAttributeBitsHex']);
+        $t->same(['unknown-0x8002'], $manifestByName['word/media/review.bin']['internalAttributeNames']);
+        $t->same(['unknown-internal-file-attribute-bits'], $manifestByName['word/media/review.bin']['internalAttributeIssues']);
+        $t->same(false, $manifestByName['word/media/plain.txt']['hasInternalFileAttributes']);
+        $t->same([], $manifestByName['word/media/plain.txt']['internalAttributeIssues']);
+        $t->same('word/document.xml', $manifest['textInternalAttributeEntries'][0]['name']);
+        $t->same('0001', $manifest['textInternalAttributeEntries'][0]['internalFileAttributesHex']);
+        $t->same('word/media/review.bin', $manifest['unknownInternalAttributeEntries'][0]['name']);
+        $t->same('8002', $manifest['unknownInternalAttributeEntries'][0]['internalFileAttributesHex']);
 
         $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
         $t->same(false, $strict['isValid']);
         $t->contains('internal-file-attributes', implode(',', $strict['diagnostics']));
         $t->same(2, $strict['internalAttributes']['internalAttributeEntryCount']);
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
         $t->throws(\RuntimeException::class, static fn (): array => $package->assertNoInternalFileAttributes());
         $t->throws(\RuntimeException::class, static fn (): array => $package->assertStrictImportable(2048, 100.0, 2048));
         $t->same($documentXml, $package->read('/word/document.xml'));
