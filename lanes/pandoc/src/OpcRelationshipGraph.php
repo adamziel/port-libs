@@ -253,6 +253,13 @@ final class OpcRelationshipGraph
                 'partNameEquivalentMatch' => false,
                 'duplicateOfIndex' => null,
                 'contentType' => null,
+                'contentTypeMediaType' => null,
+                'contentTypeHasParameters' => false,
+                'contentTypeParameterCount' => 0,
+                'contentTypeParameterNames' => [],
+                'contentTypeParameterMap' => [],
+                'contentTypeParameters' => [],
+                'contentTypeQuotedParameterCount' => 0,
                 'contentTypeSource' => null,
                 'contentTypeDefaultExtension' => null,
                 'contentTypeOverridePartName' => null,
@@ -294,6 +301,13 @@ final class OpcRelationshipGraph
                 if ($contentTypes instanceof OpcContentTypes) {
                     $resolution = $contentTypes->contentTypeResolutionForPart($selectedPartName);
                     $record['contentType'] = $resolution['contentType'];
+                    $record['contentTypeMediaType'] = $resolution['contentTypeMediaType'];
+                    $record['contentTypeHasParameters'] = $resolution['contentTypeHasParameters'];
+                    $record['contentTypeParameterCount'] = $resolution['contentTypeParameterCount'];
+                    $record['contentTypeParameterNames'] = $resolution['contentTypeParameterNames'];
+                    $record['contentTypeParameterMap'] = $resolution['contentTypeParameterMap'];
+                    $record['contentTypeParameters'] = $resolution['contentTypeParameters'];
+                    $record['contentTypeQuotedParameterCount'] = $resolution['contentTypeQuotedParameterCount'];
                     $record['contentTypeSource'] = $resolution['contentTypeSource'];
                     $record['contentTypeDefaultExtension'] = $resolution['defaultExtension'];
                     $record['contentTypeOverridePartName'] = $resolution['overridePartName'];
@@ -616,6 +630,13 @@ final class OpcRelationshipGraph
                 'handoffKind' => $isDirectory ? 'directory' : 'binary',
                 'contentTypesItem' => $contentTypesItem,
                 'contentType' => null,
+                'contentTypeMediaType' => null,
+                'contentTypeHasParameters' => false,
+                'contentTypeParameterCount' => 0,
+                'contentTypeParameterNames' => [],
+                'contentTypeParameterMap' => [],
+                'contentTypeParameters' => [],
+                'contentTypeQuotedParameterCount' => 0,
                 'contentTypeSource' => null,
                 'contentTypeDefaultExtension' => null,
                 'contentTypeOverridePartName' => null,
@@ -785,6 +806,13 @@ final class OpcRelationshipGraph
             if (!$entry['contentTypesItem'] && $contentTypes instanceof OpcContentTypes) {
                 $contentTypeResolution = $contentTypes->contentTypeResolutionForPart($partName);
                 $entry['contentType'] = $contentTypeResolution['contentType'];
+                $entry['contentTypeMediaType'] = $contentTypeResolution['contentTypeMediaType'];
+                $entry['contentTypeHasParameters'] = $contentTypeResolution['contentTypeHasParameters'];
+                $entry['contentTypeParameterCount'] = $contentTypeResolution['contentTypeParameterCount'];
+                $entry['contentTypeParameterNames'] = $contentTypeResolution['contentTypeParameterNames'];
+                $entry['contentTypeParameterMap'] = $contentTypeResolution['contentTypeParameterMap'];
+                $entry['contentTypeParameters'] = $contentTypeResolution['contentTypeParameters'];
+                $entry['contentTypeQuotedParameterCount'] = $contentTypeResolution['contentTypeQuotedParameterCount'];
                 $entry['contentTypeSource'] = $contentTypeResolution['contentTypeSource'];
                 $entry['contentTypeDefaultExtension'] = $contentTypeResolution['defaultExtension'];
                 $entry['contentTypeOverridePartName'] = $contentTypeResolution['overridePartName'];
