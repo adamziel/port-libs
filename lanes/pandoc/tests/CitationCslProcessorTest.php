@@ -9264,6 +9264,106 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Ng, Nia. Source Audit Report. Migration Desk, 2026. Entry subtype: migration source audit. https://example.test/subtype-report.</dd>', $blocks);
         $t->contains('<dt>Review Desk 2025</dt><dd>Review Desk. Import Queue Snapshot. 2025. Medium: Archived source packet. Entry subtype: review snapshot.</dd>', $blocks);
     },
+    'normalizes bounded direct csl json entry subtype aliases into genre metadata' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-entry-subtype-camel',
+                'type' => 'report',
+                'title' => 'Direct Entry Subtype Camel Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'entrySubtype' => 'white paper',
+            ],
+            [
+                'id' => 'direct-entry-subtype-hyphen',
+                'type' => 'webpage',
+                'title' => 'Direct Entry Subtype Hyphen Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'entry-subtype' => 'review snapshot',
+            ],
+            [
+                'id' => 'direct-entry-subtype-explicit-genre',
+                'type' => 'article-journal',
+                'title' => 'Direct Explicit Genre Packet',
+                'author' => [
+                    ['family' => 'Ames', 'given' => 'Ari'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'genre' => 'technical bulletin',
+                'entrysubtype' => 'source subtype',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-entry-subtype-camel');
+        $hyphen = $processor->item('direct-entry-subtype-hyphen');
+        $explicit = $processor->item('direct-entry-subtype-explicit-genre');
+        $t->same('white paper', $camel['genre'] ?? null);
+        $t->same('white paper', $camel['entrySubtype'] ?? null);
+        $t->same('white paper', $camel['raw']['entrySubtype'] ?? null);
+        $t->same('review snapshot', $hyphen['genre'] ?? null);
+        $t->same('review snapshot', $hyphen['entrySubtype'] ?? null);
+        $t->same('review snapshot', $hyphen['raw']['entry-subtype'] ?? null);
+        $t->same('technical bulletin', $explicit['genre'] ?? null);
+        $t->same('source subtype', $explicit['entrySubtype'] ?? null);
+        $t->same('source subtype', $explicit['raw']['entrysubtype'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Entry Subtype Genre Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-entry-subtype-genre-alias-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="genre"/>
+        <text variable="entry-subtype"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="genre"/>
+      <text variable="entry-subtype"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $bibliographyChildren = $summary['bibliographyRendering'] ?? [];
+        $t->same('Bounded Direct CSL Entry Subtype Genre Alias Review', $summary['title'] ?? null);
+        $t->same('genre', $citationChildren[1]['variable'] ?? null);
+        $t->same('entry-subtype', $citationChildren[2]['variable'] ?? null);
+        $t->same('genre', $bibliographyChildren[1]['variable'] ?? null);
+        $t->same('entry-subtype', $bibliographyChildren[2]['variable'] ?? null);
+
+        $t->same('[Ng | white paper | white paper; Roe | review snapshot | review snapshot; Ames | technical bulletin | source subtype]', $styled->renderCitationCluster([
+            $citation('direct-entry-subtype-camel', '[@direct-entry-subtype-camel]'),
+            $citation('direct-entry-subtype-hyphen', '[@direct-entry-subtype-hyphen]'),
+            $citation('direct-entry-subtype-explicit-genre', '[@direct-entry-subtype-explicit-genre]'),
+        ]));
+        $t->same('Direct Entry Subtype Camel Packet :: white paper :: white paper', $styled->renderBibliographyEntry('direct-entry-subtype-camel'));
+        $t->same('Direct Entry Subtype Hyphen Packet :: review snapshot :: review snapshot', $styled->renderBibliographyEntry('direct-entry-subtype-hyphen'));
+        $t->same('Direct Explicit Genre Packet :: technical bulletin :: source subtype', $styled->renderBibliographyEntry('direct-entry-subtype-explicit-genre'));
+
+        $document = (new MarkdownReader())->read('Entry subtype aliases [@direct-entry-subtype-camel; @direct-entry-subtype-hyphen; @direct-entry-subtype-explicit-genre] stay genre-visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Entry subtype aliases [Ng | white paper | white paper; Roe | review snapshot | review snapshot; Ames | technical bulletin | source subtype] stay genre-visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Entry Subtype Camel Packet :: white paper :: white paper</dd>', $blocks);
+        $t->contains('<dt>Ames 2024</dt><dd>Direct Explicit Genre Packet :: technical bulletin :: source subtype</dd>', $blocks);
+    },
     'maps bounded biblatex bookauthor into csl container author metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @incollection{container-author-review,
