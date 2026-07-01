@@ -461,6 +461,104 @@ return [
         $t->same(3, $inventory['Pictures/hero.png']['customManifestAttributeCount']);
         $t->same('en-US', $inventory['Pictures/hero.png']['customManifestAttributeMap']['xml:lang']);
     },
+    'keeps compact ODT manifest custom attribute collision provenance stable' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            ],
+            [
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" xmlns:wp="urn:wordpress:review:content" wp:media-type="application/x-content-shadow" wp:priority="1"/>',
+                '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7" xmlns:wp="urn:wordpress:review:hero" xmlns:alt="urn:wordpress:review:content" wp:media-type="application/x-hero-shadow" wp:priority="2" alt:priority="1" alt:full-path="Pictures/shadow.png"/>',
+            ],
+            $manifestXml
+        );
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest));
+        $summary = $odt->summarize();
+        $review = $summary['manifestReview'];
+        $content = $odt->manifestEntry('content.xml');
+        $hero = $odt->manifestEntry('Pictures/hero.png');
+        $contentCustomAttributes = [];
+        foreach ($content['customManifestAttributes'] as $attribute) {
+            $contentCustomAttributes[$attribute['name']] = $attribute;
+        }
+        $heroCustomAttributes = [];
+        foreach ($hero['customManifestAttributes'] as $attribute) {
+            $heroCustomAttributes[$attribute['name']] = $attribute;
+        }
+        $reviewByPath = [];
+        foreach ($review['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $order = $review['manifestFileEntryOrder'];
+        $inventory = $summary['packageInventory']['parts'];
+        $readerProvenance = (new OdfReader())->readPackage($buildOdtPackage(manifest: $manifest))['importReport']['manifest']['packageProvenance'];
+
+        $t->same('text/xml', $content['mediaType']);
+        $t->same('content.xml', $content['packagePath']);
+        $t->same(4, $content['manifestAttributeCount']);
+        $t->same(['manifest:full-path', 'manifest:media-type', 'wp:media-type', 'wp:priority'], $content['manifestAttributeNames']);
+        $t->same(2, $content['customManifestAttributeCount']);
+        $t->same(['wp:media-type', 'wp:priority'], $content['customManifestAttributeNames']);
+        $t->same([
+            'wp:media-type' => 'application/x-content-shadow',
+            'wp:priority' => '1',
+        ], $content['customManifestAttributeMap']);
+        $t->same('urn:wordpress:review:content', $contentCustomAttributes['wp:media-type']['namespaceUri']);
+        $t->same('wp', $contentCustomAttributes['wp:media-type']['prefix']);
+        $t->same('media-type', $contentCustomAttributes['wp:media-type']['localName']);
+        $t->same(false, $contentCustomAttributes['wp:media-type']['structural']);
+
+        $t->same('image/png', $hero['mediaType']);
+        $t->same('Pictures/hero.png', $hero['packagePath']);
+        $t->same(7, $hero['manifestAttributeCount']);
+        $t->same(['alt:full-path', 'alt:priority', 'manifest:full-path', 'manifest:media-type', 'manifest:size', 'wp:media-type', 'wp:priority'], $hero['manifestAttributeNames']);
+        $t->same(4, $hero['customManifestAttributeCount']);
+        $t->same(['alt:full-path', 'alt:priority', 'wp:media-type', 'wp:priority'], $hero['customManifestAttributeNames']);
+        $t->same([
+            'alt:full-path' => 'Pictures/shadow.png',
+            'alt:priority' => '1',
+            'wp:media-type' => 'application/x-hero-shadow',
+            'wp:priority' => '2',
+        ], $hero['customManifestAttributeMap']);
+        $t->same('urn:wordpress:review:hero', $heroCustomAttributes['wp:media-type']['namespaceUri']);
+        $t->same('urn:wordpress:review:content', $heroCustomAttributes['alt:priority']['namespaceUri']);
+        $t->same('full-path', $heroCustomAttributes['alt:full-path']['localName']);
+        $t->same(false, $heroCustomAttributes['alt:full-path']['structural']);
+
+        $t->same(2, $review['manifestCustomAttributeEntryCount']);
+        $t->same(6, $review['manifestCustomAttributeCount']);
+        $t->same(['alt:full-path', 'alt:priority', 'wp:media-type', 'wp:priority'], $review['manifestCustomAttributeNames']);
+        $t->same([1, 4], array_column($review['manifestCustomAttributeItems'], 'manifestIndex'));
+        $t->same(['content.xml', 'Pictures/hero.png'], array_column($review['manifestCustomAttributeItems'], 'path'));
+        $t->same(['wp:media-type', 'wp:priority'], $reviewByPath['content.xml']['customManifestAttributeNames']);
+        $t->same(['alt:full-path', 'alt:priority', 'wp:media-type', 'wp:priority'], $reviewByPath['Pictures/hero.png']['customManifestAttributeNames']);
+        $t->same(['wp:media-type', 'wp:priority'], $order[1]['customManifestAttributeNames']);
+        $t->same(['alt:full-path', 'alt:priority', 'wp:media-type', 'wp:priority'], $order[4]['customManifestAttributeNames']);
+        $t->same('text/xml', $inventory['content.xml']['manifestMediaType']);
+        $t->same('image/png', $inventory['Pictures/hero.png']['manifestMediaType']);
+        $t->same('content.xml', $inventory['content.xml']['manifestPackagePath']);
+        $t->same('Pictures/hero.png', $inventory['Pictures/hero.png']['manifestPackagePath']);
+        $t->same('application/x-content-shadow', $inventory['content.xml']['customManifestAttributeMap']['wp:media-type']);
+        $t->same('Pictures/shadow.png', $inventory['Pictures/hero.png']['customManifestAttributeMap']['alt:full-path']);
+
+        $t->same($review['manifestCustomAttributeEntryCount'], $readerProvenance['manifestCustomAttributeEntryCount']);
+        $t->same($review['manifestCustomAttributeCount'], $readerProvenance['manifestCustomAttributeCount']);
+        $t->same($review['manifestCustomAttributeNames'], $readerProvenance['manifestCustomAttributeNames']);
+        $t->same($order[1]['customManifestAttributeNames'], $readerProvenance['manifestFileEntryOrder'][1]['customManifestAttributeNames']);
+        $t->same($order[4]['customManifestAttributeMap'], $readerProvenance['manifestFileEntryOrder'][4]['customManifestAttributeMap']);
+        $t->same($inventory['content.xml']['customManifestAttributeMap'], $readerProvenance['parts']['content.xml']['customManifestAttributeMap']);
+        $t->same($inventory['Pictures/hero.png']['customManifestAttributeNames'], $readerProvenance['parts']['Pictures/hero.png']['customManifestAttributeNames']);
+
+        $decodedPathConflictManifest = str_replace(
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png" manifest:size="7"/>',
+            '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero.png"/>'
+            . '<manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/hero%2epng"/>',
+            $manifestXml
+        );
+        $t->throws(\InvalidArgumentException::class, static fn (): OpenDocumentPackage => OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $decodedPathConflictManifest)));
+    },
     'preserves compact ODT manifest file-entry child element provenance' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             [
