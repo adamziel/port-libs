@@ -16,6 +16,26 @@ final class BibtexCslProcessor
     private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
 
     /** @var list<string> */
+    private const ORIGINAL_PUBLISHER_PLACE_FIELDS = [
+        'origlocation',
+        'orig-location',
+        'originallocation',
+        'original-location',
+        'origaddress',
+        'orig-address',
+        'originaladdress',
+        'original-address',
+        'origplace',
+        'orig-place',
+        'originalplace',
+        'original-place',
+        'originalpublisherplace',
+        'original-publisher-place',
+        'originalpublisherlocation',
+        'original-publisher-location',
+    ];
+
+    /** @var list<string> */
     private const BIBLATEX_NAME_ANNOTATION_FIELDS = [
         'afterword',
         'annotator',
@@ -986,7 +1006,7 @@ final class BibtexCslProcessor
             'language' => ['language', 'langid', 'hyphenation'],
             'original-title-addon' => ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon'],
             'original-publisher' => ['origpublisher', 'originalpublisher', 'original-publisher'],
-            'original-publisher-place' => ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'],
+            'original-publisher-place' => self::ORIGINAL_PUBLISHER_PLACE_FIELDS,
             'original-language' => ['origlanguage', 'originallanguage', 'original-language'],
             'original-genre' => ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre'],
             'original-edition' => ['origedition', 'orig-edition', 'originaledition', 'original-edition'],
@@ -1026,7 +1046,7 @@ final class BibtexCslProcessor
         $this->applyLiteralListField($item, $fields, 'event-place', ['venue', 'eventvenue', 'eventlocation', 'eventplace', 'event-place', 'event-location'], 'event-place-list');
         $this->applyLiteralListField($item, $fields, 'language', ['language', 'langid', 'hyphenation'], 'language-list');
         $this->applyLiteralListField($item, $fields, 'original-publisher', ['origpublisher', 'originalpublisher', 'original-publisher'], 'original-publisher-list');
-        $this->applyLiteralListField($item, $fields, 'original-publisher-place', ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'], 'original-publisher-place-list');
+        $this->applyLiteralListField($item, $fields, 'original-publisher-place', self::ORIGINAL_PUBLISHER_PLACE_FIELDS, 'original-publisher-place-list');
         $this->applyLiteralListField($item, $fields, 'original-language', ['origlanguage', 'originallanguage', 'original-language'], 'original-language-list');
         $jurisdiction = $this->firstField($fields, ['jurisdiction']);
         if (($jurisdiction === null || $jurisdiction === '') && $this->itemTypeCarriesLegalJurisdiction((string) $item['type'])) {
