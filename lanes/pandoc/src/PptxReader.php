@@ -1813,7 +1813,21 @@ final class PptxReader
 
     private function integerText(string $value): ?int
     {
-        return preg_match('/^\s*(-?[0-9]+)\s*$/u', $value, $matches) === 1 ? (int) $matches[1] : null;
+        $value = $this->trimUnicodeWhitespace($value);
+        while (str_starts_with($value, '(') && str_ends_with($value, ')')) {
+            $inner = $this->trimUnicodeWhitespace(substr($value, 1, -1));
+            if ($inner === $value) {
+                break;
+            }
+            $value = $inner;
+        }
+
+        return preg_match('/^-?[0-9]+$/', $value) === 1 ? (int) $value : null;
+    }
+
+    private function trimUnicodeWhitespace(string $value): string
+    {
+        return preg_replace('/^\s+|\s+$/u', '', $value) ?? trim($value);
     }
 
     private function xmlBooleanAttribute(\DOMElement $element, string $name): ?bool
