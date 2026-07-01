@@ -8202,6 +8202,64 @@ XML;
         $t->same(['word/raw/missing.bin'], $missing['targetParts']);
         $t->same(2, $summary['externalRelationshipCount']);
     },
+    'summarizes duplicate docx relationship target parts for package review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rImagePreview" Type="' . $imageRel . '" Target="media/review.png?preview=body#img"/>' . "\n" .
+            '  <Relationship Id="rMissingSharedDoc" Type="' . $imageRel . '" Target="media/missing-shared.png?slot=doc#missing"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderSameImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png?slot=header#logo"/>
+  <Relationship Id="rHeaderMissingShared" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing-shared.png?slot=header#missing"/>
+</Relationships>
+XML;
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $groups = [];
+        foreach ($summary['duplicateRelationshipTargetPartGroups'] as $group) {
+            $groups[$group['targetPart']] = $group;
+        }
+
+        $t->same(2, $summary['duplicateRelationshipTargetPartCount']);
+        $t->same(5, $summary['duplicateRelationshipTargetPartRelationshipCount']);
+        $t->same(['word/media/missing-shared.png', 'word/media/review.png'], $summary['duplicateRelationshipTargetParts']);
+
+        $missing = $groups['word/media/missing-shared.png'];
+        $t->same(2, $missing['relationshipCount']);
+        $t->same(0, $missing['existingTargetCount']);
+        $t->same(2, $missing['missingTargetCount']);
+        $t->same(['default' => 2], $missing['contentTypeSourceCounts']);
+        $t->same([$imageRel => 2], $missing['relationshipTypeCounts']);
+        $t->same(['word/document.xml', 'word/header1.xml'], $missing['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels'], $missing['relationshipParts']);
+        $t->same(['rHeaderMissingShared', 'rMissingSharedDoc'], $missing['relationshipIds']);
+        $t->same(['media/missing-shared.png?slot=doc#missing', 'media/missing-shared.png?slot=header#missing'], $missing['targets']);
+        $t->same(['word/media/missing-shared.png?slot=doc#missing', 'word/media/missing-shared.png?slot=header#missing'], $missing['resolvedTargets']);
+        $t->same(['?slot=doc#missing', '?slot=header#missing'], $missing['targetReferenceSuffixes']);
+        $t->same(['image/png'], $missing['contentTypes']);
+
+        $review = $groups['word/media/review.png'];
+        $t->same(3, $review['relationshipCount']);
+        $t->same(3, $review['existingTargetCount']);
+        $t->same(0, $review['missingTargetCount']);
+        $t->same(['default' => 3], $review['contentTypeSourceCounts']);
+        $t->same([$imageRel => 3], $review['relationshipTypeCounts']);
+        $t->same(['word/document.xml', 'word/header1.xml'], $review['sourceParts']);
+        $t->same(['word/_rels/document.xml.rels', 'word/_rels/header1.xml.rels'], $review['relationshipParts']);
+        $t->same(['rHeaderSameImage', 'rImage', 'rImagePreview'], $review['relationshipIds']);
+        $t->same(['media/review.png', 'media/review.png?preview=body#img', 'media/review.png?slot=header#logo'], $review['targets']);
+        $t->same(['word/media/review.png', 'word/media/review.png?preview=body#img', 'word/media/review.png?slot=header#logo'], $review['resolvedTargets']);
+        $t->same(['?preview=body#img', '?slot=header#logo'], $review['targetReferenceSuffixes']);
+        $t->same(['image/png'], $review['contentTypes']);
+    },
     'summarizes docx relationship target base name stems for review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';

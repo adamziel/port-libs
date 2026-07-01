@@ -13967,6 +13967,7 @@ final class DocxOpenXmlReader
             array_keys($relationshipTargetBaseNameStemCounts),
             static fn (string $baseNameStem): bool => ($relationshipTargetBaseNameStemCounts[$baseNameStem] ?? 0) > 1,
         ));
+        $duplicateRelationshipTargetParts = $this->duplicateRelationshipTargetPartSummary($relationshipParts);
         ksort($relationshipTargetPathDepthCounts, SORT_NUMERIC);
         ksort($relationshipTargetPathDepths, SORT_NUMERIC);
         foreach ($relationshipTargetPathDepths as &$targetPathDepthSummary) {
@@ -14470,6 +14471,10 @@ final class DocxOpenXmlReader
             'relationshipTargetMissingBaseNameStemCounts' => $relationshipTargetMissingBaseNameStemCounts,
             'duplicateRelationshipTargetBaseNameStemCount' => count($duplicateRelationshipTargetBaseNameStems),
             'duplicateRelationshipTargetBaseNameStems' => $duplicateRelationshipTargetBaseNameStems,
+            'duplicateRelationshipTargetPartCount' => $duplicateRelationshipTargetParts['groupCount'],
+            'duplicateRelationshipTargetPartRelationshipCount' => $duplicateRelationshipTargetParts['relationshipCount'],
+            'duplicateRelationshipTargetParts' => $duplicateRelationshipTargetParts['targetParts'],
+            'duplicateRelationshipTargetPartGroups' => $duplicateRelationshipTargetParts['groups'],
             'relationshipTargetBaseNameStems' => array_values($relationshipTargetBaseNameStems),
             'relationshipTargetPathDepthCount' => count($relationshipTargetPathDepths),
             'relationshipTargetPathDepthCounts' => $relationshipTargetPathDepthCounts,
@@ -14643,6 +14648,130 @@ final class DocxOpenXmlReader
             'unexpectedRootRelationshipParts' => $unexpectedRootRelationshipParts,
             'relationshipsWithExplicitInternalTargetMode' => $relationshipsWithExplicitInternalTargetMode,
             'relationshipsWithUnexpectedTargetMode' => $relationshipsWithUnexpectedTargetMode,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @return array{groupCount:int, relationshipCount:int, targetParts:list<string>, groups:list<array<string, mixed>>}
+     */
+    private function duplicateRelationshipTargetPartSummary(array $relationshipParts): array
+    {
+        $groups = [];
+        foreach ($relationshipParts as $relationshipsPartName => $relationshipPart) {
+            foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
+                if (!is_array($relationship) || ($relationship['external'] ?? false) === true) {
+                    continue;
+                }
+
+                $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : '';
+                if ($targetPart === '') {
+                    continue;
+                }
+
+                if (!isset($groups[$targetPart])) {
+                    $groups[$targetPart] = [
+                        'targetPart' => $targetPart,
+                        'relationshipCount' => 0,
+                        'existingTargetCount' => 0,
+                        'missingTargetCount' => 0,
+                        'sourceParts' => [],
+                        'relationshipParts' => [],
+                        'relationshipIds' => [],
+                        'relationshipTypes' => [],
+                        'targets' => [],
+                        'resolvedTargets' => [],
+                        'targetReferenceSuffixes' => [],
+                        'contentTypes' => [],
+                        'contentTypeSourceCounts' => [],
+                        'relationshipTypeCounts' => [],
+                        'relationships' => [],
+                    ];
+                }
+
+                ++$groups[$targetPart]['relationshipCount'];
+                if (($relationship['exists'] ?? false) === true) {
+                    ++$groups[$targetPart]['existingTargetCount'];
+                } else {
+                    ++$groups[$targetPart]['missingTargetCount'];
+                }
+
+                $relationshipType = is_string($relationship['type'] ?? null) ? $relationship['type'] : '';
+                $relationshipTypeKey = $relationshipType === '' ? '(missing-type)' : $relationshipType;
+                $groups[$targetPart]['relationshipTypeCounts'][$relationshipTypeKey] =
+                    ($groups[$targetPart]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+
+                $contentTypeSource = is_string($relationship['contentTypeSource'] ?? null)
+                    ? $relationship['contentTypeSource']
+                    : 'missing';
+                if ($contentTypeSource === '') {
+                    $contentTypeSource = 'missing';
+                }
+                $groups[$targetPart]['contentTypeSourceCounts'][$contentTypeSource] =
+                    ($groups[$targetPart]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+                $this->appendUniqueString(
+                    $groups[$targetPart]['sourceParts'],
+                    is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['relationshipParts'],
+                    is_string($relationship['relationshipsPart'] ?? null)
+                        ? $relationship['relationshipsPart']
+                        : (string) $relationshipsPartName,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['relationshipIds'],
+                    is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                );
+                $this->appendUniqueString($groups[$targetPart]['relationshipTypes'], $relationshipType);
+                $this->appendUniqueString(
+                    $groups[$targetPart]['targets'],
+                    is_string($relationship['target'] ?? null) ? $relationship['target'] : null,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['resolvedTargets'],
+                    is_string($relationship['resolvedTarget'] ?? null) ? $relationship['resolvedTarget'] : null,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['targetReferenceSuffixes'],
+                    is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : null,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['contentTypes'],
+                    is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : null,
+                );
+                $groups[$targetPart]['relationships'][] = $this->relationshipProvenanceSummaryItem($relationship);
+            }
+        }
+
+        ksort($groups, SORT_STRING);
+        $duplicates = [];
+        $relationshipCount = 0;
+        foreach ($groups as $targetPart => $group) {
+            if ((int) ($group['relationshipCount'] ?? 0) < 2) {
+                continue;
+            }
+
+            sort($group['sourceParts'], SORT_STRING);
+            sort($group['relationshipParts'], SORT_STRING);
+            sort($group['relationshipIds'], SORT_STRING);
+            sort($group['relationshipTypes'], SORT_STRING);
+            sort($group['targets'], SORT_STRING);
+            sort($group['resolvedTargets'], SORT_STRING);
+            sort($group['targetReferenceSuffixes'], SORT_STRING);
+            sort($group['contentTypes'], SORT_STRING);
+            ksort($group['contentTypeSourceCounts'], SORT_STRING);
+            ksort($group['relationshipTypeCounts'], SORT_STRING);
+            $duplicates[$targetPart] = $group;
+            $relationshipCount += (int) $group['relationshipCount'];
+        }
+
+        return [
+            'groupCount' => count($duplicates),
+            'relationshipCount' => $relationshipCount,
+            'targetParts' => array_keys($duplicates),
+            'groups' => array_values($duplicates),
         ];
     }
 
