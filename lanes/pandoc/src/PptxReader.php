@@ -1075,8 +1075,14 @@ final class PptxReader
 
             $paragraphs = $this->parseParagraphs($textBody, $slideRelationships);
             if ($this->paragraphsContainText($paragraphs)) {
-                return $this->withShapeMetadata(
+                $blocks = $this->withShapeHyperlink(
                     $this->paragraphsToBlocks($paragraphs),
+                    $shapeElement,
+                    $slideRelationships
+                );
+
+                return $this->withShapeMetadata(
+                    $blocks,
                     $shapeElement,
                     $zOrder
                 );
@@ -1084,6 +1090,7 @@ final class PptxReader
 
             $blocks = $this->inheritedPlaceholderBlocks($shapeElement, $slideContext);
             $blocks = $blocks !== [] ? $blocks : $this->paragraphsToBlocks($paragraphs);
+            $blocks = $this->withShapeHyperlink($blocks, $shapeElement, $slideRelationships);
 
             return $this->withShapeMetadata($blocks, $shapeElement, $zOrder);
         }
@@ -1200,7 +1207,7 @@ final class PptxReader
         $children = [];
         $changed = false;
         foreach ($node->children as $child) {
-            if ($child->type === 'image') {
+            if (in_array($child->type, ['image', 'link'], true)) {
                 $children[] = $this->withShapeMetadataNode($child, $metadata);
                 $changed = true;
                 continue;
@@ -1210,6 +1217,63 @@ final class PptxReader
         }
 
         return new AstNode($node->type, $attrs, $changed ? $children : $node->children);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @return list<AstNode>
+     */
+    private function withShapeHyperlink(array $blocks, \DOMElement $shapeElement, OpcRelationships $slideRelationships): array
+    {
+        if ($blocks === []) {
+            return [];
+        }
+
+        $properties = $this->nonVisualDrawingProperties($shapeElement);
+        if (!$properties instanceof \DOMElement) {
+            return $blocks;
+        }
+
+        $linkAttrs = $this->drawingHyperlinkAttrsFromContainer($properties, $slideRelationships);
+        if ($linkAttrs === null) {
+            return $blocks;
+        }
+
+        return array_map(fn (AstNode $block): AstNode => $this->withShapeHyperlinkNode($block, $linkAttrs), $blocks);
+    }
+
+    /**
+     * @param array<string, mixed> $linkAttrs
+     */
+    private function withShapeHyperlinkNode(AstNode $node, array $linkAttrs): AstNode
+    {
+        if (in_array($node->type, ['paragraph', 'plain'], true) && $node->children !== [] && !$this->containsInlineLink($node->children)) {
+            return new AstNode($node->type, $node->attrs, [
+                new AstNode('link', $linkAttrs, $node->children),
+            ]);
+        }
+
+        if (!in_array($node->type, ['bullet_list', 'list_item'], true)) {
+            return $node;
+        }
+
+        $children = array_map(fn (AstNode $child): AstNode => $this->withShapeHyperlinkNode($child, $linkAttrs), $node->children);
+
+        return new AstNode($node->type, $node->attrs, $children);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function containsInlineLink(array $inlines): bool
+    {
+        foreach ($inlines as $inline) {
+            if ($inline->type === 'link') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

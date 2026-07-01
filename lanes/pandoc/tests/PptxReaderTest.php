@@ -662,6 +662,78 @@ XML);
     }
 };
 
+$buildHyperlinkedTextBoxPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-textbox-link-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Text box link</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Linked Text Box"><a:hlinkClick r:id="rIdTextBoxLink" tooltip="Open text box"/></p:cNvPr><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Open the text box</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdTextBoxLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/text-box" TargetMode="External"/>
+</Relationships>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildGroupedShapesPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-grouped-shapes-');
     if ($path === false) {
@@ -1368,6 +1440,29 @@ return [
         $t->same(1, $review['slides'][0]['linkCount'] ?? null);
         $t->same('https://example.test/picture', $review['slides'][0]['links'][0]['url'] ?? null);
         $t->same('rIdPictureLink', $review['slides'][0]['links'][0]['relationshipId'] ?? null);
+    },
+
+    'wraps pptx text boxes with shape-level hyperlinks' => static function (TestRunner $t) use ($buildHyperlinkedTextBoxPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildHyperlinkedTextBoxPptxPackage());
+        $review = $document->attr('pptx');
+        $links = $nodesOfType($document, 'link');
+        $native = PandocConverter::write($document, 'native');
+        $textBoxLinks = array_values(array_filter(
+            $links,
+            static fn (AstNode $link): bool => $link->attr('relationshipId') === 'rIdTextBoxLink'
+        ));
+
+        $t->same(1, count($textBoxLinks));
+        $t->same('https://example.test/text-box', $textBoxLinks[0]->attr('url'));
+        $t->same('Open text box', $textBoxLinks[0]->attr('title'));
+        $t->same('External', $textBoxLinks[0]->attr('targetMode'));
+        $t->same(true, $textBoxLinks[0]->attr('external'));
+        $t->same(['text'], array_map(static fn (AstNode $inline): string => $inline->type, $textBoxLinks[0]->children));
+        $t->same('Open the text box', $textBoxLinks[0]->children[0]->attr('text'));
+        $t->same(1, $review['slides'][0]['linkCount'] ?? null);
+        $t->same('https://example.test/text-box', $review['slides'][0]['links'][0]['url'] ?? null);
+        $t->same('rIdTextBoxLink', $review['slides'][0]['links'][0]['relationshipId'] ?? null);
+        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "Open" , Space , Str "the" , Space , Str "text" , Space , Str "box" ] ( "https://example.test/text-box" , "Open text box" )', $native);
     },
 
     'reads text and images inside grouped pptx shapes' => static function (TestRunner $t) use ($buildGroupedShapesPptxPackage, $nodesOfType): void {
