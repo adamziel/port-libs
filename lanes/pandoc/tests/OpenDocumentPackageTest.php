@@ -3871,6 +3871,23 @@ XML;
             'odf-thumbnail-missing-package-part',
             'odf-thumbnail-undeclared-package-part',
         ], $thumbnails['issueCodes']);
+        $t->same([
+            'application/octet-stream' => 1,
+            'image/jpeg' => 1,
+            'image/png' => 2,
+            'image/webp' => 1,
+        ], $thumbnails['mediaTypeBaseCounts']);
+        $t->same([
+            'jpg' => 1,
+            'png' => 3,
+            'webp' => 1,
+        ], $thumbnails['thumbnailFileExtensionCounts']);
+        $t->same([
+            'encrypted-resource-bytes-blocked' => 1,
+            'package-thumbnail-bytes-blocked' => 4,
+        ], $thumbnails['byteExposurePolicyCounts']);
+        $t->same(strlen($thumbnailBytes) + strlen($invalidBytes) + strlen($orphanBytes), $thumbnails['readableByteLength']);
+        $t->same(strlen($thumbnailBytes) + strlen($encryptedBytes) + strlen($invalidBytes) + strlen($orphanBytes), $thumbnails['storedByteLength']);
         $t->same(['Pictures/hero.png'], array_column($summary['mediaParts'], 'path'));
 
         $declared = $itemsByPath['Thumbnails/thumbnail.png'];

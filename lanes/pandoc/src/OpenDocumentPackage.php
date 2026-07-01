@@ -9327,7 +9327,27 @@ final class OpenDocumentPackage
     /**
      * @param list<array<string, mixed>> $manifestEntries
      * @param list<array<string, mixed>> $undeclaredPackageEntries
-     * @return array{count:int, readableCount:int, declaredCount:int, undeclaredCount:int, missingCount:int, encryptedCount:int, invalidMediaTypeCount:int, issueCount:int, issueCodes:list<string>, items:list<array<string, mixed>>}
+     * @return array{
+     *     count:int,
+     *     readableCount:int,
+     *     declaredCount:int,
+     *     undeclaredCount:int,
+     *     missingCount:int,
+     *     encryptedCount:int,
+     *     invalidMediaTypeCount:int,
+     *     issueCount:int,
+     *     issueCodes:list<string>,
+     *     mediaTypeBaseCounts:array<string, int>,
+     *     thumbnailFileExtensionCounts:array<string, int>,
+     *     byteExposurePolicyCounts:array<string, int>,
+     *     readableByteLength:int,
+     *     readableCompressedByteLength:int,
+     *     storedByteLength:int,
+     *     storedCompressedByteLength:int,
+     *     byteExposurePolicy:string,
+     *     reviewPolicy:string,
+     *     items:list<array<string, mixed>>
+     * }
      */
     private static function packageFontMetadata(ZipPackage $package, array $manifestEntries, array $undeclaredPackageEntries): array
     {
@@ -9703,6 +9723,7 @@ final class OpenDocumentPackage
         }
 
         ksort($issueCodes, SORT_STRING);
+        $aggregate = self::packageThumbnailAggregateSummary($items);
 
         return [
             'count' => count($items),
@@ -9721,9 +9742,79 @@ final class OpenDocumentPackage
             )),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'issueCodes' => array_keys($issueCodes),
+            'mediaTypeBaseCounts' => $aggregate['mediaTypeBaseCounts'],
+            'thumbnailFileExtensionCounts' => $aggregate['thumbnailFileExtensionCounts'],
+            'byteExposurePolicyCounts' => $aggregate['byteExposurePolicyCounts'],
+            'readableByteLength' => $aggregate['readableByteLength'],
+            'readableCompressedByteLength' => $aggregate['readableCompressedByteLength'],
+            'storedByteLength' => $aggregate['storedByteLength'],
+            'storedCompressedByteLength' => $aggregate['storedCompressedByteLength'],
             'byteExposurePolicy' => 'package-thumbnail-bytes-blocked',
             'reviewPolicy' => 'package-thumbnail-metadata-only',
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{mediaTypeBaseCounts:array<string, int>, thumbnailFileExtensionCounts:array<string, int>, byteExposurePolicyCounts:array<string, int>, readableByteLength:int, readableCompressedByteLength:int, storedByteLength:int, storedCompressedByteLength:int}
+     */
+    private static function packageThumbnailAggregateSummary(array $items): array
+    {
+        $mediaTypeBaseCounts = [];
+        $thumbnailFileExtensionCounts = [];
+        $byteExposurePolicyCounts = [];
+        $readableByteLength = 0;
+        $readableCompressedByteLength = 0;
+        $storedByteLength = 0;
+        $storedCompressedByteLength = 0;
+
+        foreach ($items as $item) {
+            $mediaTypeBase = (string) ($item['mediaTypeBase'] ?? '');
+            if ($mediaTypeBase !== '') {
+                $mediaTypeBaseCounts[$mediaTypeBase] = ($mediaTypeBaseCounts[$mediaTypeBase] ?? 0) + 1;
+            }
+
+            $packagePath = (string) ($item['packagePath'] ?? $item['part'] ?? $item['fullPath'] ?? '');
+            $extension = strtolower(pathinfo($packagePath, PATHINFO_EXTENSION));
+            $extensionKey = $extension === '' ? 'none' : $extension;
+            $thumbnailFileExtensionCounts[$extensionKey] = ($thumbnailFileExtensionCounts[$extensionKey] ?? 0) + 1;
+
+            $byteExposurePolicy = (string) ($item['byteExposurePolicy'] ?? '');
+            if ($byteExposurePolicy !== '') {
+                $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            }
+
+            $byteLength = $item['byteLength'] ?? null;
+            if (is_int($byteLength)) {
+                $readableByteLength += $byteLength;
+            }
+            $compressedByteLength = $item['compressedByteLength'] ?? null;
+            if (is_int($compressedByteLength) && is_int($byteLength)) {
+                $readableCompressedByteLength += $compressedByteLength;
+            }
+
+            $storedLength = $item['storedByteLength'] ?? null;
+            if (is_int($storedLength)) {
+                $storedByteLength += $storedLength;
+            }
+            if (is_int($compressedByteLength) && is_int($storedLength)) {
+                $storedCompressedByteLength += $compressedByteLength;
+            }
+        }
+
+        ksort($mediaTypeBaseCounts, SORT_STRING);
+        ksort($thumbnailFileExtensionCounts, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+
+        return [
+            'mediaTypeBaseCounts' => $mediaTypeBaseCounts,
+            'thumbnailFileExtensionCounts' => $thumbnailFileExtensionCounts,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'readableByteLength' => $readableByteLength,
+            'readableCompressedByteLength' => $readableCompressedByteLength,
+            'storedByteLength' => $storedByteLength,
+            'storedCompressedByteLength' => $storedCompressedByteLength,
         ];
     }
 

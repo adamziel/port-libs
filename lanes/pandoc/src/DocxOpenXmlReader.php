@@ -15874,6 +15874,7 @@ final class DocxOpenXmlReader
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partBaseNameCharacters = $this->packagePartBaseNameCharacterSummary($partInventory);
         $partDirectoryNameCharacters = $this->packagePartDirectoryNameCharacterSummary($partInventory);
+        $partXmlRootElements = $this->packagePartXmlRootElementSummary($partInventory);
         $partXmlCdataSections = $this->packagePartXmlCdataSectionSummary($partInventory);
         $partXmlComments = $this->packagePartXmlCommentSummary($partInventory);
         $partXmlProcessingInstructions = $this->packagePartXmlProcessingInstructionSummary($partInventory);
@@ -19707,6 +19708,17 @@ final class DocxOpenXmlReader
             'partDirectoryNameCharacterFlagPartNames' => $partDirectoryNameCharacters['flagPartNames'],
             'partDirectoryNameCharacterReviewDirectories' => $partDirectoryNameCharacters['directories'],
             'partDirectoryNameCharacterReviewDirectoryNames' => $partDirectoryNameCharacters['directoryNames'],
+            'partXmlRootElementPartCount' => $partXmlRootElements['partCount'],
+            'partXmlRootElementNames' => $partXmlRootElements['rootNames'],
+            'partXmlRootElementNameCounts' => $partXmlRootElements['rootNameCounts'],
+            'partXmlRootElementLocalNameCounts' => $partXmlRootElements['localNameCounts'],
+            'partXmlRootElementNamespaceUris' => $partXmlRootElements['namespaceUris'],
+            'partXmlRootElementNamespaceUriCounts' => $partXmlRootElements['namespaceUriCounts'],
+            'partXmlRootElementAttributeNameCounts' => $partXmlRootElements['attributeNameCounts'],
+            'partXmlRootElementNamespaceDeclarationNameCounts' => $partXmlRootElements['namespaceDeclarationNameCounts'],
+            'partXmlRootElementPartNames' => $partXmlRootElements['partNames'],
+            'partXmlRootElements' => $partXmlRootElements['roots'],
+            'partXmlRootElementsTruncated' => $partXmlRootElements['truncated'],
             'partXmlCdataSectionPartCount' => $partXmlCdataSections['partCount'],
             'partXmlCdataSectionCount' => $partXmlCdataSections['sectionCount'],
             'partXmlCdataSectionByteLength' => $partXmlCdataSections['byteLength'],
@@ -37486,6 +37498,121 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
+     * @return array{partCount:int, rootNames:list<string>, rootNameCounts:array<string, int>, localNameCounts:array<string, int>, namespaceUris:list<string>, namespaceUriCounts:array<string, int>, attributeNameCounts:array<string, int>, namespaceDeclarationNameCounts:array<string, int>, partNames:list<string>, roots:list<array<string, mixed>>, truncated:bool}
+     */
+    private function packagePartXmlRootElementSummary(array $partInventory): array
+    {
+        $rootNames = [];
+        $rootNameCounts = [];
+        $localNameCounts = [];
+        $namespaceUris = [];
+        $namespaceUriCounts = [];
+        $attributeNameCounts = [];
+        $namespaceDeclarationNameCounts = [];
+        $partNames = [];
+        $roots = [];
+        $truncated = false;
+        $summaryLimit = 64;
+
+        foreach ($partInventory as $partName => $part) {
+            if (($part['xmlHasRootElement'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $partNames[] = $partName;
+
+            $rootName = is_string($part['xmlRootElementName'] ?? null) ? $part['xmlRootElementName'] : '';
+            if ($rootName !== '') {
+                $rootNameCounts[$rootName] = ($rootNameCounts[$rootName] ?? 0) + 1;
+                $this->appendUniqueString($rootNames, $rootName);
+            }
+
+            $localName = is_string($part['xmlRootElementLocalName'] ?? null) ? $part['xmlRootElementLocalName'] : '';
+            if ($localName !== '') {
+                $localNameCounts[$localName] = ($localNameCounts[$localName] ?? 0) + 1;
+            }
+
+            $namespaceUri = is_string($part['xmlRootElementNamespaceUri'] ?? null)
+                ? $part['xmlRootElementNamespaceUri']
+                : '';
+            if ($namespaceUri !== '') {
+                $namespaceUriCounts[$namespaceUri] = ($namespaceUriCounts[$namespaceUri] ?? 0) + 1;
+                $this->appendUniqueString($namespaceUris, $namespaceUri);
+            }
+
+            foreach (($part['xmlRootElementAttributeNames'] ?? []) as $attributeName) {
+                if (!is_string($attributeName) || $attributeName === '') {
+                    continue;
+                }
+                $attributeNameCounts[$attributeName] = ($attributeNameCounts[$attributeName] ?? 0) + 1;
+            }
+
+            foreach (($part['xmlRootElementNamespaceDeclarationNames'] ?? []) as $declarationName) {
+                if (!is_string($declarationName) || $declarationName === '') {
+                    continue;
+                }
+                $namespaceDeclarationNameCounts[$declarationName] =
+                    ($namespaceDeclarationNameCounts[$declarationName] ?? 0) + 1;
+            }
+
+            if (count($roots) >= $summaryLimit) {
+                $truncated = true;
+                continue;
+            }
+
+            $roots[] = [
+                'partName' => $partName,
+                'name' => $part['xmlRootElementName'] ?? null,
+                'localName' => $part['xmlRootElementLocalName'] ?? null,
+                'prefix' => $part['xmlRootElementPrefix'] ?? null,
+                'namespaceUri' => $part['xmlRootElementNamespaceUri'] ?? null,
+                'path' => $part['xmlRootElementPath'] ?? null,
+                'attributeCount' => (int) ($part['xmlRootElementAttributeCount'] ?? 0),
+                'attributeNames' => is_array($part['xmlRootElementAttributeNames'] ?? null)
+                    ? array_values(array_map('strval', $part['xmlRootElementAttributeNames']))
+                    : [],
+                'namespaceDeclarationCount' => (int) ($part['xmlRootElementNamespaceDeclarationCount'] ?? 0),
+                'namespaceDeclarationNames' => is_array($part['xmlRootElementNamespaceDeclarationNames'] ?? null)
+                    ? array_values(array_map('strval', $part['xmlRootElementNamespaceDeclarationNames']))
+                    : [],
+            ];
+        }
+
+        sort($rootNames, SORT_STRING);
+        sort($namespaceUris, SORT_STRING);
+        sort($partNames, SORT_STRING);
+        ksort($rootNameCounts, SORT_STRING);
+        ksort($localNameCounts, SORT_STRING);
+        ksort($namespaceUriCounts, SORT_STRING);
+        ksort($attributeNameCounts, SORT_STRING);
+        ksort($namespaceDeclarationNameCounts, SORT_STRING);
+
+        usort(
+            $roots,
+            static fn (array $left, array $right): int => strcmp(
+                (string) ($left['partName'] ?? ''),
+                (string) ($right['partName'] ?? '')
+            ),
+        );
+
+        return [
+            'partCount' => count($partNames),
+            'rootNames' => $rootNames,
+            'rootNameCounts' => $rootNameCounts,
+            'localNameCounts' => $localNameCounts,
+            'namespaceUris' => $namespaceUris,
+            'namespaceUriCounts' => $namespaceUriCounts,
+            'attributeNameCounts' => $attributeNameCounts,
+            'namespaceDeclarationNameCounts' => $namespaceDeclarationNameCounts,
+            'partNames' => $partNames,
+            'roots' => $roots,
+            'truncated' => $truncated,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
      * @return array{partCount:int, sectionCount:int, byteLength:int, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCdataSectionSummary(array $partInventory): array
@@ -37858,6 +37985,104 @@ final class DocxOpenXmlReader
             'instructions' => $instructions,
             'truncated' => $truncated,
         ];
+    }
+
+    /**
+     * @return array{hasRootElement:bool, name:?string, localName:?string, prefix:?string, namespaceUri:?string, path:?string, attributeCount:int, attributeNames:list<string>, namespaceDeclarationCount:int, namespaceDeclarationNames:list<string>}
+     */
+    private function packagePartXmlRootElementMetadata(
+        string $xml,
+        string $partName,
+        string $contentTypeBase,
+        ?string $partExtension,
+    ): array {
+        $empty = [
+            'hasRootElement' => false,
+            'name' => null,
+            'localName' => null,
+            'prefix' => null,
+            'namespaceUri' => null,
+            'path' => null,
+            'attributeCount' => 0,
+            'attributeNames' => [],
+            'namespaceDeclarationCount' => 0,
+            'namespaceDeclarationNames' => [],
+        ];
+        if (!$this->isXmlPackagePart($partName, $contentTypeBase, $partExtension)) {
+            return $empty;
+        }
+
+        $dom = $this->loadXmlForProvenance($xml, $partName);
+        if (!$dom instanceof \DOMDocument || !$dom->documentElement instanceof \DOMElement) {
+            return $empty;
+        }
+
+        $root = $dom->documentElement;
+        $attributeNames = $this->xmlRootElementAttributeNames($root);
+        $namespaceDeclarationNames = $this->xmlRootElementNamespaceDeclarationNames($root);
+        $prefix = $root->prefix;
+
+        return [
+            'hasRootElement' => true,
+            'name' => $this->qualifiedDomName($root),
+            'localName' => $root->localName === '' ? null : $root->localName,
+            'prefix' => is_string($prefix) && $prefix !== '' ? $prefix : null,
+            'namespaceUri' => $root->namespaceURI === '' ? null : $root->namespaceURI,
+            'path' => $this->domElementPath($root),
+            'attributeCount' => count($attributeNames),
+            'attributeNames' => $attributeNames,
+            'namespaceDeclarationCount' => count($namespaceDeclarationNames),
+            'namespaceDeclarationNames' => $namespaceDeclarationNames,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmlRootElementAttributeNames(\DOMElement $root): array
+    {
+        $names = [];
+        foreach ($root->attributes ?? [] as $attribute) {
+            if (!$attribute instanceof \DOMAttr || $attribute->namespaceURI === 'http://www.w3.org/2000/xmlns/') {
+                continue;
+            }
+
+            $names[] = $this->qualifiedDomAttributeName($attribute);
+        }
+
+        $names = array_values(array_unique($names));
+        sort($names, SORT_STRING);
+
+        return $names;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function xmlRootElementNamespaceDeclarationNames(\DOMElement $root): array
+    {
+        if (!$root->ownerDocument instanceof \DOMDocument) {
+            return [];
+        }
+
+        $nodes = (new \DOMXPath($root->ownerDocument))->query('namespace::*', $root);
+        if (!$nodes instanceof \DOMNodeList) {
+            return [];
+        }
+
+        $names = [];
+        foreach ($nodes as $node) {
+            if (!$node instanceof \DOMNameSpaceNode || $node->nodeName === 'xmlns:xml') {
+                continue;
+            }
+
+            $names[] = $node->nodeName;
+        }
+
+        $names = array_values(array_unique($names));
+        sort($names, SORT_STRING);
+
+        return $names;
     }
 
     private function isXmlPackagePart(string $partName, string $contentTypeBase, ?string $partExtension): bool
@@ -44116,6 +44341,12 @@ final class DocxOpenXmlReader
                 (string) $contentTypeResolution['contentTypeBase'],
                 $partExtension,
             );
+            $xmlRootElement = $this->packagePartXmlRootElementMetadata(
+                $contents,
+                $partName,
+                (string) $contentTypeResolution['contentTypeBase'],
+                $partExtension,
+            );
 
             $entry = [
                 'partName' => $partName,
@@ -44170,6 +44401,16 @@ final class DocxOpenXmlReader
                 'xmlProcessingInstructionTargets' => $xmlProcessingInstructions['targets'],
                 'xmlProcessingInstructions' => $xmlProcessingInstructions['instructions'],
                 'xmlProcessingInstructionsTruncated' => $xmlProcessingInstructions['truncated'],
+                'xmlHasRootElement' => ($xmlRootElement['hasRootElement'] ?? false) === true,
+                'xmlRootElementName' => $xmlRootElement['name'] ?? null,
+                'xmlRootElementLocalName' => $xmlRootElement['localName'] ?? null,
+                'xmlRootElementPrefix' => $xmlRootElement['prefix'] ?? null,
+                'xmlRootElementNamespaceUri' => $xmlRootElement['namespaceUri'] ?? null,
+                'xmlRootElementPath' => $xmlRootElement['path'] ?? null,
+                'xmlRootElementAttributeCount' => $xmlRootElement['attributeCount'] ?? 0,
+                'xmlRootElementAttributeNames' => $xmlRootElement['attributeNames'] ?? [],
+                'xmlRootElementNamespaceDeclarationCount' => $xmlRootElement['namespaceDeclarationCount'] ?? 0,
+                'xmlRootElementNamespaceDeclarationNames' => $xmlRootElement['namespaceDeclarationNames'] ?? [],
                 'isRelationshipPart' => $this->isRelationshipPartName($partName),
                 'roles' => $roles,
                 'partNameCharacterFlags' => $partNameCharacterFlags,
