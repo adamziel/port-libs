@@ -7049,6 +7049,100 @@ XML);
         $t->contains('<dt>Curie 2026</dt><dd>Curie, Ada. Compact Registry Trial. Medical Registry Review. 2026. PMID 34567890. PMCID PMC3456789. JSTOR 10.2307/compact.</dd>', $blocks);
         $t->contains('<dt>Catalog Desk 2025</dt><dd>Catalog Desk. Compact Library Registry. 2025. HDL 20.500/compact. LCCN 2026123987. OCLC 99887766.</dd>', $blocks);
     },
+    'normalizes direct csl pubmed central identifier aliases' => static function (TestRunner $t) use ($citation): void {
+        $processor = CitationCslProcessor::fromItems([
+            [
+                'id' => 'direct-pubmed-camel',
+                'type' => 'article-journal',
+                'title' => 'Direct PubMed Camel Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'pubmedId' => '12345678',
+                'pmcId' => 'PMC1234567',
+            ],
+            [
+                'id' => 'direct-pubmed-identifier',
+                'type' => 'webpage',
+                'title' => 'Direct PubMed Identifier Packet',
+                'author' => [
+                    ['literal' => 'Archive Clinic'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'pubmedIdentifier' => '87654321',
+                'pubmedCentralId' => 'PMC7654321',
+            ],
+            [
+                'id' => 'direct-pubmed-central',
+                'type' => 'article',
+                'title' => 'Direct PubMed Central Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Pat'],
+                ],
+                'issued' => ['date-parts' => [[2024]]],
+                'pubmed-identifier' => '13572468',
+                'pubmedcentral' => 'PMC1357246',
+            ],
+        ]);
+
+        $camel = $processor->item('direct-pubmed-camel');
+        $identifier = $processor->item('direct-pubmed-identifier');
+        $central = $processor->item('direct-pubmed-central');
+        $t->same('12345678', $camel['pmid'] ?? null);
+        $t->same('PMC1234567', $camel['pmcid'] ?? null);
+        $t->same('87654321', $identifier['pmid'] ?? null);
+        $t->same('PMC7654321', $identifier['pmcid'] ?? null);
+        $t->same('13572468', $central['pmid'] ?? null);
+        $t->same('PMC1357246', $central['pmcid'] ?? null);
+        $t->same('pubmedId', array_key_exists('pubmedId', $camel['raw'] ?? []) ? 'pubmedId' : null);
+        $t->same('pubmedCentralId', array_key_exists('pubmedCentralId', $identifier['raw'] ?? []) ? 'pubmedCentralId' : null);
+        $t->same('Ng, Nia. Direct PubMed Camel Packet. 2026. PMID 12345678. PMCID PMC1234567.', $processor->renderBibliographyEntry('direct-pubmed-camel'));
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Direct CSL PubMed Central Alias Review</title>
+    <id>https://example.test/styles/direct-csl-pubmed-central-alias-review</id>
+    <updated>2026-07-01T19:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="PMID"/>
+        <text variable="PMCID"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="PMID"/>
+      <text variable="PMCID"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Direct CSL PubMed Central Alias Review', $summary['title'] ?? null);
+        $t->same('PMID', $citationChildren[1]['variable'] ?? null);
+        $t->same('PMCID', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Ng | 12345678 | PMC1234567; Archive Clinic | 87654321 | PMC7654321; Roe | 13572468 | PMC1357246]', $styled->renderCitationCluster([
+            $citation('direct-pubmed-camel', '[@direct-pubmed-camel]'),
+            $citation('direct-pubmed-identifier', '[@direct-pubmed-identifier]'),
+            $citation('direct-pubmed-central', '[@direct-pubmed-central]'),
+        ]));
+        $t->same('Direct PubMed Identifier Packet :: 87654321 :: PMC7654321', $styled->renderBibliographyEntry('direct-pubmed-identifier'));
+
+        $document = (new MarkdownReader())->read('Direct PubMed aliases [@direct-pubmed-camel; @direct-pubmed-identifier; @direct-pubmed-central] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct PubMed aliases [Ng | 12345678 | PMC1234567; Archive Clinic | 87654321 | PMC7654321; Roe | 13572468 | PMC1357246] stay visible.</p>', $blocks);
+        $t->contains('<dt>Archive Clinic 2025</dt><dd>Direct PubMed Identifier Packet :: 87654321 :: PMC7654321</dd>', $blocks);
+    },
     'maps bounded biblatex media and report identifiers into csl metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @movie{film-source,
