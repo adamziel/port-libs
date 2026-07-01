@@ -390,6 +390,8 @@ final class BibtexCslProcessor
         foreach ([
             'available-date' => 'Available date',
             'submitted' => 'Submitted date',
+            'accepted-date' => 'Accepted date',
+            'revised-date' => 'Revised date',
         ] as $field => $label) {
             $date = $this->dateDisplay($item[$field] ?? []);
             if ($date !== '') {
@@ -1406,6 +1408,48 @@ final class BibtexCslProcessor
         );
         if ($submittedDate !== null) {
             $item['submitted'] = $this->dateWithEra($submittedDate, $fields, ['submitteddateera', 'submitted-date-era']);
+        }
+
+        $acceptedDate = $this->dateObjectFromFields(
+            $fields,
+            ['accepted', 'accepteddate', 'accepted-date', 'dateaccepted', 'date-accepted'],
+            [['acceptedyear', 'accepted-year'], ['acceptedmonth', 'accepted-month'], ['acceptedday', 'accepted-day']],
+            [
+                'hour' => 'acceptedhour',
+                'minute' => 'acceptedminute',
+                'second' => 'acceptedsecond',
+                'timezone' => 'acceptedtimezone',
+                'endhour' => 'acceptedendhour',
+                'endminute' => 'acceptedendminute',
+                'endsecond' => 'acceptedendsecond',
+                'endtimezone' => 'acceptedendtimezone',
+            ],
+            [['acceptedendyear', 'accepted-end-year'], ['acceptedendmonth', 'accepted-end-month'], ['acceptedendday', 'accepted-end-day']],
+            ['acceptedenddate', 'accepted-end-date']
+        );
+        if ($acceptedDate !== null) {
+            $item['accepted-date'] = $this->dateWithEra($acceptedDate, $fields, ['accepteddateera', 'accepted-date-era']);
+        }
+
+        $revisedDate = $this->dateObjectFromFields(
+            $fields,
+            ['revised', 'reviseddate', 'revised-date', 'revisiondate', 'revision-date', 'daterevised', 'date-revised', 'revdate'],
+            [['revisedyear', 'revised-year'], ['revisedmonth', 'revised-month'], ['revisedday', 'revised-day']],
+            [
+                'hour' => 'revisedhour',
+                'minute' => 'revisedminute',
+                'second' => 'revisedsecond',
+                'timezone' => 'revisedtimezone',
+                'endhour' => 'revisedendhour',
+                'endminute' => 'revisedendminute',
+                'endsecond' => 'revisedendsecond',
+                'endtimezone' => 'revisedendtimezone',
+            ],
+            [['revisedendyear', 'revised-end-year'], ['revisedendmonth', 'revised-end-month'], ['revisedendday', 'revised-end-day']],
+            ['revisedenddate', 'revised-end-date', 'revisionenddate', 'revision-end-date']
+        );
+        if ($revisedDate !== null) {
+            $item['revised-date'] = $this->dateWithEra($revisedDate, $fields, ['reviseddateera', 'revised-date-era']);
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
@@ -4167,6 +4211,8 @@ final class BibtexCslProcessor
             'original-date' => $item['original-date'] ?? null,
             'reprint-date' => $item['reprint-date'] ?? null,
             'submitted' => $item['submitted'] ?? null,
+            'accepted-date' => $item['accepted-date'] ?? null,
+            'revised-date' => $item['revised-date'] ?? null,
             'event-date' => $item['event-date'] ?? null,
             'label-date' => $item['label-date'] ?? null,
         ];

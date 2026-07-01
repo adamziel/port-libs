@@ -4899,6 +4899,115 @@ XML);
         $t->contains('<p>Legacy split date handoff cites [Legacy Split Date Handoff Packet | 2026-06/2027-07 | 2026-06-15/2026-07-01 | 2026-05/2026-06 | 2025/2026].</p>', $blocks);
         $t->contains('<dt>Smith 2026/2027</dt><dd>Legacy Split Date Handoff Packet :: 2026-06/2027-07 :: 2026-06-15/2026-07-01 :: 2026-05/2026-06 :: 2025/2026</dd>', $blocks);
     },
+    'carries legacy biblatex accepted and revised date ranges in csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{review-history,
+  author             = {Ng, Nia},
+  title              = {Review History Packet},
+  journaltitle       = {Migration Review},
+  date               = {2026},
+  acceptedyear       = {2026},
+  acceptedmonth      = {3},
+  acceptedday        = {10},
+  acceptedendyear    = {2026},
+  acceptedendmonth   = {3},
+  acceptedendday     = {12},
+  reviseddate        = {2026-04-01?/2026-04-09%},
+  revisedhour        = {9},
+  revisedminute      = {30},
+  revisedtimezone    = {Z},
+  revisedendhour     = {10},
+  revisedendminute   = {45}
+}
+
+@article{open-review,
+  author        = {Roe, Rae},
+  title         = {Open Review Packet},
+  journaltitle  = {Migration Review},
+  date          = {2025},
+  accepteddate  = {/2025-08-03},
+  revised       = {2025-09-01/}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $history = $items['review-history'];
+        $open = $items['open-review'];
+
+        $t->same([[2026, 3, 10], [2026, 3, 12]], $history['accepted-date']['date-parts']);
+        $t->same([[2026, 4, 1], [2026, 4, 9]], $history['revised-date']['date-parts']);
+        $t->same(true, $history['revised-date']['circa'] ?? null);
+        $t->same(true, $history['revised-date']['uncertain'] ?? null);
+        $t->same('09:30Z', $history['revised-date']['time'] ?? null);
+        $t->same('10:45', $history['revised-date']['end-time'] ?? null);
+        $t->same('start', $open['accepted-date']['open-ended'] ?? null);
+        $t->same('end', $open['revised-date']['open-ended'] ?? null);
+        $t->same('2026', $history['rawBibtex']['fields']['acceptedyear']);
+        $t->same('2026-04-01?/2026-04-09%', $history['rawBibtex']['fields']['reviseddate']);
+        $t->contains('Accepted date: 2026-03-10/2026-03-12', $processor->renderBibliographyText($history));
+        $t->contains('Revised date: 2026-04-01/2026-04-09', $processor->renderBibliographyText($history));
+        $t->contains('Date markers: revised-date circa and uncertain (2026-04-01?/2026-04-09%)', $processor->renderBibliographyText($history));
+        $t->contains('Date times: revised-date 09:30Z/10:45', $processor->renderBibliographyText($history));
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="accepted-date"/>
+        <date variable="revised-date"/>
+        <text variable="revised-date-status"/>
+        <text variable="revised-time"/>
+        <text variable="revised-end-time"/>
+        <text variable="revised-date-raw"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="accepted-date"/>
+      <date variable="revised-date"/>
+      <text variable="revised-date-status"/>
+      <text variable="revised-time"/>
+      <text variable="revised-end-time"/>
+      <text variable="revised-date-raw"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledHistory = $styled->item('review-history');
+        $styledOpen = $styled->item('open-review');
+        $t->same('2026-03-10/2026-03-12', $styledHistory['acceptedDate']['display'] ?? null);
+        $t->same('2026-04-01/2026-04-09', $styledHistory['revisedDate']['display'] ?? null);
+        $t->same('Date markers: revised-date circa and uncertain (2026-04-01?/2026-04-09%)', $styledHistory['dateMarkerSummary'] ?? null);
+        $t->same('/2025-08-03', $styledOpen['acceptedDate']['display'] ?? null);
+        $t->same('2025-09-01/', $styledOpen['revisedDate']['display'] ?? null);
+        $t->same(
+            '[Review History Packet | 2026-03-10/2026-03-12 | 2026-04-01/2026-04-09 | circa and uncertain | 09:30Z | 10:45 | 2026-04-01?/2026-04-09%; Open Review Packet | /2025-08-03 | 2025-09-01/ | 2025-09-01/]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'review-history', 'text' => '[@review-history]']),
+                new AstNode('citation', ['id' => 'open-review', 'text' => '[@open-review]']),
+            ])
+        );
+        $t->same(
+            'Review History Packet :: 2026-03-10/2026-03-12 :: 2026-04-01/2026-04-09 :: circa and uncertain :: 09:30Z :: 10:45 :: 2026-04-01?/2026-04-09%',
+            $styled->renderBibliographyEntry('review-history')
+        );
+
+        $document = (new MarkdownReader())->read('Review history [@review-history; @open-review] stays visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->same(['review-history', 'open-review'], $handoff['citedKeys']);
+        $t->same([[2026, 3, 10], [2026, 3, 12]], $handoff['items'][0]['accepted-date']['date-parts']);
+        $t->same('start', $handoff['items'][1]['accepted-date']['open-ended'] ?? null);
+        $t->contains('<p>Review history [Review History Packet | 2026-03-10/2026-03-12 | 2026-04-01/2026-04-09 | circa and uncertain | 09:30Z | 10:45 | 2026-04-01?/2026-04-09%; Open Review Packet | /2025-08-03 | 2025-09-01/ | 2025-09-01/] stays visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Review History Packet :: 2026-03-10/2026-03-12 :: 2026-04-01/2026-04-09 :: circa and uncertain :: 09:30Z :: 10:45 :: 2026-04-01?/2026-04-09%</dd>', $blocks);
+    },
     'carries legacy biblatex date markers times seasons and eras in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{legacy-date-flags,
