@@ -4679,6 +4679,11 @@ return [
         $t->same(0, $safeSummary['mismatchedEntryCount']);
         $t->same(true, $safeSummary['isSupportedByBoundedReader']);
         $t->same([], $safeSummary['issues']);
+        $t->same([], $safeSummary['issueCounts']);
+        $t->same([], $safeSummary['entryNamesByIssue']);
+        $t->same([], $safeSummary['localHeaderNamesByIssue']);
+        $t->same(0, $safeSummary['localHeaderMetadataIssueSummaryCount']);
+        $t->same([], $safeSummary['localHeaderMetadataIssueSummaries']);
         $t->same([], $safeSummary['mismatchedEntries']);
         $t->same('word/document.xml', $safeSummary['entries'][0]['centralName']);
         $t->same('word/document.xml', $safeSummary['entries'][0]['localName']);
@@ -4748,6 +4753,25 @@ return [
             'local-header-uncompressed-size-mismatch',
             'local-header-data-descriptor-placeholders-not-zero',
         ], $summary['issues']);
+        $t->same([
+            'local-header-compressed-size-mismatch' => 1,
+            'local-header-compression-method-mismatch' => 1,
+            'local-header-crc32-mismatch' => 1,
+            'local-header-data-descriptor-placeholders-not-zero' => 1,
+            'local-header-modification-time-mismatch' => 1,
+            'local-header-uncompressed-size-mismatch' => 1,
+            'local-header-version-needed-mismatch' => 1,
+        ], $summary['issueCounts']);
+        $t->same([
+            'local-header-compressed-size-mismatch' => ['word/media/review.txt'],
+            'local-header-compression-method-mismatch' => ['word/media/review.txt'],
+            'local-header-crc32-mismatch' => ['word/media/review.txt'],
+            'local-header-data-descriptor-placeholders-not-zero' => ['word/comments.xml'],
+            'local-header-modification-time-mismatch' => ['word/media/review.txt'],
+            'local-header-uncompressed-size-mismatch' => ['word/media/review.txt'],
+            'local-header-version-needed-mismatch' => ['word/document.xml'],
+        ], $summary['entryNamesByIssue']);
+        $t->same($summary['entryNamesByIssue'], $summary['localHeaderNamesByIssue']);
         $t->same('word/document.xml', $summary['mismatchedEntries'][0]['centralName']);
         $t->same(['local-header-version-needed-mismatch'], $summary['mismatchedEntries'][0]['issues']);
         $t->same(20, $summary['mismatchedEntries'][0]['centralVersionNeededToExtract']);
@@ -4777,6 +4801,55 @@ return [
         $t->same(true, $summary['mismatchedEntries'][2]['usesDataDescriptor']);
         $t->same(false, $summary['mismatchedEntries'][2]['hasZeroLocalHeaderPlaceholders']);
         $t->same(1, $summary['mismatchedEntries'][2]['localCrc32']);
+        $t->same(7, $summary['localHeaderMetadataIssueSummaryCount']);
+        $issueSummaries = [];
+        foreach ($summary['localHeaderMetadataIssueSummaries'] as $issueSummary) {
+            $issueSummaries[$issueSummary['issue']] = $issueSummary;
+        }
+        $mediaEntry = $summary['mismatchedEntries'][1];
+        $descriptorEntry = $summary['mismatchedEntries'][2];
+        $t->same([
+            'issue' => 'local-header-compression-method-mismatch',
+            'entryCount' => 1,
+            'entryNames' => ['word/media/review.txt'],
+            'localHeaderNames' => ['word/media/review.txt'],
+            'centralDirectoryIndexes' => [1],
+            'localHeaderOffsets' => [$mediaEntry['localHeaderOffset']],
+            'localFixedHeaderBytes' => 30,
+            'localVariableFieldBytes' => strlen('word/media/review.txt'),
+            'centralCompressedBytes' => strlen($mediaBytes),
+            'localCompressedBytes' => strlen($mediaBytes) + 2,
+            'centralUncompressedBytes' => strlen($mediaBytes),
+            'localUncompressedBytes' => strlen($mediaBytes) + 3,
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorPlaceholderIssueEntryCount' => 0,
+            'localFixedFieldOffsets' => [$mediaEntry['localCompressionMethodOffset']],
+        ], $issueSummaries['local-header-compression-method-mismatch']);
+        $t->same([
+            $mediaEntry['localModifiedDosTimeOffset'],
+            $mediaEntry['localModifiedDosDateOffset'],
+        ], $issueSummaries['local-header-modification-time-mismatch']['localFixedFieldOffsets']);
+        $t->same([
+            'issue' => 'local-header-data-descriptor-placeholders-not-zero',
+            'entryCount' => 1,
+            'entryNames' => ['word/comments.xml'],
+            'localHeaderNames' => ['word/comments.xml'],
+            'centralDirectoryIndexes' => [2],
+            'localHeaderOffsets' => [$descriptorEntry['localHeaderOffset']],
+            'localFixedHeaderBytes' => 30,
+            'localVariableFieldBytes' => strlen('word/comments.xml'),
+            'centralCompressedBytes' => strlen(gzdeflate($descriptorXml)),
+            'localCompressedBytes' => 0,
+            'centralUncompressedBytes' => strlen($descriptorXml),
+            'localUncompressedBytes' => 0,
+            'dataDescriptorEntryCount' => 1,
+            'dataDescriptorPlaceholderIssueEntryCount' => 1,
+            'localFixedFieldOffsets' => [
+                $descriptorEntry['localCrc32Offset'],
+                $descriptorEntry['localCompressedSizeOffset'],
+                $descriptorEntry['localUncompressedSizeOffset'],
+            ],
+        ], $issueSummaries['local-header-data-descriptor-placeholders-not-zero']);
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($mismatchedZip));
     },
 

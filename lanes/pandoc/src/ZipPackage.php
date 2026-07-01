@@ -1097,6 +1097,11 @@ final class ZipPackage
      *     mismatchedEntryCount:int,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
+     *     issueCounts:array<string, int>,
+     *     entryNamesByIssue:array<string, list<string>>,
+     *     localHeaderNamesByIssue:array<string, list<string>>,
+     *     localHeaderMetadataIssueSummaryCount:int,
+     *     localHeaderMetadataIssueSummaries:list<array<string, mixed>>,
      *     mismatchedEntries:list<array<string, mixed>>,
      *     entries:list<array<string, mixed>>
      * }
@@ -1298,6 +1303,17 @@ final class ZipPackage
             }
         }
 
+        $issueSummaries = self::localHeaderMetadataIssueSummaries($mismatchedEntries);
+        $issueCounts = [];
+        $entryNamesByIssue = [];
+        $localHeaderNamesByIssue = [];
+        foreach ($issueSummaries as $issueSummary) {
+            $issue = (string) $issueSummary['issue'];
+            $issueCounts[$issue] = (int) $issueSummary['entryCount'];
+            $entryNamesByIssue[$issue] = $issueSummary['entryNames'];
+            $localHeaderNamesByIssue[$issue] = $issueSummary['localHeaderNames'];
+        }
+
         return [
             'entryCount' => count($entries),
             'totalEntryCount' => $archive['totalEntryCount'],
@@ -1306,9 +1322,133 @@ final class ZipPackage
             'mismatchedEntryCount' => count($mismatchedEntries),
             'isSupportedByBoundedReader' => $packageIssues === [],
             'issues' => $packageIssues,
+            'issueCounts' => $issueCounts,
+            'entryNamesByIssue' => $entryNamesByIssue,
+            'localHeaderNamesByIssue' => $localHeaderNamesByIssue,
+            'localHeaderMetadataIssueSummaryCount' => count($issueSummaries),
+            'localHeaderMetadataIssueSummaries' => $issueSummaries,
             'mismatchedEntries' => $mismatchedEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function localHeaderMetadataIssueSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $entryName = is_string($entry['centralName'] ?? null) ? $entry['centralName'] : '';
+            $localHeaderName = is_string($entry['localName'] ?? null) ? $entry['localName'] : '';
+            $issues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+            foreach ($issues as $issue) {
+                if (!isset($summaries[$issue])) {
+                    $summaries[$issue] = [
+                        'issue' => $issue,
+                        'entryCount' => 0,
+                        'entryNames' => [],
+                        'localHeaderNames' => [],
+                        'centralDirectoryIndexes' => [],
+                        'localHeaderOffsets' => [],
+                        'localFixedHeaderBytes' => 0,
+                        'localVariableFieldBytes' => 0,
+                        'centralCompressedBytes' => 0,
+                        'localCompressedBytes' => 0,
+                        'centralUncompressedBytes' => 0,
+                        'localUncompressedBytes' => 0,
+                        'dataDescriptorEntryCount' => 0,
+                        'dataDescriptorPlaceholderIssueEntryCount' => 0,
+                        'localFixedFieldOffsets' => [],
+                    ];
+                }
+
+                ++$summaries[$issue]['entryCount'];
+                if ($entryName !== '' && !in_array($entryName, $summaries[$issue]['entryNames'], true)) {
+                    $summaries[$issue]['entryNames'][] = $entryName;
+                }
+                if ($localHeaderName !== '' && !in_array($localHeaderName, $summaries[$issue]['localHeaderNames'], true)) {
+                    $summaries[$issue]['localHeaderNames'][] = $localHeaderName;
+                }
+
+                foreach (['centralDirectoryIndex' => 'centralDirectoryIndexes', 'localHeaderOffset' => 'localHeaderOffsets'] as $entryKey => $summaryKey) {
+                    if (is_int($entry[$entryKey] ?? null) && !in_array($entry[$entryKey], $summaries[$issue][$summaryKey], true)) {
+                        $summaries[$issue][$summaryKey][] = $entry[$entryKey];
+                    }
+                }
+
+                $summaries[$issue]['localFixedHeaderBytes'] += (int) ($entry['localFixedHeaderLength'] ?? 0);
+                $summaries[$issue]['localVariableFieldBytes'] += (int) ($entry['localVariableFieldsLength'] ?? 0);
+                $summaries[$issue]['centralCompressedBytes'] += (int) ($entry['centralCompressedSize'] ?? 0);
+                $summaries[$issue]['localCompressedBytes'] += (int) ($entry['localCompressedSize'] ?? 0);
+                $summaries[$issue]['centralUncompressedBytes'] += (int) ($entry['centralUncompressedSize'] ?? 0);
+                $summaries[$issue]['localUncompressedBytes'] += (int) ($entry['localUncompressedSize'] ?? 0);
+                if (($entry['usesDataDescriptor'] ?? false) === true) {
+                    ++$summaries[$issue]['dataDescriptorEntryCount'];
+                }
+                if ($issue === 'local-header-data-descriptor-placeholders-not-zero') {
+                    ++$summaries[$issue]['dataDescriptorPlaceholderIssueEntryCount'];
+                }
+
+                foreach (self::localHeaderMetadataIssueFixedFieldOffsets($entry, $issue) as $offset) {
+                    if (!in_array($offset, $summaries[$issue]['localFixedFieldOffsets'], true)) {
+                        $summaries[$issue]['localFixedFieldOffsets'][] = $offset;
+                    }
+                }
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['localHeaderNames'], SORT_STRING);
+            sort($summary['centralDirectoryIndexes'], SORT_NUMERIC);
+            sort($summary['localHeaderOffsets'], SORT_NUMERIC);
+            sort($summary['localFixedFieldOffsets'], SORT_NUMERIC);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return list<int>
+     */
+    private static function localHeaderMetadataIssueFixedFieldOffsets(array $entry, string $issue): array
+    {
+        $offsetKeys = match ($issue) {
+            'local-header-version-needed-mismatch' => ['localVersionNeededToExtractOffset'],
+            'local-header-flags-mismatch' => ['localGeneralPurposeFlagsOffset'],
+            'local-header-compression-method-mismatch' => ['localCompressionMethodOffset'],
+            'local-header-modification-time-mismatch' => [
+                'localModifiedDosTimeOffset',
+                'localModifiedDosDateOffset',
+            ],
+            'local-header-crc32-mismatch' => ['localCrc32Offset'],
+            'local-header-compressed-size-mismatch' => ['localCompressedSizeOffset'],
+            'local-header-uncompressed-size-mismatch' => ['localUncompressedSizeOffset'],
+            'local-header-data-descriptor-placeholders-not-zero' => [
+                'localCrc32Offset',
+                'localCompressedSizeOffset',
+                'localUncompressedSizeOffset',
+            ],
+            'local-header-name-mismatch',
+            'local-header-decoded-name-mismatch',
+            'local-header-unsafe-raw-name',
+            'local-header-unsafe-decoded-name' => ['localRawNameOffset'],
+            default => [],
+        };
+
+        $offsets = [];
+        foreach ($offsetKeys as $key) {
+            if (is_int($entry[$key] ?? null)) {
+                $offsets[] = $entry[$key];
+            }
+        }
+
+        return $offsets;
     }
 
     /**
