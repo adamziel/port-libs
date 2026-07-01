@@ -160,7 +160,8 @@ final class PptxReader
                 $targetMode === OpcRelationship::TARGET_MODE_EXTERNAL
                     ? OpcRelationship::TARGET_MODE_EXTERNAL
                     : OpcRelationship::TARGET_MODE_INTERNAL,
-                $targetMode !== ''
+                $targetMode !== '',
+                false
             ));
         }
 
