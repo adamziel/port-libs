@@ -25,6 +25,7 @@
         "remainingCriticalGaps": [],
         "uncoveredUpstreamCriticalTests": [],
         "localFocusedTestFiles": [
+            "lanes/pandoc/tests/OdfManifestCustomAttributeNamespaceParityTest.php",
             "lanes/pandoc/tests/OdfManifestMediaTypeSummaryCompactParityTest.php",
             "lanes/pandoc/tests/OdfPackagePathByteLengthBucketsTest.php",
             "lanes/pandoc/tests/OdfPackageXmlCommentProvenanceTest.php",
