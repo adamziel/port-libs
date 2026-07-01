@@ -971,6 +971,10 @@ final class OpcRelationshipGraph
         $generalPurposeFlagNamesByHandoffKind = [];
         $generalPurposeFlagIssueCounts = [];
         $entryNamesByGeneralPurposeFlagIssue = [];
+        $pathSegmentPositionRoleEntryCounts = [];
+        $entryNamesByPathSegmentPositionRole = [];
+        $pathSegmentPositionHandoffKindEntryCounts = [];
+        $entryNamesByPathSegmentPositionHandoffKind = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -1062,6 +1066,36 @@ final class OpcRelationshipGraph
             }
 
             $roleCounts[$entry['role']] = ($roleCounts[$entry['role']] ?? 0) + 1;
+            $entryPathSegmentPositions = [];
+            foreach ($entry['pathSegmentPositionReviews'] as $review) {
+                $position = is_array($review) && is_string($review['position'] ?? null)
+                    ? $review['position']
+                    : '';
+                if ($position !== '') {
+                    $entryPathSegmentPositions[$position] = true;
+                }
+            }
+            foreach (array_keys($entryPathSegmentPositions) as $position) {
+                $pathSegmentPositionRoleEntryCounts[$position] ??= [];
+                $pathSegmentPositionRoleEntryCounts[$position][$entry['role']] =
+                    ($pathSegmentPositionRoleEntryCounts[$position][$entry['role']] ?? 0) + 1;
+                $entryNamesByPathSegmentPositionRole[$position] ??= [];
+                $entryNamesByPathSegmentPositionRole[$position][$entry['role']] ??= [];
+                self::appendUniqueString(
+                    $entryNamesByPathSegmentPositionRole[$position][$entry['role']],
+                    $entry['entryName']
+                );
+
+                $pathSegmentPositionHandoffKindEntryCounts[$position] ??= [];
+                $pathSegmentPositionHandoffKindEntryCounts[$position][$entry['handoffKind']] =
+                    ($pathSegmentPositionHandoffKindEntryCounts[$position][$entry['handoffKind']] ?? 0) + 1;
+                $entryNamesByPathSegmentPositionHandoffKind[$position] ??= [];
+                $entryNamesByPathSegmentPositionHandoffKind[$position][$entry['handoffKind']] ??= [];
+                self::appendUniqueString(
+                    $entryNamesByPathSegmentPositionHandoffKind[$position][$entry['handoffKind']],
+                    $entry['entryName']
+                );
+            }
             self::incrementZipEntryManifestByteBucket(
                 $byteCountsByRole,
                 $entry['role'],
@@ -1282,6 +1316,18 @@ final class OpcRelationshipGraph
         self::sortZipManifestIssueProvenance($partNamesByIssue);
         ksort($contentTypeOverrideDeclarationIssueCounts);
         ksort($roleCounts);
+        foreach ($pathSegmentPositionRoleEntryCounts as &$roleCountsByPosition) {
+            ksort($roleCountsByPosition, SORT_STRING);
+        }
+        unset($roleCountsByPosition);
+        ksort($pathSegmentPositionRoleEntryCounts, SORT_STRING);
+        self::sortNestedStringListMap($entryNamesByPathSegmentPositionRole);
+        foreach ($pathSegmentPositionHandoffKindEntryCounts as &$handoffKindCountsByPosition) {
+            ksort($handoffKindCountsByPosition, SORT_STRING);
+        }
+        unset($handoffKindCountsByPosition);
+        ksort($pathSegmentPositionHandoffKindEntryCounts, SORT_STRING);
+        self::sortNestedStringListMap($entryNamesByPathSegmentPositionHandoffKind);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
         ksort($byteCountsByContentType);
@@ -1406,6 +1452,10 @@ final class OpcRelationshipGraph
             'pathSegmentPositionCounts' => $packageManifest['pathSegmentPositionCounts'],
             'pathSegmentPositionEntryCounts' => $packageManifest['pathSegmentPositionEntryCounts'],
             'pathSegmentPositionSummaries' => $packageManifest['pathSegmentPositionSummaries'],
+            'pathSegmentPositionRoleEntryCounts' => $pathSegmentPositionRoleEntryCounts,
+            'entryNamesByPathSegmentPositionRole' => $entryNamesByPathSegmentPositionRole,
+            'pathSegmentPositionHandoffKindEntryCounts' => $pathSegmentPositionHandoffKindEntryCounts,
+            'entryNamesByPathSegmentPositionHandoffKind' => $entryNamesByPathSegmentPositionHandoffKind,
             'contentTypesItemCount' => count($contentTypesItems),
             'contentTypeDeclarationAvailable' => $contentTypes instanceof OpcContentTypes,
             'contentTypesParseError' => $contentTypesParseError,
@@ -10924,6 +10974,18 @@ final class OpcRelationshipGraph
             sort($values, SORT_STRING);
         }
         unset($values);
+    }
+
+    /**
+     * @param array<string, array<string, list<string>>> $map
+     */
+    private static function sortNestedStringListMap(array &$map): void
+    {
+        ksort($map, SORT_STRING);
+        foreach ($map as &$nestedMap) {
+            self::sortStringListMap($nestedMap);
+        }
+        unset($nestedMap);
     }
 
     /**

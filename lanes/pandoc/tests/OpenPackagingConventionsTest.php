@@ -2122,6 +2122,64 @@ XML;
         $t->same(['first' => 8, 'last' => 8, 'middle' => 2, 'only' => 1], $summary['pathSegmentPositionCounts']);
         $t->same(['first' => 8, 'last' => 8, 'middle' => 2, 'only' => 1], $summary['pathSegmentPositionEntryCounts']);
         $t->same([
+            'first' => [
+                'binary-part' => 1,
+                'directory' => 1,
+                'document-properties' => 1,
+                'media' => 1,
+                'package-relationships' => 1,
+                'part-relationships' => 1,
+                'xml-part' => 2,
+            ],
+            'last' => [
+                'binary-part' => 1,
+                'directory' => 1,
+                'document-properties' => 1,
+                'media' => 1,
+                'package-relationships' => 1,
+                'part-relationships' => 1,
+                'xml-part' => 2,
+            ],
+            'middle' => [
+                'media' => 1,
+                'part-relationships' => 1,
+            ],
+            'only' => [
+                'content-types' => 1,
+            ],
+        ], $summary['pathSegmentPositionRoleEntryCounts']);
+        $t->same([
+            'first' => [
+                'binary' => 1,
+                'directory' => 1,
+                'media' => 1,
+                'relationships+xml' => 2,
+                'xml' => 3,
+            ],
+            'last' => [
+                'binary' => 1,
+                'directory' => 1,
+                'media' => 1,
+                'relationships+xml' => 2,
+                'xml' => 3,
+            ],
+            'middle' => [
+                'media' => 1,
+                'relationships+xml' => 1,
+            ],
+            'only' => [
+                'content-types+xml' => 1,
+            ],
+        ], $summary['pathSegmentPositionHandoffKindEntryCounts']);
+        $t->same(
+            ['word/_rels/document.xml.rels'],
+            $summary['entryNamesByPathSegmentPositionRole']['middle']['part-relationships']
+        );
+        $t->same(
+            ['word/media/image.png'],
+            $summary['entryNamesByPathSegmentPositionHandoffKind']['middle']['media']
+        );
+        $t->same([
             'word/_rels/document.xml.rels',
             'word/document.xml',
             'word/media/',
