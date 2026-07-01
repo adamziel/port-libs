@@ -240,9 +240,9 @@ final class PptxReader
      */
     private function parsePresentationSlides(\DOMDocument $document): array
     {
-        $root = XmlHtmlDom::rootElement($document, 'presentation');
+        $root = XmlHtmlDom::rootElement($document);
         if (!$root instanceof \DOMElement) {
-            throw new \RuntimeException('PPTX presentation XML must have a presentation root');
+            throw new \RuntimeException('PPTX presentation XML must have a root element');
         }
 
         $slideIdList = $this->firstPresentationChildElement($root, 'sldIdLst');
@@ -270,9 +270,9 @@ final class PptxReader
      */
     private function presentationSlideSize(\DOMDocument $document): array
     {
-        $root = XmlHtmlDom::rootElement($document, 'presentation');
+        $root = XmlHtmlDom::rootElement($document);
         if (!$root instanceof \DOMElement) {
-            throw new \RuntimeException('PPTX presentation XML must have a presentation root');
+            throw new \RuntimeException('PPTX presentation XML must have a root element');
         }
 
         $sizeElement = $this->firstPresentationChildElement($root, 'sldSz');
@@ -311,9 +311,9 @@ final class PptxReader
      */
     private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $slideSpeakerNotes, array $tableStyles, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
     {
-        $root = XmlHtmlDom::rootElement($document, 'sld');
+        $root = XmlHtmlDom::rootElement($document);
         if (!$root instanceof \DOMElement) {
-            throw new \RuntimeException('PPTX slide XML must have a slide root');
+            throw new \RuntimeException('PPTX slide XML must have a root element');
         }
 
         $title = $this->slideTitle($root);
