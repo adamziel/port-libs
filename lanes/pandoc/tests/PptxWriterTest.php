@@ -186,6 +186,16 @@ $upstreamListLevelNative = <<<'NATIVE'
 ,Para [Str "Paragraph."]]
 NATIVE;
 
+$upstreamSlideBreaksNative = <<<'NATIVE'
+Pandoc (Meta {unMeta = fromList []})
+[Para [Str "Break",Space,Str "with",Space,Str "a",Space,Str "new",Space,Str "section-level",Space,Str "header"]
+,Header 1 ("below-section-level",[],[]) [Str "Below",Space,Str "section-level"]
+,Header 2 ("section-level",[],[]) [Str "Section-level"]
+,Para [Str "Third",Space,Str "slide",Space,Str "(with",Space,Str "a",Space,Str "section-level",Space,Str "of",Space,Str "2)"]
+,HorizontalRule
+,Para [Str "This",Space,Str "is",Space,Str "another",Space,Str "slide."]]
+NATIVE;
+
 $upstreamDocumentPropertiesNative = <<<'NATIVE'
 Pandoc (Meta {unMeta = fromList [("Company",MetaInlines [Str "My",Space,Str "Company"]),("Second Custom Property",MetaInlines [Str "Second",Space,Str "custom",Space,Str "property",Space,Str "value"]),("abstract",MetaBlocks [Plain [Str "Quite",Space,Str "a",Space,Str "long",Space,Str "description",SoftBreak,Str "spanning",Space,Str "several",Space,Str "lines"]]),("author",MetaList [MetaInlines [Str "A.",Space,Str "M."]]),("category",MetaInlines [Str "My",Space,Str "Category"]),("custom1",MetaInlines [Str "First",Space,Str "custom",Space,Str "property",Space,Str "value"]),("custom3",MetaInlines [Str "Escaping",Space,Str "amp",Space,Str "&",Space,Str "."]),("custom4",MetaInlines [Str "Escaping",Space,Str "LT,GT",Space,Str "<",Space,Str "asdf",Space,Str ">",Space,Str "<"]),("custom5",MetaInlines [Str "Escaping",Space,Str "html",Space,RawInline (Format "html") "<i>",Str "asdf",RawInline (Format "html") "</i>"]),("custom6",MetaInlines [Str "Escaping",Space,Emph [Str "MD"],Space,Str "\225",Space,Str "a"]),("custom9",MetaInlines [Str "Extended",Space,Str "chars:",Space,Str "\8364",Space,Str "\225",Space,Str "\233",Space,Str "\237",Space,Str "\243",Space,Str "\250",Space,Str "$"]),("description",MetaBlocks [Para [Str "Long",Space,Str "description",Space,Str "spanning",SoftBreak,Str "several",Space,Str "lines."],Plain [Str "This",Space,Str "is",Space,Str "\225",Space,Str "second",Space,RawInline (Format "html") "<i>",Str "line",RawInline (Format "html") "</i>",Str "."]]),("keywords",MetaList [MetaInlines [Str "keyword",Space,Str "1"],MetaInlines [Str "keyword",Space,Str "2"]]),("lang",MetaInlines [Str "en-US"]),("nested-custom",MetaList [MetaMap (fromList [("custom 7",MetaInlines [Str "Nested",Space,Str "Custom",Space,Str "value",Space,Str "7"])]),MetaMap (fromList [("custom 8",MetaInlines [Str "Nested",Space,Str "Custom",Space,Str "value",Space,Str "8"])])]),("subject",MetaInlines [Str "This",Space,Str "is",Space,Str "the",Space,Str "subject"]),("subtitle",MetaInlines [Str "This",Space,Str "is",Space,Str "a",Space,Str "subtitle"]),("title",MetaInlines [Str "Testing",Space,Str "custom",Space,Str "properties"])]})
 [Para [Str "Testing",Space,Str "document",Space,Str "properties"]]
@@ -631,6 +641,61 @@ return [
         $t->contains('<a:pPr lvl="2" indent="0" marL="685800"><a:buNone/></a:pPr><a:r><a:rPr lang="en-US"/><a:t>With Continuation</a:t></a:r>', $slide2);
         $t->true(!str_contains($slide2, 'startAt="1"'), 'Default nested ordered-list starts should remain implicit');
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream slide-breaks fixture slide levels and toc' => static function (TestRunner $t) use ($upstreamSlideBreaksNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamSlideBreaksNative);
+
+        $defaultPackage = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $defaultNames = $defaultPackage->names();
+        foreach (['ppt/slides/slide1.xml', 'ppt/slides/slide2.xml', 'ppt/slides/slide3.xml', 'ppt/slides/slide4.xml'] as $partName) {
+            $t->true(in_array($partName, $defaultNames, true), "Default slide-breaks fixture missing {$partName}");
+        }
+        $t->true(!in_array('ppt/slides/slide5.xml', $defaultNames, true), 'Default slide-breaks fixture should produce exactly four slides');
+
+        $defaultSlide1 = $defaultPackage->read('ppt/slides/slide1.xml');
+        $defaultSlide2 = $defaultPackage->read('ppt/slides/slide2.xml');
+        $defaultSlide3 = $defaultPackage->read('ppt/slides/slide3.xml');
+        $defaultSlide4 = $defaultPackage->read('ppt/slides/slide4.xml');
+        $t->contains('<a:t>Break with a new section-level header</a:t>', $defaultSlide1);
+        $t->true(!str_contains($defaultSlide1, 'type="title"'), 'Pre-heading content slide should not use first heading as a title');
+        $t->true(!str_contains($defaultSlide1, '<a:t>Below section-level</a:t>'), 'Pre-heading slide must not duplicate the first heading');
+        $t->contains('<a:t>Below section-level</a:t>', $defaultSlide2);
+        $t->contains('<a:t>Section-level</a:t>', $defaultSlide3);
+        $t->contains('<a:t>Third slide (with a section-level of 2)</a:t>', $defaultSlide3);
+        $t->contains('<a:t>This is another slide.</a:t>', $defaultSlide4);
+        $t->contains('<Slides>4</Slides>', $defaultPackage->read('docProps/app.xml'));
+
+        $slideLevelOnePackage = ZipPackage::fromString((new PptxWriter($mediaOptions + ['writerSlideLevel' => 1]))->write($document));
+        $slideLevelOneNames = $slideLevelOnePackage->names();
+        foreach (['ppt/slides/slide1.xml', 'ppt/slides/slide2.xml', 'ppt/slides/slide3.xml'] as $partName) {
+            $t->true(in_array($partName, $slideLevelOneNames, true), "Slide-level-1 fixture missing {$partName}");
+        }
+        $t->true(!in_array('ppt/slides/slide4.xml', $slideLevelOneNames, true), 'Slide-level-1 fixture should produce exactly three slides');
+        $slideLevelOneSlide2 = $slideLevelOnePackage->read('ppt/slides/slide2.xml');
+        $t->contains('<a:t>Below section-level</a:t>', $slideLevelOneSlide2);
+        $t->contains('<a:t>Section-level</a:t>', $slideLevelOneSlide2);
+        $t->contains('<a:t>Third slide (with a section-level of 2)</a:t>', $slideLevelOneSlide2);
+        $t->contains('<Slides>3</Slides>', $slideLevelOnePackage->read('docProps/app.xml'));
+
+        $tocPackage = ZipPackage::fromString((new PptxWriter($mediaOptions + ['writerTableOfContents' => true]))->write($document));
+        $tocNames = $tocPackage->names();
+        foreach (['ppt/slides/slide1.xml', 'ppt/slides/slide2.xml', 'ppt/slides/slide3.xml', 'ppt/slides/slide4.xml', 'ppt/slides/slide5.xml'] as $partName) {
+            $t->true(in_array($partName, $tocNames, true), "TOC slide-breaks fixture missing {$partName}");
+        }
+        $t->true(!in_array('ppt/slides/slide6.xml', $tocNames, true), 'TOC slide-breaks fixture should produce exactly five slides');
+        $tocSlide = $tocPackage->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Table of Contents</a:t>', $tocSlide);
+        $t->contains('<a:pPr lvl="0"/>', $tocSlide);
+        $t->contains('<a:t>Below section-level</a:t>', $tocSlide);
+        $t->contains('<a:pPr lvl="1"/>', $tocSlide);
+        $t->contains('<a:t>Section-level</a:t>', $tocSlide);
+        $t->contains('ppaction://hlinksldjump', $tocSlide);
+        $tocRels = $tocPackage->read('ppt/slides/_rels/slide1.xml.rels');
+        $t->contains('Target="slide3.xml"', $tocRels);
+        $t->contains('Target="slide4.xml"', $tocRels);
+        $t->contains('<a:t>Break with a new section-level header</a:t>', $tocPackage->read('ppt/slides/slide2.xml'));
+        $t->contains('<Slides>5</Slides>', $tocPackage->read('docProps/app.xml'));
     },
 
     'maps upstream document properties into core and custom parts' => static function (TestRunner $t) use ($upstreamDocumentPropertiesNative, $upstreamDocumentPropertiesShortDescNative, $mediaOptions): void {
