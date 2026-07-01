@@ -704,6 +704,7 @@ final class OpenDocumentPackage
         $internalAttributesByName = self::zipPreflightEntriesByName($internalAttributes);
         $extraFields = $this->package->extraFieldPreflight();
         $packageManifest = $this->package->packageManifestPreflight();
+        $packageManifestByName = self::zipPreflightEntriesByName($packageManifest);
         $extraFieldsByName = self::zipPreflightEntriesByName($extraFields);
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
         $localOrderByName = [];
@@ -784,6 +785,7 @@ final class OpenDocumentPackage
             $rawNameProvenance = self::zipEntryRawNameProvenance($entry);
             $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldsByName[$entry->name] ?? null);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
+            $packageManifestEntrySource = self::zipPackageManifestEntrySourceProvenance($packageManifestByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -904,7 +906,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $extraFieldProvenance + $timestampProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $extraFieldProvenance + $packageManifestEntrySource + $timestampProvenance + $platformAttributeProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -1274,6 +1276,45 @@ final class OpenDocumentPackage
                 'compressedByteLength' => $part['compressedByteLength'] ?? null,
                 'crc32' => $part['crc32'] ?? null,
                 'byteSha256' => $part['byteSha256'] ?? null,
+                'zipPackageManifestEntry' => $part['zipPackageManifestEntry'] ?? [],
+                'zipPackageManifestDirectoryRoot' => $part['zipPackageManifestDirectoryRoot'] ?? null,
+                'zipPackageManifestPathSegments' => $part['zipPackageManifestPathSegments'] ?? [],
+                'zipPackageManifestPathSegmentCount' => $part['zipPackageManifestPathSegmentCount'] ?? null,
+                'zipPackageManifestDirectoryDepth' => $part['zipPackageManifestDirectoryDepth'] ?? null,
+                'zipPackageManifestCentralDirectoryIndex' => $part['zipPackageManifestCentralDirectoryIndex'] ?? null,
+                'zipPackageManifestLocalHeaderOrder' => $part['zipPackageManifestLocalHeaderOrder'] ?? null,
+                'zipLocalHeaderOffset' => $part['zipLocalHeaderOffset'] ?? null,
+                'zipLocalHeaderBytes' => $part['zipLocalHeaderBytes'] ?? null,
+                'zipLocalHeaderSha256' => $part['zipLocalHeaderSha256'] ?? null,
+                'zipLocalHeaderFixedHeaderBytes' => $part['zipLocalHeaderFixedHeaderBytes'] ?? null,
+                'zipLocalHeaderVariableFieldOffset' => $part['zipLocalHeaderVariableFieldOffset'] ?? null,
+                'zipLocalHeaderVariableFieldBytes' => $part['zipLocalHeaderVariableFieldBytes'] ?? null,
+                'zipLocalHeaderVariableFieldSha256' => $part['zipLocalHeaderVariableFieldSha256'] ?? null,
+                'zipLocalHeaderRawNameBytes' => $part['zipLocalHeaderRawNameBytes'] ?? null,
+                'zipLocalHeaderExtraFieldBytes' => $part['zipLocalHeaderExtraFieldBytes'] ?? null,
+                'zipLocalHeaderReviewFieldBytes' => $part['zipLocalHeaderReviewFieldBytes'] ?? null,
+                'zipLocalRecordOffset' => $part['zipLocalRecordOffset'] ?? null,
+                'zipLocalRecordBytes' => $part['zipLocalRecordBytes'] ?? null,
+                'zipLocalRecordEnd' => $part['zipLocalRecordEnd'] ?? null,
+                'zipLocalRecordSha256' => $part['zipLocalRecordSha256'] ?? null,
+                'zipCompressedDataOffset' => $part['zipCompressedDataOffset'] ?? null,
+                'zipCompressedDataEnd' => $part['zipCompressedDataEnd'] ?? null,
+                'zipCompressedDataSha256' => $part['zipCompressedDataSha256'] ?? null,
+                'zipUsesDataDescriptor' => ($part['zipUsesDataDescriptor'] ?? false) === true,
+                'zipDataDescriptorOffset' => $part['zipDataDescriptorOffset'] ?? null,
+                'zipDataDescriptorBytes' => $part['zipDataDescriptorBytes'] ?? 0,
+                'zipDataDescriptorEnd' => $part['zipDataDescriptorEnd'] ?? null,
+                'zipDataDescriptorSha256' => $part['zipDataDescriptorSha256'] ?? null,
+                'zipCentralDirectoryRecordOffset' => $part['zipCentralDirectoryRecordOffset'] ?? null,
+                'zipCentralDirectoryRecordEnd' => $part['zipCentralDirectoryRecordEnd'] ?? null,
+                'zipCentralDirectoryRecordBytes' => $part['zipCentralDirectoryRecordBytes'] ?? null,
+                'zipCentralDirectoryRecordSha256' => $part['zipCentralDirectoryRecordSha256'] ?? null,
+                'zipCentralDirectoryFixedHeaderBytes' => $part['zipCentralDirectoryFixedHeaderBytes'] ?? null,
+                'zipCentralDirectoryVariableFieldBytes' => $part['zipCentralDirectoryVariableFieldBytes'] ?? null,
+                'zipCentralDirectoryRawNameBytes' => $part['zipCentralDirectoryRawNameBytes'] ?? null,
+                'zipCentralDirectoryExtraFieldBytes' => $part['zipCentralDirectoryExtraFieldBytes'] ?? null,
+                'zipCentralDirectoryRawCommentBytes' => $part['zipCentralDirectoryRawCommentBytes'] ?? null,
+                'zipCentralDirectoryReviewFieldBytes' => $part['zipCentralDirectoryReviewFieldBytes'] ?? null,
                 'madeByHostSystem' => $part['madeByHostSystem'] ?? null,
                 'madeByHostSystemName' => $part['madeByHostSystemName'] ?? null,
                 'madeByVersion' => $part['madeByVersion'] ?? null,
@@ -1861,6 +1902,59 @@ final class OpenDocumentPackage
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipPackageManifestEntrySourceProvenance(?array $entry): array
+    {
+        if ($entry === null) {
+            return [];
+        }
+
+        return [
+            'zipPackageManifestEntry' => $entry,
+            'zipPackageManifestDirectoryRoot' => $entry['directoryRoot'] ?? null,
+            'zipPackageManifestPathSegments' => is_array($entry['pathSegments'] ?? null) ? $entry['pathSegments'] : [],
+            'zipPackageManifestPathSegmentCount' => $entry['pathSegmentCount'] ?? null,
+            'zipPackageManifestDirectoryDepth' => $entry['directoryDepth'] ?? null,
+            'zipPackageManifestCentralDirectoryIndex' => $entry['centralDirectoryIndex'] ?? null,
+            'zipPackageManifestLocalHeaderOrder' => $entry['localHeaderOrder'] ?? null,
+            'zipLocalHeaderOffset' => $entry['localHeaderOffset'] ?? null,
+            'zipLocalHeaderBytes' => $entry['localHeaderLength'] ?? null,
+            'zipLocalHeaderSha256' => $entry['localHeaderSha256'] ?? null,
+            'zipLocalHeaderFixedHeaderBytes' => $entry['localHeaderFixedHeaderBytes'] ?? null,
+            'zipLocalHeaderVariableFieldOffset' => $entry['localHeaderVariableFieldOffset'] ?? null,
+            'zipLocalHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'] ?? null,
+            'zipLocalHeaderVariableFieldSha256' => $entry['localHeaderVariableFieldSha256'] ?? null,
+            'zipLocalHeaderRawNameBytes' => $entry['localHeaderRawNameBytes'] ?? null,
+            'zipLocalHeaderExtraFieldBytes' => $entry['localHeaderExtraFieldBytes'] ?? null,
+            'zipLocalHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'] ?? null,
+            'zipLocalRecordOffset' => $entry['localRecordOffset'] ?? null,
+            'zipLocalRecordBytes' => $entry['localRecordBytes'] ?? null,
+            'zipLocalRecordEnd' => $entry['localRecordEnd'] ?? null,
+            'zipLocalRecordSha256' => $entry['localRecordSha256'] ?? null,
+            'zipCompressedDataOffset' => $entry['compressedDataOffset'] ?? null,
+            'zipCompressedDataEnd' => $entry['compressedDataEnd'] ?? null,
+            'zipCompressedDataSha256' => $entry['compressedDataSha256'] ?? null,
+            'zipUsesDataDescriptor' => ($entry['usesDataDescriptor'] ?? false) === true,
+            'zipDataDescriptorOffset' => $entry['dataDescriptorOffset'] ?? null,
+            'zipDataDescriptorBytes' => $entry['dataDescriptorBytes'] ?? 0,
+            'zipDataDescriptorEnd' => $entry['dataDescriptorEnd'] ?? null,
+            'zipDataDescriptorSha256' => $entry['dataDescriptorSha256'] ?? null,
+            'zipCentralDirectoryRecordOffset' => $entry['centralDirectoryRecordOffset'] ?? null,
+            'zipCentralDirectoryRecordEnd' => $entry['centralDirectoryRecordEnd'] ?? null,
+            'zipCentralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'] ?? null,
+            'zipCentralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
+            'zipCentralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'] ?? null,
+            'zipCentralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'] ?? null,
+            'zipCentralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'] ?? null,
+            'zipCentralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'] ?? null,
+            'zipCentralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'] ?? null,
+            'zipCentralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'] ?? null,
+        ];
     }
 
     /**
