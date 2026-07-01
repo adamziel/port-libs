@@ -193,6 +193,41 @@ final class XmlHtmlDom
         'unsafe-url' => true,
     ];
 
+    /** @var array<string, true> */
+    private const HTML_META_VIEWPORT_DIRECTIVES = [
+        'height' => true,
+        'initial-scale' => true,
+        'interactive-widget' => true,
+        'maximum-scale' => true,
+        'minimum-scale' => true,
+        'shrink-to-fit' => true,
+        'user-scalable' => true,
+        'viewport-fit' => true,
+        'width' => true,
+    ];
+
+    /** @var array<string, bool> */
+    private const HTML_META_VIEWPORT_BOOLEAN_VALUES = [
+        '0' => false,
+        '1' => true,
+        'no' => false,
+        'yes' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_META_VIEWPORT_FIT_VALUES = [
+        'auto' => true,
+        'contain' => true,
+        'cover' => true,
+    ];
+
+    /** @var array<string, true> */
+    private const HTML_META_VIEWPORT_INTERACTIVE_WIDGET_VALUES = [
+        'overlays-content' => true,
+        'resizes-content' => true,
+        'resizes-visual' => true,
+    ];
+
     /** @var array<string, bool> true when the ARIA attribute accepts an ID reference list */
     private const ARIA_ID_REFERENCE_ATTRIBUTES = [
         'aria-activedescendant' => false,
@@ -15629,12 +15664,14 @@ final class XmlHtmlDom
         }
 
         $content = self::attributeOrNull($element, 'content');
+        $nameAttributeRaw = self::attributeOrNull($element, 'name');
+        $nameAttribute = $nameAttributeRaw === null ? null : strtolower(trim($nameAttributeRaw));
         $httpEquivRaw = self::attributeOrNull($element, 'http-equiv');
         $httpEquiv = $httpEquivRaw === null ? null : strtolower(trim($httpEquivRaw));
         $summary = [
             'documentMetadata' => 'meta',
             'charset' => self::attributeOrNull($element, 'charset'),
-            'nameAttribute' => self::attributeOrNull($element, 'name'),
+            'nameAttribute' => $nameAttributeRaw,
             'property' => self::attributeOrNull($element, 'property'),
             'itemprop' => self::attributeOrNull($element, 'itemprop'),
             'httpEquivRaw' => $httpEquivRaw,
@@ -15651,8 +15688,11 @@ final class XmlHtmlDom
         if ($httpEquiv === 'permissions-policy' || $httpEquiv === 'feature-policy') {
             $summary += self::metaPermissionsPolicySummary($content, $httpEquiv);
         }
-        if (strtolower(trim((string) self::attributeOrNull($element, 'name'))) === 'referrer') {
+        if ($nameAttribute === 'referrer') {
             $summary += self::metaReferrerPolicySummary($content);
+        }
+        if ($nameAttribute === 'viewport') {
+            $summary += self::metaViewportSummary($content);
         }
 
         return $summary;
@@ -16171,6 +16211,356 @@ final class XmlHtmlDom
             ))),
             'metaReferrerValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaViewportSummary(?string $content): array
+    {
+        $raw = $content ?? '';
+        $directives = [];
+        $directiveNames = [];
+        $directiveNameCounts = [];
+        $parameters = [];
+        $knownParameters = [];
+        $effectiveDirectives = [];
+        $unknownDirectiveNames = [];
+        $invalidDirectiveNames = [];
+        $invalidDirectiveValues = [];
+        $directiveIssues = [];
+
+        foreach (self::metaViewportDirectiveFragments($raw) as $fragmentIndex => $fragment) {
+            $directiveRaw = trim($fragment);
+            if ($directiveRaw === '') {
+                continue;
+            }
+
+            $directive = self::metaViewportDirectiveSummary($directiveRaw, $fragmentIndex);
+            $directives[] = $directive;
+
+            $name = $directive['name'];
+            if (is_string($name) && $name !== '') {
+                if (!isset($directiveNameCounts[$name])) {
+                    $directiveNameCounts[$name] = 0;
+                    $directiveNames[] = $name;
+                }
+                ++$directiveNameCounts[$name];
+                $parameters[$name] = $directive['value'];
+                if (($directive['recognized'] ?? false) === true) {
+                    $knownParameters[$name] = $directive['value'];
+                    $effectiveDirectives[$name] = $directive;
+                }
+            }
+
+            if (($directive['nameValid'] ?? false) !== true && is_string($directive['nameRaw'] ?? null)) {
+                $invalidDirectiveNames[] = (string) $directive['nameRaw'];
+            }
+            if (($directive['recognized'] ?? false) !== true && is_string($name) && $name !== '') {
+                self::appendUniqueString($unknownDirectiveNames, $name);
+            }
+            if (
+                ($directive['recognized'] ?? false) === true
+                && ($directive['valueValid'] ?? false) !== true
+            ) {
+                $invalidDirectiveValues[] = [
+                    'name' => $name,
+                    'valueRaw' => $directive['valueRaw'],
+                    'issueCodes' => $directive['issueCodes'],
+                ];
+            }
+
+            foreach ($directive['issueCodes'] as $code) {
+                $issue = [
+                    'code' => $code,
+                    'directiveIndex' => $directive['index'],
+                    'directive' => $directive['raw'],
+                ];
+                if (is_string($directive['nameRaw'] ?? null)) {
+                    $issue['nameRaw'] = $directive['nameRaw'];
+                }
+                if (is_string($directive['name'] ?? null)) {
+                    $issue['name'] = $directive['name'];
+                }
+                if (is_string($directive['valueRaw'] ?? null)) {
+                    $issue['valueRaw'] = $directive['valueRaw'];
+                }
+                $directiveIssues[] = $issue;
+            }
+        }
+
+        $duplicateDirectiveNames = array_values(array_filter(
+            $directiveNames,
+            static fn (string $name): bool => ($directiveNameCounts[$name] ?? 0) > 1
+        ));
+        $width = $effectiveDirectives['width'] ?? null;
+        $height = $effectiveDirectives['height'] ?? null;
+        $initialScale = $effectiveDirectives['initial-scale'] ?? null;
+        $minimumScale = $effectiveDirectives['minimum-scale']['numericValue'] ?? null;
+        $maximumScale = $effectiveDirectives['maximum-scale']['numericValue'] ?? null;
+        $userScalable = $effectiveDirectives['user-scalable']['booleanValue'] ?? null;
+        $maximumScaleRestrictsZoom = is_float($maximumScale) && $maximumScale < 2.0;
+        $userScalableDisabled = $userScalable === false;
+
+        $issues = [];
+        if ($content === null) {
+            $issues[] = ['code' => 'missing-meta-viewport-content'];
+        } elseif (trim($content) === '') {
+            $issues[] = ['code' => 'empty-meta-viewport-content'];
+        }
+        array_push($issues, ...$directiveIssues);
+        foreach ($duplicateDirectiveNames as $name) {
+            $issues[] = [
+                'code' => 'duplicate-meta-viewport-directive',
+                'directive' => $name,
+                'count' => $directiveNameCounts[$name] ?? 0,
+            ];
+        }
+        if (is_float($minimumScale) && is_float($maximumScale) && $maximumScale < $minimumScale) {
+            $issues[] = [
+                'code' => 'inverted-meta-viewport-scale-range',
+                'minimumScale' => $minimumScale,
+                'maximumScale' => $maximumScale,
+            ];
+        }
+        if ($userScalableDisabled) {
+            $issues[] = ['code' => 'meta-viewport-user-scalable-disabled'];
+        }
+        if ($maximumScaleRestrictsZoom) {
+            $issues[] = [
+                'code' => 'meta-viewport-maximum-scale-below-accessibility-minimum',
+                'maximumScale' => $maximumScale,
+            ];
+        }
+
+        return [
+            'metaViewportReviewPolicy' => 'meta-viewport-directive-review',
+            'metaViewportRaw' => $content,
+            'metaViewportByteLength' => strlen($raw),
+            'metaViewportSha256' => hash('sha256', $raw),
+            'metaViewportSemicolonSeparated' => str_contains($raw, ';'),
+            'metaViewportDirectiveCount' => count($directives),
+            'metaViewportDirectives' => $directives,
+            'metaViewportDirectiveNames' => $directiveNames,
+            'metaViewportDirectiveNameCounts' => $directiveNameCounts,
+            'duplicateMetaViewportDirectiveNames' => $duplicateDirectiveNames,
+            'unknownMetaViewportDirectiveNames' => $unknownDirectiveNames,
+            'invalidMetaViewportDirectiveNames' => $invalidDirectiveNames,
+            'invalidMetaViewportDirectiveValues' => $invalidDirectiveValues,
+            'metaViewportParameters' => $parameters,
+            'metaViewportKnownParameters' => $knownParameters,
+            'metaViewportWidthRaw' => is_array($width) ? $width['valueRaw'] : null,
+            'metaViewportWidth' => is_array($width) ? ($width['integerValue'] ?? $width['keywordValue'] ?? null) : null,
+            'metaViewportHeightRaw' => is_array($height) ? $height['valueRaw'] : null,
+            'metaViewportHeight' => is_array($height) ? ($height['integerValue'] ?? $height['keywordValue'] ?? null) : null,
+            'metaViewportInitialScaleRaw' => is_array($initialScale) ? $initialScale['valueRaw'] : null,
+            'metaViewportInitialScale' => is_array($initialScale) ? ($initialScale['numericValue'] ?? null) : null,
+            'metaViewportMinimumScaleRaw' => $effectiveDirectives['minimum-scale']['valueRaw'] ?? null,
+            'metaViewportMinimumScale' => $minimumScale,
+            'metaViewportMaximumScaleRaw' => $effectiveDirectives['maximum-scale']['valueRaw'] ?? null,
+            'metaViewportMaximumScale' => $maximumScale,
+            'metaViewportUserScalableRaw' => $effectiveDirectives['user-scalable']['valueRaw'] ?? null,
+            'metaViewportUserScalable' => $userScalable,
+            'metaViewportUserScalableDisabled' => $userScalableDisabled,
+            'metaViewportViewportFit' => $effectiveDirectives['viewport-fit']['keywordValue'] ?? null,
+            'metaViewportInteractiveWidget' => $effectiveDirectives['interactive-widget']['keywordValue'] ?? null,
+            'metaViewportShrinkToFitRaw' => $effectiveDirectives['shrink-to-fit']['valueRaw'] ?? null,
+            'metaViewportShrinkToFit' => $effectiveDirectives['shrink-to-fit']['booleanValue'] ?? null,
+            'metaViewportZoomRestricted' => $userScalableDisabled || $maximumScaleRestrictsZoom,
+            'metaViewportIssues' => $issues,
+            'metaViewportIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'metaViewportValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function metaViewportDirectiveFragments(string $value): array
+    {
+        return preg_split('/[,;]/', $value) ?: [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaViewportDirectiveSummary(string $directiveRaw, int $sourceIndex): array
+    {
+        $nameRaw = null;
+        $valueRaw = null;
+        $directiveIssueCodes = [];
+
+        if (preg_match('/^([^=]+?)\s*=\s*(.*)$/u', $directiveRaw, $matches) === 1) {
+            $nameRaw = trim((string) $matches[1]);
+            $valueRaw = trim((string) $matches[2]);
+        } else {
+            $nameRaw = trim($directiveRaw);
+            $directiveIssueCodes[] = 'invalid-meta-viewport-directive';
+        }
+
+        $nameValid = $nameRaw !== '' && preg_match('/^[A-Za-z][A-Za-z0-9_-]*$/', $nameRaw) === 1;
+        $name = $nameValid ? strtolower($nameRaw) : null;
+        $recognized = $name !== null && isset(self::HTML_META_VIEWPORT_DIRECTIVES[$name]);
+        if (!$nameValid) {
+            $directiveIssueCodes[] = 'invalid-meta-viewport-directive-name';
+        } elseif (!$recognized) {
+            $directiveIssueCodes[] = 'unknown-meta-viewport-directive';
+        }
+
+        $value = self::metaViewportDirectiveValueSummary($name, $recognized, $valueRaw);
+        $issueCodes = array_values(array_unique(array_merge($directiveIssueCodes, $value['issueCodes'])));
+
+        return [
+            'index' => $sourceIndex,
+            'sourceIndex' => $sourceIndex,
+            'raw' => $directiveRaw,
+            'nameRaw' => $nameRaw,
+            'name' => $name,
+            'nameValid' => $nameValid,
+            'recognized' => $recognized,
+            'valueRaw' => $valueRaw,
+            'value' => $value['value'],
+            'integerValue' => $value['integerValue'],
+            'numericValue' => $value['numericValue'],
+            'keywordValue' => $value['keywordValue'],
+            'booleanValue' => $value['booleanValue'],
+            'valueValid' => $value['valueValid'],
+            'valid' => $recognized && $value['valueValid'] === true && $issueCodes === [],
+            'issueCodes' => $issueCodes,
+        ];
+    }
+
+    /**
+     * @return array{
+     *     value:?string,
+     *     integerValue:?int,
+     *     numericValue:?float,
+     *     keywordValue:?string,
+     *     booleanValue:?bool,
+     *     valueValid:bool,
+     *     issueCodes:list<string>
+     * }
+     */
+    private static function metaViewportDirectiveValueSummary(?string $name, bool $recognized, ?string $valueRaw): array
+    {
+        $value = $valueRaw === null ? null : strtolower(trim($valueRaw));
+        $summary = [
+            'value' => $value,
+            'integerValue' => null,
+            'numericValue' => null,
+            'keywordValue' => null,
+            'booleanValue' => null,
+            'valueValid' => false,
+            'issueCodes' => [],
+        ];
+
+        if ($valueRaw === null) {
+            $summary['issueCodes'][] = 'missing-meta-viewport-directive-value';
+
+            return $summary;
+        }
+        if ($value === '') {
+            $summary['issueCodes'][] = 'empty-meta-viewport-directive-value';
+
+            return $summary;
+        }
+        if (!$recognized || $name === null) {
+            return $summary;
+        }
+
+        if ($name === 'width' || $name === 'height') {
+            $expectedKeyword = $name === 'width' ? 'device-width' : 'device-height';
+            if ($value === $expectedKeyword) {
+                $summary['keywordValue'] = $value;
+                $summary['valueValid'] = true;
+
+                return $summary;
+            }
+
+            if (preg_match('/^[1-9][0-9]*$/', $value) === 1) {
+                $integer = (int) $value;
+                if ($integer <= 10000) {
+                    $summary['integerValue'] = $integer;
+                    $summary['valueValid'] = true;
+
+                    return $summary;
+                }
+            }
+
+            $summary['issueCodes'][] = 'invalid-meta-viewport-' . $name;
+
+            return $summary;
+        }
+
+        if (in_array($name, ['initial-scale', 'minimum-scale', 'maximum-scale'], true)) {
+            $number = self::metaViewportDecimalNumber($value);
+            if ($number !== null && $number >= 0.0 && $number <= 10.0) {
+                $summary['numericValue'] = $number;
+                $summary['valueValid'] = true;
+
+                return $summary;
+            }
+
+            $summary['issueCodes'][] = 'invalid-meta-viewport-scale';
+
+            return $summary;
+        }
+
+        if ($name === 'user-scalable' || $name === 'shrink-to-fit') {
+            if (array_key_exists($value, self::HTML_META_VIEWPORT_BOOLEAN_VALUES)) {
+                $summary['booleanValue'] = self::HTML_META_VIEWPORT_BOOLEAN_VALUES[$value];
+                $summary['keywordValue'] = $value;
+                $summary['valueValid'] = true;
+
+                return $summary;
+            }
+
+            $summary['issueCodes'][] = 'invalid-meta-viewport-' . $name;
+
+            return $summary;
+        }
+
+        if ($name === 'viewport-fit') {
+            if (isset(self::HTML_META_VIEWPORT_FIT_VALUES[$value])) {
+                $summary['keywordValue'] = $value;
+                $summary['valueValid'] = true;
+
+                return $summary;
+            }
+
+            $summary['issueCodes'][] = 'invalid-meta-viewport-viewport-fit';
+
+            return $summary;
+        }
+
+        if ($name === 'interactive-widget') {
+            if (isset(self::HTML_META_VIEWPORT_INTERACTIVE_WIDGET_VALUES[$value])) {
+                $summary['keywordValue'] = $value;
+                $summary['valueValid'] = true;
+
+                return $summary;
+            }
+
+            $summary['issueCodes'][] = 'invalid-meta-viewport-interactive-widget';
+
+            return $summary;
+        }
+
+        return $summary;
+    }
+
+    private static function metaViewportDecimalNumber(string $value): ?float
+    {
+        if (preg_match('/^(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/', $value) !== 1) {
+            return null;
+        }
+
+        $number = (float) $value;
+
+        return is_finite($number) ? $number : null;
     }
 
     /**
