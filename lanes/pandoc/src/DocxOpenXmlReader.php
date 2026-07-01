@@ -14142,6 +14142,7 @@ final class DocxOpenXmlReader
                 (int) ($syntaxSuffixSummary['structuredSyntaxSourceCount'] ?? 0);
         }
         ksort($relationshipSourceContentTypeSyntaxSuffixCounts, SORT_STRING);
+        $relationshipSourceContentTypeParameters = $this->relationshipSourceContentTypeParameterSummary($relationshipSources);
         $relationshipSourceContentTypeParameterValues = $this->relationshipSourceContentTypeParameterValueSummary($relationshipSources);
         $relationshipSourceContentTypeParameterValueBucketCounts = [];
         foreach ($relationshipSourceContentTypeParameterValues as $parameterValueSummary) {
@@ -14385,9 +14386,11 @@ final class DocxOpenXmlReader
             'relationshipSourceContentTypeCounts' => $relationshipSourceContentTypeCounts,
             'relationshipSourceContentTypeSourceCounts' => $relationshipSourceContentTypeSourceCounts,
             'relationshipSourceParameterizedContentTypeCount' => $relationshipSourceParameterizedContentTypeCount,
+            'relationshipSourceContentTypeParameterCount' => array_sum($relationshipSourceContentTypeParameterNameCounts),
             'relationshipSourceContentTypeParameterNameCounts' => $relationshipSourceContentTypeParameterNameCounts,
             'relationshipSourceContentTypeParameterValueCounts' => $relationshipSourceContentTypeParameterValueCounts,
             'relationshipSourceContentTypeParameterSourceCounts' => $relationshipSourceContentTypeParameterSourceCounts,
+            'relationshipSourceContentTypeParameters' => $relationshipSourceContentTypeParameters,
             'relationshipSourceContentTypeParameterValueBucketCount' => count($relationshipSourceContentTypeParameterValues),
             'relationshipSourceContentTypeParameterValueBucketCounts' => $relationshipSourceContentTypeParameterValueBucketCounts,
             'relationshipSourceContentTypeParameterValues' => $relationshipSourceContentTypeParameterValues,
@@ -18731,6 +18734,198 @@ final class DocxOpenXmlReader
         }
 
         return array_values($suffixes);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipSourceContentTypeParameterSummary(array $relationshipSources): array
+    {
+        $parametersByName = [];
+        $bucketSourceKeys = [];
+        foreach ($relationshipSources as $source) {
+            $parameters = is_array($source['sourceContentTypeParameters'] ?? null)
+                ? $source['sourceContentTypeParameters']
+                : [];
+            if ($parameters === []) {
+                continue;
+            }
+
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $relationshipsPart = is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '';
+            $sourceKey = $relationshipsPart . "\0" . $sourcePart;
+
+            foreach ($parameters as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+
+                $parameterName = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                if ($parameterName === '') {
+                    continue;
+                }
+
+                $parameterValue = is_scalar($parameter['value'] ?? null) ? (string) $parameter['value'] : '';
+                $parameterValueKey = $parameterValue === '' ? '(empty)' : $parameterValue;
+                if (!isset($parametersByName[$parameterName])) {
+                    $parametersByName[$parameterName] = [
+                        'name' => $parameterName,
+                        'parameterOccurrenceCount' => 0,
+                        'sourceCount' => 0,
+                        'existingSourceCount' => 0,
+                        'nonExistingSourceCount' => 0,
+                        'relationshipCount' => 0,
+                        'relationshipRecordCount' => 0,
+                        'existingSourceByteLength' => 0,
+                        'valueCounts' => [],
+                        'relationshipSourceKindCounts' => [],
+                        'sourceContentTypeBaseCounts' => [],
+                        'sourceContentTypeSourceCounts' => [],
+                        'sourceDirectoryCounts' => [],
+                        'sourceBaseNameCounts' => [],
+                        'sourcePartExtensionCounts' => [],
+                        'sourceRoleCounts' => [],
+                        'sourceContentTypes' => [],
+                        'sourceParts' => [],
+                        'relationshipParts' => [],
+                        'largestExistingSourcePart' => null,
+                    ];
+                    $bucketSourceKeys[$parameterName] = [];
+                }
+
+                ++$parametersByName[$parameterName]['parameterOccurrenceCount'];
+                $parametersByName[$parameterName]['valueCounts'][$parameterValueKey] =
+                    ($parametersByName[$parameterName]['valueCounts'][$parameterValueKey] ?? 0) + 1;
+                if (isset($bucketSourceKeys[$parameterName][$sourceKey])) {
+                    continue;
+                }
+                $bucketSourceKeys[$parameterName][$sourceKey] = true;
+
+                ++$parametersByName[$parameterName]['sourceCount'];
+                $sourceExists = ($source['sourceExists'] ?? false) === true;
+                if ($sourceExists) {
+                    ++$parametersByName[$parameterName]['existingSourceCount'];
+                } else {
+                    ++$parametersByName[$parameterName]['nonExistingSourceCount'];
+                }
+                $parametersByName[$parameterName]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+                $parametersByName[$parameterName]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+
+                $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                    ? $source['relationshipSourceKind']
+                    : 'invalid-source';
+                $parametersByName[$parameterName]['relationshipSourceKindCounts'][$sourceKind] =
+                    ($parametersByName[$parameterName]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+                $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                    ? $source['sourceContentTypeBase']
+                    : '';
+                $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+                $parametersByName[$parameterName]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                    ($parametersByName[$parameterName]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+                $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                    ? $source['sourceContentTypeSource']
+                    : '';
+                $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+                $parametersByName[$parameterName]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                    ($parametersByName[$parameterName]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+                $directory = is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : '';
+                $directoryKey = $directory === '' ? '(invalid-source)' : $directory;
+                $parametersByName[$parameterName]['sourceDirectoryCounts'][$directoryKey] =
+                    ($parametersByName[$parameterName]['sourceDirectoryCounts'][$directoryKey] ?? 0) + 1;
+
+                $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+                $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+                $parametersByName[$parameterName]['sourceBaseNameCounts'][$baseNameKey] =
+                    ($parametersByName[$parameterName]['sourceBaseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+                $extension = is_string($source['sourcePartExtension'] ?? null)
+                    ? $source['sourcePartExtension']
+                    : null;
+                $extensionKey = $extension ?? '(none)';
+                $parametersByName[$parameterName]['sourcePartExtensionCounts'][$extensionKey] =
+                    ($parametersByName[$parameterName]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+                foreach (($source['sourceRoles'] ?? []) as $role) {
+                    $role = (string) $role;
+                    if ($role === '') {
+                        continue;
+                    }
+
+                    $parametersByName[$parameterName]['sourceRoleCounts'][$role] =
+                        ($parametersByName[$parameterName]['sourceRoleCounts'][$role] ?? 0) + 1;
+                }
+
+                $this->appendUniqueString(
+                    $parametersByName[$parameterName]['sourceContentTypes'],
+                    is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+                );
+                $this->appendUniqueString($parametersByName[$parameterName]['sourceParts'], $sourcePart);
+                $this->appendUniqueString($parametersByName[$parameterName]['relationshipParts'], $relationshipsPart);
+
+                if (is_int($source['sourceBytes'] ?? null)) {
+                    $sourceBytes = (int) $source['sourceBytes'];
+                    $parametersByName[$parameterName]['existingSourceByteLength'] += $sourceBytes;
+                    $sourceSummary = [
+                        'sourcePart' => $sourcePart,
+                        'relationshipsPart' => $relationshipsPart,
+                        'relationshipSourceKind' => $sourceKind,
+                        'sourceDirectory' => $directory === '' ? null : $directory,
+                        'sourceBaseName' => $baseName === '' ? null : $baseName,
+                        'sourcePartExtension' => $extension,
+                        'sourcePathDepth' => is_int($source['sourcePathDepth'] ?? null) ? (int) $source['sourcePathDepth'] : null,
+                        'sourceBytes' => $sourceBytes,
+                        'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                        'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                        'sourceContentType' => is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+                        'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                        'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                        'sourceContentTypeParameterCount' => is_int($source['sourceContentTypeParameterCount'] ?? null)
+                            ? (int) $source['sourceContentTypeParameterCount']
+                            : count($parameters),
+                        'sourceContentTypeParameters' => $parameters,
+                        'sourceContentTypeParameterMap' => is_array($source['sourceContentTypeParameterMap'] ?? null)
+                            ? $source['sourceContentTypeParameterMap']
+                            : [],
+                        'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                        'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                        'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+                    ];
+                    $largestPart = $parametersByName[$parameterName]['largestExistingSourcePart'];
+                    if (
+                        !is_array($largestPart)
+                        || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                        || (
+                            $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                            && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                        )
+                    ) {
+                        $parametersByName[$parameterName]['largestExistingSourcePart'] = $sourceSummary;
+                    }
+                }
+            }
+        }
+
+        ksort($parametersByName, SORT_STRING);
+        foreach ($parametersByName as $parameterName => $summary) {
+            ksort($summary['valueCounts'], SORT_STRING);
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceContentTypes'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $parametersByName[$parameterName] = $summary;
+        }
+
+        return array_values($parametersByName);
     }
 
     /**

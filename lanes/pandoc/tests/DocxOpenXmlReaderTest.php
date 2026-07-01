@@ -5408,9 +5408,15 @@ XML;
         foreach ($summary['relationshipSourceContentTypeParameterValues'] as $bucket) {
             $parameterValueBuckets[$bucket['sourceContentTypeParameterValueKey']] = $bucket;
         }
+        $parametersByName = [];
+        foreach ($summary['relationshipSourceContentTypeParameters'] as $parameter) {
+            $parametersByName[$parameter['name']] = $parameter;
+        }
 
         $t->same(7, $summary['relationshipSourceCount']);
         $t->same(4, $summary['relationshipSourceParameterizedContentTypeCount']);
+        $t->same(7, $summary['relationshipSourceContentTypeParameterCount']);
+        $t->same(['charset', 'profile'], array_keys($parametersByName));
         $t->same(['charset' => 3, 'profile' => 4], $summary['relationshipSourceContentTypeParameterNameCounts']);
         $t->same(['UTF-8' => 3], $summary['relationshipSourceContentTypeParameterValueCounts']['charset']);
         $t->same([
@@ -5432,6 +5438,44 @@ XML;
             'profile=rels-source',
             'profile=xml-source',
         ], array_keys($parameterValueBuckets));
+
+        $charsetParameter = $parametersByName['charset'];
+        $t->same(3, $charsetParameter['parameterOccurrenceCount']);
+        $t->same(3, $charsetParameter['sourceCount']);
+        $t->same(3, $charsetParameter['relationshipCount']);
+        $t->same(['UTF-8' => 3], $charsetParameter['valueCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml' => 1,
+            'application/xml' => 2,
+        ], $charsetParameter['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 2, 'override' => 1], $charsetParameter['sourceContentTypeSourceCounts']);
+        $t->same(['package-part' => 3], $charsetParameter['relationshipSourceKindCounts']);
+        $t->same(['package-part' => 3], $charsetParameter['sourceRoleCounts']);
+        $t->same(['root-param.xml', 'word/header/header-param.xml', 'word/source-param.xml'], $charsetParameter['sourceParts']);
+        $t->same('word/header/header-param.xml', $charsetParameter['largestExistingSourcePart']['sourcePart']);
+        $t->same(['profile' => 'header-source', 'charset' => 'UTF-8'], $charsetParameter['largestExistingSourcePart']['sourceContentTypeParameterMap']);
+
+        $profileParameter = $parametersByName['profile'];
+        $t->same(4, $profileParameter['parameterOccurrenceCount']);
+        $t->same(4, $profileParameter['sourceCount']);
+        $t->same(4, $profileParameter['relationshipCount']);
+        $t->same([
+            'header-source' => 1,
+            'rels-source' => 1,
+            'xml-source' => 2,
+        ], $profileParameter['valueCounts']);
+        $t->same([
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 1,
+            'application/xml' => 2,
+        ], $profileParameter['sourceContentTypeBaseCounts']);
+        $t->same(['default' => 3, 'override' => 1], $profileParameter['sourceContentTypeSourceCounts']);
+        $t->same(['package-part' => 3, 'relationship-part' => 1], $profileParameter['relationshipSourceKindCounts']);
+        $t->same(['office-document-relationships' => 1, 'package-part' => 3, 'relationship-part' => 1], $profileParameter['sourceRoleCounts']);
+        $t->same(['root-param.xml', 'word/_rels/document.xml.rels', 'word/header/header-param.xml', 'word/source-param.xml'], $profileParameter['sourceParts']);
+        $t->same(['_rels/root-param.xml.rels', 'word/_rels/_rels/document.xml.rels.rels', 'word/_rels/source-param.xml.rels', 'word/header/_rels/header-param.xml.rels'], $profileParameter['relationshipParts']);
+        $t->same('word/_rels/document.xml.rels', $profileParameter['largestExistingSourcePart']['sourcePart']);
+        $t->same(hash('sha256', $parts['word/_rels/document.xml.rels']), $profileParameter['largestExistingSourcePart']['sourceSha256']);
 
         $charsetBucket = $parameterValueBuckets['charset=UTF-8'];
         $t->same(3, $charsetBucket['sourceCount']);
