@@ -1429,6 +1429,7 @@ final class OdfReader
         $manifestRootExtensions = $this->manifestRootExtensionElementProvenance;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $compressionMethods = $package->compressionMethodPreflight();
+        $generalPurposeFlags = $package->generalPurposeFlagPreflight();
         $comments = $package->commentPreflight();
         $modificationTimes = $package->modificationTimePreflight();
         $platformMetadata = $package->platformMetadataPreflight();
@@ -1717,6 +1718,7 @@ final class OdfReader
         $dosAttributesByName = self::zipPreflightEntriesByName($dosAttributes);
         $internalAttributesByName = self::zipPreflightEntriesByName($internalAttributes);
         $extraFieldsByName = self::zipPreflightEntriesByName($extraFields);
+        $generalPurposeFlagsByName = self::zipPreflightEntriesByName($generalPurposeFlags);
         $packageManifestByName = self::zipPreflightEntriesByName($packageManifest);
         $localHeaderMetadataByName = self::zipLocalHeaderMetadataEntriesByName($localHeaderMetadata);
 
@@ -1740,6 +1742,7 @@ final class OdfReader
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldsByName[$entry->name] ?? null);
+            $generalPurposeFlagProvenance = self::zipGeneralPurposeFlagProvenance($generalPurposeFlagsByName[$entry->name] ?? null);
             $packageManifestEntrySource = self::zipPackageManifestEntrySourceProvenance($packageManifestByName[$entry->name] ?? null);
             $localHeaderMetadataProvenance = self::zipLocalHeaderMetadataProvenance($localHeaderMetadataByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
@@ -1861,7 +1864,7 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $extraFieldProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
+            ] + $rawNameProvenance + $extraFieldProvenance + $generalPurposeFlagProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
 
             self::recordPackageTopologySummary(
                 $packageAreaCounts,
@@ -2175,6 +2178,16 @@ final class OdfReader
             'localHeaderMetadataMismatchEntryCount' => $localHeaderMetadata['mismatchedEntryCount'],
             'localHeaderMetadataMismatchedEntries' => self::zipLocalHeaderMetadataMismatchProvenance($localHeaderMetadata),
             'compressionMethods' => $compressionMethods,
+            'generalPurposeFlags' => $generalPurposeFlags,
+            'generalPurposeFlagEntryCount' => $generalPurposeFlags['entryCount'],
+            'generalPurposeFlagSupportedEntryCount' => $generalPurposeFlags['supportedEntryCount'],
+            'unsupportedGeneralPurposeFlagEntryCount' => $generalPurposeFlags['unsupportedFlagEntryCount'],
+            'utf8NameGeneralPurposeFlagEntryCount' => $generalPurposeFlags['utf8NameEntryCount'],
+            'dataDescriptorGeneralPurposeFlagEntryCount' => $generalPurposeFlags['dataDescriptorEntryCount'],
+            'deflateOptionGeneralPurposeFlagEntryCount' => $generalPurposeFlags['deflateOptionEntryCount'],
+            'strictGeneralPurposeFlagReviewEntryCount' => $generalPurposeFlags['strictReviewEntryCount'],
+            'unsupportedGeneralPurposeFlagEntries' => $generalPurposeFlags['unsupportedEntries'],
+            'strictGeneralPurposeFlagReviewEntries' => $generalPurposeFlags['strictReviewEntries'],
             'extraFields' => $extraFields,
             'hasZipExtraFields' => $extraFields['extraFieldEntryCount'] > 0,
             'extraFieldEntryCount' => $extraFields['extraFieldEntryCount'],
@@ -2448,6 +2461,16 @@ final class OdfReader
                 'zipLocalUncompressedSize' => $item['zipLocalUncompressedSize'] ?? null,
                 'zipLocalHeaderUsesDataDescriptor' => ($item['zipLocalHeaderUsesDataDescriptor'] ?? false) === true,
                 'zipLocalHeaderHasZeroDataDescriptorPlaceholders' => $item['zipLocalHeaderHasZeroDataDescriptorPlaceholders'] ?? null,
+                'zipGeneralPurposeFlags' => $item['zipGeneralPurposeFlags'] ?? null,
+                'zipGeneralPurposeFlagNames' => $item['zipGeneralPurposeFlagNames'] ?? [],
+                'zipUnsupportedGeneralPurposeFlagBits' => $item['zipUnsupportedGeneralPurposeFlagBits'] ?? 0,
+                'zipGeneralPurposeFlagsSupported' => ($item['zipGeneralPurposeFlagsSupported'] ?? false) === true,
+                'zipUsesUtf8Names' => ($item['zipUsesUtf8Names'] ?? false) === true,
+                'zipGeneralPurposeUsesDataDescriptor' => ($item['zipGeneralPurposeUsesDataDescriptor'] ?? false) === true,
+                'zipDeflateOptionFlags' => $item['zipDeflateOptionFlags'] ?? 0,
+                'zipDeflateOptionName' => $item['zipDeflateOptionName'] ?? null,
+                'zipGeneralPurposeRequiresStrictReview' => ($item['zipGeneralPurposeRequiresStrictReview'] ?? false) === true,
+                'zipGeneralPurposeFlagIssues' => $item['zipGeneralPurposeFlagIssues'] ?? [],
                 'zipModifiedAt' => $item['zipModifiedAt'] ?? null,
                 'zipTimestampSource' => $item['zipTimestampSource'] ?? null,
                 'zipModifiedDosTime' => $item['zipModifiedDosTime'] ?? null,
@@ -2619,6 +2642,15 @@ final class OdfReader
             'localHeaderMetadataIssueCodes' => $provenance['localHeaderMetadataIssueCodes'] ?? [],
             'localHeaderMetadataMismatchEntryCount' => $provenance['localHeaderMetadataMismatchEntryCount'] ?? 0,
             'localHeaderMetadataMismatchedEntries' => $provenance['localHeaderMetadataMismatchedEntries'] ?? [],
+            'generalPurposeFlagEntryCount' => $provenance['generalPurposeFlagEntryCount'] ?? 0,
+            'generalPurposeFlagSupportedEntryCount' => $provenance['generalPurposeFlagSupportedEntryCount'] ?? 0,
+            'unsupportedGeneralPurposeFlagEntryCount' => $provenance['unsupportedGeneralPurposeFlagEntryCount'] ?? 0,
+            'utf8NameGeneralPurposeFlagEntryCount' => $provenance['utf8NameGeneralPurposeFlagEntryCount'] ?? 0,
+            'dataDescriptorGeneralPurposeFlagEntryCount' => $provenance['dataDescriptorGeneralPurposeFlagEntryCount'] ?? 0,
+            'deflateOptionGeneralPurposeFlagEntryCount' => $provenance['deflateOptionGeneralPurposeFlagEntryCount'] ?? 0,
+            'strictGeneralPurposeFlagReviewEntryCount' => $provenance['strictGeneralPurposeFlagReviewEntryCount'] ?? 0,
+            'unsupportedGeneralPurposeFlagEntries' => $provenance['unsupportedGeneralPurposeFlagEntries'] ?? [],
+            'strictGeneralPurposeFlagReviewEntries' => $provenance['strictGeneralPurposeFlagReviewEntries'] ?? [],
             'hasZipExtraFields' => ($provenance['hasZipExtraFields'] ?? false) === true,
             'extraFieldEntryCount' => $provenance['extraFieldEntryCount'] ?? 0,
             'duplicateExtraFieldEntryCount' => $provenance['duplicateExtraFieldEntryCount'] ?? 0,
@@ -2762,6 +2794,15 @@ final class OdfReader
             'zipNameHygieneWindowsAlternateDataStreamEntryCount' => $provenance['zipNameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
             'zipNameHygieneUnicodeFormatControlEntryCount' => $provenance['zipNameHygieneUnicodeFormatControlEntryCount'] ?? 0,
             'zipNameHygieneUnicodeBidiControlEntryCount' => $provenance['zipNameHygieneUnicodeBidiControlEntryCount'] ?? 0,
+            'generalPurposeFlagEntryCount' => $provenance['generalPurposeFlagEntryCount'] ?? 0,
+            'generalPurposeFlagSupportedEntryCount' => $provenance['generalPurposeFlagSupportedEntryCount'] ?? 0,
+            'unsupportedGeneralPurposeFlagEntryCount' => $provenance['unsupportedGeneralPurposeFlagEntryCount'] ?? 0,
+            'utf8NameGeneralPurposeFlagEntryCount' => $provenance['utf8NameGeneralPurposeFlagEntryCount'] ?? 0,
+            'dataDescriptorGeneralPurposeFlagEntryCount' => $provenance['dataDescriptorGeneralPurposeFlagEntryCount'] ?? 0,
+            'deflateOptionGeneralPurposeFlagEntryCount' => $provenance['deflateOptionGeneralPurposeFlagEntryCount'] ?? 0,
+            'strictGeneralPurposeFlagReviewEntryCount' => $provenance['strictGeneralPurposeFlagReviewEntryCount'] ?? 0,
+            'unsupportedGeneralPurposeFlagEntries' => $provenance['unsupportedGeneralPurposeFlagEntries'] ?? [],
+            'strictGeneralPurposeFlagReviewEntries' => $provenance['strictGeneralPurposeFlagReviewEntries'] ?? [],
             'hasZipExtraFields' => ($provenance['hasZipExtraFields'] ?? false) === true,
             'extraFieldEntryCount' => $provenance['extraFieldEntryCount'] ?? 0,
             'duplicateExtraFieldEntryCount' => $provenance['duplicateExtraFieldEntryCount'] ?? 0,
@@ -4260,6 +4301,39 @@ final class OdfReader
         }
 
         return $values;
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipGeneralPurposeFlagProvenance(?array $entry): array
+    {
+        if ($entry === null) {
+            return [
+                'zipGeneralPurposeFlagNames' => [],
+                'zipUnsupportedGeneralPurposeFlagBits' => 0,
+                'zipGeneralPurposeFlagsSupported' => true,
+                'zipUsesUtf8Names' => false,
+                'zipGeneralPurposeUsesDataDescriptor' => false,
+                'zipDeflateOptionFlags' => 0,
+                'zipGeneralPurposeRequiresStrictReview' => false,
+                'zipGeneralPurposeFlagIssues' => [],
+            ];
+        }
+
+        return [
+            'zipGeneralPurposeFlags' => $entry['generalPurposeFlags'] ?? null,
+            'zipGeneralPurposeFlagNames' => is_array($entry['flagNames'] ?? null) ? $entry['flagNames'] : [],
+            'zipUnsupportedGeneralPurposeFlagBits' => $entry['unsupportedFlagBits'] ?? 0,
+            'zipGeneralPurposeFlagsSupported' => ($entry['isSupportedByReader'] ?? false) === true,
+            'zipUsesUtf8Names' => ($entry['usesUtf8Names'] ?? false) === true,
+            'zipGeneralPurposeUsesDataDescriptor' => ($entry['usesDataDescriptor'] ?? false) === true,
+            'zipDeflateOptionFlags' => $entry['deflateOptionFlags'] ?? 0,
+            'zipDeflateOptionName' => $entry['deflateOptionName'] ?? null,
+            'zipGeneralPurposeRequiresStrictReview' => ($entry['requiresStrictReview'] ?? false) === true,
+            'zipGeneralPurposeFlagIssues' => is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+        ];
     }
 
     /**
