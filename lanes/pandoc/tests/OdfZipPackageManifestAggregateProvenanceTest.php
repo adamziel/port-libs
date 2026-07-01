@@ -76,6 +76,29 @@ $package = $addCentralDirectorySignatureRecord(ZipPackage::fromParts([
     ['name' => 'Pictures/review.png', 'data' => $mediaBytes, 'compressionMethod' => 0, 'extraFieldData' => $extraField, 'comment' => 'media aggregate', 'creatorHostSystem' => 10],
 ], 'odt aggregate package manifest'), $signatureData);
 
+$duplicateManifestXml = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Objects/content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/review.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/Review.PNG" manifest:media-type="image/png"/>
+</manifest:manifest>
+XML;
+
+$duplicatePackage = ZipPackage::fromParts([
+    ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+    ['name' => 'META-INF/manifest.xml', 'data' => $duplicateManifestXml, 'compressionMethod' => 0],
+    ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
+    ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 0],
+    ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
+    ['name' => 'Objects/content.xml', 'data' => '<object/>', 'compressionMethod' => 0],
+    ['name' => 'Pictures/review.png', 'data' => 'review', 'compressionMethod' => 0],
+    ['name' => 'Pictures/Review.PNG', 'data' => 'review-upper', 'compressionMethod' => 0],
+], 'odt zip manifest basename aggregate provenance');
+
 $aggregateFields = [
     'manifestVersion' => 'zipPackageManifestVersion',
     'packageSource' => 'zipPackageManifestPackageSource',
@@ -188,6 +211,27 @@ $aggregateFields = [
     'packagePartExtensionSummaryCount' => 'zipPackageManifestPackagePartExtensionSummaryCount',
     'packagePartExtensions' => 'zipPackageManifestPackagePartExtensions',
     'packagePartExtensionSummaries' => 'zipPackageManifestPackagePartExtensionSummaries',
+    'packagePartBaseNameSummaryCount' => 'zipPackageManifestPackagePartBaseNameSummaryCount',
+    'packagePartBaseNames' => 'zipPackageManifestPackagePartBaseNames',
+    'packagePartBaseNameSummaries' => 'zipPackageManifestPackagePartBaseNameSummaries',
+    'duplicatePackagePartBaseNameCount' => 'zipPackageManifestDuplicatePackagePartBaseNameCount',
+    'hasDuplicatePackagePartBaseNames' => 'zipPackageManifestHasDuplicatePackagePartBaseNames',
+    'duplicatePackagePartBaseNames' => 'zipPackageManifestDuplicatePackagePartBaseNames',
+    'duplicatePackagePartBaseNameSummaries' => 'zipPackageManifestDuplicatePackagePartBaseNameSummaries',
+    'packagePartCaseFoldBaseNameSummaryCount' => 'zipPackageManifestPackagePartCaseFoldBaseNameSummaryCount',
+    'packagePartCaseFoldBaseNames' => 'zipPackageManifestPackagePartCaseFoldBaseNames',
+    'packagePartCaseFoldBaseNameSummaries' => 'zipPackageManifestPackagePartCaseFoldBaseNameSummaries',
+    'duplicatePackagePartCaseFoldBaseNameCount' => 'zipPackageManifestDuplicatePackagePartCaseFoldBaseNameCount',
+    'hasDuplicatePackagePartCaseFoldBaseNames' => 'zipPackageManifestHasDuplicatePackagePartCaseFoldBaseNames',
+    'duplicatePackagePartCaseFoldBaseNames' => 'zipPackageManifestDuplicatePackagePartCaseFoldBaseNames',
+    'duplicatePackagePartCaseFoldBaseNameSummaries' => 'zipPackageManifestDuplicatePackagePartCaseFoldBaseNameSummaries',
+    'packagePartCaseFoldBaseNameStemSummaryCount' => 'zipPackageManifestPackagePartCaseFoldBaseNameStemSummaryCount',
+    'packagePartCaseFoldBaseNameStems' => 'zipPackageManifestPackagePartCaseFoldBaseNameStems',
+    'packagePartCaseFoldBaseNameStemSummaries' => 'zipPackageManifestPackagePartCaseFoldBaseNameStemSummaries',
+    'duplicatePackagePartCaseFoldBaseNameStemCount' => 'zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStemCount',
+    'hasDuplicatePackagePartCaseFoldBaseNameStems' => 'zipPackageManifestHasDuplicatePackagePartCaseFoldBaseNameStems',
+    'duplicatePackagePartCaseFoldBaseNameStems' => 'zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStems',
+    'duplicatePackagePartCaseFoldBaseNameStemSummaries' => 'zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStemSummaries',
     'centralDirectoryOrderNames' => 'zipPackageManifestCentralDirectoryOrderNames',
     'localHeaderOrderNames' => 'zipPackageManifestLocalHeaderOrderNames',
     'centralDirectoryOrderMatchesLocalHeaderOrder' => 'zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder',
@@ -220,6 +264,10 @@ $packageManifestEntryScalarSubset = static function (array $item): array {
         'zipPackageManifestCreatorHostSystemIsKnown',
         'zipPackageManifestCreatorHostSystemIssues',
         'zipPackageManifestPathSegmentPositionReviews',
+        'zipPackageManifestPackagePartBaseName',
+        'zipPackageManifestPackagePartCaseFoldBaseName',
+        'zipPackageManifestPackagePartBaseNameStem',
+        'zipPackageManifestPackagePartCaseFoldBaseNameStem',
         'zipPackageManifestPackagePartExtension',
         'zipPackageManifestPackagePartExtensionKey',
         'zipPackageManifestExtensionlessPackagePart',
@@ -301,6 +349,10 @@ return [
                 'zipPackageManifestCreatorHostSystemIsKnown' => $zipEntry['creatorHostSystemIsKnown'],
                 'zipPackageManifestCreatorHostSystemIssues' => $zipEntry['creatorHostSystemIssues'],
                 'zipPackageManifestPathSegmentPositionReviews' => $zipEntry['pathSegmentPositionReviews'],
+                'zipPackageManifestPackagePartBaseName' => $zipEntry['packagePartBaseName'],
+                'zipPackageManifestPackagePartCaseFoldBaseName' => $zipEntry['packagePartCaseFoldBaseName'],
+                'zipPackageManifestPackagePartBaseNameStem' => $zipEntry['packagePartBaseNameStem'],
+                'zipPackageManifestPackagePartCaseFoldBaseNameStem' => $zipEntry['packagePartCaseFoldBaseNameStem'],
                 'zipPackageManifestPackagePartExtension' => $zipEntry['packagePartExtension'],
                 'zipPackageManifestPackagePartExtensionKey' => $zipEntry['packagePartExtensionKey'],
                 'zipPackageManifestExtensionlessPackagePart' => $zipEntry['extensionlessPackagePart'],
@@ -341,5 +393,93 @@ return [
         $t->same(false, array_key_exists('zipPackageManifestCentralDirectorySignatureData', $richIdentity));
         $t->same(false, $richIdentity['canExposeBytes']);
         $t->same('odf-package-identity-metadata-only', $richIdentity['byteExposurePolicy']);
+    },
+    'carries ODT ZIP package manifest basename rollups through compact and rich identities' => static function (TestRunner $t) use (
+        $duplicatePackage,
+        $aggregateFields,
+        $indexBy
+    ): void {
+        $zipManifest = $duplicatePackage->packageManifestPreflight();
+        $zipManifestEntries = $indexBy($zipManifest['entries'], 'name');
+        $compactSummary = OpenDocumentPackage::fromPackage($duplicatePackage)->summarize();
+        $compactInventory = $compactSummary['packageInventory'];
+        $compactIdentity = $compactSummary['packageIdentity'];
+        $richResult = (new OdfReader())->readPackage($duplicatePackage);
+        $richProvenance = $richResult['importReport']['manifest']['packageProvenance'];
+        $richIdentity = $richProvenance['packageIdentity'];
+        $compactIdentityEntries = $indexBy($compactIdentity['packageEntries'], 'path');
+        $richIdentityEntries = $indexBy($richIdentity['packageEntries'], 'part');
+        $baseNameAggregateKeys = [
+            'packagePartBaseNameSummaryCount',
+            'packagePartBaseNames',
+            'packagePartBaseNameSummaries',
+            'duplicatePackagePartBaseNameCount',
+            'hasDuplicatePackagePartBaseNames',
+            'duplicatePackagePartBaseNames',
+            'duplicatePackagePartBaseNameSummaries',
+            'packagePartCaseFoldBaseNameSummaryCount',
+            'packagePartCaseFoldBaseNames',
+            'packagePartCaseFoldBaseNameSummaries',
+            'duplicatePackagePartCaseFoldBaseNameCount',
+            'hasDuplicatePackagePartCaseFoldBaseNames',
+            'duplicatePackagePartCaseFoldBaseNames',
+            'duplicatePackagePartCaseFoldBaseNameSummaries',
+            'packagePartCaseFoldBaseNameStemSummaryCount',
+            'packagePartCaseFoldBaseNameStems',
+            'packagePartCaseFoldBaseNameStemSummaries',
+            'duplicatePackagePartCaseFoldBaseNameStemCount',
+            'hasDuplicatePackagePartCaseFoldBaseNameStems',
+            'duplicatePackagePartCaseFoldBaseNameStems',
+            'duplicatePackagePartCaseFoldBaseNameStemSummaries',
+        ];
+        $surfaces = [
+            'compact inventory' => $compactInventory,
+            'compact identity' => $compactIdentity,
+            'rich provenance' => $richProvenance,
+            'rich identity' => $richIdentity,
+        ];
+
+        foreach ($surfaces as $label => $surface) {
+            foreach ($baseNameAggregateKeys as $manifestKey) {
+                $provenanceKey = $aggregateFields[$manifestKey];
+                $t->same($zipManifest[$manifestKey], $surface[$provenanceKey], "{$label} {$provenanceKey}");
+            }
+
+            $t->same(1, $surface['zipPackageManifestDuplicatePackagePartBaseNameCount'], "{$label} duplicate exact basename count");
+            $t->same(true, $surface['zipPackageManifestHasDuplicatePackagePartBaseNames'], "{$label} duplicate exact basename flag");
+            $t->same(['content.xml'], $surface['zipPackageManifestDuplicatePackagePartBaseNames'], "{$label} duplicate exact basenames");
+            $t->same(2, $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNameCount'], "{$label} duplicate case-fold basename count");
+            $t->same(true, $surface['zipPackageManifestHasDuplicatePackagePartCaseFoldBaseNames'], "{$label} duplicate case-fold basename flag");
+            $t->same(['content.xml', 'review.png'], $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNames'], "{$label} duplicate case-fold basenames");
+            $t->same(2, $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStemCount'], "{$label} duplicate case-fold basename stem count");
+            $t->same(true, $surface['zipPackageManifestHasDuplicatePackagePartCaseFoldBaseNameStems'], "{$label} duplicate case-fold basename stem flag");
+            $t->same(['content', 'review'], $surface['zipPackageManifestDuplicatePackagePartCaseFoldBaseNameStems'], "{$label} duplicate case-fold basename stems");
+        }
+
+        $entrySurfaces = [
+            'compact inventory' => $compactInventory['parts'],
+            'compact identity' => $compactIdentityEntries,
+            'rich provenance' => $richProvenance['parts'],
+            'rich identity' => $richIdentityEntries,
+        ];
+        $entryFieldMap = [
+            'packagePartBaseName' => 'zipPackageManifestPackagePartBaseName',
+            'packagePartCaseFoldBaseName' => 'zipPackageManifestPackagePartCaseFoldBaseName',
+            'packagePartBaseNameStem' => 'zipPackageManifestPackagePartBaseNameStem',
+            'packagePartCaseFoldBaseNameStem' => 'zipPackageManifestPackagePartCaseFoldBaseNameStem',
+        ];
+
+        foreach (['Objects/content.xml', 'Pictures/Review.PNG'] as $name) {
+            foreach ($entrySurfaces as $label => $entries) {
+                foreach ($entryFieldMap as $manifestKey => $provenanceKey) {
+                    $t->same($zipManifestEntries[$name][$manifestKey], $entries[$name][$provenanceKey], "{$label} {$name} {$provenanceKey}");
+                }
+            }
+        }
+
+        $t->same('Review.PNG', $richIdentityEntries['Pictures/Review.PNG']['zipPackageManifestPackagePartBaseName']);
+        $t->same('review.png', $richIdentityEntries['Pictures/Review.PNG']['zipPackageManifestPackagePartCaseFoldBaseName']);
+        $t->same('Review', $richIdentityEntries['Pictures/Review.PNG']['zipPackageManifestPackagePartBaseNameStem']);
+        $t->same('review', $richIdentityEntries['Pictures/Review.PNG']['zipPackageManifestPackagePartCaseFoldBaseNameStem']);
     },
 ];
