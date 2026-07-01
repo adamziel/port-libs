@@ -1263,6 +1263,8 @@ final class OpenDocumentPackage
             $directory = self::packagePartDirectory($entry->name);
             $packagePartExtension = self::packagePartExtension($entry->name);
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
+            $packagePathByteLength = strlen($entry->name);
+            $packagePathByteLengthBucket = self::packagePathByteLengthBucket($packagePathByteLength);
             $byteExposurePolicy = null;
             $sourceRecordProvenance = self::zipEntrySourceRecordProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
             $generalPurposeFlagProvenance = self::zipGeneralPurposeFlagProvenance($generalPurposeFlagEntriesByName[$entry->name] ?? null);
@@ -1282,6 +1284,10 @@ final class OpenDocumentPackage
                 'directory' => $directory,
                 'directoryDepth' => self::packagePartDirectoryDepth($directory),
                 'baseName' => self::packagePartBaseName($entry->name),
+                'packagePathByteLength' => $packagePathByteLength,
+                'packagePathByteLengthBucket' => $packagePathByteLengthBucket['packagePathByteLengthBucket'],
+                'packagePathByteLengthBucketMin' => $packagePathByteLengthBucket['packagePathByteLengthBucketMin'],
+                'packagePathByteLengthBucketMax' => $packagePathByteLengthBucket['packagePathByteLengthBucketMax'],
                 'packagePartExtension' => $packagePartExtension,
                 'rawPackagePartExtension' => $rawPackagePartExtension,
                 'packagePartExtensionHasUppercase' => $rawPackagePartExtension !== null && preg_match('/[A-Z]/', $rawPackagePartExtension) === 1,
@@ -1570,6 +1576,7 @@ final class OpenDocumentPackage
         $directorySummaries = self::packageInventoryDirectorySummaries(array_values($parts));
         $extensionSummaries = self::packageInventoryExtensionSummaries(array_values($parts));
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
+        $packagePathByteLengths = self::packagePathByteLengthBucketInventory($parts, 'path');
         $pathDepthReview = self::packagePartPathDepthReview($parts, 'path');
         $areaDepthSummary = self::packagePartAreaDepthSummary($parts, 'path');
         $packageLeafNameSummaries = self::packagePathLeafNameSummaries(array_values($parts));
@@ -1605,6 +1612,15 @@ final class OpenDocumentPackage
             'packagePathExtensionCount' => count($extensionSummaries),
             'packagePathExtensions' => array_column($extensionSummaries, 'extension'),
             'packagePathExtensionSummaries' => $extensionSummaries,
+            'packagePathByteLengthBucketCount' => $packagePathByteLengths['packagePathByteLengthBucketCount'],
+            'packagePathByteLengthBuckets' => $packagePathByteLengths['packagePathByteLengthBuckets'],
+            'packagePathByteLengthBucketCounts' => $packagePathByteLengths['packagePathByteLengthBucketCounts'],
+            'entryNamesByPackagePathByteLengthBucket' => $packagePathByteLengths['entryNamesByPackagePathByteLengthBucket'],
+            'packagePathByteLengthRoleCounts' => $packagePathByteLengths['packagePathByteLengthRoleCounts'],
+            'entryNamesByPackagePathByteLengthRole' => $packagePathByteLengths['entryNamesByPackagePathByteLengthRole'],
+            'packagePathByteLengthByteExposurePolicyCounts' => $packagePathByteLengths['packagePathByteLengthByteExposurePolicyCounts'],
+            'entryNamesByPackagePathByteLengthByteExposurePolicy' => $packagePathByteLengths['entryNamesByPackagePathByteLengthByteExposurePolicy'],
+            'packagePathByteLengthBucketSummaries' => $packagePathByteLengths['packagePathByteLengthBucketSummaries'],
             'extensionlessPackagePartCount' => $packagePartExtensions['extensionlessPackagePartCount'],
             'packagePartExtensionCounts' => $packagePartExtensions['packagePartExtensionCounts'],
             'entryNamesByPackagePartExtension' => $packagePartExtensions['entryNamesByPackagePartExtension'],
@@ -2135,6 +2151,10 @@ final class OpenDocumentPackage
                 'directory' => $part['directory'] ?? null,
                 'directoryDepth' => $part['directoryDepth'] ?? null,
                 'baseName' => $part['baseName'] ?? null,
+                'packagePathByteLength' => $part['packagePathByteLength'] ?? null,
+                'packagePathByteLengthBucket' => $part['packagePathByteLengthBucket'] ?? null,
+                'packagePathByteLengthBucketMin' => $part['packagePathByteLengthBucketMin'] ?? null,
+                'packagePathByteLengthBucketMax' => $part['packagePathByteLengthBucketMax'] ?? null,
                 'packagePartExtension' => $part['packagePartExtension'] ?? null,
                 'rawPackagePartExtension' => $part['rawPackagePartExtension'] ?? null,
                 'packagePartExtensionHasUppercase' => ($part['packagePartExtensionHasUppercase'] ?? false) === true,
@@ -2380,6 +2400,15 @@ final class OpenDocumentPackage
             'deepestPackagePartNames' => $packageInventory['deepestPackagePartNames'] ?? [],
             'packageRoleSummaryCount' => $packageInventory['packageRoleSummaryCount'] ?? 0,
             'packageRoleSummaries' => $packageInventory['packageRoleSummaries'] ?? [],
+            'packagePathByteLengthBucketCount' => $packageInventory['packagePathByteLengthBucketCount'] ?? 0,
+            'packagePathByteLengthBuckets' => $packageInventory['packagePathByteLengthBuckets'] ?? [],
+            'packagePathByteLengthBucketCounts' => $packageInventory['packagePathByteLengthBucketCounts'] ?? [],
+            'entryNamesByPackagePathByteLengthBucket' => $packageInventory['entryNamesByPackagePathByteLengthBucket'] ?? [],
+            'packagePathByteLengthRoleCounts' => $packageInventory['packagePathByteLengthRoleCounts'] ?? [],
+            'entryNamesByPackagePathByteLengthRole' => $packageInventory['entryNamesByPackagePathByteLengthRole'] ?? [],
+            'packagePathByteLengthByteExposurePolicyCounts' => $packageInventory['packagePathByteLengthByteExposurePolicyCounts'] ?? [],
+            'entryNamesByPackagePathByteLengthByteExposurePolicy' => $packageInventory['entryNamesByPackagePathByteLengthByteExposurePolicy'] ?? [],
+            'packagePathByteLengthBucketSummaries' => $packageInventory['packagePathByteLengthBucketSummaries'] ?? [],
             'manifestMediaFamilyCounts' => $packageInventory['manifestMediaFamilyCounts'] ?? [],
             'extensionlessPackagePartCount' => $packageInventory['extensionlessPackagePartCount'] ?? 0,
             'packagePartExtensionCounts' => $packageInventory['packagePartExtensionCounts'] ?? [],
@@ -2734,6 +2763,231 @@ final class OpenDocumentPackage
             'packagePartExtensionCounts' => $extensionCounts,
             'entryNamesByPackagePartExtension' => $entryNamesByExtension,
             'packagePartExtensionSummaries' => array_values($summaries),
+        ];
+    }
+
+    /**
+     * @return array{packagePathByteLengthBucket:string,packagePathByteLengthBucketMin:int,packagePathByteLengthBucketMax:?int}
+     */
+    private static function packagePathByteLengthBucket(int $byteLength): array
+    {
+        if ($byteLength <= 8) {
+            return [
+                'packagePathByteLengthBucket' => 'up-to-8-bytes',
+                'packagePathByteLengthBucketMin' => 0,
+                'packagePathByteLengthBucketMax' => 8,
+            ];
+        }
+        if ($byteLength <= 16) {
+            return [
+                'packagePathByteLengthBucket' => '9-to-16-bytes',
+                'packagePathByteLengthBucketMin' => 9,
+                'packagePathByteLengthBucketMax' => 16,
+            ];
+        }
+        if ($byteLength <= 32) {
+            return [
+                'packagePathByteLengthBucket' => '17-to-32-bytes',
+                'packagePathByteLengthBucketMin' => 17,
+                'packagePathByteLengthBucketMax' => 32,
+            ];
+        }
+        if ($byteLength <= 64) {
+            return [
+                'packagePathByteLengthBucket' => '33-to-64-bytes',
+                'packagePathByteLengthBucketMin' => 33,
+                'packagePathByteLengthBucketMax' => 64,
+            ];
+        }
+
+        return [
+            'packagePathByteLengthBucket' => 'over-64-bytes',
+            'packagePathByteLengthBucketMin' => 65,
+            'packagePathByteLengthBucketMax' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     packagePathByteLengthBucketCount:int,
+     *     packagePathByteLengthBuckets:list<string>,
+     *     packagePathByteLengthBucketCounts:array<string, int>,
+     *     entryNamesByPackagePathByteLengthBucket:array<string, list<string>>,
+     *     packagePathByteLengthRoleCounts:array<string, int>,
+     *     entryNamesByPackagePathByteLengthRole:array<string, list<string>>,
+     *     packagePathByteLengthByteExposurePolicyCounts:array<string, int>,
+     *     entryNamesByPackagePathByteLengthByteExposurePolicy:array<string, list<string>>,
+     *     packagePathByteLengthBucketSummaries:list<array<string, mixed>>
+     * }
+     */
+    private static function packagePathByteLengthBucketInventory(array $parts, string $nameKey): array
+    {
+        $bucketOrder = [
+            'up-to-8-bytes',
+            '9-to-16-bytes',
+            '17-to-32-bytes',
+            '33-to-64-bytes',
+            'over-64-bytes',
+        ];
+        $bucketCounts = [];
+        $entryNamesByBucket = [];
+        $roleCounts = [];
+        $entryNamesByRole = [];
+        $byteExposurePolicyCounts = [];
+        $entryNamesByByteExposurePolicy = [];
+        $summaries = [];
+
+        foreach ($parts as $fallbackName => $part) {
+            $partName = is_string($part[$nameKey] ?? null) && $part[$nameKey] !== ''
+                ? $part[$nameKey]
+                : (string) $fallbackName;
+            $pathByteLength = is_int($part['packagePathByteLength'] ?? null)
+                ? $part['packagePathByteLength']
+                : strlen($partName);
+            $bucket = self::packagePathByteLengthBucket($pathByteLength);
+            $bucketName = $bucket['packagePathByteLengthBucket'];
+            $byteLength = is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0;
+            $compressedByteLength = is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0;
+            $roles = array_values(array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []));
+            $byteExposurePolicy = is_string($part['byteExposurePolicy'] ?? null) ? $part['byteExposurePolicy'] : '';
+
+            $bucketCounts[$bucketName] = ($bucketCounts[$bucketName] ?? 0) + 1;
+            $entryNamesByBucket[$bucketName][] = $partName;
+
+            if (!isset($summaries[$bucketName])) {
+                $summaries[$bucketName] = [
+                    'packagePathByteLengthBucket' => $bucketName,
+                    'packagePathByteLengthBucketMin' => $bucket['packagePathByteLengthBucketMin'],
+                    'packagePathByteLengthBucketMax' => $bucket['packagePathByteLengthBucketMax'],
+                    'partCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'manifestDeclaredPartCount' => 0,
+                    'undeclaredPartCount' => 0,
+                    'encryptedPartCount' => 0,
+                    'exposablePartCount' => 0,
+                    'blockedPartCount' => 0,
+                    'byteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'packagePathByteLengthTotal' => 0,
+                    'longestPackagePathByteLength' => 0,
+                    'entryNames' => [],
+                    'roleCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'longestPart' => null,
+                ];
+            }
+
+            ++$summaries[$bucketName]['partCount'];
+            $summaries[$bucketName]['byteLength'] += $byteLength;
+            $summaries[$bucketName]['compressedByteLength'] += $compressedByteLength;
+            $summaries[$bucketName]['packagePathByteLengthTotal'] += $pathByteLength;
+            $summaries[$bucketName]['entryNames'][] = $partName;
+            if (($part['isDirectory'] ?? false) === true) {
+                ++$summaries[$bucketName]['directoryEntryCount'];
+            }
+            if (($part['declaredInManifest'] ?? false) === true) {
+                ++$summaries[$bucketName]['manifestDeclaredPartCount'];
+            }
+            if (($part['undeclared'] ?? false) === true) {
+                ++$summaries[$bucketName]['undeclaredPartCount'];
+            }
+            if (($part['encrypted'] ?? false) === true) {
+                ++$summaries[$bucketName]['encryptedPartCount'];
+            }
+            if (($part['canExposeBytes'] ?? false) === true) {
+                ++$summaries[$bucketName]['exposablePartCount'];
+            } else {
+                ++$summaries[$bucketName]['blockedPartCount'];
+            }
+
+            foreach ($roles as $role) {
+                if ($role === '') {
+                    continue;
+                }
+                $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
+                $entryNamesByRole[$role][] = $partName;
+                $summaries[$bucketName]['roleCounts'][$role] =
+                    ($summaries[$bucketName]['roleCounts'][$role] ?? 0) + 1;
+            }
+            if ($byteExposurePolicy !== '') {
+                $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                $entryNamesByByteExposurePolicy[$byteExposurePolicy][] = $partName;
+                $summaries[$bucketName]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                    ($summaries[$bucketName]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            }
+
+            $partSummary = self::withoutEmptyValues([
+                'path' => $partName,
+                'packagePathByteLength' => $pathByteLength,
+                'packagePathByteLengthBucket' => $bucketName,
+                'packagePathByteLengthBucketMin' => $bucket['packagePathByteLengthBucketMin'],
+                'packagePathByteLengthBucketMax' => $bucket['packagePathByteLengthBucketMax'],
+                'byteLength' => $byteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'roles' => $roles,
+                'byteExposurePolicy' => $byteExposurePolicy === '' ? null : $byteExposurePolicy,
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'undeclared' => ($part['undeclared'] ?? false) === true,
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+            ]);
+            $longestPart = $summaries[$bucketName]['longestPart'];
+            if (
+                !is_array($longestPart)
+                || $pathByteLength > (int) ($longestPart['packagePathByteLength'] ?? 0)
+                || (
+                    $pathByteLength === (int) ($longestPart['packagePathByteLength'] ?? 0)
+                    && strcmp($partName, (string) ($longestPart['path'] ?? '')) < 0
+                )
+            ) {
+                $summaries[$bucketName]['longestPackagePathByteLength'] = $pathByteLength;
+                $summaries[$bucketName]['longestPart'] = $partSummary;
+            }
+        }
+
+        foreach ($entryNamesByBucket as $bucketName => $names) {
+            sort($names, SORT_STRING);
+            $entryNamesByBucket[$bucketName] = $names;
+        }
+        foreach ($entryNamesByRole as $role => $names) {
+            sort($names, SORT_STRING);
+            $entryNamesByRole[$role] = $names;
+        }
+        foreach ($entryNamesByByteExposurePolicy as $policy => $names) {
+            sort($names, SORT_STRING);
+            $entryNamesByByteExposurePolicy[$policy] = $names;
+        }
+        ksort($roleCounts, SORT_STRING);
+        ksort($entryNamesByRole, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($entryNamesByByteExposurePolicy, SORT_STRING);
+
+        $orderedBucketCounts = [];
+        $orderedEntryNamesByBucket = [];
+        $orderedSummaries = [];
+        foreach ($bucketOrder as $bucketName) {
+            if (!isset($bucketCounts[$bucketName])) {
+                continue;
+            }
+            $orderedBucketCounts[$bucketName] = $bucketCounts[$bucketName];
+            $orderedEntryNamesByBucket[$bucketName] = $entryNamesByBucket[$bucketName] ?? [];
+            $summary = $summaries[$bucketName];
+            sort($summary['entryNames'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            $orderedSummaries[] = $summary;
+        }
+
+        return [
+            'packagePathByteLengthBucketCount' => count($orderedBucketCounts),
+            'packagePathByteLengthBuckets' => array_keys($orderedBucketCounts),
+            'packagePathByteLengthBucketCounts' => $orderedBucketCounts,
+            'entryNamesByPackagePathByteLengthBucket' => $orderedEntryNamesByBucket,
+            'packagePathByteLengthRoleCounts' => $roleCounts,
+            'entryNamesByPackagePathByteLengthRole' => $entryNamesByRole,
+            'packagePathByteLengthByteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'entryNamesByPackagePathByteLengthByteExposurePolicy' => $entryNamesByByteExposurePolicy,
+            'packagePathByteLengthBucketSummaries' => $orderedSummaries,
         ];
     }
 
