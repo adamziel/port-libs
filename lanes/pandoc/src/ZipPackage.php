@@ -7085,6 +7085,255 @@ final class ZipPackage
      * @param list<array<string, mixed>> $entries
      * @return list<array<string, mixed>>
      */
+    private static function packageManifestPartBaseNameSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $baseName = is_string($entry['packagePartBaseName'] ?? null)
+                ? $entry['packagePartBaseName']
+                : self::zipPackagePartBaseName(self::zipEntryPathSegments($name));
+            $baseNameKey = $baseName === '' ? '(empty)' : $baseName;
+            $caseFoldBaseName = is_string($entry['packagePartCaseFoldBaseName'] ?? null)
+                ? $entry['packagePartCaseFoldBaseName']
+                : self::caseFoldZipEntryName($baseName);
+            if (!isset($summaries[$baseNameKey])) {
+                $summaries[$baseNameKey] = [
+                    'baseNameKey' => $baseNameKey,
+                    'packagePartBaseName' => $baseName,
+                    'packagePartCaseFoldBaseName' => $caseFoldBaseName,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'packagePartExtensionKeyCounts' => [],
+                    'directoryRootCounts' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$baseNameKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$baseNameKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$baseNameKey]['fileEntryCount'];
+            }
+
+            $summaries[$baseNameKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$baseNameKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$baseNameKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$baseNameKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$baseNameKey]['dataDescriptorEntryCount'];
+                $summaries[$baseNameKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+
+            $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null)
+                ? $entry['packagePartExtensionKey']
+                : (($entry['isDirectory'] ?? false) === true ? '(directory)' : '(none)');
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null)
+                ? $entry['directoryRoot']
+                : self::entryHandoffDirectoryRoot($name);
+            $summaries[$baseNameKey]['packagePartExtensionKeyCounts'][$extensionKey] =
+                ($summaries[$baseNameKey]['packagePartExtensionKeyCounts'][$extensionKey] ?? 0) + 1;
+            $summaries[$baseNameKey]['directoryRootCounts'][$directoryRoot] =
+                ($summaries[$baseNameKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $summaries[$baseNameKey]['entryNames'][] = $name;
+        }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['packagePartExtensionKeyCounts'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestPartCaseFoldBaseNameSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $baseName = is_string($entry['packagePartBaseName'] ?? null)
+                ? $entry['packagePartBaseName']
+                : self::zipPackagePartBaseName(self::zipEntryPathSegments($name));
+            $caseFoldBaseName = is_string($entry['packagePartCaseFoldBaseName'] ?? null)
+                ? $entry['packagePartCaseFoldBaseName']
+                : self::caseFoldZipEntryName($baseName);
+            $caseFoldBaseNameKey = $caseFoldBaseName === '' ? '(empty)' : $caseFoldBaseName;
+            if (!isset($summaries[$caseFoldBaseNameKey])) {
+                $summaries[$caseFoldBaseNameKey] = [
+                    'caseFoldBaseNameKey' => $caseFoldBaseNameKey,
+                    'packagePartCaseFoldBaseName' => $caseFoldBaseName,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'packagePartBaseNameVariantCount' => 0,
+                    'packagePartBaseNameCounts' => [],
+                    'packagePartBaseNames' => [],
+                    'packagePartExtensionKeyCounts' => [],
+                    'directoryRootCounts' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$caseFoldBaseNameKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$caseFoldBaseNameKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$caseFoldBaseNameKey]['fileEntryCount'];
+            }
+
+            $summaries[$caseFoldBaseNameKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$caseFoldBaseNameKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$caseFoldBaseNameKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$caseFoldBaseNameKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$caseFoldBaseNameKey]['dataDescriptorEntryCount'];
+                $summaries[$caseFoldBaseNameKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+
+            $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null)
+                ? $entry['packagePartExtensionKey']
+                : (($entry['isDirectory'] ?? false) === true ? '(directory)' : '(none)');
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null)
+                ? $entry['directoryRoot']
+                : self::entryHandoffDirectoryRoot($name);
+            $summaries[$caseFoldBaseNameKey]['packagePartBaseNameCounts'][$baseName] =
+                ($summaries[$caseFoldBaseNameKey]['packagePartBaseNameCounts'][$baseName] ?? 0) + 1;
+            $summaries[$caseFoldBaseNameKey]['packagePartExtensionKeyCounts'][$extensionKey] =
+                ($summaries[$caseFoldBaseNameKey]['packagePartExtensionKeyCounts'][$extensionKey] ?? 0) + 1;
+            $summaries[$caseFoldBaseNameKey]['directoryRootCounts'][$directoryRoot] =
+                ($summaries[$caseFoldBaseNameKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $summaries[$caseFoldBaseNameKey]['entryNames'][] = $name;
+        }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['packagePartBaseNameCounts'], SORT_STRING);
+            ksort($summary['packagePartExtensionKeyCounts'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            $summary['packagePartBaseNames'] = array_keys($summary['packagePartBaseNameCounts']);
+            $summary['packagePartBaseNameVariantCount'] = count($summary['packagePartBaseNames']);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestPartCaseFoldBaseNameStemSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $stem = is_string($entry['packagePartBaseNameStem'] ?? null)
+                ? $entry['packagePartBaseNameStem']
+                : null;
+            if ($name === '' || ($entry['isDirectory'] ?? false) === true || $stem === null) {
+                continue;
+            }
+
+            $caseFoldStem = is_string($entry['packagePartCaseFoldBaseNameStem'] ?? null)
+                ? $entry['packagePartCaseFoldBaseNameStem']
+                : self::caseFoldZipEntryName($stem);
+            $caseFoldStemKey = $caseFoldStem === '' ? '(empty)' : $caseFoldStem;
+            if (!isset($summaries[$caseFoldStemKey])) {
+                $summaries[$caseFoldStemKey] = [
+                    'caseFoldBaseNameStemKey' => $caseFoldStemKey,
+                    'packagePartCaseFoldBaseNameStem' => $caseFoldStem,
+                    'fileEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'packagePartBaseNameStemVariantCount' => 0,
+                    'packagePartBaseNameStemCounts' => [],
+                    'packagePartBaseNameStems' => [],
+                    'packagePartExtensionKeyCounts' => [],
+                    'directoryRootCounts' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$caseFoldStemKey]['fileEntryCount'];
+            $summaries[$caseFoldStemKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$caseFoldStemKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$caseFoldStemKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$caseFoldStemKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$caseFoldStemKey]['dataDescriptorEntryCount'];
+                $summaries[$caseFoldStemKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+
+            $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null)
+                ? $entry['packagePartExtensionKey']
+                : '(none)';
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null)
+                ? $entry['directoryRoot']
+                : self::entryHandoffDirectoryRoot($name);
+            $summaries[$caseFoldStemKey]['packagePartBaseNameStemCounts'][$stem] =
+                ($summaries[$caseFoldStemKey]['packagePartBaseNameStemCounts'][$stem] ?? 0) + 1;
+            $summaries[$caseFoldStemKey]['packagePartExtensionKeyCounts'][$extensionKey] =
+                ($summaries[$caseFoldStemKey]['packagePartExtensionKeyCounts'][$extensionKey] ?? 0) + 1;
+            $summaries[$caseFoldStemKey]['directoryRootCounts'][$directoryRoot] =
+                ($summaries[$caseFoldStemKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $summaries[$caseFoldStemKey]['entryNames'][] = $name;
+        }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['packagePartBaseNameStemCounts'], SORT_STRING);
+            ksort($summary['packagePartExtensionKeyCounts'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            $summary['packagePartBaseNameStems'] = array_keys($summary['packagePartBaseNameStemCounts']);
+            $summary['packagePartBaseNameStemVariantCount'] = count($summary['packagePartBaseNameStems']);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
     private static function packageManifestPathSegmentPositionSummaries(array $entries): array
     {
         $summaries = [];
@@ -7194,6 +7443,19 @@ final class ZipPackage
         $extension = pathinfo($name, PATHINFO_EXTENSION);
 
         return $extension === '' ? null : strtolower($extension);
+    }
+
+    /**
+     * @param list<string> $segments
+     */
+    private static function zipPackagePartBaseName(array $segments): string
+    {
+        return $segments === [] ? '' : $segments[count($segments) - 1];
+    }
+
+    private static function zipPackagePartBaseNameStem(string $baseName, bool $isDirectory): ?string
+    {
+        return $isDirectory ? null : pathinfo($baseName, PATHINFO_FILENAME);
     }
 
     /**
@@ -13910,6 +14172,12 @@ final class ZipPackage
             $pathSegmentPositionReviews = self::zipEntryPathSegmentPositionReviews($pathSegments);
             $pathSegmentCount = count($pathSegments);
             $directoryDepth = max(0, $pathSegmentCount - 1);
+            $packagePartBaseName = self::zipPackagePartBaseName($pathSegments);
+            $packagePartCaseFoldBaseName = self::caseFoldZipEntryName($packagePartBaseName);
+            $packagePartBaseNameStem = self::zipPackagePartBaseNameStem($packagePartBaseName, $isDirectory);
+            $packagePartCaseFoldBaseNameStem = $packagePartBaseNameStem === null
+                ? null
+                : self::caseFoldZipEntryName($packagePartBaseNameStem);
             $caseFoldKey = self::caseFoldZipEntryName($entry->name);
             $caseInsensitiveEquivalentEntryNames = $entryNamesByCaseFoldKey[$caseFoldKey] ?? [];
             $hasCaseInsensitiveNameCollision = count($caseInsensitiveEquivalentEntryNames) > 1;
@@ -14262,6 +14530,10 @@ final class ZipPackage
                 'pathSegmentPositionReviews' => $pathSegmentPositionReviews,
                 'pathSegmentCount' => $pathSegmentCount,
                 'directoryDepth' => $directoryDepth,
+                'packagePartBaseName' => $packagePartBaseName,
+                'packagePartCaseFoldBaseName' => $packagePartCaseFoldBaseName,
+                'packagePartBaseNameStem' => $packagePartBaseNameStem,
+                'packagePartCaseFoldBaseNameStem' => $packagePartCaseFoldBaseNameStem,
                 'packagePartExtension' => $packagePartExtension,
                 'packagePartExtensionKey' => $packagePartExtensionKey,
                 'extensionlessPackagePart' => $extensionlessPackagePart,
@@ -14376,6 +14648,10 @@ final class ZipPackage
                 'pathSegmentPositionReviews' => $summary['pathSegmentPositionReviews'],
                 'pathSegmentCount' => $summary['pathSegmentCount'],
                 'directoryDepth' => $summary['directoryDepth'],
+                'packagePartBaseName' => $summary['packagePartBaseName'],
+                'packagePartCaseFoldBaseName' => $summary['packagePartCaseFoldBaseName'],
+                'packagePartBaseNameStem' => $summary['packagePartBaseNameStem'],
+                'packagePartCaseFoldBaseNameStem' => $summary['packagePartCaseFoldBaseNameStem'],
                 'packagePartExtension' => $summary['packagePartExtension'],
                 'packagePartExtensionKey' => $summary['packagePartExtensionKey'],
                 'extensionlessPackagePart' => $summary['extensionlessPackagePart'],
@@ -14448,6 +14724,45 @@ final class ZipPackage
             $pathSegmentPositionEntryCounts[$position] = (int) $summary['entryCount'];
             $pathSegmentPositionOccurrenceCount += (int) $summary['occurrenceCount'];
         }
+        $packagePartBaseNameSummaries = self::packageManifestPartBaseNameSummaries($entries);
+        $packagePartBaseNames = array_map(
+            static fn (array $summary): string => (string) $summary['packagePartBaseName'],
+            $packagePartBaseNameSummaries
+        );
+        $duplicatePackagePartBaseNameSummaries = array_values(array_filter(
+            $packagePartBaseNameSummaries,
+            static fn (array $summary): bool => (int) $summary['entryCount'] > 1
+        ));
+        $duplicatePackagePartBaseNames = array_map(
+            static fn (array $summary): string => (string) $summary['packagePartBaseName'],
+            $duplicatePackagePartBaseNameSummaries
+        );
+        $packagePartCaseFoldBaseNameSummaries = self::packageManifestPartCaseFoldBaseNameSummaries($entries);
+        $packagePartCaseFoldBaseNames = array_map(
+            static fn (array $summary): string => (string) $summary['packagePartCaseFoldBaseName'],
+            $packagePartCaseFoldBaseNameSummaries
+        );
+        $duplicatePackagePartCaseFoldBaseNameSummaries = array_values(array_filter(
+            $packagePartCaseFoldBaseNameSummaries,
+            static fn (array $summary): bool => (int) $summary['entryCount'] > 1
+        ));
+        $duplicatePackagePartCaseFoldBaseNames = array_map(
+            static fn (array $summary): string => (string) $summary['packagePartCaseFoldBaseName'],
+            $duplicatePackagePartCaseFoldBaseNameSummaries
+        );
+        $packagePartCaseFoldBaseNameStemSummaries = self::packageManifestPartCaseFoldBaseNameStemSummaries($entries);
+        $packagePartCaseFoldBaseNameStems = array_map(
+            static fn (array $summary): string => (string) $summary['packagePartCaseFoldBaseNameStem'],
+            $packagePartCaseFoldBaseNameStemSummaries
+        );
+        $duplicatePackagePartCaseFoldBaseNameStemSummaries = array_values(array_filter(
+            $packagePartCaseFoldBaseNameStemSummaries,
+            static fn (array $summary): bool => (int) $summary['fileEntryCount'] > 1
+        ));
+        $duplicatePackagePartCaseFoldBaseNameStems = array_map(
+            static fn (array $summary): string => (string) $summary['packagePartCaseFoldBaseNameStem'],
+            $duplicatePackagePartCaseFoldBaseNameStemSummaries
+        );
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -14527,6 +14842,24 @@ final class ZipPackage
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensions' => $packagePartExtensions,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
+            'packagePartBaseNameSummaryCount' => count($packagePartBaseNameSummaries),
+            'packagePartBaseNames' => $packagePartBaseNames,
+            'packagePartBaseNameSummaries' => $packagePartBaseNameSummaries,
+            'duplicatePackagePartBaseNameCount' => count($duplicatePackagePartBaseNameSummaries),
+            'duplicatePackagePartBaseNames' => $duplicatePackagePartBaseNames,
+            'duplicatePackagePartBaseNameSummaries' => $duplicatePackagePartBaseNameSummaries,
+            'packagePartCaseFoldBaseNameSummaryCount' => count($packagePartCaseFoldBaseNameSummaries),
+            'packagePartCaseFoldBaseNames' => $packagePartCaseFoldBaseNames,
+            'packagePartCaseFoldBaseNameSummaries' => $packagePartCaseFoldBaseNameSummaries,
+            'duplicatePackagePartCaseFoldBaseNameCount' => count($duplicatePackagePartCaseFoldBaseNameSummaries),
+            'duplicatePackagePartCaseFoldBaseNames' => $duplicatePackagePartCaseFoldBaseNames,
+            'duplicatePackagePartCaseFoldBaseNameSummaries' => $duplicatePackagePartCaseFoldBaseNameSummaries,
+            'packagePartCaseFoldBaseNameStemSummaryCount' => count($packagePartCaseFoldBaseNameStemSummaries),
+            'packagePartCaseFoldBaseNameStems' => $packagePartCaseFoldBaseNameStems,
+            'packagePartCaseFoldBaseNameStemSummaries' => $packagePartCaseFoldBaseNameStemSummaries,
+            'duplicatePackagePartCaseFoldBaseNameStemCount' => count($duplicatePackagePartCaseFoldBaseNameStemSummaries),
+            'duplicatePackagePartCaseFoldBaseNameStems' => $duplicatePackagePartCaseFoldBaseNameStems,
+            'duplicatePackagePartCaseFoldBaseNameStemSummaries' => $duplicatePackagePartCaseFoldBaseNameStemSummaries,
             'pathSegmentPositionSummaryCount' => count($pathSegmentPositionSummaries),
             'pathSegmentPositionOccurrenceCount' => $pathSegmentPositionOccurrenceCount,
             'pathSegmentPositionCounts' => $pathSegmentPositionCounts,
@@ -14653,6 +14986,27 @@ final class ZipPackage
             'packagePartExtensionSummaryCount' => count($packagePartExtensionSummaries),
             'packagePartExtensions' => $packagePartExtensions,
             'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
+            'packagePartBaseNameSummaryCount' => count($packagePartBaseNameSummaries),
+            'packagePartBaseNames' => $packagePartBaseNames,
+            'packagePartBaseNameSummaries' => $packagePartBaseNameSummaries,
+            'duplicatePackagePartBaseNameCount' => count($duplicatePackagePartBaseNameSummaries),
+            'hasDuplicatePackagePartBaseNames' => $duplicatePackagePartBaseNameSummaries !== [],
+            'duplicatePackagePartBaseNames' => $duplicatePackagePartBaseNames,
+            'duplicatePackagePartBaseNameSummaries' => $duplicatePackagePartBaseNameSummaries,
+            'packagePartCaseFoldBaseNameSummaryCount' => count($packagePartCaseFoldBaseNameSummaries),
+            'packagePartCaseFoldBaseNames' => $packagePartCaseFoldBaseNames,
+            'packagePartCaseFoldBaseNameSummaries' => $packagePartCaseFoldBaseNameSummaries,
+            'duplicatePackagePartCaseFoldBaseNameCount' => count($duplicatePackagePartCaseFoldBaseNameSummaries),
+            'hasDuplicatePackagePartCaseFoldBaseNames' => $duplicatePackagePartCaseFoldBaseNameSummaries !== [],
+            'duplicatePackagePartCaseFoldBaseNames' => $duplicatePackagePartCaseFoldBaseNames,
+            'duplicatePackagePartCaseFoldBaseNameSummaries' => $duplicatePackagePartCaseFoldBaseNameSummaries,
+            'packagePartCaseFoldBaseNameStemSummaryCount' => count($packagePartCaseFoldBaseNameStemSummaries),
+            'packagePartCaseFoldBaseNameStems' => $packagePartCaseFoldBaseNameStems,
+            'packagePartCaseFoldBaseNameStemSummaries' => $packagePartCaseFoldBaseNameStemSummaries,
+            'duplicatePackagePartCaseFoldBaseNameStemCount' => count($duplicatePackagePartCaseFoldBaseNameStemSummaries),
+            'hasDuplicatePackagePartCaseFoldBaseNameStems' => $duplicatePackagePartCaseFoldBaseNameStemSummaries !== [],
+            'duplicatePackagePartCaseFoldBaseNameStems' => $duplicatePackagePartCaseFoldBaseNameStems,
+            'duplicatePackagePartCaseFoldBaseNameStemSummaries' => $duplicatePackagePartCaseFoldBaseNameStemSummaries,
             'pathSegmentPositionSummaryCount' => count($pathSegmentPositionSummaries),
             'pathSegmentPositionOccurrenceCount' => $pathSegmentPositionOccurrenceCount,
             'pathSegmentPositionCounts' => $pathSegmentPositionCounts,
