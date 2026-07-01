@@ -890,6 +890,8 @@ final class BibtexCslParser
             'original-collection-number' => self::firstField($fields, ['origseriesnumber', 'orig-series-number', 'originalseriesnumber', 'original-series-number', 'original-collection-number', 'originalcollectionnumber']),
             'original-isbn' => self::firstField($fields, ['origisbn', 'orig-isbn', 'originalisbn', 'original-isbn']),
             'original-issn' => self::firstField($fields, ['origissn', 'orig-issn', 'originalissn', 'original-issn']),
+            'original-doi' => self::firstField($fields, ['origdoi', 'orig-doi', 'originaldoi', 'original-doi']),
+            'original-url' => self::firstField($fields, ['origurl', 'orig-url', 'originalurl', 'original-url']),
             'original-date-addon' => self::firstField($fields, ['origdateaddon', 'origdate-addon', 'orig-date-addon', 'originaldateaddon', 'original-date-addon']),
             'original-publisher' => self::literalListDisplay($originalPublisherList),
             'original-publisher-place' => self::literalListDisplay($originalPublisherPlaceList),
