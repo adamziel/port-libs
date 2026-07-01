@@ -1220,6 +1220,16 @@ XML,
             'directoryEntryCount' => 'packageManifestDirectoryEntryCount',
             'compressedBytes' => 'packageManifestCompressedBytes',
             'uncompressedBytes' => 'packageManifestUncompressedBytes',
+            'expansionRatio' => 'packageManifestExpansionRatio',
+            'largestEntry' => 'packageManifestLargestEntry',
+            'zeroByteEntryCount' => 'packageManifestZeroByteEntryCount',
+            'zeroByteFileCount' => 'packageManifestZeroByteFileCount',
+            'emptyDirectoryEntryCount' => 'packageManifestEmptyDirectoryEntryCount',
+            'hasZeroByteEntries' => 'packageManifestHasZeroByteEntries',
+            'zeroByteEntries' => 'packageManifestZeroByteEntries',
+            'unknownExpansionRatioEntryCount' => 'packageManifestUnknownExpansionRatioEntryCount',
+            'hasUnknownExpansionRatioEntries' => 'packageManifestHasUnknownExpansionRatioEntries',
+            'unknownExpansionRatioEntries' => 'packageManifestUnknownExpansionRatioEntries',
             'localHeaderBytes' => 'packageManifestLocalHeaderBytes',
             'localHeaderFixedHeaderBytes' => 'packageManifestLocalHeaderFixedHeaderBytes',
             'localHeaderVariableFieldBytes' => 'packageManifestLocalHeaderVariableFieldBytes',
@@ -1322,6 +1332,16 @@ XML,
         $t->same($manifest['directoryEntryCount'], $summary['zipPackageManifestDirectoryEntryCount']);
         $t->same($manifest['compressedBytes'], $summary['zipPackageManifestCompressedBytes']);
         $t->same($manifest['uncompressedBytes'], $summary['zipPackageManifestUncompressedBytes']);
+        $t->same($manifest['expansionRatio'], $summary['zipPackageManifestExpansionRatio']);
+        $t->same($manifest['largestEntry'], $summary['zipPackageManifestLargestEntry']);
+        $t->same($manifest['zeroByteEntryCount'], $summary['zipPackageManifestZeroByteEntryCount']);
+        $t->same($manifest['zeroByteFileCount'], $summary['zipPackageManifestZeroByteFileCount']);
+        $t->same($manifest['emptyDirectoryEntryCount'], $summary['zipPackageManifestEmptyDirectoryEntryCount']);
+        $t->same($manifest['hasZeroByteEntries'], $summary['zipPackageManifestHasZeroByteEntries']);
+        $t->same($manifest['zeroByteEntries'], $summary['zipPackageManifestZeroByteEntries']);
+        $t->same($manifest['unknownExpansionRatioEntryCount'], $summary['zipPackageManifestUnknownExpansionRatioEntryCount']);
+        $t->same($manifest['hasUnknownExpansionRatioEntries'], $summary['zipPackageManifestHasUnknownExpansionRatioEntries']);
+        $t->same($manifest['unknownExpansionRatioEntries'], $summary['zipPackageManifestUnknownExpansionRatioEntries']);
         $t->same($manifest['localHeaderBytes'], $summary['zipPackageManifestLocalHeaderBytes']);
         $t->same($manifest['localHeaderFixedHeaderBytes'], $summary['zipPackageManifestLocalHeaderFixedHeaderBytes']);
         $t->same($manifest['localHeaderVariableFieldBytes'], $summary['zipPackageManifestLocalHeaderVariableFieldBytes']);

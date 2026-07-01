@@ -12227,6 +12227,22 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestDirectoryEntryCount'] = (int) ($zipPackageManifest['directoryEntryCount'] ?? 0);
         $summary['zipPackageManifestCompressedBytes'] = (int) ($zipPackageManifest['compressedBytes'] ?? 0);
         $summary['zipPackageManifestUncompressedBytes'] = (int) ($zipPackageManifest['uncompressedBytes'] ?? 0);
+        $summary['zipPackageManifestExpansionRatio'] = $zipPackageManifest['expansionRatio'] ?? null;
+        $summary['zipPackageManifestLargestEntry'] = is_array($zipPackageManifest['largestEntry'] ?? null)
+            ? $zipPackageManifest['largestEntry']
+            : null;
+        $summary['zipPackageManifestZeroByteEntryCount'] = (int) ($zipPackageManifest['zeroByteEntryCount'] ?? 0);
+        $summary['zipPackageManifestZeroByteFileCount'] = (int) ($zipPackageManifest['zeroByteFileCount'] ?? 0);
+        $summary['zipPackageManifestEmptyDirectoryEntryCount'] = (int) ($zipPackageManifest['emptyDirectoryEntryCount'] ?? 0);
+        $summary['zipPackageManifestHasZeroByteEntries'] = ($zipPackageManifest['hasZeroByteEntries'] ?? false) === true;
+        $summary['zipPackageManifestZeroByteEntries'] = is_array($zipPackageManifest['zeroByteEntries'] ?? null)
+            ? $zipPackageManifest['zeroByteEntries']
+            : [];
+        $summary['zipPackageManifestUnknownExpansionRatioEntryCount'] = (int) ($zipPackageManifest['unknownExpansionRatioEntryCount'] ?? 0);
+        $summary['zipPackageManifestHasUnknownExpansionRatioEntries'] = ($zipPackageManifest['hasUnknownExpansionRatioEntries'] ?? false) === true;
+        $summary['zipPackageManifestUnknownExpansionRatioEntries'] = is_array($zipPackageManifest['unknownExpansionRatioEntries'] ?? null)
+            ? $zipPackageManifest['unknownExpansionRatioEntries']
+            : [];
         $summary['zipPackageManifestLocalHeaderBytes'] = (int) ($zipPackageManifest['localHeaderBytes'] ?? 0);
         $summary['zipPackageManifestLocalHeaderFixedHeaderBytes'] = (int) ($zipPackageManifest['localHeaderFixedHeaderBytes'] ?? 0);
         $summary['zipPackageManifestLocalHeaderVariableFieldBytes'] = (int) ($zipPackageManifest['localHeaderVariableFieldBytes'] ?? 0);
@@ -13291,6 +13307,16 @@ final class DocxOpenXmlReader
             'directoryEntryCount' => 0,
             'compressedBytes' => 0,
             'uncompressedBytes' => 0,
+            'expansionRatio' => null,
+            'largestEntry' => null,
+            'zeroByteEntryCount' => 0,
+            'zeroByteFileCount' => 0,
+            'emptyDirectoryEntryCount' => 0,
+            'hasZeroByteEntries' => false,
+            'zeroByteEntries' => [],
+            'unknownExpansionRatioEntryCount' => 0,
+            'hasUnknownExpansionRatioEntries' => false,
+            'unknownExpansionRatioEntries' => [],
             'storedEntryCount' => 0,
             'deflatedEntryCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
@@ -13463,6 +13489,22 @@ final class DocxOpenXmlReader
             'packageManifestDirectoryEntryCount' => (int) ($packageManifest['directoryEntryCount'] ?? 0),
             'packageManifestCompressedBytes' => (int) ($packageManifest['compressedBytes'] ?? 0),
             'packageManifestUncompressedBytes' => (int) ($packageManifest['uncompressedBytes'] ?? 0),
+            'packageManifestExpansionRatio' => $packageManifest['expansionRatio'] ?? null,
+            'packageManifestLargestEntry' => is_array($packageManifest['largestEntry'] ?? null)
+                ? $packageManifest['largestEntry']
+                : null,
+            'packageManifestZeroByteEntryCount' => (int) ($packageManifest['zeroByteEntryCount'] ?? 0),
+            'packageManifestZeroByteFileCount' => (int) ($packageManifest['zeroByteFileCount'] ?? 0),
+            'packageManifestEmptyDirectoryEntryCount' => (int) ($packageManifest['emptyDirectoryEntryCount'] ?? 0),
+            'packageManifestHasZeroByteEntries' => ($packageManifest['hasZeroByteEntries'] ?? false) === true,
+            'packageManifestZeroByteEntries' => is_array($packageManifest['zeroByteEntries'] ?? null)
+                ? $packageManifest['zeroByteEntries']
+                : [],
+            'packageManifestUnknownExpansionRatioEntryCount' => (int) ($packageManifest['unknownExpansionRatioEntryCount'] ?? 0),
+            'packageManifestHasUnknownExpansionRatioEntries' => ($packageManifest['hasUnknownExpansionRatioEntries'] ?? false) === true,
+            'packageManifestUnknownExpansionRatioEntries' => is_array($packageManifest['unknownExpansionRatioEntries'] ?? null)
+                ? $packageManifest['unknownExpansionRatioEntries']
+                : [],
             'packageManifestLocalHeaderBytes' => (int) ($packageManifest['localHeaderBytes'] ?? 0),
             'packageManifestLocalHeaderFixedHeaderBytes' => (int) ($packageManifest['localHeaderFixedHeaderBytes'] ?? 0),
             'packageManifestLocalHeaderVariableFieldBytes' => (int) ($packageManifest['localHeaderVariableFieldBytes'] ?? 0),
