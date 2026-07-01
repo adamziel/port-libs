@@ -584,6 +584,7 @@ final class OpcRelationshipGraph
             $centralDirectoryRecordBytes = is_int($centralDirectoryRecordOffset) && is_int($centralDirectoryRecordEnd)
                 ? max(0, $centralDirectoryRecordEnd - $centralDirectoryRecordOffset)
                 : null;
+            $localHeaderOffset = $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset;
 
             if (!$isDirectory) {
                 try {
@@ -615,7 +616,12 @@ final class OpcRelationshipGraph
                 'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
-                'localHeaderOffset' => $orderEntry['localHeaderOffset'] ?? $entry->localHeaderOffset,
+                'localHeaderOffset' => $localHeaderOffset,
+                'localHeaderLength' => $manifestEntry['localHeaderLength'] ?? null,
+                'localHeaderSha256' => $manifestEntry['localHeaderSha256'] ?? null,
+                'compressedDataOffset' => $manifestEntry['compressedDataOffset'] ?? null,
+                'compressedDataEnd' => $manifestEntry['compressedDataEnd'] ?? null,
+                'compressedDataSha256' => $manifestEntry['compressedDataSha256'] ?? null,
                 'localHeaderNameAtCentralDirectoryIndex' => $orderEntry['localHeaderNameAtCentralDirectoryIndex'] ?? $entry->name,
                 'centralDirectoryNameAtLocalHeaderOrder' => $orderEntry['centralDirectoryNameAtLocalHeaderOrder'] ?? $entry->name,
                 'matchesCentralDirectoryOrder' => $orderEntry['matchesCentralDirectoryOrder'] ?? true,
@@ -1391,6 +1397,17 @@ final class OpcRelationshipGraph
         } catch (\Throwable $exception) {
             $localHeaderMetadataPreflightError = $exception->getMessage();
         }
+        $localHeaderSpans = null;
+        $localHeaderSpanPreflightError = null;
+        $localHeaderSpanByCentralDirectoryIndex = [];
+        try {
+            $localHeaderSpans = ZipPackage::localHeaderSpanPreflight($bytes);
+            foreach ($localHeaderSpans['entries'] as $spanEntry) {
+                $localHeaderSpanByCentralDirectoryIndex[$spanEntry['centralDirectoryIndex']] = $spanEntry;
+            }
+        } catch (\Throwable $exception) {
+            $localHeaderSpanPreflightError = $exception->getMessage();
+        }
         $entries = [];
         $contentTypesItems = [];
         $contentTypesEntryIndexes = [];
@@ -1410,6 +1427,7 @@ final class OpcRelationshipGraph
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderNameEntry = $localHeaderNameByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderMetadataEntry = $localHeaderMetadataByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $localHeaderSpanEntry = $localHeaderSpanByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderMetadataIssues = $localHeaderMetadataEntry['issues'] ?? [];
             if (($centralEntry['hasZip64SizeSentinel'] ?? false) === true) {
                 $localHeaderMetadataIssues = array_values(array_diff(
@@ -1454,6 +1472,33 @@ final class OpcRelationshipGraph
                 }
             }
             $centralDirectoryRecordBytes = max(0, $centralEntry['recordEnd'] - $centralEntry['centralDirectoryOffset']);
+            $localHeaderOffset = $localHeaderSpanEntry['localHeaderOffset'] ?? $centralEntry['localHeaderOffset'];
+            $localHeaderLength = $localHeaderSpanEntry['localHeaderLength'] ?? null;
+            $localHeaderSha256 = null;
+            if (
+                is_int($localHeaderOffset)
+                && is_int($localHeaderLength)
+                && $localHeaderOffset >= 0
+                && $localHeaderLength >= 0
+                && $localHeaderOffset + $localHeaderLength <= strlen($bytes)
+            ) {
+                $localHeaderSha256 = hash('sha256', substr($bytes, $localHeaderOffset, $localHeaderLength));
+            }
+            $compressedDataOffset = $byteCountsAreExact ? ($localHeaderSpanEntry['dataStart'] ?? null) : null;
+            $compressedDataEnd = $byteCountsAreExact ? ($localHeaderSpanEntry['compressedDataEnd'] ?? null) : null;
+            $compressedDataSha256 = null;
+            if (
+                is_int($compressedDataOffset)
+                && is_int($compressedDataEnd)
+                && $compressedDataOffset >= 0
+                && $compressedDataEnd >= $compressedDataOffset
+                && $compressedDataEnd <= strlen($bytes)
+            ) {
+                $compressedDataSha256 = hash(
+                    'sha256',
+                    substr($bytes, $compressedDataOffset, $compressedDataEnd - $compressedDataOffset)
+                );
+            }
 
             $entries[] = [
                 'entryIndex' => $entryIndex,
@@ -1516,7 +1561,12 @@ final class OpcRelationshipGraph
                     'sha256',
                     substr($bytes, $centralEntry['centralDirectoryOffset'], $centralDirectoryRecordBytes)
                 ),
-                'localHeaderOffset' => $centralEntry['localHeaderOffset'],
+                'localHeaderOffset' => $localHeaderOffset,
+                'localHeaderLength' => $localHeaderLength,
+                'localHeaderSha256' => $localHeaderSha256,
+                'compressedDataOffset' => $compressedDataOffset,
+                'compressedDataEnd' => $compressedDataEnd,
+                'compressedDataSha256' => $compressedDataSha256,
                 'compressionMethod' => $centralEntry['compressionMethod'],
                 'compressionMethodName' => $centralEntry['compressionMethodName'],
                 'compressedSize' => $centralEntry['compressedSize'],
@@ -1939,6 +1989,12 @@ final class OpcRelationshipGraph
             'localHeaderMetadataPreflightError' => $localHeaderMetadataPreflightError,
             'localHeaderMetadataMismatchEntryCount' => count($localHeaderMetadataManifestMismatchedEntries),
             'localHeaderMetadataMismatchedEntries' => $localHeaderMetadataManifestMismatchedEntries,
+            'localHeaderSpansValid' => $localHeaderSpans !== null
+                && $localHeaderSpans['isSupportedByBoundedReader'],
+            'localHeaderSpanIssues' => $localHeaderSpans['issues'] ?? (
+                $localHeaderSpanPreflightError === null ? [] : ['local-header-span-preflight-error']
+            ),
+            'localHeaderSpanPreflightError' => $localHeaderSpanPreflightError,
             'byteCountsAreExact' => $centralDirectory['totalsAreExact'],
             'unknownByteCountEntryCount' => count($unknownByteCountEntries),
             'declaredEntryCount' => $centralDirectory['declaredEntryCount'],
@@ -1996,6 +2052,7 @@ final class OpcRelationshipGraph
             'localHeaderOrder' => $localHeaderOrder,
             'localHeaderNames' => $localHeaderNames,
             'localHeaderMetadata' => $localHeaderMetadata,
+            'localHeaderSpans' => $localHeaderSpans,
             'contentTypesItems' => $contentTypesItems,
             'equivalentPackagePartNameGroups' => $equivalentPackagePartNameGroups,
             'relationshipParts' => $relationshipParts,
