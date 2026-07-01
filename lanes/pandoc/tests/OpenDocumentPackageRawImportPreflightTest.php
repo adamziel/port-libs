@@ -40,6 +40,89 @@ $buildOdtZipBytes = static function () use ($manifestXml, $contentXml): string {
     ])->bytes();
 };
 
+$buildOdtZipBytesWithCentralDirectoryRatioBuckets = static function () use ($manifestXml, $contentXml): string {
+    $parts = [
+        ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+        ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml, 'compressionMethod' => 0],
+        ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 0],
+        ['name' => 'Pictures/empty.bin', 'data' => '', 'compressionMethod' => 0],
+        ['name' => 'Pictures/high.bin', 'data' => str_repeat('H', 70000), 'compressionMethod' => 8],
+        [
+            'name' => 'Payloads/zero-compressed.bin',
+            'data' => '',
+            'compressionMethod' => 12,
+            'centralCompressedSize' => 0,
+            'centralUncompressedSize' => 37,
+            'localCompressedSize' => 0,
+            'localUncompressedSize' => 37,
+            'crc32' => 0,
+        ],
+    ];
+    $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+    $body = '';
+    $central = '';
+
+    foreach ($parts as $part) {
+        $name = $part['name'];
+        $data = $part['data'] ?? '';
+        $method = $part['compressionMethod'] ?? 0;
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        if (!is_string($compressed)) {
+            throw new RuntimeException("Unable to deflate ZIP entry {$name}");
+        }
+
+        $localCompressedSize = $part['localCompressedSize'] ?? strlen($compressed);
+        $localUncompressedSize = $part['localUncompressedSize'] ?? strlen($data);
+        $centralCompressedSize = $part['centralCompressedSize'] ?? strlen($compressed);
+        $centralUncompressedSize = $part['centralUncompressedSize'] ?? strlen($data);
+        $crc = $part['crc32'] ?? $crc32($data);
+        $offset = strlen($body);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            $localCompressedSize,
+            $localUncompressedSize,
+            strlen($name),
+            0
+        ) . $name . $compressed;
+
+        $central .= pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            $centralCompressedSize,
+            $centralUncompressedSize,
+            strlen($name),
+            0,
+            0,
+            0,
+            0,
+            0,
+            $offset
+        ) . $name;
+    }
+
+    $centralOffset = strlen($body);
+    $entryCount = count($parts);
+
+    return $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), $centralOffset, 0);
+};
+
 $addZip64EndOfCentralDirectory = static function (string $zip) use ($packUInt64): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -89,6 +172,47 @@ return [
         $t->same([], $summary['diagnostics']);
         $t->same('odf-raw-package-import-metadata-only', $summary['byteExposurePolicy']);
         $t->same(false, $summary['canExposeBytes']);
+    },
+
+    'summarizes raw ODT central directory expansion ratio buckets before package instantiation' => static function (TestRunner $t) use ($buildOdtZipBytesWithCentralDirectoryRatioBuckets): void {
+        $summary = OpenDocumentPackage::rawImportPreflight(
+            $buildOdtZipBytesWithCentralDirectoryRatioBuckets(),
+            null,
+            10.0
+        );
+
+        $indexByBucket = [];
+        foreach ($summary['rawCentralDirectoryExpansionRatioBucketSummaries'] as $bucketSummary) {
+            $indexByBucket[$bucketSummary['expansionRatioBucket']] = $bucketSummary;
+        }
+
+        $t->same(4, $summary['rawCentralDirectoryExpansionRatioBucketSummaryCount']);
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x', 'unknown'], $summary['rawCentralDirectoryExpansionRatioBuckets']);
+        $t->same(6, $summary['rawCentralDirectoryExpansionRatioEntryCount']);
+        $t->same(1, $summary['rawCentralDirectoryExpansionRatioUnknownEntryCount']);
+        $t->same('odf-raw-central-directory-expansion-ratio-metadata-only', $summary['rawCentralDirectoryExpansionRatioByteExposurePolicy']);
+        $t->same(false, $summary['rawCentralDirectoryExpansionRatioCanExposeBytes']);
+        $t->same($summary['zipRawStrictImport']['centralDirectorySize']['entries'], array_values($summary['zipRawStrictImport']['centralDirectorySize']['entries']));
+        $t->same(['Pictures/empty.bin'], $indexByBucket['zero-byte']['entryNames']);
+        $t->same(['mimetype', 'META-INF/manifest.xml', 'content.xml'], $indexByBucket['up-to-1x']['entryNames']);
+        $t->same(['Pictures/high.bin'], $indexByBucket['over-100x']['entryNames']);
+        $t->same(['Payloads/zero-compressed.bin'], $indexByBucket['unknown']['entryNames']);
+        $t->same(['Pictures/'], $indexByBucket['zero-byte']['directoryRoots']);
+        $t->same(['/', 'META-INF/'], $indexByBucket['up-to-1x']['directoryRoots']);
+        $t->same(['Pictures/'], $indexByBucket['over-100x']['directoryRoots']);
+        $t->same(['Payloads/'], $indexByBucket['unknown']['directoryRoots']);
+        $t->same(['stored'], $indexByBucket['zero-byte']['compressionMethodNames']);
+        $t->same(['deflated'], $indexByBucket['over-100x']['compressionMethodNames']);
+        $t->same(['unsupported'], $indexByBucket['unknown']['compressionMethodNames']);
+        $t->same(1, $indexByBucket['unknown']['unknownExpansionRatioEntryCount']);
+        $t->same(null, $indexByBucket['unknown']['largestExpansionRatio']);
+        $t->same('Pictures/high.bin', $indexByBucket['over-100x']['largestExpansionRatioEntryName']);
+        $t->true(($indexByBucket['over-100x']['largestExpansionRatio'] ?? 0.0) > 100.0);
+        $diagnostics = implode(',', $summary['diagnostics']);
+        $t->contains('expansion-ratio-unknown', $diagnostics);
+        $t->contains('unsupported-compression-methods', $diagnostics);
+        $encodedSummary = json_encode($summary['rawCentralDirectoryExpansionRatioBucketSummaries'], JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedSummary, str_repeat('H', 32)));
     },
 
     'preflights ZIP64 EOCD ODT packages before bounded package instantiation' => static function (TestRunner $t) use ($buildOdtZipBytes, $addZip64EndOfCentralDirectory): void {

@@ -161,6 +161,7 @@ final class OpenDocumentPackage
         $zip64 = is_array($zipPreflight['zip64EndOfCentralDirectory'] ?? null)
             ? $zipPreflight['zip64EndOfCentralDirectory']
             : null;
+        $rawCentralDirectoryExpansionRatio = self::rawCentralDirectoryExpansionRatioBucketPreflight($zipPreflight);
         $diagnostics = [];
         $addDiagnostic = static function (string $diagnostic) use (&$diagnostics): void {
             if (!in_array($diagnostic, $diagnostics, true)) {
@@ -239,11 +240,138 @@ final class OpenDocumentPackage
                 && ($zip64['hasZip64EndOfCentralDirectory'] ?? false) === true,
             'zip64EndOfCentralDirectoryIssueCodes' => $zip64['issues'] ?? [],
             'zip64EndOfCentralDirectory' => $zip64,
+            'rawCentralDirectoryExpansionRatioBucketSummaryCount' => $rawCentralDirectoryExpansionRatio['summaryCount'],
+            'rawCentralDirectoryExpansionRatioBuckets' => $rawCentralDirectoryExpansionRatio['buckets'],
+            'rawCentralDirectoryExpansionRatioBucketSummaries' => $rawCentralDirectoryExpansionRatio['summaries'],
+            'rawCentralDirectoryExpansionRatioUnknownEntryCount' => $rawCentralDirectoryExpansionRatio['unknownEntryCount'],
+            'rawCentralDirectoryExpansionRatioEntryCount' => $rawCentralDirectoryExpansionRatio['entryCount'],
+            'rawCentralDirectoryExpansionRatioByteExposurePolicy' => 'odf-raw-central-directory-expansion-ratio-metadata-only',
+            'rawCentralDirectoryExpansionRatioCanExposeBytes' => false,
             'zipRawStrictImport' => $zipPreflight,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
             'byteExposurePolicy' => 'odf-raw-package-import-metadata-only',
             'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $zipPreflight
+     * @return array{
+     *     summaryCount:int,
+     *     buckets:list<string>,
+     *     summaries:list<array<string, mixed>>,
+     *     unknownEntryCount:int,
+     *     entryCount:int
+     * }
+     */
+    private static function rawCentralDirectoryExpansionRatioBucketPreflight(array $zipPreflight): array
+    {
+        $centralDirectory = is_array($zipPreflight['centralDirectorySize'] ?? null)
+            ? $zipPreflight['centralDirectorySize']
+            : [];
+        $entries = is_array($centralDirectory['entries'] ?? null) ? $centralDirectory['entries'] : [];
+        $summaries = [];
+        $entryCount = 0;
+        $unknownEntryCount = 0;
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            ++$entryCount;
+            $compressedSize = is_int($entry['compressedSize'] ?? null) ? $entry['compressedSize'] : 0;
+            $uncompressedSize = is_int($entry['uncompressedSize'] ?? null) ? $entry['uncompressedSize'] : 0;
+            $expansionRatio = is_float($entry['expansionRatio'] ?? null) || is_int($entry['expansionRatio'] ?? null)
+                ? (float) $entry['expansionRatio']
+                : null;
+            $bucket = self::zipPackageManifestExpansionRatioBucket($expansionRatio);
+            $bucketKey = $bucket['expansionRatioBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'expansionRatioBucket' => $bucket['expansionRatioBucket'],
+                    'minExpansionRatio' => $bucket['minExpansionRatio'],
+                    'maxExpansionRatio' => $bucket['maxExpansionRatio'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'unknownExpansionRatioEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'directoryRoots' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'largestExpansionRatioEntryName' => null,
+                    'largestExpansionRatio' => null,
+                ];
+            }
+
+            ++$summaries[$bucketKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+            if ($expansionRatio === null) {
+                ++$summaries[$bucketKey]['unknownExpansionRatioEntryCount'];
+                ++$unknownEntryCount;
+            }
+
+            $summaries[$bucketKey]['compressedBytes'] += $compressedSize;
+            $summaries[$bucketKey]['uncompressedBytes'] += $uncompressedSize;
+            $summaries[$bucketKey]['entryNames'][] = $name;
+
+            $directoryRoot = self::packageDirectoryRoot($name);
+            if (!in_array($directoryRoot, $summaries[$bucketKey]['directoryRoots'], true)) {
+                $summaries[$bucketKey]['directoryRoots'][] = $directoryRoot;
+            }
+            $compressionMethodName = is_string($entry['compressionMethodName'] ?? null)
+                ? $entry['compressionMethodName']
+                : '';
+            if ($compressionMethodName !== '' && !in_array($compressionMethodName, $summaries[$bucketKey]['compressionMethodNames'], true)) {
+                $summaries[$bucketKey]['compressionMethodNames'][] = $compressionMethodName;
+            }
+
+            if (
+                $expansionRatio !== null
+                && (
+                    !is_float($summaries[$bucketKey]['largestExpansionRatio'])
+                    || $expansionRatio > $summaries[$bucketKey]['largestExpansionRatio']
+                )
+            ) {
+                $summaries[$bucketKey]['largestExpansionRatioEntryName'] = $name;
+                $summaries[$bucketKey]['largestExpansionRatio'] = $expansionRatio;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['zero-byte', 'up-to-1x', '1x-to-10x', '10x-to-100x', 'over-100x', 'unknown'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return [
+            'summaryCount' => count($ordered),
+            'buckets' => array_map(
+                static fn (array $summary): string => (string) $summary['expansionRatioBucket'],
+                $ordered
+            ),
+            'summaries' => $ordered,
+            'unknownEntryCount' => $unknownEntryCount,
+            'entryCount' => $entryCount,
         ];
     }
 
