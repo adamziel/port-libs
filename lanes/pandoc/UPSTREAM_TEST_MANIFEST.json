@@ -20,6 +20,8 @@
     "docxPackageCaseFoldPathSegmentAssertions": 57,
     "mappedDocxPackageCaseFoldPathSegmentPositionCases": 1,
     "docxPackageCaseFoldPathSegmentPositionAssertions": 69,
+    "mappedDocxPackagePartPathSegmentNameCharacterCases": 1,
+    "docxPackagePartPathSegmentNameCharacterAssertions": 67,
     "mappedDocxPackagePartDirectoryNameCharacterCases": 2,
     "docxPackagePartDirectoryNameCharacterAssertions": 67,
     "mappedDocxRelationshipTargetCaseFoldPathSegmentPositionCases": 1,
