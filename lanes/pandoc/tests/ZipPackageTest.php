@@ -11678,6 +11678,59 @@ return [
         $t->same($commentsSpan['dataDescriptorSha256'], $commentsEntry['dataDescriptorSha256']);
         $t->same($commentsSpan['sourceRecordBytes'], $commentsEntry['sourceRecordBytes']);
         $t->same($commentsSpan['centralDirectoryRecordSha256'], $commentsEntry['centralDirectoryRecordSha256']);
+
+        $expectedManifestEntries = [
+            [
+                'name' => 'word/document.xml',
+                'localRecordOffset' => $documentSpan['localRecordOffset'],
+                'localRecordBytes' => $documentSpan['localRecordBytes'],
+                'localRecordSha256' => hash('sha256', substr($zip, $documentSpan['localRecordOffset'], $documentSpan['localRecordBytes'])),
+                'compressedDataOffset' => $documentSpan['compressedDataOffset'],
+                'compressedDataBytes' => strlen($documentXml),
+                'compressedDataSha256' => hash('sha256', $documentXml),
+                'dataDescriptorOffset' => null,
+                'dataDescriptorBytes' => 0,
+                'dataDescriptorSha256' => null,
+                'centralDirectoryRecordOffset' => $documentSpan['centralDirectoryRecordOffset'],
+                'centralDirectoryRecordBytes' => $documentSpan['centralDirectoryRecordBytes'],
+                'centralDirectoryRecordSha256' => hash('sha256', substr($zip, $documentSpan['centralDirectoryRecordOffset'], $documentSpan['centralDirectoryRecordBytes'])),
+                'sourceRecordBytes' => $documentSpan['sourceRecordBytes'],
+                'sourceByteSpanIssues' => [],
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'localRecordOffset' => $commentsSpan['localRecordOffset'],
+                'localRecordBytes' => $commentsSpan['localRecordBytes'],
+                'localRecordSha256' => hash('sha256', substr($zip, $commentsSpan['localRecordOffset'], $commentsSpan['localRecordBytes'])),
+                'compressedDataOffset' => $commentsSpan['compressedDataOffset'],
+                'compressedDataBytes' => strlen($commentsCompressed),
+                'compressedDataSha256' => hash('sha256', $commentsCompressed),
+                'dataDescriptorOffset' => $commentsSpan['dataDescriptorOffset'],
+                'dataDescriptorBytes' => 16,
+                'dataDescriptorSha256' => hash('sha256', substr($zip, $commentsSpan['dataDescriptorOffset'], 16)),
+                'centralDirectoryRecordOffset' => $commentsSpan['centralDirectoryRecordOffset'],
+                'centralDirectoryRecordBytes' => $commentsSpan['centralDirectoryRecordBytes'],
+                'centralDirectoryRecordSha256' => hash('sha256', substr($zip, $commentsSpan['centralDirectoryRecordOffset'], $commentsSpan['centralDirectoryRecordBytes'])),
+                'sourceRecordBytes' => $commentsSpan['sourceRecordBytes'],
+                'sourceByteSpanIssues' => [],
+            ],
+        ];
+        $expectedManifestHash = hash('sha256', json_encode([
+            'manifestVersion' => 'zip-selected-source-manifest-v1',
+            'entries' => $expectedManifestEntries,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        $t->same('zip-selected-source-manifest-v1', $summary['selectedSourceManifestVersion']);
+        $t->same($expectedManifestHash, $summary['selectedSourceManifestSha256']);
+        $t->same('zip-selected-source-manifest-v1', $summary['selectedSourceManifest']['manifestVersion']);
+        $t->same($expectedManifestHash, $summary['selectedSourceManifest']['manifestSha256']);
+        $t->same(2, $summary['selectedSourceManifest']['entryCount']);
+        $t->same($summary['selectedSourceLocalRecordBytes'], $summary['selectedSourceManifest']['localRecordBytes']);
+        $t->same($summary['selectedSourceCompressedDataBytes'], $summary['selectedSourceManifest']['compressedDataBytes']);
+        $t->same($summary['selectedSourceDataDescriptorBytes'], $summary['selectedSourceManifest']['dataDescriptorBytes']);
+        $t->same($summary['selectedSourceCentralDirectoryRecordBytes'], $summary['selectedSourceManifest']['centralDirectoryRecordBytes']);
+        $t->same($summary['selectedSourceTotalRecordBytes'], $summary['selectedSourceManifest']['sourceRecordBytes']);
+        $t->same($expectedManifestEntries, $summary['selectedSourceManifest']['entries']);
         $t->same([$documentEntry, $commentsEntry], $summary['handoffEntries']);
     },
 

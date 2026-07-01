@@ -5136,6 +5136,9 @@ final class ZipPackage
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
+     *     selectedSourceManifestVersion:string,
+     *     selectedSourceManifestSha256:string,
+     *     selectedSourceManifest:array<string, mixed>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -5947,6 +5950,7 @@ final class ZipPackage
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $selectedSourceManifest = self::selectedSourceByteSpanManifest($selectedSourceByteSpanEntries);
 
         return [
             'requestedEntryCount' => count($requests),
@@ -6044,6 +6048,8 @@ final class ZipPackage
             'selectedSourceTotalRecordBytes' => $selectedSourceTotalRecordBytes,
             'selectedSourceByteSpanIssueCount' => count($selectedSourceByteSpanIssues),
             'selectedSourceByteSpanIssues' => $selectedSourceByteSpanIssues,
+            'selectedSourceManifestVersion' => $selectedSourceManifest['manifestVersion'],
+            'selectedSourceManifestSha256' => $selectedSourceManifest['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -6070,10 +6076,82 @@ final class ZipPackage
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
+            'selectedSourceManifest' => $selectedSourceManifest,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{
+     *     manifestVersion:string,
+     *     manifestSha256:string,
+     *     entryCount:int,
+     *     localRecordBytes:int,
+     *     compressedDataBytes:int,
+     *     dataDescriptorBytes:int,
+     *     centralDirectoryRecordBytes:int,
+     *     sourceRecordBytes:int,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    private static function selectedSourceByteSpanManifest(array $entries): array
+    {
+        $manifestEntries = [];
+        $localRecordBytes = 0;
+        $compressedDataBytes = 0;
+        $dataDescriptorBytes = 0;
+        $centralDirectoryRecordBytes = 0;
+        $sourceRecordBytes = 0;
+
+        foreach ($entries as $entry) {
+            $localRecordBytes += (int) ($entry['localRecordBytes'] ?? 0);
+            $compressedDataBytes += (int) ($entry['compressedDataBytes'] ?? 0);
+            $dataDescriptorBytes += (int) ($entry['dataDescriptorBytes'] ?? 0);
+            $centralDirectoryRecordBytes += (int) ($entry['centralDirectoryRecordBytes'] ?? 0);
+            $sourceRecordBytes += (int) ($entry['sourceRecordBytes'] ?? 0);
+
+            $manifestEntries[] = [
+                'name' => $entry['name'] ?? null,
+                'localRecordOffset' => $entry['localRecordOffset'] ?? null,
+                'localRecordBytes' => $entry['localRecordBytes'] ?? null,
+                'localRecordSha256' => $entry['localRecordSha256'] ?? null,
+                'compressedDataOffset' => $entry['compressedDataOffset'] ?? null,
+                'compressedDataBytes' => $entry['compressedDataBytes'] ?? null,
+                'compressedDataSha256' => $entry['compressedDataSha256'] ?? null,
+                'dataDescriptorOffset' => $entry['dataDescriptorOffset'] ?? null,
+                'dataDescriptorBytes' => $entry['dataDescriptorBytes'] ?? 0,
+                'dataDescriptorSha256' => $entry['dataDescriptorSha256'] ?? null,
+                'centralDirectoryRecordOffset' => $entry['centralDirectoryRecordOffset'] ?? null,
+                'centralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'] ?? null,
+                'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
+                'sourceRecordBytes' => $entry['sourceRecordBytes'] ?? null,
+                'sourceByteSpanIssues' => $entry['sourceByteSpanIssues'] ?? [],
+            ];
+        }
+
+        $manifestPayload = [
+            'manifestVersion' => 'zip-selected-source-manifest-v1',
+            'entries' => $manifestEntries,
+        ];
+        $manifestJson = json_encode(
+            $manifestPayload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return [
+            'manifestVersion' => 'zip-selected-source-manifest-v1',
+            'manifestSha256' => hash('sha256', $manifestJson),
+            'entryCount' => count($manifestEntries),
+            'localRecordBytes' => $localRecordBytes,
+            'compressedDataBytes' => $compressedDataBytes,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'sourceRecordBytes' => $sourceRecordBytes,
+            'entries' => $manifestEntries,
         ];
     }
 
