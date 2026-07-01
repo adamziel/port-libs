@@ -1132,6 +1132,7 @@ final class OpenDocumentPackage
         $dataDescriptorByName = self::zipPreflightEntriesByName($dataDescriptors);
         $comments = $this->package->commentPreflight();
         $extraFields = $this->package->extraFieldPreflight();
+        $unixOwners = $this->package->unixOwnerPreflight();
         $modificationTimes = $this->package->modificationTimePreflight();
         $modificationTimeByName = self::zipModificationTimeEntriesByName($modificationTimes);
         $platformMetadata = $this->package->platformMetadataPreflight();
@@ -1161,6 +1162,7 @@ final class OpenDocumentPackage
             }
         }
         $extraFieldsByName = self::zipPreflightEntriesByName($extraFields);
+        $unixOwnersByName = self::zipPreflightEntriesByName($unixOwners);
 
         $parts = [];
         $undeclaredEntries = [];
@@ -1244,6 +1246,7 @@ final class OpenDocumentPackage
             $rawNameProvenance = self::zipEntryRawNameProvenance($entry);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldEntry);
+            $unixOwnerProvenance = self::zipUnixOwnerProvenance($unixOwnersByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -1408,7 +1411,7 @@ final class OpenDocumentPackage
                 'pathSegmentHasWhitespace' => self::pathSegmentCharacterHasFlag($pathSegmentCharacterFlags, 'whitespace'),
                 'pathSegmentHasPercentEncodedOctet' => self::pathSegmentCharacterHasFlag($pathSegmentCharacterFlags, 'percent-encoded-octet'),
                 'pathSegmentHasNonAscii' => self::pathSegmentCharacterHasFlag($pathSegmentCharacterFlags, 'non-ascii'),
-            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $localHeaderProvenance + $generalPurposeFlagProvenance + $dataDescriptorProvenance + $extraFieldProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $sourceRecordProvenance + $timestampProvenance + $localHeaderProvenance + $generalPurposeFlagProvenance + $dataDescriptorProvenance + $extraFieldProvenance + $unixOwnerProvenance + $platformAttributeProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -1738,6 +1741,11 @@ final class OpenDocumentPackage
             'zipCentralOnlyExtraFieldIdCount' => $extraFields['centralOnlyExtraFieldIdCount'],
             'zipLocalOnlyExtraFieldIdCount' => $extraFields['localOnlyExtraFieldIdCount'],
             'zipExtraFieldIdUsage' => $extraFields['extraFieldIdUsage'],
+            'unixOwners' => $unixOwners,
+            'zipUnixOwnerMetadataEntryCount' => $unixOwners['ownerMetadataEntryCount'],
+            'zipCentralUnixOwnerMetadataEntryCount' => $unixOwners['centralOwnerMetadataEntryCount'],
+            'zipLocalUnixOwnerMetadataEntryCount' => $unixOwners['localOwnerMetadataEntryCount'],
+            'zipMismatchedUnixOwnerMetadataEntryCount' => $unixOwners['mismatchedOwnerMetadataEntryCount'],
             'modificationTimes' => $modificationTimes,
             'zipTimestampEntryCount' => $modificationTimes['timestampEntryCount'],
             'zipDosTimestampEntryCount' => $modificationTimes['dosTimestampEntryCount'],
@@ -2222,6 +2230,13 @@ final class OpenDocumentPackage
                 'creatorVersionComparison' => $part['creatorVersionComparison'] ?? null,
                 'creatorVersionDelta' => $part['creatorVersionDelta'] ?? null,
                 'creatorHostIssues' => $part['creatorHostIssues'] ?? [],
+                'zipCentralUnixOwner' => $part['zipCentralUnixOwner'] ?? null,
+                'zipLocalUnixOwner' => $part['zipLocalUnixOwner'] ?? null,
+                'zipHasCentralUnixOwner' => ($part['zipHasCentralUnixOwner'] ?? false) === true,
+                'zipHasLocalUnixOwner' => ($part['zipHasLocalUnixOwner'] ?? false) === true,
+                'zipUnixOwnerMetadataMatches' => ($part['zipUnixOwnerMetadataMatches'] ?? true) === true,
+                'zipUnixOwnerIssues' => $part['zipUnixOwnerIssues'] ?? [],
+                'hasZipUnixOwnerProvenance' => ($part['hasZipUnixOwnerProvenance'] ?? false) === true,
                 'externalAttributes' => $part['externalAttributes'] ?? null,
                 'externalAttributesHex' => $part['externalAttributesHex'] ?? null,
                 'hasExternalAttributes' => ($part['hasExternalAttributes'] ?? false) === true,
@@ -2472,6 +2487,11 @@ final class OpenDocumentPackage
             'zipCentralOnlyExtraFieldIdCount' => $packageInventory['zipCentralOnlyExtraFieldIdCount'] ?? 0,
             'zipLocalOnlyExtraFieldIdCount' => $packageInventory['zipLocalOnlyExtraFieldIdCount'] ?? 0,
             'zipExtraFieldIdUsage' => $packageInventory['zipExtraFieldIdUsage'] ?? [],
+            'zipUnixOwnerMetadataEntryCount' => $packageInventory['zipUnixOwnerMetadataEntryCount'] ?? 0,
+            'zipCentralUnixOwnerMetadataEntryCount' => $packageInventory['zipCentralUnixOwnerMetadataEntryCount'] ?? 0,
+            'zipLocalUnixOwnerMetadataEntryCount' => $packageInventory['zipLocalUnixOwnerMetadataEntryCount'] ?? 0,
+            'zipMismatchedUnixOwnerMetadataEntryCount' => $packageInventory['zipMismatchedUnixOwnerMetadataEntryCount'] ?? 0,
+            'unixOwners' => $packageInventory['unixOwners'] ?? [],
             'comments' => [
                 'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
                 'packageComment' => $comments['packageComment'] ?? null,
@@ -3774,6 +3794,29 @@ final class OpenDocumentPackage
                 && ($extraFieldEntry['hasMismatchedExtraFieldIds'] ?? false) === true,
             'hasMismatchedExtraFieldValues' => is_array($extraFieldEntry)
                 && ($extraFieldEntry['hasMismatchedExtraFieldValues'] ?? false) === true,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipUnixOwnerProvenance(?array $entry): array
+    {
+        $centralOwner = is_array($entry['centralOwner'] ?? null) ? $entry['centralOwner'] : null;
+        $localOwner = is_array($entry['localOwner'] ?? null) ? $entry['localOwner'] : null;
+        $issues = is_array($entry['issues'] ?? null)
+            ? array_values(array_map('strval', $entry['issues']))
+            : [];
+
+        return [
+            'zipCentralUnixOwner' => $centralOwner,
+            'zipLocalUnixOwner' => $localOwner,
+            'zipHasCentralUnixOwner' => ($entry['hasCentralOwnerMetadata'] ?? false) === true,
+            'zipHasLocalUnixOwner' => ($entry['hasLocalOwnerMetadata'] ?? false) === true,
+            'zipUnixOwnerMetadataMatches' => ($entry['ownerMetadataMatches'] ?? true) === true,
+            'zipUnixOwnerIssues' => $issues,
+            'hasZipUnixOwnerProvenance' => $centralOwner !== null || $localOwner !== null || $issues !== [],
         ];
     }
 
