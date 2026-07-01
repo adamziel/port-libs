@@ -3266,11 +3266,54 @@ XML);
             'title' => 'Manual Original Packet',
             'original-title' => 'Original Manual: Archive',
             'original-title-addon' => 'Direct addendum',
+        ], [
+            'id' => 'manual-original-title-compact-addendum',
+            'title' => 'Manual Compact Addendum Packet',
+            'origtitle' => 'Manual fuente',
+            'origtitle-addon' => 'compact direct addendum',
+        ], [
+            'id' => 'manual-original-title-flat-addendum',
+            'title' => 'Manual Flat Addendum Packet',
+            'originaltitle' => 'Flat Source Manual',
+            'original-titleaddon' => 'flat direct addendum',
         ]]);
         $directItem = $direct->item('manual-original-title');
+        $compactDirectItem = $direct->item('manual-original-title-compact-addendum');
+        $flatDirectItem = $direct->item('manual-original-title-flat-addendum');
         $t->same('Original Manual: Archive', $directItem['originalTitle'] ?? null);
         $t->same('Direct addendum', $directItem['originalTitleAddon'] ?? null);
+        $t->same('Manual fuente', $compactDirectItem['originalTitle'] ?? null);
+        $t->same('compact direct addendum', $compactDirectItem['originalTitleAddon'] ?? null);
+        $t->same('Flat Source Manual', $flatDirectItem['originalTitle'] ?? null);
+        $t->same('flat direct addendum', $flatDirectItem['originalTitleAddon'] ?? null);
         $t->same('Manual Original Packet. Original title: Original Manual: Archive. Original title addendum: Direct addendum.', $direct->renderBibliographyEntry('manual-original-title'));
+
+        $directStyled = $direct->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="original-title"/>
+        <text variable="origtitle-addon"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-title"/>
+      <text variable="original-titleaddon"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+        $t->same('[Manual fuente | compact direct addendum; Flat Source Manual | flat direct addendum]', $directStyled->renderCitationCluster([
+            $citation('manual-original-title-compact-addendum', '[@manual-original-title-compact-addendum]'),
+            $citation('manual-original-title-flat-addendum', '[@manual-original-title-flat-addendum]'),
+        ]));
+        $t->same('Manual Compact Addendum Packet :: Manual fuente :: compact direct addendum', $directStyled->renderBibliographyEntry('manual-original-title-compact-addendum'));
+        $t->same('Manual Flat Addendum Packet :: Flat Source Manual :: flat direct addendum', $directStyled->renderBibliographyEntry('manual-original-title-flat-addendum'));
 
         $document = (new MarkdownReader())->read('Original subtitle source @original-subtitle-manual keeps original-title review metadata.');
         $blocks = (new WordPressBlockWriter())->write($processor->appendBibliography($document, 'Works Cited'));
