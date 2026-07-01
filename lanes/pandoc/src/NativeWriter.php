@@ -860,6 +860,7 @@ final class NativeWriter
             'image',
             'span',
             'citation',
+            'note',
         ], true);
     }
 

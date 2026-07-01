@@ -201,6 +201,7 @@ final class NativeReader
             'image',
             'span',
             'citation',
+            'note',
         ], true);
     }
 
