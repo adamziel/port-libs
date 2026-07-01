@@ -13696,9 +13696,23 @@ final class ZipPackage
         foreach ($localEntries as $localHeaderOrder => $entry) {
             $localOrderByName[$entry->name] = $localHeaderOrder;
         }
+        $entryNamesByCaseFoldKey = [];
+        foreach ($this->entries as $entry) {
+            $entryNamesByCaseFoldKey[self::caseFoldZipEntryName($entry->name)][] = $entry->name;
+        }
+        $caseInsensitiveNameCollisionGroups = [];
+        foreach ($entryNamesByCaseFoldKey as $caseFoldKey => $entryNames) {
+            if (count($entryNames) > 1) {
+                $caseInsensitiveNameCollisionGroups[] = [
+                    'caseFoldKey' => $caseFoldKey,
+                    'entryNames' => $entryNames,
+                ];
+            }
+        }
 
         $entries = [];
         $manifestEntries = [];
+        $caseInsensitiveNameCollisionEntries = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
         $storedEntryCount = 0;
@@ -13737,6 +13751,12 @@ final class ZipPackage
             $pathSegments = self::zipEntryPathSegments($entry->name);
             $pathSegmentCount = count($pathSegments);
             $directoryDepth = max(0, $pathSegmentCount - 1);
+            $caseFoldKey = self::caseFoldZipEntryName($entry->name);
+            $caseInsensitiveEquivalentEntryNames = $entryNamesByCaseFoldKey[$caseFoldKey] ?? [];
+            $hasCaseInsensitiveNameCollision = count($caseInsensitiveEquivalentEntryNames) > 1;
+            $caseInsensitiveNameCollisionIssues = $hasCaseInsensitiveNameCollision
+                ? ['case-insensitive-name-collision']
+                : [];
             $packagePartExtension = self::zipPackagePartExtension($entry->name, $isDirectory);
             $packagePartExtensionKey = $isDirectory
                 ? '(directory)'
@@ -13941,6 +13961,10 @@ final class ZipPackage
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
+                'caseFoldKey' => $caseFoldKey,
+                'caseInsensitiveEquivalentEntryNames' => $caseInsensitiveEquivalentEntryNames,
+                'hasCaseInsensitiveNameCollision' => $hasCaseInsensitiveNameCollision,
+                'caseInsensitiveNameCollisionIssues' => $caseInsensitiveNameCollisionIssues,
                 'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
                 'pathSegments' => $pathSegments,
                 'pathSegmentCount' => $pathSegmentCount,
@@ -14002,9 +14026,22 @@ final class ZipPackage
                 'centralDirectoryReviewFieldBytes' => $entryCentralDirectoryReviewFieldBytes,
             ];
             $entries[] = $summary;
+            if ($hasCaseInsensitiveNameCollision) {
+                $caseInsensitiveNameCollisionEntries[] = [
+                    'name' => $summary['name'],
+                    'caseFoldKey' => $summary['caseFoldKey'],
+                    'caseInsensitiveEquivalentEntryNames' => $summary['caseInsensitiveEquivalentEntryNames'],
+                    'hasCaseInsensitiveNameCollision' => $summary['hasCaseInsensitiveNameCollision'],
+                    'caseInsensitiveNameCollisionIssues' => $summary['caseInsensitiveNameCollisionIssues'],
+                ];
+            }
             $manifestEntries[] = [
                 'name' => $summary['name'],
                 'isDirectory' => $summary['isDirectory'],
+                'caseFoldKey' => $summary['caseFoldKey'],
+                'caseInsensitiveEquivalentEntryNames' => $summary['caseInsensitiveEquivalentEntryNames'],
+                'hasCaseInsensitiveNameCollision' => $summary['hasCaseInsensitiveNameCollision'],
+                'caseInsensitiveNameCollisionIssues' => $summary['caseInsensitiveNameCollisionIssues'],
                 'directoryRoot' => $summary['directoryRoot'],
                 'pathSegments' => $summary['pathSegments'],
                 'pathSegmentCount' => $summary['pathSegmentCount'],
@@ -14110,6 +14147,10 @@ final class ZipPackage
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
+            'caseInsensitiveNameCollisionGroupCount' => count($caseInsensitiveNameCollisionGroups),
+            'caseInsensitiveNameCollisionEntryCount' => count($caseInsensitiveNameCollisionEntries),
+            'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNameCollisionGroups,
+            'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'directoryRootSummaries' => $directoryRootSummaries,
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
@@ -14189,6 +14230,11 @@ final class ZipPackage
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
+            'caseInsensitiveNameCollisionGroupCount' => count($caseInsensitiveNameCollisionGroups),
+            'caseInsensitiveNameCollisionEntryCount' => count($caseInsensitiveNameCollisionEntries),
+            'hasCaseInsensitiveNameCollisions' => $caseInsensitiveNameCollisionEntries !== [],
+            'caseInsensitiveNameCollisionGroups' => $caseInsensitiveNameCollisionGroups,
+            'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
             'compressionMethodSummaryCount' => count($compressionMethodSummaries),
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'directoryRootCount' => count($directoryRootSummaries),

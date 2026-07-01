@@ -732,6 +732,10 @@ return [
             [
                 'name' => 'OEBPS/content.xhtml',
                 'isDirectory' => false,
+                'caseFoldKey' => 'oebps/content.xhtml',
+                'caseInsensitiveEquivalentEntryNames' => ['OEBPS/content.xhtml'],
+                'hasCaseInsensitiveNameCollision' => false,
+                'caseInsensitiveNameCollisionIssues' => [],
                 'directoryRoot' => 'OEBPS/',
                 'pathSegments' => ['OEBPS', 'content.xhtml'],
                 'pathSegmentCount' => 2,
@@ -750,6 +754,10 @@ return [
             [
                 'name' => 'OEBPS/images/',
                 'isDirectory' => true,
+                'caseFoldKey' => 'oebps/images/',
+                'caseInsensitiveEquivalentEntryNames' => ['OEBPS/images/'],
+                'hasCaseInsensitiveNameCollision' => false,
+                'caseInsensitiveNameCollisionIssues' => [],
                 'directoryRoot' => 'OEBPS/',
                 'pathSegments' => ['OEBPS', 'images'],
                 'pathSegmentCount' => 2,
@@ -768,6 +776,10 @@ return [
             [
                 'name' => 'mimetype',
                 'isDirectory' => false,
+                'caseFoldKey' => 'mimetype',
+                'caseInsensitiveEquivalentEntryNames' => ['mimetype'],
+                'hasCaseInsensitiveNameCollision' => false,
+                'caseInsensitiveNameCollisionIssues' => [],
                 'directoryRoot' => '/',
                 'pathSegments' => ['mimetype'],
                 'pathSegmentCount' => 1,
@@ -796,6 +808,10 @@ return [
                 return [
                     'name' => $entry['name'],
                     'isDirectory' => $entry['isDirectory'],
+                    'caseFoldKey' => $entry['caseFoldKey'],
+                    'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
+                    'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
+                    'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
                     'directoryRoot' => $entry['directoryRoot'],
                     'pathSegments' => $entry['pathSegments'],
                     'pathSegmentCount' => $entry['pathSegmentCount'],
@@ -1007,6 +1023,10 @@ return [
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
+            'caseInsensitiveNameCollisionGroupCount' => 0,
+            'caseInsensitiveNameCollisionEntryCount' => 0,
+            'caseInsensitiveNameCollisionGroups' => [],
+            'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 1,
@@ -1069,6 +1089,11 @@ return [
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
         $t->same(['OEBPS/content.xhtml', 'OEBPS/images/'], $manifest['deepestEntryNames']);
+        $t->same(0, $manifest['caseInsensitiveNameCollisionGroupCount']);
+        $t->same(0, $manifest['caseInsensitiveNameCollisionEntryCount']);
+        $t->same(false, $manifest['hasCaseInsensitiveNameCollisions']);
+        $t->same([], $manifest['caseInsensitiveNameCollisionGroups']);
+        $t->same([], $manifest['caseInsensitiveNameCollisionEntries']);
         $t->same(2, $manifest['compressionMethodSummaryCount']);
         $t->same($expectedCompressionMethodSummaries, $manifest['compressionMethodSummaries']);
         $t->same(2, $manifest['directoryRootCount']);
@@ -1086,6 +1111,10 @@ return [
             static fn (array $entry): array => [
                 'name' => $entry['name'],
                 'isDirectory' => $entry['isDirectory'],
+                'caseFoldKey' => $entry['caseFoldKey'],
+                'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
+                'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
+                'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
                 'directoryRoot' => $entry['directoryRoot'],
                 'pathSegments' => $entry['pathSegments'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
@@ -1132,6 +1161,73 @@ return [
         $t->same($manifest, $strict['packageManifest']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest case-insensitive name collisions for package handoff' => static function (TestRunner $t): void {
+        $package = ZipPackage::fromParts([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>case collision manifest</w:p></w:document>',
+            ],
+            [
+                'name' => 'word/media/Review.PNG',
+                'data' => "first reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => "second reviewer attachment placeholder\n",
+                'compressionMethod' => 0,
+            ],
+        ]);
+        $manifest = $package->packageManifestPreflight();
+        $casePreflight = $package->caseInsensitiveNamePreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($package->bytes(), 4096, 100.0, 4096);
+        $expectedEquivalentNames = ['word/media/Review.PNG', 'word/media/review.png'];
+        $expectedCollisionEntries = [
+            [
+                'name' => 'word/media/Review.PNG',
+                'caseFoldKey' => 'word/media/review.png',
+                'caseInsensitiveEquivalentEntryNames' => $expectedEquivalentNames,
+                'hasCaseInsensitiveNameCollision' => true,
+                'caseInsensitiveNameCollisionIssues' => ['case-insensitive-name-collision'],
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'caseFoldKey' => 'word/media/review.png',
+                'caseInsensitiveEquivalentEntryNames' => $expectedEquivalentNames,
+                'hasCaseInsensitiveNameCollision' => true,
+                'caseInsensitiveNameCollisionIssues' => ['case-insensitive-name-collision'],
+            ],
+        ];
+
+        $t->same(3, $manifest['entryCount']);
+        $t->same(1, $manifest['caseInsensitiveNameCollisionGroupCount']);
+        $t->same(2, $manifest['caseInsensitiveNameCollisionEntryCount']);
+        $t->same(true, $manifest['hasCaseInsensitiveNameCollisions']);
+        $t->same($casePreflight['collisionGroups'], $manifest['caseInsensitiveNameCollisionGroups']);
+        $t->same('word/media/review.png', $manifest['caseInsensitiveNameCollisionGroups'][0]['caseFoldKey']);
+        $t->same($expectedEquivalentNames, $manifest['caseInsensitiveNameCollisionGroups'][0]['entryNames']);
+        $t->same($expectedCollisionEntries, $manifest['caseInsensitiveNameCollisionEntries']);
+
+        $t->same('word/document.xml', $manifest['entries'][0]['name']);
+        $t->same('word/document.xml', $manifest['entries'][0]['caseFoldKey']);
+        $t->same(['word/document.xml'], $manifest['entries'][0]['caseInsensitiveEquivalentEntryNames']);
+        $t->same(false, $manifest['entries'][0]['hasCaseInsensitiveNameCollision']);
+        $t->same([], $manifest['entries'][0]['caseInsensitiveNameCollisionIssues']);
+        $t->same($expectedCollisionEntries, array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'caseFoldKey' => $entry['caseFoldKey'],
+                'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
+                'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
+                'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
+            ],
+            array_slice($manifest['entries'], 1)
+        ));
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same(false, $raw['isValid']);
+        $t->contains('case-insensitive-name-collisions', implode(',', $raw['diagnostics']));
     },
 
     'preflights zip package manifest archive source records for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildCentralDirectorySignaturePackage): void {
@@ -1379,6 +1475,10 @@ return [
             [
                 'name' => 'word/document.xml',
                 'isDirectory' => false,
+                'caseFoldKey' => 'word/document.xml',
+                'caseInsensitiveEquivalentEntryNames' => ['word/document.xml'],
+                'hasCaseInsensitiveNameCollision' => false,
+                'caseInsensitiveNameCollisionIssues' => [],
                 'directoryRoot' => 'word/',
                 'pathSegments' => ['word', 'document.xml'],
                 'pathSegmentCount' => 2,
@@ -1423,6 +1523,10 @@ return [
             [
                 'name' => 'word/comments.xml',
                 'isDirectory' => false,
+                'caseFoldKey' => 'word/comments.xml',
+                'caseInsensitiveEquivalentEntryNames' => ['word/comments.xml'],
+                'hasCaseInsensitiveNameCollision' => false,
+                'caseInsensitiveNameCollisionIssues' => [],
                 'directoryRoot' => 'word/',
                 'pathSegments' => ['word', 'comments.xml'],
                 'pathSegmentCount' => 2,
@@ -1564,6 +1668,10 @@ return [
             'maxPathSegmentCount' => 2,
             'maxDirectoryDepth' => 1,
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
+            'caseInsensitiveNameCollisionGroupCount' => 0,
+            'caseInsensitiveNameCollisionEntryCount' => 0,
+            'caseInsensitiveNameCollisionGroups' => [],
+            'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'extensionlessPackagePartCount' => 0,
@@ -1578,6 +1686,11 @@ return [
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
         $t->same(['word/document.xml', 'word/comments.xml'], $manifest['deepestEntryNames']);
+        $t->same(0, $manifest['caseInsensitiveNameCollisionGroupCount']);
+        $t->same(0, $manifest['caseInsensitiveNameCollisionEntryCount']);
+        $t->same(false, $manifest['hasCaseInsensitiveNameCollisions']);
+        $t->same([], $manifest['caseInsensitiveNameCollisionGroups']);
+        $t->same([], $manifest['caseInsensitiveNameCollisionEntries']);
         $t->same(0, $manifest['extensionlessPackagePartCount']);
         $t->same(false, $manifest['hasExtensionlessPackageParts']);
         $t->same(1, $manifest['packagePartExtensionSummaryCount']);
@@ -1588,6 +1701,10 @@ return [
             static fn (array $entry): array => [
                 'name' => $entry['name'],
                 'isDirectory' => $entry['isDirectory'],
+                'caseFoldKey' => $entry['caseFoldKey'],
+                'caseInsensitiveEquivalentEntryNames' => $entry['caseInsensitiveEquivalentEntryNames'],
+                'hasCaseInsensitiveNameCollision' => $entry['hasCaseInsensitiveNameCollision'],
+                'caseInsensitiveNameCollisionIssues' => $entry['caseInsensitiveNameCollisionIssues'],
                 'directoryRoot' => $entry['directoryRoot'],
                 'pathSegments' => $entry['pathSegments'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
