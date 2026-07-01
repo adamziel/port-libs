@@ -18085,6 +18085,35 @@ final class DocxOpenXmlReader
             }
         }
         ksort($relationshipSourceBaseNameCounts, SORT_STRING);
+        $relationshipSourceCaseFoldBaseNames = $this->relationshipSourceCaseFoldBaseNameSummary($relationshipSources);
+        $relationshipSourceCaseFoldBaseNameCounts = [];
+        $relationshipSourceExistingCaseFoldBaseNameCounts = [];
+        $relationshipSourceNonExistingCaseFoldBaseNameCounts = [];
+        $duplicateRelationshipSourceCaseFoldBaseNames = [];
+        $duplicateRelationshipSourceCaseFoldBaseNameSourceCount = 0;
+        $duplicateRelationshipSourceCaseFoldBaseNameRelationshipCount = 0;
+        foreach ($relationshipSourceCaseFoldBaseNames as $sourceCaseFoldBaseNameSummary) {
+            $caseFoldBaseNameKey = (string) ($sourceCaseFoldBaseNameSummary['sourceCaseFoldBaseNameKey'] ?? '');
+            $sourceCount = (int) ($sourceCaseFoldBaseNameSummary['sourceCount'] ?? 0);
+            $relationshipSourceCaseFoldBaseNameCounts[$caseFoldBaseNameKey] = $sourceCount;
+            $existingSourceCount = (int) ($sourceCaseFoldBaseNameSummary['existingSourceCount'] ?? 0);
+            if ($existingSourceCount > 0) {
+                $relationshipSourceExistingCaseFoldBaseNameCounts[$caseFoldBaseNameKey] = $existingSourceCount;
+            }
+            $nonExistingSourceCount = (int) ($sourceCaseFoldBaseNameSummary['nonExistingSourceCount'] ?? 0);
+            if ($nonExistingSourceCount > 0) {
+                $relationshipSourceNonExistingCaseFoldBaseNameCounts[$caseFoldBaseNameKey] = $nonExistingSourceCount;
+            }
+            if ((int) ($sourceCaseFoldBaseNameSummary['baseNameVariantCount'] ?? 0) > 1) {
+                $duplicateRelationshipSourceCaseFoldBaseNames[] = $caseFoldBaseNameKey;
+                $duplicateRelationshipSourceCaseFoldBaseNameSourceCount += $sourceCount;
+                $duplicateRelationshipSourceCaseFoldBaseNameRelationshipCount +=
+                    (int) ($sourceCaseFoldBaseNameSummary['relationshipCount'] ?? 0);
+            }
+        }
+        ksort($relationshipSourceCaseFoldBaseNameCounts, SORT_STRING);
+        ksort($relationshipSourceExistingCaseFoldBaseNameCounts, SORT_STRING);
+        ksort($relationshipSourceNonExistingCaseFoldBaseNameCounts, SORT_STRING);
         $relationshipSourceBaseNameStems = $this->relationshipSourceBaseNameStemSummary($relationshipSources);
         $relationshipSourceBaseNameStemCounts = [];
         $relationshipSourceExistingBaseNameStemCounts = [];
@@ -18473,6 +18502,15 @@ final class DocxOpenXmlReader
             'duplicateRelationshipSourceBaseNameCount' => count($duplicateRelationshipSourceBaseNames),
             'duplicateRelationshipSourceBaseNames' => $duplicateRelationshipSourceBaseNames,
             'relationshipSourceBaseNames' => $relationshipSourceBaseNames,
+            'relationshipSourceCaseFoldBaseNameCount' => count($relationshipSourceCaseFoldBaseNames),
+            'relationshipSourceCaseFoldBaseNameCounts' => $relationshipSourceCaseFoldBaseNameCounts,
+            'relationshipSourceExistingCaseFoldBaseNameCounts' => $relationshipSourceExistingCaseFoldBaseNameCounts,
+            'relationshipSourceNonExistingCaseFoldBaseNameCounts' => $relationshipSourceNonExistingCaseFoldBaseNameCounts,
+            'duplicateRelationshipSourceCaseFoldBaseNameCount' => count($duplicateRelationshipSourceCaseFoldBaseNames),
+            'duplicateRelationshipSourceCaseFoldBaseNameSourceCount' => $duplicateRelationshipSourceCaseFoldBaseNameSourceCount,
+            'duplicateRelationshipSourceCaseFoldBaseNameRelationshipCount' => $duplicateRelationshipSourceCaseFoldBaseNameRelationshipCount,
+            'duplicateRelationshipSourceCaseFoldBaseNames' => $duplicateRelationshipSourceCaseFoldBaseNames,
+            'relationshipSourceCaseFoldBaseNames' => $relationshipSourceCaseFoldBaseNames,
             'relationshipSourceBaseNameStemCount' => count($relationshipSourceBaseNameStems),
             'relationshipSourceBaseNameStemCounts' => $relationshipSourceBaseNameStemCounts,
             'relationshipSourceExistingBaseNameStemCounts' => $relationshipSourceExistingBaseNameStemCounts,
@@ -27601,6 +27639,171 @@ final class DocxOpenXmlReader
             sort($summary['sourceParts'], SORT_STRING);
             sort($summary['relationshipParts'], SORT_STRING);
             $baseNames[$baseNameKey] = $summary;
+        }
+
+        return array_values($baseNames);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
+    private function relationshipSourceCaseFoldBaseNameSummary(array $relationshipSources): array
+    {
+        $baseNames = [];
+        foreach ($relationshipSources as $source) {
+            $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+            $caseFoldBaseName = $baseName === '' ? '' : $this->packagePartCaseFoldKey($baseName);
+            $caseFoldBaseNameKey = $caseFoldBaseName === '' ? '(invalid-source)' : $caseFoldBaseName;
+            if (!isset($baseNames[$caseFoldBaseNameKey])) {
+                $baseNames[$caseFoldBaseNameKey] = [
+                    'sourceCaseFoldBaseNameKey' => $caseFoldBaseNameKey,
+                    'sourceCaseFoldBaseName' => $caseFoldBaseName === '' ? null : $caseFoldBaseName,
+                    'sourceCount' => 0,
+                    'existingSourceCount' => 0,
+                    'nonExistingSourceCount' => 0,
+                    'relationshipCount' => 0,
+                    'relationshipRecordCount' => 0,
+                    'existingSourceByteLength' => 0,
+                    'baseNameVariantCount' => 0,
+                    'baseNameCounts' => [],
+                    'relationshipSourceKindCounts' => [],
+                    'sourceDirectoryCounts' => [],
+                    'sourcePartExtensionCounts' => [],
+                    'sourceContentTypeBaseCounts' => [],
+                    'sourceContentTypeSourceCounts' => [],
+                    'sourceRoleCounts' => [],
+                    'sourceParts' => [],
+                    'existingSourceParts' => [],
+                    'nonExistingSourceParts' => [],
+                    'relationshipParts' => [],
+                    'contentTypes' => [],
+                    'largestExistingSourcePart' => null,
+                ];
+            }
+
+            ++$baseNames[$caseFoldBaseNameKey]['sourceCount'];
+            $sourceExists = ($source['sourceExists'] ?? false) === true;
+            if ($sourceExists) {
+                ++$baseNames[$caseFoldBaseNameKey]['existingSourceCount'];
+            } else {
+                ++$baseNames[$caseFoldBaseNameKey]['nonExistingSourceCount'];
+            }
+            $baseNames[$caseFoldBaseNameKey]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+            $baseNames[$caseFoldBaseNameKey]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+
+            $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+            $baseNames[$caseFoldBaseNameKey]['baseNameCounts'][$baseNameKey] =
+                ($baseNames[$caseFoldBaseNameKey]['baseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+            $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                ? $source['relationshipSourceKind']
+                : 'invalid-source';
+            $baseNames[$caseFoldBaseNameKey]['relationshipSourceKindCounts'][$sourceKind] =
+                ($baseNames[$caseFoldBaseNameKey]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+            $directory = is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : '';
+            $directoryKey = $directory === '' ? '(invalid-source)' : $directory;
+            $baseNames[$caseFoldBaseNameKey]['sourceDirectoryCounts'][$directoryKey] =
+                ($baseNames[$caseFoldBaseNameKey]['sourceDirectoryCounts'][$directoryKey] ?? 0) + 1;
+
+            $extension = is_string($source['sourcePartExtension'] ?? null)
+                ? $source['sourcePartExtension']
+                : null;
+            $extensionKey = $extension ?? '(none)';
+            $baseNames[$caseFoldBaseNameKey]['sourcePartExtensionCounts'][$extensionKey] =
+                ($baseNames[$caseFoldBaseNameKey]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                ? $source['sourceContentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $baseNames[$caseFoldBaseNameKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($baseNames[$caseFoldBaseNameKey]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                ? $source['sourceContentTypeSource']
+                : '';
+            $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+            $baseNames[$caseFoldBaseNameKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                ($baseNames[$caseFoldBaseNameKey]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+            foreach (($source['sourceRoles'] ?? []) as $role) {
+                $role = (string) $role;
+                if ($role === '') {
+                    continue;
+                }
+                $baseNames[$caseFoldBaseNameKey]['sourceRoleCounts'][$role] =
+                    ($baseNames[$caseFoldBaseNameKey]['sourceRoleCounts'][$role] ?? 0) + 1;
+            }
+
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $this->appendUniqueString($baseNames[$caseFoldBaseNameKey]['sourceParts'], $sourcePart);
+            if ($sourceExists) {
+                $this->appendUniqueString($baseNames[$caseFoldBaseNameKey]['existingSourceParts'], $sourcePart);
+            } else {
+                $this->appendUniqueString($baseNames[$caseFoldBaseNameKey]['nonExistingSourceParts'], $sourcePart);
+            }
+            $this->appendUniqueString(
+                $baseNames[$caseFoldBaseNameKey]['relationshipParts'],
+                is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString(
+                $baseNames[$caseFoldBaseNameKey]['contentTypes'],
+                is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+            );
+
+            if (is_int($source['sourceBytes'] ?? null)) {
+                $sourceBytes = (int) $source['sourceBytes'];
+                $baseNames[$caseFoldBaseNameKey]['existingSourceByteLength'] += $sourceBytes;
+                $sourceSummary = [
+                    'sourcePart' => $sourcePart,
+                    'relationshipsPart' => is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '',
+                    'relationshipSourceKind' => $sourceKind,
+                    'sourceDirectory' => $directory === '' ? null : $directory,
+                    'sourceBaseName' => $baseName === '' ? null : $baseName,
+                    'sourceCaseFoldBaseName' => $caseFoldBaseName === '' ? null : $caseFoldBaseName,
+                    'sourcePartExtension' => $extension,
+                    'sourceBytes' => $sourceBytes,
+                    'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                    'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                    'sourceContentType' => is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+                    'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                    'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                    'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                    'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                    'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+                ];
+                $largestPart = $baseNames[$caseFoldBaseNameKey]['largestExistingSourcePart'];
+                if (
+                    !is_array($largestPart)
+                    || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                    || (
+                        $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                        && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                    )
+                ) {
+                    $baseNames[$caseFoldBaseNameKey]['largestExistingSourcePart'] = $sourceSummary;
+                }
+            }
+        }
+
+        ksort($baseNames, SORT_STRING);
+        foreach ($baseNames as $caseFoldBaseNameKey => $summary) {
+            ksort($summary['baseNameCounts'], SORT_STRING);
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['existingSourceParts'], SORT_STRING);
+            sort($summary['nonExistingSourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            sort($summary['contentTypes'], SORT_STRING);
+            $summary['baseNameVariantCount'] = count($summary['baseNameCounts']);
+            $baseNames[$caseFoldBaseNameKey] = $summary;
         }
 
         return array_values($baseNames);
