@@ -1234,6 +1234,36 @@ final class BibtexCslParser
             $item['available-date'] = $availableDate;
         }
 
+        $acceptedDate = self::dateFromFields($fields, ['accepteddate', 'accepted-date', 'dateaccepted', 'date-accepted'], ['acceptedyear', 'acceptedmonth', 'acceptedday'], [
+            'hour' => 'acceptedhour',
+            'minute' => 'acceptedminute',
+            'second' => 'acceptedsecond',
+            'timezone' => 'acceptedtimezone',
+            'endhour' => 'acceptedendhour',
+            'endminute' => 'acceptedendminute',
+            'endsecond' => 'acceptedendsecond',
+            'endtimezone' => 'acceptedendtimezone',
+        ], ['acceptedendyear', 'acceptedendmonth', 'acceptedendday']);
+        if ($acceptedDate !== null) {
+            $acceptedDate = self::dateWithEra($acceptedDate, $fields, ['accepteddateera', 'accepted-date-era', 'dateacceptedera', 'date-accepted-era']);
+            $item['accepted-date'] = $acceptedDate;
+        }
+
+        $revisedDate = self::dateFromFields($fields, ['reviseddate', 'revised-date', 'revisiondate', 'revision-date', 'daterevised', 'date-revised', 'revdate'], ['revisedyear', 'revisedmonth', 'revisedday'], [
+            'hour' => 'revisedhour',
+            'minute' => 'revisedminute',
+            'second' => 'revisedsecond',
+            'timezone' => 'revisedtimezone',
+            'endhour' => 'revisedendhour',
+            'endminute' => 'revisedendminute',
+            'endsecond' => 'revisedendsecond',
+            'endtimezone' => 'revisedendtimezone',
+        ], ['revisedendyear', 'revisedendmonth', 'revisedendday']);
+        if ($revisedDate !== null) {
+            $revisedDate = self::dateWithEra($revisedDate, $fields, ['reviseddateera', 'revised-date-era', 'revisiondateera', 'revision-date-era', 'daterevisedera', 'date-revised-era']);
+            $item['revised-date'] = $revisedDate;
+        }
+
         $submittedDate = self::dateFromFields($fields, ['submitteddate', 'submitted-date', 'submitted'], ['submittedyear', 'submittedmonth', 'submittedday'], [
             'hour' => 'submittedhour',
             'minute' => 'submittedminute',

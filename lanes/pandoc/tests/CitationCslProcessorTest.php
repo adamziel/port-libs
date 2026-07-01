@@ -32841,6 +32841,111 @@ XML);
         $t->contains('<p>RIS user fields [review channel | source lane | migration priority | editorial note | export trace | verbatim brace {review} | raw separator :: | preserved code `@source` | ' . $expectedCustomSummary . ' | ' . $expectedProvenanceHtml . '] remain style-visible.</p>', $blocks);
         $t->contains('<dt>Migration Review Desk 2026</dt><dd>RIS User Field Packet :: review channel :: preserved code `@source` :: ' . $expectedCustomSummary . ' :: ' . $expectedProvenanceHtml . '</dd>', $blocks);
     },
+    'parses strict bibtex accepted and revised dates into csl handoff' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@article{strict-date-state,
+  author            = {Ng, Nia},
+  title             = {Strict Date State Packet},
+  date              = {2026},
+  accepteddate      = {2026-04-02},
+  acceptedhour      = {9},
+  acceptedminute    = {30},
+  acceptedtimezone  = {Z},
+  revisedyear       = {2026},
+  revisedmonth      = {6},
+  revisedday        = {1},
+  revisedendyear    = {2026},
+  revisedendmonth   = {6},
+  revisedendday     = {3},
+  revisedhour       = {14},
+  revisedminute     = {5},
+  revisedtimezone   = {+0200},
+  revisedendhour    = {16},
+  revisedendminute  = {45},
+  revisedendtimezone = {+02:30},
+  reviseddateera    = {common_era}
+}
+
+@article{strict-date-state-alias,
+  author        = {Roe, Pat},
+  title         = {Strict Date State Alias Packet},
+  date          = {2025},
+  date-accepted = {2025-05~},
+  revdate       = {2025-08/}
+}
+BIB;
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $item = $processor->item('strict-date-state');
+        $alias = $processor->item('strict-date-state-alias');
+
+        $t->same('2026-04-02', $item['acceptedDate']['display'] ?? null);
+        $t->same([2026, 4, 2], $item['acceptedDate']['parts'] ?? null);
+        $t->same('09:30Z', $item['acceptedDate']['time'] ?? null);
+        $t->same('2026-06-01/2026-06-03', $item['revisedDate']['display'] ?? null);
+        $t->same([[2026, 6, 1], [2026, 6, 3]], $item['revisedDate']['rangeParts'] ?? null);
+        $t->same('14:05+02:00', $item['revisedDate']['time'] ?? null);
+        $t->same('16:45+02:30', $item['revisedDate']['endTime'] ?? null);
+        $t->same('common-era', $item['revisedDate']['era'] ?? null);
+        $t->same('Date times: accepted-date 09:30Z; revised-date 14:05+02:00/16:45+02:30', $item['dateTimeSummary'] ?? null);
+        $t->same('Date eras: revised-date common-era', $item['dateEraSummary'] ?? null);
+
+        $t->same('2025-05', $alias['acceptedDate']['display'] ?? null);
+        $t->same(true, $alias['acceptedDate']['circa'] ?? null);
+        $t->same('2025-05~', $alias['acceptedDate']['raw'] ?? null);
+        $t->same('2025-08/', $alias['revisedDate']['display'] ?? null);
+        $t->same('end', $alias['revisedDate']['openEnded'] ?? null);
+        $t->same('Date markers: accepted-date circa (2025-05~)', $alias['dateMarkerSummary'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="accepted-date"/>
+        <date variable="revised-date"/>
+        <text variable="accepted-date-time"/>
+        <text variable="revised-date-time"/>
+        <text variable="revised-date-end-time"/>
+        <text variable="date-era-summary"/>
+        <text variable="date-marker-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="accepted-date"/>
+      <date variable="revised-date"/>
+      <text variable="accepted-date-time"/>
+      <text variable="revised-date-time"/>
+      <text variable="revised-date-end-time"/>
+      <text variable="date-era-summary"/>
+      <text variable="date-marker-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same(
+            '[Strict Date State Packet | 2026-04-02 | 2026-06-01/2026-06-03 | 09:30Z | 14:05+02:00 | 16:45+02:30 | Date eras: revised-date common-era; Strict Date State Alias Packet | 2025-05 | 2025-08/ | Date markers: accepted-date circa (2025-05~)]',
+            $styled->renderCitationCluster([
+                $citation('strict-date-state', '[@strict-date-state]'),
+                $citation('strict-date-state-alias', '[@strict-date-state-alias]'),
+            ])
+        );
+        $t->same(
+            'Strict Date State Packet :: 2026-04-02 :: 2026-06-01/2026-06-03 :: 09:30Z :: 14:05+02:00 :: 16:45+02:30 :: Date eras: revised-date common-era',
+            $styled->renderBibliographyEntry('strict-date-state')
+        );
+
+        $document = (new MarkdownReader())->read('Strict BibTeX state dates [@strict-date-state; @strict-date-state-alias] stay style-visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Strict BibTeX state dates [Strict Date State Packet | 2026-04-02 | 2026-06-01/2026-06-03 | 09:30Z | 14:05+02:00 | 16:45+02:30 | Date eras: revised-date common-era; Strict Date State Alias Packet | 2025-05 | 2025-08/ | Date markers: accepted-date circa (2025-05~)] stay style-visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Strict Date State Packet :: 2026-04-02 :: 2026-06-01/2026-06-03 :: 09:30Z :: 14:05+02:00 :: 16:45+02:30 :: Date eras: revised-date common-era</dd>', $blocks);
+    },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
