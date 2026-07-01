@@ -18,21 +18,44 @@ $collectNodes = static function (AstNode $node, string $type) use (&$collectNode
     return $matches;
 };
 
-$inlineNoteCitationFixture = 'foo^[bar [@doe]]';
+$inlineTypes = static fn (AstNode $node): array => array_map(
+    static fn (AstNode $child): string => $child->type,
+    $node->children
+);
+
+$inlineNoteCitationFixture = static fn (): string =>
+    (string) file_get_contents(dirname(__DIR__) . '/fixtures/upstream-markdown-inline-note-citations.md');
 
 $tests = [];
 
-$tests['maps upstream command cite-in-inline-note reader fixture'] =
-    static function (TestRunner $t) use ($inlineNoteCitationFixture, $collectNodes): void {
-        $document = (new MarkdownReader())->read($inlineNoteCitationFixture);
+$tests['maps upstream markdown inline-note citation fixture completion'] =
+    static function (TestRunner $t) use ($inlineNoteCitationFixture, $collectNodes, $inlineTypes): void {
+        $document = (new MarkdownReader())->read($inlineNoteCitationFixture());
+        $paragraphs = $document->children;
+        $first = $paragraphs[0] ?? new AstNode('missing');
+        $second = $paragraphs[1] ?? new AstNode('missing');
+        $third = $paragraphs[2] ?? new AstNode('missing');
         $paragraph = $document->children[0] ?? new AstNode('missing');
         $note = $paragraph->children[1] ?? new AstNode('missing');
         $noteParagraph = $note->children[0] ?? new AstNode('missing');
         $citation = $noteParagraph->children[1] ?? new AstNode('missing');
+        $secondNoteParagraph = ($second->children[1] ?? new AstNode('missing'))->children[0] ?? new AstNode('missing');
+        $secondLink = $secondNoteParagraph->children[1] ?? new AstNode('missing');
+        $secondCitation = $secondNoteParagraph->children[3] ?? new AstNode('missing');
+        $thirdNoteParagraph = ($third->children[1] ?? new AstNode('missing'))->children[0] ?? new AstNode('missing');
+        $thirdCode = $thirdNoteParagraph->children[1] ?? new AstNode('missing');
+        $thirdCitationGroup = $thirdNoteParagraph->children[3] ?? new AstNode('missing');
+        $thirdFirstCitation = $thirdCitationGroup->children[0] ?? new AstNode('missing');
+        $thirdSecondCitation = $thirdCitationGroup->children[1] ?? new AstNode('missing');
 
-        $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same(['paragraph', 'paragraph', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $paragraphs));
+        $t->same(['text', 'note'], $inlineTypes($first));
+        $t->same(['text', 'note'], $inlineTypes($second));
+        $t->same(['text', 'note'], $inlineTypes($third));
         $t->same(['text', 'note'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
         $t->same('foo', $paragraph->children[0]->attr('text'));
+        $t->same('alpha', $second->children[0]->attr('text'));
+        $t->same('trail', $third->children[0]->attr('text'));
         $t->same('note', $note->type);
         $t->same(['paragraph'], array_map(static fn (AstNode $node): string => $node->type, $note->children));
         $t->same('bar [@doe]', $noteParagraph->attr('text'));
@@ -45,42 +68,60 @@ $tests['maps upstream command cite-in-inline-note reader fixture'] =
         $t->same(['text'], array_map(static fn (AstNode $node): string => $node->type, $citation->children));
         $t->same('[@doe]', ($citation->children[0] ?? new AstNode('missing'))->attr('text'));
         $t->same([$citation], $collectNodes($note, 'citation'));
+
+        $t->same(['text', 'link', 'text', 'citation'], $inlineTypes($secondNoteParagraph));
+        $t->same('https://example.test/source', $secondLink->attr('url'));
+        $t->same('source title', $secondLink->attr('title'));
+        $t->same('packet', ($secondLink->children[0] ?? new AstNode('missing'))->attr('text'));
+        $t->same('roe', $secondCitation->attr('id'));
+        $t->same('author_in_text', $secondCitation->attr('mode'));
+        $t->same('p. 9', $secondCitation->attr('suffix'));
+
+        $t->same(['text', 'code', 'text', 'citation_group'], $inlineTypes($thirdNoteParagraph));
+        $t->same(']', $thirdCode->attr('text'));
+        $t->same('[@smith; see -@doe]', $thirdCitationGroup->attr('text'));
+        $t->same('smith', $thirdFirstCitation->attr('id'));
+        $t->same('normal', $thirdFirstCitation->attr('mode'));
+        $t->same('doe', $thirdSecondCitation->attr('id'));
+        $t->same('suppress_author', $thirdSecondCitation->attr('mode'));
+        $t->same('see', $thirdSecondCitation->attr('prefix'));
     };
 
-$tests['serializes upstream command cite-in-inline-note through native markdown and wordpress handoff'] =
+$tests['serializes upstream markdown inline-note citations through native markdown and wordpress handoff'] =
     static function (TestRunner $t) use ($inlineNoteCitationFixture): void {
-        $document = (new MarkdownReader())->read($inlineNoteCitationFixture);
-        $native = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $document = (new MarkdownReader())->read($inlineNoteCitationFixture());
+        $native = (new NativeWriter())->write($document);
         $markdown = (new MarkdownWriter())->write($document);
         $blocks = (new WordPressBlockWriter())->write($document);
 
-        $para = $native['blocks'][0] ?? [];
-        $inlines = $para['c'] ?? [];
-        $noteBlock = $inlines[1]['c'][0] ?? [];
-        $noteInlines = $noteBlock['c'] ?? [];
-        $cite = $noteInlines[2] ?? [];
-        $citation = $cite['c'][0][0] ?? [];
+        $t->contains('Para [ Str "foo" , Note [ Para [ Str "bar"', $native);
+        $t->contains('citationId = "doe"', $native);
+        $t->contains('citationMode = NormalCitation', $native);
+        $t->contains('Link ( "" , [  ] , [  ] ) [ Str "packet" ] ( "https://example.test/source" , "source title" )', $native);
+        $t->contains('citationId = "roe"', $native);
+        $t->contains('citationSuffix = [ Str "p." , Space , Str "9" ]', $native);
+        $t->contains('Code ( "" , [  ] , [  ] ) "]"', $native);
+        $t->contains('citationId = "smith"', $native);
+        $t->contains('citationPrefix = [ Str "see" ]', $native);
+        $t->contains('citationMode = SuppressAuthor', $native);
 
-        $t->same('Para', $para['t'] ?? null);
-        $t->same('Str', $inlines[0]['t'] ?? null);
-        $t->same('foo', $inlines[0]['c'] ?? null);
-        $t->same('Note', $inlines[1]['t'] ?? null);
-        $t->same('Para', $noteBlock['t'] ?? null);
-        $t->same(['Str', 'Space', 'Cite'], array_map(static fn (array $node): ?string => $node['t'] ?? null, $noteInlines));
-        $t->same('bar', $noteInlines[0]['c'] ?? null);
-        $t->same('doe', $citation['citationId'] ?? null);
-        $t->same('NormalCitation', $citation['citationMode']['t'] ?? null);
-        $t->same('Str', $cite['c'][1][0]['t'] ?? null);
-        $t->same('[@doe]', $cite['c'][1][0]['c'] ?? null);
         $t->contains('foo[^1]', $markdown);
+        $t->contains('alpha[^2]', $markdown);
+        $t->contains('trail[^3]', $markdown);
         $t->contains('[^1]: bar [@doe]', $markdown);
+        $t->contains('[^2]: note [packet](https://example.test/source "source title") and @roe [p. 9]', $markdown);
+        $t->contains('[^3]: code `]` and [@smith; see -@doe]', $markdown);
         $t->contains('<p>foo<sup id="fnref-1"><a href="#fn-1" role="doc-noteref">1</a></sup></p>', $blocks);
-        $t->contains('<li id="fn-1"><p>bar [@doe]</p>', $blocks);
+        $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="doe"', $blocks);
+        $t->contains('<a href="https://example.test/source" title="source title">packet</a>', $blocks);
+        $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="roe"', $blocks);
+        $t->contains('<code>]</code>', $blocks);
+        $t->contains('<span class="pandoc-citation" data-pandoc-citation-id="smith"', $blocks);
     };
 
-$tests['records upstream command cite-in-inline-note mapped-case count'] =
+$tests['records upstream markdown inline-note citation mapped-case count'] =
     static function (TestRunner $t): void {
-        $t->same(1, 1);
+        $t->same(3, 3);
     };
 
 return $tests;
