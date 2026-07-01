@@ -1029,6 +1029,12 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['fontTableEmbeddedFontExistingCount'] = (int) ($fontTable['embeddedFontExistingCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontMissingCount'] = (int) ($fontTable['embeddedFontMissingCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontExternalCount'] = (int) ($fontTable['embeddedFontExternalCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontAllowedExternalCount'] = (int) ($fontTable['embeddedFontAllowedExternalCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontUnsafeExternalCount'] = (int) ($fontTable['embeddedFontUnsafeExternalCount'] ?? 0);
+        $packageProvenance['summary']['fontTableEmbeddedFontUnsafeExternalTargets'] = $fontTable['embeddedFontUnsafeExternalTargets'] ?? [];
+        $packageProvenance['summary']['fontTableEmbeddedFontExternalTargetKindCounts'] = $fontTable['embeddedFontExternalTargetKindCounts'] ?? [];
+        $packageProvenance['summary']['fontTableEmbeddedFontExternalTargetSchemeCounts'] = $fontTable['embeddedFontExternalTargetSchemeCounts'] ?? [];
+        $packageProvenance['summary']['fontTableEmbeddedFontExternalTargetIssueCodes'] = $fontTable['embeddedFontExternalTargetIssueCodes'] ?? [];
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCount'] = (int) ($fontTable['embeddedFontIssueCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontIssueCodes'] = $fontTable['embeddedFontIssueCodes'] ?? [];
         $packageProvenance['summary']['fontTableEmbeddedFontKeyPresentCount'] = (int) ($fontTable['embeddedFontKeyPresentCount'] ?? 0);
@@ -30460,6 +30466,12 @@ final class DocxOpenXmlReader
                 'embeddedFontExistingCount' => 0,
                 'embeddedFontMissingCount' => 0,
                 'embeddedFontExternalCount' => 0,
+                'embeddedFontAllowedExternalCount' => 0,
+                'embeddedFontUnsafeExternalCount' => 0,
+                'embeddedFontUnsafeExternalTargets' => [],
+                'embeddedFontExternalTargetKindCounts' => [],
+                'embeddedFontExternalTargetSchemeCounts' => [],
+                'embeddedFontExternalTargetIssueCodes' => [],
                 'embeddedFontIssueCount' => 0,
                 'embeddedFontIssueCodes' => [],
                 'embeddedFontKeyPresentCount' => 0,
@@ -30481,6 +30493,12 @@ final class DocxOpenXmlReader
         $embeddedFontExistingCount = 0;
         $embeddedFontMissingCount = 0;
         $embeddedFontExternalCount = 0;
+        $embeddedFontAllowedExternalCount = 0;
+        $embeddedFontUnsafeExternalCount = 0;
+        $embeddedFontUnsafeExternalTargets = [];
+        $embeddedFontExternalTargetKindCounts = [];
+        $embeddedFontExternalTargetSchemeCounts = [];
+        $embeddedFontExternalTargetIssueCodes = [];
         $embeddedFontIssueCount = 0;
         $embeddedFontIssueCodes = [];
         $embeddedFontKeyPresentCount = 0;
@@ -30514,6 +30532,25 @@ final class DocxOpenXmlReader
             foreach ($embeddedFonts as $embeddedFont) {
                 if (($embeddedFont['external'] ?? false) === true) {
                     ++$embeddedFontExternalCount;
+                    if (($embeddedFont['externalTargetAllowed'] ?? null) === true) {
+                        ++$embeddedFontAllowedExternalCount;
+                    } else {
+                        ++$embeddedFontUnsafeExternalCount;
+                        $this->appendUniqueString($embeddedFontUnsafeExternalTargets, is_string($embeddedFont['target'] ?? null) ? $embeddedFont['target'] : null);
+                    }
+                    $kind = $embeddedFont['externalTargetKind'] ?? null;
+                    if (is_string($kind) && $kind !== '') {
+                        $embeddedFontExternalTargetKindCounts[$kind] = ($embeddedFontExternalTargetKindCounts[$kind] ?? 0) + 1;
+                    }
+                    $scheme = $embeddedFont['externalTargetScheme'] ?? null;
+                    if (is_string($scheme) && $scheme !== '') {
+                        $embeddedFontExternalTargetSchemeCounts[$scheme] = ($embeddedFontExternalTargetSchemeCounts[$scheme] ?? 0) + 1;
+                    }
+                    foreach (($embeddedFont['externalTargetIssues'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $embeddedFontExternalTargetIssueCodes[$issue] = true;
+                        }
+                    }
                 }
                 if (($embeddedFont['external'] ?? false) === false && ($embeddedFont['exists'] ?? false) === true) {
                     ++$embeddedFontExistingCount;
@@ -30541,6 +30578,9 @@ final class DocxOpenXmlReader
             $byName[$name] = $record;
         }
         ksort($embeddedFontIssueCodes, SORT_STRING);
+        ksort($embeddedFontExternalTargetIssueCodes, SORT_STRING);
+        ksort($embeddedFontExternalTargetKindCounts, SORT_STRING);
+        ksort($embeddedFontExternalTargetSchemeCounts, SORT_STRING);
 
         return [
             'relationshipsPart' => $relationshipsPart,
@@ -30555,6 +30595,12 @@ final class DocxOpenXmlReader
             'embeddedFontExistingCount' => $embeddedFontExistingCount,
             'embeddedFontMissingCount' => $embeddedFontMissingCount,
             'embeddedFontExternalCount' => $embeddedFontExternalCount,
+            'embeddedFontAllowedExternalCount' => $embeddedFontAllowedExternalCount,
+            'embeddedFontUnsafeExternalCount' => $embeddedFontUnsafeExternalCount,
+            'embeddedFontUnsafeExternalTargets' => $embeddedFontUnsafeExternalTargets,
+            'embeddedFontExternalTargetKindCounts' => $embeddedFontExternalTargetKindCounts,
+            'embeddedFontExternalTargetSchemeCounts' => $embeddedFontExternalTargetSchemeCounts,
+            'embeddedFontExternalTargetIssueCodes' => array_keys($embeddedFontExternalTargetIssueCodes),
             'embeddedFontIssueCount' => $embeddedFontIssueCount,
             'embeddedFontIssueCodes' => array_keys($embeddedFontIssueCodes),
             'embeddedFontKeyPresentCount' => $embeddedFontKeyPresentCount,
@@ -30720,6 +30766,10 @@ final class DocxOpenXmlReader
             'overridePartName' => null,
             'expectedContentTypeBase' => self::CT_OBFUSCATED_FONT,
             'external' => false,
+            'externalTargetKind' => null,
+            'externalTargetScheme' => null,
+            'externalTargetAllowed' => null,
+            'externalTargetIssues' => [],
             'exists' => false,
             'byteLength' => null,
             'crc32' => null,
@@ -30778,6 +30828,10 @@ final class DocxOpenXmlReader
         $item['defaultExtension'] = $summary['defaultExtension'];
         $item['overridePartName'] = $summary['overridePartName'];
         $item['external'] = $external;
+        $item['externalTargetKind'] = $summary['externalTargetKind'];
+        $item['externalTargetScheme'] = $summary['externalTargetScheme'];
+        $item['externalTargetAllowed'] = $summary['externalTargetAllowed'];
+        $item['externalTargetIssues'] = $summary['externalTargetIssues'];
         $item['exists'] = $exists;
         $item['byteLength'] = $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null;
         $item['crc32'] = $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null;
@@ -30790,6 +30844,11 @@ final class DocxOpenXmlReader
 
         if ($external) {
             $item['issues'][] = 'external-embedded-font';
+            foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $item['issues'][] = $issue;
+                }
+            }
         } else {
             if (!$exists) {
                 $item['issues'][] = 'missing-in-package';

@@ -18271,6 +18271,9 @@ XML;
   <w:font w:name="No Relationship">
     <w:embedRegular w:fontKey="{22222222-4455-6677-8899-AABBCCDDEEFF}"/>
   </w:font>
+  <w:font w:name="Unsafe External">
+    <w:embedRegular r:id="rUnsafeRegular"/>
+  </w:font>
 </w:fonts>
 XML;
         $parts['word/fonts/_rels/review-fonts.xml.rels'] = <<<'XML'
@@ -18279,6 +18282,7 @@ XML;
   <Relationship Id="rRegular" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="aptos-Regular.odttf?style=regular#font"/>
   <Relationship Id="rMissingBold" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="missing-bold.odttf"/>
   <Relationship Id="rExternalItalic" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="https://fonts.example.test/aptos-Italic.ttf" TargetMode="External"/>
+  <Relationship Id="rUnsafeRegular" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="file:///C:/fonts/unsafe.odttf" TargetMode="External"/>
   <Relationship Id="rWrongType" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="bad.ttf"/>
 </Relationships>
 XML;
@@ -18297,18 +18301,26 @@ XML;
         $external = $aptos['embeddedFonts'][2];
         $wrongType = $aptos['embeddedFonts'][3];
         $missingRelationship = $fontTable['byName']['No Relationship']['embeddedFonts'][0];
+        $unsafeExternal = $fontTable['byName']['Unsafe External']['embeddedFonts'][0];
 
         $t->same('word/fonts/review-fonts.xml', $docx['fontTablePart']);
         $t->same('word/fonts/_rels/review-fonts.xml.rels', $fontTable['relationshipsPart']);
-        $t->same(4, $fontTable['relationshipCount']);
-        $t->same(2, $fontTable['fontCount']);
-        $t->same(5, $fontTable['embeddedFontRelationshipCount']);
+        $t->same(5, $fontTable['relationshipCount']);
+        $t->same(3, $fontTable['fontCount']);
+        $t->same(6, $fontTable['embeddedFontRelationshipCount']);
         $t->same(2, $fontTable['embeddedFontExistingCount']);
         $t->same(1, $fontTable['embeddedFontMissingCount']);
-        $t->same(1, $fontTable['embeddedFontExternalCount']);
-        $t->same(4, $fontTable['embeddedFontIssueCount']);
+        $t->same(2, $fontTable['embeddedFontExternalCount']);
+        $t->same(1, $fontTable['embeddedFontAllowedExternalCount']);
+        $t->same(1, $fontTable['embeddedFontUnsafeExternalCount']);
+        $t->same(['file:///C:/fonts/unsafe.odttf'], $fontTable['embeddedFontUnsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $fontTable['embeddedFontExternalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $fontTable['embeddedFontExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $fontTable['embeddedFontExternalTargetIssueCodes']);
+        $t->same(5, $fontTable['embeddedFontIssueCount']);
         $t->same([
             'external-embedded-font',
+            'external-target-unsafe-scheme',
             'invalid-font-key',
             'missing-content-type',
             'missing-in-package',
@@ -18359,9 +18371,26 @@ XML;
         $t->same('italic', $external['style']);
         $t->same('https://fonts.example.test/aptos-Italic.ttf', $external['target']);
         $t->same(true, $external['external']);
+        $t->same('absolute-uri', $external['externalTargetKind']);
+        $t->same('https', $external['externalTargetScheme']);
+        $t->same(true, $external['externalTargetAllowed']);
+        $t->same([], $external['externalTargetIssues']);
         $t->same(null, $external['targetPart']);
         $t->same(null, $external['sha256']);
         $t->same(['external-embedded-font'], $external['issues']);
+
+        $t->same('regular', $unsafeExternal['style']);
+        $t->same('rUnsafeRegular', $unsafeExternal['id']);
+        $t->same('file:///C:/fonts/unsafe.odttf', $unsafeExternal['target']);
+        $t->same(true, $unsafeExternal['external']);
+        $t->same('absolute-uri', $unsafeExternal['externalTargetKind']);
+        $t->same('file', $unsafeExternal['externalTargetScheme']);
+        $t->same(false, $unsafeExternal['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $unsafeExternal['externalTargetIssues']);
+        $t->same(null, $unsafeExternal['targetPart']);
+        $t->same(null, $unsafeExternal['sha256']);
+        $t->same(['external-embedded-font', 'external-target-unsafe-scheme'], $unsafeExternal['issues']);
+        $t->same(false, $unsafeExternal['valid']);
 
         $t->same('bold-italic', $wrongType['style']);
         $t->same('http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', $wrongType['relationshipType']);
@@ -18384,12 +18413,18 @@ XML;
         $t->true(in_array('font-table', $inventory['word/fonts/review-fonts.xml']['roles'], true), 'font table inventory role missing');
         $t->true(in_array('embedded-font', $inventory['word/fonts/aptos-Regular.odttf']['roles'], true), 'embedded font inventory role missing');
         $t->same('font', $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/font']['label']);
-        $t->same(3, $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/font']['count']);
-        $t->same(5, $summary['fontTableEmbeddedFontCount']);
+        $t->same(4, $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/font']['count']);
+        $t->same(6, $summary['fontTableEmbeddedFontCount']);
         $t->same(2, $summary['fontTableEmbeddedFontExistingCount']);
         $t->same(1, $summary['fontTableEmbeddedFontMissingCount']);
-        $t->same(1, $summary['fontTableEmbeddedFontExternalCount']);
-        $t->same(4, $summary['fontTableEmbeddedFontIssueCount']);
+        $t->same(2, $summary['fontTableEmbeddedFontExternalCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontAllowedExternalCount']);
+        $t->same(1, $summary['fontTableEmbeddedFontUnsafeExternalCount']);
+        $t->same(['file:///C:/fonts/unsafe.odttf'], $summary['fontTableEmbeddedFontUnsafeExternalTargets']);
+        $t->same(['absolute-uri' => 2], $summary['fontTableEmbeddedFontExternalTargetKindCounts']);
+        $t->same(['file' => 1, 'https' => 1], $summary['fontTableEmbeddedFontExternalTargetSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $summary['fontTableEmbeddedFontExternalTargetIssueCodes']);
+        $t->same(5, $summary['fontTableEmbeddedFontIssueCount']);
         $t->same($fontTable['embeddedFontIssueCodes'], $summary['fontTableEmbeddedFontIssueCodes']);
         $t->same(4, $summary['fontTableEmbeddedFontKeyPresentCount']);
         $t->same(1, $summary['fontTableEmbeddedFontInvalidKeyCount']);
