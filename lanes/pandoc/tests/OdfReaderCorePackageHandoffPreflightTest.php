@@ -72,6 +72,76 @@ $indexByName = static function (array $items): array {
     return $indexed;
 };
 
+$buildZipPackageWithCentralDirectoryOrder = static function (array $parts, array $centralOrder): ZipPackage {
+    $crc32 = static fn (string $bytes): int => (int) sprintf('%u', crc32($bytes));
+    $body = '';
+    $centralRecords = [];
+
+    foreach ($parts as $part) {
+        $name = $part['name'];
+        $rawName = $part['rawName'] ?? $name;
+        $data = $part['data'] ?? '';
+        $method = $part['compressionMethod'] ?? ($data === '' || str_ends_with($name, '/') ? 0 : 8);
+        $compressed = $method === 8 ? gzdeflate($data) : $data;
+        $offset = strlen($body);
+        $crc = $crc32($data);
+
+        $body .= pack(
+            'VvvvvvVVVvv',
+            0x04034b50,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($rawName),
+            0
+        );
+        $body .= $rawName . $compressed;
+
+        $centralRecords[$name] = pack(
+            'VvvvvvvVVVvvvvvVV',
+            0x02014b50,
+            0x0314,
+            20,
+            0x0800,
+            $method,
+            0,
+            0,
+            $crc,
+            strlen($compressed),
+            strlen($data),
+            strlen($rawName),
+            0,
+            0,
+            0,
+            0,
+            str_ends_with($name, '/') ? 0x10 : 0,
+            $offset
+        ) . $rawName;
+    }
+
+    $central = '';
+    foreach ($centralOrder as $name) {
+        if (!isset($centralRecords[$name])) {
+            throw new RuntimeException("Missing central directory record for {$name}");
+        }
+
+        $central .= $centralRecords[$name];
+    }
+
+    $centralOffset = strlen($body);
+
+    return ZipPackage::fromString(
+        $body
+        . $central
+        . pack('VvvvvVVv', 0x06054b50, 0, 0, count($parts), count($parts), strlen($central), $centralOffset, 0)
+    );
+};
+
 return [
     'preflights selected ODT core package entries before reader handoff' => static function (TestRunner $t) use ($buildPackage, $indexByName, $contentXml, $stylesXml, $settingsXml): void {
         $package = $buildPackage();
@@ -206,5 +276,112 @@ return [
         $t->same($readerSourceSpans['content.xml']['manifestDeclaredSizeValid'], $compactSourceSpans['content.xml']['manifestDeclaredSizeValid']);
         $t->same($readerSourceSpans['content.xml']['manifestPathSuffix'], $compactSourceSpans['content.xml']['manifestPathSuffix']);
         $t->same($readerSourceSpans['content.xml']['manifestMediaTypeParameters'], $compactSourceSpans['content.xml']['manifestMediaTypeParameters']);
+    },
+    'preflights missing ODT core entries while unsupported package bytes stay blocked' => static function (TestRunner $t) use ($buildZipPackageWithCentralDirectoryOrder, $indexByName, $contentXml): void {
+        $scriptXml = '<script:module xmlns:script="urn:oasis:names:tc:opendocument:xmlns:script:1.0"/>';
+        $unsupportedBytes = 'UNSUPPORTED-CORE-HANDOFF-BLOCK';
+        $manifestXml = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/missing.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Pictures/unsupported.bin" manifest:media-type="application/octet-stream"/>
+  <manifest:file-entry manifest:full-path="Basic/Standard/Module1.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>
+XML;
+        $parts = [
+            ['name' => 'mimetype', 'data' => OdfReader::MIMETYPE, 'compressionMethod' => 0],
+            ['name' => 'META-INF/manifest.xml', 'data' => $manifestXml],
+            ['name' => 'content.xml', 'data' => $contentXml],
+            ['name' => 'Pictures/hero.png', 'data' => 'PNGDATA', 'compressionMethod' => 0],
+            ['name' => 'Pictures/unsupported.bin', 'data' => $unsupportedBytes, 'compressionMethod' => 12],
+            ['name' => 'Basic/Standard/Module1.xml', 'data' => $scriptXml, 'compressionMethod' => 0],
+        ];
+        $package = $buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name'));
+
+        $readerResult = (new OdfReader())->readPackage($package);
+        $readerHandoff = $readerResult['corePackageHandoff'];
+        $compactHandoff = OpenDocumentPackage::fromPackage($package)->summarize()['corePackageHandoff'];
+        $readerEntries = $indexByName($readerHandoff['entries']);
+        $compactEntries = $indexByName($compactHandoff['entries']);
+        $manifestByPart = [];
+        foreach ($readerResult['manifest'] as $item) {
+            if (is_string($item['part'] ?? null)) {
+                $manifestByPart[$item['part']] = $item;
+            }
+        }
+        $mediaByPart = [];
+        foreach ($readerResult['media'] as $item) {
+            $mediaByPart[$item['part']] = $item;
+        }
+        $provenance = $readerResult['importReport']['manifest']['packageProvenance'];
+        $packageParts = $provenance['parts'];
+        $compression = $provenance['compressionMethods'];
+
+        $t->same($readerHandoff, $readerResult['document']->attr('manifest')['corePackageHandoff']);
+        $t->same($readerHandoff, $readerResult['importReport']['manifest']['corePackageHandoff']);
+        $t->same([
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'settings.xml',
+        ], array_column($readerHandoff['entries'], 'name'));
+        $t->same(6, $readerHandoff['requestedEntryCount']);
+        $t->same(3, $readerHandoff['requiredEntryCount']);
+        $t->same(3, $readerHandoff['optionalEntryCount']);
+        $t->same(3, $readerHandoff['presentEntryCount']);
+        $t->same(3, $readerHandoff['missingEntryCount']);
+        $t->same(0, $readerHandoff['missingRequiredEntryCount']);
+        $t->same(3, $readerHandoff['missingOptionalEntryCount']);
+        $t->same(3, $readerHandoff['handoffEntryCount']);
+        $t->same(0, $readerHandoff['failedEntryCount']);
+        $t->same(0, $readerHandoff['selectedUnsupportedCompressionMethodCount']);
+        $t->same(true, $readerHandoff['isSupportedByBoundedReader']);
+        $t->same([], $readerHandoff['issues']);
+        $t->same([
+            'declared' => 1,
+            'not-declared' => 3,
+            'package-manifest-entry' => 1,
+            'package-mimetype-entry' => 1,
+        ], $readerHandoff['manifestDeclarationStateCounts']);
+        $t->same(1, $readerHandoff['manifestDeclaredSelectedEntryCount']);
+        $t->same(0, $readerHandoff['undeclaredSelectedEntryCount']);
+        $t->same(2, $readerHandoff['specialPackageSelectedEntryCount']);
+        $t->same(['styles.xml', 'meta.xml', 'settings.xml'], array_column($readerHandoff['missingEntries'], 'name'));
+        foreach (['styles.xml', 'meta.xml', 'settings.xml'] as $name) {
+            $t->same(false, $readerEntries[$name]['exists']);
+            $t->same('missing-optional', $readerEntries[$name]['status']);
+            $t->same('not-declared', $readerEntries[$name]['manifestDeclarationState']);
+            $t->same(false, $readerEntries[$name]['manifestDeclared']);
+            $t->same([], $readerEntries[$name]['issues']);
+            $t->same($readerEntries[$name]['manifestDeclarationState'], $compactEntries[$name]['manifestDeclarationState']);
+        }
+        $t->same(['mimetype', 'META-INF/manifest.xml', 'content.xml'], array_column($readerHandoff['handoffEntries'], 'name'));
+        $t->same($readerHandoff['manifestDeclarationStateCounts'], $compactHandoff['manifestDeclarationStateCounts']);
+        $t->same($readerHandoff['missingOptionalEntryCount'], $compactHandoff['missingOptionalEntryCount']);
+
+        $t->same(['Pictures/hero.png', 'Pictures/missing.png', 'Pictures/unsupported.bin'], array_column($readerResult['media'], 'part'));
+        $t->same('missing-package-part', $mediaByPart['Pictures/missing.png']['byteExposurePolicy']);
+        $t->same(null, $mediaByPart['Pictures/missing.png']['byteLength']);
+        $t->same('unsupported-compression-bytes-blocked', $mediaByPart['Pictures/unsupported.bin']['byteExposurePolicy']);
+        $t->same(false, $mediaByPart['Pictures/unsupported.bin']['canExposeBytes']);
+        $t->same(strlen($unsupportedBytes), $mediaByPart['Pictures/unsupported.bin']['storedByteLength']);
+        $t->same(12, $mediaByPart['Pictures/unsupported.bin']['compressionMethod']);
+        $t->same('unsupported', $mediaByPart['Pictures/unsupported.bin']['compressionMethodName']);
+
+        $t->same('missing-package-part', $manifestByPart['Pictures/missing.png']['byteExposurePolicy']);
+        $t->same('unsupported-compression-bytes-blocked', $manifestByPart['Pictures/unsupported.bin']['byteExposurePolicy']);
+        $t->same(true, $manifestByPart['Basic/Standard/Module1.xml']['scriptPackagePart']);
+        $t->same('script-package-bytes-blocked', $manifestByPart['Basic/Standard/Module1.xml']['byteExposurePolicy']);
+        $t->same(['manifest-declared', 'media-resource'], $packageParts['Pictures/unsupported.bin']['roles']);
+        $t->same('unsupported-compression-bytes-blocked', $packageParts['Pictures/unsupported.bin']['byteExposurePolicy']);
+        $t->same(['manifest-declared', 'script-package'], $packageParts['Basic/Standard/Module1.xml']['roles']);
+        $t->same('script-package-bytes-blocked', $packageParts['Basic/Standard/Module1.xml']['byteExposurePolicy']);
+        $t->same(1, $compression['unsupportedCompressionMethodCount']);
+        $t->same(['Pictures/unsupported.bin'], array_column($compression['unsupportedEntries'], 'name'));
+        $t->same(['Pictures/missing.png'], array_column($readerResult['importReport']['manifest']['missingItems'], 'part'));
     },
 ];
