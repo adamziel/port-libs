@@ -706,7 +706,7 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bullet?:bool, ordered?:bool, level?:int, start?:int} $properties
+     * @param array{bullet?:bool, ordered?:bool, level?:int, start?:int, autoNumType?:string} $properties
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      */
     private function paragraphXml(array $inlines, array $properties, array &$relationships): string
@@ -717,7 +717,8 @@ final class PptxWriter
             $propertyChildren .= '<a:buChar char="&#8226;"/>';
         } elseif (($properties['ordered'] ?? false) === true) {
             $start = max(1, (int) ($properties['start'] ?? 1));
-            $propertyChildren .= '<a:buAutoNum type="arabicPeriod" startAt="' . $start . '"/>';
+            $startAt = $start > 1 ? ' startAt="' . $start . '"' : '';
+            $propertyChildren .= '<a:buAutoNum type="' . $this->xml((string) ($properties['autoNumType'] ?? 'arabicPeriod')) . '"' . $startAt . '/>';
         }
         $paragraphProperties = $propertyChildren !== '' || $level > 0
             ? '<a:pPr lvl="' . $level . '">' . $propertyChildren . '</a:pPr>'
@@ -904,13 +905,14 @@ final class PptxWriter
     {
         $paragraphs = [];
         $start = max(1, (int) $list->attr('start', 1));
+        $autoNumType = $this->orderedListAutoNumberType($list);
         foreach ($list->children as $index => $item) {
             if ($item->type !== 'list_item') {
                 continue;
             }
             array_push(
                 $paragraphs,
-                ...$this->listItemParagraphXmls($item->children, $ordered, $start + $index, $level, $relationships)
+                ...$this->listItemParagraphXmls($item->children, $ordered, $start, $start + $index, $level, $autoNumType, $relationships)
             );
         }
 
@@ -922,7 +924,7 @@ final class PptxWriter
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      * @return list<string>
      */
-    private function listItemParagraphXmls(array $blocks, bool $ordered, int $start, int $level, array &$relationships): array
+    private function listItemParagraphXmls(array $blocks, bool $ordered, int $listStart, int $itemStart, int $level, string $autoNumType, array &$relationships): array
     {
         $paragraphs = [];
         $first = true;
@@ -930,7 +932,7 @@ final class PptxWriter
             if ($block->type === 'plain' || $block->type === 'paragraph' || $block->type === 'heading') {
                 $paragraphs[] = $this->paragraphXml(
                     $block->children,
-                    $this->listParagraphProperties($ordered, $start, $level, $first),
+                    $this->listParagraphProperties($ordered, $listStart, $itemStart, $level, $first, $autoNumType),
                     $relationships
                 );
                 $first = false;
@@ -941,7 +943,7 @@ final class PptxWriter
                 if ($text !== '') {
                     $paragraphs[] = $this->paragraphXml(
                         [$this->codeInline($text)],
-                        $this->listParagraphProperties($ordered, $start, $level, $first),
+                        $this->listParagraphProperties($ordered, $listStart, $itemStart, $level, $first, $autoNumType),
                         $relationships
                     );
                     $first = false;
@@ -956,7 +958,7 @@ final class PptxWriter
             if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
                 array_push(
                     $paragraphs,
-                    ...$this->listItemParagraphXmls($block->children, $ordered, $start, $level, $relationships)
+                    ...$this->listItemParagraphXmls($block->children, $ordered, $listStart, $itemStart, $level, $autoNumType, $relationships)
                 );
                 continue;
             }
@@ -965,7 +967,7 @@ final class PptxWriter
             if ($text !== '') {
                 $paragraphs[] = $this->paragraphXml(
                     $this->textInlines($text),
-                    $this->listParagraphProperties($ordered, $start, $level, $first),
+                    $this->listParagraphProperties($ordered, $listStart, $itemStart, $level, $first, $autoNumType),
                     $relationships
                 );
                 $first = false;
@@ -976,9 +978,9 @@ final class PptxWriter
     }
 
     /**
-     * @return array{bullet?:bool, ordered?:bool, level:int, start?:int}
+     * @return array{bullet?:bool, ordered?:bool, level:int, start?:int, autoNumType?:string}
      */
-    private function listParagraphProperties(bool $ordered, int $start, int $level, bool $first): array
+    private function listParagraphProperties(bool $ordered, int $listStart, int $itemStart, int $level, bool $first, string $autoNumType): array
     {
         $properties = ['level' => max(0, min(8, $level))];
         if (!$first) {
@@ -987,12 +989,35 @@ final class PptxWriter
 
         if ($ordered) {
             $properties['ordered'] = true;
-            $properties['start'] = $start;
+            $properties['autoNumType'] = $autoNumType;
+            if ($listStart > 1 && $itemStart === $listStart) {
+                $properties['start'] = $listStart;
+            }
         } else {
             $properties['bullet'] = true;
         }
 
         return $properties;
+    }
+
+    private function orderedListAutoNumberType(AstNode $list): string
+    {
+        $style = strtolower((string) $list->attr('style', 'decimal'));
+        $delimiter = strtolower((string) $list->attr('delimiter', 'period'));
+
+        $base = match ($style) {
+            'lower_alpha' => 'alphaLc',
+            'upper_alpha' => 'alphaUc',
+            'lower_roman' => 'romanLc',
+            'upper_roman' => 'romanUc',
+            default => 'arabic',
+        };
+
+        return match ($delimiter) {
+            'one_paren' => $base . 'ParenR',
+            'two_parens' => $base . 'ParenBoth',
+            default => $base . 'Period',
+        };
     }
 
     private function pictureShapeXml(AstNode $image, int $shapeId, int $slot, array &$relationships): ?string

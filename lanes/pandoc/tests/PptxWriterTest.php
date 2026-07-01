@@ -130,6 +130,18 @@ $upstreamCodeNative = <<<'NATIVE'
   [CodeBlock ("",[],[]) "safeHead :: [a] -> Maybe a\nsafeHead [] = Nothing\nsafeHead (x:_) = Just x"]]]
 NATIVE;
 
+$upstreamStartNumberingAtNative = <<<'NATIVE'
+[Header 2 ("example-numbering-mwe",[],[]) [Str "Example",Space,Str "numbering",Space,Str "MWE"]
+,Para [Str "This",Space,Str "is",Space,Str "a",Space,Str "slide",Space,Str "with",Space,Str "examples",Space,Str "in",Space,Str "(1)",Space,Str "and",Space,Str "(2)"]
+,OrderedList (1,Example,TwoParens)
+ [[Plain [Str "First"]]
+ ,[Plain [Str "Second"]]]
+,Header 2 ("a-second-slide",[],[]) [Str "A",Space,Str "second",Space,Str "slide"]
+,Para [Str "This",Space,Str "second",Space,Str "slide",Space,Str "has",Space,Str "a",Space,Str "third",Space,Str "example",Space,Str "in",Space,Str "(3)."]
+,OrderedList (3,Example,TwoParens)
+ [[Plain [Str "Third"]]]]
+NATIVE;
+
 $upstreamDocumentPropertiesNative = <<<'NATIVE'
 Pandoc (Meta {unMeta = fromList [("Company",MetaInlines [Str "My",Space,Str "Company"]),("Second Custom Property",MetaInlines [Str "Second",Space,Str "custom",Space,Str "property",Space,Str "value"]),("abstract",MetaBlocks [Plain [Str "Quite",Space,Str "a",Space,Str "long",Space,Str "description",SoftBreak,Str "spanning",Space,Str "several",Space,Str "lines"]]),("author",MetaList [MetaInlines [Str "A.",Space,Str "M."]]),("category",MetaInlines [Str "My",Space,Str "Category"]),("custom1",MetaInlines [Str "First",Space,Str "custom",Space,Str "property",Space,Str "value"]),("custom3",MetaInlines [Str "Escaping",Space,Str "amp",Space,Str "&",Space,Str "."]),("custom4",MetaInlines [Str "Escaping",Space,Str "LT,GT",Space,Str "<",Space,Str "asdf",Space,Str ">",Space,Str "<"]),("custom5",MetaInlines [Str "Escaping",Space,Str "html",Space,RawInline (Format "html") "<i>",Str "asdf",RawInline (Format "html") "</i>"]),("custom6",MetaInlines [Str "Escaping",Space,Emph [Str "MD"],Space,Str "\225",Space,Str "a"]),("custom9",MetaInlines [Str "Extended",Space,Str "chars:",Space,Str "\8364",Space,Str "\225",Space,Str "\233",Space,Str "\237",Space,Str "\243",Space,Str "\250",Space,Str "$"]),("description",MetaBlocks [Para [Str "Long",Space,Str "description",Space,Str "spanning",SoftBreak,Str "several",Space,Str "lines."],Plain [Str "This",Space,Str "is",Space,Str "\225",Space,Str "second",Space,RawInline (Format "html") "<i>",Str "line",RawInline (Format "html") "</i>",Str "."]]),("keywords",MetaList [MetaInlines [Str "keyword",Space,Str "1"],MetaInlines [Str "keyword",Space,Str "2"]]),("lang",MetaInlines [Str "en-US"]),("nested-custom",MetaList [MetaMap (fromList [("custom 7",MetaInlines [Str "Nested",Space,Str "Custom",Space,Str "value",Space,Str "7"])]),MetaMap (fromList [("custom 8",MetaInlines [Str "Nested",Space,Str "Custom",Space,Str "value",Space,Str "8"])])]),("subject",MetaInlines [Str "This",Space,Str "is",Space,Str "the",Space,Str "subject"]),("subtitle",MetaInlines [Str "This",Space,Str "is",Space,Str "a",Space,Str "subtitle"]),("title",MetaInlines [Str "Testing",Space,Str "custom",Space,Str "properties"])]})
 [Para [Str "Testing",Space,Str "document",Space,Str "properties"]]
@@ -478,6 +490,31 @@ return [
         $t->contains('<a:latin typeface="Courier"/></a:rPr><a:t>head</a:t>', $slide3);
         $t->contains('safeHead :: [a] -&gt; Maybe a', $slide3);
         $t->contains('<Slides>3</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream example numbering list starts into pptx autonumbering' => static function (TestRunner $t) use ($upstreamStartNumberingAtNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamStartNumberingAtNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/slides/slide1.xml', $names, true), 'Expected first example-numbering slide');
+        $t->true(in_array('ppt/slides/slide2.xml', $names, true), 'Expected second example-numbering slide');
+        $t->true(!in_array('ppt/slides/slide3.xml', $names, true), 'Example numbering fixture should produce exactly two slides');
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Example numbering MWE</a:t>', $slide1);
+        $t->contains('<a:t>This is a slide with examples in (1) and (2)</a:t>', $slide1);
+        $t->same(2, substr_count($slide1, '<a:buAutoNum type="arabicParenBoth"/>'));
+        $t->true(!str_contains($slide1, 'arabicPeriod'), 'Example lists must not render as period-delimited decimal lists');
+        $t->true(!str_contains($slide1, 'startAt="1"'), 'Default example list start should not be forced into slide XML');
+        $t->true(!str_contains($slide1, 'startAt="2"'), 'Continuation example list item should rely on auto-increment');
+
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $t->contains('<a:t>A second slide</a:t>', $slide2);
+        $t->contains('<a:t>This second slide has a third example in (3).</a:t>', $slide2);
+        $t->contains('<a:buAutoNum type="arabicParenBoth" startAt="3"/>', $slide2);
+        $t->true(!str_contains($slide2, 'arabicPeriod'), 'Started example list must keep two-parentheses numbering');
+        $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
     },
 
     'maps upstream document properties into core and custom parts' => static function (TestRunner $t) use ($upstreamDocumentPropertiesNative, $upstreamDocumentPropertiesShortDescNative, $mediaOptions): void {
