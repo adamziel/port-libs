@@ -224,6 +224,13 @@ $upstreamCitationInlineNative = <<<'NATIVE'
  [Para [Str "Note",Space,Cite [Citation {citationId = "note2026", citationPrefix = [], citationSuffix = [], citationMode = NormalCitation, citationNoteNum = 0, citationHash = 456}] [Strong [Str "note"],Space,Str "cite"]]]]
 NATIVE;
 
+$upstreamInlineImageAltNative = <<<'NATIVE'
+[Para [Str "Inline",Space,Image ("",[],[]) [Emph [Str "figure"],Space,Strong [Str "alt"]] ("missing-inline.png","fig:"),Space,Str "text"]
+,Div ("",["notes"],[])
+ [Para [Str "Note",Space,Image ("",[],[]) [Str "note",Space,Strong [Str "alt"]] ("missing-note.png","fig:")]]
+,Para [Emph [Str "Nested",Space,Image ("",[],[]) [Str "image",Space,Strong [Str "alt"]] ("nested-missing.png","fig:")]]]
+NATIVE;
+
 $upstreamStartNumberingAtNative = <<<'NATIVE'
 [Header 2 ("example-numbering-mwe",[],[]) [Str "Example",Space,Str "numbering",Space,Str "MWE"]
 ,Para [Str "This",Space,Str "is",Space,Str "a",Space,Str "slide",Space,Str "with",Space,Str "examples",Space,Str "in",Space,Str "(1)",Space,Str "and",Space,Str "(2)"]
@@ -876,6 +883,33 @@ return [
         $t->contains('b="1"', $notes);
         $t->true(!str_contains($notes, 'note2026'), 'Speaker-note citation IDs must not leak into notes XML');
         $t->true(!str_contains($notes, 'Citation'), 'Speaker-note citation constructors must not leak into notes XML');
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream inline image alt inlines when rendered as text' => static function (TestRunner $t) use ($upstreamInlineImageAltNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamInlineImageAltNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $slideRelationships = $package->read('ppt/slides/_rels/slide1.xml.rels');
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $slideText = trim(preg_replace('/\s+/u', ' ', strip_tags($slide)) ?? '');
+        $notesText = trim(preg_replace('/\s+/u', ' ', strip_tags($notes)) ?? '');
+        $mediaPartNames = array_values(array_filter($names, static fn (string $name): bool => str_starts_with($name, 'ppt/media/')));
+
+        $t->contains('Inline figure alt text', $slideText);
+        $t->contains('Nested image alt', $slideText);
+        $t->contains('i="1"', $slide);
+        $t->contains('b="1"', $slide);
+        $t->contains('b="1" i="1"', $slide);
+        $t->same([], $mediaPartNames);
+        $t->true(!str_contains($slideRelationships, 'relationships/image'), 'Alt-text fallback should not create slide image relationships');
+        $t->true(!str_contains($slide, 'missing-inline.png'), 'Missing image target must not leak into slide XML');
+        $t->true(!str_contains($slide, 'nested-missing.png'), 'Nested missing image target must not leak into slide XML');
+
+        $t->contains('Note note alt', $notesText);
+        $t->contains('b="1"', $notes);
+        $t->true(!str_contains($notes, 'missing-note.png'), 'Missing note image target must not leak into notes XML');
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 

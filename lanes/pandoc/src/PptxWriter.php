@@ -694,10 +694,7 @@ final class PptxWriter
                             );
                         }
                     } else {
-                        $fallback = $this->imageFallbackText($child);
-                        if ($fallback !== '') {
-                            $nonImageInlines[] = new AstNode('text', ['text' => $fallback]);
-                        }
+                        array_push($nonImageInlines, ...$this->imageFallbackInlines($child));
                     }
                     continue;
                 }
@@ -1510,6 +1507,8 @@ final class PptxWriter
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style + ['baseline' => -25000], $relationships));
                     break;
                 case 'image':
+                    $flushText();
+                    $runs = array_merge($runs, $this->inlineRuns($this->imageFallbackInlines($inline), $style, $relationships));
                     break;
                 default:
                     $text = $this->inlineText([$inline]);
@@ -2640,10 +2639,8 @@ final class PptxWriter
                 case 'note':
                     break;
                 case 'image':
-                    $text = $this->imageFallbackText($inline);
-                    if ($text !== '') {
-                        $textBuffer .= $text;
-                    }
+                    $flushText();
+                    $runs = array_merge($runs, $this->noteInlineRuns($this->imageFallbackInlines($inline), $style));
                     break;
                 default:
                     $text = $this->inlineText([$inline]);
@@ -3083,6 +3080,18 @@ final class PptxWriter
     {
         $alt = (string) $image->attr('alt', $this->inlineText($image->children));
         return $alt;
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function imageFallbackInlines(AstNode $image): array
+    {
+        if ($image->children !== []) {
+            return $image->children;
+        }
+
+        return $this->textInlines($this->imageFallbackText($image));
     }
 
     private function shapeName(AstNode $node, string $fallback): string
