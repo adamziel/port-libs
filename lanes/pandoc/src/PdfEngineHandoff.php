@@ -468,6 +468,20 @@ final class PdfEngineHandoff
                     $diagnostics[] = 'typst-open-output-viewers:' . count($openOutput['viewers']);
                 }
             }
+            if (($typstBoundaryProvenance['openOutputViewerPolicy'] ?? []) !== []) {
+                $viewerPolicy = $typstBoundaryProvenance['openOutputViewerPolicy'];
+                if (is_array($viewerPolicy) && is_string($viewerPolicy['reviewStatus'] ?? null)) {
+                    $diagnostics[] = 'typst-open-output-viewer-policy:' . $viewerPolicy['reviewStatus'];
+                }
+                if (is_array($viewerPolicy) && is_int($viewerPolicy['unsafeViewerCount'] ?? null) && $viewerPolicy['unsafeViewerCount'] > 0) {
+                    $diagnostics[] = 'typst-open-output-viewer-unsafe:' . $viewerPolicy['unsafeViewerCount'];
+                }
+                foreach (is_array($viewerPolicy['viewerKindCounts'] ?? null) ? $viewerPolicy['viewerKindCounts'] : [] as $kind => $count) {
+                    if (is_string($kind) && is_int($count) && $count > 0) {
+                        $diagnostics[] = 'typst-open-output-viewer-kind:' . $kind . ':' . $count;
+                    }
+                }
+            }
             if (($typstBoundaryProvenance['featureGates'] ?? null) !== null) {
                 $featureGates = $typstBoundaryProvenance['featureGates'];
                 if (is_array($featureGates) && is_int($featureGates['featureCount'] ?? null)) {
@@ -7362,6 +7376,116 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param list<array{raw:string|null, viewer:string|null, mode:string, safe:bool, issues:list<string>}> $entries
+     * @return array<string, mixed>
+     */
+    private function typstOpenOutputViewerPolicy(array $entries): array
+    {
+        $viewers = [];
+        $viewerKindCounts = [
+            'absolute' => 0,
+            'command' => 0,
+            'invalid' => 0,
+            'relative' => 0,
+            'uri' => 0,
+        ];
+        $safeViewerCount = 0;
+        $unsafeViewerCount = 0;
+        $unsafeViewers = [];
+        $issues = [];
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry) || !is_string($entry['viewer'] ?? null)) {
+                continue;
+            }
+
+            $viewer = trim($entry['viewer']);
+            if ($viewer === '') {
+                continue;
+            }
+
+            $raw = is_string($entry['raw'] ?? null) ? $entry['raw'] : $viewer;
+            $summary = $this->typstOpenOutputViewerPolicyEntry(
+                $raw,
+                $viewer,
+                is_array($entry['issues'] ?? null) ? $entry['issues'] : []
+            );
+            $viewers[] = $summary;
+            ++$viewerKindCounts[$summary['kind']];
+            if ($summary['safe']) {
+                ++$safeViewerCount;
+            } else {
+                ++$unsafeViewerCount;
+                $unsafeViewers[] = $summary['viewer'];
+            }
+            foreach ($summary['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        if ($viewers === [] || $unsafeViewerCount === 0) {
+            return [];
+        }
+
+        $selectedViewer = $viewers[count($viewers) - 1];
+
+        return [
+            'reviewStatus' => 'review',
+            'viewerCount' => count($viewers),
+            'classifiedViewerCount' => count($viewers),
+            'safeViewerCount' => $safeViewerCount,
+            'unsafeViewerCount' => $unsafeViewerCount,
+            'viewerKindCounts' => $viewerKindCounts,
+            'selectedViewer' => $selectedViewer['viewer'],
+            'selectedViewerKind' => $selectedViewer['kind'],
+            'unsafeViewers' => $unsafeViewers,
+            'issues' => array_values(array_unique($issues)),
+            'viewers' => $viewers,
+        ];
+    }
+
+    /**
+     * @param list<string> $sourceIssues
+     * @return array{raw:string, viewer:string, kind:string, safe:bool, issues:list<string>}
+     */
+    private function typstOpenOutputViewerPolicyEntry(string $raw, string $viewer, array $sourceIssues): array
+    {
+        $normalized = str_replace('\\', '/', trim($viewer));
+        $kind = 'command';
+        $issues = array_values(array_filter(
+            $sourceIssues,
+            static fn (mixed $issue): bool => is_string($issue) && $issue !== ''
+        ));
+
+        if ($normalized === '' || str_contains($viewer, "\0") || preg_match('/[[:cntrl:]]/', $viewer) === 1) {
+            $kind = 'invalid';
+            $issues[] = 'open-output-viewer-invalid-boundary';
+        } elseif ($this->isUriResourceReference($normalized)) {
+            $kind = 'uri';
+            $issues[] = 'open-output-viewer-external-boundary';
+        } elseif (str_starts_with($normalized, '/') || preg_match('/\A[A-Za-z]:\//', $normalized) === 1) {
+            $kind = 'absolute';
+            $issues[] = 'open-output-viewer-external-boundary';
+        } elseif (str_contains($normalized, '/')) {
+            try {
+                $this->normalizeRelativePath($normalized, 'Typst open output viewer');
+                $kind = 'relative';
+            } catch (\InvalidArgumentException) {
+                $kind = 'invalid';
+                $issues[] = 'open-output-viewer-invalid-boundary';
+            }
+        }
+
+        return [
+            'raw' => $raw,
+            'viewer' => $viewer,
+            'kind' => $kind,
+            'safe' => $issues === [],
+            'issues' => array_values(array_unique($issues)),
+        ];
+    }
+
+    /**
      * @param array<string, list<string>> $optionValues
      * @return list<array{option:string, count:int, values:list<string>, selected:string, issue:string}>
      */
@@ -7721,6 +7845,12 @@ final class PdfEngineHandoff
                 $openOutputIssues[] = $issue;
             }
         }
+        $openOutputViewerPolicy = $this->typstOpenOutputViewerPolicy($openOutputEntries);
+        foreach (($openOutputViewerPolicy['issues'] ?? []) as $issue) {
+            if (is_string($issue)) {
+                $openOutputIssues[] = $issue;
+            }
+        }
 
         foreach (array_filter(array_merge($rootHistory, $packagePathHistory, $packageCacheHistory, $creationTimestampHistory, $pageSelectionHistory, $ppiHistory, $pdfStandardHistory, $featureGateHistory, $jobsHistory, $dependencyOutputHistory, $timingsOutputHistory, $diagnosticFormatHistory, $diagnosticColorHistory, $dependencyFormatHistory, $outputFormatHistory, $fontPaths, $certificates, $inputVariables)) as $entry) {
             if (!is_array($entry)) {
@@ -7938,6 +8068,9 @@ final class PdfEngineHandoff
                 $provenance['openOutput']['viewer'] = $openOutputViewers[count($openOutputViewers) - 1];
                 $provenance['openOutput']['viewers'] = $openOutputViewers;
             }
+        }
+        if ($openOutputViewerPolicy !== []) {
+            $provenance['openOutputViewerPolicy'] = $openOutputViewerPolicy;
         }
         if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0 || $prettyOutputCount > 0) {
             $pdfExportIssues = $pdfTagIssues;
@@ -9022,7 +9155,8 @@ final class PdfEngineHandoff
             }
             $viewerNames = array_values(array_unique($viewerNames));
             $viewer = is_array($openOutput['viewer'] ?? null) ? $openOutput['viewer'] : [];
-            $appendCase('open-output', $openOutputIssues === [] ? 'ok' : 'review', is_int($openOutput['flagCount'] ?? null) ? $openOutput['flagCount'] : 0, [
+            $viewerPolicy = is_array($provenance['openOutputViewerPolicy'] ?? null) ? $provenance['openOutputViewerPolicy'] : [];
+            $openOutputDetails = [
                 'enabled' => ($openOutput['enabled'] ?? false) === true,
                 'viewerCount' => count($openOutputViewers),
                 'defaultViewerCount' => $defaultViewerCount,
@@ -9031,7 +9165,18 @@ final class PdfEngineHandoff
                 'viewer' => is_string($viewer['viewer'] ?? null) ? $viewer['viewer'] : null,
                 'viewerNames' => $viewerNames,
                 'rawViewerValues' => $rawViewerValues,
-            ], $openOutputIssues);
+            ];
+            if ($viewerPolicy !== []) {
+                $openOutputDetails['viewerPolicyReviewStatus'] = is_string($viewerPolicy['reviewStatus'] ?? null) ? $viewerPolicy['reviewStatus'] : null;
+                $openOutputDetails['safeViewerCount'] = is_int($viewerPolicy['safeViewerCount'] ?? null) ? $viewerPolicy['safeViewerCount'] : 0;
+                $openOutputDetails['unsafeViewerCount'] = is_int($viewerPolicy['unsafeViewerCount'] ?? null) ? $viewerPolicy['unsafeViewerCount'] : 0;
+                $openOutputDetails['viewerKindCounts'] = is_array($viewerPolicy['viewerKindCounts'] ?? null) ? $viewerPolicy['viewerKindCounts'] : [];
+                $openOutputDetails['unsafeViewers'] = array_values(array_filter(
+                    is_array($viewerPolicy['unsafeViewers'] ?? null) ? $viewerPolicy['unsafeViewers'] : [],
+                    static fn (mixed $viewer): bool => is_string($viewer) && $viewer !== ''
+                ));
+            }
+            $appendCase('open-output', $openOutputIssues === [] ? 'ok' : 'review', is_int($openOutput['flagCount'] ?? null) ? $openOutput['flagCount'] : 0, $openOutputDetails, $openOutputIssues);
         }
 
         if ($readBoundaryPolicy !== []) {
