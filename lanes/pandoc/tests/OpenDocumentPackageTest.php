@@ -1820,8 +1820,20 @@ XML;
         $summary = OpenDocumentPackage::fromPackage(
             $buildZipPackageWithCentralDirectoryOrder($parts, array_column($parts, 'name'))
         )->summarize();
+        $utf8Parts = $parts;
+        $utf8Parts[6]['rawName'] = $decodedName;
+        $utf8Parts[6]['generalPurposeFlags'] = 0x0800;
+        $utf8Identity = OpenDocumentPackage::fromPackage(
+            $buildZipPackageWithCentralDirectoryOrder($utf8Parts, array_column($utf8Parts, 'name'))
+        )->summarize()['packageIdentity'];
         $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
         $legacy = $inventory['parts'][$decodedName];
+        $identityParts = [];
+        foreach ($identity['packageEntries'] as $entry) {
+            $identityParts[$entry['path']] = $entry;
+        }
+        $identityLegacy = $identityParts[$decodedName];
         $mediaByPath = [];
         foreach ($summary['mediaParts'] as $media) {
             $mediaByPath[$media['path']] = $media;
@@ -1844,6 +1856,19 @@ XML;
         $t->same(true, $legacy['usesLegacyNameEncoding']);
         $t->same(false, $legacy['usesUnicodePathExtraField']);
         $t->same(true, $legacy['hasRawNameProvenance']);
+        $t->same(1, $identity['rawNameProvenanceEntryCount']);
+        $t->same(1, $identity['legacyEncodedNameEntryCount']);
+        $t->same(0, $identity['unicodePathExtraEntryCount']);
+        $t->same(1, $identity['decodedNameDiffersFromRawNameEntryCount']);
+        $t->same($inventory['rawNameProvenanceEntries'], $identity['rawNameProvenanceEntries']);
+        $t->same(bin2hex($rawName), $identityLegacy['rawNameHex']);
+        $t->same('cp437', $identityLegacy['nameEncoding']);
+        $t->same(false, $identityLegacy['rawNameMatchesDecodedName']);
+        $t->same(true, $identityLegacy['usesLegacyNameEncoding']);
+        $t->same(false, $identityLegacy['usesUnicodePathExtraField']);
+        $t->same(true, $identityLegacy['hasRawNameProvenance']);
+        $t->true($identity['identitySha256'] !== $utf8Identity['identitySha256']);
+        $t->same(0, $utf8Identity['rawNameProvenanceEntryCount']);
         $t->same(true, $legacy['declaredInManifest']);
         $t->same(['manifest-declared', 'media-resource'], $legacy['roles']);
         $t->same(strlen($legacyBytes), $legacy['byteLength']);
