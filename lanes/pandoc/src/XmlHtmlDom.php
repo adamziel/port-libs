@@ -20869,9 +20869,26 @@ final class XmlHtmlDom
 
         if (array_key_exists('is', $attributes)) {
             $custom = self::customElementNameSummary($attributes['is']);
+            $reserved = is_string($custom['name']) && isset(self::HTML_CUSTOM_ELEMENT_RESERVED_NAMES[$custom['name']]);
+            $valid = $custom['valid'] && !$reserved;
+            $issues = [];
+            if (!$custom['valid']) {
+                $issues[] = 'invalid-custom-element-name';
+            }
+            if ($reserved) {
+                $issues[] = 'reserved-custom-element-name';
+            }
+
             $summary['isRaw'] = $attributes['is'];
             $summary['customElementName'] = $custom['name'];
-            $summary['customElementValid'] = $custom['valid'];
+            $summary['customElementValid'] = $valid;
+            $summary['customElementUpgradeReviewPolicy'] = 'html-customized-built-in-element-review';
+            $summary['customElementUpgradeHostElement'] = self::htmlElementName($element);
+            $summary['customElementUpgradeName'] = $custom['name'];
+            $summary['customElementUpgradeReservedName'] = $reserved;
+            $summary['customElementUpgradeIssueCodes'] = $issues;
+            $summary['customElementUpgradeValid'] = $valid;
+            $summary['customizedBuiltInElement'] = $valid;
         }
 
         if (array_key_exists('accesskey', $attributes)) {
