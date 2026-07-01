@@ -12306,6 +12306,13 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestCompressionMethodSummaries'] = is_array($zipPackageManifest['compressionMethodSummaries'] ?? null)
             ? $zipPackageManifest['compressionMethodSummaries']
             : [];
+        $summary['zipPackageManifestGeneralPurposeFlagSummaryCount'] = (int) ($zipPackageManifest['generalPurposeFlagSummaryCount'] ?? 0);
+        $summary['zipPackageManifestGeneralPurposeUtf8NameEntryCount'] = (int) ($zipPackageManifest['generalPurposeUtf8NameEntryCount'] ?? 0);
+        $summary['zipPackageManifestGeneralPurposeDataDescriptorEntryCount'] = (int) ($zipPackageManifest['generalPurposeDataDescriptorEntryCount'] ?? 0);
+        $summary['zipPackageManifestGeneralPurposeDeflateOptionEntryCount'] = (int) ($zipPackageManifest['generalPurposeDeflateOptionEntryCount'] ?? 0);
+        $summary['zipPackageManifestGeneralPurposeFlagSummaries'] = is_array($zipPackageManifest['generalPurposeFlagSummaries'] ?? null)
+            ? $zipPackageManifest['generalPurposeFlagSummaries']
+            : [];
         $summary['zipPackageManifestDirectoryRootCount'] = (int) ($zipPackageManifest['directoryRootCount'] ?? 0);
         $summary['zipPackageManifestDirectoryRoots'] = is_array($zipPackageManifest['directoryRoots'] ?? null)
             ? $zipPackageManifest['directoryRoots']
@@ -13336,6 +13343,11 @@ final class DocxOpenXmlReader
             'hasCaseInsensitiveNameCollisions' => false,
             'caseInsensitiveNameCollisionGroups' => [],
             'caseInsensitiveNameCollisionEntries' => [],
+            'generalPurposeFlagSummaryCount' => 0,
+            'generalPurposeUtf8NameEntryCount' => 0,
+            'generalPurposeDataDescriptorEntryCount' => 0,
+            'generalPurposeDeflateOptionEntryCount' => 0,
+            'generalPurposeFlagSummaries' => [],
             'directoryRootCount' => 0,
             'directoryRoots' => [],
             'directoryRootSummaries' => [],
@@ -13553,6 +13565,13 @@ final class DocxOpenXmlReader
             'packageManifestCompressionMethodSummaryCount' => (int) ($packageManifest['compressionMethodSummaryCount'] ?? 0),
             'packageManifestCompressionMethodSummaries' => is_array($packageManifest['compressionMethodSummaries'] ?? null)
                 ? $packageManifest['compressionMethodSummaries']
+                : [],
+            'packageManifestGeneralPurposeFlagSummaryCount' => (int) ($packageManifest['generalPurposeFlagSummaryCount'] ?? 0),
+            'packageManifestGeneralPurposeUtf8NameEntryCount' => (int) ($packageManifest['generalPurposeUtf8NameEntryCount'] ?? 0),
+            'packageManifestGeneralPurposeDataDescriptorEntryCount' => (int) ($packageManifest['generalPurposeDataDescriptorEntryCount'] ?? 0),
+            'packageManifestGeneralPurposeDeflateOptionEntryCount' => (int) ($packageManifest['generalPurposeDeflateOptionEntryCount'] ?? 0),
+            'packageManifestGeneralPurposeFlagSummaries' => is_array($packageManifest['generalPurposeFlagSummaries'] ?? null)
+                ? $packageManifest['generalPurposeFlagSummaries']
                 : [],
             'packageManifestDirectoryRootCount' => (int) ($packageManifest['directoryRootCount'] ?? 0),
             'packageManifestDirectoryRoots' => is_array($packageManifest['directoryRoots'] ?? null)

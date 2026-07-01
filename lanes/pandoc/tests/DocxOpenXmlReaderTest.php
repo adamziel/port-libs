@@ -1265,6 +1265,11 @@ XML,
             'caseInsensitiveNameCollisionEntries' => 'packageManifestCaseInsensitiveNameCollisionEntries',
             'compressionMethodSummaryCount' => 'packageManifestCompressionMethodSummaryCount',
             'compressionMethodSummaries' => 'packageManifestCompressionMethodSummaries',
+            'generalPurposeFlagSummaryCount' => 'packageManifestGeneralPurposeFlagSummaryCount',
+            'generalPurposeUtf8NameEntryCount' => 'packageManifestGeneralPurposeUtf8NameEntryCount',
+            'generalPurposeDataDescriptorEntryCount' => 'packageManifestGeneralPurposeDataDescriptorEntryCount',
+            'generalPurposeDeflateOptionEntryCount' => 'packageManifestGeneralPurposeDeflateOptionEntryCount',
+            'generalPurposeFlagSummaries' => 'packageManifestGeneralPurposeFlagSummaries',
             'directoryRootCount' => 'packageManifestDirectoryRootCount',
             'directoryRoots' => 'packageManifestDirectoryRoots',
             'directoryRootSummaries' => 'packageManifestDirectoryRootSummaries',
@@ -2118,6 +2123,11 @@ XML,
         $package = $document->attr('docx')['packageProvenance'];
         $zipPackage = $package['zipPackage'];
         $flags = $zipPackage['generalPurposeFlags'];
+        $manifest = $zipPackage['packageManifest'];
+        $manifestFlagSummariesByFlags = [];
+        foreach ($manifest['generalPurposeFlagSummaries'] as $flagSummary) {
+            $manifestFlagSummariesByFlags[$flagSummary['generalPurposeFlags']] = $flagSummary;
+        }
         $summary = $package['summary'];
         $inventory = $package['parts'];
         $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
@@ -2183,6 +2193,30 @@ XML,
         $t->same($flags['issueCodes'], $summary['zipGeneralPurposeFlagIssueCodes']);
         $t->same($flags['unsupportedEntries'], $summary['zipGeneralPurposeUnsupportedEntries']);
         $t->same($flags['strictReviewEntries'], $summary['zipGeneralPurposeStrictReviewEntries']);
+
+        $t->same(3, $manifest['generalPurposeFlagSummaryCount']);
+        $t->same(count($zipParts), $manifest['generalPurposeUtf8NameEntryCount']);
+        $t->same(1, $manifest['generalPurposeDataDescriptorEntryCount']);
+        $t->same(1, $manifest['generalPurposeDeflateOptionEntryCount']);
+        $t->same($manifest['generalPurposeFlagSummaryCount'], $zipPackage['packageManifestGeneralPurposeFlagSummaryCount']);
+        $t->same($manifest['generalPurposeUtf8NameEntryCount'], $zipPackage['packageManifestGeneralPurposeUtf8NameEntryCount']);
+        $t->same($manifest['generalPurposeDataDescriptorEntryCount'], $zipPackage['packageManifestGeneralPurposeDataDescriptorEntryCount']);
+        $t->same($manifest['generalPurposeDeflateOptionEntryCount'], $zipPackage['packageManifestGeneralPurposeDeflateOptionEntryCount']);
+        $t->same($manifest['generalPurposeFlagSummaries'], $zipPackage['packageManifestGeneralPurposeFlagSummaries']);
+        $t->same($manifest['generalPurposeFlagSummaryCount'], $summary['zipPackageManifestGeneralPurposeFlagSummaryCount']);
+        $t->same($manifest['generalPurposeUtf8NameEntryCount'], $summary['zipPackageManifestGeneralPurposeUtf8NameEntryCount']);
+        $t->same($manifest['generalPurposeDataDescriptorEntryCount'], $summary['zipPackageManifestGeneralPurposeDataDescriptorEntryCount']);
+        $t->same($manifest['generalPurposeDeflateOptionEntryCount'], $summary['zipPackageManifestGeneralPurposeDeflateOptionEntryCount']);
+        $t->same($manifest['generalPurposeFlagSummaries'], $summary['zipPackageManifestGeneralPurposeFlagSummaries']);
+        $t->same(['utf-8-names'], $manifestFlagSummariesByFlags[0x0800]['flagNames']);
+        $t->same(count($zipParts) - 2, $manifestFlagSummariesByFlags[0x0800]['entryCount']);
+        $t->same(['word/document.xml'], $manifestFlagSummariesByFlags[0x0802]['entryNames']);
+        $t->same(['deflate-maximum-compression', 'utf-8-names'], $manifestFlagSummariesByFlags[0x0802]['flagNames']);
+        $t->same(0x0002, $manifestFlagSummariesByFlags[0x0802]['deflateOptionFlags']);
+        $t->same(['word/media/review.png'], $manifestFlagSummariesByFlags[0x0808]['entryNames']);
+        $t->same(['data-descriptor', 'utf-8-names'], $manifestFlagSummariesByFlags[0x0808]['flagNames']);
+        $t->same(1, $manifestFlagSummariesByFlags[0x0808]['dataDescriptorEntryCount']);
+        $t->same(12, $manifestFlagSummariesByFlags[0x0808]['dataDescriptorBytes']);
 
         $t->same($documentEntry['generalPurposeFlags'], $inventory['word/document.xml']['generalPurposeFlags']);
         $t->same($documentEntry['generalPurposeFlagNames'], $inventory['word/document.xml']['generalPurposeFlagNames']);
