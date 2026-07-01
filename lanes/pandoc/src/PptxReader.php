@@ -1786,29 +1786,22 @@ final class PptxReader
             return null;
         }
 
-        $mediaPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
-        $partName = ltrim($mediaPart, '/');
-        if (!$package->has($mediaPart)) {
-            $upstreamMediaPart = $this->upstreamPictureMediaPart($relationship->target);
-            if ($upstreamMediaPart !== null && $package->has($upstreamMediaPart)) {
-                $mediaPart = $upstreamMediaPart;
-                $partName = ltrim($mediaPart, '/');
-            } else {
-                $imageIssues[] = [
-                    'issue' => 'missing-image-part',
-                    'relationshipId' => $relationshipId,
-                    'relationshipAttribute' => $relationshipAttribute,
-                    'target' => $relationship->target,
-                    'partName' => $partName,
-                ];
+        $mediaPart = $this->upstreamPictureMediaPart($relationship->target);
+        if (!in_array($mediaPart, $package->names(), true)) {
+            $imageIssues[] = [
+                'issue' => 'missing-image-part',
+                'relationshipId' => $relationshipId,
+                'relationshipAttribute' => $relationshipAttribute,
+                'target' => $relationship->target,
+                'partName' => $mediaPart,
+            ];
 
-                return null;
-            }
+            return null;
         }
 
         $image = new AstNode('image', [
-            'url' => $partName,
-            'src' => $partName,
+            'url' => $mediaPart,
+            'src' => $mediaPart,
             'title' => $title,
             'alt' => $alt,
             'relationshipId' => $relationshipId,
@@ -1818,17 +1811,16 @@ final class PptxReader
         return $image;
     }
 
-    private function upstreamPictureMediaPart(string $target): ?string
+    private function upstreamPictureMediaPart(string $target): string
     {
-        $path = OpcPackagePath::stripQueryAndFragment($target);
-        if (str_starts_with($path, '../media/')) {
-            return '/ppt/media/' . substr($path, strlen('../media/'));
+        if (str_starts_with($target, '../media/')) {
+            return 'ppt/media/' . substr($target, strlen('../media/'));
         }
-        if (str_starts_with($path, 'media/')) {
-            return '/ppt/' . $path;
+        if (str_starts_with($target, 'media/')) {
+            return 'ppt/' . $target;
         }
 
-        return $path === '' ? null : '/' . ltrim($path, '/');
+        return $target;
     }
 
     private function graphicDataElement(\DOMElement $graphicFrame): ?\DOMElement
