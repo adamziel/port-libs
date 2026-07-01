@@ -5630,6 +5630,17 @@ final class ZipPackage
                 'exists' => $entry !== null,
                 'isDirectory' => null,
                 'directoryRoot' => null,
+                'pathSegments' => [],
+                'pathSegmentPositionReviews' => [],
+                'pathSegmentCount' => null,
+                'directoryDepth' => null,
+                'packagePartBaseName' => null,
+                'packagePartCaseFoldBaseName' => null,
+                'packagePartBaseNameStem' => null,
+                'packagePartCaseFoldBaseNameStem' => null,
+                'packagePartExtension' => null,
+                'packagePartExtensionKey' => null,
+                'extensionlessPackagePart' => false,
                 'compressionMethod' => null,
                 'compressionMethodName' => null,
                 'rawName' => null,
@@ -5883,6 +5894,7 @@ final class ZipPackage
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $summary['isDirectory'] = $isDirectory;
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
+            $summary = array_merge($summary, self::entryHandoffPackagePartIdentity($entry->name, $isDirectory));
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
             $summary = array_merge($summary, self::entryRawNameHandoffProvenance($entry));
@@ -6456,6 +6468,19 @@ final class ZipPackage
                 'status' => $entry['status'] ?? null,
                 'isDirectory' => $entry['isDirectory'] ?? null,
                 'directoryRoot' => $entry['directoryRoot'] ?? null,
+                'pathSegments' => is_array($entry['pathSegments'] ?? null) ? $entry['pathSegments'] : [],
+                'pathSegmentPositionReviews' => is_array($entry['pathSegmentPositionReviews'] ?? null)
+                    ? $entry['pathSegmentPositionReviews']
+                    : [],
+                'pathSegmentCount' => $entry['pathSegmentCount'] ?? null,
+                'directoryDepth' => $entry['directoryDepth'] ?? null,
+                'packagePartBaseName' => $entry['packagePartBaseName'] ?? null,
+                'packagePartCaseFoldBaseName' => $entry['packagePartCaseFoldBaseName'] ?? null,
+                'packagePartBaseNameStem' => $entry['packagePartBaseNameStem'] ?? null,
+                'packagePartCaseFoldBaseNameStem' => $entry['packagePartCaseFoldBaseNameStem'] ?? null,
+                'packagePartExtension' => $entry['packagePartExtension'] ?? null,
+                'packagePartExtensionKey' => $entry['packagePartExtensionKey'] ?? null,
+                'extensionlessPackagePart' => ($entry['extensionlessPackagePart'] ?? false) === true,
                 'compressionMethod' => $entry['compressionMethod'] ?? null,
                 'compressedSize' => $entry['compressedSize'] ?? null,
                 'uncompressedSize' => $entry['uncompressedSize'] ?? null,
@@ -7650,6 +7675,35 @@ final class ZipPackage
         $separator = strpos($name, '/');
 
         return $separator === false ? '/' : substr($name, 0, $separator + 1);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function entryHandoffPackagePartIdentity(string $name, bool $isDirectory): array
+    {
+        $pathSegments = self::zipEntryPathSegments($name);
+        $pathSegmentCount = count($pathSegments);
+        $packagePartBaseName = self::zipPackagePartBaseName($pathSegments);
+        $packagePartBaseNameStem = self::zipPackagePartBaseNameStem($packagePartBaseName, $isDirectory);
+        $packagePartCaseFoldBaseNameStem = $packagePartBaseNameStem === null
+            ? null
+            : self::caseFoldZipEntryName($packagePartBaseNameStem);
+        $packagePartExtension = self::zipPackagePartExtension($name, $isDirectory);
+
+        return [
+            'pathSegments' => $pathSegments,
+            'pathSegmentPositionReviews' => self::zipEntryPathSegmentPositionReviews($pathSegments),
+            'pathSegmentCount' => $pathSegmentCount,
+            'directoryDepth' => max(0, $pathSegmentCount - 1),
+            'packagePartBaseName' => $packagePartBaseName,
+            'packagePartCaseFoldBaseName' => self::caseFoldZipEntryName($packagePartBaseName),
+            'packagePartBaseNameStem' => $packagePartBaseNameStem,
+            'packagePartCaseFoldBaseNameStem' => $packagePartCaseFoldBaseNameStem,
+            'packagePartExtension' => $packagePartExtension,
+            'packagePartExtensionKey' => $isDirectory ? '(directory)' : ($packagePartExtension ?? '(none)'),
+            'extensionlessPackagePart' => !$isDirectory && $packagePartExtension === null,
+        ];
     }
 
     private static function zipPackagePartExtension(string $name, bool $isDirectory): ?string

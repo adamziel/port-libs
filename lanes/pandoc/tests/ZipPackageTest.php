@@ -12402,7 +12402,7 @@ return [
         $t->throws(\InvalidArgumentException::class, static fn (): string => $package->readBounded('/word/document.xml', -1));
     },
 
-    'preflights selected zip package entries before reader handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+    'preflights selected zip package entries before reader handoff' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
         $documentXml = '<w:document><w:body><w:p>selected handoff</w:p></w:body></w:document>';
         $imageBytes = "review image bytes\n";
         $largeBytes = "large selected media bytes\n";
@@ -12529,6 +12529,18 @@ return [
         $t->same('file', $documentEntry['expectedKind']);
         $t->same(true, $documentEntry['exists']);
         $t->same(false, $documentEntry['isDirectory']);
+        $t->same('word/', $documentEntry['directoryRoot']);
+        $t->same(['word', 'document.xml'], $documentEntry['pathSegments']);
+        $t->same($pathSegmentPositionReviews(['word', 'document.xml']), $documentEntry['pathSegmentPositionReviews']);
+        $t->same(2, $documentEntry['pathSegmentCount']);
+        $t->same(1, $documentEntry['directoryDepth']);
+        $t->same('document.xml', $documentEntry['packagePartBaseName']);
+        $t->same('document.xml', $documentEntry['packagePartCaseFoldBaseName']);
+        $t->same('document', $documentEntry['packagePartBaseNameStem']);
+        $t->same('document', $documentEntry['packagePartCaseFoldBaseNameStem']);
+        $t->same('xml', $documentEntry['packagePartExtension']);
+        $t->same('xml', $documentEntry['packagePartExtensionKey']);
+        $t->same(false, $documentEntry['extensionlessPackagePart']);
         $t->same(8, $documentEntry['compressionMethod']);
         $t->same('deflated', $documentEntry['compressionMethodName']);
         $t->same(0, $documentEntry['localHeaderOffset']);
@@ -12555,6 +12567,17 @@ return [
         $t->same('word/media/', $directoryEntry['name']);
         $t->same('directory', $directoryEntry['expectedKind']);
         $t->same(true, $directoryEntry['isDirectory']);
+        $t->same(['word', 'media'], $directoryEntry['pathSegments']);
+        $t->same($pathSegmentPositionReviews(['word', 'media']), $directoryEntry['pathSegmentPositionReviews']);
+        $t->same(2, $directoryEntry['pathSegmentCount']);
+        $t->same(1, $directoryEntry['directoryDepth']);
+        $t->same('media', $directoryEntry['packagePartBaseName']);
+        $t->same('media', $directoryEntry['packagePartCaseFoldBaseName']);
+        $t->same(null, $directoryEntry['packagePartBaseNameStem']);
+        $t->same(null, $directoryEntry['packagePartCaseFoldBaseNameStem']);
+        $t->same(null, $directoryEntry['packagePartExtension']);
+        $t->same('(directory)', $directoryEntry['packagePartExtensionKey']);
+        $t->same(false, $directoryEntry['extensionlessPackagePart']);
         $t->same('stored', $directoryEntry['compressionMethodName']);
         $t->same($directoryEntry['compressedDataOffset'], $directoryEntry['compressedDataEnd']);
         $t->same(0.0, $directoryEntry['expansionRatio']);
@@ -12600,6 +12623,9 @@ return [
         $t->same('word/optional.xml', $optionalMissing['name']);
         $t->same(false, $optionalMissing['required']);
         $t->same(false, $optionalMissing['exists']);
+        $t->same([], $optionalMissing['pathSegments']);
+        $t->same(null, $optionalMissing['packagePartBaseName']);
+        $t->same(null, $optionalMissing['packagePartExtensionKey']);
         $t->same('missing-optional', $optionalMissing['status']);
         $t->same([], $optionalMissing['issues']);
 
@@ -14673,7 +14699,7 @@ return [
         ));
     },
 
-    'summarizes selected zip handoff manifest for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+    'summarizes selected zip handoff manifest for package review' => static function (TestRunner $t) use ($buildZipPackage, $pathSegmentPositionReviews): void {
         $documentXml = '<w:document><w:body><w:p>manifest handoff</w:p></w:body></w:document>';
         $mediaBytes = "manifest image bytes\n";
         $package = ZipPackage::fromString($buildZipPackage([
@@ -14716,6 +14742,24 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit' => 1], $manifest['issueCounts']);
         $t->same(['main-document', 'media', 'metadata'], $manifest['roles']);
         $t->same(false, $manifest['hasUnassignedRole']);
+        $t->same(['word', 'document.xml'], $manifest['entries'][0]['pathSegments']);
+        $t->same($pathSegmentPositionReviews(['word', 'document.xml']), $manifest['entries'][0]['pathSegmentPositionReviews']);
+        $t->same(2, $manifest['entries'][0]['pathSegmentCount']);
+        $t->same(1, $manifest['entries'][0]['directoryDepth']);
+        $t->same('document.xml', $manifest['entries'][0]['packagePartBaseName']);
+        $t->same('document', $manifest['entries'][0]['packagePartBaseNameStem']);
+        $t->same('xml', $manifest['entries'][0]['packagePartExtensionKey']);
+        $t->same(['word', 'media', 'image.png'], $manifest['entries'][1]['pathSegments']);
+        $t->same($pathSegmentPositionReviews(['word', 'media', 'image.png']), $manifest['entries'][1]['pathSegmentPositionReviews']);
+        $t->same(3, $manifest['entries'][1]['pathSegmentCount']);
+        $t->same(2, $manifest['entries'][1]['directoryDepth']);
+        $t->same('image.png', $manifest['entries'][1]['packagePartBaseName']);
+        $t->same('image', $manifest['entries'][1]['packagePartBaseNameStem']);
+        $t->same('png', $manifest['entries'][1]['packagePartExtensionKey']);
+        $t->same([], $manifest['entries'][2]['pathSegments']);
+        $t->same(null, $manifest['entries'][2]['pathSegmentCount']);
+        $t->same(null, $manifest['entries'][2]['packagePartBaseName']);
+        $t->same(null, $manifest['entries'][2]['packagePartExtensionKey']);
         $t->same([
             [
                 'name' => 'word/document.xml',
