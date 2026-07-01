@@ -1045,19 +1045,35 @@ final class NativeReader
 
     private function parseCitationInline(): AstNode
     {
-        $citations = $this->parseList(fn (): array => $this->parseCitationRecord());
-        $display = $this->parseInlineList();
+        $citations = $this->parseList(fn (): AstNode => $this->parseCitationRecord());
+        if ($citations === []) {
+            throw new \InvalidArgumentException('Cite must contain at least one citation record');
+        }
 
-        return new AstNode('citation', [
-            'citations' => $citations,
-            'text' => $this->plainInlineText($display),
-        ], $display);
+        $display = $this->parseInlineList();
+        $sourceText = $this->plainInlineText($display);
+
+        if (count($citations) === 1) {
+            $attrs = $citations[0]->attrs;
+            if ($sourceText !== '') {
+                $attrs['text'] = $sourceText;
+            }
+
+            return new AstNode('citation', $attrs, $display);
+        }
+
+        $attrs = [];
+        if ($sourceText !== '') {
+            $attrs['text'] = $sourceText;
+        }
+        if ($display !== []) {
+            $attrs['citationSourceInlines'] = $display;
+        }
+
+        return new AstNode('citation_group', $attrs, $citations);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function parseCitationRecord(): array
+    private function parseCitationRecord(): AstNode
     {
         $this->expectIdentifier('Citation');
         $this->expectSymbol('{');
@@ -1069,21 +1085,63 @@ final class NativeReader
             $fields[$name] = match ($name) {
                 'citationId' => $this->expectString(),
                 'citationPrefix', 'citationSuffix' => $this->parseInlineList(),
-                'citationMode' => $this->parseCitationMode($this->expectAnyIdentifier()),
+                'citationMode' => $this->expectAnyIdentifier(),
                 'citationNoteNum', 'citationHash' => (int) $this->expectNumber(),
                 default => throw new \InvalidArgumentException("Unsupported Native citation field '{$name}'"),
             };
             $this->acceptSymbol(',');
         }
 
-        return [
-            'id' => (string) ($fields['citationId'] ?? ''),
-            'prefix' => $fields['citationPrefix'] ?? [],
-            'suffix' => $fields['citationSuffix'] ?? [],
-            'mode' => (string) ($fields['citationMode'] ?? 'normal'),
-            'noteNum' => (int) ($fields['citationNoteNum'] ?? 1),
-            'hash' => (int) ($fields['citationHash'] ?? 0),
+        $id = (string) ($fields['citationId'] ?? '');
+        if (trim($id) === '') {
+            throw new \InvalidArgumentException('Cite citation record must contain a non-empty citationId');
+        }
+
+        $prefix = $fields['citationPrefix'] ?? [];
+        $suffix = $fields['citationSuffix'] ?? [];
+        $modeConstructor = (string) ($fields['citationMode'] ?? 'NormalCitation');
+        $mode = $this->parseCitationMode($modeConstructor);
+        $noteNum = (int) ($fields['citationNoteNum'] ?? 1);
+        $hash = (int) ($fields['citationHash'] ?? 0);
+        $text = $this->citationRecordSourceText($id, $mode, $prefix, $suffix);
+
+        $attrs = [
+            'id' => $id,
+            'text' => $text,
+            'mode' => $mode,
+            'citationModeConstructor' => $modeConstructor,
+            'citationModeNative' => ['t' => $modeConstructor],
+            'citationNoteNum' => $noteNum,
+            'citationHash' => $hash,
+            'noteNum' => $noteNum,
+            'hash' => $hash,
         ];
+        if ($prefix !== []) {
+            $attrs['prefix'] = $prefix;
+            $attrs['citationPrefixNative'] = $prefix;
+        }
+        if ($suffix !== []) {
+            $attrs['suffix'] = $suffix;
+            $attrs['citationSuffixNative'] = $suffix;
+        }
+
+        return new AstNode('citation', $attrs, [
+            new AstNode('text', ['text' => $text]),
+        ]);
+    }
+
+    /**
+     * @param list<AstNode> $prefix
+     * @param list<AstNode> $suffix
+     */
+    private function citationRecordSourceText(string $id, string $mode, array $prefix, array $suffix): string
+    {
+        $prefixText = $this->plainInlineText($prefix);
+        $suffixText = $this->plainInlineText($suffix);
+        $token = ($mode === 'suppress_author' ? '-@' : '@') . $id;
+        $text = $prefixText === '' ? $token : $prefixText . ' ' . $token;
+
+        return $suffixText === '' ? $text : $text . ', ' . $suffixText;
     }
 
     private function parseRawInline(): AstNode
