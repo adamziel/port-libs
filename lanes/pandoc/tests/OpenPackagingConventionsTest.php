@@ -49,7 +49,7 @@ $footnotesRelationshipsXml = <<<'XML'
 XML;
 
 /**
- * @param list<array{name:string, data:string, centralIndex?:int}> $entries
+ * @param list<array{name:string, data:string, centralIndex?:int, method?:int, flags?:int, descriptor?:bool, descriptorSignature?:bool}> $entries
  */
 $buildOpcZipPackage = static function (array $entries): string {
     $body = '';
@@ -58,37 +58,62 @@ $buildOpcZipPackage = static function (array $entries): string {
     foreach ($entries as $entryIndex => $entry) {
         $name = $entry['name'];
         $data = $entry['data'];
+        $method = $entry['method'] ?? 0;
+        $compressed = match ($method) {
+            0 => $data,
+            8 => gzdeflate($data),
+            default => throw new RuntimeException("Unsupported OPC fixture compression method {$method}"),
+        };
+        if (!is_string($compressed)) {
+            throw new RuntimeException("Unable to deflate OPC fixture entry {$name}");
+        }
+        $usesDescriptor = ($entry['descriptor'] ?? false) === true;
+        $flags = $entry['flags'] ?? 0x0800;
+        if ($usesDescriptor) {
+            $flags |= 0x0008;
+        }
         $crc32 = (int) sprintf('%u', crc32($data));
+        $compressedSize = strlen($compressed);
+        $uncompressedSize = strlen($data);
         $offset = strlen($body);
+        $localCrc32 = $usesDescriptor ? 0 : $crc32;
+        $localCompressedSize = $usesDescriptor ? 0 : $compressedSize;
+        $localUncompressedSize = $usesDescriptor ? 0 : $uncompressedSize;
 
         $body .= pack(
             'VvvvvvVVVvv',
             0x04034b50,
             20,
-            0x0800,
+            $flags,
+            $method,
             0,
             0,
-            0,
-            $crc32,
-            strlen($data),
-            strlen($data),
+            $localCrc32,
+            $localCompressedSize,
+            $localUncompressedSize,
             strlen($name),
             0
         );
-        $body .= $name . $data;
+        $body .= $name . $compressed;
+        if ($usesDescriptor) {
+            if (($entry['descriptorSignature'] ?? true) === true) {
+                $body .= "PK\x07\x08";
+            }
+            $body .= pack('VVV', $crc32, $compressedSize, $uncompressedSize);
+        }
 
         $centralRecord = pack(
             'VvvvvvvVVVvvvvvVV',
             0x02014b50,
             0x0314,
             20,
-            0x0800,
-            0,
+            $flags,
+            $method,
             0,
             0,
             $crc32,
-            strlen($data),
-            strlen($data),
+            $compressedSize,
+            $uncompressedSize,
             strlen($name),
             0,
             0,
@@ -1445,6 +1470,116 @@ XML;
         $t->same(8, $summary['largestPayloadEntry']['compressionMethod']);
         $t->same('deflated', $summary['largestPayloadEntry']['compressionMethodName']);
         $t->same($summary['largestPayloadEntry'], $centralSummary['largestPayloadEntry']);
+    },
+    'summarizes OPC ZIP manifest general purpose flag provenance before XML package handoff' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML;
+        $zipBytes = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="' . OpcRelationships::NAMESPACE_URI . '"/>'],
+            [
+                'name' => 'word/document.xml',
+                'data' => str_repeat('<w:p/>', 8),
+                'method' => 8,
+                'flags' => 0x0802,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => str_repeat('PNG', 12),
+                'flags' => 0x0800,
+                'descriptor' => true,
+                'descriptorSignature' => false,
+            ],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zipBytes));
+        $centralSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zipBytes);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $centralEntries = [];
+        foreach ($centralSummary['entries'] as $entry) {
+            $centralEntries[$entry['entryName']] = $entry;
+        }
+
+        $expectedFlagCounts = [
+            '0x0800' => 2,
+            '0x0802' => 1,
+            '0x0808' => 1,
+        ];
+        $expectedEntryNamesByFlag = [
+            '0x0800' => ['[Content_Types].xml', '_rels/.rels'],
+            '0x0802' => ['word/document.xml'],
+            '0x0808' => ['word/media/review.png'],
+        ];
+        $expectedIssueCounts = [
+            'data-descriptor-entry' => 1,
+            'deflate-option-flags' => 1,
+        ];
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $centralSummary['valid']);
+        $t->same($expectedFlagCounts, $summary['generalPurposeFlagCounts']);
+        $t->same($expectedFlagCounts, $centralSummary['generalPurposeFlagCounts']);
+        $t->same($expectedEntryNamesByFlag, $summary['entryNamesByGeneralPurposeFlag']);
+        $t->same($expectedEntryNamesByFlag, $centralSummary['entryNamesByGeneralPurposeFlag']);
+        $t->same($expectedIssueCounts, $summary['generalPurposeFlagIssueCounts']);
+        $t->same($expectedIssueCounts, $centralSummary['generalPurposeFlagIssueCounts']);
+        $t->same([
+            'data-descriptor-entry' => ['word/media/review.png'],
+            'deflate-option-flags' => ['word/document.xml'],
+        ], $summary['entryNamesByGeneralPurposeFlagIssue']);
+        $t->same($summary['entryNamesByGeneralPurposeFlagIssue'], $centralSummary['entryNamesByGeneralPurposeFlagIssue']);
+        $t->same([
+            'content-types' => ['utf-8-names'],
+            'media' => ['data-descriptor', 'utf-8-names'],
+            'package-relationships' => ['utf-8-names'],
+            'xml-part' => ['deflate-maximum-compression', 'utf-8-names'],
+        ], $summary['generalPurposeFlagNamesByRole']);
+        $t->same($summary['generalPurposeFlagNamesByRole'], $centralSummary['generalPurposeFlagNamesByRole']);
+        $t->same([
+            'content-types+xml' => ['utf-8-names'],
+            'media' => ['data-descriptor', 'utf-8-names'],
+            'relationships+xml' => ['utf-8-names'],
+            'xml' => ['deflate-maximum-compression', 'utf-8-names'],
+        ], $summary['generalPurposeFlagNamesByHandoffKind']);
+        $t->same($summary['generalPurposeFlagNamesByHandoffKind'], $centralSummary['generalPurposeFlagNamesByHandoffKind']);
+
+        $t->same(0x0802, $entries['word/document.xml']['generalPurposeFlags']);
+        $t->same('0x0802', $entries['word/document.xml']['generalPurposeFlagHex']);
+        $t->same(['deflate-maximum-compression', 'utf-8-names'], $entries['word/document.xml']['generalPurposeFlagNames']);
+        $t->same(0, $entries['word/document.xml']['generalPurposeUnsupportedFlagBits']);
+        $t->same(true, $entries['word/document.xml']['generalPurposeFlagsSupportedByReader']);
+        $t->same(true, $entries['word/document.xml']['zipUsesUtf8Names']);
+        $t->same(false, $entries['word/document.xml']['zipUsesDataDescriptorFlag']);
+        $t->same(0x0002, $entries['word/document.xml']['zipDeflateOptionFlags']);
+        $t->same('deflate-maximum-compression', $entries['word/document.xml']['zipDeflateOptionName']);
+        $t->same(true, $entries['word/document.xml']['zipRequiresGeneralPurposeFlagReview']);
+        $t->same(['deflate-option-flags'], $entries['word/document.xml']['generalPurposeFlagIssues']);
+
+        $t->same(0x0808, $entries['word/media/review.png']['generalPurposeFlags']);
+        $t->same(['data-descriptor', 'utf-8-names'], $entries['word/media/review.png']['generalPurposeFlagNames']);
+        $t->same(true, $entries['word/media/review.png']['zipUsesDataDescriptorFlag']);
+        $t->same(0, $entries['word/media/review.png']['zipDeflateOptionFlags']);
+        $t->same(null, $entries['word/media/review.png']['zipDeflateOptionName']);
+        $t->same(['data-descriptor-entry'], $entries['word/media/review.png']['generalPurposeFlagIssues']);
+
+        $t->same(0x0800, $entries['[Content_Types].xml']['generalPurposeFlags']);
+        $t->same(['utf-8-names'], $entries['[Content_Types].xml']['generalPurposeFlagNames']);
+        $t->same(false, $entries['[Content_Types].xml']['zipRequiresGeneralPurposeFlagReview']);
+        $t->same([], $entries['[Content_Types].xml']['generalPurposeFlagIssues']);
+
+        $t->same($entries['word/document.xml']['generalPurposeFlagNames'], $centralEntries['word/document.xml']['generalPurposeFlagNames']);
+        $t->same($entries['word/document.xml']['generalPurposeFlagIssues'], $centralEntries['word/document.xml']['generalPurposeFlagIssues']);
+        $t->same($entries['word/media/review.png']['generalPurposeFlagNames'], $centralEntries['word/media/review.png']['generalPurposeFlagNames']);
+        $t->same($entries['word/media/review.png']['generalPurposeFlagIssues'], $centralEntries['word/media/review.png']['generalPurposeFlagIssues']);
     },
     'summarizes OPC ZIP manifest largest payload entries before XML package handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

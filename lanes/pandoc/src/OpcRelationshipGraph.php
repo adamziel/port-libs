@@ -633,6 +633,8 @@ final class OpcRelationshipGraph
                 'isPackagePart' => !$isDirectory,
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::zipCompressionMethodName($entry->compressionMethod),
+                'generalPurposeFlags' => $entry->generalPurposeFlags,
+                ...self::zipGeneralPurposeFlagManifestEntry($entry->generalPurposeFlags),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
                 'crc32Hex' => $entry->crc32Hex(),
@@ -916,6 +918,12 @@ final class OpcRelationshipGraph
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
         $compressionMethodNamesByHandoffKind = [];
+        $generalPurposeFlagCounts = [];
+        $entryNamesByGeneralPurposeFlag = [];
+        $generalPurposeFlagNamesByRole = [];
+        $generalPurposeFlagNamesByHandoffKind = [];
+        $generalPurposeFlagIssueCounts = [];
+        $entryNamesByGeneralPurposeFlagIssue = [];
         $relationshipParts = [];
         $fileEntryCount = 0;
         $directoryEntryCount = 0;
@@ -1076,6 +1084,15 @@ final class OpcRelationshipGraph
                 $entry['entryName'],
                 $entry['role'],
                 $entry['handoffKind'],
+            );
+            self::recordZipEntryManifestGeneralPurposeFlagProvenance(
+                $generalPurposeFlagCounts,
+                $entryNamesByGeneralPurposeFlag,
+                $generalPurposeFlagNamesByRole,
+                $generalPurposeFlagNamesByHandoffKind,
+                $generalPurposeFlagIssueCounts,
+                $entryNamesByGeneralPurposeFlagIssue,
+                $entry,
             );
 
             if (
@@ -1238,6 +1255,14 @@ final class OpcRelationshipGraph
             $compressionMethodNamesByRole,
             $compressionMethodNamesByHandoffKind,
         );
+        self::sortZipManifestGeneralPurposeFlagProvenance(
+            $generalPurposeFlagCounts,
+            $entryNamesByGeneralPurposeFlag,
+            $generalPurposeFlagNamesByRole,
+            $generalPurposeFlagNamesByHandoffKind,
+            $generalPurposeFlagIssueCounts,
+            $entryNamesByGeneralPurposeFlagIssue,
+        );
         sort($contentTypesItems, SORT_STRING);
         sort($contentTypeUnusedOverridePartNames, SORT_STRING);
         sort($contentTypeExactOverridePartNames, SORT_STRING);
@@ -1374,6 +1399,12 @@ final class OpcRelationshipGraph
             'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
             'compressionMethodNamesByHandoffKind' => $compressionMethodNamesByHandoffKind,
+            'generalPurposeFlagCounts' => $generalPurposeFlagCounts,
+            'entryNamesByGeneralPurposeFlag' => $entryNamesByGeneralPurposeFlag,
+            'generalPurposeFlagNamesByRole' => $generalPurposeFlagNamesByRole,
+            'generalPurposeFlagNamesByHandoffKind' => $generalPurposeFlagNamesByHandoffKind,
+            'generalPurposeFlagIssueCounts' => $generalPurposeFlagIssueCounts,
+            'entryNamesByGeneralPurposeFlagIssue' => $entryNamesByGeneralPurposeFlagIssue,
             'largestPayloadEntry' => $largestPayloadEntry,
             'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
             'largestPayloadEntryCount' => count($largestPayloadEntries),
@@ -1421,14 +1452,30 @@ final class OpcRelationshipGraph
             : null;
 
         $centralDirectorySignatureOffset = null;
+        $centralDirectorySignatureDataOffset = null;
+        $centralDirectorySignatureEnd = null;
         $centralDirectorySignatureBytes = 0;
+        $centralDirectorySignatureRecordBytes = 0;
+        $centralDirectorySignaturePreviewHex = '';
+        $centralDirectorySignaturePreviewByteCount = 0;
         $centralDirectorySignatureSha256 = null;
+        $centralDirectorySignatureLocation = null;
+        $centralDirectorySignatureVerification = 'not-present';
+        $centralDirectorySignatureByteExposurePolicy = 'not-present';
         try {
             $centralDirectorySignature = ZipPackage::centralDirectorySignaturePolicyPreflight($bytes);
             if ($centralDirectorySignature['present']) {
                 $centralDirectorySignatureOffset = $centralDirectorySignature['offset'];
+                $centralDirectorySignatureDataOffset = $centralDirectorySignature['dataOffset'];
+                $centralDirectorySignatureEnd = $centralDirectorySignature['endOffset'];
                 $centralDirectorySignatureBytes = $centralDirectorySignature['signatureLength'];
+                $centralDirectorySignatureRecordBytes = $centralDirectorySignatureEnd - $centralDirectorySignatureOffset;
+                $centralDirectorySignaturePreviewHex = $centralDirectorySignature['signaturePreviewHex'];
+                $centralDirectorySignaturePreviewByteCount = intdiv(strlen($centralDirectorySignaturePreviewHex), 2);
                 $centralDirectorySignatureSha256 = $centralDirectorySignature['signatureSha256'];
+                $centralDirectorySignatureLocation = $centralDirectorySignature['location'];
+                $centralDirectorySignatureVerification = $centralDirectorySignature['cryptographicVerification'];
+                $centralDirectorySignatureByteExposurePolicy = 'central-directory-signature-metadata-only';
             }
         } catch (\Throwable) {
             // Keep package-level source spans available even when signature policy
@@ -1453,6 +1500,19 @@ final class OpcRelationshipGraph
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentSha256' => $packageCommentSha256,
             'hasPackageComment' => $packageCommentBytes > 0,
+            'hasCentralDirectorySignature' => $centralDirectorySignatureOffset !== null,
+            'centralDirectorySignatureOffset' => $centralDirectorySignatureOffset,
+            'centralDirectorySignatureDataOffset' => $centralDirectorySignatureDataOffset,
+            'centralDirectorySignatureEnd' => $centralDirectorySignatureEnd,
+            'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureRecordBytes' => $centralDirectorySignatureRecordBytes,
+            'centralDirectorySignaturePreviewHex' => $centralDirectorySignaturePreviewHex,
+            'centralDirectorySignaturePreviewByteCount' => $centralDirectorySignaturePreviewByteCount,
+            'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
+            'centralDirectorySignatureLocation' => $centralDirectorySignatureLocation,
+            'centralDirectorySignatureVerification' => $centralDirectorySignatureVerification,
+            'centralDirectorySignatureByteExposurePolicy' => $centralDirectorySignatureByteExposurePolicy,
+            'centralDirectorySignatureCanExposeBytes' => false,
         ];
 
         return [
@@ -1476,8 +1536,17 @@ final class OpcRelationshipGraph
             'hasPackageComment' => $packageCommentBytes > 0,
             'hasCentralDirectorySignature' => $centralDirectorySignatureOffset !== null,
             'centralDirectorySignatureOffset' => $centralDirectorySignatureOffset,
+            'centralDirectorySignatureDataOffset' => $centralDirectorySignatureDataOffset,
+            'centralDirectorySignatureEnd' => $centralDirectorySignatureEnd,
             'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureRecordBytes' => $centralDirectorySignatureRecordBytes,
+            'centralDirectorySignaturePreviewHex' => $centralDirectorySignaturePreviewHex,
+            'centralDirectorySignaturePreviewByteCount' => $centralDirectorySignaturePreviewByteCount,
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
+            'centralDirectorySignatureLocation' => $centralDirectorySignatureLocation,
+            'centralDirectorySignatureVerification' => $centralDirectorySignatureVerification,
+            'centralDirectorySignatureByteExposurePolicy' => $centralDirectorySignatureByteExposurePolicy,
+            'centralDirectorySignatureCanExposeBytes' => false,
         ];
     }
 
@@ -1651,6 +1720,11 @@ final class OpcRelationshipGraph
                 'localVersionNeededToExtract' => $localHeaderMetadataEntry['localVersionNeededToExtract'] ?? null,
                 'centralGeneralPurposeFlags' => $localHeaderMetadataEntry['centralGeneralPurposeFlags'] ?? null,
                 'localGeneralPurposeFlags' => $localHeaderMetadataEntry['localGeneralPurposeFlags'] ?? null,
+                'generalPurposeFlags' => $localHeaderMetadataEntry['centralGeneralPurposeFlags'] ?? null,
+                ...self::zipGeneralPurposeFlagManifestEntry(
+                    $localHeaderMetadataEntry['centralGeneralPurposeFlags'] ?? null,
+                    $localHeaderMetadataEntry['localGeneralPurposeFlags'] ?? null,
+                ),
                 'centralCompressionMethod' => $localHeaderMetadataEntry['centralCompressionMethod'] ?? $centralEntry['compressionMethod'],
                 'localCompressionMethod' => $localHeaderMetadataEntry['localCompressionMethod'] ?? null,
                 'centralModifiedDosTime' => $localHeaderMetadataEntry['centralModifiedDosTime'] ?? null,
@@ -1836,6 +1910,12 @@ final class OpcRelationshipGraph
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
         $compressionMethodNamesByHandoffKind = [];
+        $generalPurposeFlagCounts = [];
+        $entryNamesByGeneralPurposeFlag = [];
+        $generalPurposeFlagNamesByRole = [];
+        $generalPurposeFlagNamesByHandoffKind = [];
+        $generalPurposeFlagIssueCounts = [];
+        $entryNamesByGeneralPurposeFlagIssue = [];
         $directoryRootCounts = [];
         $entryNamesByDirectoryRoot = [];
         $directoryRootSummariesByRoot = [];
@@ -1958,6 +2038,15 @@ final class OpcRelationshipGraph
                 $entry['role'],
                 $entry['handoffKind'],
             );
+            self::recordZipEntryManifestGeneralPurposeFlagProvenance(
+                $generalPurposeFlagCounts,
+                $entryNamesByGeneralPurposeFlag,
+                $generalPurposeFlagNamesByRole,
+                $generalPurposeFlagNamesByHandoffKind,
+                $generalPurposeFlagIssueCounts,
+                $entryNamesByGeneralPurposeFlagIssue,
+                $entry,
+            );
 
             if (!$entry['byteCountsAreExact']) {
                 $unknownByteCountEntries[] = [
@@ -2079,6 +2168,14 @@ final class OpcRelationshipGraph
             $compressionMethodNamesByRole,
             $compressionMethodNamesByHandoffKind,
         );
+        self::sortZipManifestGeneralPurposeFlagProvenance(
+            $generalPurposeFlagCounts,
+            $entryNamesByGeneralPurposeFlag,
+            $generalPurposeFlagNamesByRole,
+            $generalPurposeFlagNamesByHandoffKind,
+            $generalPurposeFlagIssueCounts,
+            $entryNamesByGeneralPurposeFlagIssue,
+        );
         sort($contentTypesItems, SORT_STRING);
         usort(
             $relationshipParts,
@@ -2187,6 +2284,12 @@ final class OpcRelationshipGraph
             'entryNamesByCompressionMethod' => $entryNamesByCompressionMethod,
             'compressionMethodNamesByRole' => $compressionMethodNamesByRole,
             'compressionMethodNamesByHandoffKind' => $compressionMethodNamesByHandoffKind,
+            'generalPurposeFlagCounts' => $generalPurposeFlagCounts,
+            'entryNamesByGeneralPurposeFlag' => $entryNamesByGeneralPurposeFlag,
+            'generalPurposeFlagNamesByRole' => $generalPurposeFlagNamesByRole,
+            'generalPurposeFlagNamesByHandoffKind' => $generalPurposeFlagNamesByHandoffKind,
+            'generalPurposeFlagIssueCounts' => $generalPurposeFlagIssueCounts,
+            'entryNamesByGeneralPurposeFlagIssue' => $entryNamesByGeneralPurposeFlagIssue,
             'largestPayloadEntry' => $largestPayloadEntry,
             'largestPayloadEntryLimit' => self::ZIP_MANIFEST_LARGEST_PAYLOAD_ENTRY_LIMIT,
             'largestPayloadEntryCount' => count($largestPayloadEntries),
@@ -9239,6 +9342,165 @@ final class OpcRelationshipGraph
             sort($methodNames, SORT_STRING);
         }
         unset($methodNames);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function zipGeneralPurposeFlagManifestEntry(?int $flags, ?int $localFlags = null): array
+    {
+        if ($flags === null) {
+            return [
+                'generalPurposeFlagHex' => null,
+                'generalPurposeFlagNames' => [],
+                'generalPurposeUnsupportedFlagBits' => null,
+                'generalPurposeFlagsSupportedByReader' => null,
+                'zipUsesUtf8Names' => null,
+                'zipUsesDataDescriptorFlag' => null,
+                'zipDeflateOptionFlags' => null,
+                'zipDeflateOptionName' => null,
+                'zipRequiresGeneralPurposeFlagReview' => null,
+                'generalPurposeFlagIssues' => [],
+            ];
+        }
+
+        $unsupportedFlagBits = $flags & ~0x080e;
+        $usesDataDescriptor = ($flags & 0x0008) !== 0;
+        $deflateOptionFlags = $flags & 0x0006;
+        $issues = [];
+        if ($unsupportedFlagBits !== 0) {
+            $issues[] = 'unsupported-general-purpose-flags';
+        }
+        if ($usesDataDescriptor) {
+            $issues[] = 'data-descriptor-entry';
+        }
+        if ($deflateOptionFlags !== 0) {
+            $issues[] = 'deflate-option-flags';
+        }
+        if ($localFlags !== null && $localFlags !== $flags) {
+            $issues[] = 'local-header-flags-mismatch';
+        }
+
+        return [
+            'generalPurposeFlagHex' => sprintf('0x%04x', $flags),
+            'generalPurposeFlagNames' => self::zipGeneralPurposeFlagNames($flags),
+            'generalPurposeUnsupportedFlagBits' => $unsupportedFlagBits,
+            'generalPurposeFlagsSupportedByReader' => $unsupportedFlagBits === 0,
+            'zipUsesUtf8Names' => ($flags & 0x0800) !== 0,
+            'zipUsesDataDescriptorFlag' => $usesDataDescriptor,
+            'zipDeflateOptionFlags' => $deflateOptionFlags,
+            'zipDeflateOptionName' => self::zipDeflateOptionFlagName($deflateOptionFlags),
+            'zipRequiresGeneralPurposeFlagReview' => $issues !== [],
+            'generalPurposeFlagIssues' => $issues,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function zipGeneralPurposeFlagNames(int $flags): array
+    {
+        $names = [];
+        $deflateOptionName = self::zipDeflateOptionFlagName($flags & 0x0006);
+        if ($deflateOptionName !== null) {
+            $names[] = $deflateOptionName;
+        }
+        if (($flags & 0x0008) !== 0) {
+            $names[] = 'data-descriptor';
+        }
+        if (($flags & 0x0800) !== 0) {
+            $names[] = 'utf-8-names';
+        }
+
+        $unsupportedFlags = $flags & ~0x080e;
+        if ($unsupportedFlags !== 0) {
+            $names[] = sprintf('unsupported-0x%04x', $unsupportedFlags);
+        }
+
+        return $names;
+    }
+
+    private static function zipDeflateOptionFlagName(int $flags): ?string
+    {
+        return match ($flags) {
+            0x0002 => 'deflate-maximum-compression',
+            0x0004 => 'deflate-fast',
+            0x0006 => 'deflate-super-fast',
+            default => null,
+        };
+    }
+
+    /**
+     * @param array<string, int> $flagCounts
+     * @param array<string, list<string>> $entryNamesByFlag
+     * @param array<string, list<string>> $flagNamesByRole
+     * @param array<string, list<string>> $flagNamesByHandoffKind
+     * @param array<string, int> $issueCounts
+     * @param array<string, list<string>> $entryNamesByIssue
+     */
+    private static function recordZipEntryManifestGeneralPurposeFlagProvenance(
+        array &$flagCounts,
+        array &$entryNamesByFlag,
+        array &$flagNamesByRole,
+        array &$flagNamesByHandoffKind,
+        array &$issueCounts,
+        array &$entryNamesByIssue,
+        array $entry
+    ): void {
+        $flags = $entry['generalPurposeFlags'] ?? null;
+        if (!is_int($flags)) {
+            return;
+        }
+
+        $flagKey = sprintf('0x%04x', $flags);
+        $flagCounts[$flagKey] = ($flagCounts[$flagKey] ?? 0) + 1;
+        $entryNamesByFlag[$flagKey] ??= [];
+        self::appendUniqueString($entryNamesByFlag[$flagKey], $entry['entryName']);
+
+        foreach (is_array($entry['generalPurposeFlagNames'] ?? null) ? $entry['generalPurposeFlagNames'] : [] as $flagName) {
+            if (!is_string($flagName)) {
+                continue;
+            }
+
+            $flagNamesByRole[$entry['role']] ??= [];
+            self::appendUniqueString($flagNamesByRole[$entry['role']], $flagName);
+            $flagNamesByHandoffKind[$entry['handoffKind']] ??= [];
+            self::appendUniqueString($flagNamesByHandoffKind[$entry['handoffKind']], $flagName);
+        }
+
+        foreach (is_array($entry['generalPurposeFlagIssues'] ?? null) ? $entry['generalPurposeFlagIssues'] : [] as $issue) {
+            if (!is_string($issue)) {
+                continue;
+            }
+
+            $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+            $entryNamesByIssue[$issue] ??= [];
+            self::appendUniqueString($entryNamesByIssue[$issue], $entry['entryName']);
+        }
+    }
+
+    /**
+     * @param array<string, int> $flagCounts
+     * @param array<string, list<string>> $entryNamesByFlag
+     * @param array<string, list<string>> $flagNamesByRole
+     * @param array<string, list<string>> $flagNamesByHandoffKind
+     * @param array<string, int> $issueCounts
+     * @param array<string, list<string>> $entryNamesByIssue
+     */
+    private static function sortZipManifestGeneralPurposeFlagProvenance(
+        array &$flagCounts,
+        array &$entryNamesByFlag,
+        array &$flagNamesByRole,
+        array &$flagNamesByHandoffKind,
+        array &$issueCounts,
+        array &$entryNamesByIssue
+    ): void {
+        ksort($flagCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByFlag);
+        self::sortStringListMap($flagNamesByRole);
+        self::sortStringListMap($flagNamesByHandoffKind);
+        ksort($issueCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByIssue);
     }
 
     /**
