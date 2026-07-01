@@ -169,4 +169,77 @@ NATIVE;
             (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
         );
     },
+    'preserves textual native code link and span constructor provenance' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ Para [ Code ( "hook-code" , [ "php" ] , [ ( "data-hook" , "plib-2wcn6" ) ] ) "gt hook", Space, Link ( "source" , [ "tracked" ] , [ ( "data-kind" , "native" ) ] ) [ Str "source" ] ( "https://example.test/source" , "Source" ), Space, Span ( "span-id" , [ "mark" ] , [ ( "data-span" , "yes" ) ] ) [ Code ( "span-code" , [  ] , [  ] ) "inline" ] ] ]
+NATIVE;
+        $codeAttr = ['hook-code', ['php'], [['data-hook', 'plib-2wcn6']]];
+        $linkAttr = ['source', ['tracked'], [['data-kind', 'native']]];
+        $target = ['https://example.test/source', 'Source'];
+        $spanAttr = ['span-id', ['mark'], [['data-span', 'yes']]];
+        $spanCodeAttr = ['span-code', [], []];
+        $codeNative = ['t' => 'Code', 'c' => [$codeAttr, 'gt hook']];
+        $linkNative = ['t' => 'Link', 'c' => [$linkAttr, [['t' => 'Str', 'c' => 'source']], $target]];
+        $spanCodeNative = ['t' => 'Code', 'c' => [$spanCodeAttr, 'inline']];
+        $spanNative = ['t' => 'Span', 'c' => [$spanAttr, [$spanCodeNative]]];
+        $expectedInlines = [
+            $codeNative,
+            ['t' => 'Space'],
+            $linkNative,
+            ['t' => 'Space'],
+            $spanNative,
+        ];
+
+        $nativeDocument = (new NativeReader())->read($native);
+        $paragraph = $nativeDocument->children[0];
+        $code = $paragraph->children[0];
+        $link = $paragraph->children[2];
+        $span = $paragraph->children[4];
+        $spanCode = $span->children[0];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['code', 'text', 'link', 'text', 'span'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('Code', $code->attr('constructor'));
+        $t->same($codeAttr, $code->attr('attrNative'));
+        $t->same($codeNative, $code->attr('native'));
+        $t->same('Link', $link->attr('constructor'));
+        $t->same($linkAttr, $link->attr('attrNative'));
+        $t->same($target, $link->attr('targetNative'));
+        $t->same($linkNative, $link->attr('native'));
+        $t->same('Span', $span->attr('constructor'));
+        $t->same($spanAttr, $span->attr('attrNative'));
+        $t->same($spanNative, $span->attr('native'));
+        $t->same($spanCodeNative, $spanCode->attr('native'));
+        $t->same($expectedInlines, $jsonPacket['blocks'][0]['c']);
+        $t->same($expectedInlines, $nativePacket['blocks'][0]['c']);
+        $t->same(
+            '[ Para [ Code ( "hook-code" , [ "php" ] , [ ( "data-hook" , "plib-2wcn6" ) ] ) "gt hook" , Space , Link ( "source" , [ "tracked" ] , [ ( "data-kind" , "native" ) ] ) [ Str "source" ] ( "https://example.test/source" , "Source" ) , Space , Span ( "span-id" , [ "mark" ] , [ ( "data-span" , "yes" ) ] ) [ Code ( "span-code" , [  ] , [  ] ) "inline" ] ]' . "\n" . ']',
+            (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
+        );
+
+        $edited = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [
+            new AstNode('paragraph', [], [
+                new AstNode('code', array_replace($code->attrs, ['text' => 'gt done'])),
+                new AstNode('link', array_replace($link->attrs, ['url' => 'https://example.test/edited']), $link->children),
+                new AstNode('span', array_replace($span->attrs, ['id' => 'edited-span']), $span->children),
+            ]),
+        ]);
+
+        foreach ([
+            'json' => (new PandocJsonWriter())->toArray($edited),
+            'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+        ] as $writer => $editedPacket) {
+            $t->same(['t' => 'Code', 'c' => [$codeAttr, 'gt done']], $editedPacket['blocks'][0]['c'][0], "{$writer} regenerates edited code text");
+            $t->same(['t' => 'Link', 'c' => [$linkAttr, [['t' => 'Str', 'c' => 'source']], ['https://example.test/edited', 'Source']]], $editedPacket['blocks'][0]['c'][1], "{$writer} regenerates edited link target");
+            $t->same(['t' => 'Span', 'c' => [['edited-span', ['mark'], [['data-span', 'yes']]], [$spanCodeNative]]], $editedPacket['blocks'][0]['c'][2], "{$writer} regenerates edited span attr");
+        }
+    },
 ];
