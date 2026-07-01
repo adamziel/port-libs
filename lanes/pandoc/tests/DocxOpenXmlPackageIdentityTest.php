@@ -61,7 +61,7 @@ return [
             $summary = $package['summary'];
 
             $t->same($identity, $package['documentPackageIdentity']);
-            $t->same(2, $identity['identityVersion']);
+            $t->same(3, $identity['identityVersion']);
             $t->same('docx-main-document-package-identity', $identity['reviewPolicy']);
             $t->same('docx-openxml-main-document', $identity['packageType']);
             $t->same('word/document.xml', $identity['partName']);
@@ -165,7 +165,7 @@ return [
         $summary = $docx['packageProvenance']['summary'];
         $changedIdentity = $changedDocument->attr('docx')['documentPackageIdentity'];
 
-        $t->same(2, $identity['identityVersion']);
+        $t->same(3, $identity['identityVersion']);
         $t->same(7, $identity['packagePartCount']);
         $t->same(2, $identity['packageRelationshipPartCount']);
         $t->same(6, $identity['packageRelationshipCount']);

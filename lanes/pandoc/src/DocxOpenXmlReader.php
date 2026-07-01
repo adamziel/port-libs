@@ -226,6 +226,13 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipRecordCount'] = $documentPackageIdentity['documentRelationshipRecordCount'];
         $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipTargetPartCount'] = $documentPackageIdentity['documentRelationshipTargetPartCount'];
         $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipTargetParts'] = $documentPackageIdentity['documentRelationshipTargetParts'];
+        $packageProvenance['summary']['documentPackageIdentityRootRelationshipTargetDirectoryCounts'] = $documentPackageIdentity['rootRelationshipTargetDirectoryCounts'];
+        $packageProvenance['summary']['documentPackageIdentityRootRelationshipTargetCaseFoldBaseNameCounts'] = $documentPackageIdentity['rootRelationshipTargetCaseFoldBaseNameCounts'];
+        $packageProvenance['summary']['documentPackageIdentityRootRelationshipTargetPartsByCaseFoldBaseName'] = $documentPackageIdentity['rootRelationshipTargetPartsByCaseFoldBaseName'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipTargetDirectoryCounts'] = $documentPackageIdentity['documentRelationshipTargetDirectoryCounts'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipTargetCaseFoldBaseNameCounts'] = $documentPackageIdentity['documentRelationshipTargetCaseFoldBaseNameCounts'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipTargetPartExtensionCounts'] = $documentPackageIdentity['documentRelationshipTargetPartExtensionCounts'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipTargetPartsByCaseFoldBaseName'] = $documentPackageIdentity['documentRelationshipTargetPartsByCaseFoldBaseName'];
         $packageProvenance['summary']['documentContentType'] = $documentPackageIdentity['contentType'];
         $packageProvenance['summary']['documentContentTypeBase'] = $documentPackageIdentity['contentTypeBase'];
         $packageProvenance['summary']['documentContentTypeSource'] = $documentPackageIdentity['contentTypeSource'];
@@ -37278,7 +37285,7 @@ final class DocxOpenXmlReader
         );
         $officeDocumentRelationship = $this->officeDocumentPackageIdentityRelationship($rootRelationships, $documentPart);
         $identity = [
-            'identityVersion' => 2,
+            'identityVersion' => 3,
             'reviewPolicy' => 'docx-main-document-package-identity',
             'packageType' => 'docx-openxml-main-document',
             'partName' => $documentPart,
@@ -37296,6 +37303,13 @@ final class DocxOpenXmlReader
             'rootExistingRelationshipTargetCount' => $rootRelationshipContext['existingTargetCount'],
             'rootMissingRelationshipTargetCount' => $rootRelationshipContext['missingTargetCount'],
             'rootMissingRelationshipContentTypeTargetCount' => $rootRelationshipContext['missingContentTypeTargetCount'],
+            'rootRelationshipTargetDirectoryCounts' => $rootRelationshipContext['targetDirectoryCounts'],
+            'rootRelationshipTargetBaseNameCounts' => $rootRelationshipContext['targetBaseNameCounts'],
+            'rootRelationshipTargetCaseFoldBaseNameCounts' => $rootRelationshipContext['targetCaseFoldBaseNameCounts'],
+            'rootRelationshipTargetPartExtensionCounts' => $rootRelationshipContext['targetPartExtensionCounts'],
+            'rootRelationshipTargetExistingCaseFoldBaseNameCounts' => $rootRelationshipContext['targetExistingCaseFoldBaseNameCounts'],
+            'rootRelationshipTargetMissingCaseFoldBaseNameCounts' => $rootRelationshipContext['targetMissingCaseFoldBaseNameCounts'],
+            'rootRelationshipTargetPartsByCaseFoldBaseName' => $rootRelationshipContext['targetPartsByCaseFoldBaseName'],
             'rootOfficeDocumentRelationshipFound' => $officeDocumentRelationship['found'],
             'rootOfficeDocumentRelationshipId' => $officeDocumentRelationship['id'],
             'rootOfficeDocumentRelationshipTarget' => $officeDocumentRelationship['target'],
@@ -37316,6 +37330,13 @@ final class DocxOpenXmlReader
             'documentRelationshipTargetPartCount' => $documentRelationshipContext['targetPartCount'],
             'documentRelationshipTargetParts' => $documentRelationshipContext['targetParts'],
             'documentRelationshipContentTypeBases' => $documentRelationshipContext['contentTypeBases'],
+            'documentRelationshipTargetDirectoryCounts' => $documentRelationshipContext['targetDirectoryCounts'],
+            'documentRelationshipTargetBaseNameCounts' => $documentRelationshipContext['targetBaseNameCounts'],
+            'documentRelationshipTargetCaseFoldBaseNameCounts' => $documentRelationshipContext['targetCaseFoldBaseNameCounts'],
+            'documentRelationshipTargetPartExtensionCounts' => $documentRelationshipContext['targetPartExtensionCounts'],
+            'documentRelationshipTargetExistingCaseFoldBaseNameCounts' => $documentRelationshipContext['targetExistingCaseFoldBaseNameCounts'],
+            'documentRelationshipTargetMissingCaseFoldBaseNameCounts' => $documentRelationshipContext['targetMissingCaseFoldBaseNameCounts'],
+            'documentRelationshipTargetPartsByCaseFoldBaseName' => $documentRelationshipContext['targetPartsByCaseFoldBaseName'],
             'contentType' => $contentType['contentType'],
             'contentTypeBase' => $contentTypeBase,
             'contentTypeSource' => $contentType['contentTypeSource'],
@@ -37346,10 +37367,12 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, mixed> $relationshipPart
-     * @return array{exists:bool, relationshipCount:int, relationshipRecordCount:int, internalRelationshipCount:int, externalRelationshipCount:int, existingTargetCount:int, missingTargetCount:int, missingContentTypeTargetCount:int, targetPartCount:int, targetParts:list<string>, contentTypeBases:list<string>}
+     * @return array<string, mixed>
      */
     private function relationshipPartPackageIdentityContext(array $relationshipPart, int $relationshipCount): array
     {
+        $targetMaps = $this->relationshipPartPackageIdentityTargetMaps($relationshipPart);
+
         return [
             'exists' => ($relationshipPart['exists'] ?? false) === true,
             'relationshipCount' => $relationshipCount,
@@ -37362,7 +37385,78 @@ final class DocxOpenXmlReader
             'targetPartCount' => (int) ($relationshipPart['targetPartCount'] ?? 0),
             'targetParts' => self::packageIdentityStringList($relationshipPart['targetParts'] ?? []),
             'contentTypeBases' => self::packageIdentityStringList($relationshipPart['contentTypeBases'] ?? []),
+        ] + $targetMaps;
+    }
+
+    /**
+     * @param array<string, mixed> $relationshipPart
+     * @return array<string, array<string, int>|array<string, list<string>>>
+     */
+    private function relationshipPartPackageIdentityTargetMaps(array $relationshipPart): array
+    {
+        $counts = [
+            'targetDirectoryCounts' => [],
+            'targetBaseNameCounts' => [],
+            'targetCaseFoldBaseNameCounts' => [],
+            'targetPartExtensionCounts' => [],
+            'targetExistingCaseFoldBaseNameCounts' => [],
+            'targetMissingCaseFoldBaseNameCounts' => [],
         ];
+        $maps = [
+            'targetPartsByCaseFoldBaseName' => [],
+        ];
+
+        foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
+            if (!is_array($relationship) || ($relationship['external'] ?? false) === true) {
+                continue;
+            }
+
+            $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $directory = $this->packagePartDirectory($targetPart);
+            $baseName = $this->packagePartBaseName($targetPart);
+            $caseFoldBaseName = $this->packagePartCaseFoldKey($baseName);
+            $extension = $this->packagePartExtension($targetPart);
+            $extensionKey = is_string($extension) && $extension !== '' ? $extension : '(none)';
+
+            $counts['targetDirectoryCounts'][$directory] =
+                ($counts['targetDirectoryCounts'][$directory] ?? 0) + 1;
+            $counts['targetBaseNameCounts'][$baseName] =
+                ($counts['targetBaseNameCounts'][$baseName] ?? 0) + 1;
+            $counts['targetCaseFoldBaseNameCounts'][$caseFoldBaseName] =
+                ($counts['targetCaseFoldBaseNameCounts'][$caseFoldBaseName] ?? 0) + 1;
+            $counts['targetPartExtensionCounts'][$extensionKey] =
+                ($counts['targetPartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+            if (($relationship['exists'] ?? false) === true) {
+                $counts['targetExistingCaseFoldBaseNameCounts'][$caseFoldBaseName] =
+                    ($counts['targetExistingCaseFoldBaseNameCounts'][$caseFoldBaseName] ?? 0) + 1;
+            } else {
+                $counts['targetMissingCaseFoldBaseNameCounts'][$caseFoldBaseName] =
+                    ($counts['targetMissingCaseFoldBaseNameCounts'][$caseFoldBaseName] ?? 0) + 1;
+            }
+
+            $maps['targetPartsByCaseFoldBaseName'][$caseFoldBaseName][] = $targetPart;
+        }
+
+        foreach ($counts as &$countMap) {
+            ksort($countMap, SORT_STRING);
+        }
+        unset($countMap);
+        foreach ($maps as &$map) {
+            ksort($map, SORT_STRING);
+            foreach ($map as &$targetParts) {
+                $targetParts = array_values(array_unique(array_map('strval', $targetParts)));
+                sort($targetParts, SORT_STRING);
+            }
+            unset($targetParts);
+        }
+        unset($map);
+
+        return $counts + $maps;
     }
 
     /**
