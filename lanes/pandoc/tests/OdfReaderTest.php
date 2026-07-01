@@ -9145,6 +9145,114 @@ XML;
         $t->same(1, count($result['importReport']['manifest']['missingItems']));
         $t->same('Pictures/missing.png?missing=true', $result['importReport']['manifest']['missingItems'][0]['fullPath']);
     },
+    'summarizes ODT content package references against manifest provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
+        $mathObject = <<<'XML'
+<math xmlns="http://www.w3.org/1998/Math/MathML" display="block">
+  <mrow><mi>x</mi><mo>=</mo><mn>1</mn></mrow>
+</math>
+XML;
+        $contentWithPackageReferences = <<<'XML'
+<office:document-content
+  xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+  xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"
+  xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0"
+  xmlns:xlink="http://www.w3.org/1999/xlink"
+  xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0">
+  <office:body>
+    <office:text>
+      <text:p>Content references <draw:frame draw:name="Declared hero"><draw:image xlink:href="Pictures/hero.png"><svg:desc>Declared hero</svg:desc></draw:image></draw:frame> <draw:frame draw:name="Undeclared hero"><draw:image xlink:href="Pictures/orphan.png"><svg:desc>Undeclared hero</svg:desc></draw:image></draw:frame> <draw:frame draw:name="Formula"><draw:object xlink:href="./Object%201"/></draw:frame> <draw:frame draw:name="OLE"><draw:object-ole xlink:href="./Object%20OLE"/></draw:frame>.</text:p>
+    </office:text>
+  </office:body>
+</office:document-content>
+XML;
+        $manifestWithPackageReferences = <<<'XML'
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">
+  <manifest:file-entry manifest:full-path="/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.text"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Pictures/hero.png" manifest:media-type="image/png"/>
+  <manifest:file-entry manifest:full-path="Object%201/" manifest:media-type="application/vnd.oasis.opendocument.formula"/>
+  <manifest:file-entry manifest:full-path="Object%201/content.xml" manifest:media-type="text/xml"/>
+  <manifest:file-entry manifest:full-path="Object%20OLE/" manifest:media-type="application/vnd.oasis.opendocument.spreadsheet"/>
+</manifest:manifest>
+XML;
+
+        $result = (new OdfReader())->readPackage($buildOdtPackage(
+            $contentWithPackageReferences,
+            $manifestWithPackageReferences,
+            null,
+            null,
+            [
+                ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG', 'compressionMethod' => 0],
+                ['name' => 'Object 1/content.xml', 'data' => $mathObject, 'compressionMethod' => 0],
+                ['name' => 'Object OLE/content.xml', 'data' => '<office:document/>', 'compressionMethod' => 0],
+            ]
+        ));
+        $report = $result['contentPackageReferences'];
+        $itemsByPart = [];
+        foreach ($report['items'] as $item) {
+            $itemsByPart[$item['part']] = $item;
+        }
+
+        $t->same($report, $result['document']->attr('manifest')['contentPackageReferences']);
+        $t->same($report, $result['importReport']['manifest']['contentPackageReferences']);
+        $t->same($report, $result['importReport']['content']['packageReferences']);
+        $t->same(4, $report['count']);
+        $t->same(4, $report['uniquePartCount']);
+        $t->same([
+            'Object 1/content.xml',
+            'Object OLE/',
+            'Pictures/hero.png',
+            'Pictures/orphan.png',
+        ], $report['parts']);
+        $t->same([
+            'draw:image' => 2,
+            'draw:object-mathml' => 1,
+            'draw:object-ole' => 1,
+        ], $report['referenceRoleCounts']);
+        $t->same(3, $report['declaredReferenceCount']);
+        $t->same(1, $report['undeclaredReferenceCount']);
+        $t->same(0, $report['missingPackagePartCount']);
+        $t->same(0, $report['encryptedReferenceCount']);
+        $t->same(2, $report['exposableReferenceCount']);
+        $t->same(2, $report['blockedReferenceCount']);
+        $t->same([
+            'directory-entry-no-bytes' => 1,
+            'embedded-object-package-bytes-blocked' => 1,
+            'package-bytes-exposable' => 2,
+        ], $report['byteExposurePolicyCounts']);
+        $t->same('odf-content-package-reference-metadata-only', $report['byteExposurePolicy']);
+        $t->same(false, $report['canExposeBytes']);
+
+        $t->same('draw:image', $itemsByPart['Pictures/hero.png']['referenceRole']);
+        $t->same(true, $itemsByPart['Pictures/hero.png']['declaredInManifest']);
+        $t->same('Pictures/hero.png', $itemsByPart['Pictures/hero.png']['manifestFullPath']);
+        $t->same('image/png', $itemsByPart['Pictures/hero.png']['mediaType']);
+        $t->same(true, $itemsByPart['Pictures/hero.png']['canExposeBytes']);
+        $t->same(7, $itemsByPart['Pictures/hero.png']['byteLength']);
+
+        $t->same('draw:image', $itemsByPart['Pictures/orphan.png']['referenceRole']);
+        $t->same(false, $itemsByPart['Pictures/orphan.png']['declaredInManifest']);
+        $t->same(true, $itemsByPart['Pictures/orphan.png']['exists']);
+        $t->same('package-bytes-exposable', $itemsByPart['Pictures/orphan.png']['byteExposurePolicy']);
+        $t->same(9, $itemsByPart['Pictures/orphan.png']['byteLength']);
+
+        $t->same('draw:object-mathml', $itemsByPart['Object 1/content.xml']['referenceRole']);
+        $t->same('Object 1', $itemsByPart['Object 1/content.xml']['sourceReference']);
+        $t->same(true, $itemsByPart['Object 1/content.xml']['declaredInManifest']);
+        $t->same('Object%201/content.xml', $itemsByPart['Object 1/content.xml']['manifestPartReference']);
+        $t->same(false, $itemsByPart['Object 1/content.xml']['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $itemsByPart['Object 1/content.xml']['byteExposurePolicy']);
+
+        $t->same('draw:object-ole', $itemsByPart['Object OLE/']['referenceRole']);
+        $t->same('./Object%20OLE', $itemsByPart['Object OLE/']['sourceReference']);
+        $t->same('ole', $itemsByPart['Object OLE/']['objectType']);
+        $t->same('Object OLE', $itemsByPart['Object OLE/']['objectPath']);
+        $t->same('application/vnd.oasis.opendocument.spreadsheet', $itemsByPart['Object OLE/']['mediaType']);
+        $t->same(false, $itemsByPart['Object OLE/']['canExposeBytes']);
+        $t->same('directory-entry-no-bytes', $itemsByPart['Object OLE/']['byteExposurePolicy']);
+    },
     'reports ODT ZIP entries missing from the manifest for package review' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $result = (new OdfReader())->readPackage($buildOdtPackage(null, null, null, null, [
             ['name' => 'Pictures/orphan.png', 'data' => 'ORPHANPNG'],

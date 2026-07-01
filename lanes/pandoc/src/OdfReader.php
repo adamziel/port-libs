@@ -132,6 +132,7 @@ final class OdfReader
      *     packageExtensions:array<string, mixed>,
      *     packageStyles:array<string, mixed>,
      *     documentPartVersions:array<string, mixed>,
+     *     contentPackageReferences:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
      *     signatureMetadata:array<string, mixed>,
      *     scriptMetadata:array<string, mixed>,
@@ -155,6 +156,7 @@ final class OdfReader
         $settings = $this->readSettings($package);
         $content = $this->readContent($package, $styleCatalog, $metadata, $settings);
         $contentStats = $this->contentNodeStats($content['blocks']);
+        $contentPackageReferences = $this->contentPackageReferenceReport($content['blocks'], $manifest, $package);
         $styleCatalog = $content['styleCatalog'];
         $styleDiagnostics = array_merge(
             $this->styleDiagnostics($styleCatalog),
@@ -280,6 +282,7 @@ final class OdfReader
                 'mediaTypeSummary' => $manifestMediaTypeSummary,
                 'packageProvenance' => $packageProvenance,
                 'documentPartVersions' => $documentPartVersions,
+                'contentPackageReferences' => $contentPackageReferences,
                 'corePackageHandoff' => $corePackageHandoff,
                 'encryption' => $manifestEncryptionSummary,
             ],
@@ -383,6 +386,7 @@ final class OdfReader
             'packageExtensions' => $packageExtensions,
             'packageStyles' => $packageStyles,
             'documentPartVersions' => $documentPartVersions,
+            'contentPackageReferences' => $contentPackageReferences,
             'rdfMetadata' => $rdfMetadata,
             'signatureMetadata' => $signatureMetadata,
             'scriptMetadata' => $scriptMetadata,
@@ -408,6 +412,7 @@ final class OdfReader
                     'mediaTypeSummary' => $manifestMediaTypeSummary,
                     'packageProvenance' => $packageProvenance,
                     'documentPartVersions' => $documentPartVersions,
+                    'contentPackageReferences' => $contentPackageReferences,
                     'corePackageHandoff' => $corePackageHandoff,
                     'directoryCount' => count($directoryItems),
                     'directoryItems' => $directoryItems,
@@ -500,6 +505,7 @@ final class OdfReader
                 ],
                 'content' => [
                     'blockCount' => count($content['blocks']),
+                    'packageReferences' => $contentPackageReferences,
                     'automaticStyleCount' => $content['automaticStyleCount'],
                     'blockquoteCount' => $contentStats['blockquoteCount'],
                     'noteCount' => $contentStats['noteCount'],
@@ -23386,6 +23392,176 @@ final class OdfReader
         }
 
         return 'undeclared-package-entry-no-bytes';
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param list<array<string, mixed>> $manifest
+     * @return array<string, mixed>
+     */
+    private function contentPackageReferenceReport(array $nodes, array $manifest, ZipPackage $package): array
+    {
+        $manifestByPart = $this->manifestByPart($manifest);
+        $items = [];
+        $this->collectContentPackageReferenceItems($nodes, $manifestByPart, $package, $items);
+
+        $referenceRoleCounts = [];
+        $partReferenceCounts = [];
+        $byteExposurePolicyCounts = [];
+        $declaredReferenceCount = 0;
+        $undeclaredReferenceCount = 0;
+        $missingPackagePartCount = 0;
+        $encryptedReferenceCount = 0;
+        $exposableReferenceCount = 0;
+        $blockedReferenceCount = 0;
+
+        foreach ($items as $item) {
+            $role = (string) ($item['referenceRole'] ?? '');
+            if ($role !== '') {
+                $referenceRoleCounts[$role] = ($referenceRoleCounts[$role] ?? 0) + 1;
+            }
+            $part = (string) ($item['part'] ?? '');
+            if ($part !== '') {
+                $partReferenceCounts[$part] = ($partReferenceCounts[$part] ?? 0) + 1;
+            }
+            $policy = (string) ($item['byteExposurePolicy'] ?? '');
+            if ($policy !== '') {
+                $byteExposurePolicyCounts[$policy] = ($byteExposurePolicyCounts[$policy] ?? 0) + 1;
+            }
+            if (($item['declaredInManifest'] ?? false) === true) {
+                ++$declaredReferenceCount;
+            } else {
+                ++$undeclaredReferenceCount;
+            }
+            if (($item['exists'] ?? false) !== true) {
+                ++$missingPackagePartCount;
+            }
+            if (($item['encrypted'] ?? false) === true) {
+                ++$encryptedReferenceCount;
+            }
+            if (($item['canExposeBytes'] ?? false) === true) {
+                ++$exposableReferenceCount;
+            } else {
+                ++$blockedReferenceCount;
+            }
+        }
+
+        ksort($referenceRoleCounts, SORT_STRING);
+        ksort($partReferenceCounts, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'itemCount' => count($items),
+            'uniquePartCount' => count($partReferenceCounts),
+            'parts' => array_keys($partReferenceCounts),
+            'referenceRoleCounts' => $referenceRoleCounts,
+            'partReferenceCounts' => $partReferenceCounts,
+            'declaredReferenceCount' => $declaredReferenceCount,
+            'undeclaredReferenceCount' => $undeclaredReferenceCount,
+            'missingPackagePartCount' => $missingPackagePartCount,
+            'encryptedReferenceCount' => $encryptedReferenceCount,
+            'exposableReferenceCount' => $exposableReferenceCount,
+            'blockedReferenceCount' => $blockedReferenceCount,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'byteExposurePolicy' => 'odf-content-package-reference-metadata-only',
+            'canExposeBytes' => false,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $nodes
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @param list<array<string, mixed>> $items
+     */
+    private function collectContentPackageReferenceItems(array $nodes, array $manifestByPart, ZipPackage $package, array &$items): void
+    {
+        foreach ($nodes as $node) {
+            $item = $this->contentPackageReferenceItem($node, count($items), $manifestByPart, $package);
+            if ($item !== null) {
+                $items[] = $item;
+            }
+            if ($node->children !== []) {
+                $this->collectContentPackageReferenceItems($node->children, $manifestByPart, $package, $items);
+            }
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $manifestByPart
+     * @return array<string, mixed>|null
+     */
+    private function contentPackageReferenceItem(AstNode $node, int $index, array $manifestByPart, ZipPackage $package): ?array
+    {
+        $sourcePart = $node->attr('sourcePart');
+        if (!is_string($sourcePart) || $sourcePart === '') {
+            return null;
+        }
+
+        $sourceFormat = $node->attr('sourceFormat');
+        $sourceFormat = is_string($sourceFormat) ? $sourceFormat : '';
+        $referenceRole = null;
+        $sourceReference = null;
+        if ($node->type === 'image' && $sourceFormat === 'odt') {
+            $referenceRole = 'draw:image';
+            $sourceReference = $node->attr('url');
+        } elseif ($node->type === 'math' && $sourceFormat === 'odt-mathml') {
+            $referenceRole = 'draw:object-mathml';
+            $sourceReference = $node->attr('objectPath');
+        } elseif (str_starts_with($sourceFormat, 'odt-object')) {
+            $objectType = $node->attr('objectType');
+            $referenceRole = $objectType === 'ole' ? 'draw:object-ole' : 'draw:object';
+            $sourceReference = $node->attr('href');
+        }
+
+        if ($referenceRole === null) {
+            return null;
+        }
+
+        $manifestItem = $manifestByPart[$sourcePart] ?? null;
+        $zipEntry = !str_ends_with($sourcePart, '/') && $package->has($sourcePart)
+            ? $package->entry($sourcePart)
+            : null;
+        $declared = is_array($manifestItem);
+        $exists = $declared
+            ? (($manifestItem['exists'] ?? false) === true)
+            : ($zipEntry instanceof ZipPackageEntry);
+        $encrypted = $declared && ($manifestItem['encrypted'] ?? false) === true;
+        $canExposeBytes = $declared
+            ? (($manifestItem['canExposeBytes'] ?? false) === true)
+            : ($zipEntry instanceof ZipPackageEntry && $node->attr('bytes') !== null);
+        $byteExposurePolicy = $declared
+            ? ($manifestItem['byteExposurePolicy'] ?? null)
+            : ($canExposeBytes ? 'package-bytes-exposable' : 'content-reference-metadata-only');
+
+        return self::withoutEmpty([
+            'index' => $index,
+            'nodeType' => $node->type,
+            'sourceFormat' => $sourceFormat,
+            'referenceRole' => $referenceRole,
+            'sourceReference' => is_string($sourceReference) ? $sourceReference : null,
+            'part' => $sourcePart,
+            'objectType' => self::nullable((string) $node->attr('objectType', '')),
+            'objectPath' => self::nullable((string) $node->attr('objectPath', '')),
+            'declaredInManifest' => $declared,
+            'manifestFullPath' => is_array($manifestItem) ? ($manifestItem['fullPath'] ?? null) : null,
+            'manifestPartReference' => is_array($manifestItem) ? ($manifestItem['partReference'] ?? null) : null,
+            'manifestPartSuffix' => is_array($manifestItem) ? ($manifestItem['partSuffix'] ?? null) : null,
+            'manifestPartQuery' => is_array($manifestItem) ? ($manifestItem['partQuery'] ?? null) : null,
+            'manifestPartFragment' => is_array($manifestItem) ? ($manifestItem['partFragment'] ?? null) : null,
+            'mediaType' => is_array($manifestItem) ? ($manifestItem['mediaType'] ?? null) : $node->attr('mediaType'),
+            'mediaTypeBase' => is_array($manifestItem) ? ($manifestItem['mediaTypeBase'] ?? null) : null,
+            'exists' => $exists,
+            'encrypted' => $encrypted,
+            'canExposeBytes' => $canExposeBytes,
+            'byteExposurePolicy' => $byteExposurePolicy,
+            'byteLength' => is_array($manifestItem) ? ($manifestItem['byteLength'] ?? null) : ($canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null),
+            'storedByteLength' => is_array($manifestItem) ? ($manifestItem['storedByteLength'] ?? null) : ($zipEntry instanceof ZipPackageEntry ? $zipEntry->uncompressedSize : null),
+            'compressedByteLength' => is_array($manifestItem) ? ($manifestItem['compressedByteLength'] ?? null) : ($zipEntry instanceof ZipPackageEntry ? $zipEntry->compressedSize : null),
+            'crc32' => is_array($manifestItem) ? ($manifestItem['crc32'] ?? null) : ($canExposeBytes && $zipEntry instanceof ZipPackageEntry ? $zipEntry->crc32Hex() : null),
+            'diagnostics' => is_array($manifestItem) ? ($manifestItem['diagnostics'] ?? []) : [],
+        ]);
     }
 
     /**
