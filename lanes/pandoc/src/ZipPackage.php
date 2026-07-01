@@ -14426,6 +14426,9 @@ final class ZipPackage
         $generalPurposeUtf8NameEntryCount = 0;
         $generalPurposeDataDescriptorEntryCount = 0;
         $generalPurposeDeflateOptionEntryCount = 0;
+        $versionNeededToExtractSummaries = [];
+        $maxVersionNeededToExtract = null;
+        $maxMinimumVersionNeededToExtract = null;
         $creatorHostSystemSummaries = [];
         $creatorVersionComparisonCounts = [
             'below-needed' => 0,
@@ -14460,6 +14463,30 @@ final class ZipPackage
             $madeByHostSystemName = self::creatorHostSystemName($madeByHostSystem);
             $madeByVersion = $entry->madeByVersion();
             $versionNeededToExtract = $entry->neededToExtractVersion();
+            $localVersionNeededToExtract = (int) $localHeader['versionNeededToExtract'];
+            $minimumVersionNeededToExtract = self::minimumVersionNeededToExtractForBoundedFeatureUse(
+                $entry->compressionMethod,
+                $entry->generalPurposeFlags
+            );
+            $localMinimumVersionNeededToExtract = self::minimumVersionNeededToExtractForBoundedFeatureUse(
+                (int) $localHeader['compressionMethod'],
+                (int) $localHeader['generalPurposeFlags']
+            );
+            $versionNeededToExtractMatchesLocalHeader = $versionNeededToExtract === $localVersionNeededToExtract;
+            $versionNeededToExtractMeetsFeatureMinimum = $minimumVersionNeededToExtract === null
+                || $versionNeededToExtract >= $minimumVersionNeededToExtract;
+            $localVersionNeededToExtractMeetsFeatureMinimum = $localMinimumVersionNeededToExtract === null
+                || $localVersionNeededToExtract >= $localMinimumVersionNeededToExtract;
+            $versionNeededToExtractExceedsBoundedReader = $versionNeededToExtract > self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT;
+            $localVersionNeededToExtractExceedsBoundedReader = $localVersionNeededToExtract > self::MAX_SUPPORTED_VERSION_NEEDED_TO_EXTRACT;
+            $maxVersionNeededToExtract = $maxVersionNeededToExtract === null
+                ? $versionNeededToExtract
+                : max($maxVersionNeededToExtract, $versionNeededToExtract);
+            if ($minimumVersionNeededToExtract !== null) {
+                $maxMinimumVersionNeededToExtract = $maxMinimumVersionNeededToExtract === null
+                    ? $minimumVersionNeededToExtract
+                    : max($maxMinimumVersionNeededToExtract, $minimumVersionNeededToExtract);
+            }
             $creatorHostSystemIsKnown = self::isKnownCreatorHostSystem($madeByHostSystem);
             $creatorVersionMeetsNeeded = $madeByVersion >= $versionNeededToExtract;
             $creatorVersionDelta = $madeByVersion - $versionNeededToExtract;
@@ -14681,6 +14708,51 @@ final class ZipPackage
                 $generalPurposeFlagSummaries[$generalPurposeFlagKey]['dataDescriptorBytes'] += $dataDescriptorLength;
             }
             $generalPurposeFlagSummaries[$generalPurposeFlagKey]['entryNames'][] = $entry->name;
+            if (!isset($versionNeededToExtractSummaries[$versionNeededToExtract])) {
+                $versionNeededToExtractSummaries[$versionNeededToExtract] = [
+                    'versionNeededToExtract' => $versionNeededToExtract,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'minimumVersionNeededToExtracts' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                ];
+            }
+            ++$versionNeededToExtractSummaries[$versionNeededToExtract]['entryCount'];
+            if ($isDirectory) {
+                ++$versionNeededToExtractSummaries[$versionNeededToExtract]['directoryEntryCount'];
+            } else {
+                ++$versionNeededToExtractSummaries[$versionNeededToExtract]['fileEntryCount'];
+            }
+            $versionNeededToExtractSummaries[$versionNeededToExtract]['compressedBytes'] += $entry->compressedSize;
+            $versionNeededToExtractSummaries[$versionNeededToExtract]['uncompressedBytes'] += $entry->uncompressedSize;
+            $versionNeededToExtractSummaries[$versionNeededToExtract]['localRecordBytes'] += $localRecordLength;
+            if ($usesDataDescriptor) {
+                ++$versionNeededToExtractSummaries[$versionNeededToExtract]['dataDescriptorEntryCount'];
+                $versionNeededToExtractSummaries[$versionNeededToExtract]['dataDescriptorBytes'] += $dataDescriptorLength;
+            }
+            if (
+                $minimumVersionNeededToExtract !== null
+                && !in_array(
+                    $minimumVersionNeededToExtract,
+                    $versionNeededToExtractSummaries[$versionNeededToExtract]['minimumVersionNeededToExtracts'],
+                    true
+                )
+            ) {
+                $versionNeededToExtractSummaries[$versionNeededToExtract]['minimumVersionNeededToExtracts'][] = $minimumVersionNeededToExtract;
+            }
+            $compressionMethodName = self::compressionMethodName($entry->compressionMethod);
+            if (!in_array($compressionMethodName, $versionNeededToExtractSummaries[$versionNeededToExtract]['compressionMethodNames'], true)) {
+                $versionNeededToExtractSummaries[$versionNeededToExtract]['compressionMethodNames'][] = $compressionMethodName;
+            }
+            $versionNeededToExtractSummaries[$versionNeededToExtract]['entryNames'][] = $entry->name;
             if (!isset($creatorHostSystemSummaries[$madeByHostSystem])) {
                 $creatorHostSystemSummaries[$madeByHostSystem] = [
                     'madeByHostSystem' => $madeByHostSystem,
@@ -14768,6 +14840,7 @@ final class ZipPackage
             }
             $entrySourceRecordBytes = $localRecordLength + max(0, $entryCentralDirectoryRecordBytes ?? 0);
             $sourceRecordBytes += $entrySourceRecordBytes;
+            $versionNeededToExtractSummaries[$versionNeededToExtract]['sourceRecordBytes'] += $entrySourceRecordBytes;
             $centralDirectoryFixedHeaderBytes += $entryCentralDirectoryFixedHeaderBytes;
             $centralDirectoryVariableFieldBytes += $entryCentralDirectoryVariableFieldBytes;
             $centralDirectoryRawNameBytes += $entryCentralDirectoryRawNameBytes;
@@ -14792,6 +14865,14 @@ final class ZipPackage
                 'madeByHostSystemName' => $madeByHostSystemName,
                 'madeByVersion' => $madeByVersion,
                 'versionNeededToExtract' => $versionNeededToExtract,
+                'localVersionNeededToExtract' => $localVersionNeededToExtract,
+                'minimumVersionNeededToExtract' => $minimumVersionNeededToExtract,
+                'localMinimumVersionNeededToExtract' => $localMinimumVersionNeededToExtract,
+                'versionNeededToExtractMatchesLocalHeader' => $versionNeededToExtractMatchesLocalHeader,
+                'versionNeededToExtractMeetsFeatureMinimum' => $versionNeededToExtractMeetsFeatureMinimum,
+                'localVersionNeededToExtractMeetsFeatureMinimum' => $localVersionNeededToExtractMeetsFeatureMinimum,
+                'versionNeededToExtractExceedsBoundedReader' => $versionNeededToExtractExceedsBoundedReader,
+                'localVersionNeededToExtractExceedsBoundedReader' => $localVersionNeededToExtractExceedsBoundedReader,
                 'creatorVersionMeetsNeeded' => $creatorVersionMeetsNeeded,
                 'creatorVersionComparison' => $creatorVersionComparison,
                 'creatorVersionDelta' => $creatorVersionDelta,
@@ -14881,6 +14962,14 @@ final class ZipPackage
                 'madeByHostSystemName' => $summary['madeByHostSystemName'],
                 'madeByVersion' => $summary['madeByVersion'],
                 'versionNeededToExtract' => $summary['versionNeededToExtract'],
+                'localVersionNeededToExtract' => $summary['localVersionNeededToExtract'],
+                'minimumVersionNeededToExtract' => $summary['minimumVersionNeededToExtract'],
+                'localMinimumVersionNeededToExtract' => $summary['localMinimumVersionNeededToExtract'],
+                'versionNeededToExtractMatchesLocalHeader' => $summary['versionNeededToExtractMatchesLocalHeader'],
+                'versionNeededToExtractMeetsFeatureMinimum' => $summary['versionNeededToExtractMeetsFeatureMinimum'],
+                'localVersionNeededToExtractMeetsFeatureMinimum' => $summary['localVersionNeededToExtractMeetsFeatureMinimum'],
+                'versionNeededToExtractExceedsBoundedReader' => $summary['versionNeededToExtractExceedsBoundedReader'],
+                'localVersionNeededToExtractExceedsBoundedReader' => $summary['localVersionNeededToExtractExceedsBoundedReader'],
                 'creatorVersionMeetsNeeded' => $summary['creatorVersionMeetsNeeded'],
                 'creatorVersionComparison' => $summary['creatorVersionComparison'],
                 'creatorVersionDelta' => $summary['creatorVersionDelta'],
@@ -14910,6 +14999,14 @@ final class ZipPackage
                 'madeByHostSystemName' => $summary['madeByHostSystemName'],
                 'madeByVersion' => $summary['madeByVersion'],
                 'versionNeededToExtract' => $summary['versionNeededToExtract'],
+                'localVersionNeededToExtract' => $summary['localVersionNeededToExtract'],
+                'minimumVersionNeededToExtract' => $summary['minimumVersionNeededToExtract'],
+                'localMinimumVersionNeededToExtract' => $summary['localMinimumVersionNeededToExtract'],
+                'versionNeededToExtractMatchesLocalHeader' => $summary['versionNeededToExtractMatchesLocalHeader'],
+                'versionNeededToExtractMeetsFeatureMinimum' => $summary['versionNeededToExtractMeetsFeatureMinimum'],
+                'localVersionNeededToExtractMeetsFeatureMinimum' => $summary['localVersionNeededToExtractMeetsFeatureMinimum'],
+                'versionNeededToExtractExceedsBoundedReader' => $summary['versionNeededToExtractExceedsBoundedReader'],
+                'localVersionNeededToExtractExceedsBoundedReader' => $summary['localVersionNeededToExtractExceedsBoundedReader'],
                 'creatorVersionMeetsNeeded' => $summary['creatorVersionMeetsNeeded'],
                 'creatorVersionComparison' => $summary['creatorVersionComparison'],
                 'creatorVersionDelta' => $summary['creatorVersionDelta'],
@@ -14971,6 +15068,26 @@ final class ZipPackage
         $compressionMethodSummaries = array_values($compressionMethodSummaries);
         ksort($generalPurposeFlagSummaries, SORT_NUMERIC);
         $generalPurposeFlagSummaries = array_values($generalPurposeFlagSummaries);
+        ksort($versionNeededToExtractSummaries, SORT_NUMERIC);
+        foreach ($versionNeededToExtractSummaries as &$versionNeededToExtractSummary) {
+            sort($versionNeededToExtractSummary['minimumVersionNeededToExtracts'], SORT_NUMERIC);
+            sort($versionNeededToExtractSummary['compressionMethodNames'], SORT_STRING);
+        }
+        unset($versionNeededToExtractSummary);
+        $versionNeededToExtractSummaries = array_values($versionNeededToExtractSummaries);
+        $versionNeededToExtractVersions = array_map(
+            static fn (array $summary): int => (int) $summary['versionNeededToExtract'],
+            $versionNeededToExtractSummaries
+        );
+        $minimumVersionNeededToExtractVersions = [];
+        foreach ($versionNeededToExtractSummaries as $summary) {
+            foreach ($summary['minimumVersionNeededToExtracts'] as $minimumVersionNeededToExtract) {
+                if (!in_array($minimumVersionNeededToExtract, $minimumVersionNeededToExtractVersions, true)) {
+                    $minimumVersionNeededToExtractVersions[] = $minimumVersionNeededToExtract;
+                }
+            }
+        }
+        sort($minimumVersionNeededToExtractVersions, SORT_NUMERIC);
         ksort($creatorHostSystemSummaries, SORT_NUMERIC);
         $creatorHostSystemSummaries = array_values($creatorHostSystemSummaries);
         $directoryRootSummaries = self::packageManifestDirectoryRootSummaries($entries);
@@ -15131,6 +15248,12 @@ final class ZipPackage
             'caseInsensitiveNameCollisionEntries' => $caseInsensitiveNameCollisionEntries,
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'generalPurposeFlagSummaries' => $generalPurposeFlagSummaries,
+            'versionNeededToExtractSummaryCount' => count($versionNeededToExtractSummaries),
+            'versionNeededToExtractVersions' => $versionNeededToExtractVersions,
+            'minimumVersionNeededToExtractVersions' => $minimumVersionNeededToExtractVersions,
+            'maxVersionNeededToExtract' => $maxVersionNeededToExtract,
+            'maxMinimumVersionNeededToExtract' => $maxMinimumVersionNeededToExtract,
+            'versionNeededToExtractSummaries' => $versionNeededToExtractSummaries,
             'creatorHostSystemSummaryCount' => count($creatorHostSystemSummaries),
             'knownCreatorHostSystemEntryCount' => count($this->entries) - count($unknownCreatorHostSystemEntries),
             'unknownCreatorHostSystemEntryCount' => count($unknownCreatorHostSystemEntries),
@@ -15280,6 +15403,13 @@ final class ZipPackage
             'generalPurposeDataDescriptorEntryCount' => $generalPurposeDataDescriptorEntryCount,
             'generalPurposeDeflateOptionEntryCount' => $generalPurposeDeflateOptionEntryCount,
             'generalPurposeFlagSummaries' => $generalPurposeFlagSummaries,
+            'versionNeededToExtractSummaryCount' => count($versionNeededToExtractSummaries),
+            'versionNeededToExtractVersions' => $versionNeededToExtractVersions,
+            'minimumVersionNeededToExtractVersions' => $minimumVersionNeededToExtractVersions,
+            'maxVersionNeededToExtract' => $maxVersionNeededToExtract,
+            'maxMinimumVersionNeededToExtract' => $maxMinimumVersionNeededToExtract,
+            'hasMultipleVersionNeededToExtractVersions' => count($versionNeededToExtractSummaries) > 1,
+            'versionNeededToExtractSummaries' => $versionNeededToExtractSummaries,
             'crc32SummaryCount' => count($crc32Summaries),
             'crc32Summaries' => $crc32Summaries,
             'duplicateCrc32HexCount' => count($duplicateCrc32Summaries),

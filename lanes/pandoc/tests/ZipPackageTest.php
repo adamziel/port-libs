@@ -861,6 +861,14 @@ return [
                     'madeByHostSystemName' => 'unix',
                     'madeByVersion' => 20,
                     'versionNeededToExtract' => 20,
+                    'localVersionNeededToExtract' => 20,
+                    'minimumVersionNeededToExtract' => $entry['compressionMethod'] === 8 ? 20 : 10,
+                    'localMinimumVersionNeededToExtract' => $entry['compressionMethod'] === 8 ? 20 : 10,
+                    'versionNeededToExtractMatchesLocalHeader' => true,
+                    'versionNeededToExtractMeetsFeatureMinimum' => true,
+                    'localVersionNeededToExtractMeetsFeatureMinimum' => true,
+                    'versionNeededToExtractExceedsBoundedReader' => false,
+                    'localVersionNeededToExtractExceedsBoundedReader' => false,
                     'creatorVersionMeetsNeeded' => true,
                     'creatorVersionComparison' => 'equals-needed',
                     'creatorVersionDelta' => 0,
@@ -1005,6 +1013,23 @@ return [
                 'localRecordBytes' => array_sum(array_column($expectedEntries, 'localRecordBytes')),
                 'dataDescriptorEntryCount' => 0,
                 'dataDescriptorBytes' => 0,
+                'entryNames' => $expectedCentralOrder,
+            ],
+        ];
+        $expectedVersionNeededToExtractSummaries = [
+            [
+                'versionNeededToExtract' => 20,
+                'entryCount' => 3,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 1,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)) + strlen($mimetype),
+                'uncompressedBytes' => strlen($contentXhtml) + strlen($mimetype),
+                'localRecordBytes' => array_sum(array_column($expectedEntries, 'localRecordBytes')),
+                'sourceRecordBytes' => array_sum(array_column($expectedEntries, 'sourceRecordBytes')),
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'minimumVersionNeededToExtracts' => [10, 20],
+                'compressionMethodNames' => ['deflated', 'stored'],
                 'entryNames' => $expectedCentralOrder,
             ],
         ];
@@ -1160,6 +1185,12 @@ return [
             'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'generalPurposeFlagSummaries' => $expectedGeneralPurposeFlagSummaries,
+            'versionNeededToExtractSummaryCount' => 1,
+            'versionNeededToExtractVersions' => [20],
+            'minimumVersionNeededToExtractVersions' => [10, 20],
+            'maxVersionNeededToExtract' => 20,
+            'maxMinimumVersionNeededToExtract' => 20,
+            'versionNeededToExtractSummaries' => $expectedVersionNeededToExtractSummaries,
             'creatorHostSystemSummaryCount' => 1,
             'knownCreatorHostSystemEntryCount' => 3,
             'unknownCreatorHostSystemEntryCount' => 0,
@@ -1291,6 +1322,13 @@ return [
         $t->same(0, $manifest['generalPurposeDataDescriptorEntryCount']);
         $t->same(0, $manifest['generalPurposeDeflateOptionEntryCount']);
         $t->same($expectedGeneralPurposeFlagSummaries, $manifest['generalPurposeFlagSummaries']);
+        $t->same(1, $manifest['versionNeededToExtractSummaryCount']);
+        $t->same([20], $manifest['versionNeededToExtractVersions']);
+        $t->same([10, 20], $manifest['minimumVersionNeededToExtractVersions']);
+        $t->same(20, $manifest['maxVersionNeededToExtract']);
+        $t->same(20, $manifest['maxMinimumVersionNeededToExtract']);
+        $t->same(false, $manifest['hasMultipleVersionNeededToExtractVersions']);
+        $t->same($expectedVersionNeededToExtractSummaries, $manifest['versionNeededToExtractSummaries']);
         $t->same(1, $manifest['creatorHostSystemSummaryCount']);
         $t->same(3, $manifest['knownCreatorHostSystemEntryCount']);
         $t->same(0, $manifest['unknownCreatorHostSystemEntryCount']);
@@ -1334,6 +1372,14 @@ return [
                 'madeByHostSystemName' => $entry['madeByHostSystemName'],
                 'madeByVersion' => $entry['madeByVersion'],
                 'versionNeededToExtract' => $entry['versionNeededToExtract'],
+                'localVersionNeededToExtract' => $entry['localVersionNeededToExtract'],
+                'minimumVersionNeededToExtract' => $entry['minimumVersionNeededToExtract'],
+                'localMinimumVersionNeededToExtract' => $entry['localMinimumVersionNeededToExtract'],
+                'versionNeededToExtractMatchesLocalHeader' => $entry['versionNeededToExtractMatchesLocalHeader'],
+                'versionNeededToExtractMeetsFeatureMinimum' => $entry['versionNeededToExtractMeetsFeatureMinimum'],
+                'localVersionNeededToExtractMeetsFeatureMinimum' => $entry['localVersionNeededToExtractMeetsFeatureMinimum'],
+                'versionNeededToExtractExceedsBoundedReader' => $entry['versionNeededToExtractExceedsBoundedReader'],
+                'localVersionNeededToExtractExceedsBoundedReader' => $entry['localVersionNeededToExtractExceedsBoundedReader'],
                 'creatorVersionMeetsNeeded' => $entry['creatorVersionMeetsNeeded'],
                 'creatorVersionComparison' => $entry['creatorVersionComparison'],
                 'creatorVersionDelta' => $entry['creatorVersionDelta'],
@@ -1870,6 +1916,14 @@ return [
             'madeByHostSystemName' => 'unknown',
             'madeByVersion' => 20,
             'versionNeededToExtract' => 20,
+            'localVersionNeededToExtract' => 20,
+            'minimumVersionNeededToExtract' => 10,
+            'localMinimumVersionNeededToExtract' => 10,
+            'versionNeededToExtractMatchesLocalHeader' => true,
+            'versionNeededToExtractMeetsFeatureMinimum' => true,
+            'localVersionNeededToExtractMeetsFeatureMinimum' => true,
+            'versionNeededToExtractExceedsBoundedReader' => false,
+            'localVersionNeededToExtractExceedsBoundedReader' => false,
             'creatorVersionMeetsNeeded' => true,
             'creatorVersionComparison' => 'equals-needed',
             'creatorVersionDelta' => 0,
@@ -1883,6 +1937,14 @@ return [
             'madeByHostSystemName' => 'unix',
             'madeByVersion' => 10,
             'versionNeededToExtract' => 20,
+            'localVersionNeededToExtract' => 20,
+            'minimumVersionNeededToExtract' => 20,
+            'localMinimumVersionNeededToExtract' => 20,
+            'versionNeededToExtractMatchesLocalHeader' => true,
+            'versionNeededToExtractMeetsFeatureMinimum' => true,
+            'localVersionNeededToExtractMeetsFeatureMinimum' => true,
+            'versionNeededToExtractExceedsBoundedReader' => false,
+            'localVersionNeededToExtractExceedsBoundedReader' => false,
             'creatorVersionMeetsNeeded' => false,
             'creatorVersionComparison' => 'below-needed',
             'creatorVersionDelta' => -10,
@@ -2232,6 +2294,14 @@ return [
                 'madeByHostSystemName' => 'unix',
                 'madeByVersion' => 20,
                 'versionNeededToExtract' => 20,
+                'localVersionNeededToExtract' => 20,
+                'minimumVersionNeededToExtract' => 10,
+                'localMinimumVersionNeededToExtract' => 10,
+                'versionNeededToExtractMatchesLocalHeader' => true,
+                'versionNeededToExtractMeetsFeatureMinimum' => true,
+                'localVersionNeededToExtractMeetsFeatureMinimum' => true,
+                'versionNeededToExtractExceedsBoundedReader' => false,
+                'localVersionNeededToExtractExceedsBoundedReader' => false,
                 'creatorVersionMeetsNeeded' => true,
                 'creatorVersionComparison' => 'equals-needed',
                 'creatorVersionDelta' => 0,
@@ -2297,6 +2367,14 @@ return [
                 'madeByHostSystemName' => 'unix',
                 'madeByVersion' => 20,
                 'versionNeededToExtract' => 20,
+                'localVersionNeededToExtract' => 20,
+                'minimumVersionNeededToExtract' => 20,
+                'localMinimumVersionNeededToExtract' => 20,
+                'versionNeededToExtractMatchesLocalHeader' => true,
+                'versionNeededToExtractMeetsFeatureMinimum' => true,
+                'localVersionNeededToExtractMeetsFeatureMinimum' => true,
+                'versionNeededToExtractExceedsBoundedReader' => false,
+                'localVersionNeededToExtractExceedsBoundedReader' => false,
                 'creatorVersionMeetsNeeded' => true,
                 'creatorVersionComparison' => 'equals-needed',
                 'creatorVersionDelta' => 0,
@@ -2421,6 +2499,23 @@ return [
                 'entryNames' => ['word/comments.xml'],
             ],
         ];
+        $expectedVersionNeededToExtractSummaries = [
+            [
+                'versionNeededToExtract' => 20,
+                'entryCount' => 2,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($documentXml) + strlen($commentsCompressed),
+                'uncompressedBytes' => strlen($documentXml) + strlen($commentsXml),
+                'localRecordBytes' => $documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'],
+                'sourceRecordBytes' => $documentEntry['sourceRecordBytes'] + $commentsEntry['sourceRecordBytes'],
+                'dataDescriptorEntryCount' => 1,
+                'dataDescriptorBytes' => strlen($descriptorBytes),
+                'minimumVersionNeededToExtracts' => [10, 20],
+                'compressionMethodNames' => ['deflated', 'stored'],
+                'entryNames' => ['word/document.xml', 'word/comments.xml'],
+            ],
+        ];
         $expectedCreatorVersionComparisonCounts = [
             'below-needed' => 0,
             'equals-needed' => 2,
@@ -2531,6 +2626,12 @@ return [
             'caseInsensitiveNameCollisionEntries' => [],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'generalPurposeFlagSummaries' => $expectedGeneralPurposeFlagSummaries,
+            'versionNeededToExtractSummaryCount' => 1,
+            'versionNeededToExtractVersions' => [20],
+            'minimumVersionNeededToExtractVersions' => [10, 20],
+            'maxVersionNeededToExtract' => 20,
+            'maxMinimumVersionNeededToExtract' => 20,
+            'versionNeededToExtractSummaries' => $expectedVersionNeededToExtractSummaries,
             'creatorHostSystemSummaryCount' => 1,
             'knownCreatorHostSystemEntryCount' => 2,
             'unknownCreatorHostSystemEntryCount' => 0,
@@ -2614,6 +2715,13 @@ return [
         $t->same(1, $manifest['generalPurposeDataDescriptorEntryCount']);
         $t->same(0, $manifest['generalPurposeDeflateOptionEntryCount']);
         $t->same($expectedGeneralPurposeFlagSummaries, $manifest['generalPurposeFlagSummaries']);
+        $t->same(1, $manifest['versionNeededToExtractSummaryCount']);
+        $t->same([20], $manifest['versionNeededToExtractVersions']);
+        $t->same([10, 20], $manifest['minimumVersionNeededToExtractVersions']);
+        $t->same(20, $manifest['maxVersionNeededToExtract']);
+        $t->same(20, $manifest['maxMinimumVersionNeededToExtract']);
+        $t->same(false, $manifest['hasMultipleVersionNeededToExtractVersions']);
+        $t->same($expectedVersionNeededToExtractSummaries, $manifest['versionNeededToExtractSummaries']);
         $t->same(1, $manifest['creatorHostSystemSummaryCount']);
         $t->same(2, $manifest['knownCreatorHostSystemEntryCount']);
         $t->same(0, $manifest['unknownCreatorHostSystemEntryCount']);
@@ -2643,6 +2751,14 @@ return [
                 'madeByHostSystemName' => $entry['madeByHostSystemName'],
                 'madeByVersion' => $entry['madeByVersion'],
                 'versionNeededToExtract' => $entry['versionNeededToExtract'],
+                'localVersionNeededToExtract' => $entry['localVersionNeededToExtract'],
+                'minimumVersionNeededToExtract' => $entry['minimumVersionNeededToExtract'],
+                'localMinimumVersionNeededToExtract' => $entry['localMinimumVersionNeededToExtract'],
+                'versionNeededToExtractMatchesLocalHeader' => $entry['versionNeededToExtractMatchesLocalHeader'],
+                'versionNeededToExtractMeetsFeatureMinimum' => $entry['versionNeededToExtractMeetsFeatureMinimum'],
+                'localVersionNeededToExtractMeetsFeatureMinimum' => $entry['localVersionNeededToExtractMeetsFeatureMinimum'],
+                'versionNeededToExtractExceedsBoundedReader' => $entry['versionNeededToExtractExceedsBoundedReader'],
+                'localVersionNeededToExtractExceedsBoundedReader' => $entry['localVersionNeededToExtractExceedsBoundedReader'],
                 'creatorVersionMeetsNeeded' => $entry['creatorVersionMeetsNeeded'],
                 'creatorVersionComparison' => $entry['creatorVersionComparison'],
                 'creatorVersionDelta' => $entry['creatorVersionDelta'],
@@ -2726,6 +2842,107 @@ return [
         );
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'rolls up zip package manifest extraction versions for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>version needed manifest</w:p></w:body></w:document>';
+        $storedBytes = "stored media\n";
+        $streamedBytes = "stored descriptor media\n";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/media/stored.bin',
+                'data' => $storedBytes,
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+            ],
+            [
+                'name' => 'word/media/streamed.bin',
+                'data' => $streamedBytes,
+                'method' => 0,
+                'descriptor' => true,
+                'versionNeededToExtract' => 20,
+            ],
+            [
+                'name' => 'word/media/',
+                'data' => '',
+                'method' => 0,
+                'versionNeededToExtract' => 10,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+        $versionSummaries = [];
+        foreach ($manifest['versionNeededToExtractSummaries'] as $summary) {
+            $versionSummaries[$summary['versionNeededToExtract']] = $summary;
+        }
+
+        $t->same(2, $manifest['versionNeededToExtractSummaryCount']);
+        $t->same([10, 20], $manifest['versionNeededToExtractVersions']);
+        $t->same([10, 20], $manifest['minimumVersionNeededToExtractVersions']);
+        $t->same(20, $manifest['maxVersionNeededToExtract']);
+        $t->same(20, $manifest['maxMinimumVersionNeededToExtract']);
+        $t->same(true, $manifest['hasMultipleVersionNeededToExtractVersions']);
+
+        $t->same([
+            'versionNeededToExtract' => 10,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => strlen($storedBytes),
+            'uncompressedBytes' => strlen($storedBytes),
+            'localRecordBytes' => $entriesByName['word/media/stored.bin']['localRecordBytes']
+                + $entriesByName['word/media/']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['word/media/stored.bin']['sourceRecordBytes']
+                + $entriesByName['word/media/']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'minimumVersionNeededToExtracts' => [10],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => ['word/media/stored.bin', 'word/media/'],
+        ], $versionSummaries[10]);
+        $t->same([
+            'versionNeededToExtract' => 20,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen(gzdeflate($documentXml)) + strlen($streamedBytes),
+            'uncompressedBytes' => strlen($documentXml) + strlen($streamedBytes),
+            'localRecordBytes' => $entriesByName['word/document.xml']['localRecordBytes']
+                + $entriesByName['word/media/streamed.bin']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['word/document.xml']['sourceRecordBytes']
+                + $entriesByName['word/media/streamed.bin']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 1,
+            'dataDescriptorBytes' => $entriesByName['word/media/streamed.bin']['dataDescriptorBytes'],
+            'minimumVersionNeededToExtracts' => [20],
+            'compressionMethodNames' => ['deflated', 'stored'],
+            'entryNames' => ['word/document.xml', 'word/media/streamed.bin'],
+        ], $versionSummaries[20]);
+
+        $t->same(10, $entriesByName['word/media/stored.bin']['versionNeededToExtract']);
+        $t->same(10, $entriesByName['word/media/stored.bin']['localVersionNeededToExtract']);
+        $t->same(10, $entriesByName['word/media/stored.bin']['minimumVersionNeededToExtract']);
+        $t->same(true, $entriesByName['word/media/stored.bin']['versionNeededToExtractMatchesLocalHeader']);
+        $t->same(true, $entriesByName['word/media/stored.bin']['versionNeededToExtractMeetsFeatureMinimum']);
+        $t->same(false, $entriesByName['word/media/stored.bin']['versionNeededToExtractExceedsBoundedReader']);
+        $t->same(20, $entriesByName['word/media/streamed.bin']['minimumVersionNeededToExtract']);
+        $t->same(20, $entriesByName['word/media/streamed.bin']['localMinimumVersionNeededToExtract']);
+        $t->same(true, $entriesByName['word/media/streamed.bin']['usesDataDescriptor']);
+        $t->same(true, $entriesByName['word/media/streamed.bin']['localVersionNeededToExtractMeetsFeatureMinimum']);
+        $t->same(20, $entriesByName['word/document.xml']['minimumVersionNeededToExtract']);
+        $t->same(10, $entriesByName['word/media/']['minimumVersionNeededToExtract']);
+        $t->same($manifest, $raw['packageManifest']);
     },
 
     'preflights zip package manifest source record hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
