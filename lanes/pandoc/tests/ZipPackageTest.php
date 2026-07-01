@@ -736,6 +736,9 @@ return [
                 'pathSegments' => ['OEBPS', 'content.xhtml'],
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packagePartExtension' => 'xhtml',
+                'packagePartExtensionKey' => 'xhtml',
+                'extensionlessPackagePart' => false,
                 'centralDirectoryIndex' => 0,
                 'localHeaderOrder' => 1,
                 'compressionMethod' => 8,
@@ -751,6 +754,9 @@ return [
                 'pathSegments' => ['OEBPS', 'images'],
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packagePartExtension' => null,
+                'packagePartExtensionKey' => '(directory)',
+                'extensionlessPackagePart' => false,
                 'centralDirectoryIndex' => 1,
                 'localHeaderOrder' => 2,
                 'compressionMethod' => 0,
@@ -766,6 +772,9 @@ return [
                 'pathSegments' => ['mimetype'],
                 'pathSegmentCount' => 1,
                 'directoryDepth' => 0,
+                'packagePartExtension' => null,
+                'packagePartExtensionKey' => '(none)',
+                'extensionlessPackagePart' => true,
                 'centralDirectoryIndex' => 2,
                 'localHeaderOrder' => 0,
                 'compressionMethod' => 0,
@@ -791,6 +800,9 @@ return [
                     'pathSegments' => $entry['pathSegments'],
                     'pathSegmentCount' => $entry['pathSegmentCount'],
                     'directoryDepth' => $entry['directoryDepth'],
+                    'packagePartExtension' => $entry['packagePartExtension'],
+                    'packagePartExtensionKey' => $entry['packagePartExtensionKey'],
+                    'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                     'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                     'localHeaderOrder' => $entry['localHeaderOrder'],
                     'compressionMethod' => $entry['compressionMethod'],
@@ -910,6 +922,31 @@ return [
                 'entryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
             ],
         ];
+        $expectedPackagePartExtensionSummaries = [
+            [
+                'extensionKey' => '(none)',
+                'packagePartExtension' => null,
+                'fileEntryCount' => 1,
+                'compressedBytes' => strlen($mimetype),
+                'uncompressedBytes' => strlen($mimetype),
+                'localRecordBytes' => $expectedEntriesByName['mimetype']['localRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'entryNames' => ['mimetype'],
+            ],
+            [
+                'extensionKey' => 'xhtml',
+                'packagePartExtension' => 'xhtml',
+                'fileEntryCount' => 1,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)),
+                'uncompressedBytes' => strlen($contentXhtml),
+                'localRecordBytes' => $expectedEntriesByName['OEBPS/content.xhtml']['localRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'entryNames' => ['OEBPS/content.xhtml'],
+            ],
+        ];
+        $expectedPackagePartExtensions = ['xhtml'];
         $expectedDirectoryRoots = array_map(
             static fn (array $summary): string => $summary['directoryRoot'],
             $expectedDirectoryRootSummaries
@@ -925,9 +962,19 @@ return [
             'endOfCentralDirectoryOffset' => $manifest['endOfCentralDirectoryOffset'],
             'endOfCentralDirectoryBytes' => $manifest['endOfCentralDirectoryBytes'],
             'endOfCentralDirectorySha256' => $manifest['endOfCentralDirectorySha256'],
+            'hasCentralDirectorySignature' => $manifest['hasCentralDirectorySignature'],
             'centralDirectorySignatureOffset' => $manifest['centralDirectorySignatureOffset'],
+            'centralDirectorySignatureDataOffset' => $manifest['centralDirectorySignatureDataOffset'],
+            'centralDirectorySignatureEnd' => $manifest['centralDirectorySignatureEnd'],
             'centralDirectorySignatureBytes' => $manifest['centralDirectorySignatureBytes'],
+            'centralDirectorySignatureRecordBytes' => $manifest['centralDirectorySignatureRecordBytes'],
+            'centralDirectorySignaturePreviewHex' => $manifest['centralDirectorySignaturePreviewHex'],
+            'centralDirectorySignaturePreviewByteCount' => $manifest['centralDirectorySignaturePreviewByteCount'],
             'centralDirectorySignatureSha256' => $manifest['centralDirectorySignatureSha256'],
+            'centralDirectorySignatureLocation' => $manifest['centralDirectorySignatureLocation'],
+            'centralDirectorySignatureVerification' => $manifest['centralDirectorySignatureVerification'],
+            'centralDirectorySignatureByteExposurePolicy' => $manifest['centralDirectorySignatureByteExposurePolicy'],
+            'centralDirectorySignatureCanExposeBytes' => $manifest['centralDirectorySignatureCanExposeBytes'],
             'centralDirectoryOrderNames' => $expectedCentralOrder,
             'localHeaderOrderNames' => $expectedLocalOrder,
             'localHeaderBytes' => (30 * count($expectedEntries))
@@ -962,6 +1009,9 @@ return [
             'deepestEntryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
+            'extensionlessPackagePartCount' => 1,
+            'packagePartExtensions' => $expectedPackagePartExtensions,
+            'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
             'entries' => $expectedEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -1024,6 +1074,11 @@ return [
         $t->same(2, $manifest['directoryRootCount']);
         $t->same($expectedDirectoryRoots, $manifest['directoryRoots']);
         $t->same($expectedDirectoryRootSummaries, $manifest['directoryRootSummaries']);
+        $t->same(1, $manifest['extensionlessPackagePartCount']);
+        $t->same(true, $manifest['hasExtensionlessPackageParts']);
+        $t->same(2, $manifest['packagePartExtensionSummaryCount']);
+        $t->same($expectedPackagePartExtensions, $manifest['packagePartExtensions']);
+        $t->same($expectedPackagePartExtensionSummaries, $manifest['packagePartExtensionSummaries']);
         $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
         $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);
         $t->same(false, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
@@ -1035,6 +1090,9 @@ return [
                 'pathSegments' => $entry['pathSegments'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
                 'directoryDepth' => $entry['directoryDepth'],
+                'packagePartExtension' => $entry['packagePartExtension'],
+                'packagePartExtensionKey' => $entry['packagePartExtensionKey'],
+                'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],
                 'compressionMethod' => $entry['compressionMethod'],
@@ -1325,6 +1383,9 @@ return [
                 'pathSegments' => ['word', 'document.xml'],
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packagePartExtension' => 'xml',
+                'packagePartExtensionKey' => 'xml',
+                'extensionlessPackagePart' => false,
                 'centralDirectoryIndex' => 0,
                 'localHeaderOrder' => 0,
                 'compressionMethod' => 0,
@@ -1366,6 +1427,9 @@ return [
                 'pathSegments' => ['word', 'comments.xml'],
                 'pathSegmentCount' => 2,
                 'directoryDepth' => 1,
+                'packagePartExtension' => 'xml',
+                'packagePartExtensionKey' => 'xml',
+                'extensionlessPackagePart' => false,
                 'centralDirectoryIndex' => 1,
                 'localHeaderOrder' => 1,
                 'compressionMethod' => 8,
@@ -1441,6 +1505,20 @@ return [
                 'entryNames' => ['word/document.xml', 'word/comments.xml'],
             ],
         ];
+        $expectedPackagePartExtensionSummaries = [
+            [
+                'extensionKey' => 'xml',
+                'packagePartExtension' => 'xml',
+                'fileEntryCount' => 2,
+                'compressedBytes' => strlen($documentXml) + strlen($commentsCompressed),
+                'uncompressedBytes' => strlen($documentXml) + strlen($commentsXml),
+                'localRecordBytes' => $documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'],
+                'dataDescriptorEntryCount' => 1,
+                'dataDescriptorBytes' => strlen($descriptorBytes),
+                'entryNames' => ['word/document.xml', 'word/comments.xml'],
+            ],
+        ];
+        $expectedPackagePartExtensions = ['xml'];
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $manifest['packageSource'],
@@ -1452,9 +1530,19 @@ return [
             'endOfCentralDirectoryOffset' => $manifest['endOfCentralDirectoryOffset'],
             'endOfCentralDirectoryBytes' => $manifest['endOfCentralDirectoryBytes'],
             'endOfCentralDirectorySha256' => $manifest['endOfCentralDirectorySha256'],
+            'hasCentralDirectorySignature' => $manifest['hasCentralDirectorySignature'],
             'centralDirectorySignatureOffset' => $manifest['centralDirectorySignatureOffset'],
+            'centralDirectorySignatureDataOffset' => $manifest['centralDirectorySignatureDataOffset'],
+            'centralDirectorySignatureEnd' => $manifest['centralDirectorySignatureEnd'],
             'centralDirectorySignatureBytes' => $manifest['centralDirectorySignatureBytes'],
+            'centralDirectorySignatureRecordBytes' => $manifest['centralDirectorySignatureRecordBytes'],
+            'centralDirectorySignaturePreviewHex' => $manifest['centralDirectorySignaturePreviewHex'],
+            'centralDirectorySignaturePreviewByteCount' => $manifest['centralDirectorySignaturePreviewByteCount'],
             'centralDirectorySignatureSha256' => $manifest['centralDirectorySignatureSha256'],
+            'centralDirectorySignatureLocation' => $manifest['centralDirectorySignatureLocation'],
+            'centralDirectorySignatureVerification' => $manifest['centralDirectorySignatureVerification'],
+            'centralDirectorySignatureByteExposurePolicy' => $manifest['centralDirectorySignatureByteExposurePolicy'],
+            'centralDirectorySignatureCanExposeBytes' => $manifest['centralDirectorySignatureCanExposeBytes'],
             'centralDirectoryOrderNames' => ['word/document.xml', 'word/comments.xml'],
             'localHeaderOrderNames' => ['word/document.xml', 'word/comments.xml'],
             'localHeaderBytes' => $manifest['localHeaderBytes'],
@@ -1478,6 +1566,9 @@ return [
             'deepestEntryNames' => ['word/document.xml', 'word/comments.xml'],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
+            'extensionlessPackagePartCount' => 0,
+            'packagePartExtensions' => $expectedPackagePartExtensions,
+            'packagePartExtensionSummaries' => $expectedPackagePartExtensionSummaries,
             'entries' => $expectedManifestEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -1487,6 +1578,11 @@ return [
         $t->same(2, $manifest['maxPathSegmentCount']);
         $t->same(1, $manifest['maxDirectoryDepth']);
         $t->same(['word/document.xml', 'word/comments.xml'], $manifest['deepestEntryNames']);
+        $t->same(0, $manifest['extensionlessPackagePartCount']);
+        $t->same(false, $manifest['hasExtensionlessPackageParts']);
+        $t->same(1, $manifest['packagePartExtensionSummaryCount']);
+        $t->same($expectedPackagePartExtensions, $manifest['packagePartExtensions']);
+        $t->same($expectedPackagePartExtensionSummaries, $manifest['packagePartExtensionSummaries']);
         $t->same($expectedHash, $manifest['manifestSha256']);
         $t->same($expectedManifestEntries, array_map(
             static fn (array $entry): array => [
@@ -1496,6 +1592,9 @@ return [
                 'pathSegments' => $entry['pathSegments'],
                 'pathSegmentCount' => $entry['pathSegmentCount'],
                 'directoryDepth' => $entry['directoryDepth'],
+                'packagePartExtension' => $entry['packagePartExtension'],
+                'packagePartExtensionKey' => $entry['packagePartExtensionKey'],
+                'extensionlessPackagePart' => $entry['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],
                 'compressionMethod' => $entry['compressionMethod'],

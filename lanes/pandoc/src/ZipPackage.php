@@ -7029,11 +7029,70 @@ final class ZipPackage
         return array_values($summaries);
     }
 
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestPartExtensionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '' || ($entry['isDirectory'] ?? false) === true) {
+                continue;
+            }
+
+            $extension = is_string($entry['packagePartExtension'] ?? null)
+                ? $entry['packagePartExtension']
+                : null;
+            $extensionKey = $extension ?? '(none)';
+            if (!isset($summaries[$extensionKey])) {
+                $summaries[$extensionKey] = [
+                    'extensionKey' => $extensionKey,
+                    'packagePartExtension' => $extension,
+                    'fileEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$extensionKey]['fileEntryCount'];
+            $summaries[$extensionKey]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$extensionKey]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$extensionKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$extensionKey]['dataDescriptorEntryCount'];
+                $summaries[$extensionKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+            $summaries[$extensionKey]['entryNames'][] = $name;
+        }
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
     private static function entryHandoffDirectoryRoot(string $name): string
     {
         $separator = strpos($name, '/');
 
         return $separator === false ? '/' : substr($name, 0, $separator + 1);
+    }
+
+    private static function zipPackagePartExtension(string $name, bool $isDirectory): ?string
+    {
+        if ($isDirectory) {
+            return null;
+        }
+
+        $extension = pathinfo($name, PATHINFO_EXTENSION);
+
+        return $extension === '' ? null : strtolower($extension);
     }
 
     /**
@@ -13669,6 +13728,7 @@ final class ZipPackage
         $maxPathSegmentCount = 0;
         $maxDirectoryDepth = 0;
         $deepestEntryNames = [];
+        $extensionlessPackagePartCount = 0;
         $compressionMethodSummaries = [];
 
         foreach ($this->entries as $centralDirectoryIndex => $entry) {
@@ -13677,6 +13737,11 @@ final class ZipPackage
             $pathSegments = self::zipEntryPathSegments($entry->name);
             $pathSegmentCount = count($pathSegments);
             $directoryDepth = max(0, $pathSegmentCount - 1);
+            $packagePartExtension = self::zipPackagePartExtension($entry->name, $isDirectory);
+            $packagePartExtensionKey = $isDirectory
+                ? '(directory)'
+                : ($packagePartExtension ?? '(none)');
+            $extensionlessPackagePart = !$isDirectory && $packagePartExtension === null;
             if ($pathSegmentCount > $maxPathSegmentCount) {
                 $maxPathSegmentCount = $pathSegmentCount;
             }
@@ -13690,6 +13755,9 @@ final class ZipPackage
                 ++$directoryEntryCount;
             } else {
                 ++$fileEntryCount;
+                if ($extensionlessPackagePart) {
+                    ++$extensionlessPackagePartCount;
+                }
             }
 
             if ($entry->compressionMethod === 0) {
@@ -13877,6 +13945,9 @@ final class ZipPackage
                 'pathSegments' => $pathSegments,
                 'pathSegmentCount' => $pathSegmentCount,
                 'directoryDepth' => $directoryDepth,
+                'packagePartExtension' => $packagePartExtension,
+                'packagePartExtensionKey' => $packagePartExtensionKey,
+                'extensionlessPackagePart' => $extensionlessPackagePart,
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => $localHeaderOrder,
                 'compressionMethod' => $entry->compressionMethod,
@@ -13938,6 +14009,9 @@ final class ZipPackage
                 'pathSegments' => $summary['pathSegments'],
                 'pathSegmentCount' => $summary['pathSegmentCount'],
                 'directoryDepth' => $summary['directoryDepth'],
+                'packagePartExtension' => $summary['packagePartExtension'],
+                'packagePartExtensionKey' => $summary['packagePartExtensionKey'],
+                'extensionlessPackagePart' => $summary['extensionlessPackagePart'],
                 'centralDirectoryIndex' => $summary['centralDirectoryIndex'],
                 'localHeaderOrder' => $summary['localHeaderOrder'],
                 'compressionMethod' => $summary['compressionMethod'],
@@ -13983,6 +14057,14 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['directoryRoot'],
             $directoryRootSummaries
         );
+        $packagePartExtensionSummaries = self::packageManifestPartExtensionSummaries($entries);
+        $packagePartExtensions = array_values(array_map(
+            static fn (array $summary): string => (string) $summary['packagePartExtension'],
+            array_filter(
+                $packagePartExtensionSummaries,
+                static fn (array $summary): bool => is_string($summary['packagePartExtension'] ?? null)
+            )
+        ));
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $packageSource,
@@ -14030,6 +14112,9 @@ final class ZipPackage
             'deepestEntryNames' => $deepestEntryNames,
             'compressionMethodSummaries' => $compressionMethodSummaries,
             'directoryRootSummaries' => $directoryRootSummaries,
+            'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
+            'packagePartExtensions' => $packagePartExtensions,
+            'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
             'entries' => $manifestEntries,
         ];
         $manifestJson = json_encode(
@@ -14109,6 +14194,11 @@ final class ZipPackage
             'directoryRootCount' => count($directoryRootSummaries),
             'directoryRoots' => $directoryRoots,
             'directoryRootSummaries' => $directoryRootSummaries,
+            'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
+            'hasExtensionlessPackageParts' => $extensionlessPackagePartCount > 0,
+            'packagePartExtensionSummaryCount' => count($packagePartExtensionSummaries),
+            'packagePartExtensions' => $packagePartExtensions,
+            'packagePartExtensionSummaries' => $packagePartExtensionSummaries,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
