@@ -1901,7 +1901,7 @@ final class OdfReader
                 'manifestPartFragment' => is_array($manifestItem) ? $manifestItem['partFragment'] : null,
                 'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
                 'manifestMediaTypeBase' => is_array($manifestItem) ? $manifestItem['mediaTypeBase'] : null,
-                'manifestMediaFamily' => is_array($manifestItem) ? ($manifestItem['manifestMediaFamily'] ?? null) : null,
+                'manifestMediaFamily' => is_array($manifestItem) ? $this->packagePartManifestMediaFamily($entry->name, $manifestItem, $embeddedObjectPackage) : null,
                 'manifestMediaTypeHasParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeHasParameters'] : false,
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
@@ -2141,6 +2141,7 @@ final class OdfReader
         $packageZipSourceRecordCompressionMethods = self::packageZipSourceRecordCompressionMethodInventory($parts);
         $packageCrc32s = OdfPackageCrc32Inventory::summarize($parts);
         $packageZipTimestampSources = self::packageZipTimestampSourceInventory($parts);
+        $packageExtraFields = self::packageExtraFieldInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
@@ -2504,6 +2505,32 @@ final class OdfReader
             'mismatchedUnixOwnerMetadataEntries' => $unixOwners['mismatchedOwnerMetadataEntries'],
             'unixOwnerMetadataByteExposurePolicy' => 'zip-unix-owner-metadata-only',
             'unixOwnerMetadataCanExposeBytes' => false,
+            'extraFieldIdRoleCount' => $packageExtraFields['extraFieldIdRoleCount'],
+            'extraFieldIdRoleCounts' => $packageExtraFields['extraFieldIdRoleCounts'],
+            'entryNamesByExtraFieldIdRole' => $packageExtraFields['entryNamesByExtraFieldIdRole'],
+            'extraFieldIdManifestMediaFamilyCount' => $packageExtraFields['extraFieldIdManifestMediaFamilyCount'],
+            'extraFieldIdManifestMediaFamilyCounts' => $packageExtraFields['extraFieldIdManifestMediaFamilyCounts'],
+            'entryNamesByExtraFieldIdManifestMediaFamily' => $packageExtraFields['entryNamesByExtraFieldIdManifestMediaFamily'],
+            'centralOnlyExtraFieldIdRoleCount' => $packageExtraFields['centralOnlyExtraFieldIdRoleCount'],
+            'centralOnlyExtraFieldIdRoleCounts' => $packageExtraFields['centralOnlyExtraFieldIdRoleCounts'],
+            'entryNamesByCentralOnlyExtraFieldIdRole' => $packageExtraFields['entryNamesByCentralOnlyExtraFieldIdRole'],
+            'centralOnlyExtraFieldIdManifestMediaFamilyCount' => $packageExtraFields['centralOnlyExtraFieldIdManifestMediaFamilyCount'],
+            'centralOnlyExtraFieldIdManifestMediaFamilyCounts' => $packageExtraFields['centralOnlyExtraFieldIdManifestMediaFamilyCounts'],
+            'entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily' => $packageExtraFields['entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily'],
+            'localOnlyExtraFieldIdRoleCount' => $packageExtraFields['localOnlyExtraFieldIdRoleCount'],
+            'localOnlyExtraFieldIdRoleCounts' => $packageExtraFields['localOnlyExtraFieldIdRoleCounts'],
+            'entryNamesByLocalOnlyExtraFieldIdRole' => $packageExtraFields['entryNamesByLocalOnlyExtraFieldIdRole'],
+            'localOnlyExtraFieldIdManifestMediaFamilyCount' => $packageExtraFields['localOnlyExtraFieldIdManifestMediaFamilyCount'],
+            'localOnlyExtraFieldIdManifestMediaFamilyCounts' => $packageExtraFields['localOnlyExtraFieldIdManifestMediaFamilyCounts'],
+            'entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily' => $packageExtraFields['entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily'],
+            'mismatchedExtraFieldValueIdRoleCount' => $packageExtraFields['mismatchedExtraFieldValueIdRoleCount'],
+            'mismatchedExtraFieldValueIdRoleCounts' => $packageExtraFields['mismatchedExtraFieldValueIdRoleCounts'],
+            'entryNamesByMismatchedExtraFieldValueIdRole' => $packageExtraFields['entryNamesByMismatchedExtraFieldValueIdRole'],
+            'mismatchedExtraFieldValueIdManifestMediaFamilyCount' => $packageExtraFields['mismatchedExtraFieldValueIdManifestMediaFamilyCount'],
+            'mismatchedExtraFieldValueIdManifestMediaFamilyCounts' => $packageExtraFields['mismatchedExtraFieldValueIdManifestMediaFamilyCounts'],
+            'entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily' => $packageExtraFields['entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily'],
+            'extraFieldIdRoleSummaryCount' => $packageExtraFields['extraFieldIdRoleSummaryCount'],
+            'extraFieldIdRoleSummaries' => $packageExtraFields['extraFieldIdRoleSummaries'],
             'comments' => $comments,
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
@@ -3571,6 +3598,32 @@ final class OdfReader
             'mismatchedUnixOwnerMetadataEntries' => $provenance['mismatchedUnixOwnerMetadataEntries'] ?? [],
             'unixOwnerMetadataByteExposurePolicy' => $provenance['unixOwnerMetadataByteExposurePolicy'] ?? 'zip-unix-owner-metadata-only',
             'unixOwnerMetadataCanExposeBytes' => ($provenance['unixOwnerMetadataCanExposeBytes'] ?? false) === true,
+            'extraFieldIdRoleCount' => $provenance['extraFieldIdRoleCount'] ?? 0,
+            'extraFieldIdRoleCounts' => $provenance['extraFieldIdRoleCounts'] ?? [],
+            'entryNamesByExtraFieldIdRole' => $provenance['entryNamesByExtraFieldIdRole'] ?? [],
+            'extraFieldIdManifestMediaFamilyCount' => $provenance['extraFieldIdManifestMediaFamilyCount'] ?? 0,
+            'extraFieldIdManifestMediaFamilyCounts' => $provenance['extraFieldIdManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByExtraFieldIdManifestMediaFamily' => $provenance['entryNamesByExtraFieldIdManifestMediaFamily'] ?? [],
+            'centralOnlyExtraFieldIdRoleCount' => $provenance['centralOnlyExtraFieldIdRoleCount'] ?? 0,
+            'centralOnlyExtraFieldIdRoleCounts' => $provenance['centralOnlyExtraFieldIdRoleCounts'] ?? [],
+            'entryNamesByCentralOnlyExtraFieldIdRole' => $provenance['entryNamesByCentralOnlyExtraFieldIdRole'] ?? [],
+            'centralOnlyExtraFieldIdManifestMediaFamilyCount' => $provenance['centralOnlyExtraFieldIdManifestMediaFamilyCount'] ?? 0,
+            'centralOnlyExtraFieldIdManifestMediaFamilyCounts' => $provenance['centralOnlyExtraFieldIdManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily' => $provenance['entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily'] ?? [],
+            'localOnlyExtraFieldIdRoleCount' => $provenance['localOnlyExtraFieldIdRoleCount'] ?? 0,
+            'localOnlyExtraFieldIdRoleCounts' => $provenance['localOnlyExtraFieldIdRoleCounts'] ?? [],
+            'entryNamesByLocalOnlyExtraFieldIdRole' => $provenance['entryNamesByLocalOnlyExtraFieldIdRole'] ?? [],
+            'localOnlyExtraFieldIdManifestMediaFamilyCount' => $provenance['localOnlyExtraFieldIdManifestMediaFamilyCount'] ?? 0,
+            'localOnlyExtraFieldIdManifestMediaFamilyCounts' => $provenance['localOnlyExtraFieldIdManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily' => $provenance['entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily'] ?? [],
+            'mismatchedExtraFieldValueIdRoleCount' => $provenance['mismatchedExtraFieldValueIdRoleCount'] ?? 0,
+            'mismatchedExtraFieldValueIdRoleCounts' => $provenance['mismatchedExtraFieldValueIdRoleCounts'] ?? [],
+            'entryNamesByMismatchedExtraFieldValueIdRole' => $provenance['entryNamesByMismatchedExtraFieldValueIdRole'] ?? [],
+            'mismatchedExtraFieldValueIdManifestMediaFamilyCount' => $provenance['mismatchedExtraFieldValueIdManifestMediaFamilyCount'] ?? 0,
+            'mismatchedExtraFieldValueIdManifestMediaFamilyCounts' => $provenance['mismatchedExtraFieldValueIdManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily' => $provenance['entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily'] ?? [],
+            'extraFieldIdRoleSummaryCount' => $provenance['extraFieldIdRoleSummaryCount'] ?? 0,
+            'extraFieldIdRoleSummaries' => $provenance['extraFieldIdRoleSummaries'] ?? [],
             'zipTimestampEntryCount' => $provenance['zipTimestampEntryCount'] ?? 0,
             'zipDosTimestampEntryCount' => $provenance['zipDosTimestampEntryCount'] ?? 0,
             'zipExtendedTimestampEntryCount' => $provenance['zipExtendedTimestampEntryCount'] ?? 0,
@@ -3867,6 +3920,32 @@ final class OdfReader
             'mismatchedUnixOwnerMetadataEntries' => $provenance['mismatchedUnixOwnerMetadataEntries'] ?? [],
             'unixOwnerMetadataByteExposurePolicy' => $provenance['unixOwnerMetadataByteExposurePolicy'] ?? 'zip-unix-owner-metadata-only',
             'unixOwnerMetadataCanExposeBytes' => ($provenance['unixOwnerMetadataCanExposeBytes'] ?? false) === true,
+            'extraFieldIdRoleCount' => $provenance['extraFieldIdRoleCount'] ?? 0,
+            'extraFieldIdRoleCounts' => $provenance['extraFieldIdRoleCounts'] ?? [],
+            'entryNamesByExtraFieldIdRole' => $provenance['entryNamesByExtraFieldIdRole'] ?? [],
+            'extraFieldIdManifestMediaFamilyCount' => $provenance['extraFieldIdManifestMediaFamilyCount'] ?? 0,
+            'extraFieldIdManifestMediaFamilyCounts' => $provenance['extraFieldIdManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByExtraFieldIdManifestMediaFamily' => $provenance['entryNamesByExtraFieldIdManifestMediaFamily'] ?? [],
+            'centralOnlyExtraFieldIdRoleCount' => $provenance['centralOnlyExtraFieldIdRoleCount'] ?? 0,
+            'centralOnlyExtraFieldIdRoleCounts' => $provenance['centralOnlyExtraFieldIdRoleCounts'] ?? [],
+            'entryNamesByCentralOnlyExtraFieldIdRole' => $provenance['entryNamesByCentralOnlyExtraFieldIdRole'] ?? [],
+            'centralOnlyExtraFieldIdManifestMediaFamilyCount' => $provenance['centralOnlyExtraFieldIdManifestMediaFamilyCount'] ?? 0,
+            'centralOnlyExtraFieldIdManifestMediaFamilyCounts' => $provenance['centralOnlyExtraFieldIdManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily' => $provenance['entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily'] ?? [],
+            'localOnlyExtraFieldIdRoleCount' => $provenance['localOnlyExtraFieldIdRoleCount'] ?? 0,
+            'localOnlyExtraFieldIdRoleCounts' => $provenance['localOnlyExtraFieldIdRoleCounts'] ?? [],
+            'entryNamesByLocalOnlyExtraFieldIdRole' => $provenance['entryNamesByLocalOnlyExtraFieldIdRole'] ?? [],
+            'localOnlyExtraFieldIdManifestMediaFamilyCount' => $provenance['localOnlyExtraFieldIdManifestMediaFamilyCount'] ?? 0,
+            'localOnlyExtraFieldIdManifestMediaFamilyCounts' => $provenance['localOnlyExtraFieldIdManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily' => $provenance['entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily'] ?? [],
+            'mismatchedExtraFieldValueIdRoleCount' => $provenance['mismatchedExtraFieldValueIdRoleCount'] ?? 0,
+            'mismatchedExtraFieldValueIdRoleCounts' => $provenance['mismatchedExtraFieldValueIdRoleCounts'] ?? [],
+            'entryNamesByMismatchedExtraFieldValueIdRole' => $provenance['entryNamesByMismatchedExtraFieldValueIdRole'] ?? [],
+            'mismatchedExtraFieldValueIdManifestMediaFamilyCount' => $provenance['mismatchedExtraFieldValueIdManifestMediaFamilyCount'] ?? 0,
+            'mismatchedExtraFieldValueIdManifestMediaFamilyCounts' => $provenance['mismatchedExtraFieldValueIdManifestMediaFamilyCounts'] ?? [],
+            'entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily' => $provenance['entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily'] ?? [],
+            'extraFieldIdRoleSummaryCount' => $provenance['extraFieldIdRoleSummaryCount'] ?? 0,
+            'extraFieldIdRoleSummaries' => $provenance['extraFieldIdRoleSummaries'] ?? [],
             'zipTimestampEntryCount' => $provenance['zipTimestampEntryCount'] ?? 0,
             'zipDosTimestampEntryCount' => $provenance['zipDosTimestampEntryCount'] ?? 0,
             'zipExtendedTimestampEntryCount' => $provenance['zipExtendedTimestampEntryCount'] ?? 0,
@@ -6238,6 +6317,193 @@ final class OdfReader
     }
 
     /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function packageExtraFieldInventory(array $parts): array
+    {
+        $extraFieldIds = [];
+        $entryNamesByExtraFieldId = [];
+        $extraFieldIdRoleCounts = [];
+        $entryNamesByExtraFieldIdRole = [];
+        $extraFieldIdManifestMediaFamilyCounts = [];
+        $entryNamesByExtraFieldIdManifestMediaFamily = [];
+        $centralOnlyExtraFieldIds = [];
+        $centralOnlyExtraFieldIdRoleCounts = [];
+        $entryNamesByCentralOnlyExtraFieldIdRole = [];
+        $centralOnlyExtraFieldIdManifestMediaFamilyCounts = [];
+        $entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily = [];
+        $localOnlyExtraFieldIds = [];
+        $localOnlyExtraFieldIdRoleCounts = [];
+        $entryNamesByLocalOnlyExtraFieldIdRole = [];
+        $localOnlyExtraFieldIdManifestMediaFamilyCounts = [];
+        $entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily = [];
+        $mismatchedExtraFieldValueIds = [];
+        $mismatchedExtraFieldValueIdRoleCounts = [];
+        $entryNamesByMismatchedExtraFieldValueIdRole = [];
+        $mismatchedExtraFieldValueIdManifestMediaFamilyCounts = [];
+        $entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily = [];
+        $recordDimensions = static function (
+            array &$counts,
+            array &$entryNames,
+            int $id,
+            array $dimensions,
+            string $entryName
+        ): void {
+            foreach ($dimensions as $dimension) {
+                if (!is_string($dimension) || $dimension === '') {
+                    continue;
+                }
+
+                $counts[$id][$dimension] = ($counts[$id][$dimension] ?? 0) + 1;
+                $entryNames[$id][$dimension][$entryName] = true;
+            }
+        };
+
+        foreach ($parts as $fallbackName => $part) {
+            $entryName = is_string($part['path'] ?? null) && $part['path'] !== ''
+                ? $part['path']
+                : (is_string($part['part'] ?? null) && $part['part'] !== '' ? $part['part'] : $fallbackName);
+            if (!is_string($entryName) || $entryName === '') {
+                continue;
+            }
+
+            $roles = [];
+            foreach (is_array($part['roles'] ?? null) ? $part['roles'] : [] as $role) {
+                if (is_string($role) && $role !== '') {
+                    $roles[$role] = true;
+                }
+            }
+            $roles = array_keys($roles);
+            sort($roles, SORT_STRING);
+
+            $manifestMediaFamilies = [];
+            if (is_string($part['manifestMediaFamily'] ?? null) && $part['manifestMediaFamily'] !== '') {
+                $manifestMediaFamilies[] = $part['manifestMediaFamily'];
+            }
+
+            foreach (self::zipPreflightIntegerList($part, 'zipExtraFieldIds') as $id) {
+                $extraFieldIds[$id] = true;
+                $entryNamesByExtraFieldId[$id][$entryName] = true;
+                $recordDimensions($extraFieldIdRoleCounts, $entryNamesByExtraFieldIdRole, $id, $roles, $entryName);
+                $recordDimensions(
+                    $extraFieldIdManifestMediaFamilyCounts,
+                    $entryNamesByExtraFieldIdManifestMediaFamily,
+                    $id,
+                    $manifestMediaFamilies,
+                    $entryName
+                );
+            }
+            foreach (self::zipPreflightIntegerList($part, 'centralOnlyExtraFieldIds') as $id) {
+                $centralOnlyExtraFieldIds[$id] = true;
+                $recordDimensions($centralOnlyExtraFieldIdRoleCounts, $entryNamesByCentralOnlyExtraFieldIdRole, $id, $roles, $entryName);
+                $recordDimensions(
+                    $centralOnlyExtraFieldIdManifestMediaFamilyCounts,
+                    $entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily,
+                    $id,
+                    $manifestMediaFamilies,
+                    $entryName
+                );
+            }
+            foreach (self::zipPreflightIntegerList($part, 'localOnlyExtraFieldIds') as $id) {
+                $localOnlyExtraFieldIds[$id] = true;
+                $recordDimensions($localOnlyExtraFieldIdRoleCounts, $entryNamesByLocalOnlyExtraFieldIdRole, $id, $roles, $entryName);
+                $recordDimensions(
+                    $localOnlyExtraFieldIdManifestMediaFamilyCounts,
+                    $entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily,
+                    $id,
+                    $manifestMediaFamilies,
+                    $entryName
+                );
+            }
+            foreach (self::zipPreflightIntegerList($part, 'mismatchedExtraFieldValueIds') as $id) {
+                $mismatchedExtraFieldValueIds[$id] = true;
+                $recordDimensions($mismatchedExtraFieldValueIdRoleCounts, $entryNamesByMismatchedExtraFieldValueIdRole, $id, $roles, $entryName);
+                $recordDimensions(
+                    $mismatchedExtraFieldValueIdManifestMediaFamilyCounts,
+                    $entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily,
+                    $id,
+                    $manifestMediaFamilies,
+                    $entryName
+                );
+            }
+        }
+
+        ksort($extraFieldIds, SORT_NUMERIC);
+        self::sortPackageStringListMap($entryNamesByExtraFieldId, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($extraFieldIdRoleCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByExtraFieldIdRole, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($extraFieldIdManifestMediaFamilyCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByExtraFieldIdManifestMediaFamily, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($centralOnlyExtraFieldIdRoleCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByCentralOnlyExtraFieldIdRole, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($centralOnlyExtraFieldIdManifestMediaFamilyCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($localOnlyExtraFieldIdRoleCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByLocalOnlyExtraFieldIdRole, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($localOnlyExtraFieldIdManifestMediaFamilyCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($mismatchedExtraFieldValueIdRoleCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByMismatchedExtraFieldValueIdRole, SORT_NUMERIC);
+        self::sortPackageNestedCountMap($mismatchedExtraFieldValueIdManifestMediaFamilyCounts, SORT_NUMERIC);
+        self::sortPackageNestedStringListMap($entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily, SORT_NUMERIC);
+
+        $summaries = [];
+        foreach (array_keys($extraFieldIds) as $id) {
+            $roleCounts = $extraFieldIdRoleCounts[$id] ?? [];
+            $manifestMediaFamilyCounts = $extraFieldIdManifestMediaFamilyCounts[$id] ?? [];
+            $roles = array_keys($roleCounts);
+            $manifestMediaFamilies = array_keys($manifestMediaFamilyCounts);
+            sort($roles, SORT_STRING);
+            sort($manifestMediaFamilies, SORT_STRING);
+            $summaries[] = [
+                'extraFieldId' => $id,
+                'extraFieldIdHex' => sprintf('0x%04x', $id),
+                'entryCount' => count($entryNamesByExtraFieldId[$id] ?? []),
+                'entryNames' => $entryNamesByExtraFieldId[$id] ?? [],
+                'roleCount' => count($roleCounts),
+                'roles' => $roles,
+                'roleCounts' => $roleCounts,
+                'manifestMediaFamilyCount' => count($manifestMediaFamilyCounts),
+                'manifestMediaFamilies' => $manifestMediaFamilies,
+                'manifestMediaFamilyCounts' => $manifestMediaFamilyCounts,
+                'centralOnlyRoleCounts' => $centralOnlyExtraFieldIdRoleCounts[$id] ?? [],
+                'localOnlyRoleCounts' => $localOnlyExtraFieldIdRoleCounts[$id] ?? [],
+                'mismatchedValueRoleCounts' => $mismatchedExtraFieldValueIdRoleCounts[$id] ?? [],
+            ];
+        }
+
+        return [
+            'extraFieldIdRoleCount' => count($extraFieldIdRoleCounts),
+            'extraFieldIdRoleCounts' => $extraFieldIdRoleCounts,
+            'entryNamesByExtraFieldIdRole' => $entryNamesByExtraFieldIdRole,
+            'extraFieldIdManifestMediaFamilyCount' => count($extraFieldIdManifestMediaFamilyCounts),
+            'extraFieldIdManifestMediaFamilyCounts' => $extraFieldIdManifestMediaFamilyCounts,
+            'entryNamesByExtraFieldIdManifestMediaFamily' => $entryNamesByExtraFieldIdManifestMediaFamily,
+            'centralOnlyExtraFieldIdRoleCount' => count($centralOnlyExtraFieldIdRoleCounts),
+            'centralOnlyExtraFieldIdRoleCounts' => $centralOnlyExtraFieldIdRoleCounts,
+            'entryNamesByCentralOnlyExtraFieldIdRole' => $entryNamesByCentralOnlyExtraFieldIdRole,
+            'centralOnlyExtraFieldIdManifestMediaFamilyCount' => count($centralOnlyExtraFieldIdManifestMediaFamilyCounts),
+            'centralOnlyExtraFieldIdManifestMediaFamilyCounts' => $centralOnlyExtraFieldIdManifestMediaFamilyCounts,
+            'entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily' => $entryNamesByCentralOnlyExtraFieldIdManifestMediaFamily,
+            'localOnlyExtraFieldIdRoleCount' => count($localOnlyExtraFieldIdRoleCounts),
+            'localOnlyExtraFieldIdRoleCounts' => $localOnlyExtraFieldIdRoleCounts,
+            'entryNamesByLocalOnlyExtraFieldIdRole' => $entryNamesByLocalOnlyExtraFieldIdRole,
+            'localOnlyExtraFieldIdManifestMediaFamilyCount' => count($localOnlyExtraFieldIdManifestMediaFamilyCounts),
+            'localOnlyExtraFieldIdManifestMediaFamilyCounts' => $localOnlyExtraFieldIdManifestMediaFamilyCounts,
+            'entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily' => $entryNamesByLocalOnlyExtraFieldIdManifestMediaFamily,
+            'mismatchedExtraFieldValueIdRoleCount' => count($mismatchedExtraFieldValueIdRoleCounts),
+            'mismatchedExtraFieldValueIdRoleCounts' => $mismatchedExtraFieldValueIdRoleCounts,
+            'entryNamesByMismatchedExtraFieldValueIdRole' => $entryNamesByMismatchedExtraFieldValueIdRole,
+            'mismatchedExtraFieldValueIdManifestMediaFamilyCount' => count($mismatchedExtraFieldValueIdManifestMediaFamilyCounts),
+            'mismatchedExtraFieldValueIdManifestMediaFamilyCounts' => $mismatchedExtraFieldValueIdManifestMediaFamilyCounts,
+            'entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily' => $entryNamesByMismatchedExtraFieldValueIdManifestMediaFamily,
+            'extraFieldIdRoleSummaryCount' => count($summaries),
+            'extraFieldIdRoleSummaries' => $summaries,
+        ];
+    }
+
+    /**
      * @param list<string> $roles
      */
     private static function recordPackagePathDepthInventory(
@@ -6552,6 +6818,82 @@ final class OdfReader
             return 'xml';
         }
         if (($entry['missingMediaType'] ?? false) === true || $mediaTypeBase === '') {
+            return 'missing-media-type';
+        }
+        if ($mediaTypeBase === 'application/octet-stream' || str_starts_with($mediaTypeBase, 'application/vnd.')) {
+            return 'binary';
+        }
+
+        return 'other';
+    }
+
+    /**
+     * @param array<string, mixed> $manifestItem
+     * @param array<string, mixed>|null $embeddedObjectPackage
+     */
+    private function packagePartManifestMediaFamily(string $part, array $manifestItem, ?array $embeddedObjectPackage): string
+    {
+        $mediaTypeBase = strtolower(trim((string) ($manifestItem['mediaTypeBase'] ?? '')));
+        $isDirectory = ($manifestItem['isDirectory'] ?? false) === true || str_ends_with($part, '/');
+        if ($isDirectory && $embeddedObjectPackage !== null && ($embeddedObjectPackage['isRoot'] ?? false) === true) {
+            return 'opendocument-object-package';
+        }
+        if ($isDirectory) {
+            return 'directory';
+        }
+        if ($this->isScriptPackagePartName($part)) {
+            return 'script';
+        }
+        if (self::isConfigurationPackagePartName($part)) {
+            return 'configuration';
+        }
+        if ($this->isThumbnailPackagePartName($part)) {
+            return 'thumbnail';
+        }
+        if ($this->isSignaturePartName($part)) {
+            return 'signature';
+        }
+        if ($this->isObjectReplacementPackagePartName($part)) {
+            return 'object-replacement';
+        }
+        if ($this->isLayoutCachePackagePartName($part)) {
+            return 'layout-cache';
+        }
+        if ($this->isMetaInfSidecarPackagePartName($part)) {
+            return 'meta-inf-sidecar';
+        }
+        if ($this->isDatabasePackagePartName($part)) {
+            return 'database';
+        }
+        if ($this->isFontPackagePart($part, is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null)
+            || ($mediaTypeBase !== '' && $this->isFontMediaType($mediaTypeBase))
+        ) {
+            return 'font';
+        }
+        if ($this->isRdfPackagePart($part, is_string($manifestItem['mediaType'] ?? null) ? $manifestItem['mediaType'] : null)
+            || $mediaTypeBase === 'application/rdf+xml'
+        ) {
+            return 'rdf';
+        }
+        if ($embeddedObjectPackage !== null && ($embeddedObjectPackage['isRoot'] ?? false) === true) {
+            return 'opendocument-object-package';
+        }
+        if ($mediaTypeBase !== '' && $this->isEmbeddedObjectPackageMediaType($mediaTypeBase)) {
+            return 'opendocument-object-package';
+        }
+
+        $mediaResourceFamily = self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase);
+        if ($mediaResourceFamily !== null) {
+            return $mediaResourceFamily;
+        }
+        $packageMediaResourceFamily = self::mediaResourceFamilyFromPackagePart($part);
+        if ($mediaTypeBase === 'application/octet-stream' && $packageMediaResourceFamily !== null) {
+            return $packageMediaResourceFamily;
+        }
+        if (self::isXmlMediaTypeBase($mediaTypeBase)) {
+            return 'xml';
+        }
+        if (($manifestItem['missingMediaType'] ?? false) === true || $mediaTypeBase === '') {
             return 'missing-media-type';
         }
         if ($mediaTypeBase === 'application/octet-stream' || str_starts_with($mediaTypeBase, 'application/vnd.')) {
