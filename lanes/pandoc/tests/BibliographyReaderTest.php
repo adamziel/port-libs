@@ -25,17 +25,29 @@ BIB;
         $document = (new BibliographyReader('bibtex'))->read($bibtex);
         $bibliography = $document->children[0];
         $item = $bibliography->children[0];
+        $review = $document->attr('bibtexReview');
 
         $t->same('bibtex', $document->attr('sourceFormat'));
         $t->same(1, $document->attr('cslItemCount'));
         $t->same(['smith1899'], $document->attr('cslItemIds'));
         $t->same('bibtex', $document->attr('bibliography')['format'] ?? null);
         $t->same(BibliographyReader::class, $document->attr('bibliography')['reader'] ?? null);
+        $t->same($review, $document->attr('bibliography')['bibtexReview'] ?? null);
+        $t->same('bibtex-bibliography', $review['scope']);
+        $t->same('metadata-only', $review['byteExposurePolicy']);
+        $t->same(false, $review['externalTooling']);
+        $t->same(['smith1899'], $review['itemIds']);
+        $t->same(['book' => 1], $review['entryTypeCounts']);
+        $t->same(['book' => 1], $review['cslTypeCounts']);
+        $t->same(['DOI' => 1], $review['identifierFieldCounts']);
         $t->same('definition_list', $bibliography->type);
         $t->same(['pandoc-csl-bibliography'], $bibliography->attr('classes'));
         $t->same('Smith 1899', $item->children[0]->attr('text'));
         $t->contains('Smith, Ada. Migration Patterns. Archive Press, 1899.', $definitionText($item));
         $t->contains('DOI 10.1234/source', $definitionText($item));
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'Migration Patterns'));
+        $t->same(false, str_contains($reviewJson, '10.1234/source'));
     },
     'converts biblatex bibliography entries through the registered reader path' => static function (TestRunner $t): void {
         $biblatex = <<<'BIB'
@@ -328,6 +340,105 @@ RIS;
         $t->same(false, str_contains($reviewJson, 'attachments/private.pdf'));
         $t->same(false, str_contains($reviewJson, 'private-keyword'));
         $t->same(false, str_contains($reviewJson, 'verbatim private note'));
+    },
+    'records metadata only biblatex reader review provenance' => static function (TestRunner $t): void {
+        $biblatex = <<<'BIB'
+@article{biblatex-private-one,
+  author = {Ng, Nia and Roe, Pat},
+  title = {Secret BibLaTeX Packet Title},
+  journaltitle = {Private Journal Title},
+  date = {2026-07-01},
+  doi = {10.5555/private-biblatex},
+  url = {https://example.test/private-biblatex},
+  file = {Review PDF:attachments/private.pdf:application/pdf; Remote:https://example.test/private.pdf:application/pdf},
+  xdata = {private-xdata, missing-xdata},
+  related = {private-related, missing-related},
+  relatedtype = {reprintof},
+  keywords = {private-keyword, source-review},
+  usera = {review channel},
+  lista = {source lane and migration priority},
+  namea = {Curator, Case},
+  title+an:field = {private annotation}
+}
+@xdata{private-xdata,
+  publisher = {Private Publisher}
+}
+@book{private-related,
+  options = {dataonly},
+  title = {Private Related Title},
+  year = {1999}
+}
+BIB;
+
+        $document = (new BibliographyReader('biblatex'))->read($biblatex);
+        $review = $document->attr('bibtexReview');
+        $items = $review['items'];
+
+        $t->same($review, $document->attr('bibliography')['bibtexReview'] ?? null);
+        $t->same($items, $document->attr('bibtexItemReviews'));
+        $t->same('biblatex-bibliography', $review['scope']);
+        $t->same('metadata-only', $review['byteExposurePolicy']);
+        $t->same(false, $review['externalTooling']);
+        $t->same(1, $review['itemCount']);
+        $t->same(['biblatex-private-one'], $review['itemIds']);
+        $t->same(['article' => 1], $review['entryTypeCounts']);
+        $t->same(['article-journal' => 1], $review['cslTypeCounts']);
+        $t->same(16, $review['fieldNameCount']);
+        $t->same(1, $review['fieldValueCounts']['title'] ?? null);
+        $t->same(1, $review['fieldValueCounts']['journaltitle'] ?? null);
+        $t->same(1, $review['fieldValueCounts']['publisher'] ?? null);
+        $t->same(1, $review['fieldValueCounts']['file'] ?? null);
+        $t->same(1, $review['fieldValueCounts']['xdata'] ?? null);
+        $t->same(1, $review['fieldValueCounts']['related'] ?? null);
+        $t->same(1, $review['fieldValueCounts']['title+an:field'] ?? null);
+        $t->same(1, $review['titleBearingItemCount']);
+        $t->same(1, $review['linkBearingItemCount']);
+        $t->same(['author' => 2], $review['nameVariableCounts']);
+        $t->same(['issued' => 3], $review['dateVariableCounts']);
+        $t->same(['DOI' => 1], $review['identifierFieldCounts']);
+        $t->same(2, $review['sourceFileCandidateCount']);
+        $t->same(['remote-uri' => 1], $review['sourceFileDiagnosticReasonCounts']);
+        $t->same(['related' => 2, 'xdata' => 2], $review['relationReferenceCounts']);
+        $t->same(['related' => 1, 'xdata' => 1], $review['missingRelationReferenceCounts']);
+        $t->same(['usera' => 1], $review['biblatexCustomFieldCounts']);
+        $t->same(['lista' => 1], $review['biblatexCustomListCounts']);
+        $t->same(['namea' => 1], $review['biblatexCustomNameCounts']);
+        $t->same(['title' => 1], $review['biblatexFieldAnnotationCounts']);
+
+        $first = $items[0];
+        $t->same(0, $first['index']);
+        $t->same('biblatex-private-one', $first['id']);
+        $t->same('article', $first['entryType']);
+        $t->same('article-journal', $first['cslType']);
+        $t->same(16, $first['fieldNameCount']);
+        $t->same(16, $first['fieldValueCount']);
+        $t->same(['container-title', 'title'], $first['titleFields']);
+        $t->same(['author' => 2], $first['nameVariableCounts']);
+        $t->same(2, $first['nameCount']);
+        $t->same(['issued' => 3], $first['datePartCounts']);
+        $t->same(['DOI'], $first['identifierFields']);
+        $t->same(['DOI', 'URL', 'sourceFiles'], $first['linkFields']);
+        $t->same(2, $first['sourceFileCandidateCount']);
+        $t->same(['remote-uri' => 1], $first['sourceFileDiagnosticReasonCounts']);
+        $t->same(['related' => 2, 'xdata' => 2], $first['relationReferenceCounts']);
+        $t->same(['related' => 1, 'xdata' => 1], $first['missingRelationReferenceCounts']);
+        $t->same(['usera'], $first['biblatexCustomFields']);
+        $t->same(['lista'], $first['biblatexCustomLists']);
+        $t->same(['namea'], $first['biblatexCustomNames']);
+        $t->same(['title' => 1], $first['biblatexFieldAnnotationCounts']);
+        $t->same('source-values-omitted', $first['payloadExposurePolicy']);
+
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'Secret BibLaTeX Packet Title'));
+        $t->same(false, str_contains($reviewJson, 'Private Journal Title'));
+        $t->same(false, str_contains($reviewJson, '10.5555/private-biblatex'));
+        $t->same(false, str_contains($reviewJson, 'https://example.test/private-biblatex'));
+        $t->same(false, str_contains($reviewJson, 'attachments/private.pdf'));
+        $t->same(false, str_contains($reviewJson, 'private-keyword'));
+        $t->same(false, str_contains($reviewJson, 'review channel'));
+        $t->same(false, str_contains($reviewJson, 'private annotation'));
+        $t->same(false, str_contains($reviewJson, 'Private Publisher'));
+        $t->same(false, str_contains($reviewJson, 'Private Related Title'));
     },
     'rejects malformed bibliography inputs through converter dispatch' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {

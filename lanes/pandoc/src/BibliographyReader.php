@@ -50,6 +50,12 @@ final class BibliographyReader
             $attrs['risReview'] = $review;
             $attrs['risItemReviews'] = $review['items'];
         }
+        if ($this->format === 'bibtex' || $this->format === 'biblatex') {
+            $review = $this->bibtexReview($items, $ids);
+            $attrs['bibliography']['bibtexReview'] = $review;
+            $attrs['bibtexReview'] = $review;
+            $attrs['bibtexItemReviews'] = $review['items'];
+        }
 
         return new AstNode('document', $attrs, $bibliography->children === [] ? [] : [$bibliography]);
     }
@@ -370,6 +376,296 @@ final class BibliographyReader
             'conflictingMappedFieldCount' => count($conflictingMappedFields),
             'payloadExposurePolicy' => 'source-values-omitted',
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $ids
+     * @return array<string, mixed>
+     */
+    private function bibtexReview(array $items, array $ids): array
+    {
+        $reviews = [];
+        $entryTypeCounts = [];
+        $cslTypeCounts = [];
+        $fieldValueCounts = [];
+        $nameVariableCounts = [];
+        $dateVariableCounts = [];
+        $identifierFieldCounts = [];
+        $sourceFileDiagnosticReasonCounts = [];
+        $relationReferenceCounts = [];
+        $missingRelationReferenceCounts = [];
+        $biblatexCustomFieldCounts = [];
+        $biblatexCustomListCounts = [];
+        $biblatexCustomNameCounts = [];
+        $biblatexFieldAnnotationCounts = [];
+        $titleBearingItemCount = 0;
+        $linkBearingItemCount = 0;
+        $sourceFileCandidateCount = 0;
+
+        foreach ($items as $index => $item) {
+            $review = $this->bibtexItemReview($item, $index);
+            $reviews[] = $review;
+
+            $entryType = (string) $review['entryType'];
+            if ($entryType !== '') {
+                $entryTypeCounts[$entryType] = ($entryTypeCounts[$entryType] ?? 0) + 1;
+            }
+
+            $cslType = (string) $review['cslType'];
+            if ($cslType !== '') {
+                $cslTypeCounts[$cslType] = ($cslTypeCounts[$cslType] ?? 0) + 1;
+            }
+
+            $this->mergeCountMap($fieldValueCounts, $review['fieldValueCounts']);
+            $this->mergeCountMap($nameVariableCounts, $review['nameVariableCounts']);
+            $this->mergeCountMap($dateVariableCounts, $review['datePartCounts']);
+            $this->mergeStringListCounts($identifierFieldCounts, $review['identifierFields']);
+            $this->mergeCountMap($sourceFileDiagnosticReasonCounts, $review['sourceFileDiagnosticReasonCounts']);
+            $this->mergeCountMap($relationReferenceCounts, $review['relationReferenceCounts']);
+            $this->mergeCountMap($missingRelationReferenceCounts, $review['missingRelationReferenceCounts']);
+            $this->mergeStringListCounts($biblatexCustomFieldCounts, $review['biblatexCustomFields']);
+            $this->mergeStringListCounts($biblatexCustomListCounts, $review['biblatexCustomLists']);
+            $this->mergeStringListCounts($biblatexCustomNameCounts, $review['biblatexCustomNames']);
+            $this->mergeCountMap($biblatexFieldAnnotationCounts, $review['biblatexFieldAnnotationCounts']);
+
+            if ($review['titleBearing']) {
+                $titleBearingItemCount++;
+            }
+            if ($review['linkBearing']) {
+                $linkBearingItemCount++;
+            }
+            $sourceFileCandidateCount += $review['sourceFileCandidateCount'];
+        }
+
+        ksort($entryTypeCounts);
+        ksort($cslTypeCounts);
+        ksort($fieldValueCounts);
+        ksort($nameVariableCounts);
+        ksort($dateVariableCounts);
+        ksort($identifierFieldCounts);
+        ksort($sourceFileDiagnosticReasonCounts);
+        ksort($relationReferenceCounts);
+        ksort($missingRelationReferenceCounts);
+        ksort($biblatexCustomFieldCounts);
+        ksort($biblatexCustomListCounts);
+        ksort($biblatexCustomNameCounts);
+        ksort($biblatexFieldAnnotationCounts);
+
+        return [
+            'scope' => $this->format . '-bibliography',
+            'byteExposurePolicy' => 'metadata-only',
+            'externalTooling' => false,
+            'itemCount' => count($items),
+            'itemIds' => $ids,
+            'entryTypeCounts' => $entryTypeCounts,
+            'cslTypeCounts' => $cslTypeCounts,
+            'fieldNameCount' => count($fieldValueCounts),
+            'fieldValueCounts' => $fieldValueCounts,
+            'titleBearingItemCount' => $titleBearingItemCount,
+            'linkBearingItemCount' => $linkBearingItemCount,
+            'nameVariableCounts' => $nameVariableCounts,
+            'dateVariableCounts' => $dateVariableCounts,
+            'identifierFieldCounts' => $identifierFieldCounts,
+            'sourceFileCandidateCount' => $sourceFileCandidateCount,
+            'sourceFileDiagnosticReasonCounts' => $sourceFileDiagnosticReasonCounts,
+            'relationReferenceCounts' => $relationReferenceCounts,
+            'missingRelationReferenceCounts' => $missingRelationReferenceCounts,
+            'biblatexCustomFieldCounts' => $biblatexCustomFieldCounts,
+            'biblatexCustomListCounts' => $biblatexCustomListCounts,
+            'biblatexCustomNameCounts' => $biblatexCustomNameCounts,
+            'biblatexFieldAnnotationCounts' => $biblatexFieldAnnotationCounts,
+            'items' => $reviews,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function bibtexItemReview(array $item, int $index): array
+    {
+        $rawBibtex = is_array($item['rawBibtex'] ?? null) ? $item['rawBibtex'] : [];
+        $fields = is_array($rawBibtex['fields'] ?? null) ? $rawBibtex['fields'] : [];
+        $fieldValueCounts = [];
+        foreach ($fields as $field => $value) {
+            if (is_scalar($value) && trim((string) $value) !== '') {
+                $fieldValueCounts[(string) $field] = 1;
+            }
+        }
+        ksort($fieldValueCounts);
+
+        $sourceFileCount = is_array($item['sourceFiles'] ?? null) ? count($item['sourceFiles']) : 0;
+        $sourceFileDiagnosticReasonCounts = $this->sourceFileDiagnosticReasonCounts($item['sourceFileDiagnostics'] ?? []);
+        $relationReferenceCounts = $this->bibtexRelationReferenceCounts($item, false);
+        $missingRelationReferenceCounts = $this->bibtexRelationReferenceCounts($item, true);
+        $biblatexFieldAnnotationCounts = $this->biblatexFieldAnnotationCounts($item['biblatex-field-annotations'] ?? []);
+        $identifierFields = $this->presentFieldNames($item, [
+            'DOI', 'doi',
+            'ISBN', 'isbn', 'ISSN', 'issn',
+            'ISAN', 'isan', 'ISMN', 'ismn', 'ISRN', 'isrn', 'ISWC', 'iswc',
+            'PMID', 'pmid', 'PMCID', 'pmcid', 'MRNumber', 'mrNumber', 'mrnumber',
+            'Zbl', 'zbl', 'JSTOR', 'jstor', 'HDL', 'hdl', 'LCCN', 'lccn', 'OCLC', 'oclc',
+            'ORCID', 'orcid', 'ISNI', 'isni', 'VIAF', 'viaf', 'ROR', 'ror', 'Wikidata', 'wikidata',
+        ]);
+        $linkFields = $this->presentFieldNames($item, [
+            'URL', 'url', 'DOI', 'doi',
+            'sourceFiles', 'source-files', 'sourceFile', 'source-file',
+            'file', 'files', 'pdf', 'PDF',
+        ]);
+        $titleFields = $this->presentFieldNames($item, [
+            'title', 'title-short', 'short-title',
+            'container-title', 'collection-title', 'main-title', 'volume-title', 'part-title',
+            'original-title', 'reviewed-title', 'translated-title', 'event', 'issue-title',
+        ]);
+        $nameVariableCounts = $this->cslJsonNameVariableCounts($item);
+        $datePartCounts = $this->cslJsonDatePartCounts($item);
+        $id = $item['id'] ?? '';
+        $type = $item['type'] ?? '';
+
+        return [
+            'index' => $index,
+            'id' => is_scalar($id) ? trim((string) $id) : '',
+            'entryType' => is_scalar($rawBibtex['type'] ?? null) ? trim((string) $rawBibtex['type']) : '',
+            'cslType' => is_scalar($type) ? trim((string) $type) : '',
+            'fieldNameCount' => count($fieldValueCounts),
+            'fieldNames' => array_keys($fieldValueCounts),
+            'fieldValueCount' => array_sum($fieldValueCounts),
+            'fieldValueCounts' => $fieldValueCounts,
+            'titleBearing' => $titleFields !== [],
+            'titleFields' => $titleFields,
+            'nameVariableCount' => count($nameVariableCounts),
+            'nameVariableCounts' => $nameVariableCounts,
+            'nameCount' => array_sum($nameVariableCounts),
+            'dateVariableCount' => count($datePartCounts),
+            'datePartCounts' => $datePartCounts,
+            'identifierFieldCount' => count($identifierFields),
+            'identifierFields' => $identifierFields,
+            'linkBearing' => $linkFields !== [],
+            'linkFields' => $linkFields,
+            'sourceFileCandidateCount' => $sourceFileCount + array_sum($sourceFileDiagnosticReasonCounts),
+            'sourceFileDiagnosticReasonCounts' => $sourceFileDiagnosticReasonCounts,
+            'relationReferenceCounts' => $relationReferenceCounts,
+            'missingRelationReferenceCounts' => $missingRelationReferenceCounts,
+            'biblatexCustomFields' => $this->biblatexMapKeys($item['biblatex-custom-fields'] ?? []),
+            'biblatexCustomLists' => $this->biblatexMapKeys($item['biblatex-custom-lists'] ?? []),
+            'biblatexCustomNames' => $this->biblatexMapKeys($item['biblatex-custom-names'] ?? []),
+            'biblatexFieldAnnotationCounts' => $biblatexFieldAnnotationCounts,
+            'biblatexOptionCount' => is_array($item['biblatex-options'] ?? null) ? count($item['biblatex-options']) : 0,
+            'biblatexLanguageOptionCount' => is_array($item['biblatex-language-options'] ?? null) ? count($item['biblatex-language-options']) : 0,
+            'payloadExposurePolicy' => 'source-values-omitted',
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, int>
+     */
+    private function bibtexRelationReferenceCounts(array $item, bool $missing): array
+    {
+        $fields = $missing
+            ? [
+                'xdata' => 'missingXdataKeys',
+                'entrySet' => 'missingEntrySetKeys',
+                'related' => 'missingRelatedKeys',
+                'crossref' => 'missingCrossrefKeys',
+                'xref' => 'missingXrefKeys',
+            ]
+            : [
+                'xdata' => 'xdataKeys',
+                'entrySet' => 'entrySet',
+                'related' => 'relatedKeys',
+                'crossref' => 'crossrefKeys',
+                'xref' => 'xrefKeys',
+            ];
+        $counts = [];
+        foreach ($fields as $label => $field) {
+            if (is_array($item[$field] ?? null) && $item[$field] !== []) {
+                $counts[$label] = count($item[$field]);
+            }
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function sourceFileDiagnosticReasonCounts(mixed $diagnostics): array
+    {
+        if (!is_array($diagnostics)) {
+            return [];
+        }
+
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic) || !is_scalar($diagnostic['reason'] ?? null)) {
+                continue;
+            }
+
+            $reason = trim((string) $diagnostic['reason']);
+            if ($reason !== '') {
+                $counts[$reason] = ($counts[$reason] ?? 0) + 1;
+            }
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function biblatexMapKeys(mixed $map): array
+    {
+        if (!is_array($map)) {
+            return [];
+        }
+
+        return $this->uniqueSortedStrings(array_map('strval', array_keys($map)));
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function biblatexFieldAnnotationCounts(mixed $annotations): array
+    {
+        if (!is_array($annotations)) {
+            return [];
+        }
+
+        $counts = [];
+        foreach ($annotations as $field => $entries) {
+            if (is_array($entries) && $entries !== []) {
+                $counts[(string) $field] = count($entries);
+            }
+        }
+        ksort($counts);
+
+        return $counts;
+    }
+
+    /**
+     * @param array<string, int> $target
+     * @param array<string, int> $source
+     */
+    private function mergeCountMap(array &$target, array $source): void
+    {
+        foreach ($source as $key => $count) {
+            $target[(string) $key] = ($target[(string) $key] ?? 0) + (int) $count;
+        }
+    }
+
+    /**
+     * @param array<string, int> $target
+     * @param list<string> $strings
+     */
+    private function mergeStringListCounts(array &$target, array $strings): void
+    {
+        foreach ($strings as $string) {
+            $target[$string] = ($target[$string] ?? 0) + 1;
+        }
     }
 
     /**
