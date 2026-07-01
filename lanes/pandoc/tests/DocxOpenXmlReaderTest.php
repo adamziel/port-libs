@@ -12922,6 +12922,111 @@ XML;
         $t->same(false, $unsafe['externalTargetAllowed']);
         $t->same(['external-target-unsafe-scheme'], $unsafe['externalTargetIssues']);
     },
+    'preserves malformed docx package root resource sidecar relationship records' => static function (TestRunner $t): void {
+        $resourceType = 'http://example.test/openxml/relationships/rootResource';
+        $imageType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $hyperlinkType = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Override PartName="/docProps/root-resource.xml" ContentType="application/vnd.example.root-resource+xml"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootResource" Type="' . $resourceType . '" Target="docProps/root-resource.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['docProps/root-resource.xml'] = '<root-resource/>';
+        $parts['docProps/_rels/root-resource.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="root-preview.png?copy=one#img"/>
+  <Relationship Id="rDuplicate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/root-resource?copy=two#link" TargetMode="External"/>
+  <Relationship Id="rMalformed" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="root%zz.png?bad=%zz#asset"/>
+  <Relationship Id="rMissingTarget" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"/>
+  <Relationship Id="rUnexpectedMode" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="root-preview.png" TargetMode="Sidecar"/>
+</Relationships>
+XML;
+        $parts['docProps/root-preview.png'] = 'root preview bytes';
+        $parts['docProps/root%zz.png'] = 'malformed target fallback bytes';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $resources = $docx['packageProvenance']['packageRootRelationshipResources'];
+        $summary = $docx['packageProvenance']['summary'];
+        $resource = $resources['byRelationshipId']['rRootResource'];
+        $duplicate = $resource['targetRelationshipDuplicateIdItems'][0];
+        $invalidRecords = $resource['targetRelationshipInvalidRecords'];
+        $invalidTargetResolution = $resource['targetRelationshipsWithInvalidTargetResolution'][0];
+
+        $t->same(true, $resource['targetHasRelationships']);
+        $t->same('docProps/_rels/root-resource.xml.rels', $resource['targetRelationshipsPart']);
+        $t->same(true, $resource['targetRelationshipPartExists']);
+        $t->same(strlen($parts['docProps/_rels/root-resource.xml.rels']), $resource['targetRelationshipPartBytes']);
+        $t->same(0, $resource['targetRelationshipPartIssueCount']);
+        $t->same([], $resource['targetRelationshipPartIssueCodes']);
+        $t->same(3, $resource['targetRelationshipCount']);
+        $t->same(5, $resource['targetRelationshipRecordCount']);
+        $t->same(1, $resource['targetRelationshipDuplicateIdCount']);
+        $t->same(2, $resource['targetRelationshipDuplicateRecordCount']);
+        $t->same(['rDuplicate'], $resource['targetRelationshipDuplicateIds']);
+        $t->same('rDuplicate', $duplicate['id']);
+        $t->same([0, 1], $duplicate['ordinals']);
+        $t->same([$imageType, $hyperlinkType], $duplicate['types']);
+        $t->same([
+            'root-preview.png?copy=one#img',
+            'https://example.test/root-resource?copy=two#link',
+        ], $duplicate['targets']);
+        $t->same(['docProps/root-preview.png', null], $duplicate['targetParts']);
+        $t->same([true, false], $duplicate['existsValues']);
+
+        $t->same(3, $resource['targetRelationshipInvalidRecordCount']);
+        $t->same(3, $resource['targetRelationshipRecordIssueCount']);
+        $t->same([
+            'invalid-relationship-target-uri',
+            'missing-relationship-target',
+            'unexpected-relationship-target-mode',
+        ], $resource['targetRelationshipRecordIssueCodes']);
+        $t->same(['rMalformed', 'rMissingTarget', 'rUnexpectedMode'], array_column($invalidRecords, 'id'));
+        $t->same(['invalid-relationship-target-uri'], $invalidRecords[0]['issues']);
+        $t->same(['missing-relationship-target'], $invalidRecords[1]['issues']);
+        $t->same(['unexpected-relationship-target-mode'], $invalidRecords[2]['issues']);
+        $t->same(1, $resource['targetRelationshipInvalidTargetResolutionRecordCount']);
+        $t->same(['malformed-percent-escape'], $resource['targetRelationshipTargetResolutionIssueCodes']);
+        $t->same(['malformed-percent-escape' => 1], $resource['targetRelationshipTargetResolutionIssueCounts']);
+        $t->same('rMalformed', $invalidTargetResolution['id']);
+        $t->same('docProps/root%zz.png', $invalidTargetResolution['targetPart']);
+        $t->same('bad=%zz', $invalidTargetResolution['targetQuery']);
+        $t->same('asset', $invalidTargetResolution['targetFragment']);
+        $t->same(true, $invalidTargetResolution['exists']);
+
+        $t->same(['rDuplicate', 'rMalformed', 'rUnexpectedMode'], $resource['targetRelationshipIds']);
+        $t->same([$hyperlinkType, $imageType], $resource['targetRelationshipTypes']);
+        $t->same(['docProps/root%zz.png', 'docProps/root-preview.png'], $resource['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/root-resource?copy=two#link'], $resource['targetRelationshipExternalTargets']);
+        $t->same(['image/png'], $resource['targetRelationshipContentTypes']);
+
+        $t->same(5, $resources['targetRelationshipRecordCount']);
+        $t->same(1, $resources['targetRelationshipDuplicateIdCount']);
+        $t->same(2, $resources['targetRelationshipDuplicateRecordCount']);
+        $t->same(['rDuplicate'], $resources['targetRelationshipDuplicateIds']);
+        $t->same(3, $resources['targetRelationshipInvalidRecordCount']);
+        $t->same(3, $resources['targetRelationshipRecordIssueCount']);
+        $t->same($resource['targetRelationshipRecordIssueCodes'], $resources['targetRelationshipRecordIssueCodes']);
+        $t->same(1, $resources['targetRelationshipInvalidTargetResolutionRecordCount']);
+        $t->same(['malformed-percent-escape'], $resources['targetRelationshipTargetResolutionIssueCodes']);
+
+        $t->same($resources['targetRelationshipDuplicateIdCount'], $summary['packageRootRelationshipResourceTargetRelationshipDuplicateIdCount']);
+        $t->same($resources['targetRelationshipDuplicateRecordCount'], $summary['packageRootRelationshipResourceTargetRelationshipDuplicateRecordCount']);
+        $t->same($resources['targetRelationshipDuplicateIds'], $summary['packageRootRelationshipResourceTargetRelationshipDuplicateIds']);
+        $t->same($resources['targetRelationshipInvalidRecordCount'], $summary['packageRootRelationshipResourceTargetRelationshipInvalidRecordCount']);
+        $t->same($resources['targetRelationshipRecordIssueCount'], $summary['packageRootRelationshipResourceTargetRelationshipRecordIssueCount']);
+        $t->same($resources['targetRelationshipRecordIssueCodes'], $summary['packageRootRelationshipResourceTargetRelationshipRecordIssueCodes']);
+        $t->same($resources['targetRelationshipInvalidTargetResolutionRecordCount'], $summary['packageRootRelationshipResourceTargetRelationshipInvalidTargetResolutionRecordCount']);
+        $t->same($resources['targetRelationshipTargetResolutionIssueCodes'], $summary['packageRootRelationshipResourceTargetRelationshipTargetResolutionIssueCodes']);
+    },
     'reports docx package thumbnail provenance as metadata only' => static function (TestRunner $t): void {
         $thumbnailType = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
         $thumbnailBytes = 'jpeg thumbnail bytes';
