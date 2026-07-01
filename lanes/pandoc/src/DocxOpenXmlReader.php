@@ -220,6 +220,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['documentPackageIdentityPackageAreaCounts'] = $documentPackageIdentity['packageAreaCounts'];
         $packageProvenance['summary']['documentPackageIdentityPackageAreaByteLengths'] = $documentPackageIdentity['packageAreaByteLengths'];
         $packageProvenance['summary']['documentPackageIdentityPackageAreaCompressedByteLengths'] = $documentPackageIdentity['packageAreaCompressedByteLengths'];
+        $packageProvenance['summary']['documentPackageIdentityPackageTopLevelSegmentCount'] = $documentPackageIdentity['packageTopLevelSegmentCount'];
+        $packageProvenance['summary']['documentPackageIdentityPackageTopLevelSegmentCounts'] = $documentPackageIdentity['packageTopLevelSegmentCounts'];
+        $packageProvenance['summary']['documentPackageIdentityPackageCaseFoldTopLevelSegmentCount'] = $documentPackageIdentity['packageCaseFoldTopLevelSegmentCount'];
+        $packageProvenance['summary']['documentPackageIdentityPackageCaseFoldTopLevelSegmentCounts'] = $documentPackageIdentity['packageCaseFoldTopLevelSegmentCounts'];
         $packageProvenance['summary']['documentPackageIdentityRootRelationshipCount'] = $documentPackageIdentity['rootRelationshipCount'];
         $packageProvenance['summary']['documentPackageIdentityRootRelationshipRecordCount'] = $documentPackageIdentity['rootRelationshipRecordCount'];
         $packageProvenance['summary']['documentPackageIdentityRootOfficeDocumentRelationshipId'] = $documentPackageIdentity['rootOfficeDocumentRelationshipId'];
@@ -13113,6 +13117,12 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPackageAreaByteLengths'] = $packageIdentity['packageAreaByteLengths'];
         $summary['packageIdentityPackageAreaCompressedByteLengths'] =
             $packageIdentity['packageAreaCompressedByteLengths'];
+        $summary['packageIdentityPackageTopLevelSegmentCount'] = $packageIdentity['packageTopLevelSegmentCount'];
+        $summary['packageIdentityPackageTopLevelSegmentCounts'] = $packageIdentity['packageTopLevelSegmentCounts'];
+        $summary['packageIdentityPackageCaseFoldTopLevelSegmentCount'] =
+            $packageIdentity['packageCaseFoldTopLevelSegmentCount'];
+        $summary['packageIdentityPackageCaseFoldTopLevelSegmentCounts'] =
+            $packageIdentity['packageCaseFoldTopLevelSegmentCounts'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -32046,6 +32056,8 @@ final class DocxOpenXmlReader
             $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
             $partSummary = [
                 'partName' => $partName,
+                'topLevelSegment' => $topLevelSegment,
+                'caseFoldTopLevelSegment' => $this->packagePartCaseFoldKey($topLevelSegment),
                 'directory' => $directory,
                 'baseName' => $baseName,
                 'bytes' => $bytes,
@@ -44607,6 +44619,40 @@ final class DocxOpenXmlReader
             'entryNamesByPackageArea' => $this->packageIdentityStringListMap(
                 $summary['partNamesByPackageArea'] ?? []
             ),
+            'packageTopLevelSegmentCount' => (int) ($summary['partTopLevelSegmentCount'] ?? 0),
+            'packageTopLevelSegmentCounts' => $this->packageIdentityCountMap(
+                $summary['partTopLevelSegmentCounts'] ?? []
+            ),
+            'packageTopLevelSegments' => is_array($summary['partTopLevelSegments'] ?? null)
+                ? array_values($summary['partTopLevelSegments'])
+                : [],
+            'duplicatePackageTopLevelSegmentCount' => (int) (
+                $summary['duplicatePartTopLevelSegmentCount'] ?? 0
+            ),
+            'duplicatePackageTopLevelSegmentPartCount' => (int) (
+                $summary['duplicatePartTopLevelSegmentPartCount'] ?? 0
+            ),
+            'duplicatePackageTopLevelSegments' => self::packageIdentityStringList(
+                $summary['duplicatePartTopLevelSegments'] ?? []
+            ),
+            'packageCaseFoldTopLevelSegmentCount' => (int) (
+                $summary['partCaseFoldTopLevelSegmentCount'] ?? 0
+            ),
+            'packageCaseFoldTopLevelSegmentCounts' => $this->packageIdentityCountMap(
+                $summary['partCaseFoldTopLevelSegmentCounts'] ?? []
+            ),
+            'packageCaseFoldTopLevelSegments' => is_array($summary['partCaseFoldTopLevelSegments'] ?? null)
+                ? array_values($summary['partCaseFoldTopLevelSegments'])
+                : [],
+            'duplicatePackageCaseFoldTopLevelSegmentCount' => (int) (
+                $summary['duplicatePartCaseFoldTopLevelSegmentCount'] ?? 0
+            ),
+            'duplicatePackageCaseFoldTopLevelSegmentPartCount' => (int) (
+                $summary['duplicatePartCaseFoldTopLevelSegmentPartCount'] ?? 0
+            ),
+            'duplicatePackageCaseFoldTopLevelSegments' => self::packageIdentityStringList(
+                $summary['duplicatePartCaseFoldTopLevelSegments'] ?? []
+            ),
             'relationshipPartCount' => (int) ($summary['relationshipPartCount'] ?? 0),
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
@@ -45095,6 +45141,12 @@ final class DocxOpenXmlReader
             $baseName = is_string($part['baseName'] ?? null)
                 ? $part['baseName']
                 : $this->packagePartBaseName($partName);
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : $this->packagePartTopLevelSegment($partName);
+            $caseFoldTopLevelSegment = is_string($part['caseFoldTopLevelSegment'] ?? null)
+                ? $part['caseFoldTopLevelSegment']
+                : $this->packagePartCaseFoldKey($topLevelSegment);
             $partExtension = is_string($part['partExtension'] ?? null) ? $part['partExtension'] : null;
             $rawPartExtension = is_string($part['rawPartExtension'] ?? null) ? $part['rawPartExtension'] : null;
             $directoryBaseNameStem = is_string($part['directoryBaseNameStem'] ?? null)
@@ -45120,6 +45172,8 @@ final class DocxOpenXmlReader
                 'packageArea' => is_string($part['packageArea'] ?? null)
                     ? $part['packageArea']
                     : $this->packagePartArea($partName),
+                'topLevelSegment' => $topLevelSegment,
+                'caseFoldTopLevelSegment' => $caseFoldTopLevelSegment,
                 'caseFoldBaseName' => is_string($part['caseFoldBaseName'] ?? null)
                     ? $part['caseFoldBaseName']
                     : $this->packagePartCaseFoldKey($baseName),
@@ -45464,6 +45518,16 @@ final class DocxOpenXmlReader
             ),
             'entryNamesByPackageArea' => $this->packageIdentityStringListMap(
                 $summary['partNamesByPackageArea'] ?? []
+            ),
+            'packageTopLevelSegmentCount' => (int) ($summary['partTopLevelSegmentCount'] ?? 0),
+            'packageTopLevelSegmentCounts' => $this->packageIdentityCountMap(
+                $summary['partTopLevelSegmentCounts'] ?? []
+            ),
+            'packageCaseFoldTopLevelSegmentCount' => (int) (
+                $summary['partCaseFoldTopLevelSegmentCount'] ?? 0
+            ),
+            'packageCaseFoldTopLevelSegmentCounts' => $this->packageIdentityCountMap(
+                $summary['partCaseFoldTopLevelSegmentCounts'] ?? []
             ),
             'rootRelationshipsPart' => '_rels/.rels',
             'rootRelationshipsPartExists' => $rootRelationshipContext['exists'],
