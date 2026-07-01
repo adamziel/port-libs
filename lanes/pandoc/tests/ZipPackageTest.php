@@ -995,6 +995,172 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'summarizes zip package manifest leaf names without changing manifest hash contract' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $contentTypesXml = '<Types/>';
+        $documentXml = '<w:document/>';
+        $customDocumentXml = '<audit-document/>';
+        $wordImageBytes = 'PNG1';
+        $slideImageBytes = 'PNG2';
+        $zip = $buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'customXml/document.xml', 'data' => $customDocumentXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $wordImageBytes, 'method' => 0],
+            ['name' => 'ppt/media/image.png', 'data' => $slideImageBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $profile = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'role' => 'main-document'],
+            ['name' => 'customXml/document.xml', 'role' => 'custom-xml'],
+            ['name' => 'word/media/image.png', 'role' => 'media'],
+            ['name' => 'ppt/media/image.png', 'role' => 'slide-media'],
+            ['name' => 'word/media/', 'kind' => 'directory', 'role' => 'media-directory'],
+        ], 2048);
+
+        $manifestEntriesByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $manifestEntriesByName[$entry['name']] = $entry;
+        }
+        $leafSummariesByName = [];
+        foreach ($manifest['leafNameSummaries'] as $summary) {
+            $leafSummariesByName[$summary['leafName']] = $summary;
+        }
+        $sharedLeafSummariesByName = [];
+        foreach ($manifest['sharedLeafNameSummaries'] as $summary) {
+            $sharedLeafSummariesByName[$summary['leafName']] = $summary;
+        }
+        $profileSharedLeafSummariesByName = [];
+        foreach ($profile['handoffSharedLeafNameSummaries'] as $summary) {
+            $profileSharedLeafSummariesByName[$summary['leafName']] = $summary;
+        }
+
+        $t->same('word/', $manifestEntriesByName['word/document.xml']['directoryRoot']);
+        $t->same('word/', $manifestEntriesByName['word/document.xml']['parentDirectory']);
+        $t->same('document.xml', $manifestEntriesByName['word/document.xml']['leafName']);
+        $t->same('document', $manifestEntriesByName['word/document.xml']['entryBaseName']);
+        $t->same('xml', $manifestEntriesByName['word/document.xml']['entryExtension']);
+        $t->same('xml', $manifestEntriesByName['word/document.xml']['entryExtensionKey']);
+        $t->same(2, $manifestEntriesByName['word/document.xml']['pathDepth']);
+        $t->same('xml-part', $manifestEntriesByName['word/document.xml']['packagePartKind']);
+        $t->same('media', $manifestEntriesByName['word/media/']['leafName']);
+        $t->same('media', $manifestEntriesByName['word/media/']['entryBaseName']);
+        $t->same(null, $manifestEntriesByName['word/media/']['entryExtension']);
+        $t->same('(directory)', $manifestEntriesByName['word/media/']['entryExtensionKey']);
+        $t->same('directory', $manifestEntriesByName['word/media/']['packagePartKind']);
+        $t->same('content-types', $manifestEntriesByName['[Content_Types].xml']['packagePartKind']);
+
+        $t->same(4, $manifest['leafNameCount']);
+        $t->same(2, $manifest['sharedLeafNameCount']);
+        $t->same(4, $manifest['sharedLeafNameEntryCount']);
+        $t->same(['[Content_Types].xml', 'document.xml', 'image.png', 'media'], array_keys($leafSummariesByName));
+        $t->same(['document.xml', 'image.png'], array_keys($sharedLeafSummariesByName));
+        $t->same([
+            'leafName' => 'document.xml',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($documentXml) + strlen($customDocumentXml),
+            'uncompressedBytes' => strlen($documentXml) + strlen($customDocumentXml),
+            'entryBaseNames' => ['document'],
+            'entryExtensionKeys' => ['xml'],
+            'directoryRoots' => ['customXml/', 'word/'],
+            'parentDirectories' => ['customXml/', 'word/'],
+            'packagePartKinds' => ['xml-part'],
+            'entryNames' => ['customXml/document.xml', 'word/document.xml'],
+        ], $sharedLeafSummariesByName['document.xml']);
+        $t->same([
+            'leafName' => 'image.png',
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => strlen($wordImageBytes) + strlen($slideImageBytes),
+            'uncompressedBytes' => strlen($wordImageBytes) + strlen($slideImageBytes),
+            'entryBaseNames' => ['image'],
+            'entryExtensionKeys' => ['png'],
+            'directoryRoots' => ['ppt/', 'word/'],
+            'parentDirectories' => ['ppt/media/', 'word/media/'],
+            'packagePartKinds' => ['media'],
+            'entryNames' => ['ppt/media/image.png', 'word/media/image.png'],
+        ], $sharedLeafSummariesByName['image.png']);
+
+        $t->same(3, $profile['selectedLeafNameCount']);
+        $t->same(2, $profile['selectedSharedLeafNameCount']);
+        $t->same(4, $profile['selectedSharedLeafNameEntryCount']);
+        $t->same(3, $profile['handoffLeafNameCount']);
+        $t->same(2, $profile['handoffSharedLeafNameCount']);
+        $t->same(4, $profile['handoffSharedLeafNameEntryCount']);
+        $t->same($sharedLeafSummariesByName['document.xml'], $profileSharedLeafSummariesByName['document.xml']);
+        $t->same($sharedLeafSummariesByName['image.png'], $profileSharedLeafSummariesByName['image.png']);
+        $t->same('image.png', $profile['entries'][2]['leafName']);
+        $t->same('image', $profile['entries'][2]['entryBaseName']);
+
+        $hashPayloadEntries = array_map(static fn (array $entry): array => [
+            'name' => $entry['name'],
+            'isDirectory' => $entry['isDirectory'],
+            'directoryRoot' => $entry['directoryRoot'],
+            'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+            'localHeaderOrder' => $entry['localHeaderOrder'],
+            'compressionMethod' => $entry['compressionMethod'],
+            'crc32Hex' => $entry['crc32Hex'],
+            'compressedSize' => $entry['compressedSize'],
+            'uncompressedSize' => $entry['uncompressedSize'],
+            'localHeaderSha256' => $entry['localHeaderSha256'],
+            'localRecordBytes' => $entry['localRecordBytes'],
+            'localRecordSha256' => $entry['localRecordSha256'],
+            'compressedDataSha256' => $entry['compressedDataSha256'],
+            'usesDataDescriptor' => $entry['usesDataDescriptor'],
+            'dataDescriptorBytes' => $entry['dataDescriptorBytes'],
+            'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
+            'centralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'],
+            'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+            'centralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'],
+            'centralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
+        ], $manifest['entries']);
+        $expectedHash = hash('sha256', json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'packageSource' => $manifest['packageSource'],
+            'archiveBytes' => $manifest['archiveBytes'],
+            'archiveSha256' => $manifest['archiveSha256'],
+            'centralDirectoryOffset' => $manifest['centralDirectoryOffset'],
+            'centralDirectoryBytes' => $manifest['centralDirectoryBytes'],
+            'centralDirectorySha256' => $manifest['centralDirectorySha256'],
+            'endOfCentralDirectoryOffset' => $manifest['endOfCentralDirectoryOffset'],
+            'endOfCentralDirectoryBytes' => $manifest['endOfCentralDirectoryBytes'],
+            'endOfCentralDirectorySha256' => $manifest['endOfCentralDirectorySha256'],
+            'centralDirectorySignatureOffset' => $manifest['centralDirectorySignatureOffset'],
+            'centralDirectorySignatureBytes' => $manifest['centralDirectorySignatureBytes'],
+            'centralDirectorySignatureSha256' => $manifest['centralDirectorySignatureSha256'],
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'centralDirectoryRecordBytes' => $manifest['centralDirectoryRecordBytes'],
+            'centralDirectoryFixedHeaderBytes' => $manifest['centralDirectoryFixedHeaderBytes'],
+            'centralDirectoryVariableFieldBytes' => $manifest['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryRawNameBytes' => $manifest['centralDirectoryRawNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $manifest['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryRawCommentBytes' => $manifest['centralDirectoryRawCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'],
+            'centralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'],
+            'entryCommentCount' => $manifest['entryCommentCount'],
+            'compressionMethodSummaries' => $manifest['compressionMethodSummaries'],
+            'directoryRootSummaries' => $manifest['directoryRootSummaries'],
+            'entries' => $hashPayloadEntries,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        $t->same($expectedHash, $manifest['manifestSha256']);
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'preflights zip package manifest archive source records for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $buildCentralDirectorySignaturePackage): void {
         $comment = 'archive package review comment';
         $zip = $buildZipPackage([
@@ -1330,6 +1496,32 @@ return [
                 'entryNames' => ['word/document.xml', 'word/comments.xml'],
             ],
         ];
+        $expectedHashPayloadEntries = array_map(static fn (array $entry): array => [
+            'name' => $entry['name'],
+            'isDirectory' => $entry['isDirectory'],
+            'directoryRoot' => $entry['directoryRoot'],
+            'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+            'localHeaderOrder' => $entry['localHeaderOrder'],
+            'compressionMethod' => $entry['compressionMethod'],
+            'crc32Hex' => $entry['crc32Hex'],
+            'compressedSize' => $entry['compressedSize'],
+            'uncompressedSize' => $entry['uncompressedSize'],
+            'localHeaderSha256' => $entry['localHeaderSha256'],
+            'localRecordBytes' => $entry['localRecordBytes'],
+            'localRecordSha256' => $entry['localRecordSha256'],
+            'compressedDataSha256' => $entry['compressedDataSha256'],
+            'usesDataDescriptor' => $entry['usesDataDescriptor'],
+            'dataDescriptorBytes' => $entry['dataDescriptorBytes'],
+            'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
+            'centralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'],
+            'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+            'centralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'],
+            'centralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'],
+            'centralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'],
+            'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
+        ], $manifest['entries']);
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $manifest['packageSource'],
@@ -1357,7 +1549,7 @@ return [
             'entryCommentCount' => $manifest['entryCommentCount'],
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
             'directoryRootSummaries' => $expectedDirectoryRootSummaries,
-            'entries' => $expectedManifestEntries,
+            'entries' => $expectedHashPayloadEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
         $t->same(1, $manifest['dataDescriptorEntryCount']);
