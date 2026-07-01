@@ -12765,6 +12765,19 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestSourceRecordBytes'] = (int) ($zipPackageManifest['sourceRecordBytes'] ?? 0);
         $summary['zipPackageManifestCentralExtraFieldEntryCount'] = (int) ($zipPackageManifest['centralExtraFieldEntryCount'] ?? 0);
         $summary['zipPackageManifestEntryCommentCount'] = (int) ($zipPackageManifest['entryCommentCount'] ?? 0);
+        $summary['zipPackageManifestEntryCommentLengthBucketSummaryCount'] = (int) ($zipPackageManifest['entryCommentLengthBucketSummaryCount'] ?? 0);
+        $summary['zipPackageManifestEntryCommentLengthBuckets'] = is_array($zipPackageManifest['entryCommentLengthBuckets'] ?? null)
+            ? $zipPackageManifest['entryCommentLengthBuckets']
+            : [];
+        $summary['zipPackageManifestEntryCommentLengthBucketCounts'] = is_array($zipPackageManifest['entryCommentLengthBucketCounts'] ?? null)
+            ? $zipPackageManifest['entryCommentLengthBucketCounts']
+            : [];
+        $summary['zipPackageManifestEntryCommentLengthBucketCommentedCounts'] = is_array($zipPackageManifest['entryCommentLengthBucketCommentedCounts'] ?? null)
+            ? $zipPackageManifest['entryCommentLengthBucketCommentedCounts']
+            : [];
+        $summary['zipPackageManifestEntryCommentLengthBucketSummaries'] = is_array($zipPackageManifest['entryCommentLengthBucketSummaries'] ?? null)
+            ? $zipPackageManifest['entryCommentLengthBucketSummaries']
+            : [];
         $summary['zipPackageManifestHasCentralDirectoryReviewFields'] = ($zipPackageManifest['hasCentralDirectoryReviewFields'] ?? false) === true;
         $summary['zipPackageManifestMaxPathSegmentCount'] = (int) ($zipPackageManifest['maxPathSegmentCount'] ?? 0);
         $summary['zipPackageManifestMaxDirectoryDepth'] = (int) ($zipPackageManifest['maxDirectoryDepth'] ?? 0);
@@ -14042,6 +14055,11 @@ final class DocxOpenXmlReader
             'deflatedEntryCount' => 0,
             'unsupportedCompressionMethodCount' => 0,
             'sourceRecordBytes' => 0,
+            'entryCommentLengthBucketSummaryCount' => 0,
+            'entryCommentLengthBuckets' => [],
+            'entryCommentLengthBucketCounts' => [],
+            'entryCommentLengthBucketCommentedCounts' => [],
+            'entryCommentLengthBucketSummaries' => [],
             'maxPathSegmentCount' => 0,
             'maxDirectoryDepth' => 0,
             'deepestEntryNames' => [],
@@ -14323,6 +14341,19 @@ final class DocxOpenXmlReader
             'packageManifestSourceRecordBytes' => (int) ($packageManifest['sourceRecordBytes'] ?? 0),
             'packageManifestCentralExtraFieldEntryCount' => (int) ($packageManifest['centralExtraFieldEntryCount'] ?? 0),
             'packageManifestEntryCommentCount' => (int) ($packageManifest['entryCommentCount'] ?? 0),
+            'packageManifestEntryCommentLengthBucketSummaryCount' => (int) ($packageManifest['entryCommentLengthBucketSummaryCount'] ?? 0),
+            'packageManifestEntryCommentLengthBuckets' => is_array($packageManifest['entryCommentLengthBuckets'] ?? null)
+                ? $packageManifest['entryCommentLengthBuckets']
+                : [],
+            'packageManifestEntryCommentLengthBucketCounts' => is_array($packageManifest['entryCommentLengthBucketCounts'] ?? null)
+                ? $packageManifest['entryCommentLengthBucketCounts']
+                : [],
+            'packageManifestEntryCommentLengthBucketCommentedCounts' => is_array($packageManifest['entryCommentLengthBucketCommentedCounts'] ?? null)
+                ? $packageManifest['entryCommentLengthBucketCommentedCounts']
+                : [],
+            'packageManifestEntryCommentLengthBucketSummaries' => is_array($packageManifest['entryCommentLengthBucketSummaries'] ?? null)
+                ? $packageManifest['entryCommentLengthBucketSummaries']
+                : [],
             'packageManifestHasCentralDirectoryReviewFields' => ($packageManifest['hasCentralDirectoryReviewFields'] ?? false) === true,
             'packageManifestMaxPathSegmentCount' => (int) ($packageManifest['maxPathSegmentCount'] ?? 0),
             'packageManifestMaxDirectoryDepth' => (int) ($packageManifest['maxDirectoryDepth'] ?? 0),
