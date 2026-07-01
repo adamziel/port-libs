@@ -319,7 +319,8 @@ final class PptxReader
             throw new \RuntimeException('PPTX slide XML must have a root element');
         }
 
-        $title = $this->slideTitle($root);
+        $presentationNamespace = $this->localNamespaceForPrefix($root, 'p');
+        $title = $this->slideTitle($root, $presentationNamespace);
         if ($title === '') {
             $title = 'Slide ' . $slideIndex;
         }
@@ -327,7 +328,7 @@ final class PptxReader
         $blocks = [
             new AstNode('heading', ['level' => 2, 'id' => 'slide-' . $slideIndex, 'text' => $title], $this->textInlines($title)),
         ];
-        $spTree = $this->shapeTree($root);
+        $spTree = $this->shapeTree($root, $presentationNamespace);
         if (!$spTree instanceof \DOMElement) {
             return $blocks;
         }
@@ -336,14 +337,14 @@ final class PptxReader
         $drawingNamespace = $this->localNamespaceForPrefix($root, 'a');
         $zOrder = 0;
         foreach ($this->childElements($spTree, null) as $shapeElement) {
-            if (!$this->isDrawableShapeElement($shapeElement)) {
+            if (!$this->isDrawableShapeElement($shapeElement, $presentationNamespace)) {
                 continue;
             }
             $zOrder++;
-            if ($this->isTitlePlaceholder($shapeElement)) {
+            if ($this->isTitlePlaceholderForPrefix($shapeElement, $presentationNamespace)) {
                 continue;
             }
-            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $relationshipNamespace, $drawingNamespace, $zOrder, $imageIssues, $shapeIssues, $richMedia) as $block) {
+            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $presentationNamespace, $relationshipNamespace, $drawingNamespace, $zOrder, $imageIssues, $shapeIssues, $richMedia) as $block) {
                 $blocks[] = $block;
             }
         }
@@ -351,23 +352,23 @@ final class PptxReader
         return $blocks;
     }
 
-    private function shapeTree(\DOMElement $slide): ?\DOMElement
+    private function shapeTree(\DOMElement $slide, ?string $presentationNamespace = null): ?\DOMElement
     {
-        $presentationNamespace = $this->localNamespaceForPrefix($slide, 'p');
+        $presentationNamespace ??= $this->localNamespaceForPrefix($slide, 'p');
         $commonSlideData = $this->firstChildElementForPrefix($slide, 'p', 'cSld', $presentationNamespace);
 
         return $commonSlideData instanceof \DOMElement ? $this->firstChildElementForPrefix($commonSlideData, 'p', 'spTree', $presentationNamespace) : null;
     }
 
-    private function slideTitle(\DOMElement $slide): string
+    private function slideTitle(\DOMElement $slide, ?string $presentationNamespace = null): string
     {
-        $spTree = $this->shapeTree($slide);
+        $spTree = $this->shapeTree($slide, $presentationNamespace);
         if (!$spTree instanceof \DOMElement) {
             return '';
         }
 
         foreach ($this->childElements($spTree, null) as $shapeElement) {
-            if ($this->isTitlePlaceholder($shapeElement)) {
+            if ($this->isTitlePlaceholderForPrefix($shapeElement, $presentationNamespace)) {
                 return $this->drawingText($shapeElement);
             }
         }
@@ -1548,10 +1549,10 @@ final class PptxReader
      * @param list<array<string, string|bool|array<string, mixed>>> $richMedia
      * @return list<AstNode>
      */
-    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $relationshipNamespace, ?string $drawingNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
+    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $presentationNamespace, ?string $relationshipNamespace, ?string $drawingNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
     {
         if ($shapeElement->localName === 'sp') {
-            $textBody = $this->firstPresentationChildElement($shapeElement, 'txBody');
+            $textBody = $this->firstChildElementForOuterPrefix($shapeElement, 'p', 'txBody', $presentationNamespace);
             if (!$textBody instanceof \DOMElement) {
                 return [];
             }
@@ -1567,7 +1568,7 @@ final class PptxReader
 
         if ($shapeElement->localName === 'pic') {
             $this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder);
-            $image = $this->pictureNode($package, $shapeElement, $slideRelationships, $relationshipNamespace, $drawingNamespace, $imageIssues);
+            $image = $this->pictureNode($package, $shapeElement, $slideRelationships, $presentationNamespace, $relationshipNamespace, $drawingNamespace, $imageIssues);
 
             return $this->withShapeMetadata($image instanceof AstNode ? [new AstNode('paragraph', [], [$image])] : [], $shapeElement, $zOrder);
         }
@@ -1623,9 +1624,9 @@ final class PptxReader
         return [];
     }
 
-    private function isDrawableShapeElement(\DOMElement $element): bool
+    private function isDrawableShapeElement(\DOMElement $element, ?string $presentationNamespace): bool
     {
-        return $element->namespaceURI === self::PRESENTATION_NAMESPACE
+        return $element->namespaceURI === $presentationNamespace
             && in_array($element->localName, ['sp', 'pic', 'graphicFrame', 'grpSp', 'cxnSp', 'contentPart'], true);
     }
 
@@ -2153,10 +2154,10 @@ final class PptxReader
     /**
      * @param list<array<string, mixed>> $imageIssues
      */
-    private function pictureNode(ZipPackage $package, \DOMElement $pictureElement, OpcRelationships $slideRelationships, ?string $relationshipNamespace, ?string $drawingNamespace, array &$imageIssues): ?AstNode
+    private function pictureNode(ZipPackage $package, \DOMElement $pictureElement, OpcRelationships $slideRelationships, ?string $presentationNamespace, ?string $relationshipNamespace, ?string $drawingNamespace, array &$imageIssues): ?AstNode
     {
-        $nonVisual = $this->firstPresentationChildElement($pictureElement, 'nvPicPr');
-        $properties = $nonVisual instanceof \DOMElement ? $this->firstPresentationChildElement($nonVisual, 'cNvPr') : null;
+        $nonVisual = $this->firstChildElementForOuterPrefix($pictureElement, 'p', 'nvPicPr', $presentationNamespace);
+        $properties = $nonVisual instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($nonVisual, 'p', 'cNvPr', $presentationNamespace) : null;
         if (!$properties instanceof \DOMElement) {
             $imageIssues[] = ['issue' => 'missing-picture-nonvisual-properties'];
 
@@ -2165,7 +2166,7 @@ final class PptxReader
 
         $title = $properties->getAttribute('name');
         $alt = $properties->getAttribute('descr');
-        $blipFill = $this->firstPresentationChildElement($pictureElement, 'blipFill');
+        $blipFill = $this->firstChildElementForOuterPrefix($pictureElement, 'p', 'blipFill', $presentationNamespace);
         $blip = $blipFill instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($blipFill, 'a', 'blip', $drawingNamespace) : null;
         if (!$blip instanceof \DOMElement) {
             return null;
@@ -3297,6 +3298,20 @@ final class PptxReader
         $nonVisualProperties = $this->firstPresentationChildElement($shapeElement, 'nvSpPr');
         $placeholderContainer = $nonVisualProperties instanceof \DOMElement ? $this->firstPresentationChildElement($nonVisualProperties, 'nvPr') : null;
         $placeholder = $placeholderContainer instanceof \DOMElement ? $this->firstPresentationChildElement($placeholderContainer, 'ph') : null;
+        if (!$placeholder instanceof \DOMElement) {
+            return false;
+        }
+
+        $type = $placeholder->getAttribute('type');
+
+        return $type === 'title' || $type === 'ctrTitle';
+    }
+
+    private function isTitlePlaceholderForPrefix(\DOMElement $shapeElement, ?string $presentationNamespace): bool
+    {
+        $nonVisualProperties = $this->firstChildElementForOuterPrefix($shapeElement, 'p', 'nvSpPr', $presentationNamespace);
+        $placeholderContainer = $nonVisualProperties instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($nonVisualProperties, 'p', 'nvPr', $presentationNamespace) : null;
+        $placeholder = $placeholderContainer instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($placeholderContainer, 'p', 'ph', $presentationNamespace) : null;
         if (!$placeholder instanceof \DOMElement) {
             return false;
         }
