@@ -120,6 +120,9 @@ $aggregateFields = [
     'unknownExpansionRatioEntryCount' => 'zipPackageManifestUnknownExpansionRatioEntryCount',
     'hasUnknownExpansionRatioEntries' => 'zipPackageManifestHasUnknownExpansionRatioEntries',
     'unknownExpansionRatioEntries' => 'zipPackageManifestUnknownExpansionRatioEntries',
+    'expansionRatioBucketSummaryCount' => 'zipPackageManifestExpansionRatioBucketSummaryCount',
+    'expansionRatioBuckets' => 'zipPackageManifestExpansionRatioBuckets',
+    'expansionRatioBucketSummaries' => 'zipPackageManifestExpansionRatioBucketSummaries',
     'localHeaderBytes' => 'zipPackageManifestLocalHeaderBytes',
     'localHeaderFixedHeaderBytes' => 'zipPackageManifestLocalHeaderFixedHeaderBytes',
     'localHeaderVariableFieldBytes' => 'zipPackageManifestLocalHeaderVariableFieldBytes',
@@ -322,6 +325,14 @@ return [
             $t->same($zipManifest[$manifestKey], $richIdentity[$provenanceKey], "{$provenanceKey} rich identity");
         }
 
+        $t->same(['up-to-1x', '1x-to-10x'], $richIdentity['zipPackageManifestExpansionRatioBuckets']);
+        $t->same(2, $richIdentity['zipPackageManifestExpansionRatioBucketSummaryCount']);
+        $bucketSummaries = $indexBy($richIdentity['zipPackageManifestExpansionRatioBucketSummaries'], 'expansionRatioBucket');
+        $t->same(['mimetype', 'META-INF/manifest.xml', 'meta.xml', 'Pictures/review.png'], $bucketSummaries['up-to-1x']['entryNames']);
+        $t->same(['content.xml', 'styles.xml'], $bucketSummaries['1x-to-10x']['entryNames']);
+        $t->same(['/', 'META-INF/', 'Pictures/'], $bucketSummaries['up-to-1x']['directoryRoots']);
+        $t->same(['stored'], $bucketSummaries['up-to-1x']['compressionMethodNames']);
+        $t->same(['deflated'], $bucketSummaries['1x-to-10x']['compressionMethodNames']);
         $t->same(count($zipManifest['deepestEntryNames']), $compactInventory['zipPackageManifestDeepestEntryNameCount']);
         $t->same(count($zipManifest['deepestEntryNames']), $compactIdentity['zipPackageManifestDeepestEntryNameCount']);
         $t->same(count($zipManifest['deepestEntryNames']), $richProvenance['zipPackageManifestDeepestEntryNameCount']);
