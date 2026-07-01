@@ -182,6 +182,7 @@ XML);
       <a:dk1><a:sysClr val="windowText" lastClr="000000"/></a:dk1>
       <a:lt1><a:sysClr val="window" lastClr="FFFFFF"/></a:lt1>
       <a:accent1><a:srgbClr val="4472C4"/></a:accent1>
+      <a:accent2><a:srgbClr val="ED7D31"/></a:accent2>
     </a:clrScheme>
     <a:fontScheme name="Aptos">
       <a:majorFont><a:latin typeface="Aptos Display"/></a:majorFont>
@@ -247,7 +248,7 @@ XML);
         <c:barDir val="col"/>
         <c:ser>
           <c:idx val="0"/><c:order val="0"/>
-          <c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>North</c:v></c:pt></c:strCache></c:strRef></c:tx>
+          <c:tx><c:strRef><c:f>Sheet1!$B$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>North</c:v></c:pt></c:strCache></c:strRef></c:tx>
           <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
           <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
         </c:ser>
@@ -257,7 +258,7 @@ XML);
         <c:grouping val="standard"/>
         <c:ser>
           <c:idx val="1"/><c:order val="1"/>
-          <c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>South</c:v></c:pt></c:strCache></c:strRef></c:tx>
+          <c:tx><c:strRef><c:f>Sheet1!$C$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>South</c:v></c:pt></c:strCache></c:strRef></c:tx>
           <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
           <c:val><c:numRef><c:f>Sheet1!$C$2:$C$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>9</c:v></c:pt><c:pt idx="1"><c:v>13</c:v></c:pt></c:numCache></c:numRef></c:val>
         </c:ser>
@@ -494,6 +495,7 @@ return [
         $t->same('ppt/theme/theme1.xml', $review['slides'][1]['context']['themePart'] ?? null);
         $t->same('Office Theme', $review['slides'][1]['context']['theme']['name'] ?? null);
         $t->same('4472C4', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent1'] ?? null);
+        $t->same('ED7D31', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent2'] ?? null);
         $t->same('Aptos', $review['slides'][1]['context']['theme']['fontScheme']['minorLatin'] ?? null);
         $t->same(1, count($layoutInheritedParagraphs));
         $t->same([
@@ -572,7 +574,17 @@ return [
         ], $tables[0]->attr('pptxTableStyle'));
         $t->same([1828800, 1828800, 1828800], $tables[0]->attr('columnWidths'));
         $t->same(['Col1', 'Col2', 'Col3'], array_map(static fn (AstNode $cell): string => (string) $cell->attr('text'), $tables[0]->children[0]->children[0]->children));
+        $t->same(['wholeTbl', 'firstRow'], $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['appliedParts'] ?? null);
+        $t->same(true, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['bold'] ?? null);
+        $t->same('minor', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['text']['fontRef'] ?? null);
+        $t->same('theme:accent2', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['fillColor'] ?? null);
+        $t->same('ED7D31', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['resolvedFillColor'] ?? null);
+        $t->same('theme:accent1', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['borders']['bottom'] ?? null);
+        $t->same('4472C4', $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['resolvedBorders']['bottom'] ?? null);
+        $t->same(12700, $tables[0]->children[0]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['borderStyles']['bottom']['width'] ?? null);
         $t->same('Name', $tables[0]->children[1]->children[0]->children[0]->attr('text'));
+        $t->same(['wholeTbl'], $tables[0]->children[1]->children[0]->children[0]->attr('pptxTableStyleApplied')['appliedParts'] ?? null);
+        $t->same('ED7D31', $tables[0]->children[1]->children[0]->children[0]->attr('pptxTableStyleApplied')['cell']['resolvedFillColor'] ?? null);
         $t->same(2, $tables[0]->children[1]->children[0]->children[0]->attr('colspan'));
         $t->same('D9EAF7', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['fillColor'] ?? null);
         $t->same('ctr', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['verticalAlign'] ?? null);
@@ -606,6 +618,9 @@ return [
         $t->same('standard', $chartDivs[0]->attr('pptxChart')['plots'][1]['grouping'] ?? null);
         $t->same(['Q1', 'Q2'], $chartDivs[0]->attr('pptxChart')['series'][0]['categories'] ?? null);
         $t->same(['12', '18'], $chartDivs[0]->attr('pptxChart')['series'][0]['values'] ?? null);
+        $t->same('Sheet1!$B$1', $chartDivs[0]->attr('pptxChart')['series'][0]['nameFormula'] ?? null);
+        $t->same(1, $chartDivs[0]->attr('pptxChart')['series'][0]['namePointCount'] ?? null);
+        $t->same(['0'], $chartDivs[0]->attr('pptxChart')['series'][0]['namePointIndexes'] ?? null);
         $t->same('Sheet1!$A$2:$A$3', $chartDivs[0]->attr('pptxChart')['series'][0]['categoryFormula'] ?? null);
         $t->same(2, $chartDivs[0]->attr('pptxChart')['series'][0]['categoryPointCount'] ?? null);
         $t->same(['0', '1'], $chartDivs[0]->attr('pptxChart')['series'][0]['categoryPointIndexes'] ?? null);
@@ -614,6 +629,7 @@ return [
         $t->same(['0', '1'], $chartDivs[0]->attr('pptxChart')['series'][0]['valuePointIndexes'] ?? null);
         $t->same('line', $chartDivs[0]->attr('pptxChart')['series'][1]['plotType'] ?? null);
         $t->same(['9', '13'], $chartDivs[0]->attr('pptxChart')['series'][1]['values'] ?? null);
+        $t->same('Sheet1!$C$1', $chartDivs[0]->attr('pptxChart')['series'][1]['nameFormula'] ?? null);
         $t->same('Sheet1!$C$2:$C$3', $chartDivs[0]->attr('pptxChart')['series'][1]['valueFormula'] ?? null);
         $t->same('Quarter', $chartDivs[0]->attr('pptxChart')['axes'][0]['title'] ?? null);
         $t->same('Revenue', $chartDivs[0]->attr('pptxChart')['axes'][1]['title'] ?? null);

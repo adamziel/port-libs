@@ -1920,6 +1920,7 @@ final class PptxReader
         $text = $this->firstChildElement($seriesElement, 'tx');
         if ($text instanceof \DOMElement) {
             $series['name'] = $this->chartElementText($text);
+            $this->addChartCacheMetadata($series, 'name', $this->chartCacheSummary($text));
         }
 
         return $series;
@@ -2085,11 +2086,19 @@ final class PptxReader
     private function tableNode(\DOMElement $tableElement, array $tableStyles, array $slideContext): AstNode
     {
         $theme = is_array($slideContext['theme'] ?? null) ? $slideContext['theme'] : [];
+        $style = $this->tableStyleMetadata($tableElement, $tableStyles);
+        $rowElements = $this->childElements($tableElement, 'tr');
+        $rowCount = count($rowElements);
+        $columnCount = 0;
+        foreach ($rowElements as $rowElement) {
+            $columnCount = max($columnCount, count($this->childElements($rowElement, 'tc')));
+        }
+
         $rows = [];
-        foreach ($this->childElements($tableElement, 'tr') as $rowElement) {
+        foreach ($rowElements as $rowIndex => $rowElement) {
             $row = [];
-            foreach ($this->childElements($rowElement, 'tc') as $cellElement) {
-                $row[] = $this->tableCellData($cellElement, $theme);
+            foreach ($this->childElements($rowElement, 'tc') as $columnIndex => $cellElement) {
+                $row[] = $this->tableCellData($cellElement, $theme, $style, $rowIndex, $columnIndex, $rowCount, $columnCount);
             }
             $rows[] = $row;
         }
@@ -2100,7 +2109,6 @@ final class PptxReader
             'alignments' => array_fill(0, count($header), 'default'),
             'pptxTable' => true,
         ];
-        $style = $this->tableStyleMetadata($tableElement, $tableStyles);
         if ($style !== []) {
             $attrs['pptxTableStyle'] = $style;
         }
@@ -2118,7 +2126,7 @@ final class PptxReader
     /**
      * @return array{attrs:array<string, mixed>, text:string}
      */
-    private function tableCellData(\DOMElement $cellElement, array $theme): array
+    private function tableCellData(\DOMElement $cellElement, array $theme, array $tableStyle = [], int $rowIndex = 0, int $columnIndex = 0, int $rowCount = 0, int $columnCount = 0): array
     {
         $text = $this->drawingText($cellElement);
         $attrs = ['text' => $text];
@@ -2141,6 +2149,11 @@ final class PptxReader
 
         if ($pptxCell !== []) {
             $attrs['pptxCell'] = $pptxCell;
+        }
+
+        $tableStyleApplied = $this->tableStyleForCell($tableStyle, $rowIndex, $columnIndex, $rowCount, $columnCount, $theme);
+        if ($tableStyleApplied !== []) {
+            $attrs['pptxTableStyleApplied'] = $tableStyleApplied;
         }
 
         $style = $this->tableCellStyleMetadata($cellElement, $theme);
@@ -2230,6 +2243,107 @@ final class PptxReader
         }
 
         return $style;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableStyleForCell(array $tableStyle, int $rowIndex, int $columnIndex, int $rowCount, int $columnCount, array $theme): array
+    {
+        $parts = is_array($tableStyle['parts'] ?? null) ? $tableStyle['parts'] : [];
+        if ($parts === []) {
+            return [];
+        }
+
+        $appliedParts = [];
+        $textStyle = [];
+        $cellStyle = [];
+        foreach ($this->tableStyleCellPartNames($tableStyle, $rowIndex, $columnIndex, $rowCount, $columnCount) as $partName) {
+            $part = $parts[$partName] ?? null;
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $appliedParts[] = $partName;
+            if (is_array($part['text'] ?? null)) {
+                $textStyle = array_replace($textStyle, $part['text']);
+            }
+
+            $partCellStyle = is_array($part['cell'] ?? null) ? $part['cell'] : [];
+            if (is_string($part['fillColor'] ?? null) && !isset($partCellStyle['fillColor'])) {
+                $partCellStyle['fillColor'] = $part['fillColor'];
+            }
+            if ($partCellStyle !== []) {
+                $cellStyle = array_replace_recursive($cellStyle, $partCellStyle);
+            }
+        }
+
+        if ($appliedParts === []) {
+            return [];
+        }
+
+        $style = ['appliedParts' => $appliedParts];
+        if ($textStyle !== []) {
+            $style['text'] = $textStyle;
+        }
+        if ($cellStyle !== []) {
+            $style['cell'] = $this->withResolvedThemeColors($cellStyle, $theme);
+        }
+
+        return $style;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function tableStyleCellPartNames(array $tableStyle, int $rowIndex, int $columnIndex, int $rowCount, int $columnCount): array
+    {
+        $partNames = ['wholeTbl'];
+        $firstRow = ($tableStyle['firstRow'] ?? false) === true;
+        $lastRow = ($tableStyle['lastRow'] ?? false) === true;
+        $firstColumn = ($tableStyle['firstCol'] ?? false) === true;
+        $lastColumn = ($tableStyle['lastCol'] ?? false) === true;
+
+        if (($tableStyle['bandRow'] ?? false) === true) {
+            $bandRowIndex = $rowIndex - ($firstRow ? 1 : 0);
+            if ($bandRowIndex >= 0 && !($lastRow && $rowIndex === $rowCount - 1)) {
+                $partNames[] = $bandRowIndex % 2 === 0 ? 'band1H' : 'band2H';
+            }
+        }
+        if (($tableStyle['bandCol'] ?? false) === true) {
+            $bandColumnIndex = $columnIndex - ($firstColumn ? 1 : 0);
+            if ($bandColumnIndex >= 0 && !($lastColumn && $columnIndex === $columnCount - 1)) {
+                $partNames[] = $bandColumnIndex % 2 === 0 ? 'band1V' : 'band2V';
+            }
+        }
+
+        if ($firstRow && $rowIndex === 0) {
+            $partNames[] = 'firstRow';
+        }
+        if ($lastRow && $rowCount > 0 && $rowIndex === $rowCount - 1) {
+            $partNames[] = 'lastRow';
+        }
+        if ($firstColumn && $columnIndex === 0) {
+            $partNames[] = 'firstCol';
+        }
+        if ($lastColumn && $columnCount > 0 && $columnIndex === $columnCount - 1) {
+            $partNames[] = 'lastCol';
+        }
+
+        if ($firstRow && $firstColumn && $rowIndex === 0 && $columnIndex === 0) {
+            $partNames[] = 'nwCell';
+        }
+        if ($firstRow && $lastColumn && $rowIndex === 0 && $columnCount > 0 && $columnIndex === $columnCount - 1) {
+            $partNames[] = 'neCell';
+        }
+        if ($lastRow && $firstColumn && $rowCount > 0 && $rowIndex === $rowCount - 1 && $columnIndex === 0) {
+            $partNames[] = 'swCell';
+        }
+        if ($lastRow && $lastColumn && $rowCount > 0 && $columnCount > 0 && $rowIndex === $rowCount - 1 && $columnIndex === $columnCount - 1) {
+            $partNames[] = 'seCell';
+        }
+
+        return array_values(array_unique($partNames));
     }
 
     /**
