@@ -998,12 +998,13 @@ final class PandocJsonWriter
         }
 
         $shortNative = $this->captionShortNative($content[0], $caption[0]);
-        if ([$short['value'], $content[1]] === $caption) {
+        $longNative = $this->captionLongNative($content[1], $caption[1]);
+        if ($short['value'] === $caption[0] && $longNative === $content[1]) {
             if ($shortNative === $content[0]) {
                 return $native;
             }
 
-            $native['c'] = $isWrappedContent ? [[$shortNative, $content[1]]] : [$shortNative, $content[1]];
+            $native['c'] = $isWrappedContent ? [[$shortNative, $longNative]] : [$shortNative, $longNative];
 
             return $native;
         }
@@ -1012,12 +1013,29 @@ final class PandocJsonWriter
             't' => 'Caption',
             'c' => $isWrappedContent ? [[
                 $shortNative,
-                $caption[1],
+                $longNative,
             ]] : [
                 $shortNative,
-                $caption[1],
+                $longNative,
             ],
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $generatedLong
+     * @return list<mixed>
+     */
+    private function captionLongNative(mixed $sourceLong, array $generatedLong): array
+    {
+        if (!is_array($sourceLong) || !array_is_list($sourceLong)) {
+            return $generatedLong;
+        }
+
+        if ($sourceLong === $generatedLong) {
+            return $sourceLong;
+        }
+
+        return $this->singleWrappedReusableListPayload($sourceLong, $generatedLong) ?? $generatedLong;
     }
 
     /**
