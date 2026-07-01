@@ -236,17 +236,20 @@ final class PptxReader
         return 'ppt/' . $target;
     }
 
-    private function loadPackageXml(ZipPackage $package, string $partName, string $label): \DOMDocument
+    private function loadPackageXml(ZipPackage $package, string $partName, string $label, bool $literalPath = true): \DOMDocument
     {
+        if ($literalPath && !in_array($partName, $package->names(), true)) {
+            throw new \RuntimeException('Entry not found: ' . $partName);
+        }
+        if (!$literalPath && !$package->has($partName)) {
+            throw new \RuntimeException('Entry not found: ' . $partName);
+        }
+
         return XmlHtmlDom::loadXmlDocument($package->read($partName, self::MAX_XML_PART_BYTES), $label, false);
     }
 
     private function loadPackageXmlFromUpstreamPath(ZipPackage $package, string $path, string $label): \DOMDocument
     {
-        if (!in_array($path, $package->names(), true)) {
-            throw new \RuntimeException('Entry not found: ' . $path);
-        }
-
         return $this->loadPackageXml($package, $path, $label);
     }
 
@@ -1068,7 +1071,7 @@ final class PptxReader
     private function optionalPackageXml(ZipPackage $package, string $partName, string $label): ?\DOMDocument
     {
         try {
-            return $this->loadPackageXml($package, $partName, $label);
+            return $this->loadPackageXml($package, $partName, $label, false);
         } catch (\InvalidArgumentException | \RuntimeException) {
             return null;
         }
