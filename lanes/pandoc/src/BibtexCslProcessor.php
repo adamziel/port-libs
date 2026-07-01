@@ -15,6 +15,37 @@ final class BibtexCslProcessor
     /** @var list<string> */
     private const BIBLATEX_CUSTOM_NAME_FIELDS = ['namea', 'nameb', 'namec'];
 
+    /** @var array<string, string> */
+    private const BIBLATEX_ENTRY_OPTION_FIELDS = [
+        'dashed' => 'dashed',
+        'data-only' => 'dataonly',
+        'dataonly' => 'dataonly',
+        'label-date-parts' => 'labeldateparts',
+        'labeldateparts' => 'labeldateparts',
+        'maxitems' => 'maxitems',
+        'maxnames' => 'maxnames',
+        'minitems' => 'minitems',
+        'minnames' => 'minnames',
+        'skip-bib' => 'skipbib',
+        'skip-lab' => 'skiplab',
+        'skipbib' => 'skipbib',
+        'skiplab' => 'skiplab',
+        'sort-locale' => 'sortlocale',
+        'sortlocale' => 'sortlocale',
+        'use-author' => 'useauthor',
+        'use-editor' => 'useeditor',
+        'use-prefix' => 'useprefix',
+        'use-translator' => 'usetranslator',
+        'useauthor' => 'useauthor',
+        'useeditor' => 'useeditor',
+        'useprefix' => 'useprefix',
+        'usetranslator' => 'usetranslator',
+        'unique-list' => 'uniquelist',
+        'unique-name' => 'uniquename',
+        'uniquelist' => 'uniquelist',
+        'uniquename' => 'uniquename',
+    ];
+
     /** @var list<string> */
     private const BIBLATEX_NAME_ANNOTATION_FIELDS = [
         'author',
@@ -157,6 +188,15 @@ final class BibtexCslProcessor
                 'fields' => $fields,
                 'csl' => $this->withBiblatexRelationMetadata($item, $fields, $rawEntries),
             ];
+        }
+
+        $itemsByKey = [];
+        foreach ($entries as $key => $entry) {
+            $itemsByKey[$key] = $entry['csl'];
+        }
+        $itemsByCitationKey = $this->itemsByCitationKey($itemsByKey);
+        foreach ($entries as $key => $entry) {
+            $entries[$key]['csl'] = $this->withRelatedReferenceMetadata($entry['csl'], $itemsByCitationKey);
         }
 
         return $entries;
@@ -455,10 +495,19 @@ final class BibtexCslProcessor
             'sort-shorthand' => 'Sort shorthand',
             'presort' => 'Presort',
             'sort-key' => 'Sort key',
+            'sort-name' => 'Sort name',
+            'sort-title' => 'Sort title',
+            'sort-year' => 'Sort year',
+            'sort-initial' => 'Sort initial',
+            'sort-initial-hash' => 'Sort initial hash',
             'index-title' => 'Index title',
             'index-sort-title' => 'Index sort title',
             'label-prefix' => 'Label prefix',
+            'label-alpha' => 'Label alpha',
+            'label-title' => 'Label title',
             'extra-alpha' => 'Extra alpha',
+            'extra-date' => 'Extra date',
+            'extra-title' => 'Extra title',
             'date-addon' => 'Date addendum',
             'original-date-addon' => 'Original date addendum',
             'reprint-date-addon' => 'Reprint date addendum',
@@ -495,6 +544,10 @@ final class BibtexCslProcessor
         if ($customNameSummary !== '') {
             $parts[] = 'BibLaTeX custom names: ' . $customNameSummary;
         }
+        $relatedOptionSummary = $this->relatedOptionSummary($item);
+        if ($relatedOptionSummary !== '') {
+            $parts[] = 'Related options: ' . $relatedOptionSummary;
+        }
         $fieldAnnotationSummary = $this->biblatexFieldAnnotationSummary($item['biblatex-field-annotations'] ?? []);
         if ($fieldAnnotationSummary !== '') {
             $parts[] = 'BibLaTeX field annotations: ' . $fieldAnnotationSummary;
@@ -528,6 +581,9 @@ final class BibtexCslProcessor
         }
         if (($item['crossrefSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX crossref parent: ' . (string) $item['crossrefSummary'];
+        }
+        if (($item['xrefSummary'] ?? '') !== '') {
+            $parts[] = 'BibLaTeX xref parent: ' . (string) $item['xrefSummary'];
         }
         if (($item['xdataSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX xdata packets: ' . (string) $item['xdataSummary'];
@@ -578,6 +634,9 @@ final class BibtexCslProcessor
             if (($item[$field] ?? '') !== '') {
                 $parts[] = $label . ' ' . (string) $item[$field];
             }
+        }
+        if (($item['URL-label'] ?? '') !== '') {
+            $parts[] = 'URL label: ' . rtrim((string) $item['URL-label'], '.');
         }
         if (($item['URL'] ?? '') !== '') {
             $parts[] = (string) $item['URL'];
@@ -950,7 +1009,7 @@ final class BibtexCslProcessor
             'Wikidata' => ['wikidata', 'wikidataid', 'wikidata-id', 'wd'],
             'archive' => ['archiveprefix', 'eprinttype', 'archive'],
             'archive-collection' => ['archivecollection', 'archive-collection', 'archive_collection'],
-            'archive-place' => ['eprintclass', 'archiveplace', 'archive-place'],
+            'archive-place' => ['eprintclass', 'primaryclass', 'primary-class', 'archiveplace', 'archive-place'],
             'archive_location' => ['eprint', 'archive-location', 'archive_location', 'archivelocation'],
             'call-number' => ['callnumber', 'call-number', 'library', 'shelfmark', 'shelf-mark'],
             'language' => ['language', 'langid', 'hyphenation'],
@@ -1317,7 +1376,7 @@ final class BibtexCslProcessor
             $item['biblatex-field-annotations'] = $fieldAnnotations;
         }
 
-        $options = $this->biblatexOptionList($fields['options'] ?? '');
+        $options = $this->biblatexEntryOptions($fields);
         if ($options !== []) {
             $item['biblatex-options'] = $options;
         }
@@ -1440,7 +1499,101 @@ final class BibtexCslProcessor
             }
         }
 
+        $xref = $this->fieldKeyList($fields['xref'] ?? '');
+        if ($xref !== []) {
+            $xrefItems = $this->referencedEntrySummaries($xref, $entriesByKey);
+            $missing = $this->missingReferenceKeys($xref, $entriesByKey);
+
+            $item['xrefKeys'] = $xref;
+            $item['xrefItems'] = $xrefItems;
+            $item['xrefSummary'] = $this->summarizedReferenceValues($xrefItems, $missing);
+            if ($missing !== []) {
+                $item['missingXrefKeys'] = $missing;
+            }
+        }
+
         return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @param array<string, array<string, mixed>> $itemsByCitationKey
+     * @return array<string, mixed>
+     */
+    private function withRelatedReferenceMetadata(array $item, array $itemsByCitationKey): array
+    {
+        $relatedKeys = $this->fieldKeyList((string) ($item['related'] ?? ''));
+        if ($relatedKeys === []) {
+            return $item;
+        }
+
+        $item['relatedKeys'] = $relatedKeys;
+
+        $options = $this->biblatexRelatedOptionList((string) ($item['related-options'] ?? ''));
+        if ($options !== []) {
+            $item['relatedOptions'] = $options;
+        }
+
+        $relatedItems = [];
+        $missing = [];
+        $seen = [];
+        foreach ($relatedKeys as $relatedKey) {
+            $relatedItem = $itemsByCitationKey[$relatedKey] ?? null;
+            if ($relatedItem === null) {
+                $missing[] = $relatedKey;
+                continue;
+            }
+
+            $relatedId = (string) ($relatedItem['id'] ?? $relatedKey);
+            if (isset($seen[$relatedId])) {
+                continue;
+            }
+
+            $seen[$relatedId] = true;
+            $relatedItems[] = $this->relatedReferenceSummary($relatedItem);
+        }
+
+        if ($relatedItems !== []) {
+            $item['relatedItems'] = $relatedItems;
+        }
+        if ($missing !== []) {
+            $item['missingRelatedKeys'] = $missing;
+        } else {
+            unset($item['missingRelatedKeys']);
+        }
+        $item['relatedSummary'] = $this->summarizedReferenceValues($relatedItems, $missing);
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function relatedReferenceSummary(array $item): array
+    {
+        $summary = [
+            'id' => (string) ($item['id'] ?? ''),
+            'type' => (string) ($item['type'] ?? ''),
+        ];
+
+        $title = trim((string) ($item['title'] ?? ''));
+        if ($title !== '') {
+            $summary['title'] = $title;
+        }
+        if (isset($item['issued']) && is_array($item['issued'])) {
+            $summary['issued'] = $item['issued'];
+        }
+        $options = $item['biblatex-options'] ?? [];
+        $hasDataOnlyOption = is_array($options) && $this->hasDataOnlyOption(implode(',', array_map(
+            static fn (mixed $option): string => (string) $option,
+            $options
+        )));
+        if (($item['dataOnly'] ?? false) === true || $hasDataOnlyOption) {
+            $summary['dataOnly'] = true;
+        }
+
+        return $summary;
     }
 
     /**
@@ -1574,6 +1727,22 @@ final class BibtexCslProcessor
         }
 
         return false;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function relatedOptionSummary(array $item): string
+    {
+        $options = $item['relatedOptions'] ?? $this->biblatexRelatedOptionList((string) ($item['related-options'] ?? ''));
+        if (!is_array($options)) {
+            return '';
+        }
+
+        return implode('; ', array_values(array_filter(
+            array_map(static fn (mixed $option): string => trim((string) $option), $options),
+            static fn (string $option): bool => $option !== ''
+        )));
     }
 
     /**
@@ -2854,6 +3023,73 @@ final class BibtexCslProcessor
             ),
             static fn (string $option): bool => $option !== ''
         ));
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function biblatexRelatedOptionList(string $value): array
+    {
+        if (trim($value) === '') {
+            return [];
+        }
+
+        $separator = str_contains($value, ';') ? ';' : ',';
+
+        return array_values(array_filter(
+            array_map(
+                static fn (string $option): string => trim($option),
+                $this->splitTopLevel($value, $separator)
+            ),
+            static fn (string $option): bool => $option !== ''
+        ));
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<string>
+     */
+    private function biblatexEntryOptions(array $fields): array
+    {
+        $options = $this->biblatexOptionList($fields['options'] ?? '');
+        foreach (self::BIBLATEX_ENTRY_OPTION_FIELDS as $field => $name) {
+            if (!array_key_exists($field, $fields)) {
+                continue;
+            }
+
+            $value = $this->cleanValue($fields[$field]);
+            if ($value === '') {
+                continue;
+            }
+
+            $this->appendOrReplaceBiblatexOption($options, $name, $value);
+        }
+
+        return $options;
+    }
+
+    /**
+     * @param list<string> $options
+     */
+    private function appendOrReplaceBiblatexOption(array &$options, string $name, string $value): void
+    {
+        $normalizedName = $this->normalizedBiblatexOptionName($name);
+        foreach ($options as $index => $option) {
+            $existingName = $this->normalizedBiblatexOptionName(explode('=', $option, 2)[0]);
+            if ($existingName === $normalizedName) {
+                unset($options[$index]);
+            }
+        }
+
+        $options[] = $name . '=' . $value;
+        $options = array_values($options);
+    }
+
+    private function normalizedBiblatexOptionName(string $name): string
+    {
+        $name = strtolower($this->cleanValue($name));
+
+        return preg_replace('/[-_\s]+/', '', $name) ?? $name;
     }
 
     /**

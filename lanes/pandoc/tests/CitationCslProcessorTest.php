@@ -98,6 +98,62 @@ return [
         $t->same('[@missing]', $missingNormalized->attr('rendered'));
         $t->same(true, (bool) $missingNormalized->attr('missingCslItem', false));
     },
+    'accepts wrapped csl json bibliography item lists from exporter envelopes' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            'metadata' => [
+                'exporter' => 'Reference Manager',
+            ],
+            'items' => [
+                [
+                    'id' => 'wrapped-csl-source',
+                    'type' => 'article-journal',
+                    'title' => 'Wrapped CSL Packet',
+                    'container-title' => 'Journal of Reference Managers',
+                    'author' => [
+                        ['family' => 'Ng', 'given' => 'Nia'],
+                    ],
+                    'issued' => ['date-parts' => [[2026, 6, 30]]],
+                    'DOI' => '10.5555/wrapped.csl',
+                    'citationAliases' => ['wrapped-csl-alias'],
+                ],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $item = $processor->item('wrapped-csl-source');
+        $alias = $processor->item('wrapped-csl-alias');
+
+        $t->same('Wrapped CSL Packet', $item['title'] ?? null);
+        $t->same('Journal of Reference Managers', $item['containerTitle'] ?? null);
+        $t->same('wrapped-csl-source', $alias['id'] ?? null);
+        $t->same('wrapped-csl-alias', $alias['citationAlias'] ?? null);
+        $t->same('(Ng 2026)', $processor->renderCitationCluster([$citation('wrapped-csl-alias', '[@wrapped-csl-alias]')]));
+        $t->contains('Wrapped CSL Packet', $processor->renderBibliographyEntry('wrapped-csl-source'));
+        $t->contains('DOI 10.5555/wrapped.csl', $processor->renderBibliographyEntry('wrapped-csl-source'));
+
+        foreach (['references', 'bibliography'] as $wrapperKey) {
+            $wrapped = json_encode([
+                $wrapperKey => [
+                    [
+                        'id' => 'wrapped-' . $wrapperKey,
+                        'type' => 'book',
+                        'title' => 'Wrapped ' . ucfirst($wrapperKey) . ' Packet',
+                        'author' => [
+                            ['family' => 'Roe', 'given' => 'Pat'],
+                        ],
+                        'issued' => ['date-parts' => [[2025]]],
+                    ],
+                ],
+                'metadata' => [
+                    'exporter' => 'Reference Manager',
+                ],
+            ], JSON_THROW_ON_ERROR);
+
+            $wrappedProcessor = CitationCslProcessor::fromJson($wrapped);
+            $t->same('Wrapped ' . ucfirst($wrapperKey) . ' Packet', $wrappedProcessor->item('wrapped-' . $wrapperKey)['title'] ?? null);
+            $t->same('(Roe 2025)', $wrappedProcessor->renderCitationCluster([$citation('wrapped-' . $wrapperKey, '[@wrapped-' . $wrapperKey . ']')]));
+        }
+    },
     'preserves citation prefix and suffix review metadata for csl handoff' => static function (TestRunner $t) use ($citation): void {
         $processor = CitationCslProcessor::fromItems([
             [
@@ -2105,6 +2161,70 @@ XML);
         $t->contains('<dt>Kim 2025</dt><dd>Kim, Lin. Visible Field Options. Review Press, 2025. BibLaTeX options: dataonly=false; skiplab=true; useprefix=true.</dd>', $blocks);
         $t->true(!str_contains($blocks, '<dt>Rao 2026</dt>'), 'standalone skipbib=true entries must not be appended to the bibliography');
         $t->true(!str_contains($blocks, 'Standalone Data Only Options'), 'standalone dataonly=true entries must not become CSL items');
+    },
+    'maps standalone biblatex entry option field overrides into csl review metadata' => static function (TestRunner $t): void {
+        $bibtex = <<<'BIB'
+@book{standalone-options-manual,
+  author         = {Smith, Ada},
+  title          = {Standalone Options Manual},
+  date           = {2026},
+  publisher      = {Review Press},
+  options        = {skipbib=true, useauthor=true, maxnames=3},
+  labeldateparts = {year},
+  skipbib        = {false},
+  sortlocale     = {de-DE},
+  useauthor      = {false},
+  useeditor      = {true},
+  uniquelist     = {minyear},
+  uniquename     = {init}
+}
+
+@online{standalone-options-snapshot,
+  author    = {Desk, Review},
+  title     = {Standalone Options Snapshot},
+  date      = {2025},
+  dataonly  = {false},
+  skiplab   = {false},
+  useprefix = {true}
+}
+
+@misc{standalone-options-data,
+  title     = {Standalone Data Only Options},
+  date      = {2024},
+  data-only = {true}
+}
+BIB;
+
+        $manualOptions = [
+            'maxnames=3',
+            'labeldateparts=year',
+            'skipbib=false',
+            'sortlocale=de-DE',
+            'useauthor=false',
+            'useeditor=true',
+            'uniquelist=minyear',
+            'uniquename=init',
+        ];
+        $snapshotOptions = ['dataonly=false', 'skiplab=false', 'useprefix=true'];
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('standalone-options-manual', $items[0]['id']);
+        $t->same($manualOptions, $items[0]['biblatex-options'] ?? null);
+        $t->same('false', $items[0]['rawBibtex']['fields']['skipbib'] ?? null);
+        $t->same('standalone-options-snapshot', $items[1]['id']);
+        $t->same($snapshotOptions, $items[1]['biblatex-options'] ?? null);
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $manual = $processor->item('standalone-options-manual');
+        $snapshot = $processor->item('standalone-options-snapshot');
+        $t->same($manualOptions, $manual['biblatexOptions'] ?? null);
+        $t->same(implode('; ', $manualOptions), $manual['biblatexOptionSummary'] ?? null);
+        $t->same($snapshotOptions, $snapshot['biblatexOptions'] ?? null);
+        $t->contains(
+            'BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=false; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init.',
+            $processor->renderBibliographyEntry('standalone-options-manual')
+        );
     },
     'omits bounded biblatex skipbib entries from appended bibliographies' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
@@ -32550,7 +32670,9 @@ XML);
     },
     'rejects malformed csl json and invalid citation records without external citeproc' => static function (TestRunner $t): void {
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{not json'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"id":"single-object"}'));
+        $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromJson('{"items":"not-a-list"}'));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['title' => 'Missing ID']]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => ''], ['id' => 'ok']]));
         $t->throws(InvalidArgumentException::class, static fn (): CitationCslProcessor => CitationCslProcessor::fromItems([['id' => 'dup'], ['id' => 'dup']]));

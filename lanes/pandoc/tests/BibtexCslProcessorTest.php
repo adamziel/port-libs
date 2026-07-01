@@ -94,6 +94,94 @@ BIB;
         $t->same('Import note attached', $item['note']);
         $t->same('Nia Ng. Obscure Archive Packet: Source Review Appendix. 2026. https://example.test/preprint.', $bibliography);
     },
+    'carries biblatex primary class archive aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{primary-class-preprint,
+  author        = {Ng, Nia},
+  title         = {Primary Class Preprint},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  eprint        = {2606.10001},
+  date          = {2026},
+  url           = {https://example.test/primary-class-preprint}
+}
+
+@online{hyphen-primary-class-preprint,
+  author         = {Roe, Pat},
+  title          = {Hyphen Primary Class Preprint},
+  archiveprefix  = {arXiv},
+  primary-class  = {math.AG},
+  eprint         = {2606.10002},
+  date           = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $primary = $items['primary-class-preprint'];
+        $hyphen = $items['hyphen-primary-class-preprint'];
+
+        $t->same('arXiv', $primary['archive']);
+        $t->same('cs.CL', $primary['archive-place']);
+        $t->same('2606.10001', $primary['archive_location']);
+        $t->same('arXiv:cs.CL:2606.10001', $primary['archive-summary']);
+        $t->same('cs.CL', $primary['rawBibtex']['fields']['primaryclass']);
+        $t->same('math.AG', $hyphen['archive-place']);
+        $t->same('math.AG', $hyphen['rawBibtex']['fields']['primary-class']);
+        $t->same('arXiv:math.AG:2606.10002', $hyphen['archive-summary']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Primary Class Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-primary-class-review</id>
+    <updated>2026-06-30T10:35:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="archive"/>
+        <text variable="archive-place"/>
+        <text variable="archive_location"/>
+        <text variable="archive-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="archive-place"/>
+      <text variable="archive-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledPrimary = $styled->item('primary-class-preprint');
+        $styledHyphen = $styled->item('hyphen-primary-class-preprint');
+        $t->same('Bounded Legacy BibLaTeX Primary Class Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('cs.CL', $styledPrimary['archivePlace'] ?? null);
+        $t->same('math.AG', $styledHyphen['archivePlace'] ?? null);
+        $t->same('[Primary Class Preprint | arXiv | cs.CL | 2606.10001 | arXiv:cs.CL:2606.10001; Hyphen Primary Class Preprint | arXiv | math.AG | 2606.10002 | arXiv:math.AG:2606.10002]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'primary-class-preprint', 'text' => '[@primary-class-preprint]']),
+            new AstNode('citation', ['id' => 'hyphen-primary-class-preprint', 'text' => '[@hyphen-primary-class-preprint]']),
+        ]));
+        $t->same('Primary Class Preprint :: cs.CL :: arXiv:cs.CL:2606.10001', $styled->renderBibliographyEntry('primary-class-preprint'));
+        $t->same('Hyphen Primary Class Preprint :: math.AG :: arXiv:math.AG:2606.10002', $styled->renderBibliographyEntry('hyphen-primary-class-preprint'));
+
+        $document = (new MarkdownReader())->read('Primary class sources [@hyphen-primary-class-preprint; @primary-class-preprint] keep arXiv classes visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['hyphen-primary-class-preprint', 'primary-class-preprint'], $handoff['citedKeys']);
+        $t->same('math.AG', $handoff['items'][0]['archive-place'] ?? null);
+        $t->same('cs.CL', $handoff['bibliography']->children[1]->attr('cslItem')['archive-place'] ?? null);
+        $t->contains('<p>Primary class sources [Hyphen Primary Class Preprint | arXiv | math.AG | 2606.10002 | arXiv:math.AG:2606.10002; Primary Class Preprint | arXiv | cs.CL | 2606.10001 | arXiv:cs.CL:2606.10001] keep arXiv classes visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Hyphen Primary Class Preprint :: math.AG :: arXiv:math.AG:2606.10002</dd>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Primary Class Preprint :: cs.CL :: arXiv:cs.CL:2606.10001</dd>', $blocks);
+    },
     'carries compact biblatex csl aliases in legacy handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{alias-journal,
@@ -323,6 +411,101 @@ XML);
         $t->same('20.500/legacy', $handoff['items'][1]['HDL']);
         $t->contains('PMID 34567890', $blocks);
         $t->contains('HDL 20.500/legacy', $blocks);
+    },
+    'carries biblatex math registry identifiers in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{legacy-math-review,
+  author       = {Noether, Emmy},
+  title        = {Legacy Math Review Packet},
+  journaltitle = {Mathematical Migration Review},
+  date         = {2026},
+  mrnumber     = {MR1234567},
+  mrclass      = {11M06},
+  zbl          = {1234.56789}
+}
+
+@article{legacy-math-alias,
+  author       = {Smith, Ada},
+  title        = {Alias Math Registry Packet},
+  journaltitle = {Migration Algebra Notes},
+  date         = {2025},
+  mathscinet   = {MR7654321},
+  mr-class     = {68N15},
+  zbmath       = {9876.54321}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $review = $items['legacy-math-review'];
+        $alias = $items['legacy-math-alias'];
+
+        $t->same('MR1234567', $review['MRNumber']);
+        $t->same('11M06', $review['MRClass']);
+        $t->same('1234.56789', $review['Zbl']);
+        $t->same('MR7654321', $alias['MRNumber']);
+        $t->same('68N15', $alias['MRClass']);
+        $t->same('9876.54321', $alias['Zbl']);
+        $t->same('MR7654321', $alias['rawBibtex']['fields']['mathscinet']);
+        $t->same('68N15', $alias['rawBibtex']['fields']['mr-class']);
+        $t->same('9876.54321', $alias['rawBibtex']['fields']['zbmath']);
+        $t->same(
+            'Emmy Noether. Legacy Math Review Packet. Mathematical Migration Review. 2026. MR MR1234567. MR class 11M06. Zbl 1234.56789.',
+            $processor->renderBibliographyText($review)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Math Registry Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-math-registry-review</id>
+    <updated>2026-06-30T11:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="mr-number"/>
+        <text variable="mr-class"/>
+        <text variable="zbmath"/>
+        <text variable="registry-identifiers"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="mathscinet"/>
+      <text variable="mr-class"/>
+      <text variable="zbl"/>
+      <text variable="registry-identifier-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledReview = $styled->item('legacy-math-review');
+        $styledAlias = $styled->item('legacy-math-alias');
+        $t->same('Bounded Legacy BibLaTeX Math Registry Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('MR MR1234567; MR class 11M06; Zbl 1234.56789', $styledReview['registryIdentifierSummary'] ?? null);
+        $t->same('MR MR7654321; MR class 68N15; Zbl 9876.54321', $styledAlias['registryIdentifierSummary'] ?? null);
+        $t->same('[Legacy Math Review Packet | MR1234567 | 11M06 | 1234.56789 | MR MR1234567; MR class 11M06; Zbl 1234.56789; Alias Math Registry Packet | MR7654321 | 68N15 | 9876.54321 | MR MR7654321; MR class 68N15; Zbl 9876.54321]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-math-review', 'text' => '[@legacy-math-review]']),
+            new AstNode('citation', ['id' => 'legacy-math-alias', 'text' => '[@legacy-math-alias]']),
+        ]));
+        $t->same('Alias Math Registry Packet :: MR7654321 :: 68N15 :: 9876.54321 :: MR MR7654321; MR class 68N15; Zbl 9876.54321', $styled->renderBibliographyEntry('legacy-math-alias'));
+
+        $document = (new MarkdownReader())->read('Math registry packets [@legacy-math-review; @legacy-math-alias] keep review identifiers visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-math-review', 'legacy-math-alias'], $handoff['citedKeys']);
+        $t->same('MR1234567', $handoff['items'][0]['MRNumber'] ?? null);
+        $t->same('9876.54321', $handoff['bibliography']->children[1]->attr('cslItem')['Zbl'] ?? null);
+        $t->contains('<p>Math registry packets [Legacy Math Review Packet | MR1234567 | 11M06 | 1234.56789 | MR MR1234567; MR class 11M06; Zbl 1234.56789; Alias Math Registry Packet | MR7654321 | 68N15 | 9876.54321 | MR MR7654321; MR class 68N15; Zbl 9876.54321] keep review identifiers visible.</p>', $blocks);
+        $t->contains('<dt>Noether 2026</dt><dd>Legacy Math Review Packet :: MR1234567 :: 11M06 :: 1234.56789 :: MR MR1234567; MR class 11M06; Zbl 1234.56789</dd>', $blocks);
+        $t->contains('<dt>Smith 2025</dt><dd>Alias Math Registry Packet :: MR7654321 :: 68N15 :: 9876.54321 :: MR MR7654321; MR class 68N15; Zbl 9876.54321</dd>', $blocks);
     },
     'normalizes prefixed biblatex identifiers without losing raw fields' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -631,6 +814,7 @@ BIB;
   director       = {Director, Drew},
   illustrator    = {Ink, Inez},
   serieseditor   = {Series, Selma},
+  editortranslator = {Garcia, Gia},
   title          = {Role Handoff Chapter},
   booktitle      = {Role Review Sourcebook},
   year           = {2026}
@@ -653,7 +837,34 @@ BIB;
         $t->same('Director', $item['director'][0]['family']);
         $t->same('Ink', $item['illustrator'][0]['family']);
         $t->same('Series', $item['collection-editor'][0]['family']);
+        $t->same('Garcia', $item['editor-translator'][0]['family']);
+        $t->same('Gia', $item['editor-translator'][0]['given']);
         $t->same('Will Writer. Role Handoff Chapter. Role Review Sourcebook. 2026.', $bibliography);
+
+        $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <names variable="editor-translator"/>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="editor-translator"/>
+      <text variable="editorial-role-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('[Garcia]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'roles', 'text' => '[@roles]']),
+        ]));
+        $styledBibliography = $styled->renderBibliographyEntry('roles');
+        $t->contains('Role Handoff Chapter :: Garcia, Gia ::', $styledBibliography);
+        $t->contains('Edited and translated by Garcia, Gia.', $styledBibliography);
     },
     'carries biblatex short author editor and holder names in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -3074,6 +3285,67 @@ XML);
         $t->contains('<dt>Smith 2026</dt><dd>Legacy Review Context :: skipbib=false, useprefix=true, maxnames=3 :: variant=mexican; hyphenation=traditional :: refsection 2; refsegment migration-import :: title default: title verified; title source: OCR headline normalized; url source: archived before WordPress import :: feminine</dd>', $blocks);
         $t->true(!str_contains($blocks, '<dt>Desk 2025</dt>'), 'skipbib=true legacy BibLaTeX entries must stay out of appended bibliographies');
     },
+    'carries standalone biblatex entry option fields in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-standalone-options,
+  author         = {Smith, Ada},
+  title          = {Legacy Standalone Options},
+  date           = {2026},
+  publisher      = {Review Press},
+  options        = {skipbib=true, useauthor=true, maxnames=3},
+  labeldateparts = {year},
+  skipbib        = {false},
+  sortlocale     = {de-DE},
+  useauthor      = {false},
+  useeditor      = {true},
+  uniquelist     = {minyear},
+  uniquename     = {init}
+}
+
+@online{legacy-standalone-snapshot,
+  author    = {Desk, Review},
+  title     = {Legacy Standalone Snapshot},
+  date      = {2025},
+  dataonly  = {false},
+  skiplab   = {false},
+  useprefix = {true}
+}
+BIB;
+
+        $manualOptions = [
+            'maxnames=3',
+            'labeldateparts=year',
+            'skipbib=false',
+            'sortlocale=de-DE',
+            'useauthor=false',
+            'useeditor=true',
+            'uniquelist=minyear',
+            'uniquename=init',
+        ];
+        $snapshotOptions = ['dataonly=false', 'skiplab=false', 'useprefix=true'];
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $manual = $items['legacy-standalone-options'];
+        $snapshot = $items['legacy-standalone-snapshot'];
+
+        $t->same($manualOptions, $manual['biblatex-options']);
+        $t->same('false', $manual['rawBibtex']['fields']['skipbib']);
+        $t->same($snapshotOptions, $snapshot['biblatex-options']);
+        $t->contains(
+            'BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=false; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init',
+            $processor->renderBibliographyText($manual)
+        );
+
+        $citationProcessor = CitationCslProcessor::fromItems(array_values($items));
+        $normalized = $citationProcessor->item('legacy-standalone-options');
+        $t->same($manualOptions, $normalized['biblatexOptions'] ?? null);
+        $t->same(implode('; ', $manualOptions), $normalized['biblatexOptionSummary'] ?? null);
+        $t->contains(
+            'BibLaTeX options: maxnames=3; labeldateparts=year; skipbib=false; sortlocale=de-DE; useauthor=false; useeditor=true; uniquelist=minyear; uniquename=init.',
+            $citationProcessor->renderBibliographyEntry('legacy-standalone-options')
+        );
+    },
     'carries biblatex issue title aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-issue-title,
@@ -3176,10 +3448,14 @@ XML);
   sortname       = {Archive Desk},
   sorttitle      = {Label Manual Legacy},
   sortyear       = {2025},
+  sortinit       = {S},
+  sortinithash   = {hash-smith},
   labelprefix    = {WP},
   labelalpha     = {Smi26},
   labeltitle     = {legacy label},
-  extraalpha     = {b}
+  extraalpha     = {b},
+  extradate      = {2},
+  extratitle     = {appendix}
 }
 
 @book{fallback-shorthand,
@@ -3204,18 +3480,71 @@ BIB;
         $t->same('Archive Desk', $labels['sort-name']);
         $t->same('Label Manual Legacy', $labels['sort-title']);
         $t->same('2025', $labels['sort-year']);
+        $t->same('S', $labels['sort-initial']);
+        $t->same('hash-smith', $labels['sort-initial-hash']);
         $t->same('WP', $labels['label-prefix']);
         $t->same('Smi26', $labels['label-alpha']);
         $t->same('legacy label', $labels['label-title']);
         $t->same('b', $labels['extra-alpha']);
+        $t->same('2', $labels['extra-date']);
+        $t->same('appendix', $labels['extra-title']);
         $t->same('LLM', $labels['rawBibtex']['fields']['shorthand']);
         $t->same('010 legacy label', $labels['rawBibtex']['fields']['sortshorthand']);
+        $t->same('S', $labels['rawBibtex']['fields']['sortinit']);
+        $t->same('hash-smith', $labels['rawBibtex']['fields']['sortinithash']);
         $t->same('FSH', $fallback['citation-label']);
         $t->same('FSH', $fallback['shorthand-list-sort-key']);
         $t->same(
-            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Label prefix: WP. Extra alpha: b.',
+            'Ada Smith. Legacy Label Manual. 2026. Citation label: LLM. Shorthand intro: cited as Legacy Label Manual. Sort shorthand: 010 legacy label. Presort: aa. Sort key: 900-smith. Sort name: Archive Desk. Sort title: Label Manual Legacy. Sort year: 2025. Sort initial: S. Sort initial hash: hash-smith. Label prefix: WP. Label alpha: Smi26. Label title: legacy label. Extra alpha: b. Extra date: 2. Extra title: appendix.',
             $processor->renderBibliographyText($labels)
         );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Sort Initial Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-sort-initial-review</id>
+    <updated>2026-06-30T12:30:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="sort-initial"/>
+        <text variable="sort-initial-hash"/>
+        <text variable="label-alpha"/>
+        <text variable="label-title"/>
+        <text variable="extra-date"/>
+        <text variable="extra-title"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="sort-name"/>
+      <text variable="sort-title"/>
+      <text variable="sort-year"/>
+      <text variable="sort-initial"/>
+      <text variable="sort-initial-hash"/>
+      <text variable="label-alpha"/>
+      <text variable="label-title"/>
+      <text variable="extra-date"/>
+      <text variable="extra-title"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledLabels = $styled->item('legacy-labels');
+        $t->same('Bounded Legacy BibLaTeX Sort Initial Review', $styled->cslStyleSummary()['title'] ?? null);
+        $t->same('S', $styledLabels['sortInitial'] ?? null);
+        $t->same('hash-smith', $styledLabels['sortInitialHash'] ?? null);
+        $t->same('[Legacy Label Manual | S | hash-smith | Smi26 | legacy label | 2 | appendix]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-labels', 'text' => '[@legacy-labels]']),
+        ]));
+        $t->same('Legacy Label Manual :: Archive Desk :: Label Manual Legacy :: 2025 :: S :: hash-smith :: Smi26 :: legacy label :: 2 :: appendix', $styled->renderBibliographyEntry('legacy-labels'));
 
         $document = (new MarkdownReader())->read('Legacy label source @legacy-labels and [@fallback-shorthand] keep shorthand review metadata.');
         $handoff = $processor->citationHandoff($document, $source);
@@ -3224,8 +3553,11 @@ BIB;
 
         $t->same(['legacy-labels', 'fallback-shorthand'], $handoff['citedKeys']);
         $t->same('010 legacy label', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
+        $t->same('hash-smith', $handoff['bibliography']->children[0]->attr('cslItem')['sort-initial-hash'] ?? null);
         $t->same('FSH', $handoff['bibliography']->children[1]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->contains('Citation label: LLM', $blocks);
+        $t->contains('Sort initial hash: hash-smith', $blocks);
+        $t->contains('Label alpha: Smi26', $blocks);
         $t->contains('Fallback Shorthand Manual', $blocks);
     },
     'carries biblatex index title aliases in legacy csl handoff' => static function (TestRunner $t): void {
@@ -3325,6 +3657,12 @@ XML);
   relatedoptions        = {dataonly; skipbib},
   crossref              = {source-proceedings}
 }
+
+@online{source-appendix,
+  author                = {{Archive Desk}},
+  title                 = {Source Appendix Ledger},
+  date                  = {2025}
+}
 BIB;
 
         $processor = new BibtexCslProcessor();
@@ -3340,7 +3678,16 @@ BIB;
         $t->same('updated-by', $item['related-type']);
         $t->same('Updated source', $item['related-string']);
         $t->same('dataonly; skipbib', $item['related-options']);
+        $t->same(['source-appendix', 'source-license'], $item['relatedKeys']);
+        $t->same(['dataonly', 'skipbib'], $item['relatedOptions']);
+        $t->same('source-appendix', $item['relatedItems'][0]['id'] ?? null);
+        $t->same('webpage', $item['relatedItems'][0]['type'] ?? null);
+        $t->same('Source Appendix Ledger', $item['relatedItems'][0]['title'] ?? null);
+        $t->same([2025], $item['relatedItems'][0]['issued']['date-parts'][0] ?? null);
+        $t->same(['source-license'], $item['missingRelatedKeys']);
         $t->same('source-proceedings', $item['xref']);
+        $t->contains('Updated source (updated-by): Source Appendix Ledger (2025); missing: source-license', $processor->renderBibliographyText($item));
+        $t->contains('Related options: dataonly; skipbib', $processor->renderBibliographyText($item));
 
         $document = (new MarkdownReader())->read('Relation source [@legacy-relation] keeps relation handoff metadata.');
         $handoff = $processor->citationHandoff($document, $source);
@@ -3349,6 +3696,120 @@ BIB;
         $t->same('relation-manual', $handoff['bibliography']->children[0]->attr('cslItem')['id'] ?? null);
         $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
+        $t->same(['source-license'], $handoff['bibliography']->children[0]->attr('cslItem')['missingRelatedKeys'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Related Entry Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-related-entry-review</id>
+    <updated>2026-06-30T16:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-summary"/>
+        <text variable="related-options"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+      <text variable="related-options"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('relation-manual');
+        $t->same(['source-appendix', 'source-license'], $normalized['relatedKeys'] ?? null);
+        $t->same(['dataonly', 'skipbib'], $normalized['relatedOptions'] ?? null);
+        $t->same(['source-license'], $normalized['missingRelatedKeys'] ?? null);
+        $t->same('Source Appendix Ledger', $normalized['relatedItems'][0]['title'] ?? null);
+        $t->same('[Relation Review Manual | Updated source (updated-by): Source Appendix Ledger (2025); missing: source-license | dataonly, skipbib]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'relation-manual', 'text' => '[@relation-manual]']),
+        ]));
+        $t->same('Relation Review Manual :: Updated source (updated-by): Source Appendix Ledger (2025); missing: source-license :: dataonly, skipbib', $styled->renderBibliographyEntry('relation-manual'));
+    },
+    'carries biblatex xref entry provenance in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@collection{source-dossier,
+  options = {dataonly},
+  editor  = {Curator, Eli},
+  title   = {Source Dossier},
+  date    = {2024}
+}
+
+@incollection{xref-chapter,
+  author = {Ng, Nia},
+  title  = {Xref Chapter Review},
+  date   = {2025},
+  pages  = {7--9},
+  xref   = {source-dossier, missing-dossier}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['xref-chapter'];
+
+        $t->same('source-dossier, missing-dossier', $item['xref']);
+        $t->same(['source-dossier', 'missing-dossier'], $item['xrefKeys']);
+        $t->same('source-dossier', $item['xrefItems'][0]['id'] ?? null);
+        $t->same('Source Dossier', $item['xrefItems'][0]['title'] ?? null);
+        $t->same(true, $item['xrefItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-dossier'], $item['missingXrefKeys']);
+        $t->same('Source Dossier (2024); missing: missing-dossier', $item['xrefSummary']);
+        $t->same('source-dossier, missing-dossier', $item['rawBibtex']['fields']['xref']);
+        $t->same(
+            'Nia Ng. Xref Chapter Review. 2025. 7-9. BibLaTeX xref parent: Source Dossier (2024); missing: missing-dossier.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="xref-keys"/>
+        <text variable="xref-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="xref"/>
+      <text variable="missing-xref-keys"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('xref-chapter');
+        $t->same(['source-dossier', 'missing-dossier'], $styledItem['xrefKeys'] ?? null);
+        $t->same('Source Dossier', $styledItem['xrefItems'][0]['title'] ?? null);
+        $t->same('2024', $styledItem['xrefItems'][0]['issuedDate']['display'] ?? null);
+        $t->same(['missing-dossier'], $styledItem['missingXrefKeys'] ?? null);
+        $t->same('[Xref Chapter Review | source-dossier, missing-dossier | Xref: Source Dossier (2024); missing: missing-dossier]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'xref-chapter', 'text' => '[@xref-chapter]']),
+        ]));
+        $t->same('Xref Chapter Review :: Source Dossier (2024); missing: missing-dossier :: missing-dossier', $styled->renderBibliographyEntry('xref-chapter'));
+
+        $document = (new MarkdownReader())->read('Xref source [@xref-chapter] keeps see-also parent metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['xref-chapter'], $handoff['citedKeys']);
+        $t->same('Source Dossier (2024); missing: missing-dossier', $handoff['items'][0]['xrefSummary'] ?? null);
+        $t->same(['missing-dossier'], $handoff['bibliography']->children[0]->attr('cslItem')['missingXrefKeys'] ?? null);
+        $t->contains('BibLaTeX xref parent: Source Dossier (2024); missing: missing-dossier', $blocks);
     },
     'carries biblatex related entry provenance in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
@@ -3391,7 +3852,7 @@ BIB;
         $t->same('skipbib=true, dataonly=false', $item['related-options']);
         $t->same('source-packet, license-packet, missing-related', $item['rawBibtex']['fields']['related']);
         $t->same(
-            'Mia Mapper. Related Review Manual. 2026. BibLaTeX related sources: Reviews source packet (reviewof): Source Packet (2025-04-01); License Packet (2024); missing: missing-related.',
+            'Mia Mapper. Related Review Manual. 2026. Related options: skipbib=true; dataonly=false. BibLaTeX related sources: Reviews source packet (reviewof): Source Packet (2025-04-01); License Packet (2024); missing: missing-related.',
             $processor->renderBibliographyText($item)
         );
 
@@ -3734,6 +4195,101 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries biblatex url label aliases in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{described-url,
+  author         = {Ng, Nia},
+  title          = {URL Description Packet},
+  date           = {2026},
+  url            = {https://example.test/described-url},
+  urldescription = {primary source snapshot}
+}
+
+@misc{title-url,
+  author   = {Roe, Pat},
+  title    = {URL Title Packet},
+  year     = {2025},
+  url      = {https://example.test/title-url},
+  urltitle = {display caption}
+}
+
+@misc{hyphen-label,
+  author    = {Desk, Archive},
+  title     = {Hyphen URL Label Packet},
+  date      = {2024},
+  url       = {https://example.test/hyphen-label},
+  url-label = {archived landing page}
+}
+
+@misc{label-only,
+  title    = {Label Only URL Metadata},
+  date     = {2023},
+  urltitle = {missing URL caption}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $described = $items['described-url'];
+        $title = $items['title-url'];
+        $hyphen = $items['hyphen-label'];
+        $labelOnly = $items['label-only'];
+
+        $t->same('primary source snapshot', $described['URL-label']);
+        $t->same('display caption', $title['URL-label']);
+        $t->same('archived landing page', $hyphen['URL-label']);
+        $t->same('missing URL caption', $labelOnly['URL-label']);
+        $t->same('primary source snapshot', $described['rawBibtex']['fields']['urldescription']);
+        $t->same('display caption', $title['rawBibtex']['fields']['urltitle']);
+        $t->same('archived landing page', $hyphen['rawBibtex']['fields']['url-label']);
+        $t->same('Label Only URL Metadata. 2023. URL label: missing URL caption.', $processor->renderBibliographyText($labelOnly));
+        $t->same(
+            'Nia Ng. URL Description Packet. 2026. URL label: primary source snapshot. https://example.test/described-url.',
+            $processor->renderBibliographyText($described)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="url-label"/>
+        <text variable="url"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="url-description"/>
+      <text variable="url"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $t->same('primary source snapshot', $styled->item('described-url')['urlLabel'] ?? null);
+        $t->same('[URL Description Packet | primary source snapshot | https://example.test/described-url; URL Title Packet | display caption | https://example.test/title-url; Hyphen URL Label Packet | archived landing page | https://example.test/hyphen-label]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'described-url', 'text' => '[@described-url]']),
+            new AstNode('citation', ['id' => 'title-url', 'text' => '[@title-url]']),
+            new AstNode('citation', ['id' => 'hyphen-label', 'text' => '[@hyphen-label]']),
+        ]));
+        $t->same('URL Description Packet :: primary source snapshot :: https://example.test/described-url', $styled->renderBibliographyEntry('described-url'));
+
+        $document = (new MarkdownReader())->read('URL labels cite @described-url, [@title-url], and @hyphen-label.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $bibliographyDocument = new AstNode('document', [], [$handoff['bibliography']]);
+        $blocks = (new WordPressBlockWriter())->write($bibliographyDocument);
+
+        $t->same(['described-url', 'title-url', 'hyphen-label'], $handoff['citedKeys']);
+        $t->same('primary source snapshot', $handoff['items'][0]['URL-label']);
+        $t->same('display caption', $handoff['bibliography']->children[1]->attr('cslItem')['URL-label'] ?? null);
+        $t->contains('URL label: primary source snapshot', $blocks);
+        $t->contains('URL label: display caption', $blocks);
+        $t->contains('URL label: archived landing page', $blocks);
+    },
     'carries legacy biblatex label date metadata in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-label-date,
@@ -3849,9 +4405,11 @@ BIB;
         $t->same([2023], $split['label-date']['date-parts'][0]);
         $t->same('2025-04-03', $window['rawBibtex']['fields']['availabledate']);
         $t->same('2024', $split['rawBibtex']['fields']['submittedyear']);
+        $t->same('2023', $split['rawBibtex']['fields']['labelyear']);
         $t->contains('Available date: 2025-04-03', $processor->renderBibliographyText($window));
         $t->contains('Submitted date: 2024-03-09', $processor->renderBibliographyText($window));
         $t->contains('Label date: 2026-05', $processor->renderBibliographyText($window));
+        $t->contains('Submitted date: 2024-03', $processor->renderBibliographyText($split));
 
         $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -3859,7 +4417,7 @@ BIB;
   <info>
     <title>Bounded Legacy BibLaTeX Review Window Date Review</title>
     <id>https://example.test/styles/bounded-legacy-biblatex-review-window-date-review</id>
-    <updated>2026-06-29T00:00:00+00:00</updated>
+    <updated>2026-06-30T12:32:00+00:00</updated>
   </info>
   <citation>
     <layout prefix="[" suffix="]" delimiter="; ">
@@ -3888,6 +4446,7 @@ XML);
         $t->same('Bounded Legacy BibLaTeX Review Window Date Review', $summary['title'] ?? null);
         $t->same([2025, 4, 3], $styledWindow['availableDate']['parts'] ?? null);
         $t->same([2024, 3], $styledSplit['submittedDate']['parts'] ?? null);
+        $t->same([2023], $styledSplit['labelDate']['parts'] ?? null);
         $t->same('[Availability Window Packet | 2025-04-03 | 2024-03-09 | 2026-05; Split Window Packet | 2025-04-05 | 2024-03 | 2023]', $styled->renderCitationCluster([
             new AstNode('citation', ['id' => 'legacy-review-window', 'text' => '[@legacy-review-window]']),
             new AstNode('citation', ['id' => 'legacy-split-window', 'text' => '[@legacy-split-window]']),

@@ -18,6 +18,7 @@ final class XmlHtmlDom
     private const XML_NAMESPACE_SCOPE_MAX_ELEMENTS = 64;
     private const XML_NAMESPACE_DECLARATION_MAX_RECORDS = 128;
     private const XML_NAMESPACE_REVIEW_MAX_ITEMS = 25;
+    private const HTML_BASE_REVIEW_MAX_HREF_CANDIDATES = 25;
 
     /** @var array<string, true> */
     private const JATS_FIGURE_MEDIA_ELEMENTS = [
@@ -15428,13 +15429,14 @@ final class XmlHtmlDom
                 'documentMetadata' => 'base',
                 'href' => self::attributeOrNull($element, 'href'),
                 'target' => self::attributeOrNull($element, 'target'),
-            ];
+            ] + self::baseElementReviewSummary($element);
         }
 
         if ($name === 'link') {
             $relRaw = self::attributeOrNull($element, 'rel');
             $imageSrcset = self::attributeOrNull($element, 'imagesrcset');
             $imageSizes = self::attributeOrNull($element, 'imagesizes');
+            $media = self::attributeOrNull($element, 'media');
             $blockingRaw = self::attributeOrNull($element, 'blocking');
 
             $summary = [
@@ -15443,7 +15445,7 @@ final class XmlHtmlDom
                 'relRaw' => $relRaw,
                 'relTokens' => $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw),
                 'as' => self::attributeOrNull($element, 'as'),
-                'media' => self::attributeOrNull($element, 'media'),
+                'media' => $media,
                 'hreflang' => self::attributeOrNull($element, 'hreflang'),
                 'mimeType' => self::attributeOrNull($element, 'type'),
                 'crossorigin' => self::attributeOrNull($element, 'crossorigin'),
@@ -15461,7 +15463,9 @@ final class XmlHtmlDom
             return $summary
                 + self::linkResourceReviewSummary($element, $relRaw)
                 + self::srcsetResourceReviewSummary($imageSrcset, 'imageSrcset')
-                + self::sourceSizesReviewSummary($imageSizes, 'imageSizes');
+                + self::sourceSizesReviewSummary($imageSizes, 'imageSizes')
+                + self::responsiveMediaReviewSummary($media, 'media')
+                + self::responsiveSizesReviewSummary($imageSizes, 'responsiveImageSizes');
         }
 
         $content = self::attributeOrNull($element, 'content');
@@ -15494,6 +15498,219 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function baseElementReviewSummary(\DOMElement $base): array
+    {
+        $hrefRaw = self::attributeOrNull($base, 'href');
+        $hrefSummary = self::hyperlinkUrlReviewSummary($hrefRaw);
+        $targetRaw = self::attributeOrNull($base, 'target');
+        $targetSummary = self::baseTargetReviewSummary($targetRaw);
+        $baseElements = self::documentBaseElements($base);
+        $currentIndex = null;
+        $firstHrefIndex = null;
+        $firstTargetIndex = null;
+        $hrefBaseCount = 0;
+        $targetBaseCount = 0;
+        $effectiveHref = null;
+        $effectiveTarget = null;
+
+        foreach ($baseElements as $index => $candidate) {
+            if ($candidate->isSameNode($base)) {
+                $currentIndex = $index;
+            }
+            if ($candidate->hasAttribute('href')) {
+                ++$hrefBaseCount;
+                if ($firstHrefIndex === null) {
+                    $firstHrefIndex = $index;
+                    $effectiveHref = self::attributeOrNull($candidate, 'href');
+                }
+            }
+            if ($candidate->hasAttribute('target')) {
+                ++$targetBaseCount;
+                if ($firstTargetIndex === null) {
+                    $firstTargetIndex = $index;
+                    $effectiveTarget = self::attributeOrNull($candidate, 'target');
+                }
+            }
+        }
+
+        $hrefPresent = $base->hasAttribute('href');
+        $targetPresent = $base->hasAttribute('target');
+        $hrefEffective = $hrefPresent && $currentIndex !== null && $currentIndex === $firstHrefIndex;
+        $targetEffective = $targetPresent && $currentIndex !== null && $currentIndex === $firstTargetIndex;
+        $hrefCandidates = self::baseHrefAffectedCandidates($base);
+        $issues = [];
+
+        if (($hrefSummary['unsafe'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'unsafe-base-href',
+                'href' => $hrefRaw,
+                'scheme' => $hrefSummary['scheme'],
+            ];
+        }
+        if ($hrefPresent && !$hrefEffective) {
+            $issues[] = [
+                'code' => 'duplicate-base-href-ignored',
+                'effectiveBaseIndex' => $firstHrefIndex,
+                'currentBaseIndex' => $currentIndex,
+            ];
+        }
+        if ($targetPresent && ($targetSummary['baseTargetValid'] ?? null) !== true) {
+            $issues[] = [
+                'code' => 'invalid-base-target',
+                'targetRaw' => $targetRaw,
+            ];
+        }
+        if ($targetPresent && !$targetEffective) {
+            $issues[] = [
+                'code' => 'duplicate-base-target-ignored',
+                'effectiveBaseIndex' => $firstTargetIndex,
+                'currentBaseIndex' => $currentIndex,
+            ];
+        }
+
+        return [
+            'baseReviewPolicy' => 'html-base-url-target-review',
+            'baseHrefRaw' => $hrefRaw,
+            'baseHrefPresent' => $hrefPresent,
+            'baseHrefKind' => $hrefSummary['kind'],
+            'baseHrefScheme' => $hrefSummary['scheme'],
+            'baseHrefUnsafe' => $hrefSummary['unsafe'],
+            'baseHrefEffective' => $hrefEffective,
+            'baseHrefIgnored' => $hrefPresent && !$hrefEffective,
+            'baseTargetRaw' => $targetRaw,
+            'baseTargetPresent' => $targetPresent,
+            'baseTargetEffective' => $targetEffective,
+            'baseTargetIgnored' => $targetPresent && !$targetEffective,
+            'baseDocumentBaseCount' => count($baseElements),
+            'baseDocumentBaseIndex' => $currentIndex,
+            'baseDocumentHrefBaseCount' => $hrefBaseCount,
+            'baseDocumentTargetBaseCount' => $targetBaseCount,
+            'baseDocumentEffectiveHrefIndex' => $firstHrefIndex,
+            'baseDocumentEffectiveTargetIndex' => $firstTargetIndex,
+            'baseDocumentEffectiveHref' => $effectiveHref,
+            'baseDocumentEffectiveTarget' => $effectiveTarget,
+            'baseHrefAffectsRelativeLinks' => $hrefEffective && $hrefRaw !== null && ($hrefSummary['unsafe'] ?? false) !== true,
+            'baseHrefAffectedCandidateCount' => $hrefCandidates['count'],
+            'baseHrefAffectedCandidates' => $hrefCandidates['items'],
+            'baseHrefAffectedCandidateOverflow' => $hrefCandidates['overflow'],
+            'baseHrefAffectedCandidateIds' => $hrefCandidates['ids'],
+            'baseIssues' => $issues,
+            'baseIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'baseValid' => $issues === [],
+            'baseReviewOnlyNoUrlResolution' => true,
+        ] + $targetSummary;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function documentBaseElements(\DOMElement $context): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $baseElements = [];
+        foreach ($document->getElementsByTagName('base') as $candidate) {
+            if ($candidate instanceof \DOMElement) {
+                $baseElements[] = $candidate;
+            }
+        }
+
+        return $baseElements;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function baseTargetReviewSummary(?string $targetRaw): array
+    {
+        $targetName = $targetRaw === null ? null : trim($targetRaw);
+        $targetLower = $targetName === null ? null : strtolower($targetName);
+        $targetValid = $targetRaw === null
+            ? null
+            : ($targetName !== '' && preg_match('/[\t\n\f\r<]/', $targetRaw) !== 1);
+
+        return [
+            'baseTargetName' => $targetName === '' ? null : $targetName,
+            'baseTargetReserved' => in_array($targetLower, ['_blank', '_parent', '_self', '_top'], true),
+            'baseTargetBlank' => $targetLower === '_blank',
+            'baseTargetValid' => $targetValid,
+            'baseTargetFallbackName' => $targetValid === false ? '_blank' : null,
+        ];
+    }
+
+    /**
+     * @return array{count:int, items:list<array<string, mixed>>, overflow:bool, ids:list<string>}
+     */
+    private static function baseHrefAffectedCandidates(\DOMElement $base): array
+    {
+        $document = $base->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return ['count' => 0, 'items' => [], 'overflow' => false, 'ids' => []];
+        }
+
+        $items = [];
+        $ids = [];
+        $count = 0;
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || $candidate->isSameNode($base)) {
+                continue;
+            }
+
+            $name = self::htmlElementName($candidate);
+            if (!in_array($name, ['a', 'area', 'link'], true) || !$candidate->hasAttribute('href')) {
+                continue;
+            }
+
+            $href = $candidate->getAttribute('href');
+            $hrefSummary = self::hyperlinkUrlReviewSummary($href);
+            if (!in_array($hrefSummary['kind'], ['relative', 'fragment', 'scheme-relative'], true)) {
+                continue;
+            }
+
+            ++$count;
+            $id = self::attributeOrNull($candidate, 'id');
+            if ($id !== null && $id !== '' && !in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+            if (count($items) >= self::HTML_BASE_REVIEW_MAX_HREF_CANDIDATES) {
+                continue;
+            }
+
+            $record = [
+                'tag' => $name,
+                'id' => $id,
+                'href' => $href,
+                'hrefKind' => $hrefSummary['kind'],
+                'hrefScheme' => $hrefSummary['scheme'],
+            ];
+            if ($name === 'link') {
+                $relRaw = self::attributeOrNull($candidate, 'rel');
+                $record['relTokens'] = $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw);
+            } elseif ($name === 'area') {
+                $record['alt'] = self::attributeOrNull($candidate, 'alt');
+            } else {
+                $record['text'] = self::normalizedText($candidate);
+            }
+            $items[] = $record;
+        }
+
+        return [
+            'count' => $count,
+            'items' => $items,
+            'overflow' => $count > count($items),
+            'ids' => $ids,
+        ];
     }
 
     /**
@@ -19886,9 +20103,11 @@ final class XmlHtmlDom
         }
 
         if (array_key_exists('tabindex', $attributes)) {
+            $tabIndex = self::integerAttribute($element, 'tabindex', null);
             $summary['tabIndexRaw'] = $attributes['tabindex'];
-            $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
-            $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
+            $summary['tabIndex'] = $tabIndex;
+            $summary['tabIndexValid'] = $tabIndex !== null;
+            $summary += self::tabIndexReviewSummary($element, $attributes['tabindex'], $tabIndex);
         }
 
         if (array_key_exists('inputmode', $attributes)) {
@@ -21163,6 +21382,8 @@ final class XmlHtmlDom
             'effectiveHiddenKeyword' => $keyword,
             'effectiveHiddenState' => $state,
             'effectiveHidden' => true,
+            'effectiveHiddenValid' => $keyword !== null,
+            'effectiveHiddenInvalidValueDefaulted' => $keyword === null,
             'effectiveHiddenUntilFound' => $state === 'until-found',
             'hiddenInherited' => $inherited,
             'hiddenSource' => $inherited ? 'ancestor-hidden' : 'self-hidden',
@@ -23487,6 +23708,230 @@ final class XmlHtmlDom
         }
 
         return 'element';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tabIndexReviewSummary(\DOMElement $element, string $raw, ?int $value): array
+    {
+        $candidates = self::tabIndexCandidateSummaries($element);
+        $currentIndex = null;
+        foreach ($candidates as $candidate) {
+            if (($candidate['current'] ?? false) === true) {
+                $currentIndex = (int) $candidate['index'];
+                break;
+            }
+        }
+
+        $positiveCandidates = array_values(array_filter(
+            $candidates,
+            static fn (array $candidate): bool => ($candidate['positiveOrderCandidate'] ?? false) === true
+        ));
+        usort($positiveCandidates, static function (array $left, array $right): int {
+            $byValue = ((int) ($left['value'] ?? 0)) <=> ((int) ($right['value'] ?? 0));
+
+            return $byValue !== 0 ? $byValue : ((int) ($left['index'] ?? 0)) <=> ((int) ($right['index'] ?? 0));
+        });
+
+        $zeroCandidates = self::tabIndexCandidatesByState($candidates, 'zero');
+        $negativeCandidates = self::tabIndexCandidatesByState($candidates, 'negative');
+        $invalidCandidates = self::tabIndexCandidatesByState($candidates, 'invalid');
+        $sameValueCandidates = $value === null ? [] : array_values(array_filter(
+            $candidates,
+            static fn (array $candidate): bool => ($candidate['valid'] ?? false) === true
+                && ($candidate['value'] ?? null) === $value
+        ));
+        $duplicatePositiveValue = $value !== null && $value > 0 && count($sameValueCandidates) > 1;
+        $effectiveDisabled = self::isFormControlElement($element) && self::isEffectivelyDisabledFormControl($element);
+        $issues = [];
+
+        if ($value === null) {
+            $issues[] = [
+                'code' => 'invalid-html-tabindex',
+                'tabIndexRaw' => $raw,
+            ];
+        } elseif ($value > 0) {
+            $issues[] = [
+                'code' => 'positive-html-tabindex-focus-order',
+                'tabIndex' => $value,
+            ];
+        }
+        if ($duplicatePositiveValue) {
+            $issues[] = [
+                'code' => 'duplicate-positive-html-tabindex-value',
+                'tabIndex' => $value,
+                'count' => count($sameValueCandidates),
+            ];
+        }
+        if ($effectiveDisabled) {
+            $issues[] = [
+                'code' => 'disabled-tabindex-focus-candidate',
+                'tabIndex' => $value,
+            ];
+        }
+
+        $valid = $value !== null;
+        $focusable = $valid && !$effectiveDisabled;
+
+        return [
+            'tabIndexReviewPolicy' => 'html-tabindex-focus-order-review',
+            'tabIndexState' => self::tabIndexState($value),
+            'tabIndexFocusable' => $focusable,
+            'tabIndexSequentialFocusCandidate' => $focusable && $value >= 0,
+            'tabIndexProgrammaticFocusCandidate' => $focusable,
+            'tabIndexPositiveOrderCandidate' => $focusable && $value > 0,
+            'tabIndexDisabledSuppressed' => $effectiveDisabled,
+            'tabIndexDocumentCandidateIndex' => $currentIndex,
+            'tabIndexDocumentCandidateCount' => count($candidates),
+            'tabIndexCandidateIds' => self::tabIndexCandidateIds($candidates),
+            'tabIndexPositiveCandidateCount' => count($positiveCandidates),
+            'tabIndexPositiveCandidateIds' => self::tabIndexCandidateIds($positiveCandidates),
+            'tabIndexPositiveCandidates' => $positiveCandidates,
+            'tabIndexZeroCandidateCount' => count($zeroCandidates),
+            'tabIndexZeroCandidateIds' => self::tabIndexCandidateIds($zeroCandidates),
+            'tabIndexNegativeCandidateCount' => count($negativeCandidates),
+            'tabIndexNegativeCandidateIds' => self::tabIndexCandidateIds($negativeCandidates),
+            'tabIndexInvalidCandidateCount' => count($invalidCandidates),
+            'tabIndexInvalidCandidateIds' => self::tabIndexCandidateIds($invalidCandidates),
+            'tabIndexSameValueCandidateCount' => count($sameValueCandidates),
+            'tabIndexSameValueCandidateIds' => self::tabIndexCandidateIds($sameValueCandidates),
+            'tabIndexSameValueCandidates' => $sameValueCandidates,
+            'tabIndexDuplicatePositiveValue' => $duplicatePositiveValue,
+            'tabIndexCandidates' => $candidates,
+            'tabIndexIssues' => $issues,
+            'tabIndexIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'tabIndexBrowserFocusNavigation' => false,
+            'tabIndexReviewHandoffPolicy' => 'metadata-only-no-browser-focus-navigation',
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function tabIndexCandidateSummaries(\DOMElement $context): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $candidates = [];
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || !$candidate->hasAttribute('tabindex')) {
+                continue;
+            }
+
+            $candidates[] = self::tabIndexCandidateSummary($candidate, count($candidates), $candidate->isSameNode($context));
+        }
+
+        return $candidates;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function tabIndexCandidateSummary(\DOMElement $element, int $index, bool $current): array
+    {
+        $name = self::htmlElementName($element);
+        $value = self::integerAttribute($element, 'tabindex', null);
+        $isControl = self::isFormControlElement($element);
+        $effectiveDisabled = $isControl && self::isEffectivelyDisabledFormControl($element);
+        $valid = $value !== null;
+        $focusable = $valid && !$effectiveDisabled;
+        $summary = [
+            'index' => $index,
+            'tag' => $name,
+            'id' => self::attributeOrNull($element, 'id'),
+            'raw' => $element->getAttribute('tabindex'),
+            'value' => $value,
+            'valid' => $valid,
+            'state' => self::tabIndexState($value),
+            'kind' => self::tabIndexCandidateKind($element, $name, $isControl),
+            'formControl' => $isControl,
+            'effectiveDisabled' => $effectiveDisabled,
+            'focusable' => $focusable,
+            'sequentialFocusCandidate' => $focusable && $value >= 0,
+            'programmaticFocusCandidate' => $focusable,
+            'positiveOrderCandidate' => $focusable && $value > 0,
+            'current' => $current,
+            'text' => self::normalizedText($element),
+        ];
+
+        if ($name === 'input') {
+            $summary['inputType'] = self::inputType($element);
+            $summary['controlName'] = self::attributeOrNull($element, 'name');
+            $summary['valueAttribute'] = self::attributeOrNull($element, 'value');
+        } elseif ($name === 'button') {
+            $summary['buttonType'] = self::buttonType($element);
+            $summary['controlName'] = self::attributeOrNull($element, 'name');
+            $summary['valueAttribute'] = self::attributeOrNull($element, 'value');
+            $summary['label'] = self::normalizedText($element);
+        } elseif ($name === 'textarea') {
+            $summary['controlName'] = self::attributeOrNull($element, 'name');
+            $summary['value'] = $element->textContent;
+        } elseif (($name === 'a' || $name === 'area') && $element->hasAttribute('href')) {
+            $summary['href'] = $element->getAttribute('href');
+        }
+
+        return $summary;
+    }
+
+    private static function tabIndexState(?int $value): string
+    {
+        if ($value === null) {
+            return 'invalid';
+        }
+        if ($value > 0) {
+            return 'positive';
+        }
+        if ($value === 0) {
+            return 'zero';
+        }
+
+        return 'negative';
+    }
+
+    private static function tabIndexCandidateKind(\DOMElement $element, string $name, bool $isControl): string
+    {
+        if ($isControl) {
+            return 'form-control';
+        }
+        if (($name === 'a' || $name === 'area') && $element->hasAttribute('href')) {
+            return 'hyperlink';
+        }
+        if (in_array($name, ['iframe', 'object', 'embed'], true)) {
+            return 'embedded';
+        }
+
+        return 'tabindex';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $candidates
+     * @return list<array<string, mixed>>
+     */
+    private static function tabIndexCandidatesByState(array $candidates, string $state): array
+    {
+        return array_values(array_filter(
+            $candidates,
+            static fn (array $candidate): bool => ($candidate['state'] ?? null) === $state
+        ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $candidates
+     * @return list<string>
+     */
+    private static function tabIndexCandidateIds(array $candidates): array
+    {
+        return array_values(array_filter(
+            array_map(static fn (array $candidate): ?string => $candidate['id'] ?? null, $candidates),
+            static fn (?string $id): bool => $id !== null && $id !== ''
+        ));
     }
 
     /**
@@ -26646,15 +27091,55 @@ final class XmlHtmlDom
      */
     private static function progressMeasurementSummary(\DOMElement $progress, bool $includeLabels): array
     {
-        $max = self::positiveNumericAttribute($progress, 'max', 1.0);
-        $value = self::numericAttribute($progress, 'value', null);
-        $value = $value === null ? null : self::boundedNumber($value, 0.0, $max);
+        $maxRaw = self::attributeOrNull($progress, 'max');
+        $maxParsed = $maxRaw === null ? null : self::finiteNumericToken($maxRaw);
+        $max = $maxParsed !== null && $maxParsed > 0.0 ? $maxParsed : 1.0;
+        $valueRaw = self::attributeOrNull($progress, 'value');
+        $valueParsed = $valueRaw === null ? null : self::finiteNumericToken($valueRaw);
+        $value = $valueParsed === null ? null : self::boundedNumber($valueParsed, 0.0, $max);
+        $issues = [];
+        if ($maxRaw !== null && $maxParsed === null) {
+            $issues[] = ['code' => 'invalid-progress-max', 'maxRaw' => $maxRaw];
+        } elseif ($maxParsed !== null && $maxParsed <= 0.0) {
+            $issues[] = ['code' => 'non-positive-progress-max', 'maxRaw' => $maxRaw, 'max' => $maxParsed];
+        }
+        if ($valueRaw !== null && $valueParsed === null) {
+            $issues[] = ['code' => 'invalid-progress-value', 'valueRaw' => $valueRaw];
+        } elseif ($valueParsed !== null && $valueParsed < 0.0) {
+            $issues[] = ['code' => 'progress-value-underflow', 'value' => $valueParsed];
+        } elseif ($valueParsed !== null && $valueParsed > $max) {
+            $issues[] = ['code' => 'progress-value-overflow', 'value' => $valueParsed, 'max' => $max];
+        }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
         $summary = [
             'measurement' => 'progress',
             'value' => $value,
             'max' => $max,
             'position' => $value === null ? null : $value / $max,
             'indeterminate' => $value === null,
+            'progressReviewPolicy' => 'progress-element-static-value-review',
+            'progressMaxRaw' => $maxRaw,
+            'progressMaxParsed' => $maxParsed,
+            'progressMax' => $max,
+            'progressMaxValid' => $maxRaw === null ? null : ($maxParsed !== null && $maxParsed > 0.0),
+            'progressMaxDefaulted' => $maxRaw === null || $maxParsed === null || $maxParsed <= 0.0,
+            'progressValueRaw' => $valueRaw,
+            'progressValueParsed' => $valueParsed,
+            'progressValue' => $value,
+            'progressValueValid' => $valueRaw === null ? null : $valueParsed !== null,
+            'progressValueDefaulted' => $valueRaw === null || $valueParsed === null,
+            'progressValueUnderflow' => $valueParsed !== null && $valueParsed < 0.0,
+            'progressValueOverflow' => $valueParsed !== null && $valueParsed > $max,
+            'progressValueClamped' => $valueParsed !== null && $value !== $valueParsed,
+            'progressPosition' => $value === null ? null : $value / $max,
+            'progressIndeterminate' => $value === null,
+            'progressReviewOnlyNoBrowserValidation' => true,
+            'progressIssues' => $issues,
+            'progressIssueCodes' => $issueCodes,
+            'progressValid' => $issues === [],
         ];
 
         if ($includeLabels) {
@@ -26669,17 +27154,113 @@ final class XmlHtmlDom
      */
     private static function meterMeasurementSummary(\DOMElement $meter, bool $includeLabels): array
     {
-        $min = self::numericAttribute($meter, 'min', 0.0) ?? 0.0;
-        $max = self::numericAttribute($meter, 'max', 1.0) ?? 1.0;
-        if ($max < $min) {
+        $minRaw = self::attributeOrNull($meter, 'min');
+        $minParsed = $minRaw === null ? null : self::finiteNumericToken($minRaw);
+        $min = $minParsed ?? 0.0;
+        $maxRaw = self::attributeOrNull($meter, 'max');
+        $maxParsed = $maxRaw === null ? null : self::finiteNumericToken($maxRaw);
+        $maxCandidate = $maxParsed ?? 1.0;
+        $max = $maxCandidate;
+        if ($maxCandidate < $min) {
             $max = $min;
         }
+        $valueRaw = self::attributeOrNull($meter, 'value');
+        $valueParsed = $valueRaw === null ? null : self::finiteNumericToken($valueRaw);
+        $valueCandidate = $valueParsed ?? $min;
+        $value = self::boundedNumber($valueCandidate, $min, $max);
+
+        $lowRaw = self::attributeOrNull($meter, 'low');
+        $lowParsed = $lowRaw === null ? null : self::finiteNumericToken($lowRaw);
+        $highRaw = self::attributeOrNull($meter, 'high');
+        $highParsed = $highRaw === null ? null : self::finiteNumericToken($highRaw);
+        $optimumRaw = self::attributeOrNull($meter, 'optimum');
+        $optimumParsed = $optimumRaw === null ? null : self::finiteNumericToken($optimumRaw);
+        $lowBoundary = $lowParsed === null ? $min : self::boundedNumber($lowParsed, $min, $max);
+        $highBoundary = $highParsed === null ? $max : self::boundedNumber($highParsed, $min, $max);
+        $optimumCandidate = $optimumParsed ?? (($min + $max) / 2.0);
+        $optimumEffective = self::boundedNumber($optimumCandidate, $min, $max);
+        $thresholdOrderValid = $lowParsed === null || $highParsed === null || $lowParsed <= $highParsed;
+        $issues = [];
+        if ($minRaw !== null && $minParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-min', 'minRaw' => $minRaw];
+        }
+        if ($maxRaw !== null && $maxParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-max', 'maxRaw' => $maxRaw];
+        } elseif ($maxParsed !== null && $maxParsed < $min) {
+            $issues[] = ['code' => 'meter-max-less-than-min', 'min' => $min, 'max' => $maxParsed];
+        }
+        if ($valueRaw !== null && $valueParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-value', 'valueRaw' => $valueRaw];
+        } elseif ($valueParsed !== null && $valueParsed < $min) {
+            $issues[] = ['code' => 'meter-value-underflow', 'value' => $valueParsed, 'min' => $min];
+        } elseif ($valueParsed !== null && $valueParsed > $max) {
+            $issues[] = ['code' => 'meter-value-overflow', 'value' => $valueParsed, 'max' => $max];
+        }
+        if ($lowRaw !== null && $lowParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-low', 'lowRaw' => $lowRaw];
+        }
+        if ($highRaw !== null && $highParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-high', 'highRaw' => $highRaw];
+        }
+        if ($optimumRaw !== null && $optimumParsed === null) {
+            $issues[] = ['code' => 'invalid-meter-optimum', 'optimumRaw' => $optimumRaw];
+        }
+        if (!$thresholdOrderValid) {
+            $issues[] = [
+                'code' => 'meter-low-greater-than-high',
+                'low' => $lowParsed,
+                'high' => $highParsed,
+            ];
+        }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         $summary = [
             'measurement' => 'meter',
             'min' => $min,
             'max' => $max,
-            'value' => self::boundedNumber(self::numericAttribute($meter, 'value', $min) ?? $min, $min, $max),
+            'value' => $value,
+            'meterReviewPolicy' => 'meter-element-static-range-review',
+            'meterMinRaw' => $minRaw,
+            'meterMinParsed' => $minParsed,
+            'meterMin' => $min,
+            'meterMinValid' => $minRaw === null ? null : $minParsed !== null,
+            'meterMinDefaulted' => $minRaw === null || $minParsed === null,
+            'meterMaxRaw' => $maxRaw,
+            'meterMaxParsed' => $maxParsed,
+            'meterMax' => $max,
+            'meterMaxValid' => $maxRaw === null ? null : $maxParsed !== null,
+            'meterMaxDefaulted' => $maxRaw === null || $maxParsed === null,
+            'meterMaxAdjustedToMin' => $maxCandidate < $min,
+            'meterValueRaw' => $valueRaw,
+            'meterValueParsed' => $valueParsed,
+            'meterValue' => $value,
+            'meterValueValid' => $valueRaw === null ? null : $valueParsed !== null,
+            'meterValueDefaulted' => $valueRaw === null || $valueParsed === null,
+            'meterValueUnderflow' => $valueParsed !== null && $valueParsed < $min,
+            'meterValueOverflow' => $valueParsed !== null && $valueParsed > $max,
+            'meterValueClamped' => $valueParsed !== null && $value !== $valueParsed,
+            'meterLowRaw' => $lowRaw,
+            'meterLowParsed' => $lowParsed,
+            'meterLowBoundary' => $lowBoundary,
+            'meterLowValid' => $lowRaw === null ? null : $lowParsed !== null,
+            'meterHighRaw' => $highRaw,
+            'meterHighParsed' => $highParsed,
+            'meterHighBoundary' => $highBoundary,
+            'meterHighValid' => $highRaw === null ? null : $highParsed !== null,
+            'meterOptimumRaw' => $optimumRaw,
+            'meterOptimumParsed' => $optimumParsed,
+            'meterOptimumEffective' => $optimumEffective,
+            'meterOptimumValid' => $optimumRaw === null ? null : $optimumParsed !== null,
+            'meterThresholdOrderValid' => $thresholdOrderValid,
+            'meterValueZone' => self::meterRangeZone($value, $lowBoundary, $highBoundary),
+            'meterOptimumZone' => self::meterRangeZone($optimumEffective, $lowBoundary, $highBoundary),
+            'meterReviewOnlyNoBrowserValidation' => true,
+            'meterIssues' => $issues,
+            'meterIssueCodes' => $issueCodes,
+            'meterValid' => $issues === [],
         ];
 
         if ($includeLabels) {
@@ -26694,6 +27275,20 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    private static function meterRangeZone(float $value, float $low, float $high): string
+    {
+        $lower = min($low, $high);
+        $upper = max($low, $high);
+        if ($value < $lower) {
+            return 'below-low';
+        }
+        if ($value > $upper) {
+            return 'above-high';
+        }
+
+        return 'between-low-high';
     }
 
     /**
@@ -28054,6 +28649,7 @@ final class XmlHtmlDom
         $summary += self::imageLoadingReviewSummary($image);
         $summary += self::srcsetResourceReviewSummary($srcset, 'srcset');
         $summary += self::sourceSizesReviewSummary($sizes, 'sizes');
+        $summary += self::responsiveSizesReviewSummary($sizes, 'responsiveSizes');
 
         if ($image->hasAttribute('usemap')) {
             $useMap = self::useMapAttributeSummary($image->getAttribute('usemap'));
@@ -28096,23 +28692,27 @@ final class XmlHtmlDom
                 $policyAttributes[] = $attribute;
             }
         }
-        $issueCodes = [];
+        $issues = [];
 
         if ($loadingRaw !== null && $loading === null) {
-            $issueCodes[] = 'invalid-image-loading';
+            $issues[] = ['code' => 'invalid-image-loading', 'loadingRaw' => $loadingRaw];
         }
         if ($decodingRaw !== null && $decoding === null) {
-            $issueCodes[] = 'invalid-image-decoding';
+            $issues[] = ['code' => 'invalid-image-decoding', 'decodingRaw' => $decodingRaw];
         }
         if ($fetchPriorityRaw !== null && $fetchPriority === null) {
-            $issueCodes[] = 'invalid-image-fetchpriority';
+            $issues[] = ['code' => 'invalid-image-fetchpriority', 'fetchpriorityRaw' => $fetchPriorityRaw];
         }
         if ($crossoriginRaw !== null && $crossorigin === null) {
-            $issueCodes[] = 'invalid-image-crossorigin';
+            $issues[] = ['code' => 'invalid-image-crossorigin', 'crossoriginRaw' => $crossoriginRaw];
         }
         if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
-            $issueCodes[] = 'invalid-image-referrerpolicy';
+            $issues[] = ['code' => 'invalid-image-referrerpolicy', 'referrerpolicyRaw' => $referrerPolicyRaw];
         }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         return [
             'imageLoadingReviewPolicy' => 'image-loading-metadata-review',
@@ -28133,6 +28733,7 @@ final class XmlHtmlDom
             'imageReferrerPolicy' => $referrerPolicy,
             'imageReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
             'imageLoadingReviewOnlyNoResourceFetch' => true,
+            'imageLoadingIssues' => $issues,
             'imageLoadingIssueCodes' => $issueCodes,
             'imageLoadingIssueCount' => count($issueCodes),
         ];
@@ -28845,6 +29446,7 @@ final class XmlHtmlDom
     private static function sourceElementSummary(\DOMElement $source): array
     {
         $srcset = self::attributeOrNull($source, 'srcset');
+        $media = self::attributeOrNull($source, 'media');
         $sizes = self::attributeOrNull($source, 'sizes');
 
         return [
@@ -28852,10 +29454,12 @@ final class XmlHtmlDom
             'srcset' => $srcset,
             'srcsetCandidates' => self::srcsetCandidateSummaries($srcset),
             'type' => self::attributeOrNull($source, 'type'),
-            'media' => self::attributeOrNull($source, 'media'),
+            'media' => $media,
             'sizes' => $sizes,
         ] + self::srcsetResourceReviewSummary($srcset, 'srcset')
-            + self::sourceSizesReviewSummary($sizes, 'sizes');
+            + self::sourceSizesReviewSummary($sizes, 'sizes')
+            + self::responsiveMediaReviewSummary($media, 'media')
+            + self::responsiveSizesReviewSummary($sizes, 'responsiveSizes');
     }
 
     /**
@@ -29068,6 +29672,9 @@ final class XmlHtmlDom
             if (($allow['invalidAllowDirectiveCount'] ?? 0) > 0) {
                 $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-allow-directive';
             }
+            if (($allow['duplicateAllowDirectiveCount'] ?? 0) > 0) {
+                $summary['iframePolicyIssueCodes'][] = 'duplicate-iframe-allow-directive';
+            }
         }
 
         if ($iframe->hasAttribute('referrerpolicy')) {
@@ -29103,6 +29710,8 @@ final class XmlHtmlDom
         }
 
         $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
+        $summary['iframePolicyIssueCount'] = count($summary['iframePolicyIssueCodes']);
+        $summary['iframePolicyValid'] = $summary['iframePolicyIssueCodes'] === [];
 
         return $summary;
     }
@@ -29242,6 +29851,8 @@ final class XmlHtmlDom
     {
         $directives = [];
         $features = [];
+        $featureCounts = [];
+        $duplicateFeatures = [];
         $invalid = [];
 
         foreach (explode(';', $value) as $rawDirective) {
@@ -29265,8 +29876,15 @@ final class XmlHtmlDom
             $valid = $featureValid && $allowListValid;
             if (!$valid) {
                 $invalid[] = $raw;
-            } elseif (!in_array($feature, $features, true)) {
-                $features[] = $feature;
+            } elseif (is_string($feature)) {
+                if (!array_key_exists($feature, $featureCounts)) {
+                    $features[] = $feature;
+                    $featureCounts[$feature] = 0;
+                }
+                ++$featureCounts[$feature];
+                if ($featureCounts[$feature] === 2) {
+                    $duplicateFeatures[] = $feature;
+                }
             }
 
             $directives[] = [
@@ -29283,9 +29901,12 @@ final class XmlHtmlDom
             'allowDirectiveCount' => count($directives),
             'allowDirectives' => $directives,
             'allowFeatures' => $features,
+            'allowFeatureCounts' => $featureCounts,
+            'duplicateAllowFeatures' => $duplicateFeatures,
+            'duplicateAllowDirectiveCount' => count($duplicateFeatures),
             'invalidAllowDirectiveCount' => count($invalid),
             'invalidAllowDirectives' => $invalid,
-            'allowPolicyValid' => $directives !== [] && $invalid === [],
+            'allowPolicyValid' => $directives !== [] && $invalid === [] && $duplicateFeatures === [],
         ];
     }
 
@@ -30119,6 +30740,312 @@ final class XmlHtmlDom
             'descriptorNormalized' => $descriptor,
             'descriptorValid' => false,
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function responsiveMediaReviewSummary(?string $media, string $keyPrefix): array
+    {
+        if ($media === null) {
+            return [];
+        }
+
+        $condition = trim($media);
+        $issues = [];
+        if ($condition === '') {
+            $issues[] = ['code' => 'empty-responsive-media'];
+        } else {
+            if (self::containsUnsafeResponsiveMetadata($condition)) {
+                $issues[] = ['code' => 'unsafe-responsive-media', 'condition' => $condition];
+            }
+            if (!self::cssParenthesesBalanced($condition)) {
+                $issues[] = ['code' => 'invalid-responsive-media-condition', 'condition' => $condition];
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            $keyPrefix . 'ReviewPolicy' => 'html-responsive-media-metadata-review',
+            $keyPrefix . 'Condition' => $condition,
+            $keyPrefix . 'Issues' => $issues,
+            $keyPrefix . 'IssueCodes' => $issueCodes,
+            $keyPrefix . 'Valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function responsiveSizesReviewSummary(?string $sizes, string $keyPrefix): array
+    {
+        if ($sizes === null) {
+            return [];
+        }
+
+        $records = [];
+        $issues = [];
+        foreach (self::splitCssCommaList($sizes) as $index => $candidate) {
+            $record = self::responsiveSizeRecord($candidate, $index);
+            $records[] = $record;
+            foreach ($record['issues'] as $issue) {
+                $issues[] = $issue;
+            }
+        }
+
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            $keyPrefix . 'ReviewPolicy' => 'html-responsive-sizes-metadata-review',
+            $keyPrefix . 'CandidateCount' => count($records),
+            $keyPrefix . 'CandidateRecords' => $records,
+            $keyPrefix . 'Conditions' => array_values(array_filter(
+                array_map(static fn (array $record): ?string => $record['condition'], $records),
+                static fn (?string $condition): bool => $condition !== null
+            )),
+            $keyPrefix . 'Lengths' => array_values(array_map(
+                static fn (array $record): string => (string) $record['length'],
+                $records
+            )),
+            $keyPrefix . 'Issues' => $issues,
+            $keyPrefix . 'IssueCodes' => $issueCodes,
+            $keyPrefix . 'Valid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return array{index:int, raw:string, condition:?string, length:string, conditionValid:bool, lengthValid:bool, issues:list<array<string, mixed>>, valid:bool}
+     */
+    private static function responsiveSizeRecord(string $candidate, int $index): array
+    {
+        $raw = trim($candidate);
+        $condition = null;
+        $conditionValid = true;
+        $length = $raw;
+        $issues = [];
+
+        if ($raw === '') {
+            $issues[] = ['code' => 'empty-responsive-size', 'candidateIndex' => $index];
+            $conditionValid = false;
+            $length = '';
+        } elseif ($raw[0] === '(') {
+            $end = self::matchingCssParenthesisOffset($raw, 0);
+            if ($end === null) {
+                $condition = $raw;
+                $conditionValid = false;
+                $length = '';
+                $issues[] = [
+                    'code' => 'invalid-responsive-size-condition',
+                    'candidateIndex' => $index,
+                    'condition' => $raw,
+                ];
+            } else {
+                $condition = trim(substr($raw, 0, $end + 1));
+                $length = trim(substr($raw, $end + 1));
+                if (self::containsUnsafeResponsiveMetadata($condition) || !self::cssParenthesesBalanced($condition)) {
+                    $conditionValid = false;
+                    $issues[] = [
+                        'code' => 'invalid-responsive-size-condition',
+                        'candidateIndex' => $index,
+                        'condition' => $condition,
+                    ];
+                }
+            }
+        }
+
+        if (self::containsUnsafeResponsiveMetadata($raw)) {
+            $issues[] = [
+                'code' => 'unsafe-responsive-size',
+                'candidateIndex' => $index,
+                'raw' => $raw,
+            ];
+        }
+
+        $lengthValid = self::isResponsiveSizeLength($length);
+        if ($length === '') {
+            $issues[] = ['code' => 'missing-responsive-size-length', 'candidateIndex' => $index];
+        } elseif (!$lengthValid) {
+            $issues[] = [
+                'code' => 'invalid-responsive-size-length',
+                'candidateIndex' => $index,
+                'length' => $length,
+            ];
+        }
+
+        return [
+            'index' => $index,
+            'raw' => $raw,
+            'condition' => $condition,
+            'length' => $length,
+            'conditionValid' => $conditionValid,
+            'lengthValid' => $lengthValid,
+            'issues' => $issues,
+            'valid' => $conditionValid && $lengthValid && $issues === [],
+        ];
+    }
+
+    private static function isResponsiveSizeLength(string $length): bool
+    {
+        $length = trim($length);
+        if ($length === '' || self::containsUnsafeResponsiveMetadata($length) || !self::cssParenthesesBalanced($length)) {
+            return false;
+        }
+
+        if (strtolower($length) === 'auto') {
+            return true;
+        }
+
+        if (preg_match('/^0(?:\.0+)?$/', $length) === 1) {
+            return true;
+        }
+
+        if (preg_match('/^[+-]?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:ch|cm|dvb|dvh|dvi|dvmax|dvmin|dvw|em|ex|ic|in|lh|lvb|lvh|lvi|lvmax|lvmin|lvw|mm|pc|pt|px|q|rem|rlh|svb|svh|svi|svmax|svmin|svw|vb|vh|vi|vmax|vmin|vw|%)$/i', $length) === 1) {
+            return true;
+        }
+
+        return preg_match('/^(?:calc|min|max|clamp)\(.+\)$/i', $length) === 1;
+    }
+
+    private static function containsUnsafeResponsiveMetadata(string $value): bool
+    {
+        if (preg_match('/[\p{Cc}\p{Zl}\p{Zp}]/u', $value) === 1 || preg_match('/url\s*\(/i', $value) === 1) {
+            return true;
+        }
+
+        $compacted = strtolower(preg_replace('/[\x00-\x20]+/', '', $value) ?? $value);
+
+        return str_contains($compacted, 'javascript:')
+            || str_contains($compacted, 'vbscript:')
+            || str_contains($compacted, 'data:')
+            || str_contains($compacted, 'file:');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitCssCommaList(string $value): array
+    {
+        $items = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char === ')' && $depth > 0) {
+                $depth--;
+                continue;
+            }
+            if ($char !== ',' || $depth !== 0) {
+                continue;
+            }
+
+            $items[] = substr($value, $start, $offset - $start);
+            $start = $offset + 1;
+        }
+
+        $items[] = substr($value, $start);
+
+        return $items;
+    }
+
+    private static function cssParenthesesBalanced(string $value): bool
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char !== ')') {
+                continue;
+            }
+            if ($depth === 0) {
+                return false;
+            }
+            $depth--;
+        }
+
+        return $depth === 0 && $quote === null;
+    }
+
+    private static function matchingCssParenthesisOffset(string $value, int $openOffset): ?int
+    {
+        $depth = 0;
+        $quote = null;
+        $length = strlen($value);
+        for ($offset = $openOffset; $offset < $length; $offset++) {
+            $char = $value[$offset];
+            if ($char === '\\') {
+                $offset++;
+                continue;
+            }
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '(') {
+                $depth++;
+                continue;
+            }
+            if ($char !== ')') {
+                continue;
+            }
+            $depth--;
+            if ($depth === 0) {
+                return $offset;
+            }
+        }
+
+        return null;
     }
 
     /**

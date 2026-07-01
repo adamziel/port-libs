@@ -10,6 +10,7 @@ use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\PandocJsonReader;
+use PortLibs\Pandoc\PandocJsonWriter;
 use PortLibs\Pandoc\TableGeometry;
 use PortLibs\Pandoc\WordPressBlockWriter;
 
@@ -194,6 +195,75 @@ return [
         $t->same('Ada Lovelace', $roundTripMeta['authorInlines'][0][0]->attr('text'));
         $t->same('Grace', $roundTripMeta['authorInlines'][1][0]->attr('text'));
         $t->same('2026-06-10', $roundTripMeta['dateInlines'][0]->attr('text'));
+    },
+    'writes canonical and tagged metadata constructors in textual native output' => static function (TestRunner $t): void {
+        $rawInline = new AstNode('raw_markdown', [
+            'constructor' => 'RawInline',
+            'format' => 'gfm',
+            'markdown' => '<span>raw</span>',
+            'text' => '<span>raw</span>',
+        ]);
+        $document = new AstNode('document', [
+            'meta' => [
+                'review' => ['type' => 'map', 'items' => [
+                    'draft' => true,
+                    'tags' => ['type' => 'list', 'items' => [
+                        'json-native',
+                        false,
+                    ]],
+                    'body' => ['type' => 'blocks', 'children' => [
+                        new AstNode('paragraph', [], [
+                            new AstNode('text', ['text' => 'Block']),
+                            new AstNode('space'),
+                            new AstNode('text', ['text' => 'metadata']),
+                        ]),
+                    ]],
+                    'inline' => ['type' => 'inlines', 'children' => [
+                        new AstNode('text', ['text' => 'Inline']),
+                        new AstNode('space'),
+                        $rawInline,
+                    ]],
+                ]],
+                'pretagged' => ['t' => 'MetaMap', 'c' => [
+                    'source' => ['t' => 'MetaString', 'c' => 'tagged-source'],
+                    'enabled' => ['t' => 'MetaBool', 'c' => true],
+                    'aliases' => ['t' => 'MetaList', 'c' => [
+                        ['t' => 'MetaString', 'c' => 'alpha'],
+                        ['t' => 'MetaBool', 'c' => false],
+                    ]],
+                ]],
+                'rawDirect' => $rawInline,
+            ],
+        ], [
+            new AstNode('paragraph', [], [new AstNode('text', ['text' => 'Body'])]),
+        ]);
+
+        $nativeText = (new NativeWriter(['standalone' => true]))->write($document);
+        $roundTrip = (new NativeReader())->read($nativeText);
+        $meta = $roundTrip->attr('meta');
+        $review = $meta['review'];
+        $pretagged = $meta['pretagged'];
+        $rawDirect = $meta['rawDirect'];
+
+        $t->contains('MetaMap', $nativeText);
+        $t->contains('MetaBool True', $nativeText);
+        $t->contains('RawInline (Format "gfm") "<span>raw</span>"', $nativeText);
+        $t->same(true, $review['draft']);
+        $t->same('MetaList', $review['tags']['type']);
+        $t->same(['json-native', false], $review['tags']['value']);
+        $t->same('MetaBlocks', $review['body']['type']);
+        $t->same('paragraph', $review['body']['value'][0]->type);
+        $t->same('Block metadata', $review['body']['value'][0]->attr('text'));
+        $t->same('MetaInlines', $review['inline']['type']);
+        $t->same(['text', 'space', 'raw_markdown'], array_map(static fn (AstNode $node): string => $node->type, $review['inline']['value']));
+        $t->same('gfm', $review['inline']['value'][2]->attr('format'));
+        $t->same('tagged-source', $pretagged['source']);
+        $t->same(true, $pretagged['enabled']);
+        $t->same('MetaList', $pretagged['aliases']['type']);
+        $t->same(['alpha', false], $pretagged['aliases']['value']);
+        $t->same('MetaInlines', $rawDirect['type']);
+        $t->same('raw_markdown', $rawDirect['value'][0]->type);
+        $t->same('gfm', $rawDirect['value'][0]->attr('format'));
     },
     'normalizes legacy pandoc native json unMeta document arrays' => static function (TestRunner $t): void {
         $legacy = [
@@ -472,6 +542,134 @@ NATIVE;
             $t->same('raw_markdown', $roundTrip->children[1]->children[0]->type, "{$source} preserves markdown raw inline alias");
             $t->same('raw_inline', $roundTrip->children[1]->children[2]->type, "{$source} preserves generic raw inline");
         }
+    },
+    'preserves textual native raw Format helpers through json writer handoff' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ RawBlock (Format "opml") "<outline/>"
+, Para [ RawInline (Format "opml") "<inline/>" , Space , RawInline (Format "html") "<span>ok</span>" ]
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $rawBlock = $document->children[0];
+        $paragraph = $document->children[1];
+        $genericInline = $paragraph->children[0];
+        $htmlInline = $paragraph->children[2];
+
+        $t->same('raw_block', $rawBlock->type);
+        $t->same(['t' => 'Format', 'c' => 'opml'], $rawBlock->attr('formatNative'));
+        $t->same('raw_inline', $genericInline->type);
+        $t->same(['t' => 'Format', 'c' => 'opml'], $genericInline->attr('formatNative'));
+        $t->same('raw_html_inline', $htmlInline->type);
+        $t->same(['t' => 'Format', 'c' => 'html'], $htmlInline->attr('formatNative'));
+
+        $jsonPacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $forcedJsonPacket = json_decode((new NativeWriter())->write(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $document->children)), true, 512, JSON_THROW_ON_ERROR);
+
+        foreach (['default native writer' => $jsonPacket, 'forced json writer' => $forcedJsonPacket] as $source => $packet) {
+            $t->same(['t' => 'Format', 'c' => 'opml'], $packet['blocks'][0]['c'][0], "{$source} preserves raw block Format helper");
+            $t->same(['t' => 'Format', 'c' => 'opml'], $packet['blocks'][1]['c'][0]['c'][0], "{$source} preserves generic raw inline Format helper");
+            $t->same(['t' => 'Format', 'c' => 'html'], $packet['blocks'][1]['c'][2]['c'][0], "{$source} preserves html raw inline Format helper");
+        }
+
+        $roundTrip = (new NativeReader())->read((new NativeWriter(['blocksOnly' => true]))->write($document));
+
+        $t->same('raw_block', $roundTrip->children[0]->type);
+        $t->same('raw_inline', $roundTrip->children[1]->children[0]->type);
+        $t->same('raw_html_inline', $roundTrip->children[1]->children[2]->type);
+    },
+    'hands textual native metadata constructors to pandoc json writer without loss' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+Pandoc
+  Meta { unMeta = fromList
+    [ ( "review" , MetaMap (fromList
+        [ ( "inline" , MetaInlines [ Str "Inline" , Space , Strong [ Str "metadata" ] ] )
+        , ( "body" , MetaBlocks [ Div ( "meta-div" , [ "review" ] , [ ( "data-source" , "native-text" ) ] ) [ Para [ Str "Body" ] ] ] )
+        , ( "tags" , MetaList [ MetaString "native" , MetaBool True ] )
+        ] ) )
+    ] }
+  [ Para [ Str "Body" ] ]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $json = (new PandocJsonWriter())->toArray($document);
+        $review = $json['meta']['review'];
+        $reviewMap = $review['c'];
+        $textualNative = (new NativeWriter(['standalone' => true]))->write($document);
+        $roundTrip = (new NativeReader())->read(json_encode($json, JSON_THROW_ON_ERROR));
+        $roundTripReview = $roundTrip->attr('meta')['review'];
+
+        $t->same('MetaInlines', $document->attr('meta')['review']['inline']['type']);
+        $t->same('MetaBlocks', $document->attr('meta')['review']['body']['type']);
+        $t->same('MetaList', $document->attr('meta')['review']['tags']['type']);
+        $t->same('MetaMap', $review['t']);
+        $t->same('MetaInlines', $reviewMap['inline']['t']);
+        $t->same(['Str', 'Space', 'Strong'], array_map(static fn (array $inline): string => $inline['t'], $reviewMap['inline']['c']));
+        $t->same('MetaBlocks', $reviewMap['body']['t']);
+        $t->same('Div', $reviewMap['body']['c'][0]['t']);
+        $t->same(['meta-div', ['review'], [['data-source', 'native-text']]], $reviewMap['body']['c'][0]['c'][0]);
+        $t->same('MetaList', $reviewMap['tags']['t']);
+        $t->same('MetaString', $reviewMap['tags']['c'][0]['t']);
+        $t->same('native', $reviewMap['tags']['c'][0]['c']);
+        $t->same('MetaBool', $reviewMap['tags']['c'][1]['t']);
+        $t->same(true, $reviewMap['tags']['c'][1]['c']);
+        $t->contains('MetaInlines [ Str "Inline" , Space , Strong [ Str "metadata" ] ]', $textualNative);
+        $t->contains('MetaBlocks [ Div ( "meta-div" , [ "review" ] , [ ( "data-source" , "native-text" ) ] )', $textualNative);
+        $t->same('MetaMap', $roundTripReview['t']);
+        $t->same('MetaInlines', $roundTripReview['c']['inline']['t']);
+        $t->same('MetaBlocks', $roundTripReview['c']['body']['t']);
+        $t->same('MetaList', $roundTripReview['c']['tags']['t']);
+    },
+    'normalizes textual native cite constructors for pandoc json writer handoff' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ Para
+  [ Cite
+      [ Citation { citationId = "doe1901" , citationPrefix = [] , citationSuffix = [] , citationMode = AuthorInText , citationNoteNum = 0 , citationHash = 1901 } ]
+      [ Str "@doe1901" ]
+  , Space
+  , Cite
+      [ Citation { citationId = "smith1899" , citationPrefix = [ Str "see" ] , citationSuffix = [ Str "p." , Space , Str "7" ] , citationMode = NormalCitation , citationNoteNum = 0 , citationHash = 1899 }
+      , Citation { citationId = "roe1902" , citationPrefix = [] , citationSuffix = [] , citationMode = SuppressAuthor , citationNoteNum = 0 , citationHash = 1902 }
+      ]
+      [ Str "[see" , Space , Str "@smith1899," , Space , Str "p." , Space , Str "7;" , Space , Str "-@roe1902]" ]
+  ]
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $paragraph = $document->children[0];
+        $single = $paragraph->children[0];
+        $cluster = $paragraph->children[2];
+        $json = (new PandocJsonWriter())->toArray($document);
+        $jsonRoundTrip = (new NativeReader())->read(json_encode($json, JSON_THROW_ON_ERROR));
+        $nativeJson = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $blocksOnlyRoundTrip = (new NativeReader())->read((new NativeWriter(['blocksOnly' => true]))->write($document));
+
+        $t->same('citation', $single->type);
+        $t->same('doe1901', $single->attr('id'));
+        $t->same('author_in_text', $single->attr('mode'));
+        $t->same('@doe1901', $single->attr('text'));
+        $t->same('citation_group', $cluster->type);
+        $t->same('[see @smith1899, p. 7; -@roe1902]', $cluster->attr('text'));
+        $t->same(['smith1899', 'roe1902'], array_map(static fn (AstNode $node): string => $node->attr('id'), $cluster->children));
+        $t->same('see', $cluster->children[0]->attr('prefix')[0]->attr('text'));
+        $t->same('p.', $cluster->children[0]->attr('suffix')[0]->attr('text'));
+        $t->same('suppress_author', $cluster->children[1]->attr('mode'));
+
+        $t->same('Cite', $json['blocks'][0]['c'][0]['t']);
+        $t->same('doe1901', $json['blocks'][0]['c'][0]['c'][0][0]['citationId']);
+        $t->same('AuthorInText', $json['blocks'][0]['c'][0]['c'][0][0]['citationMode']['t']);
+        $t->same('Cite', $json['blocks'][0]['c'][2]['t']);
+        $t->same(['smith1899', 'roe1902'], array_column($json['blocks'][0]['c'][2]['c'][0], 'citationId'));
+        $t->same('SuppressAuthor', $json['blocks'][0]['c'][2]['c'][0][1]['citationMode']['t']);
+        $t->same('Cite', $nativeJson['blocks'][0]['c'][0]['t']);
+        $t->same('Cite', $nativeJson['blocks'][0]['c'][2]['t']);
+        $t->same('citation', $jsonRoundTrip->children[0]->children[0]->type);
+        $t->same('citation_group', $jsonRoundTrip->children[0]->children[2]->type);
+        $t->same('citation_group', $blocksOnlyRoundTrip->children[0]->children[2]->type);
     },
     'preserves raw html through markdown writer serialization boundaries' => static function (TestRunner $t): void {
         $rawHtmlDocument = new AstNode('document', [], [

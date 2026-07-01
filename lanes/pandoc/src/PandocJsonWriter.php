@@ -335,10 +335,12 @@ final class PandocJsonWriter
     private function writeTypedMetaValue(array $value, array $provenance = [], array $path = []): array
     {
         return match ($value['type']) {
-            'inlines' => ['t' => 'MetaInlines', 'c' => $this->writeInlines($this->metaChildren($value))],
-            'blocks' => ['t' => 'MetaBlocks', 'c' => $this->writeBlocks($this->metaChildren($value))],
-            'list' => ['t' => 'MetaList', 'c' => $this->writeMetaListItems(is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [], $provenance, $path)],
-            'map' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap(is_array($value['items'] ?? null) && !array_is_list($value['items']) ? $value['items'] : [], [], $provenance, $path)],
+            'inlines', 'MetaInlines' => ['t' => 'MetaInlines', 'c' => $this->writeInlines($this->metaChildren($value))],
+            'blocks', 'MetaBlocks' => ['t' => 'MetaBlocks', 'c' => $this->writeBlocks($this->metaChildren($value))],
+            'list', 'MetaList' => ['t' => 'MetaList', 'c' => $this->writeMetaListItems($this->metaListItems($value), $provenance, $path)],
+            'map', 'MetaMap' => ['t' => 'MetaMap', 'c' => $this->writeMetaMap($this->metaMapItems($value), [], $provenance, $path)],
+            'MetaBool' => ['t' => 'MetaBool', 'c' => (bool) $this->metaScalarValue($value)],
+            'MetaString' => ['t' => 'MetaString', 'c' => (string) $this->metaScalarValue($value)],
             default => ['t' => 'MetaString', 'c' => ''],
         };
     }
@@ -583,12 +585,42 @@ final class PandocJsonWriter
      */
     private function metaChildren(array $value): array
     {
-        $children = $value['children'] ?? [];
+        $children = $value['children'] ?? $value['value'] ?? [];
         if (!is_array($children) || !array_is_list($children)) {
             return [];
         }
 
         return array_values(array_filter($children, static fn (mixed $child): bool => $child instanceof AstNode));
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return list<mixed>
+     */
+    private function metaListItems(array $value): array
+    {
+        $items = $value['items'] ?? $value['value'] ?? [];
+
+        return is_array($items) && array_is_list($items) ? $items : [];
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     * @return array<string, mixed>
+     */
+    private function metaMapItems(array $value): array
+    {
+        $items = $value['items'] ?? $value['value'] ?? [];
+
+        return is_array($items) && !array_is_list($items) ? $items : [];
+    }
+
+    /**
+     * @param array<string, mixed> $value
+     */
+    private function metaScalarValue(array $value): mixed
+    {
+        return $value['value'] ?? null;
     }
 
     /**
@@ -2446,40 +2478,66 @@ final class PandocJsonWriter
                 return null;
             }
 
-            foreach (['citationId', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
-                if (!array_key_exists($key, $payload) || $payload[$key] !== $record[$key]) {
-                    return null;
-                }
-            }
-
-            foreach (['citationPrefix', 'citationSuffix'] as $key) {
-                if (
-                    !array_key_exists($key, $payload)
-                    || !$this->reusableCitationAffixNative($payload[$key], $record[$key])
-                ) {
-                    return null;
-                }
-            }
-
-            return $tagged;
+            return $this->citationNativeRecordMatches($payload, $record)
+                ? $tagged
+                : $this->regeneratedCitationNative($tagged, $record);
         }
 
+        return $this->citationNativeRecordMatches($native, $record) ? $native : null;
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, mixed> $record
+     */
+    private function citationNativeRecordMatches(array $payload, array $record): bool
+    {
         foreach (['citationId', 'citationMode', 'citationNoteNum', 'citationHash'] as $key) {
-            if (!array_key_exists($key, $native) || $native[$key] !== $record[$key]) {
-                return null;
+            if (!array_key_exists($key, $payload) || $payload[$key] !== $record[$key]) {
+                return false;
             }
         }
 
         foreach (['citationPrefix', 'citationSuffix'] as $key) {
             if (
-                !array_key_exists($key, $native)
-                || !$this->reusableCitationAffixNative($native[$key], $record[$key])
+                !array_key_exists($key, $payload)
+                || !$this->reusableCitationAffixNative($payload[$key], $record[$key])
             ) {
-                return null;
+                return false;
             }
         }
 
+        return true;
+    }
+
+    /**
+     * @param array<string, mixed> $native
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>
+     */
+    private function regeneratedCitationNative(array $native, array $record): array
+    {
+        $native['c'] = $this->regeneratedCitationRecordContent($native['c'] ?? null, $record);
+
         return $native;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private function regeneratedCitationRecordContent(mixed $content, array $record): array
+    {
+        if (
+            is_array($content)
+            && array_is_list($content)
+            && count($content) === 1
+            && is_array($content[0])
+            && !array_is_list($content[0])
+        ) {
+            return [$record];
+        }
+
+        return $record;
     }
 
     /**
@@ -2758,7 +2816,7 @@ final class PandocJsonWriter
         if ($tuple !== null) {
             return $this->normalizedAttrTuple($tuple) === $this->normalizedAttrTuple($generated)
                 ? $native
-                : null;
+                : $this->regeneratedAttrTupleContent($native, $generated);
         }
 
         $tagged = $this->taggedNative($native, 'Attr');

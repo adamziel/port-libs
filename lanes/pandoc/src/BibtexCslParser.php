@@ -1655,7 +1655,7 @@ final class BibtexCslParser
         return array_values(array_filter(
             array_map(
                 static fn (string $key): string => trim($key),
-                self::splitTopLevel($value, ',')
+                self::splitTopLevelAny($value, [',', ';'])
             ),
             static fn (string $key): bool => $key !== ''
         ));
@@ -1705,7 +1705,7 @@ final class BibtexCslParser
         $options = self::biblatexOptionList($fields['options'] ?? '');
 
         foreach (self::BIBLATEX_ENTRY_OPTION_FIELDS as $field => $optionName) {
-            if (!isset($fields[$field])) {
+            if (!array_key_exists($field, $fields)) {
                 continue;
             }
 
@@ -1736,7 +1736,9 @@ final class BibtexCslParser
 
     private static function normalizedBiblatexOptionName(string $name): string
     {
-        return strtolower(str_replace('_', '-', trim($name)));
+        $name = strtolower(self::cleanBibtexText($name));
+
+        return preg_replace('/[-_\s]+/', '', $name) ?? $name;
     }
 
     /**
@@ -1745,9 +1747,18 @@ final class BibtexCslParser
      */
     private static function truthyBiblatexOptionField(array $fields, array $names): bool
     {
-        $value = strtolower(str_replace('_', '-', self::firstField($fields, $names)));
+        foreach ($names as $name) {
+            if (!array_key_exists($name, $fields)) {
+                continue;
+            }
 
-        return in_array($value, ['1', 'true', 'yes', 'on'], true);
+            $value = strtolower(self::cleanBibtexText($fields[$name]));
+            if ($value !== '' && !in_array($value, ['false', '0', 'no', 'off'], true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -2583,6 +2594,45 @@ final class BibtexCslParser
             }
 
             if ($char === $separator && $depth === 0) {
+                $parts[] = $buffer;
+                $buffer = '';
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+
+        $parts[] = $buffer;
+
+        return array_map('trim', $parts);
+    }
+
+    /**
+     * @param list<string> $separators
+     * @return list<string>
+     */
+    private static function splitTopLevelAny(string $value, array $separators): array
+    {
+        $parts = [];
+        $buffer = '';
+        $depth = 0;
+        $length = strlen($value);
+        $separatorLookup = array_fill_keys($separators, true);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $value[$i];
+            if ($char === '{') {
+                $depth++;
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($char === '}') {
+                $depth = max(0, $depth - 1);
+                $buffer .= $char;
+                continue;
+            }
+
+            if ($depth === 0 && isset($separatorLookup[$char])) {
                 $parts[] = $buffer;
                 $buffer = '';
                 continue;

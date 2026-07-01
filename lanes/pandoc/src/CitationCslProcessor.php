@@ -43,16 +43,65 @@ final class CitationCslProcessor
 
     public static function fromJson(string $json): self
     {
+        return self::fromItems(self::cslJsonItems($json));
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    public static function cslJsonItems(string $json): array
+    {
         $decoded = json_decode($json, true);
         if (json_last_error() !== JSON_ERROR_NONE) {
             throw new \InvalidArgumentException('Invalid CSL JSON: ' . json_last_error_msg());
         }
 
-        if (!is_array($decoded) || !array_is_list($decoded)) {
+        return self::cslJsonItemsFromDecoded($decoded, $json);
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function cslJsonItemsFromDecoded(mixed $decoded, string $json): array
+    {
+        if (!is_array($decoded)) {
             throw new \InvalidArgumentException('CSL JSON bibliography must be a list of item objects');
         }
 
-        return self::fromItems($decoded);
+        if (self::decodedJsonIsList($decoded, $json)) {
+            return self::validatedCslJsonItemList($decoded);
+        }
+
+        foreach (['items', 'references', 'bibliography'] as $key) {
+            if (!array_key_exists($key, $decoded)) {
+                continue;
+            }
+
+            $items = $decoded[$key];
+            if (!is_array($items) || !array_is_list($items)) {
+                throw new \InvalidArgumentException('CSL JSON bibliography ' . $key . ' must be a list of item objects');
+            }
+
+            return self::validatedCslJsonItemList($items);
+        }
+
+        throw new \InvalidArgumentException('CSL JSON bibliography must be a list of item objects');
+    }
+
+    /**
+     * @param array<mixed> $items
+     * @return list<array<string, mixed>>
+     */
+    private static function validatedCslJsonItemList(array $items): array
+    {
+        foreach ($items as $index => $item) {
+            if (!is_array($item)) {
+                throw new \InvalidArgumentException('CSL item at index ' . $index . ' must be an object');
+            }
+        }
+
+        /** @var list<array<string, mixed>> $items */
+        return $items;
     }
 
     public static function fromBibtex(string $bibtex): self
@@ -1569,6 +1618,15 @@ final class CitationCslProcessor
                 ['VIAF', $viaf],
                 ['ROR', $ror],
                 ['Wikidata', $wikidata],
+            ]),
+            'registryIdentifierSummary' => self::labeledIdentifierSummary([
+                ['MR', self::firstStringField($item, ['MRNumber', 'mrNumber', 'mrnumber', 'mr-number', 'mr', 'mathscinet'])],
+                ['MR class', self::firstStringField($item, ['MRClass', 'mrClass', 'mrclass', 'mr-class'])],
+                ['Zbl', self::firstStringField($item, ['Zbl', 'zbl', 'zbmath'])],
+                ['JSTOR', self::firstStringField($item, ['JSTOR', 'jstor', 'jstorid', 'jstor-id'])],
+                ['HDL', self::firstStringField($item, ['HDL', 'hdl', 'handle', 'hdlid', 'hdl-id', 'handleid', 'handle-id'])],
+                ['LCCN', self::firstStringField($item, ['LCCN', 'lccn', 'lccnnumber', 'lccn-number'])],
+                ['OCLC', self::firstStringField($item, ['OCLC', 'oclc', 'oclcnumber', 'oclc-number'])],
             ]),
             'archive' => $archive,
             'archiveCollection' => $archiveCollection,
@@ -11224,6 +11282,7 @@ final class CitationCslProcessor
             'hdl', 'handle', 'hdlid', 'hdl-id', 'handleid', 'handle-id' => (string) ($item['hdl'] ?? ''),
             'lccn', 'lccnnumber', 'lccn-number' => (string) ($item['lccn'] ?? ''),
             'oclc', 'oclcnumber', 'oclc-number' => (string) ($item['oclc'] ?? ''),
+            'registry-identifiers', 'registry-identifier-summary', 'source-identifiers', 'source-identifier-summary' => (string) ($item['registryIdentifierSummary'] ?? ''),
             'orcid', 'orcid-id', 'orcidid' => (string) ($item['orcid'] ?? ''),
             'isni' => (string) ($item['isni'] ?? ''),
             'viaf' => (string) ($item['viaf'] ?? ''),

@@ -893,22 +893,30 @@ final class NativeReader
 
     private function parseRawBlock(): AstNode
     {
-        $format = $this->parseFormatTuple();
+        [$format, $formatNative] = $this->parseFormatTuple();
         $text = $this->expectString();
+        $attrs = [
+            'constructor' => 'RawBlock',
+            'native' => ['t' => 'RawBlock', 'c' => [$formatNative, $text]],
+            'formatConstructor' => 'Format',
+            'formatNative' => $formatNative,
+            'format' => $format,
+            'text' => $text,
+        ];
 
         if ($this->isHtmlRawFormat($format)) {
-            return new AstNode('raw_html', ['format' => $format, 'text' => $text, 'html' => $text]);
+            return new AstNode('raw_html', array_replace($attrs, ['html' => $text]));
         }
 
         if ($this->isTexRawFormat($format)) {
-            return new AstNode('raw_tex', ['format' => $format, 'text' => $text, 'tex' => $text]);
+            return new AstNode('raw_tex', array_replace($attrs, ['tex' => $text]));
         }
 
         if ($this->isMarkdownRawFormat($format)) {
-            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+            return new AstNode('raw_markdown', array_replace($attrs, ['markdown' => $text]));
         }
 
-        return new AstNode('raw_block', ['format' => $format, 'text' => $text]);
+        return new AstNode('raw_block', $attrs);
     }
 
     /**
@@ -995,19 +1003,46 @@ final class NativeReader
 
     private function parseCitationInline(): AstNode
     {
-        $citations = $this->parseList(fn (): array => $this->parseCitationRecord());
+        $citations = $this->parseList(fn (): AstNode => $this->parseCitationRecord());
         $display = $this->parseInlineList();
+        $displayText = $this->plainInlineText($display);
 
-        return new AstNode('citation', [
-            'citations' => $citations,
-            'text' => $this->plainInlineText($display),
-        ], $display);
+        if (count($citations) === 1) {
+            $citation = $citations[0];
+            $attrs = $citation->attrs;
+            if ($displayText !== '') {
+                $attrs['text'] = $displayText;
+            }
+
+            return new AstNode('citation', $attrs, $display);
+        }
+
+        $attrs = [];
+        if ($displayText !== '') {
+            $attrs['text'] = $displayText;
+        }
+        if ($display !== []) {
+            $attrs['citationSourceInlines'] = $display;
+        }
+
+        return new AstNode('citation_group', $attrs, $citations);
     }
 
     /**
-     * @return array<string, mixed>
+     * @param list<AstNode> $prefix
+     * @param list<AstNode> $suffix
      */
-    private function parseCitationRecord(): array
+    private function citationRecordSourceText(string $id, string $mode, array $prefix, array $suffix): string
+    {
+        $prefixText = $this->plainInlineText($prefix);
+        $suffixText = $this->plainInlineText($suffix);
+        $token = ($mode === 'suppress_author' ? '-@' : '@') . $id;
+        $text = $prefixText === '' ? $token : $prefixText . ' ' . $token;
+
+        return $suffixText === '' ? $text : $text . ', ' . $suffixText;
+    }
+
+    private function parseCitationRecord(): AstNode
     {
         $this->expectIdentifier('Citation');
         $this->expectSymbol('{');
@@ -1026,39 +1061,55 @@ final class NativeReader
             $this->acceptSymbol(',');
         }
 
-        return [
-            'id' => (string) ($fields['citationId'] ?? ''),
-            'prefix' => $fields['citationPrefix'] ?? [],
-            'suffix' => $fields['citationSuffix'] ?? [],
-            'mode' => (string) ($fields['citationMode'] ?? 'normal'),
-            'noteNum' => (int) ($fields['citationNoteNum'] ?? 1),
-            'hash' => (int) ($fields['citationHash'] ?? 0),
+        $id = (string) ($fields['citationId'] ?? '');
+        $prefix = $fields['citationPrefix'] ?? [];
+        $suffix = $fields['citationSuffix'] ?? [];
+        $mode = (string) ($fields['citationMode'] ?? 'normal');
+        $attrs = [
+            'id' => $id,
+            'text' => $this->citationRecordSourceText($id, $mode, $prefix, $suffix),
+            'mode' => $mode,
+            'citationNoteNum' => (int) ($fields['citationNoteNum'] ?? 1),
+            'citationHash' => (int) ($fields['citationHash'] ?? 0),
         ];
+        if ($prefix !== []) {
+            $attrs['prefix'] = $prefix;
+        }
+        if ($suffix !== []) {
+            $attrs['suffix'] = $suffix;
+        }
+
+        return new AstNode('citation', $attrs, [
+            new AstNode('text', ['text' => $attrs['text']]),
+        ]);
     }
 
     private function parseRawInline(): AstNode
     {
-        $format = $this->parseFormatTuple();
+        [$format, $formatNative] = $this->parseFormatTuple();
         $text = $this->expectString();
+        $attrs = [
+            'constructor' => 'RawInline',
+            'native' => ['t' => 'RawInline', 'c' => [$formatNative, $text]],
+            'formatConstructor' => 'Format',
+            'formatNative' => $formatNative,
+            'format' => $format,
+            'text' => $text,
+        ];
 
         if ($this->isHtmlRawFormat($format)) {
-            return new AstNode('raw_html_inline', ['format' => $format, 'text' => $text, 'html' => $text]);
+            return new AstNode('raw_html_inline', array_replace($attrs, ['html' => $text]));
         }
 
         if ($this->isTexRawFormat($format)) {
-            return new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]);
+            return new AstNode('raw_tex_inline', array_replace($attrs, ['tex' => $text]));
         }
 
         if ($this->isMarkdownRawFormat($format)) {
-            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+            return new AstNode('raw_markdown', array_replace($attrs, ['markdown' => $text]));
         }
 
-        return new AstNode('raw_inline', [
-            'constructor' => 'RawInline',
-            'native' => ['t' => 'RawInline', 'c' => [$format, $text]],
-            'format' => $format,
-            'text' => $text,
-        ]);
+        return new AstNode('raw_inline', $attrs);
     }
 
     private function isMarkdownRawFormat(string $format): bool
@@ -1310,14 +1361,17 @@ final class NativeReader
         return new AstNode('table_cell', $attrs, $this->parseBlockList());
     }
 
-    private function parseFormatTuple(): string
+    /**
+     * @return array{0:string, 1:array{t:string, c:string}}
+     */
+    private function parseFormatTuple(): array
     {
         $this->expectSymbol('(');
         $this->expectIdentifier('Format');
         $format = $this->expectString();
         $this->expectSymbol(')');
 
-        return $format;
+        return [$format, ['t' => 'Format', 'c' => $format]];
     }
 
     /**

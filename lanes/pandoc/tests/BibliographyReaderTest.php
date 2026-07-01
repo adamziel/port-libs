@@ -64,12 +64,17 @@ BIB;
     },
     'converts csl json ris and endnote xml bibliography inputs through the registered reader path' => static function (TestRunner $t): void {
         $cslJson = json_encode([
-            [
-                'id' => 'json-source',
-                'type' => 'book',
-                'title' => 'CSL JSON Packet',
-                'author' => [['family' => 'Ng', 'given' => 'Nia']],
-                'issued' => ['date-parts' => [[2026]]],
+            'items' => [
+                [
+                    'id' => 'json-source',
+                    'type' => 'book',
+                    'title' => 'CSL JSON Packet',
+                    'author' => [['family' => 'Ng', 'given' => 'Nia']],
+                    'issued' => ['date-parts' => [[2026]]],
+                ],
+            ],
+            'metadata' => [
+                'exporter' => 'Reference Manager',
             ],
         ], JSON_THROW_ON_ERROR);
         $ris = <<<'RIS'
@@ -129,6 +134,9 @@ XML;
         });
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('{"id":"single-object"}', 'csljson');
+        });
+        $t->throws(\InvalidArgumentException::class, static function (): void {
+            PandocConverter::read('{"references":"not-a-list"}', 'csljson');
         });
     },
 ];

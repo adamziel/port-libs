@@ -6,6 +6,7 @@ use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\MarkdownWriter;
 use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\NativeWriter;
+use PortLibs\Pandoc\PandocJsonReader;
 use PortLibs\Pandoc\PandocJsonWriter;
 
 return [
@@ -43,7 +44,9 @@ NATIVE;
         $emphasis = $paragraph->children[2];
         $json = (new PandocJsonWriter())->toArray(new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
         ], $document->children));
+        $roundTrip = (new PandocJsonReader())->readPacket($json);
 
         $t->same(['text', 'space', 'emph', 'space', 'text'], array_map(
             static fn (AstNode $node): string => $node->type,
@@ -67,6 +70,10 @@ NATIVE;
             '[ Para [ Str "left" , Space , Emph [ Str "middle" , Space , Str "right" ] , Space , Str "tail" ]' . "\n" . ']',
             (new NativeWriter(['blocksOnly' => true]))->write($document)
         );
+        $t->same(['text', 'space', 'emph', 'space', 'text'], array_map(
+            static fn (AstNode $node): string => $node->type,
+            $roundTrip->children[0]->children
+        ));
     },
     'classifies textual native tex-family raw constructors through shared ast writers' => static function (TestRunner $t): void {
         $native = <<<'NATIVE'
@@ -92,9 +99,9 @@ NATIVE;
         $t->same('raw_tex_inline', $texMacroInline->type);
         $t->same('tex+macros', $texMacroInline->attr('format'));
         $t->same('\\alpha', $texMacroInline->attr('tex'));
-        $t->same(['t' => 'RawBlock', 'c' => ['latex', '\\begin{review}body\\end{review}']], $json['blocks'][0]);
-        $t->same(['t' => 'RawInline', 'c' => ['context', '\\startformula x \\stopformula']], $json['blocks'][1]['c'][2]);
-        $t->same(['t' => 'RawInline', 'c' => ['tex+macros', '\\alpha']], $json['blocks'][1]['c'][4]);
+        $t->same(['t' => 'RawBlock', 'c' => [['t' => 'Format', 'c' => 'latex'], '\\begin{review}body\\end{review}']], $json['blocks'][0]);
+        $t->same(['t' => 'RawInline', 'c' => [['t' => 'Format', 'c' => 'context'], '\\startformula x \\stopformula']], $json['blocks'][1]['c'][2]);
+        $t->same(['t' => 'RawInline', 'c' => [['t' => 'Format', 'c' => 'tex+macros'], '\\alpha']], $json['blocks'][1]['c'][4]);
         $t->same(
             '[ RawBlock (Format "latex") "\\\\begin{review}body\\\\end{review}"' . "\n"
             . ', Para [ Str "Before" , Space , RawInline (Format "context") "\\\\startformula x \\\\stopformula" , Space , RawInline (Format "tex+macros") "\\\\alpha" ]' . "\n"

@@ -60,30 +60,7 @@ final class BibliographyReader
      */
     private function cslJsonItems(string $json): array
     {
-        $decoded = json_decode($json, true);
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \InvalidArgumentException('Invalid CSL JSON: ' . json_last_error_msg());
-        }
-        if (!is_array($decoded) || !$this->decodedJsonIsList($decoded, $json)) {
-            throw new \InvalidArgumentException('CSL JSON bibliography must be a list of item objects');
-        }
-
-        /** @var list<array<string, mixed>> $decoded */
-        CitationCslProcessor::fromItems($decoded);
-
-        return $decoded;
-    }
-
-    /**
-     * @param array<mixed> $decoded
-     */
-    private function decodedJsonIsList(array $decoded, string $json): bool
-    {
-        if ($decoded === []) {
-            return str_starts_with(ltrim($json), '[');
-        }
-
-        return array_is_list($decoded);
+        return CitationCslProcessor::cslJsonItems($json);
     }
 
     /**

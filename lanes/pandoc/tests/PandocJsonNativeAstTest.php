@@ -9049,7 +9049,47 @@ return [
                 'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
             ] as $writer => $encoded) {
                 $t->same(['t' => 'Attr', 'c' => [[['edited-heading'], [['edited'], ['source']], [[['data-source'], ['edited-json']], [['data-state'], ['reviewed']]]]], 'reviewQueue' => 'wrapped-heading-attr'], $encoded['blocks'][0]['c'][1], "{$source} {$writer} regenerates edited wrapped heading Attr constructor");
-                $t->same(['wrapped-link', ['external'], [['data-link', 'edited']]], $encoded['blocks'][1]['c'][0]['c'][0], "{$source} {$writer} regenerates edited wrapped link attr tuple");
+                $t->same([['wrapped-link'], [['external']], [[['data-link'], ['edited']]]], $encoded['blocks'][1]['c'][0]['c'][0], "{$source} {$writer} regenerates edited wrapped link attr tuple");
+            }
+        }
+    },
+    'regenerates edited untagged attr scalar wrappers' => static function (TestRunner $t): void {
+        $headingAttr = [[['source-heading'], [['source-class']], [[['data-state'], ['draft']]]]];
+        $packet = [
+            'pandoc-api-version' => [1, 23, 1],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'Header', 'c' => [
+                    2,
+                    $headingAttr,
+                    [['t' => 'Str', 'c' => 'Untagged attr scalar']],
+                ]],
+            ],
+        ];
+        $expectedAttr = [['edited-heading'], [['edited-class']], [[['data-state'], ['reviewed']]]];
+
+        foreach ([
+            'json' => (new PandocJsonReader())->readPacket($packet),
+            'native' => (new NativeReader())->read(json_encode($packet, JSON_THROW_ON_ERROR)),
+        ] as $source => $document) {
+            $heading = $document->children[0];
+            $edited = new AstNode('document', $document->attrs, [
+                new AstNode('heading', array_replace($heading->attrs, [
+                    'id' => 'edited-heading',
+                    'classes' => ['edited-class'],
+                    'attributes' => ['data-state' => 'reviewed'],
+                ]), $heading->children),
+            ]);
+
+            $t->same('source-heading', $heading->attr('id'), "{$source} unwraps untagged single wrapped Attr id");
+            $t->same(['source-class'], $heading->attr('classes'), "{$source} unwraps untagged single wrapped Attr classes");
+            $t->same(['data-state' => 'draft'], $heading->attr('attributes'), "{$source} unwraps untagged single wrapped Attr key-values");
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($edited),
+                'native' => json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $t->same($expectedAttr, $encoded['blocks'][0]['c'][1], "{$source} {$writer} regenerates edited untagged Attr scalar wrappers");
             }
         }
     },
@@ -9283,7 +9323,7 @@ return [
             new AstNode('paragraph', [], [
                 new AstNode('raw_html_inline', ['html' => '<span>raw</span>']),
                 new AstNode('space'),
-                new AstNode('raw_tex', ['tex' => '\\alpha']),
+                new AstNode('raw_tex_inline', ['tex' => '\\alpha']),
                 new AstNode('space'),
                 new AstNode('raw_inline', ['format' => 'opml', 'text' => '<outline/>']),
                 new AstNode('space'),
@@ -14873,11 +14913,26 @@ return [
             $editedFirstCitation = new AstNode('citation', array_replace($firstCitation->attrs, [
                 'citationHash' => 1999,
             ]), $firstCitation->children);
+            $editedSecondCitation = new AstNode('citation', array_replace($secondCitation->attrs, [
+                'citationHash' => 2901,
+                'mode' => 'suppress_author',
+            ]), $secondCitation->children);
             $edited = new AstNode('document', $document->attrs, [
                 new AstNode('paragraph', [], [
                     new AstNode('citation_group', $stripWrapperAttrs($cluster), [
                         $editedFirstCitation,
-                        $secondCitation,
+                        $editedSecondCitation,
+                    ]),
+                ]),
+            ]);
+            $editedSecondCitation = new AstNode('citation', array_replace($secondCitation->attrs, [
+                'citationHash' => 2002,
+            ]), $secondCitation->children);
+            $editedSingleWrapped = new AstNode('document', $document->attrs, [
+                new AstNode('paragraph', [], [
+                    new AstNode('citation_group', $stripWrapperAttrs($cluster), [
+                        $firstCitation,
+                        $editedSecondCitation,
                     ]),
                 ]),
             ]);
@@ -14909,9 +14964,28 @@ return [
             ] as $writer => $encoded) {
                 $encodedRecords = $encoded['blocks'][0]['c'][0]['c'][0];
 
-                $t->same(1999, $encodedRecords[0]['citationHash'], "{$source} {$writer} edited citation regenerates plain record");
-                $t->same(false, array_key_exists('t', $encodedRecords[0]), "{$source} {$writer} edited citation drops stale Citation wrapper");
-                $t->same($secondRecord, $encodedRecords[1], "{$source} {$writer} writer preserves unchanged tagged citation wrapper");
+                $t->same('Citation', $encodedRecords[0]['t'], "{$source} {$writer} edited first citation preserves wrapper");
+                $t->same('first-tagged-citation-source', $encodedRecords[0]['reviewQueue'], "{$source} {$writer} edited first citation preserves wrapper sidecar");
+                $t->same(1999, $encodedRecords[0]['c']['citationHash'], "{$source} {$writer} edited first citation regenerates object payload");
+                $t->same('smith1899', $encodedRecords[0]['c']['citationId'], "{$source} {$writer} edited first citation keeps id inside Citation payload");
+                $t->same(false, array_key_exists('reviewQueue', $encodedRecords[0]['c']), "{$source} {$writer} edited first citation drops stale inner sidecars");
+                $t->same('Citation', $encodedRecords[1]['t'], "{$source} {$writer} edited second citation preserves wrapper");
+                $t->same('second-tagged-citation-source', $encodedRecords[1]['reviewQueue'], "{$source} {$writer} edited second citation preserves wrapper sidecar");
+                $t->same(2901, $encodedRecords[1]['c'][0]['citationHash'], "{$source} {$writer} edited second citation preserves single-wrapped payload");
+                $t->same('SuppressAuthor', $encodedRecords[1]['c'][0]['citationMode']['t'], "{$source} {$writer} edited second citation regenerates wrapped mode");
+            }
+
+            foreach ([
+                'json' => (new PandocJsonWriter())->toArray($editedSingleWrapped),
+                'native' => json_decode((new NativeWriter())->write($editedSingleWrapped), true, 512, JSON_THROW_ON_ERROR),
+            ] as $writer => $encoded) {
+                $encodedRecords = $encoded['blocks'][0]['c'][0]['c'][0];
+
+                $t->same($firstRecord, $encodedRecords[0], "{$source} {$writer} preserves neighboring direct Citation wrapper");
+                $t->same('Citation', $encodedRecords[1]['t'], "{$source} {$writer} edited single-wrapped citation keeps Citation wrapper");
+                $t->same('second-tagged-citation-source', $encodedRecords[1]['reviewQueue'] ?? null, "{$source} {$writer} edited single-wrapped citation keeps Citation sidecar");
+                $t->same(2002, $encodedRecords[1]['c'][0]['citationHash'], "{$source} {$writer} edited single-wrapped citation regenerates wrapped payload");
+                $t->same('doe1901', $encodedRecords[1]['c'][0]['citationId'], "{$source} {$writer} edited single-wrapped citation keeps id inside wrapped payload");
             }
         }
     },
@@ -15814,6 +15888,66 @@ return [
             }
         }
     },
+    'preserves textual native inline separator constructors through json writers' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ Para [ Str "Alpha", Space, Str "Beta", SoftBreak, Str "Gamma", LineBreak, Str "Delta" ] ]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $paragraph = $document->children[0];
+        $packet = (new PandocJsonWriter())->toArray($document);
+        $encodedInlines = $packet['blocks'][0]['c'];
+
+        $t->same(['text', 'space', 'text', 'softbreak', 'text', 'linebreak', 'text'], array_map(static fn (AstNode $node): string => $node->type, $paragraph->children));
+        $t->same('Alpha Beta Gamma Delta', $paragraph->attr('text'));
+        $t->same(['Str', 'Space', 'Str', 'SoftBreak', 'Str', 'LineBreak', 'Str'], array_map(static fn (array $inline): string => $inline['t'], $encodedInlines));
+        $t->same('Alpha', $encodedInlines[0]['c']);
+        $t->same(false, array_key_exists('c', $encodedInlines[1]));
+        $t->same(false, array_key_exists('c', $encodedInlines[3]));
+        $t->same(false, array_key_exists('c', $encodedInlines[5]));
+    },
+    'maps textual native raw markdown and tex aliases into specific ast constructors' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ RawBlock (Format "markdown") "**raw block**"
+, RawBlock (Format "latex") "\\begin{review}\\end{review}"
+, Para [ RawInline (Format "markdown+tex_math_dollars") "$x$" , Space , RawInline (Format "context") "\\startformula x \\stopformula" ]
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $rawMarkdownBlock = $document->children[0];
+        $rawTexBlock = $document->children[1];
+        $paragraph = $document->children[2];
+        $rawMarkdownInline = $paragraph->children[0];
+        $rawTexInline = $paragraph->children[2];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $document->children);
+        $packet = (new PandocJsonWriter())->toArray($jsonDocument);
+        $roundTrip = (new PandocJsonReader())->readPacket($packet);
+
+        $t->same('raw_markdown', $rawMarkdownBlock->type);
+        $t->same('markdown', $rawMarkdownBlock->attr('format'));
+        $t->same('**raw block**', $rawMarkdownBlock->attr('markdown'));
+        $t->same('raw_tex', $rawTexBlock->type);
+        $t->same('latex', $rawTexBlock->attr('format'));
+        $t->same('\\begin{review}\\end{review}', $rawTexBlock->attr('tex'));
+        $t->same('raw_markdown', $rawMarkdownInline->type);
+        $t->same('markdown+tex_math_dollars', $rawMarkdownInline->attr('format'));
+        $t->same('$x$', $rawMarkdownInline->attr('markdown'));
+        $t->same('raw_tex_inline', $rawTexInline->type);
+        $t->same('context', $rawTexInline->attr('format'));
+        $t->same('\\startformula x \\stopformula', $rawTexInline->attr('tex'));
+        $t->same([['t' => 'Format', 'c' => 'markdown'], '**raw block**'], $packet['blocks'][0]['c']);
+        $t->same([['t' => 'Format', 'c' => 'latex'], '\\begin{review}\\end{review}'], $packet['blocks'][1]['c']);
+        $t->same([['t' => 'Format', 'c' => 'markdown+tex_math_dollars'], '$x$'], $packet['blocks'][2]['c'][0]['c']);
+        $t->same([['t' => 'Format', 'c' => 'context'], '\\startformula x \\stopformula'], $packet['blocks'][2]['c'][2]['c']);
+        $t->same('raw_markdown', $roundTrip->children[0]->type);
+        $t->same('raw_tex', $roundTrip->children[1]->type);
+        $t->same('raw_markdown', $roundTrip->children[2]->children[0]->type);
+        $t->same('raw_tex_inline', $roundTrip->children[2]->children[2]->type);
+    },
     'preserves edited enum helper constructors through json and native stacks' => static function (TestRunner $t): void {
         $listStyle = ['t' => 'DefaultStyle', 'c' => [['legacy-style']], 'reviewQueue' => 'list-style-source'];
         $listDelimiter = ['t' => 'DefaultDelim', 'c' => [['legacy-delimiter']], 'reviewQueue' => 'list-delimiter-source'];
@@ -15968,8 +16102,9 @@ NATIVE;
 
         $t->same('raw_tex_inline', $inline->type);
         $t->same('tex', $inline->attr('format'));
+        $t->same(['t' => 'Format', 'c' => 'tex'], $inline->attr('formatNative'));
         $t->same('\\alpha', $inline->attr('tex'));
-        $t->same(['t' => 'RawInline', 'c' => ['tex', '\\alpha']], $jsonPacket['blocks'][0]['c'][2]);
+        $t->same(['t' => 'RawInline', 'c' => [['t' => 'Format', 'c' => 'tex'], '\\alpha']], $jsonPacket['blocks'][0]['c'][2]);
         $t->same($jsonPacket['blocks'][0]['c'][2], $nativePacket['blocks'][0]['c'][2]);
         $t->same(['t' => 'RawInline', 'c' => ['latex', '\\beta']], $manualPacket['blocks'][0]['c'][0]);
         $t->same('raw_tex_inline', $roundTrip->children[0]->children[2]->type);
@@ -15978,6 +16113,42 @@ NATIVE;
         $t->same('context', $contextInline->attr('format'));
         $t->same('\\startformula x \\stopformula', $contextInline->attr('tex'));
         $t->same('ConTeXt \\startformula x \\stopformula', trim((new PlainWriter(['wrap' => 'none']))->write($contextDocument)));
+    },
+    'serializes native text markdown raw format constructors through pandoc json writers' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+Pandoc Meta {unMeta = fromList []} [ RawBlock (Format "markdown") "**raw block**", Para [ Str "Before", Space, RawInline (Format "gfm+raw_html") "<span>inline</span>", Space, RawInline (Format "latex") "\\beta" ] ]
+NATIVE;
+
+        $nativeDocument = (new NativeReader())->read($nativeText);
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($document);
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $roundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
+
+        $rawBlock = $nativeDocument->children[0];
+        $rawInline = $nativeDocument->children[1]->children[2];
+        $rawTexInline = $nativeDocument->children[1]->children[4];
+
+        $t->same('raw_markdown', $rawBlock->type);
+        $t->same('markdown', $rawBlock->attr('format'));
+        $t->same('**raw block**', $rawBlock->attr('markdown'));
+        $t->same('raw_markdown', $rawInline->type);
+        $t->same('gfm+raw_html', $rawInline->attr('format'));
+        $t->same('<span>inline</span>', $rawInline->attr('markdown'));
+        $t->same('raw_tex_inline', $rawTexInline->type);
+        $t->same('latex', $rawTexInline->attr('format'));
+        $t->same('\\beta', $rawTexInline->attr('tex'));
+        $t->same(['t' => 'RawBlock', 'c' => [['t' => 'Format', 'c' => 'markdown'], '**raw block**']], $jsonPacket['blocks'][0]);
+        $t->same(['t' => 'RawInline', 'c' => [['t' => 'Format', 'c' => 'gfm+raw_html'], '<span>inline</span>']], $jsonPacket['blocks'][1]['c'][2]);
+        $t->same(['t' => 'RawInline', 'c' => [['t' => 'Format', 'c' => 'latex'], '\\beta']], $jsonPacket['blocks'][1]['c'][4]);
+        $t->same($jsonPacket['blocks'][0], $nativePacket['blocks'][0]);
+        $t->same($jsonPacket['blocks'][1]['c'][2], $nativePacket['blocks'][1]['c'][2]);
+        $t->same('raw_markdown', $roundTrip->children[0]->type);
+        $t->same('raw_markdown', $roundTrip->children[1]->children[2]->type);
+        $t->same('raw_tex_inline', $roundTrip->children[1]->children[4]->type);
     },
     'preserves single wrapped raw format constructors through json and native stacks' => static function (TestRunner $t): void {
         $blockFormat = ['t' => 'Format', 'c' => [['html']], 'reviewQueue' => 'raw-block-format-source'];
