@@ -18337,6 +18337,108 @@ XML;
         $t->true(in_array('numbering-picture-bullet', $package['parts']['word/media/numbering.png']['roles'], true), 'referenced numbering image role missing');
         $t->true(in_array('numbering-picture-bullet', $package['parts']['word/media/unreferenced-numbering.png']['roles'], true), 'unreferenced numbering image role missing');
     },
+    'summarizes docx numbering relationship sidecar target path provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $numberingContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Default Extension="png" ContentType="image/png"/>',
+            '  <Default Extension="png" ContentType="image/png"/>' . "\n" .
+            '  <Default Extension="svg" ContentType="image/svg+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/numbering.xml" ContentType="' . $numberingContentType . '"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/numbering.xml'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+  xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+  xmlns:v="urn:schemas-microsoft-com:vml">
+  <w:numPicBullet w:numPicBulletId="21">
+    <w:pict><v:shape><v:imagedata r:id="rNumberingIcon"/></v:shape></w:pict>
+  </w:numPicBullet>
+  <w:numPicBullet w:numPicBulletId="22">
+    <w:pict><v:shape><v:imagedata r:id="rNestedIcon"/></v:shape></w:pict>
+  </w:numPicBullet>
+</w:numbering>
+XML;
+        $parts['word/_rels/numbering.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rNumberingIcon" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/bullets/Review.PNG?asset=main#icon"/>
+  <Relationship Id="rNestedIcon" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../customXml/bullets/review-icon.svg"/>
+  <Relationship Id="rMissingIcon" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing/BULLET.PNG"/>
+  <Relationship Id="rRemoteIcon" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="https://cdn.example.test/numbering/remote-icon.png?asset=remote#icon" TargetMode="External"/>
+</Relationships>
+XML;
+        $parts['word/media/bullets/Review.PNG'] = 'numbering icon bytes';
+        $parts['customXml/bullets/review-icon.svg'] = '<svg/>';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $sidecar = $package['numberingRelationshipSidecar'];
+        $icon = $sidecar['byRelationshipId']['rNumberingIcon'];
+        $nested = $sidecar['byRelationshipId']['rNestedIcon'];
+        $missing = $sidecar['byRelationshipId']['rMissingIcon'];
+        $remote = $sidecar['byRelationshipId']['rRemoteIcon'];
+
+        $t->same(3, $sidecar['targetDirectoryCount']);
+        $t->same(['customXml/bullets', 'word/media/bullets', 'word/media/missing'], $sidecar['targetDirectories']);
+        $t->same(['customXml/bullets' => 1, 'word/media/bullets' => 1, 'word/media/missing' => 1], $sidecar['targetDirectoryCounts']);
+        $t->same(2, $sidecar['targetDirectoryBaseNameCount']);
+        $t->same(['bullets', 'missing'], $sidecar['targetDirectoryBaseNames']);
+        $t->same(['bullets' => 2, 'missing' => 1], $sidecar['targetDirectoryBaseNameCounts']);
+        $t->same(3, $sidecar['targetBaseNameCount']);
+        $t->same(['BULLET.PNG', 'Review.PNG', 'review-icon.svg'], $sidecar['targetBaseNames']);
+        $t->same(['BULLET.PNG' => 1, 'Review.PNG' => 1, 'review-icon.svg' => 1], $sidecar['targetBaseNameCounts']);
+        $t->same(3, $sidecar['targetBaseNameStemCount']);
+        $t->same(['BULLET', 'Review', 'review-icon'], $sidecar['targetBaseNameStems']);
+        $t->same(['BULLET' => 1, 'Review' => 1, 'review-icon' => 1], $sidecar['targetBaseNameStemCounts']);
+        $t->same(8, $sidecar['targetPathSegmentCount']);
+        $t->same(11, $sidecar['targetPathSegmentOccurrenceCount']);
+        $t->same([
+            'BULLET.PNG' => 1,
+            'Review.PNG' => 1,
+            'bullets' => 2,
+            'customXml' => 1,
+            'media' => 2,
+            'missing' => 1,
+            'review-icon.svg' => 1,
+            'word' => 2,
+        ], $sidecar['targetPathSegmentCounts']);
+
+        $t->same($imageRel, $icon['type']);
+        $t->same('word/media/bullets', $icon['targetDirectory']);
+        $t->same('bullets', $icon['targetDirectoryBaseName']);
+        $t->same('Review.PNG', $icon['targetBaseName']);
+        $t->same('Review', $icon['targetBaseNameStem']);
+        $t->same(['word', 'media', 'bullets', 'Review.PNG'], $icon['targetPathSegments']);
+        $t->same(4, $icon['targetPathSegmentCount']);
+        $t->same('customXml/bullets', $nested['targetDirectory']);
+        $t->same('review-icon.svg', $nested['targetBaseName']);
+        $t->same(['customXml', 'bullets', 'review-icon.svg'], $nested['targetPathSegments']);
+        $t->same('word/media/missing', $missing['targetDirectory']);
+        $t->same('BULLET.PNG', $missing['targetBaseName']);
+        $t->same(false, $missing['exists']);
+        $t->same(null, $remote['targetDirectory']);
+        $t->same([], $remote['targetPathSegments']);
+        $t->same(0, $remote['targetPathSegmentCount']);
+
+        $t->same($sidecar['targetDirectoryCount'], $summary['numberingRelationshipSidecarTargetDirectoryCount']);
+        $t->same($sidecar['targetDirectories'], $summary['numberingRelationshipSidecarTargetDirectories']);
+        $t->same($sidecar['targetDirectoryBaseNameCount'], $summary['numberingRelationshipSidecarTargetDirectoryBaseNameCount']);
+        $t->same($sidecar['targetDirectoryBaseNames'], $summary['numberingRelationshipSidecarTargetDirectoryBaseNames']);
+        $t->same($sidecar['targetBaseNameCount'], $summary['numberingRelationshipSidecarTargetBaseNameCount']);
+        $t->same($sidecar['targetBaseNames'], $summary['numberingRelationshipSidecarTargetBaseNames']);
+        $t->same($sidecar['targetPathSegmentCount'], $summary['numberingRelationshipSidecarTargetPathSegmentCount']);
+        $t->same($sidecar['targetPathSegmentOccurrenceCount'], $summary['numberingRelationshipSidecarTargetPathSegmentOccurrenceCount']);
+        $t->same($sidecar['targetPathSegmentCounts'], $summary['numberingRelationshipSidecarTargetPathSegmentCounts']);
+    },
     'resolves docx styles and core properties from relationship targets' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['[Content_Types].xml'] = str_replace(

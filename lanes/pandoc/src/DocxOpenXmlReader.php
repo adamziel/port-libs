@@ -1431,6 +1431,15 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['numberingRelationshipSidecarMissingTargetCount'] = $numberingRelationshipSidecar['missingTargetCount'];
         $packageProvenance['summary']['numberingRelationshipSidecarMissingContentTypeCount'] = $numberingRelationshipSidecar['missingContentTypeCount'];
         $packageProvenance['summary']['numberingRelationshipSidecarUnexpectedImageContentTypeCount'] = $numberingRelationshipSidecar['unexpectedImageContentTypeCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetDirectoryCount'] = $numberingRelationshipSidecar['targetDirectoryCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetDirectories'] = $numberingRelationshipSidecar['targetDirectories'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetDirectoryBaseNameCount'] = $numberingRelationshipSidecar['targetDirectoryBaseNameCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetDirectoryBaseNames'] = $numberingRelationshipSidecar['targetDirectoryBaseNames'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetBaseNameCount'] = $numberingRelationshipSidecar['targetBaseNameCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetBaseNames'] = $numberingRelationshipSidecar['targetBaseNames'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetPathSegmentCount'] = $numberingRelationshipSidecar['targetPathSegmentCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetPathSegmentOccurrenceCount'] = $numberingRelationshipSidecar['targetPathSegmentOccurrenceCount'];
+        $packageProvenance['summary']['numberingRelationshipSidecarTargetPathSegmentCounts'] = $numberingRelationshipSidecar['targetPathSegmentCounts'];
         $packageProvenance['summary']['numberingRelationshipSidecarIssueCount'] = $numberingRelationshipSidecar['issueCount'];
         $packageProvenance['summary']['numberingRelationshipSidecarIssueCodes'] = $numberingRelationshipSidecar['issueCodes'];
         $packageProvenance['numberingRelationship'] = $numberingRelationshipReview;
@@ -2596,6 +2605,16 @@ final class DocxOpenXmlReader
         $referencedPictureBulletRelationshipIdsList = [];
         $unreferencedImageRelationshipIds = [];
         $targetParts = [];
+        $targetDirectories = [];
+        $targetDirectoryCounts = [];
+        $targetDirectoryBaseNames = [];
+        $targetDirectoryBaseNameCounts = [];
+        $targetBaseNames = [];
+        $targetBaseNameCounts = [];
+        $targetBaseNameStems = [];
+        $targetBaseNameStemCounts = [];
+        $targetPathSegments = [];
+        $targetPathSegmentCounts = [];
         $externalTargets = [];
         $contentTypesSeen = [];
         $relationshipTypes = [];
@@ -2624,6 +2643,11 @@ final class DocxOpenXmlReader
             $relationshipId = (string) $relationship['id'];
             $relationshipType = (string) $summary['type'];
             $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $targetDirectory = null;
+            $targetDirectoryBaseName = null;
+            $targetBaseName = null;
+            $targetBaseNameStem = null;
+            $relationshipTargetPathSegments = [];
             $external = (bool) $summary['external'];
             $exists = (bool) $summary['exists'];
             $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
@@ -2650,7 +2674,26 @@ final class DocxOpenXmlReader
             } else {
                 ++$internalRelationshipCount;
                 if ($targetPart !== null) {
+                    $targetDirectory = $this->packagePartDirectory($targetPart);
+                    $targetDirectoryBaseName = $this->packagePartDirectoryBaseName($targetDirectory);
+                    $targetBaseName = $this->packagePartBaseName($targetPart);
+                    $targetBaseNameStem = $this->packagePartBaseNameStem($targetPart);
+                    $relationshipTargetPathSegments = $this->packagePartPathSegments($targetPart);
+
                     $this->appendUniqueString($targetParts, $targetPart);
+                    $this->appendUniqueString($targetDirectories, $targetDirectory);
+                    $this->appendUniqueString($targetDirectoryBaseNames, $targetDirectoryBaseName);
+                    $this->appendUniqueString($targetBaseNames, $targetBaseName);
+                    $this->appendUniqueString($targetBaseNameStems, $targetBaseNameStem);
+                    $targetDirectoryCounts[$targetDirectory] = ($targetDirectoryCounts[$targetDirectory] ?? 0) + 1;
+                    $targetDirectoryBaseNameCounts[$targetDirectoryBaseName] = ($targetDirectoryBaseNameCounts[$targetDirectoryBaseName] ?? 0) + 1;
+                    $targetBaseNameCounts[$targetBaseName] = ($targetBaseNameCounts[$targetBaseName] ?? 0) + 1;
+                    $targetBaseNameStemCounts[$targetBaseNameStem] = ($targetBaseNameStemCounts[$targetBaseNameStem] ?? 0) + 1;
+                    foreach ($relationshipTargetPathSegments as $targetPathSegment) {
+                        $this->appendUniqueString($targetPathSegments, $targetPathSegment);
+                        $targetPathSegmentCounts[$targetPathSegment] = ($targetPathSegmentCounts[$targetPathSegment] ?? 0) + 1;
+                    }
+
                     $partExtension = $this->packagePartExtension($targetPart);
                     $targetExtensionCounts[$partExtension] = ($targetExtensionCounts[$partExtension] ?? 0) + 1;
                 }
@@ -2707,6 +2750,12 @@ final class DocxOpenXmlReader
                 'external' => $external,
                 'resolvedTarget' => $summary['resolvedTarget'],
                 'targetPart' => $targetPart,
+                'targetDirectory' => $targetDirectory,
+                'targetDirectoryBaseName' => $targetDirectoryBaseName,
+                'targetBaseName' => $targetBaseName,
+                'targetBaseNameStem' => $targetBaseNameStem,
+                'targetPathSegments' => $relationshipTargetPathSegments,
+                'targetPathSegmentCount' => count($relationshipTargetPathSegments),
                 'targetQuery' => $summary['targetQuery'],
                 'targetFragment' => $summary['targetFragment'],
                 'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
@@ -2745,9 +2794,19 @@ final class DocxOpenXmlReader
         ksort($relationshipTypeCounts, SORT_STRING);
         ksort($contentTypeBaseCounts, SORT_STRING);
         ksort($contentTypeSourceCounts, SORT_STRING);
+        ksort($targetDirectoryCounts, SORT_STRING);
+        ksort($targetDirectoryBaseNameCounts, SORT_STRING);
+        ksort($targetBaseNameCounts, SORT_STRING);
+        ksort($targetBaseNameStemCounts, SORT_STRING);
+        ksort($targetPathSegmentCounts, SORT_STRING);
         ksort($targetExtensionCounts, SORT_STRING);
         ksort($issueCodes, SORT_STRING);
         sort($targetParts, SORT_STRING);
+        sort($targetDirectories, SORT_STRING);
+        sort($targetDirectoryBaseNames, SORT_STRING);
+        sort($targetBaseNames, SORT_STRING);
+        sort($targetBaseNameStems, SORT_STRING);
+        sort($targetPathSegments, SORT_STRING);
         sort($externalTargets, SORT_STRING);
         sort($contentTypesSeen, SORT_STRING);
         sort($relationshipTypes, SORT_STRING);
@@ -2771,7 +2830,23 @@ final class DocxOpenXmlReader
             'imageRelationshipIds' => $imageRelationshipIds,
             'referencedPictureBulletRelationshipIds' => $referencedPictureBulletRelationshipIdsList,
             'unreferencedImageRelationshipIds' => $unreferencedImageRelationshipIds,
+            'targetDirectoryCount' => count($targetDirectories),
+            'targetDirectoryBaseNameCount' => count($targetDirectoryBaseNames),
+            'targetBaseNameCount' => count($targetBaseNames),
+            'targetBaseNameStemCount' => count($targetBaseNameStems),
+            'targetPathSegmentCount' => count($targetPathSegments),
+            'targetPathSegmentOccurrenceCount' => array_sum($targetPathSegmentCounts),
             'targetParts' => $targetParts,
+            'targetDirectories' => $targetDirectories,
+            'targetDirectoryCounts' => $targetDirectoryCounts,
+            'targetDirectoryBaseNames' => $targetDirectoryBaseNames,
+            'targetDirectoryBaseNameCounts' => $targetDirectoryBaseNameCounts,
+            'targetBaseNames' => $targetBaseNames,
+            'targetBaseNameCounts' => $targetBaseNameCounts,
+            'targetBaseNameStems' => $targetBaseNameStems,
+            'targetBaseNameStemCounts' => $targetBaseNameStemCounts,
+            'targetPathSegments' => $targetPathSegments,
+            'targetPathSegmentCounts' => $targetPathSegmentCounts,
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
             'relationshipTypes' => $relationshipTypes,
