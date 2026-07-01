@@ -279,6 +279,7 @@ final class OpenDocumentPackage
      *     exposableMediaPartCount:int,
      *     encryptedCount:int,
      *     encryptedParts:list<string>,
+     *     manifestMediaTypeSummary:array<string, mixed>,
      *     manifestReview:array<string, mixed>,
      *     packageInventory:array<string, mixed>,
      *     packageByteHandoff:array<string, mixed>,
@@ -321,6 +322,7 @@ final class OpenDocumentPackage
         $packageLayoutCaches = self::packageLayoutCacheMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $documentParts = $this->documentPartPackageProvenance($packageInventory);
         $packageStyles = $this->packageStyleProvenance($packageInventory);
+        $manifestMediaTypeSummary = self::manifestMediaTypeSummary($this->manifestEntries);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
                 $mediaParts[] = [
@@ -420,6 +422,7 @@ final class OpenDocumentPackage
             'packageStyles' => $packageStyles,
             'rdfMetadata' => $this->rdfMetadata,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
+            'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestReview' => self::manifestReview(
                 $this->manifestEntries,
                 $undeclaredPackageEntries,
@@ -428,7 +431,7 @@ final class OpenDocumentPackage
             ),
             'packageInventory' => $packageInventory,
             'packageByteHandoff' => $packageInventory['packageByteHandoff'],
-            'packageIdentity' => $this->packageIdentity($packageInventory),
+            'packageIdentity' => $this->packageIdentity($packageInventory, $manifestMediaTypeSummary),
             'metadata' => $this->metadata,
             'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
@@ -1370,7 +1373,7 @@ final class OpenDocumentPackage
      * @param array<string, mixed> $packageInventory
      * @return array<string, mixed>
      */
-    private function packageIdentity(array $packageInventory): array
+    private function packageIdentity(array $packageInventory, array $manifestMediaTypeSummary): array
     {
         $zipPackageManifestSummary = self::zipPackageManifestAggregateProvenance(
             is_array($packageInventory['zipPackageManifest'] ?? null) ? $packageInventory['zipPackageManifest'] : []
@@ -1664,6 +1667,13 @@ final class OpenDocumentPackage
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
             'commentedEntryNames' => is_array($comments['commentedEntryNames'] ?? null) ? $comments['commentedEntryNames'] : [],
             'manifestEntries' => $manifestEntries,
+            'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
+            'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
+            'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
+            'manifestMediaTypeParameterNames' => $manifestMediaTypeSummary['mediaTypeParameterNames'] ?? [],
+            'manifestEmptyMediaTypeCount' => $manifestMediaTypeSummary['emptyMediaTypeCount'] ?? 0,
+            'manifestEmptyMediaTypeDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeDirectoryCount'] ?? 0,
+            'manifestEmptyMediaTypeNonDirectoryCount' => $manifestMediaTypeSummary['emptyMediaTypeNonDirectoryCount'] ?? 0,
             'packageEntries' => $packageEntries,
             'manifestMediaFamilyCounts' => $packageInventory['manifestMediaFamilyCounts'] ?? [],
             'extensionlessPackagePartCount' => $packageInventory['extensionlessPackagePartCount'] ?? 0,
@@ -1823,6 +1833,359 @@ final class OpenDocumentPackage
         $payload['canExposeBytes'] = false;
 
         return $payload;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $manifestEntries
+     * @return array<string, mixed>
+     */
+    private static function manifestMediaTypeSummary(array $manifestEntries): array
+    {
+        $groups = [];
+        $groupOrder = [];
+        $emptyMediaTypeParts = [];
+        $emptyMediaTypeDirectoryParts = [];
+        $emptyMediaTypeNonDirectoryItems = [];
+        $invalidDeclaredSizeItems = [];
+        $diagnostics = [];
+        $summary = [
+            'manifestItemCount' => count($manifestEntries),
+            'typedItemCount' => 0,
+            'mediaTypeCount' => 0,
+            'emptyMediaTypeCount' => 0,
+            'emptyMediaTypeParts' => [],
+            'emptyMediaTypeDirectoryCount' => 0,
+            'emptyMediaTypeDirectoryParts' => [],
+            'emptyMediaTypeNonDirectoryCount' => 0,
+            'emptyMediaTypeNonDirectoryItems' => [],
+            'diagnosticCount' => 0,
+            'diagnosticCodeCounts' => [],
+            'diagnostics' => [],
+            'directoryCount' => 0,
+            'missingCount' => 0,
+            'encryptedCount' => 0,
+            'versionedItemCount' => 0,
+            'manifestVersions' => [],
+            'versionedItems' => [],
+            'preferredViewModeCount' => 0,
+            'preferredViewModes' => [],
+            'preferredViewModeItems' => [],
+            'declaredSizeMismatchCount' => 0,
+            'invalidDeclaredSizeCount' => 0,
+            'invalidDeclaredSizeItems' => [],
+            'parameterizedItemCount' => 0,
+            'mediaTypeParameterNames' => [],
+            'storedByteLength' => 0,
+            'compressedByteLength' => 0,
+            'exposableByteLength' => 0,
+            'declaredSize' => 0,
+            'storedCompressionMethodCount' => 0,
+            'deflatedCompressionMethodCount' => 0,
+            'unsupportedCompressionMethodCount' => 0,
+            'items' => [],
+        ];
+
+        foreach ($manifestEntries as $entry) {
+            $part = self::manifestMediaTypePartLabel($entry);
+            $fullPath = is_string($entry['fullPath'] ?? null) ? $entry['fullPath'] : ($entry['path'] ?? null);
+            $packagePath = is_string($entry['part'] ?? null) ? $entry['part'] : ($entry['packagePath'] ?? null);
+            $mediaType = trim((string) ($entry['mediaType'] ?? ''));
+            $mediaTypeReport = self::mediaTypeReport($mediaType);
+            $mediaTypeBase = (string) ($entry['mediaTypeBase'] ?? $mediaTypeReport['mediaTypeBase']);
+            $mediaTypeParameters = is_array($entry['mediaTypeParameters'] ?? null)
+                ? $entry['mediaTypeParameters']
+                : $mediaTypeReport['mediaTypeParameters'];
+            $exists = ($entry['exists'] ?? false) === true;
+            $isDirectory = ($entry['isDirectory'] ?? false) === true;
+            $encrypted = ($entry['encrypted'] ?? false) === true;
+            $declaredSizeMismatch = ($entry['declaredSizeMismatch'] ?? false) === true;
+            $declaredSizeInvalid = ($entry['declaredSizeInvalid'] ?? false) === true;
+            $byteLength = $entry['byteLength'] ?? null;
+            $storedByteLength = $entry['storedByteLength'] ?? null;
+            $compressedByteLength = $entry['compressedByteLength'] ?? null;
+            $declaredSize = $entry['declaredSize'] ?? ($entry['size'] ?? null);
+            $compressionMethod = $entry['compressionMethod'] ?? null;
+            $itemDiagnostics = is_array($entry['diagnostics'] ?? null) ? $entry['diagnostics'] : [];
+            $manifestVersion = trim((string) ($entry['version'] ?? ''));
+            $preferredViewMode = trim((string) ($entry['preferredViewMode'] ?? ''));
+
+            if ($isDirectory) {
+                ++$summary['directoryCount'];
+            }
+            if (!$exists) {
+                ++$summary['missingCount'];
+            }
+            if ($encrypted) {
+                ++$summary['encryptedCount'];
+            }
+            if ($declaredSizeMismatch) {
+                ++$summary['declaredSizeMismatchCount'];
+            }
+            if ($declaredSizeInvalid) {
+                ++$summary['invalidDeclaredSizeCount'];
+                $invalidDeclaredSizeItems[] = self::withoutEmptyValues([
+                    'fullPath' => $fullPath,
+                    'part' => $packagePath,
+                    'mediaType' => $mediaType,
+                    'declaredSizeRaw' => $entry['declaredSizeRaw'] ?? null,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                    'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                    'diagnostics' => $itemDiagnostics,
+                ]);
+            }
+            if ($manifestVersion !== '') {
+                ++$summary['versionedItemCount'];
+                if (!in_array($manifestVersion, $summary['manifestVersions'], true)) {
+                    $summary['manifestVersions'][] = $manifestVersion;
+                }
+                $summary['versionedItems'][] = self::withoutEmptyValues([
+                    'fullPath' => $fullPath,
+                    'part' => $packagePath,
+                    'mediaType' => $mediaType,
+                    'version' => $manifestVersion,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                ]);
+            }
+            if ($preferredViewMode !== '') {
+                ++$summary['preferredViewModeCount'];
+                if (!in_array($preferredViewMode, $summary['preferredViewModes'], true)) {
+                    $summary['preferredViewModes'][] = $preferredViewMode;
+                }
+                $summary['preferredViewModeItems'][] = self::withoutEmptyValues([
+                    'fullPath' => $fullPath,
+                    'part' => $packagePath,
+                    'mediaType' => $mediaType,
+                    'preferredViewMode' => $preferredViewMode,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                ]);
+            }
+            if (is_int($storedByteLength)) {
+                $summary['storedByteLength'] += $storedByteLength;
+            }
+            if (is_int($byteLength) && ($entry['canExposeBytes'] ?? false) === true) {
+                $summary['exposableByteLength'] += $byteLength;
+            }
+            if (is_int($compressedByteLength)) {
+                $summary['compressedByteLength'] += $compressedByteLength;
+            }
+            if (is_int($declaredSize)) {
+                $summary['declaredSize'] += $declaredSize;
+            }
+            if ($compressionMethod === 0) {
+                ++$summary['storedCompressionMethodCount'];
+            } elseif ($compressionMethod === 8) {
+                ++$summary['deflatedCompressionMethodCount'];
+            } elseif (is_int($compressionMethod)) {
+                ++$summary['unsupportedCompressionMethodCount'];
+            }
+
+            foreach ($itemDiagnostics as $diagnostic) {
+                $code = (string) $diagnostic;
+                if ($code === '') {
+                    continue;
+                }
+
+                $diagnostics[] = self::withoutEmptyValues([
+                    'code' => $code,
+                    'fullPath' => $fullPath,
+                    'part' => $packagePath,
+                    'mediaType' => $mediaType,
+                    'exists' => $exists,
+                    'isDirectory' => $isDirectory,
+                    'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                ]);
+            }
+
+            if ($mediaType === '') {
+                $emptyMediaTypeParts[] = $part;
+                if ($isDirectory) {
+                    $emptyMediaTypeDirectoryParts[] = $part;
+                } else {
+                    $emptyMediaTypeNonDirectoryItems[] = self::withoutEmptyValues([
+                        'fullPath' => $fullPath,
+                        'part' => $packagePath,
+                        'exists' => $exists,
+                        'storedByteLength' => $storedByteLength,
+                        'compressedByteLength' => $compressedByteLength,
+                        'compressionMethod' => $compressionMethod,
+                        'compressionMethodName' => $entry['compressionMethodName'] ?? null,
+                        'canExposeBytes' => ($entry['canExposeBytes'] ?? false) === true,
+                        'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+                        'diagnostics' => $itemDiagnostics,
+                    ]);
+                }
+                continue;
+            }
+
+            $groupMediaType = $mediaTypeBase === '' ? $mediaType : $mediaTypeBase;
+            if (!isset($groups[$groupMediaType])) {
+                $groups[$groupMediaType] = [
+                    'mediaType' => $groupMediaType,
+                    'count' => 0,
+                    'parts' => [],
+                    'rawMediaTypes' => [],
+                    'rawMediaTypeCount' => 0,
+                    'parameterizedItemCount' => 0,
+                    'mediaTypeParameterNames' => [],
+                    'existsCount' => 0,
+                    'missingCount' => 0,
+                    'directoryCount' => 0,
+                    'encryptedCount' => 0,
+                    'versionedItemCount' => 0,
+                    'manifestVersions' => [],
+                    'preferredViewModeCount' => 0,
+                    'preferredViewModes' => [],
+                    'declaredSizeMismatchCount' => 0,
+                    'invalidDeclaredSizeCount' => 0,
+                    'storedByteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'exposableByteLength' => 0,
+                    'declaredSize' => 0,
+                    'storedCompressionMethodCount' => 0,
+                    'deflatedCompressionMethodCount' => 0,
+                    'unsupportedCompressionMethodCount' => 0,
+                ];
+                $groupOrder[] = $groupMediaType;
+            }
+
+            ++$summary['typedItemCount'];
+            ++$groups[$groupMediaType]['count'];
+            $groups[$groupMediaType]['parts'][] = $part;
+            if (!in_array($mediaType, $groups[$groupMediaType]['rawMediaTypes'], true)) {
+                $groups[$groupMediaType]['rawMediaTypes'][] = $mediaType;
+            }
+            if (($entry['mediaTypeHasParameters'] ?? $mediaTypeReport['mediaTypeHasParameters']) === true) {
+                ++$summary['parameterizedItemCount'];
+                ++$groups[$groupMediaType]['parameterizedItemCount'];
+            }
+            foreach ($mediaTypeParameters as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+                $name = (string) ($parameter['name'] ?? '');
+                if ($name === '') {
+                    continue;
+                }
+                if (!in_array($name, $summary['mediaTypeParameterNames'], true)) {
+                    $summary['mediaTypeParameterNames'][] = $name;
+                }
+                if (!in_array($name, $groups[$groupMediaType]['mediaTypeParameterNames'], true)) {
+                    $groups[$groupMediaType]['mediaTypeParameterNames'][] = $name;
+                }
+            }
+            if ($exists) {
+                ++$groups[$groupMediaType]['existsCount'];
+            } else {
+                ++$groups[$groupMediaType]['missingCount'];
+            }
+            if ($isDirectory) {
+                ++$groups[$groupMediaType]['directoryCount'];
+            }
+            if ($encrypted) {
+                ++$groups[$groupMediaType]['encryptedCount'];
+            }
+            if ($manifestVersion !== '') {
+                ++$groups[$groupMediaType]['versionedItemCount'];
+                if (!in_array($manifestVersion, $groups[$groupMediaType]['manifestVersions'], true)) {
+                    $groups[$groupMediaType]['manifestVersions'][] = $manifestVersion;
+                }
+            }
+            if ($preferredViewMode !== '') {
+                ++$groups[$groupMediaType]['preferredViewModeCount'];
+                if (!in_array($preferredViewMode, $groups[$groupMediaType]['preferredViewModes'], true)) {
+                    $groups[$groupMediaType]['preferredViewModes'][] = $preferredViewMode;
+                }
+            }
+            if ($declaredSizeMismatch) {
+                ++$groups[$groupMediaType]['declaredSizeMismatchCount'];
+            }
+            if ($declaredSizeInvalid) {
+                ++$groups[$groupMediaType]['invalidDeclaredSizeCount'];
+            }
+            if (is_int($storedByteLength)) {
+                $groups[$groupMediaType]['storedByteLength'] += $storedByteLength;
+            }
+            if (is_int($byteLength) && ($entry['canExposeBytes'] ?? false) === true) {
+                $groups[$groupMediaType]['exposableByteLength'] += $byteLength;
+            }
+            if (is_int($compressedByteLength)) {
+                $groups[$groupMediaType]['compressedByteLength'] += $compressedByteLength;
+            }
+            if (is_int($declaredSize)) {
+                $groups[$groupMediaType]['declaredSize'] += $declaredSize;
+            }
+            if ($compressionMethod === 0) {
+                ++$groups[$groupMediaType]['storedCompressionMethodCount'];
+            } elseif ($compressionMethod === 8) {
+                ++$groups[$groupMediaType]['deflatedCompressionMethodCount'];
+            } elseif (is_int($compressionMethod)) {
+                ++$groups[$groupMediaType]['unsupportedCompressionMethodCount'];
+            }
+        }
+
+        $items = [];
+        sort($summary['mediaTypeParameterNames'], SORT_STRING);
+        foreach ($groupOrder as $mediaType) {
+            sort($groups[$mediaType]['mediaTypeParameterNames'], SORT_STRING);
+            $groups[$mediaType]['rawMediaTypeCount'] = count($groups[$mediaType]['rawMediaTypes']);
+            $items[] = $groups[$mediaType];
+        }
+
+        $summary['mediaTypeCount'] = count($items);
+        $summary['emptyMediaTypeCount'] = count($emptyMediaTypeParts);
+        $summary['emptyMediaTypeParts'] = $emptyMediaTypeParts;
+        $summary['emptyMediaTypeDirectoryCount'] = count($emptyMediaTypeDirectoryParts);
+        $summary['emptyMediaTypeDirectoryParts'] = $emptyMediaTypeDirectoryParts;
+        $summary['emptyMediaTypeNonDirectoryCount'] = count($emptyMediaTypeNonDirectoryItems);
+        $summary['emptyMediaTypeNonDirectoryItems'] = $emptyMediaTypeNonDirectoryItems;
+        $summary['invalidDeclaredSizeItems'] = $invalidDeclaredSizeItems;
+        $summary['diagnosticCount'] = count($diagnostics);
+        $summary['diagnosticCodeCounts'] = self::diagnosticCodeCounts($diagnostics);
+        $summary['diagnostics'] = $diagnostics;
+        $summary['items'] = $items;
+
+        return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     */
+    private static function manifestMediaTypePartLabel(array $entry): string
+    {
+        $part = $entry['part'] ?? ($entry['packagePath'] ?? null);
+        if (is_string($part) && $part !== '') {
+            return $part;
+        }
+
+        $fullPath = $entry['fullPath'] ?? ($entry['path'] ?? null);
+        if (is_string($fullPath) && $fullPath !== '') {
+            return $fullPath;
+        }
+
+        return '/';
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private static function diagnosticCodeCounts(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = is_array($diagnostic) ? (string) ($diagnostic['code'] ?? '') : (string) $diagnostic;
+            if ($code === '') {
+                continue;
+            }
+
+            $counts[$code] = ($counts[$code] ?? 0) + 1;
+        }
+        ksort($counts, SORT_STRING);
+
+        return $counts;
     }
 
     /**
