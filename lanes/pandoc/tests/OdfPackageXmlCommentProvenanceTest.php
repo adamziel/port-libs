@@ -104,11 +104,13 @@ XML;
             $t->same(3, $inventory['packagePartXmlCommentPartCount'], "{$label} comment part count");
             $t->same(4, $inventory['packagePartXmlCommentCount'], "{$label} comment count");
             $t->same($expectedByteLength, $inventory['packagePartXmlCommentByteLength'], "{$label} comment byte length");
+            $t->same([0 => 1, 1 => 1, 2 => 2], $inventory['packagePartXmlCommentParentDepthCounts'], "{$label} comment parent depth counts");
             $t->same($expectedPartNames, $inventory['packagePartXmlCommentPartNames'], "{$label} comment part names");
             $t->same(false, $inventory['packagePartXmlCommentsTruncated'], "{$label} comment summary not truncated");
 
             $t->same(2, $reviewPart['xmlCommentCount'], "{$label} review comment count");
             $t->same(strlen($reviewPrologComment) + strlen($reviewInnerComment), $reviewPart['xmlCommentByteLength'], "{$label} review byte length");
+            $t->same([0 => 1, 2 => 1], $reviewPart['xmlCommentParentDepthCounts'], "{$label} review parent depth counts");
             $t->same(false, $reviewPart['xmlCommentsTruncated'], "{$label} review comments not truncated");
             $t->same('/', $reviewPart['xmlComments'][0]['parentPath'], "{$label} review prolog parent path");
             $t->same(0, $reviewPart['xmlComments'][0]['parentDepth'], "{$label} review prolog parent depth");
@@ -120,11 +122,13 @@ XML;
             $t->same(hash('sha256', $reviewInnerComment), $reviewPart['xmlComments'][1]['sha256'], "{$label} review inner sha256");
 
             $t->same(1, $auditPart['xmlCommentCount'], "{$label} audit comment count");
+            $t->same([2 => 1], $auditPart['xmlCommentParentDepthCounts'], "{$label} audit parent depth counts");
             $t->same('/audit:state/audit:item', $auditPart['xmlComments'][0]['parentPath'], "{$label} audit parent path");
             $t->same(2, $auditPart['xmlComments'][0]['parentDepth'], "{$label} audit parent depth");
             $t->same(hash('sha256', $auditComment), $auditPart['xmlComments'][0]['sha256'], "{$label} audit sha256");
 
             $t->same(1, $loosePart['xmlCommentCount'], "{$label} loose comment count");
+            $t->same([1 => 1], $loosePart['xmlCommentParentDepthCounts'], "{$label} loose parent depth counts");
             $t->same('/loose:packet', $loosePart['xmlComments'][0]['parentPath'], "{$label} loose parent path");
             $t->same(1, $loosePart['xmlComments'][0]['parentDepth'], "{$label} loose parent depth");
             $t->same(hash('sha256', $looseComment), $loosePart['xmlComments'][0]['sha256'], "{$label} loose sha256");

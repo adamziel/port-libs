@@ -1548,6 +1548,7 @@ final class OdfReader
             'partCount' => 0,
             'commentCount' => 0,
             'byteLength' => 0,
+            'parentDepthCounts' => [],
             'partNames' => [],
             'comments' => [],
             'truncated' => false,
@@ -1874,6 +1875,7 @@ final class OdfReader
                 'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
                 'xmlCommentCount' => $xmlComments['count'],
                 'xmlCommentByteLength' => $xmlComments['byteLength'],
+                'xmlCommentParentDepthCounts' => $xmlComments['parentDepthCounts'],
                 'xmlComments' => $xmlComments['comments'],
                 'xmlCommentsTruncated' => $xmlComments['truncated'],
                 'xmlProcessingInstructionCount' => $xmlProcessingInstructions['count'],
@@ -2346,6 +2348,7 @@ final class OdfReader
             'packagePartXmlCommentPartCount' => $packagePartXmlComments['partCount'],
             'packagePartXmlCommentCount' => $packagePartXmlComments['commentCount'],
             'packagePartXmlCommentByteLength' => $packagePartXmlComments['byteLength'],
+            'packagePartXmlCommentParentDepthCounts' => $packagePartXmlComments['parentDepthCounts'],
             'packagePartXmlCommentPartNames' => $packagePartXmlComments['partNames'],
             'packagePartXmlComments' => $packagePartXmlComments['comments'],
             'packagePartXmlCommentsTruncated' => $packagePartXmlComments['truncated'],
@@ -2660,8 +2663,8 @@ final class OdfReader
     }
 
     /**
-     * @param array{partCount:int, commentCount:int, byteLength:int, partNames:list<string>, comments:list<array<string, mixed>>, truncated:bool} $summary
-     * @param array{count:int, byteLength:int, comments:list<array<string, mixed>>, truncated:bool} $metadata
+     * @param array{partCount:int, commentCount:int, byteLength:int, parentDepthCounts:array<int, int>, partNames:list<string>, comments:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{count:int, byteLength:int, parentDepthCounts:array<int, int>, comments:list<array<string, mixed>>, truncated:bool} $metadata
      */
     private static function recordPackagePartXmlCommentSummary(array &$summary, string $partName, array $metadata): void
     {
@@ -2674,6 +2677,14 @@ final class OdfReader
         $summary['commentCount'] += $commentCount;
         $summary['byteLength'] += (int) ($metadata['byteLength'] ?? 0);
         $summary['partNames'][] = $partName;
+        foreach (($metadata['parentDepthCounts'] ?? []) as $depth => $count) {
+            if (!is_int($depth) && !(is_string($depth) && ctype_digit($depth))) {
+                continue;
+            }
+
+            $depth = (int) $depth;
+            $summary['parentDepthCounts'][$depth] = ($summary['parentDepthCounts'][$depth] ?? 0) + (int) $count;
+        }
         if (($metadata['truncated'] ?? false) === true) {
             $summary['truncated'] = true;
         }
@@ -2692,10 +2703,11 @@ final class OdfReader
         }
 
         sort($summary['partNames'], SORT_STRING);
+        ksort($summary['parentDepthCounts'], SORT_NUMERIC);
     }
 
     /**
-     * @return array{count:int, byteLength:int, comments:list<array<string, mixed>>, truncated:bool}
+     * @return array{count:int, byteLength:int, parentDepthCounts:array<int, int>, comments:list<array<string, mixed>>, truncated:bool}
      */
     private static function packagePartXmlCommentMetadata(
         ZipPackage $package,
@@ -2705,6 +2717,7 @@ final class OdfReader
         $empty = [
             'count' => 0,
             'byteLength' => 0,
+            'parentDepthCounts' => [],
             'comments' => [],
             'truncated' => false,
         ];
@@ -2728,23 +2741,26 @@ final class OdfReader
         $comments = [];
         $count = 0;
         $byteLength = 0;
+        $parentDepthCounts = [];
         $truncated = false;
         $itemLimit = 32;
-        $walk = static function (\DOMNode $node) use (&$walk, &$comments, &$count, &$byteLength, &$truncated, $itemLimit): void {
+        $walk = static function (\DOMNode $node) use (&$walk, &$comments, &$count, &$byteLength, &$parentDepthCounts, &$truncated, $itemLimit): void {
             if ($node instanceof \DOMComment) {
                 ++$count;
                 $value = (string) $node->nodeValue;
                 $valueByteLength = strlen($value);
                 $byteLength += $valueByteLength;
+                $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+                $parentPath = self::domElementPath($parent);
+                $parentDepth = self::domElementPathDepth($parentPath);
+                $parentDepthCounts[$parentDepth] = ($parentDepthCounts[$parentDepth] ?? 0) + 1;
                 if (count($comments) >= $itemLimit) {
                     $truncated = true;
                 } else {
-                    $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
-                    $parentPath = self::domElementPath($parent);
                     $comments[] = [
                         'index' => $count - 1,
                         'parentPath' => $parentPath,
-                        'parentDepth' => self::domElementPathDepth($parentPath),
+                        'parentDepth' => $parentDepth,
                         'byteLength' => $valueByteLength,
                         'crc32' => sprintf('%08x', crc32($value)),
                         'sha256' => hash('sha256', $value),
@@ -2759,10 +2775,12 @@ final class OdfReader
             }
         };
         $walk($dom);
+        ksort($parentDepthCounts, SORT_NUMERIC);
 
         return [
             'count' => $count,
             'byteLength' => $byteLength,
+            'parentDepthCounts' => $parentDepthCounts,
             'comments' => $comments,
             'truncated' => $truncated,
         ];
