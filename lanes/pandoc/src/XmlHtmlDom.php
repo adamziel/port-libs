@@ -25277,6 +25277,7 @@ final class XmlHtmlDom
             'controls' => $controls,
             'controlNames' => self::formOwnedControlNames($controls),
         ] + self::formAcceptCharsetReviewSummary($acceptCharsetRaw)
+            + self::formSuccessfulControlReviewSummary($form)
             + self::formRelReviewSummary($relRaw);
     }
 
@@ -25296,7 +25297,6 @@ final class XmlHtmlDom
 
             $unknown[] = $token;
         }
-
         $issues = [];
         foreach ($rel['invalid'] as $token) {
             $issues[] = ['code' => 'invalid-form-rel-token', 'token' => $token];
@@ -25786,6 +25786,299 @@ final class XmlHtmlDom
         }
 
         return $names;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formSuccessfulControlReviewSummary(\DOMElement $form): array
+    {
+        $records = self::formSuccessfulControlRecords($form);
+        $successful = array_values(array_filter(
+            $records,
+            static fn (array $record): bool => (bool) ($record['successful'] ?? false)
+        ));
+        $unsuccessful = array_values(array_filter(
+            $records,
+            static fn (array $record): bool => (bool) ($record['successful'] ?? false) === false
+        ));
+        $pairs = [];
+        $names = [];
+        $issues = [];
+        $issueCodes = [];
+
+        foreach ($successful as $record) {
+            $name = $record['controlName'] ?? null;
+            if (is_string($name)) {
+                self::appendUniqueString($names, $name);
+            }
+            foreach (($record['valuePairs'] ?? []) as $pair) {
+                if (is_array($pair)) {
+                    $pairs[] = $pair;
+                }
+            }
+        }
+
+        foreach ($records as $record) {
+            foreach (($record['issues'] ?? []) as $issue) {
+                if (!is_array($issue)) {
+                    continue;
+                }
+                $issues[] = $issue;
+                $code = $issue['code'] ?? null;
+                if (is_string($code)) {
+                    self::appendUniqueString($issueCodes, $code);
+                }
+            }
+        }
+
+        return [
+            'formSuccessfulControlReviewPolicy' => 'html-form-successful-control-review',
+            'formSuccessfulControlReviewOnlyNoSubmission' => true,
+            'formSuccessfulControlReviewOnlyNoFileRead' => true,
+            'successfulControlCount' => count($successful),
+            'successfulControlNames' => $names,
+            'successfulValuePairCount' => count($pairs),
+            'successfulValuePairs' => $pairs,
+            'successfulControls' => $successful,
+            'unsuccessfulControlCount' => count($unsuccessful),
+            'unsuccessfulControls' => $unsuccessful,
+            'formSuccessfulControlIssues' => $issues,
+            'formSuccessfulControlIssueCodes' => $issueCodes,
+            'formSuccessfulControlIssueCount' => count($issues),
+        ];
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function formSuccessfulControlRecords(\DOMElement $form): array
+    {
+        $document = $form->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $records = [];
+        foreach ($document->getElementsByTagName('*') as $control) {
+            if (!$control instanceof \DOMElement || !self::isFormControlElement($control)) {
+                continue;
+            }
+            if (!self::formOwnerElement($control)?->isSameNode($form)) {
+                continue;
+            }
+
+            $records[] = self::formSuccessfulControlRecord($control, count($records));
+        }
+
+        return $records;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formSuccessfulControlRecord(\DOMElement $control, int $index): array
+    {
+        $tag = self::htmlElementName($control);
+        $controlName = self::attributeOrNull($control, 'name');
+        $effectiveDisabled = self::isEffectivelyDisabledFormControl($control);
+        $record = [
+            'index' => $index,
+            'tag' => $tag,
+            'id' => self::attributeOrNull($control, 'id'),
+            'controlName' => $controlName,
+            'formOwnerSource' => self::attributeOrNull($control, 'form') === null ? 'ancestor' : 'form-attribute',
+            'effectiveDisabled' => $effectiveDisabled,
+            'successful' => false,
+            'valuePairs' => [],
+            'valueCount' => 0,
+            'issues' => [],
+            'issueCodes' => [],
+        ];
+
+        if ($controlName === null || $controlName === '') {
+            self::appendFormSuccessfulControlIssue($record, 'missing-successful-control-name');
+        }
+        if ($effectiveDisabled) {
+            self::appendFormSuccessfulControlIssue($record, 'disabled-successful-control');
+        }
+        if ($record['issues'] !== []) {
+            return $record;
+        }
+
+        if ($tag === 'input') {
+            return self::formSuccessfulInputControlRecord($control, $record, $controlName);
+        }
+        if ($tag === 'select') {
+            return self::formSuccessfulSelectControlRecord($control, $record, $controlName);
+        }
+        if ($tag === 'textarea') {
+            self::appendFormSuccessfulValuePair($record, $controlName, $control->textContent, 'textarea-text');
+
+            return $record;
+        }
+        if ($tag === 'button') {
+            $record['type'] = self::buttonType($control);
+            self::appendFormSuccessfulControlIssue(
+                $record,
+                $record['type'] === 'submit' ? 'submitter-not-selected' : 'button-not-submittable'
+            );
+
+            return $record;
+        }
+
+        self::appendFormSuccessfulControlIssue($record, 'output-not-submittable');
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>
+     */
+    private static function formSuccessfulInputControlRecord(\DOMElement $input, array $record, string $controlName): array
+    {
+        $type = self::inputType($input);
+        $record['type'] = $type;
+
+        if ($type === 'checkbox' || $type === 'radio') {
+            if (!$input->hasAttribute('checked')) {
+                self::appendFormSuccessfulControlIssue($record, 'unchecked-checkable-control');
+
+                return $record;
+            }
+
+            self::appendFormSuccessfulValuePair(
+                $record,
+                $controlName,
+                self::attributeOrNull($input, 'value') ?? 'on',
+                $type . '-checked-value'
+            );
+
+            return $record;
+        }
+
+        if ($type === 'file') {
+            $record['successful'] = true;
+            $record['fileInput'] = true;
+            $record['valueSource'] = 'file-list-not-inspected';
+            self::appendFormSuccessfulControlIssue($record, 'file-input-files-not-inspected');
+
+            return $record;
+        }
+
+        if ($type === 'submit' || $type === 'image') {
+            self::appendFormSuccessfulControlIssue($record, 'submitter-not-selected');
+
+            return $record;
+        }
+
+        if ($type === 'reset') {
+            self::appendFormSuccessfulControlIssue($record, 'reset-input-not-submittable');
+
+            return $record;
+        }
+
+        if ($type === 'button') {
+            self::appendFormSuccessfulControlIssue($record, 'button-input-not-submittable');
+
+            return $record;
+        }
+
+        self::appendFormSuccessfulValuePair(
+            $record,
+            $controlName,
+            self::attributeOrNull($input, 'value') ?? '',
+            'input-value-attribute'
+        );
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @return array<string, mixed>
+     */
+    private static function formSuccessfulSelectControlRecord(\DOMElement $select, array $record, string $controlName): array
+    {
+        $multiple = $select->hasAttribute('multiple');
+        $record['multiple'] = $multiple;
+        $options = self::selectOptionSummaries($select);
+        $selectedOptions = array_values(array_filter(
+            $options,
+            static fn (array $option): bool => (bool) ($option['selected'] ?? false)
+        ));
+        if (!$multiple && $selectedOptions === [] && $options !== []) {
+            $selectedOptions = [$options[0]];
+            $record['selectionSource'] = 'first-option-fallback';
+        } else {
+            $record['selectionSource'] = $selectedOptions === [] ? 'none' : 'selected-attribute';
+        }
+
+        foreach ($selectedOptions as $option) {
+            if ((bool) ($option['disabled'] ?? false)) {
+                self::appendFormSuccessfulControlIssue($record, 'selected-disabled-option-excluded', [
+                    'value' => (string) ($option['value'] ?? ''),
+                    'label' => (string) ($option['label'] ?? ''),
+                    'group' => $option['group'] ?? null,
+                ]);
+                continue;
+            }
+
+            self::appendFormSuccessfulValuePair(
+                $record,
+                $controlName,
+                (string) ($option['value'] ?? ''),
+                'select-option-value'
+            );
+        }
+
+        if (($record['valuePairs'] ?? []) === []) {
+            self::appendFormSuccessfulControlIssue(
+                $record,
+                $options === [] ? 'empty-select-options' : 'select-without-successful-option'
+            );
+        }
+
+        return $record;
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     * @param array<string, mixed> $extra
+     */
+    private static function appendFormSuccessfulControlIssue(array &$record, string $code, array $extra = []): void
+    {
+        $issue = [
+            'code' => $code,
+            'controlIndex' => $record['index'],
+            'tag' => $record['tag'],
+            'id' => $record['id'],
+            'controlName' => $record['controlName'],
+        ] + $extra;
+        $record['issues'][] = $issue;
+        self::appendUniqueString($record['issueCodes'], $code);
+    }
+
+    /**
+     * @param array<string, mixed> $record
+     */
+    private static function appendFormSuccessfulValuePair(
+        array &$record,
+        string $name,
+        string $value,
+        string $source
+    ): void {
+        $record['successful'] = true;
+        $record['valuePairs'][] = [
+            'name' => $name,
+            'value' => $value,
+            'source' => $source,
+            'controlIndex' => $record['index'],
+            'tag' => $record['tag'],
+            'id' => $record['id'],
+        ];
+        $record['valueCount'] = count($record['valuePairs']);
     }
 
     /**
