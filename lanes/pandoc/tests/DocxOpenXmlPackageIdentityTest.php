@@ -61,10 +61,44 @@ return [
             $summary = $package['summary'];
 
             $t->same($identity, $package['documentPackageIdentity']);
-            $t->same(1, $identity['identityVersion']);
+            $t->same(2, $identity['identityVersion']);
             $t->same('docx-main-document-package-identity', $identity['reviewPolicy']);
             $t->same('docx-openxml-main-document', $identity['packageType']);
             $t->same('word/document.xml', $identity['partName']);
+            $t->same(3, $identity['packagePartCount']);
+            $t->same(1, $identity['packageRelationshipPartCount']);
+            $t->same(1, $identity['packageRelationshipCount']);
+            $t->same(1, $identity['packageRelationshipRecordCount']);
+            $t->same(0, $identity['packageMissingContentTypePartCount']);
+            $t->same('_rels/.rels', $identity['rootRelationshipsPart']);
+            $t->same(true, $identity['rootRelationshipsPartExists']);
+            $t->same(1, $identity['rootRelationshipCount']);
+            $t->same(1, $identity['rootRelationshipRecordCount']);
+            $t->same(1, $identity['rootInternalRelationshipCount']);
+            $t->same(0, $identity['rootExternalRelationshipCount']);
+            $t->same(1, $identity['rootExistingRelationshipTargetCount']);
+            $t->same(0, $identity['rootMissingRelationshipTargetCount']);
+            $t->same(0, $identity['rootMissingRelationshipContentTypeTargetCount']);
+            $t->same(true, $identity['rootOfficeDocumentRelationshipFound']);
+            $t->same('rDocument', $identity['rootOfficeDocumentRelationshipId']);
+            $t->same('word/document.xml', $identity['rootOfficeDocumentRelationshipTarget']);
+            $t->same('', $identity['rootOfficeDocumentRelationshipTargetMode']);
+            $t->same('word/document.xml', $identity['rootOfficeDocumentRelationshipResolvedTarget']);
+            $t->same('word/document.xml', $identity['rootOfficeDocumentRelationshipTargetPart']);
+            $t->same(false, $identity['rootOfficeDocumentRelationshipExternal']);
+            $t->same('', $identity['rootOfficeDocumentRelationshipTargetReferenceSuffix']);
+            $t->same('word/_rels/document.xml.rels', $identity['documentRelationshipsPart']);
+            $t->same(false, $identity['documentRelationshipsPartExists']);
+            $t->same(0, $identity['documentRelationshipCount']);
+            $t->same(0, $identity['documentRelationshipRecordCount']);
+            $t->same(0, $identity['documentInternalRelationshipCount']);
+            $t->same(0, $identity['documentExternalRelationshipCount']);
+            $t->same(0, $identity['documentExistingRelationshipTargetCount']);
+            $t->same(0, $identity['documentMissingRelationshipTargetCount']);
+            $t->same(0, $identity['documentMissingRelationshipContentTypeTargetCount']);
+            $t->same(0, $identity['documentRelationshipTargetPartCount']);
+            $t->same([], $identity['documentRelationshipTargetParts']);
+            $t->same([], $identity['documentRelationshipContentTypeBases']);
             $t->same($contentType, $identity['contentType']);
             $t->same($contentTypeBase, $identity['contentTypeBase']);
             $t->same('override', $identity['contentTypeSource']);
@@ -83,6 +117,20 @@ return [
             $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
 
             $t->same($identity['reviewPolicy'], $summary['documentPackageIdentityReviewPolicy']);
+            $t->same($identity['packagePartCount'], $summary['documentPackageIdentityPackagePartCount']);
+            $t->same($identity['packageRelationshipPartCount'], $summary['documentPackageIdentityPackageRelationshipPartCount']);
+            $t->same($identity['packageRelationshipCount'], $summary['documentPackageIdentityPackageRelationshipCount']);
+            $t->same($identity['packageRelationshipRecordCount'], $summary['documentPackageIdentityPackageRelationshipRecordCount']);
+            $t->same($identity['rootRelationshipCount'], $summary['documentPackageIdentityRootRelationshipCount']);
+            $t->same($identity['rootRelationshipRecordCount'], $summary['documentPackageIdentityRootRelationshipRecordCount']);
+            $t->same($identity['rootOfficeDocumentRelationshipId'], $summary['documentPackageIdentityRootOfficeDocumentRelationshipId']);
+            $t->same($identity['rootOfficeDocumentRelationshipTargetPart'], $summary['documentPackageIdentityRootOfficeDocumentRelationshipTargetPart']);
+            $t->same($identity['documentRelationshipsPart'], $summary['documentPackageIdentityDocumentRelationshipsPart']);
+            $t->same($identity['documentRelationshipsPartExists'], $summary['documentPackageIdentityDocumentRelationshipsPartExists']);
+            $t->same($identity['documentRelationshipCount'], $summary['documentPackageIdentityDocumentRelationshipCount']);
+            $t->same($identity['documentRelationshipRecordCount'], $summary['documentPackageIdentityDocumentRelationshipRecordCount']);
+            $t->same($identity['documentRelationshipTargetPartCount'], $summary['documentPackageIdentityDocumentRelationshipTargetPartCount']);
+            $t->same($identity['documentRelationshipTargetParts'], $summary['documentPackageIdentityDocumentRelationshipTargetParts']);
             $t->same($identity['contentType'], $summary['documentContentType']);
             $t->same($identity['contentTypeBase'], $summary['documentContentTypeBase']);
             $t->same($identity['contentTypeSource'], $summary['documentContentTypeSource']);
@@ -101,6 +149,74 @@ return [
             $t->same($identity['issueCount'], $summary['documentContentTypeIssueCount']);
             $t->same($identity['issueCodes'], $summary['documentContentTypeIssueCodes']);
         }
+    },
+    'includes DOCX package relationship context in main document package identity' => static function (TestRunner $t): void {
+        $parts = docx_package_identity_relationship_context_fixture_parts();
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $changedParts = $parts;
+        $changedParts['word/_rels/document.xml.rels'] = str_replace(
+            'media/missing.png',
+            'media/other-missing.png',
+            $changedParts['word/_rels/document.xml.rels'],
+        );
+        $changedDocument = (new DocxOpenXmlReader())->readPackage($changedParts);
+        $docx = $document->attr('docx');
+        $identity = $docx['documentPackageIdentity'];
+        $summary = $docx['packageProvenance']['summary'];
+        $changedIdentity = $changedDocument->attr('docx')['documentPackageIdentity'];
+
+        $t->same(2, $identity['identityVersion']);
+        $t->same(7, $identity['packagePartCount']);
+        $t->same(2, $identity['packageRelationshipPartCount']);
+        $t->same(6, $identity['packageRelationshipCount']);
+        $t->same(6, $identity['packageRelationshipRecordCount']);
+        $t->same(0, $identity['packageMissingContentTypePartCount']);
+
+        $t->same('_rels/.rels', $identity['rootRelationshipsPart']);
+        $t->same(true, $identity['rootRelationshipsPartExists']);
+        $t->same(2, $identity['rootRelationshipCount']);
+        $t->same(2, $identity['rootRelationshipRecordCount']);
+        $t->same(2, $identity['rootInternalRelationshipCount']);
+        $t->same(0, $identity['rootExternalRelationshipCount']);
+        $t->same(2, $identity['rootExistingRelationshipTargetCount']);
+        $t->same(0, $identity['rootMissingRelationshipTargetCount']);
+        $t->same(0, $identity['rootMissingRelationshipContentTypeTargetCount']);
+        $t->same(true, $identity['rootOfficeDocumentRelationshipFound']);
+        $t->same('rDocument', $identity['rootOfficeDocumentRelationshipId']);
+        $t->same('word/document.xml?profile=review#main', $identity['rootOfficeDocumentRelationshipTarget']);
+        $t->same('', $identity['rootOfficeDocumentRelationshipTargetMode']);
+        $t->same('word/document.xml?profile=review#main', $identity['rootOfficeDocumentRelationshipResolvedTarget']);
+        $t->same('word/document.xml', $identity['rootOfficeDocumentRelationshipTargetPart']);
+        $t->same('?profile=review#main', $identity['rootOfficeDocumentRelationshipTargetReferenceSuffix']);
+
+        $t->same('word/_rels/document.xml.rels', $identity['documentRelationshipsPart']);
+        $t->same(true, $identity['documentRelationshipsPartExists']);
+        $t->same(4, $identity['documentRelationshipCount']);
+        $t->same(4, $identity['documentRelationshipRecordCount']);
+        $t->same(3, $identity['documentInternalRelationshipCount']);
+        $t->same(1, $identity['documentExternalRelationshipCount']);
+        $t->same(2, $identity['documentExistingRelationshipTargetCount']);
+        $t->same(1, $identity['documentMissingRelationshipTargetCount']);
+        $t->same(0, $identity['documentMissingRelationshipContentTypeTargetCount']);
+        $t->same(3, $identity['documentRelationshipTargetPartCount']);
+        $t->same([
+            'word/media/review.png',
+            'word/media/missing.png',
+            'word/settings.xml',
+        ], $identity['documentRelationshipTargetParts']);
+        $t->same([
+            'image/png',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml',
+        ], $identity['documentRelationshipContentTypeBases']);
+        $t->true($identity['identitySha256'] !== $changedIdentity['identitySha256']);
+        $t->true(!array_key_exists('contents', $identity), 'document package identity must not expose package bytes');
+
+        $t->same($identity['packagePartCount'], $summary['documentPackageIdentityPackagePartCount']);
+        $t->same($identity['packageRelationshipCount'], $summary['documentPackageIdentityPackageRelationshipCount']);
+        $t->same($identity['rootRelationshipCount'], $summary['documentPackageIdentityRootRelationshipCount']);
+        $t->same($identity['rootOfficeDocumentRelationshipTargetPart'], $summary['documentPackageIdentityRootOfficeDocumentRelationshipTargetPart']);
+        $t->same($identity['documentRelationshipCount'], $summary['documentPackageIdentityDocumentRelationshipCount']);
+        $t->same($identity['documentRelationshipTargetParts'], $summary['documentPackageIdentityDocumentRelationshipTargetParts']);
     },
 ];
 
@@ -132,5 +248,62 @@ XML,
   </w:body>
 </w:document>
 XML,
+    ];
+}
+
+/**
+ * @return array<string, string>
+ */
+function docx_package_identity_relationship_context_fixture_parts(): array
+{
+    return [
+        '[Content_Types].xml' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>
+  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
+</Types>
+XML,
+        '_rels/.rels' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml?profile=review#main"/>
+  <Relationship Id="rCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+</Relationships>
+XML,
+        'word/_rels/document.xml.rels' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/review.png"/>
+  <Relationship Id="rMissingImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/missing.png"/>
+  <Relationship Id="rSettings" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?profile=identity#settings"/>
+  <Relationship Id="rLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" TargetMode="External" Target="https://example.test/review"/>
+</Relationships>
+XML,
+        'word/document.xml' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Package identity relationship context fixture.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML,
+        'word/settings.xml' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML,
+        'docProps/core.xml' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <dc:title>Package identity relationship context</dc:title>
+</cp:coreProperties>
+XML,
+        'word/media/review.png' => "\x89PNG\r\n\x1a\nrelationship-context",
     ];
 }

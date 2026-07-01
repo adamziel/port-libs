@@ -201,9 +201,30 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $sourcePackage,
         );
-        $documentPackageIdentity = $this->documentPackageIdentity($documentPart, $contentTypes);
+        $documentPackageIdentity = $this->documentPackageIdentity(
+            $documentPart,
+            $contentTypes,
+            $rootRelationships,
+            $documentRelationshipsPart,
+            $documentRelationships,
+            $packageProvenance,
+        );
         $packageProvenance['documentPackageIdentity'] = $documentPackageIdentity;
         $packageProvenance['summary']['documentPackageIdentityReviewPolicy'] = $documentPackageIdentity['reviewPolicy'];
+        $packageProvenance['summary']['documentPackageIdentityPackagePartCount'] = $documentPackageIdentity['packagePartCount'];
+        $packageProvenance['summary']['documentPackageIdentityPackageRelationshipPartCount'] = $documentPackageIdentity['packageRelationshipPartCount'];
+        $packageProvenance['summary']['documentPackageIdentityPackageRelationshipCount'] = $documentPackageIdentity['packageRelationshipCount'];
+        $packageProvenance['summary']['documentPackageIdentityPackageRelationshipRecordCount'] = $documentPackageIdentity['packageRelationshipRecordCount'];
+        $packageProvenance['summary']['documentPackageIdentityRootRelationshipCount'] = $documentPackageIdentity['rootRelationshipCount'];
+        $packageProvenance['summary']['documentPackageIdentityRootRelationshipRecordCount'] = $documentPackageIdentity['rootRelationshipRecordCount'];
+        $packageProvenance['summary']['documentPackageIdentityRootOfficeDocumentRelationshipId'] = $documentPackageIdentity['rootOfficeDocumentRelationshipId'];
+        $packageProvenance['summary']['documentPackageIdentityRootOfficeDocumentRelationshipTargetPart'] = $documentPackageIdentity['rootOfficeDocumentRelationshipTargetPart'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipsPart'] = $documentPackageIdentity['documentRelationshipsPart'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipsPartExists'] = $documentPackageIdentity['documentRelationshipsPartExists'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipCount'] = $documentPackageIdentity['documentRelationshipCount'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipRecordCount'] = $documentPackageIdentity['documentRelationshipRecordCount'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipTargetPartCount'] = $documentPackageIdentity['documentRelationshipTargetPartCount'];
+        $packageProvenance['summary']['documentPackageIdentityDocumentRelationshipTargetParts'] = $documentPackageIdentity['documentRelationshipTargetParts'];
         $packageProvenance['summary']['documentContentType'] = $documentPackageIdentity['contentType'];
         $packageProvenance['summary']['documentContentTypeBase'] = $documentPackageIdentity['contentTypeBase'];
         $packageProvenance['summary']['documentContentTypeSource'] = $documentPackageIdentity['contentTypeSource'];
@@ -33479,9 +33500,19 @@ final class DocxOpenXmlReader
 
     /**
      * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $documentRelationships
+     * @param array<string, mixed> $packageProvenance
      * @return array<string, mixed>
      */
-    private function documentPackageIdentity(string $documentPart, array $contentTypes): array
+    private function documentPackageIdentity(
+        string $documentPart,
+        array $contentTypes,
+        array $rootRelationships,
+        string $documentRelationshipsPart,
+        array $documentRelationships,
+        array $packageProvenance,
+    ): array
     {
         $contentType = $this->contentTypeResolutionForPart($documentPart, $contentTypes);
         $contentTypeBase = is_string($contentType['contentTypeBase'] ?? null) ? $contentType['contentTypeBase'] : '';
@@ -33498,11 +33529,64 @@ final class DocxOpenXmlReader
             'unknown' => ['unexpected-main-document-content-type'],
             default => [],
         };
+        $summary = is_array($packageProvenance['summary'] ?? null) ? $packageProvenance['summary'] : [];
+        $relationshipParts = is_array($packageProvenance['relationshipParts'] ?? null)
+            ? $packageProvenance['relationshipParts']
+            : [];
+        $rootRelationshipsPart = is_array($relationshipParts['_rels/.rels'] ?? null)
+            ? $relationshipParts['_rels/.rels']
+            : [];
+        $documentRelationshipsPartProvenance = is_array($relationshipParts[$documentRelationshipsPart] ?? null)
+            ? $relationshipParts[$documentRelationshipsPart]
+            : [];
+        $rootRelationshipContext = $this->relationshipPartPackageIdentityContext(
+            $rootRelationshipsPart,
+            count($rootRelationships),
+        );
+        $documentRelationshipContext = $this->relationshipPartPackageIdentityContext(
+            $documentRelationshipsPartProvenance,
+            count($documentRelationships),
+        );
+        $officeDocumentRelationship = $this->officeDocumentPackageIdentityRelationship($rootRelationships, $documentPart);
         $identity = [
-            'identityVersion' => 1,
+            'identityVersion' => 2,
             'reviewPolicy' => 'docx-main-document-package-identity',
             'packageType' => 'docx-openxml-main-document',
             'partName' => $documentPart,
+            'packagePartCount' => (int) ($summary['partCount'] ?? 0),
+            'packageRelationshipPartCount' => (int) ($summary['relationshipPartCount'] ?? 0),
+            'packageRelationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
+            'packageRelationshipRecordCount' => (int) ($summary['relationshipRecordCount'] ?? 0),
+            'packageMissingContentTypePartCount' => (int) ($summary['missingContentTypePartCount'] ?? 0),
+            'rootRelationshipsPart' => '_rels/.rels',
+            'rootRelationshipsPartExists' => $rootRelationshipContext['exists'],
+            'rootRelationshipCount' => $rootRelationshipContext['relationshipCount'],
+            'rootRelationshipRecordCount' => $rootRelationshipContext['relationshipRecordCount'],
+            'rootInternalRelationshipCount' => $rootRelationshipContext['internalRelationshipCount'],
+            'rootExternalRelationshipCount' => $rootRelationshipContext['externalRelationshipCount'],
+            'rootExistingRelationshipTargetCount' => $rootRelationshipContext['existingTargetCount'],
+            'rootMissingRelationshipTargetCount' => $rootRelationshipContext['missingTargetCount'],
+            'rootMissingRelationshipContentTypeTargetCount' => $rootRelationshipContext['missingContentTypeTargetCount'],
+            'rootOfficeDocumentRelationshipFound' => $officeDocumentRelationship['found'],
+            'rootOfficeDocumentRelationshipId' => $officeDocumentRelationship['id'],
+            'rootOfficeDocumentRelationshipTarget' => $officeDocumentRelationship['target'],
+            'rootOfficeDocumentRelationshipTargetMode' => $officeDocumentRelationship['targetMode'],
+            'rootOfficeDocumentRelationshipResolvedTarget' => $officeDocumentRelationship['resolvedTarget'],
+            'rootOfficeDocumentRelationshipTargetPart' => $officeDocumentRelationship['targetPart'],
+            'rootOfficeDocumentRelationshipExternal' => $officeDocumentRelationship['external'],
+            'rootOfficeDocumentRelationshipTargetReferenceSuffix' => $officeDocumentRelationship['targetReferenceSuffix'],
+            'documentRelationshipsPart' => $documentRelationshipsPart,
+            'documentRelationshipsPartExists' => $documentRelationshipContext['exists'],
+            'documentRelationshipCount' => $documentRelationshipContext['relationshipCount'],
+            'documentRelationshipRecordCount' => $documentRelationshipContext['relationshipRecordCount'],
+            'documentInternalRelationshipCount' => $documentRelationshipContext['internalRelationshipCount'],
+            'documentExternalRelationshipCount' => $documentRelationshipContext['externalRelationshipCount'],
+            'documentExistingRelationshipTargetCount' => $documentRelationshipContext['existingTargetCount'],
+            'documentMissingRelationshipTargetCount' => $documentRelationshipContext['missingTargetCount'],
+            'documentMissingRelationshipContentTypeTargetCount' => $documentRelationshipContext['missingContentTypeTargetCount'],
+            'documentRelationshipTargetPartCount' => $documentRelationshipContext['targetPartCount'],
+            'documentRelationshipTargetParts' => $documentRelationshipContext['targetParts'],
+            'documentRelationshipContentTypeBases' => $documentRelationshipContext['contentTypeBases'],
             'contentType' => $contentType['contentType'],
             'contentTypeBase' => $contentTypeBase,
             'contentTypeSource' => $contentType['contentTypeSource'],
@@ -33529,6 +33613,93 @@ final class DocxOpenXmlReader
         $identity['canExposeBytes'] = false;
 
         return $identity;
+    }
+
+    /**
+     * @param array<string, mixed> $relationshipPart
+     * @return array{exists:bool, relationshipCount:int, relationshipRecordCount:int, internalRelationshipCount:int, externalRelationshipCount:int, existingTargetCount:int, missingTargetCount:int, missingContentTypeTargetCount:int, targetPartCount:int, targetParts:list<string>, contentTypeBases:list<string>}
+     */
+    private function relationshipPartPackageIdentityContext(array $relationshipPart, int $relationshipCount): array
+    {
+        return [
+            'exists' => ($relationshipPart['exists'] ?? false) === true,
+            'relationshipCount' => $relationshipCount,
+            'relationshipRecordCount' => (int) ($relationshipPart['relationshipRecordCount'] ?? $relationshipCount),
+            'internalRelationshipCount' => (int) ($relationshipPart['internalRelationshipCount'] ?? 0),
+            'externalRelationshipCount' => (int) ($relationshipPart['externalRelationshipCount'] ?? 0),
+            'existingTargetCount' => (int) ($relationshipPart['existingTargetCount'] ?? 0),
+            'missingTargetCount' => (int) ($relationshipPart['missingTargetCount'] ?? 0),
+            'missingContentTypeTargetCount' => (int) ($relationshipPart['missingContentTypeTargetCount'] ?? 0),
+            'targetPartCount' => (int) ($relationshipPart['targetPartCount'] ?? 0),
+            'targetParts' => self::packageIdentityStringList($relationshipPart['targetParts'] ?? []),
+            'contentTypeBases' => self::packageIdentityStringList($relationshipPart['contentTypeBases'] ?? []),
+        ];
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @return array{found:bool, id:?string, target:?string, targetMode:?string, resolvedTarget:?string, targetPart:?string, external:bool, targetReferenceSuffix:string}
+     */
+    private function officeDocumentPackageIdentityRelationship(array $rootRelationships, string $documentPart): array
+    {
+        foreach ($rootRelationships as $relationship) {
+            if ($relationship['type'] !== self::OFFICE_DOCUMENT_REL) {
+                continue;
+            }
+
+            $external = $this->isExternalRelationshipTarget($relationship);
+            if ($external) {
+                continue;
+            }
+
+            $targetPart = $this->stripQueryAndFragment($relationship['resolvedTarget']);
+            if ($targetPart !== $documentPart) {
+                continue;
+            }
+
+            return [
+                'found' => true,
+                'id' => $relationship['id'],
+                'target' => $relationship['target'],
+                'targetMode' => $relationship['targetMode'],
+                'resolvedTarget' => $relationship['resolvedTarget'],
+                'targetPart' => $targetPart,
+                'external' => false,
+                'targetReferenceSuffix' => $this->targetReferenceSuffix($relationship['resolvedTarget'])['suffix'],
+            ];
+        }
+
+        return [
+            'found' => false,
+            'id' => null,
+            'target' => null,
+            'targetMode' => null,
+            'resolvedTarget' => null,
+            'targetPart' => null,
+            'external' => false,
+            'targetReferenceSuffix' => '',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function packageIdentityStringList(mixed $items): array
+    {
+        if (!is_array($items)) {
+            return [];
+        }
+
+        $strings = [];
+        foreach ($items as $item) {
+            if (!is_scalar($item)) {
+                continue;
+            }
+
+            $strings[] = (string) $item;
+        }
+
+        return array_values($strings);
     }
 
     /**
