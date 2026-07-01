@@ -20017,7 +20017,9 @@ final class XmlHtmlDom
 
         if (array_key_exists('dropzone', $attributes)) {
             $dropZone = self::dropZoneSummary($attributes['dropzone']);
+            $dropZoneIssueCodes = self::dropZoneIssueCodes($dropZone);
             $summary['dropZoneReviewPolicy'] = 'html-dropzone-attribute-review';
+            $summary['dropZoneReviewStatus'] = $dropZoneIssueCodes === [] ? 'ok' : 'review';
             $summary['dropZoneRaw'] = $attributes['dropzone'];
             $summary['dropZoneTokens'] = $dropZone['tokens'];
             $summary['dropZoneItems'] = $dropZone['items'];
@@ -20027,6 +20029,9 @@ final class XmlHtmlDom
             $summary['invalidDropZoneTokens'] = $dropZone['invalid'];
             $summary['dropZoneMultipleEffects'] = $dropZone['multipleEffects'];
             $summary['dropZoneValid'] = $dropZone['valid'];
+            $summary['dropZoneIssueCodes'] = $dropZoneIssueCodes;
+            $summary['dropZoneIssueCount'] = count($dropZoneIssueCodes);
+            $summary['dropZoneReviewOnlyNoDragDropEngine'] = true;
         }
 
         if (array_key_exists('spellcheck', $attributes)) {
@@ -22271,7 +22276,10 @@ final class XmlHtmlDom
         $state = self::draggableState($raw);
         $auto = $state === 'auto' || $state === null;
         $effective = $auto ? self::draggableAutoDefault($element) : $state;
+        $issueCodes = self::draggableIssueCodes($state);
         $summary = [
+            'draggableReviewPolicy' => 'html-draggable-state-review',
+            'draggableReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
             'draggableRaw' => $raw,
             'draggable' => $state,
             'draggableKeyword' => match ($state) {
@@ -22290,6 +22298,9 @@ final class XmlHtmlDom
                 'auto' => 'attribute-auto',
                 default => 'auto-default',
             },
+            'draggableIssueCodes' => $issueCodes,
+            'draggableIssueCount' => count($issueCodes),
+            'draggableReviewOnlyNoDragDropEngine' => true,
         ];
 
         if ($auto) {
@@ -22297,6 +22308,14 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function draggableIssueCodes(mixed $state): array
+    {
+        return $state === null ? ['invalid-html-draggable-token'] : [];
     }
 
     private static function draggableAutoDefault(\DOMElement $element): bool
@@ -23387,6 +23406,26 @@ final class XmlHtmlDom
             'multipleEffects' => count($effects) > 1,
             'valid' => $tokens !== [] && $invalid === [] && count($effects) <= 1,
         ];
+    }
+
+    /**
+     * @param array{tokens:list<string>, invalid:list<string>, multipleEffects:bool} $dropZone
+     * @return list<string>
+     */
+    private static function dropZoneIssueCodes(array $dropZone): array
+    {
+        $issues = [];
+        if ($dropZone['tokens'] === []) {
+            $issues[] = 'empty-html-dropzone-token-list';
+        }
+        if ($dropZone['invalid'] !== []) {
+            $issues[] = 'invalid-html-dropzone-token';
+        }
+        if ($dropZone['multipleEffects']) {
+            $issues[] = 'multiple-html-dropzone-effects';
+        }
+
+        return $issues;
     }
 
     private static function isHtmlDropZoneMimeType(string $value): bool
