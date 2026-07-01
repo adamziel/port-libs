@@ -2069,7 +2069,7 @@
                 "haskellInventoryStatusTest": "php tools/run-tests.php lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php",
                 "writerCoreTest": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
                 "writerGoldenAudit": "php tools/pandoc-docx-writer-golden-audit.php --json --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated --require-generated-stable-matches 38",
-                "focusedReaderEvidence": "php tools/pandoc-docx-focused-reader-evidence.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --require-covered 30 --require-targeted-checks 26 --require-no-targeted-failures",
+                "focusedReaderEvidence": "php tools/pandoc-docx-focused-reader-evidence.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --require-covered 31 --require-targeted-checks 27 --require-no-targeted-failures",
                 "focusedReaderEvidenceStatusTest": "php tools/run-tests.php lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php"
             },
             "localValidation": {
@@ -2092,35 +2092,35 @@
                 "recordedWriterGoldenMatchedPackageCount": 38,
                 "recordedWriterGoldenMismatchedPackageCount": 0,
                 "focusedReaderEvidenceStatus": "completed-targeted-docx-reader-checks",
-                "focusedReaderCoveredCaseCount": 30,
-                "focusedReaderRemainingOpenCaseCount": 6,
-                "focusedReaderPassedTargetedCaseCount": 26,
+                "focusedReaderCoveredCaseCount": 31,
+                "focusedReaderRemainingOpenCaseCount": 5,
+                "focusedReaderPassedTargetedCaseCount": 27,
                 "focusedReaderFailedTargetedCaseCount": 0,
                 "focusedReaderMappedOnlyCaseCount": 4,
                 "focusedReaderMappingValidationStatus": "valid-denominator-map"
             },
-            "claim": "Focused CI/status wiring only; CI now lints DocxWriter.php and DocxUpstreamFocusedReaderEvidence.php, runs DocxUpstreamHaskellInventoryTest.php, DocxUpstreamFocusedReaderEvidenceTest.php, and DocxWriterTest.php, invokes the optional focused reader evidence gate at --require-covered 30 --require-targeted-checks 26 --require-no-targeted-failures, and invokes the optional writer-golden audit with --generate-supported-dir and --require-generated-stable-matches 38 when the upstream cache is hydrated. The checked-in Haskell inventory keeps 36 reader uncovered cases and 7 writer direct HUnit uncovered cases explicit; focused reader evidence is guarded as 30 covered / 6 remaining open with hydrated-cache targeted DOCX checks at 26 passed / 0 failed / 4 mapped-only, and checked-in generated writer-golden evidence is guarded as 38 generated / 38 compared / 38 matched / 0 mismatched stable package semantics. This is not an upstream Haskell/Cabal/Tasty runner result.",
+            "claim": "Focused CI/status wiring only; CI now lints DocxWriter.php and DocxUpstreamFocusedReaderEvidence.php, runs DocxUpstreamHaskellInventoryTest.php, DocxUpstreamFocusedReaderEvidenceTest.php, and DocxWriterTest.php, invokes the optional focused reader evidence gate at --require-covered 31 --require-targeted-checks 27 --require-no-targeted-failures, and invokes the optional writer-golden audit with --generate-supported-dir and --require-generated-stable-matches 38 when the upstream cache is hydrated. The checked-in Haskell inventory keeps 36 reader uncovered cases and 7 writer direct HUnit uncovered cases explicit; focused reader evidence is guarded as 31 covered / 5 remaining open with hydrated-cache targeted DOCX checks at 27 passed / 0 failed / 4 mapped-only, and checked-in generated writer-golden evidence is guarded as 38 generated / 38 compared / 38 matched / 0 mismatched stable package semantics. This is not an upstream Haskell/Cabal/Tasty runner result.",
             "ciHydratedWriterGoldenGateStatus": "requires-38-generated-stable-matches",
-            "ciHydratedFocusedReaderGateStatus": "requires-30-covered-26-targeted-and-zero-targeted-failures"
+            "ciHydratedFocusedReaderGateStatus": "requires-31-covered-27-targeted-and-zero-targeted-failures"
         },
         "focusedReaderEvidence": {
             "reportPath": "lanes/pandoc/UPSTREAM_DOCX_HASKELL_FOCUSED_READER_EVIDENCE.json",
-            "tool": "tools/pandoc-docx-focused-reader-evidence.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --require-covered 30 --require-targeted-checks 26 --require-no-targeted-failures",
+            "tool": "tools/pandoc-docx-focused-reader-evidence.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --require-covered 31 --require-targeted-checks 27 --require-no-targeted-failures",
             "schemaVersion": 1,
             "status": "reported-focused-docx-reader-evidence",
             "evidenceKind": "focused-native-php-and-mapped-reader-evidence",
             "upstreamCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
             "denominatorCaseRows": 36,
-            "coveredCaseCount": 30,
-            "remainingOpenCaseCount": 6,
+            "coveredCaseCount": 31,
+            "remainingOpenCaseCount": 5,
             "targetedHydratedCacheStatus": "completed-targeted-docx-reader-checks",
-            "passedTargetedCaseCount": 26,
+            "passedTargetedCaseCount": 27,
             "failedTargetedCaseCount": 0,
             "skippedTargetedCaseCount": 0,
             "mappedOnlyCaseCount": 4,
             "mappingValidationStatus": "valid-denominator-map",
-            "gateStatus": "requires-30-covered-26-targeted-and-zero-targeted-failures",
-            "claim": "Focused reader evidence maps the 36 upstream DOCX Haskell reader cases outside the local 74/74 parser-acceptance gate: 30 covered, 6 remaining open, and hydrated-cache targeted DOCX checks at 26 passed / 0 failed / 4 mapped-only. This is not an upstream Haskell/Cabal/Tasty runner result and does not claim full DOCX/OpenXML parity."
+            "gateStatus": "requires-31-covered-27-targeted-and-zero-targeted-failures",
+            "claim": "Focused reader evidence maps the 36 upstream DOCX Haskell reader cases outside the local 74/74 parser-acceptance gate: 31 covered, 5 remaining open, and hydrated-cache targeted DOCX checks at 27 passed / 0 failed / 4 mapped-only. This is not an upstream Haskell/Cabal/Tasty runner result and does not claim full DOCX/OpenXML parity."
         }
     },
     "nativeImplementation": {

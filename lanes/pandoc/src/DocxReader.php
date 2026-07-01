@@ -54,6 +54,7 @@ final class DocxReader
     private array $openRawBookmarkIds = [];
 
     private string $revisionMode;
+
     private string $commentsMode;
 
     /**
@@ -1968,7 +1969,7 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'commentRangeStart' || $child->localName === 'commentRangeEnd') {
-                if ($this->commentsMode !== 'preserve') {
+                if ($this->commentsMode === 'omit') {
                     continue;
                 }
                 $commentRange = $this->commentRangeSpan($child);
@@ -2184,7 +2185,7 @@ final class DocxReader
                 continue;
             }
             if ($child->localName === 'commentReference') {
-                if ($this->commentsMode !== 'preserve') {
+                if ($this->commentsMode === 'omit') {
                     continue;
                 }
                 if (isset($this->commentRangeIds[$this->attr($child, self::W_NS, 'id')])) {
@@ -2626,6 +2627,10 @@ final class DocxReader
 
     private function commentRangeSpan(\DOMElement $range): ?AstNode
     {
+        if ($this->commentsMode === 'omit') {
+            return null;
+        }
+
         $id = $this->attr($range, self::W_NS, 'id');
         if ($id === '') {
             return null;
@@ -2658,6 +2663,10 @@ final class DocxReader
 
     private function noteReference(\DOMElement $reference, string $kind): ?AstNode
     {
+        if ($kind === 'comment' && $this->commentsMode === 'omit') {
+            return null;
+        }
+
         $id = $this->attr($reference, self::W_NS, 'id');
         if ($id === '') {
             return null;
@@ -5832,17 +5841,11 @@ final class DocxReader
     private function normalizeCommentsMode(string $mode): string
     {
         $mode = strtolower(trim($mode));
-        if (in_array($mode, ['preserve', 'all', 'all-changes'], true)) {
-            return 'preserve';
-        }
-        if (in_array($mode, ['accept', 'accept-changes'], true)) {
-            return 'accept';
-        }
-        if (in_array($mode, ['reject', 'reject-changes'], true)) {
-            return 'reject';
+        if (in_array($mode, ['preserve', 'omit'], true)) {
+            return $mode;
         }
 
-        throw new \InvalidArgumentException("Unsupported DOCX commentsMode '{$mode}'. Expected preserve/all, accept, or reject.");
+        throw new \InvalidArgumentException("Unsupported DOCX commentsMode '{$mode}'. Expected preserve or omit.");
     }
 
     private function loadXml(string $xml, string $label): \DOMDocument

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use PortLibs\Pandoc\AstNode;
 use PortLibs\Pandoc\DocxReader;
 use PortLibs\Pandoc\DocxUpstreamFocusedReaderEvidence;
+use PortLibs\Pandoc\NativeWriter;
 use PortLibs\Pandoc\ZipPackage;
 
 $repoRoot = dirname(__DIR__, 3);
@@ -103,6 +104,23 @@ XML,
     ]);
 };
 
+$commentDocxBytes = static function (): string {
+    return ZipPackage::build([
+        [
+            'name' => '[Content_Types].xml',
+            'data' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>',
+        ],
+        [
+            'name' => 'word/comments.xml',
+            'data' => '<?xml version="1.0"?><w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:comment w:id="3" w:author="Author"><w:p><w:r><w:t>Ranged comment body.</w:t></w:r></w:p></w:comment><w:comment w:id="4" w:author="Author"><w:p><w:r><w:t>Point comment body.</w:t></w:r></w:p></w:comment></w:comments>',
+        ],
+        [
+            'name' => 'word/document.xml',
+            'data' => '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t xml:space="preserve">Here is a </w:t></w:r><w:commentRangeStart w:id="3"/><w:r><w:t>document</w:t></w:r><w:commentRangeEnd w:id="3"/><w:r><w:commentReference w:id="3"/></w:r><w:r><w:t xml:space="preserve"> and point</w:t></w:r><w:r><w:commentReference w:id="4"/></w:r><w:r><w:t>.</w:t></w:r></w:p></w:body></w:document>',
+        ],
+    ]);
+};
+
 $flatten = static function (AstNode $node) use (&$flatten): array {
     $nodes = [$node];
     foreach ($node->children as $child) {
@@ -151,12 +169,12 @@ return [
             $t->same(false, $targeted['sourceDirectoryPresent']);
             $t->same(5, $coverage['coverageKindCounts']['focused-media-bag-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['focused-citation-addin-native-php-check']);
-            $t->same(2, $coverage['coverageKindCounts']['focused-comments-native-php-check']);
             $t->same(12, $coverage['coverageKindCounts']['focused-revision-mode-native-php-check']);
+            $t->same(2, $coverage['coverageKindCounts']['focused-comments-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['mapped-upstream-native-expectation-evidence']);
             $t->true(in_array('comment warnings (all)', $coverage['remainingOpenLabels'], true));
-            $t->true(in_array('comments (reject -- comments)', $coverage['remainingOpenLabels'], true));
-            $t->true(!in_array('comments (accept -- no comments)', $coverage['remainingOpenLabels'], true));
+            $t->true(in_array('comments (accept -- no comments)', $coverage['remainingOpenLabels'], true));
+            $t->true(!in_array('comments (reject -- comments)', $coverage['remainingOpenLabels'], true), 'reject no-comments case should be covered by focused evidence');
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
         } finally {
             $removeTree($root);
@@ -210,5 +228,19 @@ return [
         $t->same('1', $attrs['data-docx-addin-citation-item-count']);
         $t->same('ITEM-1', $attrs['data-docx-addin-citation-item-ids']);
         $t->same('(Focused, 2026)', $citation->children[0]->attr('text'));
+    },
+
+    'omits docx comments by configured comments mode' => static function (TestRunner $t) use ($commentDocxBytes): void {
+        $document = (new DocxReader(['commentsMode' => 'omit', 'revisionMode' => 'reject']))->read($commentDocxBytes());
+        $paragraph = $document->children[0];
+        $native = (new NativeWriter(['blocksOnly' => true]))->write($document);
+
+        $t->same('Here is a document and point.', $paragraph->attr('text'));
+        $t->same(['text'], array_map(static fn ($node): string => $node->type, $paragraph->children));
+        $t->same(2, $document->attr('meta')['docxComments']);
+        $t->true(!str_contains($native, 'comment-start'), 'commentsMode=omit should not emit comment range spans');
+        $t->true(!str_contains($native, 'Note'), 'commentsMode=omit should not emit point comment notes');
+        $t->true(!str_contains($native, 'comment body'), 'commentsMode=omit should keep comment bodies out of native output');
+        $t->throws(InvalidArgumentException::class, static fn (): DocxReader => new DocxReader(['commentsMode' => 'inline']));
     },
 ];

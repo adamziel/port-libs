@@ -132,17 +132,17 @@ return [
         $t->same($focusedReaderEvidence['evidenceKind'] ?? null, $manifestFocusedReader['evidenceKind'] ?? null);
         $t->same($focusedReaderEvidence['upstream']['commit'] ?? null, $manifestFocusedReader['upstreamCommit'] ?? null);
         $t->same(36, $manifestFocusedReader['denominatorCaseRows'] ?? null);
-        $t->same(30, $manifestFocusedReader['coveredCaseCount'] ?? null);
-        $t->same(6, $manifestFocusedReader['remainingOpenCaseCount'] ?? null);
+        $t->same(31, $manifestFocusedReader['coveredCaseCount'] ?? null);
+        $t->same(5, $manifestFocusedReader['remainingOpenCaseCount'] ?? null);
         $t->same('completed-targeted-docx-reader-checks', $manifestFocusedReader['targetedHydratedCacheStatus'] ?? null);
-        $t->same(26, $manifestFocusedReader['passedTargetedCaseCount'] ?? null);
+        $t->same(27, $manifestFocusedReader['passedTargetedCaseCount'] ?? null);
         $t->same(0, $manifestFocusedReader['failedTargetedCaseCount'] ?? null);
         $t->same(0, $manifestFocusedReader['skippedTargetedCaseCount'] ?? null);
         $t->same(4, $manifestFocusedReader['mappedOnlyCaseCount'] ?? null);
         $t->same('valid-denominator-map', $manifestFocusedReader['mappingValidationStatus'] ?? null);
-        $t->same('requires-30-covered-26-targeted-and-zero-targeted-failures', $manifestFocusedReader['gateStatus'] ?? null);
-        $t->contains('30 covered, 6 remaining open', (string) ($manifestFocusedReader['claim'] ?? ''));
-        $t->contains('26 passed / 0 failed / 4 mapped-only', (string) ($manifestFocusedReader['claim'] ?? ''));
+        $t->same('requires-31-covered-27-targeted-and-zero-targeted-failures', $manifestFocusedReader['gateStatus'] ?? null);
+        $t->contains('31 covered, 5 remaining open', (string) ($manifestFocusedReader['claim'] ?? ''));
+        $t->contains('27 passed / 0 failed / 4 mapped-only', (string) ($manifestFocusedReader['claim'] ?? ''));
         $t->contains('not an upstream Haskell/Cabal/Tasty runner result', (string) ($manifestFocusedReader['claim'] ?? ''));
 
         $localNativeFixtures = $countTrackedFiles(['lanes/pandoc/fixtures/upstream-native-docx-*.native']);
