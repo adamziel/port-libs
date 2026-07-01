@@ -12765,6 +12765,16 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestSourceRecordBytes'] = (int) ($zipPackageManifest['sourceRecordBytes'] ?? 0);
         $summary['zipPackageManifestCentralExtraFieldEntryCount'] = (int) ($zipPackageManifest['centralExtraFieldEntryCount'] ?? 0);
         $summary['zipPackageManifestEntryCommentCount'] = (int) ($zipPackageManifest['entryCommentCount'] ?? 0);
+        $summary['zipPackageManifestHasEntryComments'] = ($zipPackageManifest['hasEntryComments'] ?? false) === true;
+        $summary['zipPackageManifestCommentedEntryNames'] = is_array($zipPackageManifest['commentedEntryNames'] ?? null)
+            ? $zipPackageManifest['commentedEntryNames']
+            : [];
+        $summary['zipPackageManifestEntryCommentSummaryCount'] = (int) ($zipPackageManifest['entryCommentSummaryCount'] ?? 0);
+        $summary['zipPackageManifestEntryCommentSourceRecordBytes'] =
+            (int) ($zipPackageManifest['entryCommentSourceRecordBytes'] ?? 0);
+        $summary['zipPackageManifestEntryCommentSummaries'] = is_array($zipPackageManifest['entryCommentSummaries'] ?? null)
+            ? $zipPackageManifest['entryCommentSummaries']
+            : [];
         $summary['zipPackageManifestHasCentralDirectoryReviewFields'] = ($zipPackageManifest['hasCentralDirectoryReviewFields'] ?? false) === true;
         $summary['zipPackageManifestMaxPathSegmentCount'] = (int) ($zipPackageManifest['maxPathSegmentCount'] ?? 0);
         $summary['zipPackageManifestMaxDirectoryDepth'] = (int) ($zipPackageManifest['maxDirectoryDepth'] ?? 0);
@@ -14323,6 +14333,16 @@ final class DocxOpenXmlReader
             'packageManifestSourceRecordBytes' => (int) ($packageManifest['sourceRecordBytes'] ?? 0),
             'packageManifestCentralExtraFieldEntryCount' => (int) ($packageManifest['centralExtraFieldEntryCount'] ?? 0),
             'packageManifestEntryCommentCount' => (int) ($packageManifest['entryCommentCount'] ?? 0),
+            'packageManifestHasEntryComments' => ($packageManifest['hasEntryComments'] ?? false) === true,
+            'packageManifestCommentedEntryNames' => is_array($packageManifest['commentedEntryNames'] ?? null)
+                ? $packageManifest['commentedEntryNames']
+                : [],
+            'packageManifestEntryCommentSummaryCount' => (int) ($packageManifest['entryCommentSummaryCount'] ?? 0),
+            'packageManifestEntryCommentSourceRecordBytes' =>
+                (int) ($packageManifest['entryCommentSourceRecordBytes'] ?? 0),
+            'packageManifestEntryCommentSummaries' => is_array($packageManifest['entryCommentSummaries'] ?? null)
+                ? $packageManifest['entryCommentSummaries']
+                : [],
             'packageManifestHasCentralDirectoryReviewFields' => ($packageManifest['hasCentralDirectoryReviewFields'] ?? false) === true,
             'packageManifestMaxPathSegmentCount' => (int) ($packageManifest['maxPathSegmentCount'] ?? 0),
             'packageManifestMaxDirectoryDepth' => (int) ($packageManifest['maxDirectoryDepth'] ?? 0),

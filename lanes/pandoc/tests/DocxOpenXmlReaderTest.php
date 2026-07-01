@@ -1327,6 +1327,11 @@ XML,
             'sourceRecordBytes' => 'packageManifestSourceRecordBytes',
             'centralExtraFieldEntryCount' => 'packageManifestCentralExtraFieldEntryCount',
             'entryCommentCount' => 'packageManifestEntryCommentCount',
+            'hasEntryComments' => 'packageManifestHasEntryComments',
+            'commentedEntryNames' => 'packageManifestCommentedEntryNames',
+            'entryCommentSummaryCount' => 'packageManifestEntryCommentSummaryCount',
+            'entryCommentSourceRecordBytes' => 'packageManifestEntryCommentSourceRecordBytes',
+            'entryCommentSummaries' => 'packageManifestEntryCommentSummaries',
             'hasCentralDirectoryReviewFields' => 'packageManifestHasCentralDirectoryReviewFields',
             'maxPathSegmentCount' => 'packageManifestMaxPathSegmentCount',
             'maxDirectoryDepth' => 'packageManifestMaxDirectoryDepth',
@@ -1472,6 +1477,11 @@ XML,
         $t->same($manifest['centralDirectoryReviewFieldBytes'], $summary['zipPackageManifestCentralDirectoryReviewFieldBytes']);
         $t->same($manifest['centralExtraFieldEntryCount'], $summary['zipPackageManifestCentralExtraFieldEntryCount']);
         $t->same($manifest['entryCommentCount'], $summary['zipPackageManifestEntryCommentCount']);
+        $t->same($manifest['hasEntryComments'], $summary['zipPackageManifestHasEntryComments']);
+        $t->same($manifest['commentedEntryNames'], $summary['zipPackageManifestCommentedEntryNames']);
+        $t->same($manifest['entryCommentSummaryCount'], $summary['zipPackageManifestEntryCommentSummaryCount']);
+        $t->same($manifest['entryCommentSourceRecordBytes'], $summary['zipPackageManifestEntryCommentSourceRecordBytes']);
+        $t->same($manifest['entryCommentSummaries'], $summary['zipPackageManifestEntryCommentSummaries']);
         $t->same(true, $summary['zipPackageManifestHasCentralDirectoryReviewFields']);
         $t->same($manifest['maxPathSegmentCount'], $summary['zipPackageManifestMaxPathSegmentCount']);
         $t->same($manifest['maxDirectoryDepth'], $summary['zipPackageManifestMaxDirectoryDepth']);
@@ -2458,6 +2468,7 @@ XML,
         unset($zipPart);
 
         $zip = ZipPackage::fromParts($zipParts, 'docx package review');
+        $manifest = $zip->packageManifestPreflight();
         $commentSource = $zip->packageCommentSourcePreflight();
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
@@ -2499,6 +2510,22 @@ XML,
         $t->same([], $summary['zipPackageCommentIssues']);
         $t->same(3, $summary['zipEntryCommentCount']);
         $t->same(['[Content_Types].xml', 'word/document.xml', 'word/media/review.png'], $summary['zipCommentedEntryNames']);
+        foreach ([
+            'hasEntryComments' => ['packageManifestHasEntryComments', 'zipPackageManifestHasEntryComments'],
+            'commentedEntryNames' => ['packageManifestCommentedEntryNames', 'zipPackageManifestCommentedEntryNames'],
+            'entryCommentSummaryCount' => ['packageManifestEntryCommentSummaryCount', 'zipPackageManifestEntryCommentSummaryCount'],
+            'entryCommentSourceRecordBytes' => [
+                'packageManifestEntryCommentSourceRecordBytes',
+                'zipPackageManifestEntryCommentSourceRecordBytes',
+            ],
+            'entryCommentSummaries' => ['packageManifestEntryCommentSummaries', 'zipPackageManifestEntryCommentSummaries'],
+        ] as $manifestKey => [$zipPackageKey, $summaryKey]) {
+            $t->same($manifest[$manifestKey], $zipPackage[$zipPackageKey], "{$zipPackageKey} zip package");
+            $t->same($manifest[$manifestKey], $summary[$summaryKey], "{$summaryKey} summary");
+        }
+        $t->same(3, $summary['zipPackageManifestEntryCommentSummaryCount']);
+        $t->same(['[Content_Types].xml', 'word/document.xml', 'word/media/review.png'], $summary['zipPackageManifestCommentedEntryNames']);
+        $t->same('word/document.xml', $summary['zipPackageManifestEntryCommentSummaries'][1]['name']);
         $t->same(0, $summary['zipCommentControlByteEntryCount']);
         $t->same(0, $summary['zipCommentUnicodeFormatControlEntryCount']);
         $t->same(0, $summary['zipCommentBidiControlEntryCount']);
