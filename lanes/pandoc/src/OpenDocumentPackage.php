@@ -3002,6 +3002,7 @@ final class OpenDocumentPackage
         $comments = is_array($packageInventory['comments'] ?? null) ? $packageInventory['comments'] : [];
         $preferredViewModes = self::manifestPreferredViewModeSummary($this->manifestEntries);
         $manifestDeclaredSizeRoles = self::manifestDeclaredSizeRoleSummary($this->manifestEntries);
+        $manifestDeclaredSizeMediaFamilies = self::manifestDeclaredSizeMediaFamilySummary($this->manifestEntries);
         $payload = [
             'identityVersion' => 1,
             'packageType' => 'opendocument-text',
@@ -3034,6 +3035,13 @@ final class OpenDocumentPackage
             'manifestDeclaredSizeRoleExistingCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleExistingCounts'],
             'manifestDeclaredSizeRoleMissingCounts' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleMissingCounts'],
             'manifestDeclaredSizeRoleSummaries' => $manifestDeclaredSizeRoles['manifestDeclaredSizeRoleSummaries'],
+            'manifestDeclaredSizeMediaFamilyCount' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyCount'],
+            'manifestDeclaredSizeMediaFamilyCounts' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyCounts'],
+            'manifestDeclaredSizeMediaFamilyByteLengths' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyByteLengths'],
+            'manifestDeclaredSizeMediaFamilyMismatchCounts' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyMismatchCounts'],
+            'manifestDeclaredSizeMediaFamilyExistingCounts' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyExistingCounts'],
+            'manifestDeclaredSizeMediaFamilyMissingCounts' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilyMissingCounts'],
+            'manifestDeclaredSizeMediaFamilySummaries' => $manifestDeclaredSizeMediaFamilies['manifestDeclaredSizeMediaFamilySummaries'],
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
@@ -11349,6 +11357,7 @@ final class OpenDocumentPackage
         );
         $summary['largestDeclaredSizeItemCount'] = count($summary['largestDeclaredSizeItems']);
         $summary += self::manifestDeclaredSizeRoleSummary($entries);
+        $summary += self::manifestDeclaredSizeMediaFamilySummary($entries);
         sort($summary['manifestCustomAttributeNames'], SORT_STRING);
         sort($summary['manifestCustomChildElementNames'], SORT_STRING);
         ksort($summary['manifestPathKindCounts'], SORT_STRING);
@@ -11826,6 +11835,76 @@ final class OpenDocumentPackage
             'manifestDeclaredSizeRoleExistingCounts' => $roleExistingCounts,
             'manifestDeclaredSizeRoleMissingCounts' => $roleMissingCounts,
             'manifestDeclaredSizeRoleSummaries' => $summaries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{manifestDeclaredSizeMediaFamilyCount:int, manifestDeclaredSizeMediaFamilyCounts:array<string, int>, manifestDeclaredSizeMediaFamilyByteLengths:array<string, int>, manifestDeclaredSizeMediaFamilyMismatchCounts:array<string, int>, manifestDeclaredSizeMediaFamilyExistingCounts:array<string, int>, manifestDeclaredSizeMediaFamilyMissingCounts:array<string, int>, manifestDeclaredSizeMediaFamilySummaries:list<array{manifestMediaFamily:string, declaredSizeItemCount:int, declaredSize:int, declaredSizeMismatchCount:int, existingCount:int, missingCount:int, parts:list<string>}>}
+     */
+    private static function manifestDeclaredSizeMediaFamilySummary(array $entries): array
+    {
+        $familyCounts = [];
+        $familyByteLengths = [];
+        $familyMismatchCounts = [];
+        $familyExistingCounts = [];
+        $familyMissingCounts = [];
+        $partsByFamily = [];
+
+        foreach ($entries as $entry) {
+            $declaredSize = $entry['declaredSize'] ?? ($entry['size'] ?? null);
+            if (!is_int($declaredSize)) {
+                continue;
+            }
+
+            $family = is_string($entry['manifestMediaFamily'] ?? null) && $entry['manifestMediaFamily'] !== ''
+                ? $entry['manifestMediaFamily']
+                : 'missing-media-family';
+            $part = self::manifestMediaTypePartLabel($entry);
+            $familyCounts[$family] = ($familyCounts[$family] ?? 0) + 1;
+            $familyByteLengths[$family] = ($familyByteLengths[$family] ?? 0) + $declaredSize;
+            if (($entry['declaredSizeMismatch'] ?? false) === true) {
+                $familyMismatchCounts[$family] = ($familyMismatchCounts[$family] ?? 0) + 1;
+            }
+            if (($entry['exists'] ?? false) === true) {
+                $familyExistingCounts[$family] = ($familyExistingCounts[$family] ?? 0) + 1;
+            } else {
+                $familyMissingCounts[$family] = ($familyMissingCounts[$family] ?? 0) + 1;
+            }
+            $partsByFamily[$family] ??= [];
+            if (!in_array($part, $partsByFamily[$family], true)) {
+                $partsByFamily[$family][] = $part;
+            }
+        }
+
+        ksort($familyCounts, SORT_STRING);
+        ksort($familyByteLengths, SORT_STRING);
+        ksort($familyMismatchCounts, SORT_STRING);
+        ksort($familyExistingCounts, SORT_STRING);
+        ksort($familyMissingCounts, SORT_STRING);
+        ksort($partsByFamily, SORT_STRING);
+
+        $summaries = [];
+        foreach (array_keys($familyCounts) as $family) {
+            $summaries[] = [
+                'manifestMediaFamily' => $family,
+                'declaredSizeItemCount' => $familyCounts[$family],
+                'declaredSize' => $familyByteLengths[$family] ?? 0,
+                'declaredSizeMismatchCount' => $familyMismatchCounts[$family] ?? 0,
+                'existingCount' => $familyExistingCounts[$family] ?? 0,
+                'missingCount' => $familyMissingCounts[$family] ?? 0,
+                'parts' => $partsByFamily[$family] ?? [],
+            ];
+        }
+
+        return [
+            'manifestDeclaredSizeMediaFamilyCount' => count($familyCounts),
+            'manifestDeclaredSizeMediaFamilyCounts' => $familyCounts,
+            'manifestDeclaredSizeMediaFamilyByteLengths' => $familyByteLengths,
+            'manifestDeclaredSizeMediaFamilyMismatchCounts' => $familyMismatchCounts,
+            'manifestDeclaredSizeMediaFamilyExistingCounts' => $familyExistingCounts,
+            'manifestDeclaredSizeMediaFamilyMissingCounts' => $familyMissingCounts,
+            'manifestDeclaredSizeMediaFamilySummaries' => $summaries,
         ];
     }
 
