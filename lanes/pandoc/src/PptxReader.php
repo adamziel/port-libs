@@ -3134,10 +3134,13 @@ final class PptxReader
 
         $nodeText = [];
         foreach ($this->diagramChildElements($pointList, 'pt') as $pointElement) {
+            if (!$pointElement->hasAttribute('modelId')) {
+                continue;
+            }
             $modelId = $pointElement->getAttribute('modelId');
             $textElement = $this->firstDiagramChildElement($pointElement, 't');
             $text = $textElement instanceof \DOMElement ? $this->allDescendantText($textElement) : '';
-            if ($modelId !== '' && trim($text) !== '') {
+            if (trim($text) !== '') {
                 $nodeText[$modelId] = $text;
             }
         }
@@ -3149,11 +3152,11 @@ final class PptxReader
                 if ($connectionElement->getAttribute('type') !== '') {
                     continue;
                 }
-                $sourceId = $connectionElement->getAttribute('srcId');
-                $destinationId = $connectionElement->getAttribute('destId');
-                if ($sourceId === '' || $destinationId === '') {
+                if (!$connectionElement->hasAttribute('srcId') || !$connectionElement->hasAttribute('destId')) {
                     continue;
                 }
+                $sourceId = $connectionElement->getAttribute('srcId');
+                $destinationId = $connectionElement->getAttribute('destId');
                 $childrenByParent[$sourceId] ??= [];
                 $childrenByParent[$sourceId][] = $destinationId;
             }

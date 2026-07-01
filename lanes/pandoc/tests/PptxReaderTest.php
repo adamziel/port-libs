@@ -2805,11 +2805,11 @@ XML);
 <?xml version="1.0" encoding="UTF-8"?>
 <dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
   <dgm:ptLst>
-    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Empty type parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId=""><dgm:t><a:p><a:r><a:t>Empty id parent</a:t></a:r></a:p></dgm:t></dgm:pt>
     <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Empty type child</a:t></a:r></a:p></dgm:t></dgm:pt>
   </dgm:ptLst>
   <dgm:cxnLst>
-    <dgm:cxn type="" srcId="parent" destId="child"/>
+    <dgm:cxn type="" srcId="" destId="child"/>
   </dgm:cxnLst>
 </dgm:dataModel>
 XML);
@@ -4506,7 +4506,7 @@ return [
         $t->contains('Para [ Str "[Diagram" , Space , Str "parse" , Space , Str "error:" , Space , Str "File" , Space , Str "not" , Space , Str "found" , Space , Str "in" , Space , Str "archive:" , Space , Str "/ppt/diagrams/data1.xml]" ]', $native);
     },
 
-    'keeps empty-type pptx SmartArt connections hierarchical like upstream' => static function (TestRunner $t) use ($buildEmptyTypeSmartArtConnectionPptxPackage, $nodesOfType, $nodesWithClass): void {
+    'keeps empty-type and empty-id pptx SmartArt connections hierarchical like upstream' => static function (TestRunner $t) use ($buildEmptyTypeSmartArtConnectionPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildEmptyTypeSmartArtConnectionPptxPackage());
         $review = $document->attr('pptx');
         $divs = $nodesOfType($document, 'div');
@@ -4518,7 +4518,7 @@ return [
         $t->same(['smartart', 'basicBlockList'], $smartArtDivs[0]->attr('classes'));
         $t->same(1, count($bulletLists));
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
-        $t->contains('Strong [ Str "Empty" , Space , Str "type" , Space , Str "parent" ]', $native);
+        $t->contains('Strong [ Str "Empty" , Space , Str "id" , Space , Str "parent" ]', $native);
         $t->contains('BulletList [ [ Plain [ Str "Empty" , Space , Str "type" , Space , Str "child"', $native);
     },
 
