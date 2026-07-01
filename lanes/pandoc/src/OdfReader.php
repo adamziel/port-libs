@@ -2135,6 +2135,7 @@ final class OdfReader
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $packagePartBasenames = self::packagePartBasenameInventory($parts);
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
+        $packageCaseFoldTopLevelSegments = self::packageCaseFoldTopLevelSegmentInventory($parts);
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
         $packageZipSourceRecordPackagePartBaseNameStems = self::packageZipSourceRecordPackagePartBaseNameStemInventory($parts);
         $packageZipSourceRecordCompressionMethods = self::packageZipSourceRecordCompressionMethodInventory($parts);
@@ -2321,6 +2322,12 @@ final class OdfReader
             'packagePathsByPackageArea' => $packagePathsByPackageArea,
             'packagePathKindCounts' => $packagePathKindCounts,
             'packageTopLevelSegmentCounts' => $packageTopLevelSegmentCounts,
+            'packageCaseFoldTopLevelSegmentCount' => $packageCaseFoldTopLevelSegments['packageCaseFoldTopLevelSegmentCount'],
+            'packageCaseFoldTopLevelSegmentCounts' => $packageCaseFoldTopLevelSegments['packageCaseFoldTopLevelSegmentCounts'],
+            'duplicatePackageCaseFoldTopLevelSegmentCount' => $packageCaseFoldTopLevelSegments['duplicatePackageCaseFoldTopLevelSegmentCount'],
+            'duplicatePackageCaseFoldTopLevelSegmentEntryCount' => $packageCaseFoldTopLevelSegments['duplicatePackageCaseFoldTopLevelSegmentEntryCount'],
+            'duplicatePackageCaseFoldTopLevelSegments' => $packageCaseFoldTopLevelSegments['duplicatePackageCaseFoldTopLevelSegments'],
+            'packageCaseFoldTopLevelSegments' => $packageCaseFoldTopLevelSegments['packageCaseFoldTopLevelSegments'],
             'packagePathExtensionCounts' => $packagePathExtensionCounts,
             'packagePathDepthCounts' => $packagePathDepthCounts,
             'packagePathsByPathDepth' => $packagePathsByPathDepth,
@@ -3485,6 +3492,12 @@ final class OdfReader
             'packagePathsByPackageArea' => $provenance['packagePathsByPackageArea'] ?? [],
             'packagePathKindCounts' => $provenance['packagePathKindCounts'] ?? [],
             'packageTopLevelSegmentCounts' => $provenance['packageTopLevelSegmentCounts'] ?? [],
+            'packageCaseFoldTopLevelSegmentCount' => $provenance['packageCaseFoldTopLevelSegmentCount'] ?? 0,
+            'packageCaseFoldTopLevelSegmentCounts' => $provenance['packageCaseFoldTopLevelSegmentCounts'] ?? [],
+            'duplicatePackageCaseFoldTopLevelSegmentCount' => $provenance['duplicatePackageCaseFoldTopLevelSegmentCount'] ?? 0,
+            'duplicatePackageCaseFoldTopLevelSegmentEntryCount' => $provenance['duplicatePackageCaseFoldTopLevelSegmentEntryCount'] ?? 0,
+            'duplicatePackageCaseFoldTopLevelSegments' => $provenance['duplicatePackageCaseFoldTopLevelSegments'] ?? [],
+            'packageCaseFoldTopLevelSegments' => $provenance['packageCaseFoldTopLevelSegments'] ?? [],
             'packagePathExtensionCounts' => $provenance['packagePathExtensionCounts'] ?? [],
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $provenance['packagePathsByPathDepth'] ?? [],
@@ -3782,6 +3795,12 @@ final class OdfReader
             'packagePathsByPackageArea' => $provenance['packagePathsByPackageArea'] ?? [],
             'packagePathKindCounts' => $provenance['packagePathKindCounts'] ?? [],
             'packageTopLevelSegmentCounts' => $provenance['packageTopLevelSegmentCounts'] ?? [],
+            'packageCaseFoldTopLevelSegmentCount' => $provenance['packageCaseFoldTopLevelSegmentCount'] ?? 0,
+            'packageCaseFoldTopLevelSegmentCounts' => $provenance['packageCaseFoldTopLevelSegmentCounts'] ?? [],
+            'duplicatePackageCaseFoldTopLevelSegmentCount' => $provenance['duplicatePackageCaseFoldTopLevelSegmentCount'] ?? 0,
+            'duplicatePackageCaseFoldTopLevelSegmentEntryCount' => $provenance['duplicatePackageCaseFoldTopLevelSegmentEntryCount'] ?? 0,
+            'duplicatePackageCaseFoldTopLevelSegments' => $provenance['duplicatePackageCaseFoldTopLevelSegments'] ?? [],
+            'packageCaseFoldTopLevelSegments' => $provenance['packageCaseFoldTopLevelSegments'] ?? [],
             'packagePathExtensionCounts' => $provenance['packagePathExtensionCounts'] ?? [],
             'packagePathDepthCounts' => $provenance['packagePathDepthCounts'] ?? [],
             'packagePathsByPathDepth' => $provenance['packagePathsByPathDepth'] ?? [],
@@ -5766,6 +5785,258 @@ final class OdfReader
             'duplicatePackageCaseFoldDirectoryBaseNameStems' => $duplicateCaseFoldDirectoryBaseNameStems,
             'packageCaseFoldDirectoryBaseNameStems' => array_values($caseFoldDirectoryBaseNameStems),
         ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     packageCaseFoldTopLevelSegmentCount:int,
+     *     packageCaseFoldTopLevelSegmentCounts:array<string, int>,
+     *     duplicatePackageCaseFoldTopLevelSegmentCount:int,
+     *     duplicatePackageCaseFoldTopLevelSegmentEntryCount:int,
+     *     duplicatePackageCaseFoldTopLevelSegments:list<string>,
+     *     packageCaseFoldTopLevelSegments:list<array<string, mixed>>
+     * }
+     */
+    private static function packageCaseFoldTopLevelSegmentInventory(array $parts): array
+    {
+        $caseFoldSegmentCounts = [];
+        $segments = [];
+
+        foreach ($parts as $name => $part) {
+            if (!is_array($part)) {
+                continue;
+            }
+
+            $entryName = is_string($part['part'] ?? null) ? $part['part'] : (string) $name;
+            $isDirectory = ($part['isDirectory'] ?? false) === true;
+            $pathShape = is_array($part['packagePathShape'] ?? null)
+                ? $part['packagePathShape']
+                : self::packagePathShape($entryName, $isDirectory);
+            $topLevelSegment = is_string($pathShape['topLevelSegment'] ?? null)
+                ? $pathShape['topLevelSegment']
+                : '';
+            if ($topLevelSegment === '') {
+                continue;
+            }
+
+            $caseFoldTopLevelSegment = strtolower($topLevelSegment);
+            $directory = is_string($pathShape['directory'] ?? null) ? $pathShape['directory'] : null;
+            $directoryKey = $directory !== null && $directory !== '' ? $directory : '(root)';
+            $basename = is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : null;
+            $pathSegments = is_array($pathShape['segments'] ?? null) ? array_values($pathShape['segments']) : [];
+            $pathDepth = is_int($part['packagePathDepth'] ?? null)
+                ? $part['packagePathDepth']
+                : self::packagePathDepthFromShape($pathShape);
+            $byteLength = is_int($part['byteLength'] ?? null) ? $part['byteLength'] : 0;
+            $compressedByteLength = is_int($part['compressedByteLength'] ?? null) ? $part['compressedByteLength'] : 0;
+            $roles = array_values(array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []));
+            $declaredInManifest = ($part['declaredInManifest'] ?? false) === true;
+            $undeclared = ($part['undeclared'] ?? false) === true;
+            $canExposeBytes = ($part['canExposeBytes'] ?? false) === true;
+            $byteExposurePolicy = is_string($part['byteExposurePolicy'] ?? null) ? $part['byteExposurePolicy'] : '';
+            $manifestMediaFamily = is_string($part['manifestMediaFamily'] ?? null) ? $part['manifestMediaFamily'] : '';
+            $manifestMediaTypeBase = is_string($part['manifestMediaTypeBase'] ?? null) ? $part['manifestMediaTypeBase'] : '';
+            if ($manifestMediaFamily === '' && $manifestMediaTypeBase !== '') {
+                $manifestMediaFamily = self::packageCaseFoldTopLevelSegmentMediaFamily(
+                    $entryName,
+                    $manifestMediaTypeBase,
+                    $roles,
+                    $isDirectory
+                );
+            }
+            $packagePartExtension = is_string($part['packagePartExtension'] ?? null) ? $part['packagePartExtension'] : null;
+
+            $caseFoldSegmentCounts[$caseFoldTopLevelSegment] =
+                ($caseFoldSegmentCounts[$caseFoldTopLevelSegment] ?? 0) + 1;
+            if (!isset($segments[$caseFoldTopLevelSegment])) {
+                $segments[$caseFoldTopLevelSegment] = [
+                    'caseFoldTopLevelSegment' => $caseFoldTopLevelSegment,
+                    'topLevelSegmentVariantCount' => 0,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'declaredPartCount' => 0,
+                    'undeclaredPartCount' => 0,
+                    'exposablePartCount' => 0,
+                    'blockedPartCount' => 0,
+                    'byteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'topLevelSegmentCounts' => [],
+                    'packagePathDepthCounts' => [],
+                    'packageDirectoryCounts' => [],
+                    'manifestMediaFamilyCounts' => [],
+                    'manifestMediaTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'packageDirectories' => [],
+                    'entryNames' => [],
+                    'largestEntry' => null,
+                ];
+            }
+
+            ++$segments[$caseFoldTopLevelSegment]['entryCount'];
+            $segments[$caseFoldTopLevelSegment]['byteLength'] += $byteLength;
+            $segments[$caseFoldTopLevelSegment]['compressedByteLength'] += $compressedByteLength;
+            $segments[$caseFoldTopLevelSegment]['entryNames'][] = $entryName;
+            $segments[$caseFoldTopLevelSegment]['topLevelSegmentCounts'][$topLevelSegment] =
+                ($segments[$caseFoldTopLevelSegment]['topLevelSegmentCounts'][$topLevelSegment] ?? 0) + 1;
+            $segments[$caseFoldTopLevelSegment]['packagePathDepthCounts'][$pathDepth] =
+                ($segments[$caseFoldTopLevelSegment]['packagePathDepthCounts'][$pathDepth] ?? 0) + 1;
+            $segments[$caseFoldTopLevelSegment]['packageDirectoryCounts'][$directoryKey] =
+                ($segments[$caseFoldTopLevelSegment]['packageDirectoryCounts'][$directoryKey] ?? 0) + 1;
+            if ($isDirectory) {
+                ++$segments[$caseFoldTopLevelSegment]['directoryEntryCount'];
+            } else {
+                ++$segments[$caseFoldTopLevelSegment]['fileEntryCount'];
+            }
+            if ($declaredInManifest) {
+                ++$segments[$caseFoldTopLevelSegment]['declaredPartCount'];
+            }
+            if ($undeclared) {
+                ++$segments[$caseFoldTopLevelSegment]['undeclaredPartCount'];
+            }
+            if ($canExposeBytes) {
+                ++$segments[$caseFoldTopLevelSegment]['exposablePartCount'];
+            } else {
+                ++$segments[$caseFoldTopLevelSegment]['blockedPartCount'];
+            }
+            foreach ($roles as $role) {
+                if ($role !== '') {
+                    $segments[$caseFoldTopLevelSegment]['roleCounts'][$role] =
+                        ($segments[$caseFoldTopLevelSegment]['roleCounts'][$role] ?? 0) + 1;
+                }
+            }
+            if ($byteExposurePolicy !== '') {
+                $segments[$caseFoldTopLevelSegment]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                    ($segments[$caseFoldTopLevelSegment]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            }
+            if ($manifestMediaFamily !== '') {
+                $segments[$caseFoldTopLevelSegment]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                    ($segments[$caseFoldTopLevelSegment]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+            }
+            if ($manifestMediaTypeBase !== '') {
+                $segments[$caseFoldTopLevelSegment]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] =
+                    ($segments[$caseFoldTopLevelSegment]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] ?? 0) + 1;
+            }
+
+            $entrySummary = [
+                'entryName' => $entryName,
+                'topLevelSegment' => $topLevelSegment,
+                'caseFoldTopLevelSegment' => $caseFoldTopLevelSegment,
+                'packageDirectory' => $directory,
+                'packageBasename' => $basename,
+                'packagePathDepth' => $pathDepth,
+                'packagePathSegments' => $pathSegments,
+                'packagePartExtension' => $packagePartExtension,
+                'byteLength' => $byteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'byteSha256' => is_string($part['byteSha256'] ?? null) ? $part['byteSha256'] : null,
+                'roles' => $roles,
+                'declaredInManifest' => $declaredInManifest,
+                'undeclared' => $undeclared,
+                'isDirectory' => $isDirectory,
+                'canExposeBytes' => $canExposeBytes,
+                'byteExposurePolicy' => $byteExposurePolicy === '' ? null : $byteExposurePolicy,
+                'manifestMediaTypeBase' => $manifestMediaTypeBase === '' ? null : $manifestMediaTypeBase,
+                'manifestMediaFamily' => $manifestMediaFamily === '' ? null : $manifestMediaFamily,
+            ];
+            $largestEntry = $segments[$caseFoldTopLevelSegment]['largestEntry'];
+            if (
+                !is_array($largestEntry)
+                || $byteLength > (int) ($largestEntry['byteLength'] ?? 0)
+                || ($byteLength === (int) ($largestEntry['byteLength'] ?? 0) && strcmp($entryName, (string) ($largestEntry['entryName'] ?? '')) < 0)
+            ) {
+                $segments[$caseFoldTopLevelSegment]['largestEntry'] = $entrySummary;
+            }
+        }
+
+        ksort($caseFoldSegmentCounts, SORT_STRING);
+        $duplicates = [];
+        $duplicateEntryCount = 0;
+        ksort($segments, SORT_STRING);
+        foreach ($segments as $caseFoldTopLevelSegment => $summary) {
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
+            ksort($summary['packagePathDepthCounts'], SORT_NUMERIC);
+            ksort($summary['packageDirectoryCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            $summary['packageDirectories'] = array_keys($summary['packageDirectoryCounts']);
+            sort($summary['packageDirectories'], SORT_STRING);
+            $summary['topLevelSegmentVariantCount'] = count($summary['topLevelSegmentCounts']);
+            if ($summary['topLevelSegmentVariantCount'] > 1) {
+                $duplicates[] = $caseFoldTopLevelSegment;
+                $duplicateEntryCount += (int) $summary['entryCount'];
+            }
+            $segments[$caseFoldTopLevelSegment] = $summary;
+        }
+
+        return [
+            'packageCaseFoldTopLevelSegmentCount' => count($caseFoldSegmentCounts),
+            'packageCaseFoldTopLevelSegmentCounts' => $caseFoldSegmentCounts,
+            'duplicatePackageCaseFoldTopLevelSegmentCount' => count($duplicates),
+            'duplicatePackageCaseFoldTopLevelSegmentEntryCount' => $duplicateEntryCount,
+            'duplicatePackageCaseFoldTopLevelSegments' => $duplicates,
+            'packageCaseFoldTopLevelSegments' => array_values($segments),
+        ];
+    }
+
+    /**
+     * @param list<string> $roles
+     */
+    private static function packageCaseFoldTopLevelSegmentMediaFamily(
+        string $entryName,
+        string $mediaTypeBase,
+        array $roles,
+        bool $isDirectory
+    ): string {
+        $base = strtolower(trim($mediaTypeBase));
+        if ($isDirectory) {
+            return 'directory';
+        }
+        if (in_array('script-package', $roles, true)) {
+            return 'script';
+        }
+        if (in_array('configuration-package', $roles, true)) {
+            return 'configuration';
+        }
+        if (in_array('package-thumbnail', $roles, true)) {
+            return 'thumbnail';
+        }
+        if (in_array('package-signature', $roles, true)) {
+            return 'signature';
+        }
+        if (in_array('font-package', $roles, true)) {
+            return 'font';
+        }
+        if (in_array('rdf-metadata', $roles, true) || $base === 'application/rdf+xml') {
+            return 'rdf';
+        }
+
+        $mediaResourceFamily = self::mediaResourceFamilyFromMediaTypeBase($base);
+        if ($mediaResourceFamily !== null) {
+            return $mediaResourceFamily;
+        }
+
+        $packageMediaResourceFamily = self::mediaResourceFamilyFromPackagePart($entryName);
+        if ($base === 'application/octet-stream' && $packageMediaResourceFamily !== null) {
+            return $packageMediaResourceFamily;
+        }
+        if (self::isXmlMediaTypeBase($base)) {
+            return 'xml';
+        }
+        if ($base === '') {
+            return 'missing-media-type';
+        }
+        if ($base === 'application/octet-stream' || str_starts_with($base, 'application/vnd.')) {
+            return 'binary';
+        }
+
+        return 'other';
     }
 
     /**
