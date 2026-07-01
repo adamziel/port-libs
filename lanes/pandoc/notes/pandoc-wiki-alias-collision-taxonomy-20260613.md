@@ -1,7 +1,7 @@
 # Pandoc wiki alias collision taxonomy
 
 Bounded native PHP format-registry coverage advanced by one wiki alias collision
-taxonomy slice on current main `1bf195ba7b` after the rejected child branch was
+taxonomy slice on current main `89949a774` after the rejected child branch was
 folded forward into the small-formats chunk.
 
 `PandocFormatRegistry::wikiAliasCollisionDiagnostics()` and
@@ -15,17 +15,18 @@ folded forward into the small-formats chunk.
 - `directReaderParitySupported=false`
 - `directWriterParitySupported=false`
 
-Existing wiki extension inference is unchanged: `.dokuwiki => dokuwiki` and
-`.wiki => mediawiki`.
+Existing normalized wiki extension inference is unchanged: `dokuwiki => dokuwiki`
+and `wiki => mediawiki`.
 
 Verification:
 
 - `php -l lanes/pandoc/src/PandocFormatRegistry.php`
 - `php -l lanes/pandoc/tests/PandocFormatRegistryTest.php`
 - `php tools/run-tests.php lanes/pandoc/tests/PandocFormatRegistryTest.php`
-  - `1` file, `2484` assertions, `0` failures
+  - `1` file, `423` assertions, `0` failures
 - `php tools/run-tests.php lanes/pandoc/tests`
-  - `46` files, `83323` assertions, `0` failures
+  - `534` files, `142357` assertions, `8912` failures
+  - failures were outside the registry slice, concentrated in existing Markdown/HTML reader-writer surge expectations
 - `jq empty lanes/pandoc/lane-status.json lanes/pandoc/UPSTREAM_TEST_MANIFEST.json`
 - `git diff --check`
 

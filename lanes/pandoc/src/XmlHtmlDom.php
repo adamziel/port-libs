@@ -1003,15 +1003,18 @@ final class XmlHtmlDom
         $attributeNamespaceUsageSummaries = self::xmlNamespaceUseSummaries($attributeUses);
         $elementNamespaceCollisions = self::xmlNamespaceCollisionSummaries($elementUses);
         $attributeNamespaceCollisions = self::xmlNamespaceCollisionSummaries($attributeUses);
+        $elementNamespaceCollisionCount = self::xmlNamespaceCollisionCount($elementUses);
+        $attributeNamespaceCollisionCount = self::xmlNamespaceCollisionCount($attributeUses);
+        $defaultNamespaceTransitionCount = count($defaultNamespaceTransitions);
         $defaultNamespaceTransitions = array_slice(
             $defaultNamespaceTransitions,
             0,
             self::XML_NAMESPACE_REVIEW_MAX_ITEMS
         );
         $directReaderDiagnostics = self::xmlDirectReaderDiagnostics(
-            count($elementNamespaceCollisions),
-            count($attributeNamespaceCollisions),
-            count($defaultNamespaceTransitions),
+            $elementNamespaceCollisionCount,
+            $attributeNamespaceCollisionCount,
+            $defaultNamespaceTransitionCount,
             $defaultNamespaceUseCount,
             count($sameUriMultiplePrefixes),
             count($samePrefixMultipleUris),
@@ -1025,6 +1028,7 @@ final class XmlHtmlDom
             'reviewPolicy' => 'xml-namespace-usage-diagnostics-review-only',
             'directReaderParity' => false,
             'namespaceReview' => 'xml-namespace-usage',
+            'namespaceReviewLimit' => self::XML_NAMESPACE_REVIEW_MAX_ITEMS,
             'namespaceScopeReview' => $namespaceScopeSummary['namespaceReview'],
             'namespaceUsageSourceMode' => $sourceUsageSummary['sourceMode'],
             'directReaderDiagnosticCodes' => array_map(
@@ -1097,11 +1101,20 @@ final class XmlHtmlDom
             'sameUriMultiplePrefixes' => $sameUriMultiplePrefixes,
             'samePrefixMultipleUriCount' => count($samePrefixMultipleUris),
             'samePrefixMultipleUris' => $samePrefixMultipleUris,
-            'elementNamespaceCollisionCount' => count($elementNamespaceCollisions),
+            'elementNamespaceCollisionCount' => $elementNamespaceCollisionCount,
+            'elementNamespaceCollisionSummaryCount' => count($elementNamespaceCollisions),
+            'elementNamespaceCollisionLimit' => self::XML_NAMESPACE_REVIEW_MAX_ITEMS,
+            'elementNamespaceCollisionTruncated' => $elementNamespaceCollisionCount > count($elementNamespaceCollisions),
             'elementNamespaceCollisions' => $elementNamespaceCollisions,
-            'attributeNamespaceCollisionCount' => count($attributeNamespaceCollisions),
+            'attributeNamespaceCollisionCount' => $attributeNamespaceCollisionCount,
+            'attributeNamespaceCollisionSummaryCount' => count($attributeNamespaceCollisions),
+            'attributeNamespaceCollisionLimit' => self::XML_NAMESPACE_REVIEW_MAX_ITEMS,
+            'attributeNamespaceCollisionTruncated' => $attributeNamespaceCollisionCount > count($attributeNamespaceCollisions),
             'attributeNamespaceCollisions' => $attributeNamespaceCollisions,
-            'defaultNamespaceTransitionCount' => count($defaultNamespaceTransitions),
+            'defaultNamespaceTransitionCount' => $defaultNamespaceTransitionCount,
+            'defaultNamespaceTransitionSummaryCount' => count($defaultNamespaceTransitions),
+            'defaultNamespaceTransitionLimit' => self::XML_NAMESPACE_REVIEW_MAX_ITEMS,
+            'defaultNamespaceTransitionTruncated' => $defaultNamespaceTransitionCount > count($defaultNamespaceTransitions),
             'defaultNamespaceTransitions' => $defaultNamespaceTransitions,
         ];
     }
@@ -4769,6 +4782,21 @@ final class XmlHtmlDom
         }
 
         return array_slice($aliases, 0, self::XML_NAMESPACE_REVIEW_MAX_ITEMS);
+    }
+
+    /**
+     * @param array<string, array<string, array{namespaceUri:string, count:int, qualifiedNames:array<string, true>}>> $uses
+     */
+    private static function xmlNamespaceCollisionCount(array $uses): int
+    {
+        $count = 0;
+        foreach ($uses as $namespaceUses) {
+            if (count($namespaceUses) >= 2) {
+                ++$count;
+            }
+        }
+
+        return $count;
     }
 
     /**

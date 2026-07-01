@@ -613,8 +613,10 @@ final class BibtexCslProcessor
             'main-title' => 'Main title',
             'main-title-addon' => 'Main title addendum',
             'volume-title' => 'Volume title',
+            'volume-title-addon' => 'Volume title addendum',
             'volume-title-short' => 'Volume title abbreviation',
             'part-title' => 'Part title',
+            'part-title-addon' => 'Part title addendum',
         ] as $field => $label) {
             if (($item[$field] ?? '') !== '') {
                 $value = (string) $item[$field];
@@ -888,6 +890,8 @@ final class BibtexCslProcessor
                 'publicationtitleaddon',
             ],
             'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
+            'volume-title-addon' => ['volumetitleaddon', 'volume-title-addon'],
+            'part-title-addon' => ['parttitleaddon', 'part-title-addon'],
             'reviewed-genre' => ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre'],
             'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
             'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
