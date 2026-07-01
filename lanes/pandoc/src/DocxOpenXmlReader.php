@@ -772,6 +772,13 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneYesCount'] = $selectedXmlParts['xmlStandaloneYesCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneNoCount'] = $selectedXmlParts['xmlStandaloneNoCount'];
+        $packageProvenance['summary']['selectedXmlPartProcessingInstructionCount'] = $selectedXmlParts['processingInstructionCount'];
+        $packageProvenance['summary']['selectedXmlPartProcessingInstructionTargets'] = $selectedXmlParts['processingInstructionTargets'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeCount'] = $selectedXmlParts['doctypeCount'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeExternalReferenceCount'] = $selectedXmlParts['doctypeExternalReferenceCount'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeInternalSubsetCount'] = $selectedXmlParts['doctypeInternalSubsetCount'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeEntityDeclarationCount'] = $selectedXmlParts['doctypeEntityDeclarationCount'];
+        $packageProvenance['summary']['selectedXmlPartDoctypeIssueCodes'] = $selectedXmlParts['doctypeIssueCodes'];
         $packageProvenance['summary']['stylesWithEffectsPart'] = $stylesWithEffectsPart['partName'];
         $packageProvenance['summary']['stylesWithEffectsExists'] = $stylesWithEffectsPart['exists'];
         $packageProvenance['summary']['stylesWithEffectsRelationshipId'] = $stylesWithEffectsPart['relationship']['id'] ?? null;
@@ -20861,6 +20868,13 @@ final class DocxOpenXmlReader
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
+        $processingInstructionCount = 0;
+        $processingInstructionTargets = [];
+        $doctypeCount = 0;
+        $doctypeExternalReferenceCount = 0;
+        $doctypeInternalSubsetCount = 0;
+        $doctypeEntityDeclarationCount = 0;
+        $doctypeIssueCodes = [];
         foreach ($items as $item) {
             $rootAttributeCount += (int) ($item['rootAttributeCount'] ?? 0);
             $rootNamespaceDeclarationCount += (int) ($item['rootNamespaceDeclarationCount'] ?? 0);
@@ -20885,6 +20899,27 @@ final class DocxOpenXmlReader
             foreach (($item['rootNamespacePrefixes'] ?? []) as $prefix) {
                 if (is_string($prefix)) {
                     $this->appendUniqueString($rootNamespacePrefixes, $prefix);
+                }
+            }
+            $processingInstructionCount += (int) ($item['processingInstructionCount'] ?? 0);
+            foreach (($item['processingInstructionTargets'] ?? []) as $target) {
+                if (is_string($target)) {
+                    $this->appendUniqueString($processingInstructionTargets, $target);
+                }
+            }
+            if (($item['doctypePresent'] ?? false) === true) {
+                ++$doctypeCount;
+            }
+            if (is_string($item['doctypeSystemId'] ?? null) || is_string($item['doctypePublicId'] ?? null)) {
+                ++$doctypeExternalReferenceCount;
+            }
+            if (($item['doctypeInternalSubsetPresent'] ?? false) === true) {
+                ++$doctypeInternalSubsetCount;
+            }
+            $doctypeEntityDeclarationCount += (int) ($item['doctypeEntityDeclarationCount'] ?? 0);
+            foreach (($item['doctypeIssueCodes'] ?? []) as $issueCode) {
+                if (is_string($issueCode) && $issueCode !== '') {
+                    $doctypeIssueCodes[$issueCode] = true;
                 }
             }
         }
@@ -20914,6 +20949,13 @@ final class DocxOpenXmlReader
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
             'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
             'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
+            'processingInstructionCount' => $processingInstructionCount,
+            'processingInstructionTargets' => $processingInstructionTargets,
+            'doctypeCount' => $doctypeCount,
+            'doctypeExternalReferenceCount' => $doctypeExternalReferenceCount,
+            'doctypeInternalSubsetCount' => $doctypeInternalSubsetCount,
+            'doctypeEntityDeclarationCount' => $doctypeEntityDeclarationCount,
+            'doctypeIssueCodes' => array_keys($doctypeIssueCodes),
             'issueCount' => $issueCount,
             'issueKinds' => $issueKinds,
             'byKind' => $byKind,
@@ -20981,6 +21023,19 @@ final class DocxOpenXmlReader
             'xmlDeclarationEncoding' => null,
             'xmlDeclarationStandalone' => null,
             'xmlDeclarationAttributeCount' => 0,
+            'processingInstructionCount' => 0,
+            'processingInstructionTargets' => [],
+            'processingInstructions' => [],
+            'doctypePresent' => false,
+            'doctypeName' => null,
+            'doctypePublicId' => null,
+            'doctypeSystemId' => null,
+            'doctypeInternalSubsetPresent' => false,
+            'doctypeInternalSubsetByteLength' => 0,
+            'doctypeEntityDeclarationCount' => 0,
+            'doctypeByteLength' => 0,
+            'doctypeSha256' => null,
+            'doctypeIssueCodes' => [],
             'validRoot' => null,
             'xmlParseError' => null,
             'expectedContentTypeBase' => $expectedContentTypeBase,
@@ -21031,6 +21086,23 @@ final class DocxOpenXmlReader
         $item['xmlDeclarationEncoding'] = $xmlDeclaration['encoding'];
         $item['xmlDeclarationStandalone'] = $xmlDeclaration['standalone'];
         $item['xmlDeclarationAttributeCount'] = $xmlDeclaration['attributeCount'];
+        $prolog = $this->xmlPrologProvenance($xml);
+        $item['processingInstructionCount'] = $prolog['processingInstructionCount'];
+        $item['processingInstructionTargets'] = $prolog['processingInstructionTargets'];
+        $item['processingInstructions'] = $prolog['processingInstructions'];
+        $item['doctypePresent'] = $prolog['doctypePresent'];
+        $item['doctypeName'] = $prolog['doctypeName'];
+        $item['doctypePublicId'] = $prolog['doctypePublicId'];
+        $item['doctypeSystemId'] = $prolog['doctypeSystemId'];
+        $item['doctypeInternalSubsetPresent'] = $prolog['doctypeInternalSubsetPresent'];
+        $item['doctypeInternalSubsetByteLength'] = $prolog['doctypeInternalSubsetByteLength'];
+        $item['doctypeEntityDeclarationCount'] = $prolog['doctypeEntityDeclarationCount'];
+        $item['doctypeByteLength'] = $prolog['doctypeByteLength'];
+        $item['doctypeSha256'] = $prolog['doctypeSha256'];
+        $item['doctypeIssueCodes'] = $prolog['doctypeIssueCodes'];
+        foreach ($prolog['doctypeIssueCodes'] as $issueCode) {
+            $item['issues'][] = $issueCode;
+        }
         if ($xml === '') {
             $item['validRoot'] = false;
             $item['issues'][] = 'empty-xml-part';
@@ -21103,6 +21175,165 @@ final class DocxOpenXmlReader
             'standalone' => $standalone,
             'attributeCount' => count($attributes),
         ];
+    }
+
+    /**
+     * @return array{processingInstructionCount:int, processingInstructionTargets:list<string>, processingInstructions:list<array{target:string, dataPreview:string, dataByteLength:int, dataTruncated:bool}>, doctypePresent:bool, doctypeName:?string, doctypePublicId:?string, doctypeSystemId:?string, doctypeInternalSubsetPresent:bool, doctypeInternalSubsetByteLength:int, doctypeEntityDeclarationCount:int, doctypeByteLength:int, doctypeSha256:?string, doctypeIssueCodes:list<string>}
+     */
+    private function xmlPrologProvenance(string $xml): array
+    {
+        $processingInstructions = [];
+        $processingInstructionTargets = [];
+        preg_match_all('/<\?\s*([A-Za-z_][A-Za-z0-9_.:-]*)(.*?)\?>/s', $xml, $matches, PREG_SET_ORDER);
+        foreach ($matches as $match) {
+            $target = (string) $match[1];
+            if (strtolower($target) === 'xml') {
+                continue;
+            }
+
+            $data = trim((string) ($match[2] ?? ''));
+            $this->appendUniqueString($processingInstructionTargets, $target);
+            if (count($processingInstructions) >= 16) {
+                continue;
+            }
+
+            $processingInstructions[] = [
+                'target' => $target,
+                'dataPreview' => $this->boundedMetadataString($data),
+                'dataByteLength' => strlen($data),
+                'dataTruncated' => strlen($data) > 120,
+            ];
+        }
+
+        $doctype = $this->xmlDoctypeProvenance($xml);
+
+        return [
+            'processingInstructionCount' => count($matches) - count(array_filter(
+                $matches,
+                static fn (array $match): bool => strtolower((string) $match[1]) === 'xml',
+            )),
+            'processingInstructionTargets' => $processingInstructionTargets,
+            'processingInstructions' => $processingInstructions,
+            'doctypePresent' => $doctype['present'],
+            'doctypeName' => $doctype['name'],
+            'doctypePublicId' => $doctype['publicId'],
+            'doctypeSystemId' => $doctype['systemId'],
+            'doctypeInternalSubsetPresent' => $doctype['internalSubsetPresent'],
+            'doctypeInternalSubsetByteLength' => $doctype['internalSubsetByteLength'],
+            'doctypeEntityDeclarationCount' => $doctype['entityDeclarationCount'],
+            'doctypeByteLength' => $doctype['byteLength'],
+            'doctypeSha256' => $doctype['sha256'],
+            'doctypeIssueCodes' => $doctype['issueCodes'],
+        ];
+    }
+
+    /**
+     * @return array{present:bool, name:?string, publicId:?string, systemId:?string, internalSubsetPresent:bool, internalSubsetByteLength:int, entityDeclarationCount:int, byteLength:int, sha256:?string, issueCodes:list<string>}
+     */
+    private function xmlDoctypeProvenance(string $xml): array
+    {
+        $start = stripos($xml, '<!DOCTYPE');
+        if ($start === false) {
+            return [
+                'present' => false,
+                'name' => null,
+                'publicId' => null,
+                'systemId' => null,
+                'internalSubsetPresent' => false,
+                'internalSubsetByteLength' => 0,
+                'entityDeclarationCount' => 0,
+                'byteLength' => 0,
+                'sha256' => null,
+                'issueCodes' => [],
+            ];
+        }
+
+        $end = $this->xmlDoctypeEndOffset($xml, $start);
+        $declaration = $end === null ? substr($xml, $start) : substr($xml, $start, $end - $start + 1);
+        $body = trim(preg_replace('/^<!DOCTYPE\s*/i', '', rtrim($declaration, '>')) ?? '');
+        $name = null;
+        $publicId = null;
+        $systemId = null;
+        $internalSubset = null;
+        if (preg_match('/^([A-Za-z_][A-Za-z0-9_.:-]*)\b(.*)$/s', $body, $match) === 1) {
+            $name = (string) $match[1];
+            $remainder = trim((string) $match[2]);
+            if (preg_match('/\bPUBLIC\s+(["\'])(.*?)\1\s+(["\'])(.*?)\3/is', $remainder, $publicMatch) === 1) {
+                $publicId = (string) $publicMatch[2];
+                $systemId = (string) $publicMatch[4];
+            } elseif (preg_match('/\bSYSTEM\s+(["\'])(.*?)\1/is', $remainder, $systemMatch) === 1) {
+                $systemId = (string) $systemMatch[2];
+            }
+        }
+
+        $subsetStart = strpos($declaration, '[');
+        $subsetEnd = strrpos($declaration, ']');
+        if ($subsetStart !== false && $subsetEnd !== false && $subsetEnd > $subsetStart) {
+            $internalSubset = substr($declaration, $subsetStart + 1, $subsetEnd - $subsetStart - 1);
+        }
+
+        $entityDeclarationCount = 0;
+        if (is_string($internalSubset)) {
+            preg_match_all('/<!ENTITY\b/i', $internalSubset, $entityMatches);
+            $entityDeclarationCount = count($entityMatches[0]);
+        }
+
+        $issueCodes = ['xml-doctype-declaration'];
+        if ($publicId !== null || $systemId !== null) {
+            $issueCodes[] = 'xml-external-doctype-reference';
+        }
+        if ($entityDeclarationCount > 0) {
+            $issueCodes[] = 'xml-entity-declaration';
+        }
+        if ($end === null) {
+            $issueCodes[] = 'xml-doctype-unclosed';
+        }
+
+        return [
+            'present' => true,
+            'name' => $name,
+            'publicId' => $publicId,
+            'systemId' => $systemId,
+            'internalSubsetPresent' => is_string($internalSubset),
+            'internalSubsetByteLength' => is_string($internalSubset) ? strlen($internalSubset) : 0,
+            'entityDeclarationCount' => $entityDeclarationCount,
+            'byteLength' => strlen($declaration),
+            'sha256' => hash('sha256', $declaration),
+            'issueCodes' => array_values(array_unique($issueCodes)),
+        ];
+    }
+
+    private function xmlDoctypeEndOffset(string $xml, int $start): ?int
+    {
+        $length = strlen($xml);
+        $quote = null;
+        $bracketDepth = 0;
+        for ($offset = $start; $offset < $length; ++$offset) {
+            $char = $xml[$offset];
+            if ($quote !== null) {
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[') {
+                ++$bracketDepth;
+                continue;
+            }
+            if ($char === ']' && $bracketDepth > 0) {
+                --$bracketDepth;
+                continue;
+            }
+            if ($char === '>' && $bracketDepth === 0) {
+                return $offset;
+            }
+        }
+
+        return null;
     }
 
     /**
