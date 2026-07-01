@@ -3237,6 +3237,21 @@ XML;
         $t->same(3, $summary['partExtensionCaseVariantCount']);
         $t->same(['png', 'tiff', 'xml'], $summary['partExtensionCaseVariantExtensions']);
         $t->same(3, $summary['partExtensionUppercasePartCount']);
+        $t->same($summary['partExtensionCaseVariantCount'], $package['packageIdentity']['partExtensionCaseVariantCount']);
+        $t->same(
+            $summary['partExtensionCaseVariantExtensions'],
+            $package['packageIdentity']['partExtensionCaseVariantExtensions']
+        );
+        $t->same($summary['partExtensionUppercasePartCount'], $package['packageIdentity']['partExtensionUppercasePartCount']);
+        $t->same(4, $package['packageIdentity']['partExtensionDefaultDeclaredCount']);
+        $t->same(
+            $package['packageIdentity']['partExtensionCaseVariantExtensions'],
+            $summary['packageIdentityPartExtensionCaseVariantExtensions']
+        );
+        $t->same(
+            $package['packageIdentity']['partExtensionUppercasePartCount'],
+            $summary['packageIdentityPartExtensionUppercasePartCount']
+        );
         $t->same('PNG', $inventory['word/media/review.PNG']['rawPartExtension']);
         $t->same('png', $inventory['word/media/review.PNG']['partExtension']);
         $t->same(true, $inventory['word/media/review.PNG']['partExtensionHasUppercase']);
@@ -33657,6 +33672,10 @@ XML;
         $t->same($identity['partPathSegmentLengthBucketCount'], $package['summary']['packageIdentityPartPathSegmentLengthBucketCount']);
         $t->same($identity['partPathSegmentMaxByteLength'], $package['summary']['packageIdentityPartPathSegmentMaxByteLength']);
         $t->same($identity['partExtensionCount'], $package['summary']['packageIdentityPartExtensionCount']);
+        $t->same($identity['partExtensionCaseVariantCount'], $package['summary']['packageIdentityPartExtensionCaseVariantCount']);
+        $t->same($identity['partExtensionCaseVariantExtensions'], $package['summary']['packageIdentityPartExtensionCaseVariantExtensions']);
+        $t->same($identity['partExtensionUppercasePartCount'], $package['summary']['packageIdentityPartExtensionUppercasePartCount']);
+        $t->same($identity['partExtensionDefaultDeclaredCount'], $package['summary']['packageIdentityPartExtensionDefaultDeclaredCount']);
         $t->same($identity['partBaseNameCount'], $package['summary']['packageIdentityPartBaseNameCount']);
         $t->same($identity['duplicatePartBaseNameCount'], $package['summary']['packageIdentityDuplicatePartBaseNameCount']);
         $t->same($identity['duplicatePartBaseNames'], $package['summary']['packageIdentityDuplicatePartBaseNames']);
@@ -33672,6 +33691,10 @@ XML;
         $t->same($package['summary']['partPathShapeFlagCounts'], $identity['partPathShapeFlagCounts']);
         $t->same($package['summary']['partPathSegmentPositionCounts'], $identity['partPathSegmentPositionCounts']);
         $t->same($package['summary']['partExtensionCount'], $identity['partExtensionCount']);
+        $t->same($package['summary']['partExtensionCaseVariantCount'], $identity['partExtensionCaseVariantCount']);
+        $t->same($package['summary']['partExtensionCaseVariantExtensions'], $identity['partExtensionCaseVariantExtensions']);
+        $t->same($package['summary']['partExtensionUppercasePartCount'], $identity['partExtensionUppercasePartCount']);
+        $t->same($package['summary']['partExtensionDefaultDeclaredCount'], $identity['partExtensionDefaultDeclaredCount']);
         $t->same($package['summary']['partBaseNameCount'], $identity['partBaseNameCount']);
         $t->same($package['summary']['duplicatePartBaseNameCount'], $identity['duplicatePartBaseNameCount']);
         $t->same($package['summary']['duplicatePartCaseFoldBaseNameCount'], $identity['duplicatePartCaseFoldBaseNameCount']);
@@ -33693,6 +33716,10 @@ XML;
         $t->same(1, $identity['roleCounts']['core-properties']);
         $t->same(4, $identity['partTopLevelSegmentCount']);
         $t->same(3, $identity['partExtensionCount']);
+        $t->same(0, $identity['partExtensionCaseVariantCount']);
+        $t->same([], $identity['partExtensionCaseVariantExtensions']);
+        $t->same(0, $identity['partExtensionUppercasePartCount']);
+        $t->same(3, $identity['partExtensionDefaultDeclaredCount']);
         $t->same(8, $identity['partBaseNameCount']);
         $t->same(8, $identity['partCaseFoldBaseNameCount']);
         $t->same(0, $identity['duplicatePartBaseNameCount']);
