@@ -2314,6 +2314,14 @@ final class PptxReader
             $series['marker'] = $marker;
         }
 
+        $shapeProperties = $this->firstChildElement($seriesElement, 'spPr');
+        if ($shapeProperties instanceof \DOMElement) {
+            $shape = $this->chartShapePropertiesMetadata($shapeProperties);
+            if ($shape !== []) {
+                $series['shape'] = $shape;
+            }
+        }
+
         $dataPoints = $this->chartDataPoints($seriesElement);
         if ($dataPoints !== []) {
             $series['dataPoints'] = $dataPoints;

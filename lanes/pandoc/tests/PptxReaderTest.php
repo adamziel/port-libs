@@ -308,6 +308,10 @@ XML);
         <c:grouping val="standard"/>
         <c:ser>
           <c:idx val="1"/><c:order val="1"/>
+          <c:spPr>
+            <a:solidFill><a:schemeClr val="accent1"><a:tint val="40000"/></a:schemeClr></a:solidFill>
+            <a:ln w="19050" cap="rnd"><a:solidFill><a:srgbClr val="008000"/></a:solidFill><a:prstDash val="sysDot"/></a:ln>
+          </c:spPr>
           <c:marker><c:symbol val="circle"/><c:size val="6"/></c:marker>
           <c:smooth val="1"/>
           <c:tx><c:strRef><c:f>Sheet1!$C$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>South</c:v></c:pt></c:strCache></c:strRef></c:tx>
@@ -815,6 +819,12 @@ return [
         $t->same('Sheet1!$C$2:$C$3', $chartDivs[0]->attr('pptxChart')['series'][1]['valueFormula'] ?? null);
         $t->same(['symbol' => 'circle', 'size' => 6], $chartDivs[0]->attr('pptxChart')['series'][1]['marker'] ?? null);
         $t->same(true, $chartDivs[0]->attr('pptxChart')['series'][1]['smooth'] ?? null);
+        $t->same('theme:accent1', $chartDivs[0]->attr('pptxChart')['series'][1]['shape']['fillColor'] ?? null);
+        $t->same(['tint' => 40000], $chartDivs[0]->attr('pptxChart')['series'][1]['shape']['fillColorTransforms'] ?? null);
+        $t->same('008000', $chartDivs[0]->attr('pptxChart')['series'][1]['shape']['line']['color'] ?? null);
+        $t->same(19050, $chartDivs[0]->attr('pptxChart')['series'][1]['shape']['line']['width'] ?? null);
+        $t->same('rnd', $chartDivs[0]->attr('pptxChart')['series'][1]['shape']['line']['cap'] ?? null);
+        $t->same('sysDot', $chartDivs[0]->attr('pptxChart')['series'][1]['shape']['line']['dash'] ?? null);
         $t->same('r', $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['position'] ?? null);
         $t->same(false, $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['showValue'] ?? null);
         $t->same(true, $chartDivs[0]->attr('pptxChart')['series'][1]['dataLabels']['showCategoryName'] ?? null);
