@@ -2185,6 +2185,111 @@ return [
         $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
+    'preserves shadowed typst font access environment provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/font-access-env-shadow.pdf',
+            'source' => '= Typst Font Access Environment Shadow Packet',
+            'engineOptions' => [
+                '--ignore-system-fonts',
+                '--ignore-embedded-fonts',
+            ],
+            'engineEnvironment' => [
+                'TYPST_IGNORE_SYSTEM_FONTS' => 'false',
+                'TYPST_IGNORE_EMBEDDED_FONTS' => 'maybe',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst font access environment shadow packet\n%%EOF\n";
+        $expectedProvenance = [
+            'reviewStatus' => 'review',
+            'root' => null,
+            'fontPaths' => [],
+            'packagePath' => null,
+            'packageCache' => null,
+            'inputVariables' => [],
+            'issues' => [
+                'ignore-system-fonts-environment-shadowed',
+                'ignore-embedded-fonts-environment-invalid-boundary',
+                'ignore-embedded-fonts-environment-shadowed',
+            ],
+            'environmentVariables' => [
+                'TYPST_IGNORE_SYSTEM_FONTS',
+                'TYPST_IGNORE_EMBEDDED_FONTS',
+            ],
+            'systemFonts' => [
+                'ignoreSystemFonts' => true,
+                'systemFontAccess' => 'disabled',
+                'flagCount' => 1,
+                'fontPathCount' => 0,
+                'issues' => ['ignore-system-fonts-environment-shadowed'],
+                'environmentVariable' => 'TYPST_IGNORE_SYSTEM_FONTS',
+                'environmentValue' => 'false',
+                'environmentShadowed' => true,
+                'shadowedBy' => 'engine-option',
+                'selected' => '--ignore-system-fonts',
+            ],
+            'embeddedFonts' => [
+                'ignoreEmbeddedFonts' => true,
+                'embeddedFontAccess' => 'disabled',
+                'flagCount' => 1,
+                'issues' => [
+                    'ignore-embedded-fonts-environment-invalid-boundary',
+                    'ignore-embedded-fonts-environment-shadowed',
+                ],
+                'environmentVariable' => 'TYPST_IGNORE_EMBEDDED_FONTS',
+                'environmentValue' => 'maybe',
+                'environmentShadowed' => true,
+                'shadowedBy' => 'engine-option',
+                'selected' => '--ignore-embedded-fonts',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/font-access-env-shadow.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/font-access-env-shadow.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same($expectedProvenance, $plan['typstBoundaryProvenance']);
+        $t->same(['environment-shadows', 'font-access-controls', 'output-format'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(6, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same(2, $cases['environment-shadows']['details']['shadowedCount']);
+        $t->same([
+            'TYPST_IGNORE_EMBEDDED_FONTS',
+            'TYPST_IGNORE_SYSTEM_FONTS',
+        ], $cases['environment-shadows']['details']['shadowedVariables']);
+        $t->same(2, $cases['font-access-controls']['observed']);
+        $t->same(true, $cases['font-access-controls']['details']['systemFontAccessDisabled']);
+        $t->same(true, $cases['font-access-controls']['details']['embeddedFontAccessDisabled']);
+        $t->same(2, $cases['font-access-controls']['details']['shadowedEnvironmentVariableCount']);
+        $t->same([
+            'TYPST_IGNORE_EMBEDDED_FONTS',
+            'TYPST_IGNORE_SYSTEM_FONTS',
+        ], $cases['font-access-controls']['details']['shadowedEnvironmentVariables']);
+        $t->contains('typst-ignore-system-fonts-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-ignore-embedded-fonts-environment-shadowed', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-matrix-issues:6', implode(',', $plan['diagnostics']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedProvenance, $result['typstBoundaryProvenance']);
+        $t->same($expectedProvenance, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same($plan['typstBoundaryMatrix'], $result['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'plans typst open output side effect provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -3298,6 +3403,93 @@ return [
         $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
+    'preserves typst safe feature gate override history without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/safe-feature-gate-history.pdf',
+            'source' => '= Typst Safe Feature Gate History Packet',
+            'engineOptions' => [
+                '--features=html',
+                '--features=packages,a11y',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst safe feature gate history packet\n%%EOF\n";
+        $expectedHistory = [
+            [
+                'raw' => 'html',
+                'value' => 'html',
+                'features' => ['html'],
+                'featureCount' => 1,
+                'safe' => true,
+                'issues' => [],
+            ],
+            [
+                'raw' => 'packages,a11y',
+                'value' => 'packages,a11y',
+                'features' => ['packages', 'a11y'],
+                'featureCount' => 2,
+                'safe' => true,
+                'issues' => [],
+            ],
+        ];
+        $expectedOverride = [
+            [
+                'option' => 'features',
+                'count' => 2,
+                'values' => ['html', 'packages,a11y'],
+                'selected' => 'packages,a11y',
+                'issue' => 'features-boundary-overridden',
+            ],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/safe-feature-gate-history.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/safe-feature-gate-history.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same('review', $plan['typstBoundaryProvenance']['reviewStatus']);
+        $t->same(['features-boundary-overridden'], $plan['typstBoundaryProvenance']['issues']);
+        $t->same([
+            'raw' => 'packages,a11y',
+            'value' => 'packages,a11y',
+            'features' => ['packages', 'a11y'],
+            'featureCount' => 2,
+            'safe' => true,
+            'issues' => [],
+        ], $plan['typstBoundaryProvenance']['featureGates']);
+        $t->same($expectedOverride, $plan['typstBoundaryProvenance']['overrides']);
+        $t->same($expectedHistory, $plan['typstBoundaryProvenance']['featureGateHistory']);
+        $t->same(2, $plan['typstBoundarySummary']['featureGateCount']);
+        $t->same(2, $plan['typstBoundarySummary']['historyEntryCount']);
+        $t->same(1, $plan['typstBoundarySummary']['overrideCount']);
+        $t->same(1, $plan['typstBoundarySummary']['issueCount']);
+        $t->same(['boundary-overrides', 'feature-gates', 'output-format'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same(2, $cases['feature-gates']['details']['featureCount']);
+        $t->same(2, $cases['feature-gates']['details']['historyEntryCount']);
+        $t->same(2, $cases['feature-gates']['details']['featureHistoryCount']);
+        $t->same(0, $cases['feature-gates']['details']['invalidFeatureHistoryCount']);
+        $t->same(1, $cases['feature-gates']['details']['overrideCount']);
+        $t->contains('typst-feature-gate-history:2', implode(',', $plan['diagnostics']));
+        $t->contains('feature-gates:features-boundary-overridden', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->same($plan['typstBoundaryProvenance'], $result['typstBoundaryProvenance']);
+        $t->same($plan['typstBoundaryProvenance'], $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same($plan['typstBoundaryProvenance'], $sequence['finalTypstBoundaryProvenance']);
+        $t->same($plan['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($plan['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'preserves typst feature environment shadow provenance without executing' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -4016,6 +4208,147 @@ return [
         $t->same($externalExpected, $externalResult['artifactProvenanceReview']['typstBoundaryProvenance']);
         $t->same('review', $externalResult['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $externalResult['artifactProvenanceReview']['issues']));
+    },
+
+    'maps typst timings source paths into boundary matrix without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'sourcePath' => 'workspace/main.typ',
+            'outputPath' => 'build/timing-sources.pdf',
+            'source' => '= Typst Timing Source Packet',
+            'engineOptions' => ['--root=workspace', '--timings=build/timing-sources.json'],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst timing source packet\n%%EOF\n";
+        $timingsBytes = json_encode([
+            'traceEvents' => [
+                ['name' => 'parse', 'args' => ['file' => 'workspace/main.typ', 'line' => 1]],
+                ['name' => 'load', 'args' => ['path' => 'workspace/assets/chart.svg', 'lineNumber' => 4]],
+                ['name' => 'load', 'args' => ['file' => 'shared/theme.typ', 'line' => 8]],
+                ['name' => 'fetch', 'args' => ['file' => 'https://cdn.example.invalid/typst/theme.typ']],
+                ['name' => 'package', 'args' => ['source' => '@preview/cetz:0.3.2']],
+            ],
+        ], JSON_THROW_ON_ERROR);
+        $expectedPolicy = [
+            'reviewStatus' => 'review',
+            'timingsFile' => 'build/timing-sources.json',
+            'sourceFiles' => [
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'parse',
+                    'rawPath' => 'workspace/main.typ',
+                    'sourceFile' => 'workspace/main.typ',
+                    'line' => 1,
+                    'root' => 'workspace',
+                    'insideRoot' => true,
+                    'boundaryStatus' => 'inside-root',
+                    'issues' => [],
+                ],
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'load',
+                    'rawPath' => 'workspace/assets/chart.svg',
+                    'sourceFile' => 'workspace/assets/chart.svg',
+                    'line' => 4,
+                    'root' => 'workspace',
+                    'insideRoot' => true,
+                    'boundaryStatus' => 'inside-root',
+                    'issues' => [],
+                ],
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'load',
+                    'rawPath' => 'shared/theme.typ',
+                    'sourceFile' => 'shared/theme.typ',
+                    'line' => 8,
+                    'root' => 'workspace',
+                    'insideRoot' => false,
+                    'boundaryStatus' => 'outside-root',
+                    'issues' => ['timing-source-outside-root'],
+                ],
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'fetch',
+                    'rawPath' => 'https://cdn.example.invalid/typst/theme.typ',
+                    'sourceFile' => 'theme.typ',
+                    'line' => null,
+                    'root' => 'workspace',
+                    'insideRoot' => false,
+                    'boundaryStatus' => 'external-source',
+                    'issues' => ['timing-source-external'],
+                ],
+                [
+                    'timingsFile' => 'build/timing-sources.json',
+                    'eventName' => 'package',
+                    'rawPath' => '@preview/cetz:0.3.2',
+                    'sourceFile' => 'typst-package:@preview/cetz:0.3.2',
+                    'line' => null,
+                    'root' => 'workspace',
+                    'insideRoot' => false,
+                    'boundaryStatus' => 'external-source',
+                    'issues' => ['timing-source-external'],
+                ],
+            ],
+            'sourceFileCount' => 5,
+            'insideRootCount' => 2,
+            'outsideRootCount' => 1,
+            'unboundedCount' => 0,
+            'externalSourceCount' => 2,
+            'unknownSourceCount' => 0,
+            'issues' => ['timing-source-external', 'timing-source-outside-root'],
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/timing-sources.pdf' => $pdfBytes,
+                'build/timing-sources.json' => $timingsBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/timing-sources.pdf' => $pdfBytes,
+                'build/timing-sources.json' => $timingsBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($result['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same(true, $result['ok']);
+        $t->same($expectedPolicy, $result['typstTimingSourcePolicy']);
+        $t->same($expectedPolicy, $result['artifactProvenanceReview']['typstTimingSourcePolicy']);
+        $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
+        $t->contains('typst-timing-source-policy:review', implode(',', $result['artifactProvenanceReview']['issues']));
+        $t->contains('typst-timing-source-policy:review', implode(',', $result['diagnostics']));
+        $t->contains('typst-timing-source-files:5', implode(',', $result['diagnostics']));
+        $t->contains('typst-timing-source-outside-root:1', implode(',', $result['diagnostics']));
+        $t->contains('typst-timing-source-external:2', implode(',', $result['diagnostics']));
+        $t->same('timing-provenance', $cases['timing-provenance']['case']);
+        $t->same('review', $cases['timing-provenance']['reviewStatus']);
+        $t->same(5, $cases['timing-provenance']['observed']);
+        $t->same([
+            'timingsFile' => 'build/timing-sources.json',
+            'sourceFileCount' => 5,
+            'sourceFiles' => [
+                'shared/theme.typ',
+                'theme.typ',
+                'typst-package:@preview/cetz:0.3.2',
+                'workspace/assets/chart.svg',
+                'workspace/main.typ',
+            ],
+            'insideRootCount' => 2,
+            'outsideRootCount' => 1,
+            'unboundedCount' => 0,
+            'externalSourceCount' => 2,
+            'unknownSourceCount' => 0,
+        ], $cases['timing-provenance']['details']);
+        $t->same(['timing-source-external', 'timing-source-outside-root'], $cases['timing-provenance']['issues']);
+        $t->contains('timing-provenance:timing-source-external', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->contains('timing-provenance:timing-source-outside-root', implode(',', $result['typstBoundaryMatrix']['issues']));
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($expectedPolicy, $sequence['finalTypstTimingSourcePolicy']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
     },
 
     'plans typst short timings sidecar boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
@@ -7545,6 +7878,92 @@ return [
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
     },
 
+    'preserves typst bundle export boundary provenance without executing' => static function (TestRunner $t) use ($document): void {
+        $handoff = new PdfEngineHandoff();
+        $missingFeaturePlan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/bundle-missing-feature.pdf',
+            'source' => '= Typst Bundle Missing Feature Packet',
+            'engineOptions' => ['--format=bundle'],
+        ]);
+        $plan = $handoff->plan($document(), [
+            'engine' => 'typst',
+            'outputPath' => 'build/bundle-boundary.pdf',
+            'source' => '= Typst Bundle Boundary Packet',
+            'engineOptions' => [
+                '--features=bundle,html',
+                '--format=bundle',
+            ],
+        ]);
+        $pdfBytes = "%PDF-1.7\n% fake Typst bundle boundary packet\n%%EOF\n";
+        $expectedBundle = [
+            'reviewStatus' => 'review',
+            'enabled' => true,
+            'format' => 'bundle',
+            'featureEnabled' => true,
+            'featureSource' => 'engine-option',
+            'featureCount' => 2,
+            'features' => ['bundle', 'html'],
+            'multiFileOutput' => true,
+            'assetOutputPossible' => true,
+            'issues' => ['bundle-output-multi-file-boundary'],
+        ];
+        $expectedBundleDetails = [
+            'enabled' => true,
+            'format' => 'bundle',
+            'featureEnabled' => true,
+            'featureSource' => 'engine-option',
+            'featureCount' => 2,
+            'multiFileOutput' => true,
+            'assetOutputPossible' => true,
+        ];
+
+        $result = $handoff->fakeRun($plan, [
+            'files' => [
+                'build/bundle-boundary.pdf' => $pdfBytes,
+            ],
+        ]);
+        $sequence = $handoff->fakeRunSequence($plan, [[
+            'files' => [
+                'build/bundle-boundary.pdf' => $pdfBytes,
+            ],
+        ]]);
+        $cases = [];
+        foreach ($plan['typstBoundaryMatrix']['cases'] as $case) {
+            $cases[$case['case']] = $case;
+        }
+
+        $t->same([
+            'bundle-output-multi-file-boundary',
+            'bundle-feature-gate-missing',
+        ], $missingFeaturePlan['typstBoundaryProvenance']['bundleExport']['issues']);
+        $t->contains('typst-bundle-export-feature:missing', implode(',', $missingFeaturePlan['diagnostics']));
+        $t->same('review', $plan['typstBoundaryProvenance']['reviewStatus']);
+        $t->same([
+            'explicit-format-not-pdf:bundle',
+            'bundle-output-multi-file-boundary',
+        ], $plan['typstBoundaryProvenance']['issues']);
+        $t->same($expectedBundle, $plan['typstBoundaryProvenance']['bundleExport']);
+        $t->contains('typst-bundle-export:enabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-bundle-export-feature:enabled', implode(',', $plan['diagnostics']));
+        $t->contains('typst-bundle-export-issues:1', implode(',', $plan['diagnostics']));
+        $t->same(['feature-gates', 'output-format', 'bundle-export'], array_column($plan['typstBoundaryMatrix']['cases'], 'case'));
+        $t->same('review', $plan['typstBoundaryMatrix']['reviewStatus']);
+        $t->same(3, $plan['typstBoundaryMatrix']['caseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['reviewCaseCount']);
+        $t->same(2, $plan['typstBoundaryMatrix']['issueCount']);
+        $t->same($expectedBundleDetails, $cases['bundle-export']['details']);
+        $t->same(['bundle-output-multi-file-boundary'], $cases['bundle-export']['issues']);
+        $t->contains('bundle-export:bundle-output-multi-file-boundary', implode(',', $plan['typstBoundaryMatrix']['issues']));
+        $t->same(true, $result['ok']);
+        $t->same($expectedBundle, $result['typstBoundaryProvenance']['bundleExport']);
+        $t->same($expectedBundle, $result['artifactProvenanceReview']['typstBoundaryProvenance']['bundleExport']);
+        $t->same($plan['typstBoundaryMatrix'], $result['typstBoundaryMatrix']);
+        $t->same($result['typstBoundaryMatrix'], $result['artifactProvenanceReview']['typstBoundaryMatrix']);
+        $t->same($expectedBundle, $sequence['finalTypstBoundaryProvenance']['bundleExport']);
+        $t->same($result['typstBoundaryMatrix'], $sequence['finalTypstBoundaryMatrix']);
+    },
+
     'fake runner preserves typst output format history boundary provenance' => static function (TestRunner $t) use ($document): void {
         $handoff = new PdfEngineHandoff();
         $plan = $handoff->plan($document(), [
@@ -8628,10 +9047,11 @@ return [
             'dependency-output-policy',
             'external-dependencies',
             'package-dependencies',
+            'timing-provenance',
             'warning-provenance',
         ], array_column($matrix['cases'], 'case'));
         $t->same('review', $matrix['reviewStatus']);
-        $t->same(21, $matrix['caseCount']);
+        $t->same(22, $matrix['caseCount']);
         $t->same(12, $matrix['reviewCaseCount']);
         $t->same('workspace', $cases['root-boundary']['details']['path']);
         $t->same('relative', $cases['root-boundary']['details']['kind']);
@@ -8665,10 +9085,13 @@ return [
         $t->same(0, $cases['external-dependencies']['details']['nonPackageDependencyCount']);
         $t->same(3, $cases['package-dependencies']['observed']);
         $t->same(1, $cases['package-dependencies']['details']['versionConflictCount']);
+        $t->same(1, $cases['timing-provenance']['observed']);
+        $t->same(1, $cases['timing-provenance']['details']['insideRootCount']);
+        $t->same(0, $cases['timing-provenance']['details']['outsideRootCount']);
         $t->same(1, $cases['warning-provenance']['details']['outsideRootCount']);
         $t->same($matrix, $result['artifactProvenanceReview']['typstBoundaryMatrix']);
         $t->same($matrix, $sequence['finalTypstBoundaryMatrix']);
-        $t->contains('typst-boundary-matrix-cases:21', implode(',', $result['diagnostics']));
+        $t->contains('typst-boundary-matrix-cases:22', implode(',', $result['diagnostics']));
         $t->contains('environment-shadows:root-environment-shadowed', implode(',', $matrix['issues']));
         $t->contains('font-path-policy:font-path-external-boundary', implode(',', $matrix['issues']));
         $t->contains('input-variables:input-variable-boundary-overridden:audience', implode(',', $matrix['issues']));

@@ -1731,10 +1731,13 @@ final class ZipPackage
      *     entryCount:int,
      *     totalEntryCount:int,
      *     archiveLength:int,
+     *     archiveSha256:string,
      *     prefixByteCount:int,
      *     hasPackagePrefix:bool,
+     *     prefixSha256:?string,
      *     localRegionOffset:int,
      *     localRegionBytes:int,
+     *     localRegionSha256:string,
      *     localHeaderFixedBytes:int,
      *     localHeaderVariableFieldBytes:int,
      *     localHeaderBytes:int,
@@ -1747,6 +1750,7 @@ final class ZipPackage
      *     interEntryGapCount:int,
      *     centralDirectoryOffset:int,
      *     centralDirectoryBytes:int,
+     *     centralDirectorySha256:string,
      *     centralDirectoryEnd:int,
      *     eocdOffset:int,
      *     centralDirectoryToEocdGapOffset:?int,
@@ -1754,17 +1758,22 @@ final class ZipPackage
      *     centralDirectoryToEocdGapSignature:?string,
      *     centralDirectoryToEocdGapPreviewHex:string,
      *     centralDirectoryToEocdGapPreviewByteCount:int,
+     *     centralDirectoryToEocdGapSha256:?string,
      *     isCentralDirectoryToEocdGapExplainedBySignature:bool,
      *     eocdFixedHeaderBytes:int,
+     *     eocdFixedHeaderSha256:string,
      *     packageCommentOffset:int,
      *     packageCommentBytes:int,
      *     packageCommentEnd:int,
      *     packageCommentPreviewHex:string,
      *     packageCommentPreviewByteCount:int,
+     *     packageCommentSha256:?string,
      *     hasPackageComment:bool,
      *     endOfCentralDirectoryBytes:int,
+     *     endOfCentralDirectorySha256:string,
      *     declaredArchiveEndOffset:int,
      *     trailingByteCount:int,
+     *     trailingBytesSha256:?string,
      *     accountedArchiveBytes:int,
      *     unaccountedArchiveBytes:int,
      *     isLocalRegionContiguous:bool,
@@ -1885,6 +1894,32 @@ final class ZipPackage
             + $trailingByteCount;
         $unaccountedArchiveBytes = $archiveLength - $accountedArchiveBytes;
         $issues = $localHeaderSpans['issues'];
+        $archiveSha256 = hash('sha256', $bytes);
+        $prefixSha256 = $prefixByteCount > 0
+            ? hash('sha256', substr($bytes, 0, $prefixByteCount))
+            : null;
+        $localRegionSha256 = hash('sha256', substr($bytes, $prefixByteCount, $localRegionBytes));
+        $centralDirectorySha256 = hash(
+            'sha256',
+            substr($bytes, $archive['centralDirectoryOffset'], $archive['centralDirectorySize'])
+        );
+        $centralDirectoryToEocdGapSha256 = $centralDirectoryToEocdGapBytes > 0
+            ? hash(
+                'sha256',
+                substr($bytes, (int) $centralDirectoryToEocdGapOffset, $centralDirectoryToEocdGapBytes)
+            )
+            : null;
+        $eocdFixedHeaderSha256 = hash('sha256', substr($bytes, $archive['eocdOffset'], $eocdFixedHeaderBytes));
+        $packageCommentSha256 = $packageCommentBytes > 0
+            ? hash('sha256', substr($bytes, $packageCommentOffset, $packageCommentBytes))
+            : null;
+        $endOfCentralDirectorySha256 = hash(
+            'sha256',
+            substr($bytes, $archive['eocdOffset'], $endOfCentralDirectoryBytes)
+        );
+        $trailingBytesSha256 = $trailingByteCount > 0
+            ? hash('sha256', substr($bytes, $declaredArchiveEndOffset, $trailingByteCount))
+            : null;
 
         if ($prefixByteCount > 0) {
             $issues[] = 'package-prefix-bytes';
@@ -1905,10 +1940,13 @@ final class ZipPackage
             'entryCount' => count($entries),
             'totalEntryCount' => $archive['totalEntryCount'],
             'archiveLength' => $archiveLength,
+            'archiveSha256' => $archiveSha256,
             'prefixByteCount' => $prefixByteCount,
             'hasPackagePrefix' => $prefixByteCount > 0,
+            'prefixSha256' => $prefixSha256,
             'localRegionOffset' => $prefixByteCount,
             'localRegionBytes' => $localRegionBytes,
+            'localRegionSha256' => $localRegionSha256,
             'localHeaderFixedBytes' => $localHeaderBytes - $localHeaderVariableFieldBytes,
             'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
             'localHeaderBytes' => $localHeaderBytes,
@@ -1921,6 +1959,7 @@ final class ZipPackage
             'interEntryGapCount' => $interEntryGapCount,
             'centralDirectoryOffset' => $archive['centralDirectoryOffset'],
             'centralDirectoryBytes' => $archive['centralDirectorySize'],
+            'centralDirectorySha256' => $centralDirectorySha256,
             'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
             'eocdOffset' => $archive['eocdOffset'],
             'centralDirectoryToEocdGapOffset' => $centralDirectoryToEocdGapOffset,
@@ -1928,17 +1967,22 @@ final class ZipPackage
             'centralDirectoryToEocdGapSignature' => $centralDirectoryToEocdGapSignature,
             'centralDirectoryToEocdGapPreviewHex' => $centralDirectoryToEocdGapPreviewHex,
             'centralDirectoryToEocdGapPreviewByteCount' => $centralDirectoryToEocdGapPreviewByteCount,
+            'centralDirectoryToEocdGapSha256' => $centralDirectoryToEocdGapSha256,
             'isCentralDirectoryToEocdGapExplainedBySignature' => $isCentralDirectoryToEocdGapExplainedBySignature,
             'eocdFixedHeaderBytes' => $eocdFixedHeaderBytes,
+            'eocdFixedHeaderSha256' => $eocdFixedHeaderSha256,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentEnd' => $packageCommentOffset + $packageCommentBytes,
             'packageCommentPreviewHex' => $packageCommentPreviewHex,
             'packageCommentPreviewByteCount' => $packageCommentPreviewByteCount,
+            'packageCommentSha256' => $packageCommentSha256,
             'hasPackageComment' => $packageCommentBytes > 0,
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
             'declaredArchiveEndOffset' => $declaredArchiveEndOffset,
             'trailingByteCount' => $trailingByteCount,
+            'trailingBytesSha256' => $trailingBytesSha256,
             'accountedArchiveBytes' => $accountedArchiveBytes,
             'unaccountedArchiveBytes' => $unaccountedArchiveBytes,
             'isLocalRegionContiguous' => $localHeaderSpans['issueEntryCount'] === 0
@@ -2273,6 +2317,15 @@ final class ZipPackage
      *     packageCommentUnicodeFormatControlNames:list<string>,
      *     packageCommentBidiControlNames:list<string>,
      *     packageCommentIssues:list<string>,
+     *     packageCommentSourceAvailable:bool,
+     *     packageCommentOffset:int,
+     *     packageCommentBytes:int,
+     *     packageCommentEnd:int,
+     *     packageCommentSha256:?string,
+     *     packageCommentPreviewHex:string,
+     *     packageCommentPreviewByteCount:int,
+     *     packageCommentByteExposurePolicy:string,
+     *     canExposePackageCommentBytes:bool,
      *     hasPackageComment:bool,
      *     hasEntryComments:bool,
      *     hasComments:bool,
@@ -2303,7 +2356,66 @@ final class ZipPackage
             ];
         }
 
-        return self::commentPreflightSummary($this->packageComment, $entryComments);
+        return self::commentPreflightSummary($this->packageComment, $entryComments)
+            + $this->packageCommentSourcePreflight();
+    }
+
+    /**
+     * @return array{
+     *     packageCommentSourceAvailable:bool,
+     *     packageCommentOffset:int,
+     *     packageCommentBytes:int,
+     *     packageCommentEnd:int,
+     *     packageCommentSha256:?string,
+     *     packageCommentPreviewHex:string,
+     *     packageCommentPreviewByteCount:int,
+     *     packageCommentByteExposurePolicy:string,
+     *     canExposePackageCommentBytes:bool
+     * }
+     */
+    public function packageCommentSourcePreflight(): array
+    {
+        return self::rawPackageCommentSourcePreflight($this->bytes);
+    }
+
+    /**
+     * @return array{
+     *     packageCommentSourceAvailable:bool,
+     *     packageCommentOffset:int,
+     *     packageCommentBytes:int,
+     *     packageCommentEnd:int,
+     *     packageCommentSha256:?string,
+     *     packageCommentPreviewHex:string,
+     *     packageCommentPreviewByteCount:int,
+     *     packageCommentByteExposurePolicy:string,
+     *     canExposePackageCommentBytes:bool
+     * }
+     */
+    public static function rawPackageCommentSourcePreflight(string $bytes): array
+    {
+        $archive = self::endOfCentralDirectoryPreflight($bytes);
+        if ($archive['requiresZip64']) {
+            throw new \RuntimeException('ZIP64 package-level central-directory fields require ZIP64 EOCD parsing before package comment source provenance can be scanned');
+        }
+
+        $commentOffset = $archive['eocdOffset'] + 22;
+        $commentBytes = $archive['packageCommentLength'];
+        $commentPreviewByteCount = min($commentBytes, 16);
+        $comment = substr($bytes, $commentOffset, $commentBytes);
+
+        return [
+            'packageCommentSourceAvailable' => true,
+            'packageCommentOffset' => $commentOffset,
+            'packageCommentBytes' => $commentBytes,
+            'packageCommentEnd' => $commentOffset + $commentBytes,
+            'packageCommentSha256' => $commentBytes > 0 ? hash('sha256', $comment) : null,
+            'packageCommentPreviewHex' => $commentPreviewByteCount > 0
+                ? bin2hex(substr($comment, 0, $commentPreviewByteCount))
+                : '',
+            'packageCommentPreviewByteCount' => $commentPreviewByteCount,
+            'packageCommentByteExposurePolicy' => 'zip-package-comment-source-metadata-only',
+            'canExposePackageCommentBytes' => false,
+        ];
     }
 
     /**
@@ -2414,7 +2526,7 @@ final class ZipPackage
             'eocdOffset' => $archive['eocdOffset'],
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
-        ] + $summary;
+        ] + $summary + self::rawPackageCommentSourcePreflight($bytes);
     }
 
     /**
@@ -5068,6 +5180,9 @@ final class ZipPackage
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
+     *     selectedSourceManifestVersion:string,
+     *     selectedSourceManifestSha256:string,
+     *     selectedSourceManifest:array<string, mixed>,
      *     missingEntries:list<array<string, mixed>>,
      *     failedEntries:list<array<string, mixed>>,
      *     handoffEntries:list<array<string, mixed>>,
@@ -5879,6 +5994,7 @@ final class ZipPackage
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $selectedSourceManifest = self::selectedSourceByteSpanManifest($selectedSourceByteSpanEntries);
 
         return [
             'requestedEntryCount' => count($requests),
@@ -5976,6 +6092,8 @@ final class ZipPackage
             'selectedSourceTotalRecordBytes' => $selectedSourceTotalRecordBytes,
             'selectedSourceByteSpanIssueCount' => count($selectedSourceByteSpanIssues),
             'selectedSourceByteSpanIssues' => $selectedSourceByteSpanIssues,
+            'selectedSourceManifestVersion' => $selectedSourceManifest['manifestVersion'],
+            'selectedSourceManifestSha256' => $selectedSourceManifest['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -6002,10 +6120,82 @@ final class ZipPackage
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
+            'selectedSourceManifest' => $selectedSourceManifest,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return array{
+     *     manifestVersion:string,
+     *     manifestSha256:string,
+     *     entryCount:int,
+     *     localRecordBytes:int,
+     *     compressedDataBytes:int,
+     *     dataDescriptorBytes:int,
+     *     centralDirectoryRecordBytes:int,
+     *     sourceRecordBytes:int,
+     *     entries:list<array<string, mixed>>
+     * }
+     */
+    private static function selectedSourceByteSpanManifest(array $entries): array
+    {
+        $manifestEntries = [];
+        $localRecordBytes = 0;
+        $compressedDataBytes = 0;
+        $dataDescriptorBytes = 0;
+        $centralDirectoryRecordBytes = 0;
+        $sourceRecordBytes = 0;
+
+        foreach ($entries as $entry) {
+            $localRecordBytes += (int) ($entry['localRecordBytes'] ?? 0);
+            $compressedDataBytes += (int) ($entry['compressedDataBytes'] ?? 0);
+            $dataDescriptorBytes += (int) ($entry['dataDescriptorBytes'] ?? 0);
+            $centralDirectoryRecordBytes += (int) ($entry['centralDirectoryRecordBytes'] ?? 0);
+            $sourceRecordBytes += (int) ($entry['sourceRecordBytes'] ?? 0);
+
+            $manifestEntries[] = [
+                'name' => $entry['name'] ?? null,
+                'localRecordOffset' => $entry['localRecordOffset'] ?? null,
+                'localRecordBytes' => $entry['localRecordBytes'] ?? null,
+                'localRecordSha256' => $entry['localRecordSha256'] ?? null,
+                'compressedDataOffset' => $entry['compressedDataOffset'] ?? null,
+                'compressedDataBytes' => $entry['compressedDataBytes'] ?? null,
+                'compressedDataSha256' => $entry['compressedDataSha256'] ?? null,
+                'dataDescriptorOffset' => $entry['dataDescriptorOffset'] ?? null,
+                'dataDescriptorBytes' => $entry['dataDescriptorBytes'] ?? 0,
+                'dataDescriptorSha256' => $entry['dataDescriptorSha256'] ?? null,
+                'centralDirectoryRecordOffset' => $entry['centralDirectoryRecordOffset'] ?? null,
+                'centralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'] ?? null,
+                'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
+                'sourceRecordBytes' => $entry['sourceRecordBytes'] ?? null,
+                'sourceByteSpanIssues' => $entry['sourceByteSpanIssues'] ?? [],
+            ];
+        }
+
+        $manifestPayload = [
+            'manifestVersion' => 'zip-selected-source-manifest-v1',
+            'entries' => $manifestEntries,
+        ];
+        $manifestJson = json_encode(
+            $manifestPayload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return [
+            'manifestVersion' => 'zip-selected-source-manifest-v1',
+            'manifestSha256' => hash('sha256', $manifestJson),
+            'entryCount' => count($manifestEntries),
+            'localRecordBytes' => $localRecordBytes,
+            'compressedDataBytes' => $compressedDataBytes,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'sourceRecordBytes' => $sourceRecordBytes,
+            'entries' => $manifestEntries,
         ];
     }
 
@@ -12970,6 +13160,29 @@ final class ZipPackage
      */
     public function packageManifestPreflight(): array
     {
+        $archive = self::endOfCentralDirectoryPreflight($this->bytes);
+        $archiveBytes = strlen($this->bytes);
+        $archiveSha256 = hash('sha256', $this->bytes);
+        $centralDirectoryOffset = $archive['centralDirectoryOffset'];
+        $centralDirectoryBytes = $archive['centralDirectorySize'];
+        $centralDirectoryEnd = $archive['centralDirectoryEnd'];
+        $centralDirectorySha256 = hash(
+            'sha256',
+            substr($this->bytes, $centralDirectoryOffset, $centralDirectoryBytes)
+        );
+        $endOfCentralDirectoryOffset = $archive['eocdOffset'];
+        $endOfCentralDirectoryBytes = 22 + $archive['packageCommentLength'];
+        $endOfCentralDirectoryEnd = $endOfCentralDirectoryOffset + $endOfCentralDirectoryBytes;
+        $endOfCentralDirectorySha256 = hash(
+            'sha256',
+            substr($this->bytes, $endOfCentralDirectoryOffset, $endOfCentralDirectoryBytes)
+        );
+        $centralDirectorySignatureBytes = $this->centralDirectorySignatureData === null
+            ? 0
+            : strlen($this->centralDirectorySignatureData);
+        $centralDirectorySignatureSha256 = $this->centralDirectorySignatureData === null
+            ? null
+            : hash('sha256', $this->centralDirectorySignatureData);
         $localEntries = $this->localEntries();
         $localOrderByName = [];
         foreach ($localEntries as $localHeaderOrder => $entry) {
@@ -13115,6 +13328,17 @@ final class ZipPackage
         $localHeaderOrderNames = $this->localNames();
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
+            'archiveBytes' => $archiveBytes,
+            'archiveSha256' => $archiveSha256,
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryBytes' => $centralDirectoryBytes,
+            'centralDirectorySha256' => $centralDirectorySha256,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
+            'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'entries' => $manifestEntries,
@@ -13127,6 +13351,8 @@ final class ZipPackage
         return [
             'manifestVersion' => 'zip-package-manifest-v1',
             'manifestSha256' => hash('sha256', $manifestJson),
+            'archiveBytes' => $archiveBytes,
+            'archiveSha256' => $archiveSha256,
             'entryCount' => count($this->entries),
             'fileEntryCount' => $fileEntryCount,
             'directoryEntryCount' => $directoryEntryCount,
@@ -13138,6 +13364,19 @@ final class ZipPackage
             'storedEntryCount' => $storedEntryCount,
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryBytes' => $centralDirectoryBytes,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'centralDirectorySha256' => $centralDirectorySha256,
+            'endOfCentralDirectoryOffset' => $endOfCentralDirectoryOffset,
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
+            'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'packageCommentBytes' => $archive['packageCommentLength'],
+            'hasCentralDirectorySignature' => $this->centralDirectorySignatureData !== null,
+            'centralDirectorySignatureOffset' => $this->centralDirectorySignatureOffset,
+            'centralDirectorySignatureBytes' => $centralDirectorySignatureBytes,
+            'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,

@@ -253,6 +253,13 @@ final class OpcRelationshipGraph
                 'partNameEquivalentMatch' => false,
                 'duplicateOfIndex' => null,
                 'contentType' => null,
+                'contentTypeMediaType' => null,
+                'contentTypeHasParameters' => false,
+                'contentTypeParameterCount' => 0,
+                'contentTypeParameterNames' => [],
+                'contentTypeParameterMap' => [],
+                'contentTypeParameters' => [],
+                'contentTypeQuotedParameterCount' => 0,
                 'contentTypeSource' => null,
                 'contentTypeDefaultExtension' => null,
                 'contentTypeOverridePartName' => null,
@@ -294,6 +301,13 @@ final class OpcRelationshipGraph
                 if ($contentTypes instanceof OpcContentTypes) {
                     $resolution = $contentTypes->contentTypeResolutionForPart($selectedPartName);
                     $record['contentType'] = $resolution['contentType'];
+                    $record['contentTypeMediaType'] = $resolution['contentTypeMediaType'];
+                    $record['contentTypeHasParameters'] = $resolution['contentTypeHasParameters'];
+                    $record['contentTypeParameterCount'] = $resolution['contentTypeParameterCount'];
+                    $record['contentTypeParameterNames'] = $resolution['contentTypeParameterNames'];
+                    $record['contentTypeParameterMap'] = $resolution['contentTypeParameterMap'];
+                    $record['contentTypeParameters'] = $resolution['contentTypeParameters'];
+                    $record['contentTypeQuotedParameterCount'] = $resolution['contentTypeQuotedParameterCount'];
                     $record['contentTypeSource'] = $resolution['contentTypeSource'];
                     $record['contentTypeDefaultExtension'] = $resolution['defaultExtension'];
                     $record['contentTypeOverridePartName'] = $resolution['overridePartName'];
@@ -591,6 +605,7 @@ final class OpcRelationshipGraph
             $entries[] = [
                 'entryIndex' => $entryIndex,
                 'entryName' => $entry->name,
+                'directoryRoot' => self::zipEntryManifestDirectoryRoot($entry->name),
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
@@ -615,6 +630,13 @@ final class OpcRelationshipGraph
                 'handoffKind' => $isDirectory ? 'directory' : 'binary',
                 'contentTypesItem' => $contentTypesItem,
                 'contentType' => null,
+                'contentTypeMediaType' => null,
+                'contentTypeHasParameters' => false,
+                'contentTypeParameterCount' => 0,
+                'contentTypeParameterNames' => [],
+                'contentTypeParameterMap' => [],
+                'contentTypeParameters' => [],
+                'contentTypeQuotedParameterCount' => 0,
                 'contentTypeSource' => null,
                 'contentTypeDefaultExtension' => null,
                 'contentTypeOverridePartName' => null,
@@ -784,6 +806,13 @@ final class OpcRelationshipGraph
             if (!$entry['contentTypesItem'] && $contentTypes instanceof OpcContentTypes) {
                 $contentTypeResolution = $contentTypes->contentTypeResolutionForPart($partName);
                 $entry['contentType'] = $contentTypeResolution['contentType'];
+                $entry['contentTypeMediaType'] = $contentTypeResolution['contentTypeMediaType'];
+                $entry['contentTypeHasParameters'] = $contentTypeResolution['contentTypeHasParameters'];
+                $entry['contentTypeParameterCount'] = $contentTypeResolution['contentTypeParameterCount'];
+                $entry['contentTypeParameterNames'] = $contentTypeResolution['contentTypeParameterNames'];
+                $entry['contentTypeParameterMap'] = $contentTypeResolution['contentTypeParameterMap'];
+                $entry['contentTypeParameters'] = $contentTypeResolution['contentTypeParameters'];
+                $entry['contentTypeQuotedParameterCount'] = $contentTypeResolution['contentTypeQuotedParameterCount'];
                 $entry['contentTypeSource'] = $contentTypeResolution['contentTypeSource'];
                 $entry['contentTypeDefaultExtension'] = $contentTypeResolution['defaultExtension'];
                 $entry['contentTypeOverridePartName'] = $contentTypeResolution['overridePartName'];
@@ -865,6 +894,9 @@ final class OpcRelationshipGraph
         $byteCountsByContentTypeSource = [];
         $entryNamesByContentType = [];
         $entryNamesByContentTypeSource = [];
+        $directoryRootCounts = [];
+        $entryNamesByDirectoryRoot = [];
+        $directoryRootSummariesByRoot = [];
         $contentTypeSummariesByType = [];
         $contentTypeSourceSummariesBySource = [];
         $packagePartExtensionCounts = [];
@@ -933,6 +965,16 @@ final class OpcRelationshipGraph
             if ($entry['isPackagePart']) {
                 $packagePartCount++;
             }
+
+            $directoryRoot = $entry['directoryRoot'];
+            $directoryRootCounts[$directoryRoot] = ($directoryRootCounts[$directoryRoot] ?? 0) + 1;
+            $entryNamesByDirectoryRoot[$directoryRoot] ??= [];
+            self::appendUniqueString($entryNamesByDirectoryRoot[$directoryRoot], $entry['entryName']);
+            self::recordZipEntryManifestDirectoryRootSummary(
+                $directoryRootSummariesByRoot,
+                $directoryRoot,
+                $entry,
+            );
 
             if ($contentTypes instanceof OpcContentTypes && $entry['isPackagePart'] && !$entry['contentTypesItem']) {
                 if ($entry['contentTypeSource'] === 'default') {
@@ -1170,8 +1212,11 @@ final class OpcRelationshipGraph
         ksort($byteCountsByHandoffKind);
         ksort($byteCountsByContentType);
         ksort($byteCountsByContentTypeSource);
+        ksort($directoryRootCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByContentType);
         self::sortStringListMap($entryNamesByContentTypeSource);
+        self::sortStringListMap($entryNamesByDirectoryRoot);
+        $directoryRootSummaries = self::zipEntryManifestDirectoryRootSummaries($directoryRootSummariesByRoot);
         $contentTypeSummaries = self::zipEntryManifestContentSummaries($contentTypeSummariesByType);
         $contentTypeSourceSummaries = self::zipEntryManifestContentSummaries($contentTypeSourceSummariesBySource);
         ksort($packagePartExtensionCounts, SORT_STRING);
@@ -1221,6 +1266,10 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'directoryRootCount' => count($directoryRootCounts),
+            'directoryRootCounts' => $directoryRootCounts,
+            'entryNamesByDirectoryRoot' => $entryNamesByDirectoryRoot,
+            'directoryRootSummaries' => $directoryRootSummaries,
             'contentTypesItemCount' => count($contentTypesItems),
             'contentTypeDeclarationAvailable' => $contentTypes instanceof OpcContentTypes,
             'contentTypesParseError' => $contentTypesParseError,
@@ -1409,6 +1458,7 @@ final class OpcRelationshipGraph
             $entries[] = [
                 'entryIndex' => $entryIndex,
                 'entryName' => $centralEntry['name'],
+                'directoryRoot' => self::zipEntryManifestDirectoryRoot($centralEntry['name']),
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
@@ -1615,6 +1665,9 @@ final class OpcRelationshipGraph
         $entryNamesByCompressionMethod = [];
         $compressionMethodNamesByRole = [];
         $compressionMethodNamesByHandoffKind = [];
+        $directoryRootCounts = [];
+        $entryNamesByDirectoryRoot = [];
+        $directoryRootSummariesByRoot = [];
         $packagePartExtensionCounts = [];
         $entryNamesByPackagePartExtension = [];
         $packagePartExtensionSummariesByExtension = [];
@@ -1676,6 +1729,20 @@ final class OpcRelationshipGraph
             if ($entry['isPackagePart']) {
                 $packagePartCount++;
             }
+
+            $directoryRoot = $entry['directoryRoot'];
+            $directoryRootCounts[$directoryRoot] = ($directoryRootCounts[$directoryRoot] ?? 0) + 1;
+            $entryNamesByDirectoryRoot[$directoryRoot] ??= [];
+            self::appendUniqueString($entryNamesByDirectoryRoot[$directoryRoot], $entry['entryName']);
+            $directorySummaryEntry = $entry;
+            $directorySummaryEntry['compressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactCompressedSize : 0;
+            $directorySummaryEntry['uncompressedSize'] = $entry['byteCountsAreExact'] ? (int) $exactUncompressedSize : 0;
+            self::recordZipEntryManifestDirectoryRootSummary(
+                $directoryRootSummariesByRoot,
+                $directoryRoot,
+                $directorySummaryEntry,
+            );
+
             if ($entry['isPackagePart'] && is_string($entry['partName'])) {
                 $extension = self::partNameExtension($entry['partName']);
                 $extensionKey = $extension === '' ? '(none)' : $extension;
@@ -1829,6 +1896,9 @@ final class OpcRelationshipGraph
         ksort($roleCounts);
         ksort($byteCountsByRole);
         ksort($byteCountsByHandoffKind);
+        ksort($directoryRootCounts, SORT_STRING);
+        self::sortStringListMap($entryNamesByDirectoryRoot);
+        $directoryRootSummaries = self::zipEntryManifestDirectoryRootSummaries($directoryRootSummariesByRoot);
         ksort($packagePartExtensionCounts, SORT_STRING);
         self::sortStringListMap($entryNamesByPackagePartExtension);
         $packagePartExtensionSummaries = self::zipEntryManifestContentSummaries($packagePartExtensionSummariesByExtension);
@@ -1882,6 +1952,10 @@ final class OpcRelationshipGraph
             'fileUncompressedBytes' => $fileUncompressedBytes,
             'directoryCompressedBytes' => $directoryCompressedBytes,
             'directoryUncompressedBytes' => $directoryUncompressedBytes,
+            'directoryRootCount' => count($directoryRootCounts),
+            'directoryRootCounts' => $directoryRootCounts,
+            'entryNamesByDirectoryRoot' => $entryNamesByDirectoryRoot,
+            'directoryRootSummaries' => $directoryRootSummaries,
             'contentTypesItemCount' => count($contentTypesItems),
             'extensionlessPackagePartCount' => $extensionlessPackagePartCount,
             'packagePartExtensionCounts' => $packagePartExtensionCounts,
@@ -8723,6 +8797,79 @@ final class OpcRelationshipGraph
         $buckets[$bucket]['entryCount']++;
         $buckets[$bucket]['compressedBytes'] += $compressedSize;
         $buckets[$bucket]['uncompressedBytes'] += $uncompressedSize;
+    }
+
+    private static function zipEntryManifestDirectoryRoot(string $entryName): string
+    {
+        $entryName = ltrim($entryName, '/');
+        if ($entryName === '') {
+            return '/';
+        }
+
+        $separator = strpos($entryName, '/');
+        if ($separator === false) {
+            return '/';
+        }
+
+        return substr($entryName, 0, $separator + 1);
+    }
+
+    private static function recordZipEntryManifestDirectoryRootSummary(
+        array &$summaries,
+        string $directoryRoot,
+        array $entry
+    ): void {
+        $summaries[$directoryRoot] ??= [
+            'directoryRoot' => $directoryRoot,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'packagePartCount' => 0,
+            'validEntryCount' => 0,
+            'invalidEntryCount' => 0,
+            'unknownByteCountEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'roleCounts' => [],
+            'handoffKindCounts' => [],
+            'issueCounts' => [],
+            'issues' => [],
+            'entryNames' => [],
+            'partNames' => [],
+        ];
+
+        self::recordZipEntryManifestContentSummaryEntry($summaries[$directoryRoot], $entry);
+
+        if (($entry['valid'] ?? true) === true) {
+            $summaries[$directoryRoot]['validEntryCount']++;
+        } else {
+            $summaries[$directoryRoot]['invalidEntryCount']++;
+        }
+        if (($entry['byteCountsAreExact'] ?? true) === false) {
+            $summaries[$directoryRoot]['unknownByteCountEntryCount']++;
+        }
+
+        foreach (array_values(array_filter($entry['issues'] ?? [], 'is_string')) as $issue) {
+            self::appendUniqueString($summaries[$directoryRoot]['issues'], $issue);
+            $summaries[$directoryRoot]['issueCounts'][$issue] =
+                ($summaries[$directoryRoot]['issueCounts'][$issue] ?? 0) + 1;
+        }
+    }
+
+    private static function zipEntryManifestDirectoryRootSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['handoffKindCounts'], SORT_STRING);
+            ksort($summary['issueCounts'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['partNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     private static function recordZipEntryManifestContentTypeSourceSummary(

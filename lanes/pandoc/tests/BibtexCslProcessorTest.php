@@ -2371,11 +2371,31 @@ BIB;
   shorthandintro        = {cited as Relation Review Manual},
   sortshorthand         = {010 relation manual},
   listshorthand         = {005 explicit relation list},
-  related               = {source-appendix, source-license},
+  related               = {source-appendix, missing-related, source-license},
   relatedtype           = {updated-by},
   relatedstring         = {Updated source},
   relatedoptions        = {dataonly; skipbib},
   crossref              = {source-proceedings}
+}
+
+@book{source-appendix,
+  author    = {Roe, Pat},
+  title     = {Source Appendix Packet},
+  date      = {2024},
+  publisher = {Appendix Desk}
+}
+
+@online{source-license,
+  author = {{Archive Desk}},
+  title  = {Source License Snapshot},
+  date   = {2025},
+  url    = {https://example.test/source-license}
+}
+
+@proceedings{source-proceedings,
+  title     = {Source Proceedings},
+  date      = {2023},
+  publisher = {Review Conference Press}
 }
 BIB;
 
@@ -2388,11 +2408,23 @@ BIB;
         $t->same('cited as Relation Review Manual', $item['shorthand-intro']);
         $t->same('010 relation manual', $item['sort-shorthand']);
         $t->same('005 explicit relation list', $item['shorthand-list-sort-key']);
-        $t->same('source-appendix, source-license', $item['related']);
+        $t->same('source-appendix, missing-related, source-license', $item['related']);
         $t->same('updated-by', $item['related-type']);
         $t->same('Updated source', $item['related-string']);
         $t->same('dataonly; skipbib', $item['related-options']);
         $t->same('source-proceedings', $item['xref']);
+        $t->same(['source-appendix', 'missing-related', 'source-license'], $item['related-keys']);
+        $t->same('Source Appendix Packet', $item['relatedItems'][0]['title'] ?? null);
+        $t->same([2024], $item['relatedItems'][0]['issued']['date-parts'][0] ?? null);
+        $t->same('Source License Snapshot', $item['relatedItems'][1]['title'] ?? null);
+        $t->same(['missing-related'], $item['missing-related-keys']);
+        $t->same(['dataonly', 'skipbib'], $item['relatedOptions']);
+        $t->same('Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related', $item['relatedSummary']);
+        $t->same(['source-proceedings'], $item['xref-keys']);
+        $t->same('Source Proceedings', $item['xrefItems'][0]['title'] ?? null);
+        $t->same('Xref: Source Proceedings (2023)', $item['xrefSummary']);
+        $t->contains('Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related', $processor->renderBibliographyText($item));
+        $t->contains('Related options: dataonly; skipbib', $processor->renderBibliographyText($item));
 
         $document = (new MarkdownReader())->read('Relation source [@legacy-relation] keeps relation handoff metadata.');
         $handoff = $processor->citationHandoff($document, $source);
@@ -2401,6 +2433,54 @@ BIB;
         $t->same('relation-manual', $handoff['bibliography']->children[0]->attr('cslItem')['id'] ?? null);
         $t->same('005 explicit relation list', $handoff['bibliography']->children[0]->attr('cslItem')['shorthand-list-sort-key'] ?? null);
         $t->same('source-proceedings', $handoff['bibliography']->children[0]->attr('cslItem')['xref'] ?? null);
+        $t->same(['missing-related'], $handoff['bibliography']->children[0]->attr('cslItem')['missing-related-keys'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Related Item Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-related-review</id>
+    <updated>2026-06-30T23:20:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="related-summary"/>
+        <text variable="related-options"/>
+        <text variable="missing-related-keys"/>
+        <text variable="xref-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="related-summary"/>
+      <text variable="related-options"/>
+      <text variable="missing-related-keys"/>
+      <text variable="xref-summary"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalized = $styled->item('relation-manual');
+        $t->same(['source-appendix', 'missing-related', 'source-license'], $normalized['relatedKeys'] ?? null);
+        $t->same('Source Appendix Packet (2024)', $normalized['relatedItems'][0]['display'] ?? null);
+        $t->same('Source License Snapshot (2025)', $normalized['relatedItems'][1]['display'] ?? null);
+        $t->same(['missing-related'], $normalized['missingRelatedKeys'] ?? null);
+        $t->same(['dataonly', 'skipbib'], $normalized['relatedOptions'] ?? null);
+        $t->same('Source Proceedings (2023)', $normalized['xrefItems'][0]['display'] ?? null);
+        $t->same('[Relation Review Manual | Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related | dataonly, skipbib | missing-related | Xref: Source Proceedings (2023)]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-relation', 'text' => '[@legacy-relation]']),
+        ]));
+        $t->same('Relation Review Manual :: Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related :: dataonly, skipbib :: missing-related :: Xref: Source Proceedings (2023)', $styled->renderBibliographyEntry('relation-manual'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Relation source [Relation Review Manual | Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related | dataonly, skipbib | missing-related | Xref: Source Proceedings (2023)] keeps relation handoff metadata.</p>', $blocks);
+        $t->contains('Relation Review Manual :: Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related :: dataonly, skipbib :: missing-related :: Xref: Source Proceedings (2023)', $blocks);
     },
     'carries biblatex date addendum aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'

@@ -421,6 +421,9 @@ final class PdfEngineHandoff
                 if (is_array($systemFonts) && ($systemFonts['issues'] ?? []) !== []) {
                     $diagnostics[] = 'typst-system-font-issues:' . count($systemFonts['issues']);
                 }
+                if (is_array($systemFonts) && in_array('ignore-system-fonts-environment-shadowed', $systemFonts['issues'] ?? [], true)) {
+                    $diagnostics[] = 'typst-ignore-system-fonts-environment-shadowed';
+                }
             }
             if (($typstBoundaryProvenance['embeddedFonts'] ?? []) !== []) {
                 $embeddedFonts = $typstBoundaryProvenance['embeddedFonts'];
@@ -432,6 +435,9 @@ final class PdfEngineHandoff
                 }
                 if (is_array($embeddedFonts) && ($embeddedFonts['issues'] ?? []) !== []) {
                     $diagnostics[] = 'typst-embedded-font-issues:' . count($embeddedFonts['issues']);
+                }
+                if (is_array($embeddedFonts) && in_array('ignore-embedded-fonts-environment-shadowed', $embeddedFonts['issues'] ?? [], true)) {
+                    $diagnostics[] = 'typst-ignore-embedded-fonts-environment-shadowed';
                 }
             }
             if (($typstBoundaryProvenance['openOutput'] ?? []) !== []) {
@@ -456,6 +462,9 @@ final class PdfEngineHandoff
                 $featureGates = $typstBoundaryProvenance['featureGates'];
                 if (is_array($featureGates) && is_int($featureGates['featureCount'] ?? null)) {
                     $diagnostics[] = 'typst-feature-gates:' . $featureGates['featureCount'];
+                }
+                if (is_array($typstBoundaryProvenance['featureGateHistory'] ?? null)) {
+                    $diagnostics[] = 'typst-feature-gate-history:' . count($typstBoundaryProvenance['featureGateHistory']);
                 }
             }
             if (($typstBoundaryProvenance['featureGateEnvironment'] ?? null) !== null) {
@@ -533,6 +542,18 @@ final class PdfEngineHandoff
                     if (is_array($outputFormatPolicy) && ($outputFormatPolicy['issues'] ?? []) !== []) {
                         $diagnostics[] = 'typst-output-format-boundary-issues:' . count($outputFormatPolicy['issues']);
                     }
+                }
+            }
+            if (($typstBoundaryProvenance['bundleExport'] ?? []) !== []) {
+                $bundleExport = $typstBoundaryProvenance['bundleExport'];
+                if (is_array($bundleExport) && ($bundleExport['enabled'] ?? false) === true) {
+                    $diagnostics[] = 'typst-bundle-export:enabled';
+                }
+                if (is_array($bundleExport)) {
+                    $diagnostics[] = 'typst-bundle-export-feature:' . (($bundleExport['featureEnabled'] ?? false) === true ? 'enabled' : 'missing');
+                }
+                if (is_array($bundleExport) && ($bundleExport['issues'] ?? []) !== []) {
+                    $diagnostics[] = 'typst-bundle-export-issues:' . count($bundleExport['issues']);
                 }
             }
             if (($typstBoundaryProvenance['pdfExport'] ?? []) !== []) {
@@ -745,6 +766,7 @@ final class PdfEngineHandoff
      *     engineBoundaryRoot: string|null,
      *     engineBoundaryViolations: list<string>,
      *     typstReadBoundaryPolicy: array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{},
+     *     typstTimingSourcePolicy: array<string, mixed>,
      *     engineTranscriptInputFiles: list<string>,
      *     engineTranscriptExternalInputFiles: list<string>,
      *     missingEngineInputFiles: list<string>,
@@ -999,6 +1021,7 @@ final class PdfEngineHandoff
         $sourceMapInputFiles = [];
         $sourceMapExternalInputs = [];
         $sourceMapLineRangesByKey = [];
+        $typstTimingSourcePolicy = [];
         $engineLogFiles = [];
         $engineLogTexts = [];
         $status = 'ok';
@@ -1240,11 +1263,18 @@ final class PdfEngineHandoff
                 $diagnostics[] = 'engine-boundary-violation:' . $violation;
             }
         }
+        $typstRoot = $this->typstRootPathFromBoundaryProvenance($typstBoundaryProvenance);
         $typstReadBoundaryPolicy = $this->typstReadBoundaryPolicy(
             $engine,
-            $this->typstRootPathFromBoundaryProvenance($typstBoundaryProvenance),
+            $typstRoot,
             $sourceFile,
             $engineInputFileList
+        );
+        $typstTimingSourcePolicy = $this->typstTimingSourcePolicy(
+            $engine,
+            $typstBoundaryProvenance,
+            $files,
+            $typstRoot
         );
         foreach ($engineInputFileList as $inputFile) {
             if (array_key_exists($inputFile, $files)) {
@@ -1368,6 +1398,19 @@ final class PdfEngineHandoff
         if ($sourceMapExternalInputList !== []) {
             $diagnostics[] = 'source-map-external-inputs:' . count($sourceMapExternalInputList);
         }
+        if ($typstTimingSourcePolicy !== []) {
+            $diagnostics[] = 'typst-timing-source-policy:' . $typstTimingSourcePolicy['reviewStatus'];
+            $diagnostics[] = 'typst-timing-source-files:' . $typstTimingSourcePolicy['sourceFileCount'];
+            if (($typstTimingSourcePolicy['outsideRootCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-timing-source-outside-root:' . $typstTimingSourcePolicy['outsideRootCount'];
+            }
+            if (($typstTimingSourcePolicy['externalSourceCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-timing-source-external:' . $typstTimingSourcePolicy['externalSourceCount'];
+            }
+            if (($typstTimingSourcePolicy['issues'] ?? []) !== []) {
+                $diagnostics[] = 'typst-timing-source-issues:' . count($typstTimingSourcePolicy['issues']);
+            }
+        }
         if ($sourceMapFiles !== [] && $sourceMapInputs === [] && $reason === null) {
             $status = 'failed';
             $reason = 'source-map-empty';
@@ -1438,7 +1481,7 @@ final class PdfEngineHandoff
         $typstWarningProvenance = $this->extractTypstWarningProvenance(
             $engine,
             $engineTexts,
-            $this->typstRootPathFromBoundaryProvenance($typstBoundaryProvenance)
+            $typstRoot
         );
         $typstWarningSourceIssueCount = $this->countTypstWarningSourceIssues($typstWarningProvenance);
         $engineMissingDependencies = $this->extractEngineMissingDependencies($engineTexts);
@@ -1476,6 +1519,7 @@ final class PdfEngineHandoff
             $typstDependencyOutputPolicy,
             $typstExternalDependencyPolicy,
             $typstPackageDependencyPolicy,
+            $typstTimingSourcePolicy,
             $typstWarningProvenance
         );
         if ($typstBoundaryMatrix !== []) {
@@ -5136,6 +5180,9 @@ final class PdfEngineHandoff
         if (($typstOutputFormatPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-output-format-policy:' . $typstOutputFormatPolicy['reviewStatus'];
         }
+        if (($typstTimingSourcePolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'typst-timing-source-policy:' . $typstTimingSourcePolicy['reviewStatus'];
+        }
         if (($sourceInput['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-source-input:' . $sourceInput['reviewStatus'];
         }
@@ -5190,6 +5237,7 @@ final class PdfEngineHandoff
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
+            'typstTimingSourcePolicy' => $typstTimingSourcePolicy,
             'typstPackageDependencies' => $engineTypstPackageDependencies,
             'engineDependencyEdges' => $engineDependencyEdges,
             'typstDependencyEdgePackageProvenance' => $typstDependencyEdgePackageProvenance,
@@ -5231,6 +5279,7 @@ final class PdfEngineHandoff
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
             'typstReadBoundaryPolicy' => $typstReadBoundaryPolicy,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
+            'typstTimingSourcePolicy' => $typstTimingSourcePolicy,
             'engineBoundaryRoot' => $engineBoundaryRoot,
             'engineBoundaryViolations' => $engineBoundaryViolations,
             'engineTranscriptInputFiles' => $engineTranscriptInputFileList,
@@ -5936,6 +5985,7 @@ final class PdfEngineHandoff
             'finalTypstBoundaryMatrix' => is_array($finalRun) && is_array($finalRun['typstBoundaryMatrix'] ?? null) ? $finalRun['typstBoundaryMatrix'] : [],
             'finalTypstReadBoundaryPolicy' => is_array($finalRun) && is_array($finalRun['typstReadBoundaryPolicy'] ?? null) ? $finalRun['typstReadBoundaryPolicy'] : [],
             'finalTypstOutputFormatPolicy' => is_array($finalRun) && is_array($finalRun['typstOutputFormatPolicy'] ?? null) ? $finalRun['typstOutputFormatPolicy'] : [],
+            'finalTypstTimingSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstTimingSourcePolicy'] ?? null) ? $finalRun['typstTimingSourcePolicy'] : [],
             'finalTypstWarningProvenance' => is_array($finalRun) && is_array($finalRun['typstWarningProvenance'] ?? null) ? $finalRun['typstWarningProvenance'] : [],
             'finalEngineBoundaryRoot' => is_array($finalRun) && is_string($finalRun['engineBoundaryRoot'] ?? null) ? $finalRun['engineBoundaryRoot'] : null,
             'finalEngineBoundaryViolations' => is_array($finalRun) && is_array($finalRun['engineBoundaryViolations'] ?? null) ? $finalRun['engineBoundaryViolations'] : [],
@@ -7108,6 +7158,8 @@ final class PdfEngineHandoff
         $outputFormatValues = $this->typstOutputFormatOptionValues($engineOptions);
         $ignoreSystemFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-system-fonts');
         $ignoreEmbeddedFontCount = $this->engineOptionFlagCount($engineOptions, '--ignore-embedded-fonts');
+        $ignoreSystemFontCliCount = $ignoreSystemFontCount;
+        $ignoreEmbeddedFontCliCount = $ignoreEmbeddedFontCount;
         $noPdfTagsCount = $this->engineOptionFlagCount($engineOptions, '--no-pdf-tags');
         $prettyOutputCount = $this->engineOptionFlagCount($engineOptions, '--pretty');
         $openOutputEntries = $this->typstOpenOutputEntries($engineOptions);
@@ -7202,19 +7254,35 @@ final class PdfEngineHandoff
             )));
             $environmentVariables[] = 'TYPST_FEATURES';
         }
-        if ($ignoreSystemFontCount === 0 && array_key_exists('TYPST_IGNORE_SYSTEM_FONTS', $engineEnvironment)) {
+        if (array_key_exists('TYPST_IGNORE_SYSTEM_FONTS', $engineEnvironment)) {
             $systemFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_SYSTEM_FONTS'], 'ignore-system-fonts');
-            if ($systemFontEnvironmentFlag['enabled'] === true) {
+            if ($ignoreSystemFontCount === 0 && $systemFontEnvironmentFlag['enabled'] === true) {
                 $ignoreSystemFontCount = 1;
+            }
+            if ($ignoreSystemFontCliCount > 0) {
+                $systemFontEnvironmentFlag['shadowedBy'] = 'engine-option';
+                $systemFontEnvironmentFlag['selected'] = '--ignore-system-fonts';
+                $systemFontEnvironmentFlag['issues'] = array_values(array_unique(array_merge(
+                    $systemFontEnvironmentFlag['issues'],
+                    ['ignore-system-fonts-environment-shadowed']
+                )));
             }
             if ($systemFontEnvironmentFlag['enabled'] === true || $systemFontEnvironmentFlag['issues'] !== []) {
                 $environmentVariables[] = 'TYPST_IGNORE_SYSTEM_FONTS';
             }
         }
-        if ($ignoreEmbeddedFontCount === 0 && array_key_exists('TYPST_IGNORE_EMBEDDED_FONTS', $engineEnvironment)) {
+        if (array_key_exists('TYPST_IGNORE_EMBEDDED_FONTS', $engineEnvironment)) {
             $embeddedFontEnvironmentFlag = $this->typstEnvironmentFlagEntry($engineEnvironment['TYPST_IGNORE_EMBEDDED_FONTS'], 'ignore-embedded-fonts');
-            if ($embeddedFontEnvironmentFlag['enabled'] === true) {
+            if ($ignoreEmbeddedFontCount === 0 && $embeddedFontEnvironmentFlag['enabled'] === true) {
                 $ignoreEmbeddedFontCount = 1;
+            }
+            if ($ignoreEmbeddedFontCliCount > 0) {
+                $embeddedFontEnvironmentFlag['shadowedBy'] = 'engine-option';
+                $embeddedFontEnvironmentFlag['selected'] = '--ignore-embedded-fonts';
+                $embeddedFontEnvironmentFlag['issues'] = array_values(array_unique(array_merge(
+                    $embeddedFontEnvironmentFlag['issues'],
+                    ['ignore-embedded-fonts-environment-shadowed']
+                )));
             }
             if ($embeddedFontEnvironmentFlag['enabled'] === true || $embeddedFontEnvironmentFlag['issues'] !== []) {
                 $environmentVariables[] = 'TYPST_IGNORE_EMBEDDED_FONTS';
@@ -7350,6 +7418,7 @@ final class PdfEngineHandoff
         ]);
         array_push($overrides, ...$this->typstInputVariableOverrideOptionEntries($inputVariables));
         $outputFormatPolicy = $this->typstOutputFormatBoundaryPolicy($outputFormatHistory, $overrides);
+        $bundleExportPolicy = $this->typstBundleExportPolicy($outputFormat, $featureGates);
         $pdfTagIssues = [];
         if ($noPdfTagsCount > 0 && $this->typstPdfStandardRequestsPdfUa($pdfStandard)) {
             $pdfTagIssues[] = 'pdf-tags-disabled-for-pdfua';
@@ -7376,6 +7445,9 @@ final class PdfEngineHandoff
             $issues[] = $issue;
         }
         foreach (($pdfStandardPolicy['issues'] ?? []) as $issue) {
+            $issues[] = $issue;
+        }
+        foreach (($bundleExportPolicy['issues'] ?? []) as $issue) {
             $issues[] = $issue;
         }
         foreach (($creationTimestampEnvironmentShadow['issues'] ?? []) as $issue) {
@@ -7516,6 +7588,9 @@ final class PdfEngineHandoff
             $provenance['outputFormat'] = $outputFormat;
             $provenance['outputFormatPolicy'] = $outputFormatPolicy;
         }
+        if ($bundleExportPolicy !== []) {
+            $provenance['bundleExport'] = $bundleExportPolicy;
+        }
         if ($inputVariableOverrides !== []) {
             $provenance['inputVariableOverrides'] = $inputVariableOverrides;
         }
@@ -7533,6 +7608,11 @@ final class PdfEngineHandoff
             if ($systemFontEnvironmentFlag !== null) {
                 $provenance['systemFonts']['environmentVariable'] = 'TYPST_IGNORE_SYSTEM_FONTS';
                 $provenance['systemFonts']['environmentValue'] = $systemFontEnvironmentFlag['raw'];
+                if (is_string($systemFontEnvironmentFlag['shadowedBy'] ?? null)) {
+                    $provenance['systemFonts']['environmentShadowed'] = true;
+                    $provenance['systemFonts']['shadowedBy'] = $systemFontEnvironmentFlag['shadowedBy'];
+                    $provenance['systemFonts']['selected'] = $systemFontEnvironmentFlag['selected'];
+                }
             }
         }
         if ($ignoreEmbeddedFontCount > 0 || ($embeddedFontEnvironmentFlag['issues'] ?? []) !== []) {
@@ -7545,6 +7625,11 @@ final class PdfEngineHandoff
             if ($embeddedFontEnvironmentFlag !== null) {
                 $provenance['embeddedFonts']['environmentVariable'] = 'TYPST_IGNORE_EMBEDDED_FONTS';
                 $provenance['embeddedFonts']['environmentValue'] = $embeddedFontEnvironmentFlag['raw'];
+                if (is_string($embeddedFontEnvironmentFlag['shadowedBy'] ?? null)) {
+                    $provenance['embeddedFonts']['environmentShadowed'] = true;
+                    $provenance['embeddedFonts']['shadowedBy'] = $embeddedFontEnvironmentFlag['shadowedBy'];
+                    $provenance['embeddedFonts']['selected'] = $embeddedFontEnvironmentFlag['selected'];
+                }
             }
         }
         if ($openOutputCount > 0) {
@@ -7632,7 +7717,7 @@ final class PdfEngineHandoff
         if (count($pdfStandardHistory) > 1 || $this->typstBoundaryHistoryHasIssues($pdfStandardHistory)) {
             $provenance['pdfStandardHistory'] = $pdfStandardHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
+        if (count($featureGateHistory) > 1 || $this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
             $provenance['featureGateHistory'] = $featureGateHistory;
         }
         if ($this->typstBoundaryHistoryHasIssues($jobsHistory)) {
@@ -7704,6 +7789,43 @@ final class PdfEngineHandoff
     }
 
     /**
+     * @param array{format?: string, raw?: string}|null $outputFormat
+     * @param array{features?: list<string>, source?: string}|null $featureGates
+     * @return array{reviewStatus:string, enabled:bool, format:string, featureEnabled:bool, featureSource:string|null, featureCount:int, features:list<string>, multiFileOutput:bool, assetOutputPossible:bool, issues:list<string>}|array{}
+     */
+    private function typstBundleExportPolicy(?array $outputFormat, ?array $featureGates): array
+    {
+        if (($outputFormat['format'] ?? null) !== 'bundle') {
+            return [];
+        }
+
+        $features = array_values(array_filter(
+            is_array($featureGates['features'] ?? null) ? $featureGates['features'] : [],
+            static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+        ));
+        $featureEnabled = in_array('bundle', $features, true);
+        $issues = ['bundle-output-multi-file-boundary'];
+        if (!$featureEnabled) {
+            $issues[] = 'bundle-feature-gate-missing';
+        }
+
+        return [
+            'reviewStatus' => 'review',
+            'enabled' => true,
+            'format' => 'bundle',
+            'featureEnabled' => $featureEnabled,
+            'featureSource' => $featureEnabled
+                ? (is_string($featureGates['source'] ?? null) ? $featureGates['source'] : 'engine-option')
+                : null,
+            'featureCount' => count($features),
+            'features' => $features,
+            'multiFileOutput' => true,
+            'assetOutputPossible' => true,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
      * @param array<string, mixed> $provenance
      * @param array<string, mixed> $summary
      * @param array<string, mixed> $sourceInput
@@ -7712,6 +7834,7 @@ final class PdfEngineHandoff
      * @param array<string, mixed> $dependencyOutputPolicy
      * @param array<string, mixed> $externalDependencyPolicy
      * @param array<string, mixed> $packageDependencyPolicy
+     * @param array<string, mixed> $timingSourcePolicy
      * @param list<array<string, mixed>> $warningProvenance
      * @return array<string, mixed>
      */
@@ -7725,12 +7848,14 @@ final class PdfEngineHandoff
         array $dependencyOutputPolicy = [],
         array $externalDependencyPolicy = [],
         array $packageDependencyPolicy = [],
+        array $timingSourcePolicy = [],
         array $warningProvenance = []
     ): array {
         $hasRuntimeProvenance = $readBoundaryPolicy !== []
             || $dependencyOutputPolicy !== []
             || $externalDependencyPolicy !== []
             || $packageDependencyPolicy !== []
+            || $timingSourcePolicy !== []
             || $warningProvenance !== [];
         if ($engine !== 'typst' || ($provenance === [] && $sourceInput === [] && !$hasRuntimeProvenance)) {
             return [];
@@ -7885,6 +8010,11 @@ final class PdfEngineHandoff
             'creationTimestampEnvironment',
         ] as $key) {
             if (is_array($provenance[$key] ?? null)) {
+                $shadowEntries[] = $provenance[$key];
+            }
+        }
+        foreach (['systemFonts', 'embeddedFonts'] as $key) {
+            if (is_array($provenance[$key] ?? null) && is_string($provenance[$key]['shadowedBy'] ?? null)) {
                 $shadowEntries[] = $provenance[$key];
             }
         }
@@ -8100,6 +8230,25 @@ final class PdfEngineHandoff
         $systemFonts = is_array($provenance['systemFonts'] ?? null) ? $provenance['systemFonts'] : [];
         $embeddedFonts = is_array($provenance['embeddedFonts'] ?? null) ? $provenance['embeddedFonts'] : [];
         $fontAccessIssues = array_merge($entryIssues($systemFonts), $entryIssues($embeddedFonts));
+        $fontAccessEnvironmentVariables = [];
+        $fontAccessShadowedEnvironmentVariables = [];
+        foreach ([$systemFonts, $embeddedFonts] as $fontAccessEntry) {
+            if (!is_array($fontAccessEntry)) {
+                continue;
+            }
+            $environmentVariable = is_string($fontAccessEntry['environmentVariable'] ?? null) ? $fontAccessEntry['environmentVariable'] : null;
+            if ($environmentVariable === null || $environmentVariable === '') {
+                continue;
+            }
+            $fontAccessEnvironmentVariables[] = $environmentVariable;
+            if (is_string($fontAccessEntry['shadowedBy'] ?? null)) {
+                $fontAccessShadowedEnvironmentVariables[] = $environmentVariable;
+            }
+        }
+        $fontAccessEnvironmentVariables = array_values(array_unique($fontAccessEnvironmentVariables));
+        sort($fontAccessEnvironmentVariables);
+        $fontAccessShadowedEnvironmentVariables = array_values(array_unique($fontAccessShadowedEnvironmentVariables));
+        sort($fontAccessShadowedEnvironmentVariables);
         $fontAccessControlCount = is_int($summary['fontAccessControlCount'] ?? null)
             ? $summary['fontAccessControlCount']
             : (int) (($systemFonts['systemFontAccess'] ?? null) === 'disabled') + (int) (($embeddedFonts['embeddedFontAccess'] ?? null) === 'disabled');
@@ -8110,6 +8259,10 @@ final class PdfEngineHandoff
                 'embeddedFontAccessDisabled' => ($embeddedFonts['embeddedFontAccess'] ?? null) === 'disabled',
                 'embeddedFontAccessFlagCount' => is_int($embeddedFonts['flagCount'] ?? null) ? $embeddedFonts['flagCount'] : 0,
                 'fontPathCount' => is_int($systemFonts['fontPathCount'] ?? null) ? $systemFonts['fontPathCount'] : $fontPathCount,
+                'environmentVariableCount' => count($fontAccessEnvironmentVariables),
+                'environmentVariables' => $fontAccessEnvironmentVariables,
+                'shadowedEnvironmentVariableCount' => count($fontAccessShadowedEnvironmentVariables),
+                'shadowedEnvironmentVariables' => $fontAccessShadowedEnvironmentVariables,
             ], $fontAccessIssues);
         }
 
@@ -8200,6 +8353,20 @@ final class PdfEngineHandoff
                 'explicitFormat' => is_string($formatPolicy['explicitFormat'] ?? null) ? $formatPolicy['explicitFormat'] : null,
                 'distinctFormats' => $distinctFormats,
             ], $formatIssues);
+        }
+
+        $bundleExport = is_array($provenance['bundleExport'] ?? null) ? $provenance['bundleExport'] : [];
+        if ($bundleExport !== []) {
+            $bundleExportIssues = is_array($bundleExport['issues'] ?? null) ? $bundleExport['issues'] : [];
+            $appendCase('bundle-export', $bundleExportIssues === [] ? 'ok' : 'review', 1, [
+                'enabled' => ($bundleExport['enabled'] ?? false) === true,
+                'format' => is_string($bundleExport['format'] ?? null) ? $bundleExport['format'] : null,
+                'featureEnabled' => ($bundleExport['featureEnabled'] ?? false) === true,
+                'featureSource' => is_string($bundleExport['featureSource'] ?? null) ? $bundleExport['featureSource'] : null,
+                'featureCount' => is_int($bundleExport['featureCount'] ?? null) ? $bundleExport['featureCount'] : 0,
+                'multiFileOutput' => ($bundleExport['multiFileOutput'] ?? false) === true,
+                'assetOutputPossible' => ($bundleExport['assetOutputPossible'] ?? false) === true,
+            ], $bundleExportIssues);
         }
 
         $pdfExport = is_array($provenance['pdfExport'] ?? null) ? $provenance['pdfExport'] : [];
@@ -8618,6 +8785,31 @@ final class PdfEngineHandoff
                 'sourceClassCounts' => $countMap($packageDependencyPolicy['sourceClassCounts'] ?? null),
                 'unsupportedReasonCounts' => $countMap($packageDependencyPolicy['unsupportedReasonCounts'] ?? null),
             ], $packageDependencyIssues);
+        }
+
+        if ($timingSourcePolicy !== []) {
+            $timingIssues = is_array($timingSourcePolicy['issues'] ?? null) ? $timingSourcePolicy['issues'] : [];
+            $timingSourceFiles = [];
+            foreach (is_array($timingSourcePolicy['sourceFiles'] ?? null) ? $timingSourcePolicy['sourceFiles'] : [] as $sourceFile) {
+                if (!is_array($sourceFile) || !is_string($sourceFile['sourceFile'] ?? null) || $sourceFile['sourceFile'] === '') {
+                    continue;
+                }
+
+                $timingSourceFiles[] = $sourceFile['sourceFile'];
+            }
+            $timingSourceFiles = array_values(array_unique($timingSourceFiles));
+            sort($timingSourceFiles);
+
+            $appendCase('timing-provenance', ($timingSourcePolicy['reviewStatus'] ?? 'ok') === 'ok' && $timingIssues === [] ? 'ok' : 'review', is_int($timingSourcePolicy['sourceFileCount'] ?? null) ? $timingSourcePolicy['sourceFileCount'] : count($timingSourceFiles), [
+                'timingsFile' => is_string($timingSourcePolicy['timingsFile'] ?? null) ? $timingSourcePolicy['timingsFile'] : null,
+                'sourceFileCount' => is_int($timingSourcePolicy['sourceFileCount'] ?? null) ? $timingSourcePolicy['sourceFileCount'] : count($timingSourceFiles),
+                'sourceFiles' => $timingSourceFiles,
+                'insideRootCount' => is_int($timingSourcePolicy['insideRootCount'] ?? null) ? $timingSourcePolicy['insideRootCount'] : 0,
+                'outsideRootCount' => is_int($timingSourcePolicy['outsideRootCount'] ?? null) ? $timingSourcePolicy['outsideRootCount'] : 0,
+                'unboundedCount' => is_int($timingSourcePolicy['unboundedCount'] ?? null) ? $timingSourcePolicy['unboundedCount'] : 0,
+                'externalSourceCount' => is_int($timingSourcePolicy['externalSourceCount'] ?? null) ? $timingSourcePolicy['externalSourceCount'] : 0,
+                'unknownSourceCount' => is_int($timingSourcePolicy['unknownSourceCount'] ?? null) ? $timingSourcePolicy['unknownSourceCount'] : 0,
+            ], $timingIssues);
         }
 
         if ($warningProvenance !== []) {
@@ -11696,6 +11888,226 @@ final class PdfEngineHandoff
             'dependencyOutputFiles' => $engineOutputFiles,
             'declaredOutputPresent' => $declaredOutputPresent,
             'extraOutputFiles' => $extraOutputFiles,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $typstBoundaryProvenance
+     * @param array<string, string> $files
+     * @return array<string, mixed>
+     */
+    private function typstTimingSourcePolicy(string $engine, array $typstBoundaryProvenance, array $files, ?string $root): array
+    {
+        if ($engine !== 'typst') {
+            return [];
+        }
+
+        $timingsOutput = $typstBoundaryProvenance['timingsOutput'] ?? null;
+        if (
+            !is_array($timingsOutput)
+            || ($timingsOutput['safe'] ?? false) !== true
+            || !is_string($timingsOutput['path'] ?? null)
+            || $timingsOutput['path'] === ''
+        ) {
+            return [];
+        }
+
+        $timingsFile = $timingsOutput['path'];
+        if (!array_key_exists($timingsFile, $files)) {
+            return [];
+        }
+
+        $bytes = $files[$timingsFile];
+        if (strlen($bytes) > self::MAX_DEPENDENCY_FILE_BYTES) {
+            return $this->typstTimingSourcePolicyFromEntries($timingsFile, [], ['timing-source-json-too-large']);
+        }
+
+        $decoded = json_decode(trim($bytes), true);
+        if (!is_array($decoded)) {
+            return $this->typstTimingSourcePolicyFromEntries($timingsFile, [], ['timing-source-json-invalid']);
+        }
+
+        $events = is_array($decoded['traceEvents'] ?? null)
+            ? $decoded['traceEvents']
+            : (array_is_list($decoded) ? $decoded : [$decoded]);
+        $entries = [];
+        $seen = [];
+        foreach ($events as $event) {
+            if (!is_array($event)) {
+                continue;
+            }
+
+            foreach ($this->typstTimingSourceCandidates($event) as $candidate) {
+                $entry = $this->typstTimingSourceEntry(
+                    $timingsFile,
+                    $candidate['eventName'],
+                    $candidate['rawPath'],
+                    $candidate['line'],
+                    $root
+                );
+                $key = implode("\0", [
+                    (string) $entry['eventName'],
+                    $entry['rawPath'],
+                    $entry['sourceFile'],
+                    (string) ($entry['line'] ?? ''),
+                ]);
+                if (isset($seen[$key])) {
+                    continue;
+                }
+
+                $seen[$key] = true;
+                $entries[] = $entry;
+            }
+        }
+
+        return $this->typstTimingSourcePolicyFromEntries($timingsFile, $entries, []);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<string> $extraIssues
+     * @return array<string, mixed>
+     */
+    private function typstTimingSourcePolicyFromEntries(string $timingsFile, array $entries, array $extraIssues): array
+    {
+        if ($entries === [] && $extraIssues === []) {
+            return [];
+        }
+
+        $insideRootCount = 0;
+        $outsideRootCount = 0;
+        $unboundedCount = 0;
+        $externalSourceCount = 0;
+        $unknownSourceCount = 0;
+        $issues = $extraIssues;
+        foreach ($entries as $entry) {
+            match ($entry['boundaryStatus'] ?? null) {
+                'inside-root' => ++$insideRootCount,
+                'outside-root' => ++$outsideRootCount,
+                'unbounded' => ++$unboundedCount,
+                'external-source' => ++$externalSourceCount,
+                'unknown-source' => ++$unknownSourceCount,
+                default => null,
+            };
+            foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
+        }
+        $issues = array_values(array_unique($issues));
+        sort($issues);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'timingsFile' => $timingsFile,
+            'sourceFiles' => $entries,
+            'sourceFileCount' => count($entries),
+            'insideRootCount' => $insideRootCount,
+            'outsideRootCount' => $outsideRootCount,
+            'unboundedCount' => $unboundedCount,
+            'externalSourceCount' => $externalSourceCount,
+            'unknownSourceCount' => $unknownSourceCount,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return list<array{eventName:string|null, rawPath:string, line:int|null}>
+     */
+    private function typstTimingSourceCandidates(mixed $value, ?string $eventName = null, ?int $line = null, int $depth = 0): array
+    {
+        if (!is_array($value) || $depth > 6) {
+            return [];
+        }
+
+        if ($eventName === null && is_string($value['name'] ?? null) && trim($value['name']) !== '') {
+            $eventName = trim($value['name']);
+        }
+        $line = $this->positiveIntFromKeys($value, ['line', 'lineNumber']) ?? $line;
+
+        $candidates = [];
+        foreach (['file', 'path', 'source', 'input'] as $key) {
+            $rawPath = $value[$key] ?? null;
+            if (!is_string($rawPath) || !$this->isLikelyTypstTimingSourcePath($rawPath)) {
+                continue;
+            }
+
+            $candidates[] = [
+                'eventName' => $eventName,
+                'rawPath' => trim($rawPath),
+                'line' => $line,
+            ];
+        }
+
+        foreach ($value as $child) {
+            if (!is_array($child)) {
+                continue;
+            }
+
+            array_push($candidates, ...$this->typstTimingSourceCandidates($child, $eventName, $line, $depth + 1));
+        }
+
+        return $candidates;
+    }
+
+    private function isLikelyTypstTimingSourcePath(string $path): bool
+    {
+        $path = trim($path);
+        if ($path === '' || str_contains($path, "\0")) {
+            return false;
+        }
+
+        if (str_starts_with($path, 'typst-package:') || $this->isTypstPackageReference($path) || $this->isUriResourceReference($path)) {
+            return true;
+        }
+
+        return preg_match('/\.(?:typ|bib|csl|csv|tsv|json|ya?ml|toml|xml|svg|png|jpe?g|gif|webp|pdf|txt)\z/i', $path) === 1;
+    }
+
+    /**
+     * @return array{timingsFile:string, eventName:string|null, rawPath:string, sourceFile:string, line:int|null, root:string|null, insideRoot:bool|null, boundaryStatus:string, issues:list<string>}
+     */
+    private function typstTimingSourceEntry(string $timingsFile, ?string $eventName, string $rawPath, ?int $line, ?string $root): array
+    {
+        try {
+            $classified = $this->normalizeEngineDependencyPath($rawPath, 'Typst timings source path');
+        } catch (\RuntimeException) {
+            $classified = [
+                'path' => $this->externalSourceMapInputName($rawPath),
+                'local' => false,
+            ];
+        }
+
+        $sourceFile = is_string($classified['path'] ?? null) ? $classified['path'] : 'external-source';
+        $insideRoot = null;
+        $boundaryStatus = 'unknown-source';
+        $issues = [];
+        if (($classified['local'] ?? false) !== true) {
+            $insideRoot = false;
+            $boundaryStatus = 'external-source';
+            $issues[] = 'timing-source-external';
+        } elseif ($root === null) {
+            $boundaryStatus = 'unbounded';
+        } elseif ($this->pathIsInsideTypstRoot($sourceFile, $root)) {
+            $insideRoot = true;
+            $boundaryStatus = 'inside-root';
+        } else {
+            $insideRoot = false;
+            $boundaryStatus = 'outside-root';
+            $issues[] = 'timing-source-outside-root';
+        }
+
+        return [
+            'timingsFile' => $timingsFile,
+            'eventName' => $eventName,
+            'rawPath' => $rawPath,
+            'sourceFile' => $sourceFile,
+            'line' => $line,
+            'root' => $root,
+            'insideRoot' => $insideRoot,
+            'boundaryStatus' => $boundaryStatus,
             'issues' => $issues,
         ];
     }

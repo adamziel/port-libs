@@ -91,6 +91,7 @@ final class XmlHtmlDom
         'autoplay' => true,
         'checked' => true,
         'controls' => true,
+        'credentialless' => true,
         'default' => true,
         'defer' => true,
         'disablepictureinpicture' => true,
@@ -15374,6 +15375,9 @@ final class XmlHtmlDom
         if ($httpEquiv === 'content-security-policy' || $httpEquiv === 'content-security-policy-report-only') {
             $summary += self::metaContentSecurityPolicySummary($content, $httpEquiv);
         }
+        if ($httpEquiv === 'permissions-policy' || $httpEquiv === 'feature-policy') {
+            $summary += self::metaPermissionsPolicySummary($content, $httpEquiv);
+        }
         if (strtolower(trim((string) self::attributeOrNull($element, 'name'))) === 'referrer') {
             $summary += self::metaReferrerPolicySummary($content);
         }
@@ -15740,6 +15744,326 @@ final class XmlHtmlDom
             ))),
             'metaReferrerValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaPermissionsPolicySummary(?string $content, string $httpEquiv): array
+    {
+        $raw = $content ?? '';
+        $directives = [];
+        $directiveNames = [];
+        $directiveNameCounts = [];
+        $features = [];
+        $disabledFeatures = [];
+        $wildcardFeatures = [];
+        $selfFeatures = [];
+        $originAllowListTokens = [];
+        $invalidDirectiveNames = [];
+        $invalidAllowListTokens = [];
+        $hasLegacySyntax = $httpEquiv === 'feature-policy';
+
+        foreach (self::permissionsPolicyDirectiveFragments($raw) as $fragmentIndex => $fragment) {
+            $directiveRaw = trim($fragment);
+            if ($directiveRaw === '') {
+                continue;
+            }
+
+            $parsed = self::parsePermissionsPolicyDirective($directiveRaw);
+            $hasLegacySyntax = $hasLegacySyntax || $parsed['syntax'] === 'legacy-feature-policy';
+            $nameRaw = $parsed['nameRaw'];
+            $name = strtolower($nameRaw);
+            $validName = self::isIframeAllowFeatureToken($name);
+            $invalidValues = [];
+
+            if ($validName) {
+                if (!isset($directiveNameCounts[$name])) {
+                    $directiveNameCounts[$name] = 0;
+                    $directiveNames[] = $name;
+                }
+                ++$directiveNameCounts[$name];
+                self::appendUniqueString($features, $name);
+            } else {
+                $invalidDirectiveNames[] = $nameRaw;
+            }
+
+            foreach ($parsed['allowList'] as $token) {
+                if (!self::isPermissionsPolicyAllowListToken($token)) {
+                    $invalidValues[] = $token;
+                    $invalidAllowListTokens[] = $token;
+                    continue;
+                }
+
+                $normalizedToken = strtolower($token);
+                if ($validName && ($token === '*' || $normalizedToken === '"*"')) {
+                    self::appendUniqueString($wildcardFeatures, $name);
+                }
+                if ($validName && in_array($normalizedToken, ['self', "'self'", '"self"'], true)) {
+                    self::appendUniqueString($selfFeatures, $name);
+                }
+                if ($validName && self::isPermissionsPolicyOriginAllowListToken($token)) {
+                    self::appendUniqueString($originAllowListTokens, self::unquoteDoubleQuotedToken($token));
+                }
+            }
+
+            if ($validName && self::permissionsPolicyAllowListDisablesFeature($parsed['allowList'], $parsed['allowListRaw'])) {
+                self::appendUniqueString($disabledFeatures, $name);
+            }
+
+            $directiveIssues = [];
+            if (!$validName) {
+                $directiveIssues[] = 'invalid-permissions-policy-directive-name';
+            }
+            if ($parsed['modernSyntaxMissingParens']) {
+                $directiveIssues[] = 'invalid-permissions-policy-allowlist-syntax';
+            }
+            if ($invalidValues !== []) {
+                $directiveIssues[] = 'invalid-permissions-policy-allowlist-token';
+            }
+
+            $directives[] = [
+                'index' => count($directives),
+                'sourceIndex' => $fragmentIndex,
+                'raw' => $directiveRaw,
+                'nameRaw' => $nameRaw,
+                'name' => $validName ? $name : null,
+                'syntax' => $parsed['syntax'],
+                'allowListRaw' => $parsed['allowListRaw'],
+                'allowList' => $parsed['allowList'],
+                'allowListCount' => count($parsed['allowList']),
+                'allowListEmpty' => $parsed['allowList'] === [],
+                'invalidAllowListTokens' => $invalidValues,
+                'valid' => $validName && !$parsed['modernSyntaxMissingParens'] && $invalidValues === [],
+                'issueCodes' => $directiveIssues,
+            ];
+        }
+
+        $duplicateDirectiveNames = array_values(array_filter(
+            $directiveNames,
+            static fn (string $name): bool => ($directiveNameCounts[$name] ?? 0) > 1
+        ));
+        $issues = [];
+        if ($content === null) {
+            $issues[] = ['code' => 'missing-meta-permissions-policy-content'];
+        } elseif (trim($content) === '') {
+            $issues[] = ['code' => 'empty-meta-permissions-policy-content'];
+        }
+        foreach ($invalidDirectiveNames as $name) {
+            $issues[] = ['code' => 'invalid-permissions-policy-directive-name', 'nameRaw' => $name];
+        }
+        foreach ($invalidAllowListTokens as $token) {
+            $issues[] = ['code' => 'invalid-permissions-policy-allowlist-token', 'allowListToken' => $token];
+        }
+        foreach ($directives as $directive) {
+            if (in_array('invalid-permissions-policy-allowlist-syntax', $directive['issueCodes'], true)) {
+                $issues[] = [
+                    'code' => 'invalid-permissions-policy-allowlist-syntax',
+                    'directive' => $directive['nameRaw'],
+                    'allowListRaw' => $directive['allowListRaw'],
+                ];
+            }
+        }
+        foreach ($duplicateDirectiveNames as $name) {
+            $issues[] = [
+                'code' => 'duplicate-permissions-policy-directive',
+                'directive' => $name,
+                'count' => $directiveNameCounts[$name] ?? 0,
+            ];
+        }
+        foreach ($wildcardFeatures as $feature) {
+            $issues[] = ['code' => 'wildcard-permissions-policy-allowlist', 'directive' => $feature];
+        }
+
+        return [
+            'permissionsPolicyReviewPolicy' => 'meta-permissions-policy-review',
+            'permissionsPolicyHttpEquiv' => $httpEquiv,
+            'permissionsPolicyRaw' => $content,
+            'permissionsPolicyByteLength' => strlen($raw),
+            'permissionsPolicySha256' => hash('sha256', $raw),
+            'permissionsPolicyLegacySyntax' => $hasLegacySyntax,
+            'permissionsPolicyDirectiveCount' => count($directives),
+            'permissionsPolicyDirectives' => $directives,
+            'permissionsPolicyDirectiveNames' => $directiveNames,
+            'permissionsPolicyDirectiveNameCounts' => $directiveNameCounts,
+            'duplicatePermissionsPolicyDirectiveNames' => $duplicateDirectiveNames,
+            'invalidPermissionsPolicyDirectiveNames' => $invalidDirectiveNames,
+            'invalidPermissionsPolicyAllowListTokens' => $invalidAllowListTokens,
+            'permissionsPolicyFeatures' => $features,
+            'permissionsPolicyDisabledFeatures' => $disabledFeatures,
+            'permissionsPolicyWildcardFeatures' => $wildcardFeatures,
+            'permissionsPolicySelfFeatures' => $selfFeatures,
+            'permissionsPolicyOriginAllowListTokens' => $originAllowListTokens,
+            'permissionsPolicyIssues' => $issues,
+            'permissionsPolicyIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'permissionsPolicyValid' => $issues === [],
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function permissionsPolicyDirectiveFragments(string $value): array
+    {
+        $fragments = [];
+        $fragment = '';
+        $parenDepth = 0;
+        $quote = null;
+        $length = strlen($value);
+
+        for ($offset = 0; $offset < $length; ++$offset) {
+            $char = $value[$offset];
+            if ($quote !== null) {
+                $fragment .= $char;
+                if ($char === $quote) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                $fragment .= $char;
+                continue;
+            }
+
+            if ($char === '(') {
+                ++$parenDepth;
+                $fragment .= $char;
+                continue;
+            }
+
+            if ($char === ')' && $parenDepth > 0) {
+                --$parenDepth;
+                $fragment .= $char;
+                continue;
+            }
+
+            if (($char === ',' || $char === ';') && $parenDepth === 0) {
+                $fragments[] = $fragment;
+                $fragment = '';
+                continue;
+            }
+
+            $fragment .= $char;
+        }
+
+        $fragments[] = $fragment;
+
+        return $fragments;
+    }
+
+    /**
+     * @return array{
+     *     nameRaw:string,
+     *     syntax:string,
+     *     allowListRaw:string,
+     *     allowList:list<string>,
+     *     modernSyntaxMissingParens:bool
+     * }
+     */
+    private static function parsePermissionsPolicyDirective(string $directiveRaw): array
+    {
+        if (preg_match('/^([^=\s]+)\s*=\s*(.*)$/u', $directiveRaw, $matches) === 1) {
+            $allowListRaw = trim((string) $matches[2]);
+            $hasModernParens = str_starts_with($allowListRaw, '(') && str_ends_with($allowListRaw, ')');
+
+            return [
+                'nameRaw' => (string) $matches[1],
+                'syntax' => 'permissions-policy',
+                'allowListRaw' => $allowListRaw,
+                'allowList' => self::permissionsPolicyAllowListTokens($allowListRaw),
+                'modernSyntaxMissingParens' => !$hasModernParens,
+            ];
+        }
+
+        $tokens = self::spaceSeparatedTokens($directiveRaw);
+        $nameRaw = (string) array_shift($tokens);
+
+        return [
+            'nameRaw' => $nameRaw,
+            'syntax' => 'legacy-feature-policy',
+            'allowListRaw' => implode(' ', $tokens),
+            'allowList' => $tokens,
+            'modernSyntaxMissingParens' => false,
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function permissionsPolicyAllowListTokens(string $allowListRaw): array
+    {
+        $value = trim($allowListRaw);
+        if ($value === '' || $value === '()') {
+            return [];
+        }
+
+        if (str_starts_with($value, '(') && str_ends_with($value, ')')) {
+            $value = trim(substr($value, 1, -1));
+            if ($value === '') {
+                return [];
+            }
+        }
+
+        return self::spaceSeparatedTokens($value);
+    }
+
+    private static function isPermissionsPolicyAllowListToken(string $token): bool
+    {
+        $lower = strtolower($token);
+        if ($token === '*' || in_array($lower, ['self', 'src', 'none', "'self'", "'src'", "'none'", '"self"', '"src"', '"none"', '"*"'], true)) {
+            return true;
+        }
+
+        if (str_starts_with($token, '"') || str_ends_with($token, '"')) {
+            if (!(str_starts_with($token, '"') && str_ends_with($token, '"') && strlen($token) >= 2)) {
+                return false;
+            }
+
+            $token = substr($token, 1, -1);
+        } elseif (str_starts_with($token, "'") || str_ends_with($token, "'")) {
+            return false;
+        }
+
+        return $token !== '' && preg_match('/[\s<>"`\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u', $token) === 0;
+    }
+
+    /**
+     * @param list<string> $allowList
+     */
+    private static function permissionsPolicyAllowListDisablesFeature(array $allowList, string $allowListRaw): bool
+    {
+        if (trim($allowListRaw) === '()') {
+            return true;
+        }
+
+        foreach ($allowList as $token) {
+            if (in_array(strtolower($token), ['none', "'none'", '"none"'], true)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function isPermissionsPolicyOriginAllowListToken(string $token): bool
+    {
+        $token = self::unquoteDoubleQuotedToken($token);
+
+        return self::isCspNetworkSource($token);
+    }
+
+    private static function unquoteDoubleQuotedToken(string $token): string
+    {
+        if (str_starts_with($token, '"') && str_ends_with($token, '"') && strlen($token) >= 2) {
+            return substr($token, 1, -1);
+        }
+
+        return $token;
     }
 
     /**
@@ -16396,6 +16720,10 @@ final class XmlHtmlDom
                 ];
             }
         }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         return [
             'scriptAttributionSrcReviewPolicy' => 'script-attributionsrc-provenance-review',
@@ -16408,6 +16736,9 @@ final class XmlHtmlDom
             'unsafeScriptAttributionSrcUrls' => $unsafeUrls,
             'nonHttpScriptAttributionSrcUrls' => $nonHttpUrls,
             'scriptAttributionSrcIssues' => $issues,
+            'scriptAttributionSrcIssueCodes' => $issueCodes,
+            'scriptAttributionSrcIssueCount' => count($issues),
+            'scriptAttributionSrcValid' => $issues === [],
         ];
     }
 
@@ -18729,6 +19060,7 @@ final class XmlHtmlDom
             if ($accessKey['keys'] !== []) {
                 $summary += self::accessKeyCollisionSummary($element, $accessKey['keys']);
             }
+            $summary['accessKeyIssueCodes'] = self::accessKeyIssueCodes($summary);
         }
 
         if (array_key_exists('autofocus', $attributes)) {
@@ -18741,7 +19073,10 @@ final class XmlHtmlDom
             $summary['tabIndexRaw'] = $attributes['tabindex'];
             $summary['tabIndex'] = self::integerAttribute($element, 'tabindex', null);
             $summary['tabIndexValid'] = $summary['tabIndex'] !== null;
+            $summary['tabIndexIssueCodes'] = $summary['tabIndexValid'] ? [] : ['invalid-tabindex-token'];
         }
+
+        $summary += self::focusNavigationReviewSummary($summary, $attributes);
 
         if (array_key_exists('inputmode', $attributes)) {
             $inputMode = self::inputModeState($attributes['inputmode']);
@@ -18829,6 +19164,46 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function focusNavigationReviewSummary(array $summary, array $attributes): array
+    {
+        $focusAttributes = [];
+        foreach (['accesskey', 'autofocus', 'tabindex'] as $attribute) {
+            if (array_key_exists($attribute, $attributes)) {
+                $focusAttributes[] = $attribute;
+            }
+        }
+
+        if ($focusAttributes === []) {
+            return [];
+        }
+
+        $issueCodes = [];
+        foreach (['accessKeyIssueCodes', 'tabIndexIssueCodes', 'autofocusIssueCodes', 'autofocusOrderIssueCodes'] as $field) {
+            $codes = $summary[$field] ?? [];
+            if (!is_array($codes)) {
+                continue;
+            }
+
+            foreach ($codes as $code) {
+                if (is_string($code) && $code !== '' && !in_array($code, $issueCodes, true)) {
+                    $issueCodes[] = $code;
+                }
+            }
+        }
+
+        return [
+            'focusNavigationReviewPolicy' => 'html-focus-navigation-review',
+            'focusNavigationAttributes' => $focusAttributes,
+            'focusNavigationIssueCodes' => $issueCodes,
+            'focusNavigationValid' => $issueCodes === [],
+        ];
     }
 
     /**
@@ -21773,6 +22148,31 @@ final class XmlHtmlDom
         }
 
         return preg_match_all('/./us', $token) === 1;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return list<string>
+     */
+    private static function accessKeyIssueCodes(array $summary): array
+    {
+        $issueCodes = [];
+
+        $tokens = $summary['accessKeyTokens'] ?? [];
+        if ($tokens === []) {
+            $issueCodes[] = 'empty-accesskey-token-list';
+        }
+        if (($summary['invalidAccessKeyTokens'] ?? []) !== []) {
+            $issueCodes[] = 'invalid-accesskey-token';
+        }
+        if (($summary['duplicateAccessKeyTokens'] ?? []) !== []) {
+            $issueCodes[] = 'duplicate-accesskey-token';
+        }
+        if (($summary['accessKeyHasConflict'] ?? false) === true) {
+            $issueCodes[] = 'document-accesskey-conflict';
+        }
+
+        return $issueCodes;
     }
 
     /**
@@ -25797,6 +26197,7 @@ final class XmlHtmlDom
         ];
         $summary += self::mediaTextTrackReviewSummary($element);
         $summary += self::mediaPolicyReviewSummary($element);
+        $summary += self::mediaPreloadReviewSummary($element);
 
         if ($name === 'video') {
             $summary['poster'] = self::attributeOrNull($element, 'poster');
@@ -26105,6 +26506,9 @@ final class XmlHtmlDom
             'loading' => self::attributeOrNull($iframe, 'loading'),
             'referrerpolicy' => self::attributeOrNull($iframe, 'referrerpolicy'),
             'allow' => self::attributeOrNull($iframe, 'allow'),
+            'csp' => self::attributeOrNull($iframe, 'csp'),
+            'credentialless' => $iframe->hasAttribute('credentialless'),
+            'credentiallessRaw' => self::attributeOrNull($iframe, 'credentialless'),
             'sandboxTokens' => $iframe->hasAttribute('sandbox') ? self::spaceSeparatedTokens($iframe->getAttribute('sandbox')) : [],
             'allowFullscreen' => $iframe->hasAttribute('allowfullscreen'),
         ];
@@ -26171,9 +26575,57 @@ final class XmlHtmlDom
             }
         }
 
+        if ($iframe->hasAttribute('credentialless')) {
+            $summary += self::iframeCredentiallessPolicySummary($iframe->getAttribute('credentialless'));
+        }
+
+        if ($iframe->hasAttribute('csp')) {
+            $csp = self::iframeContentSecurityPolicySummary($iframe->getAttribute('csp'));
+            $summary += $csp;
+            if (($csp['iframeCspValid'] ?? true) !== true) {
+                $summary['iframePolicyIssueCodes'][] = 'invalid-iframe-csp-policy';
+            }
+        }
+
         $summary['allowFullscreen'] = $iframe->hasAttribute('allowfullscreen');
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeCredentiallessPolicySummary(string $value): array
+    {
+        return [
+            'iframeCredentiallessReviewPolicy' => 'iframe-credentialless-attribute-review',
+            'iframeCredentiallessRaw' => $value,
+            'iframeCredentialless' => true,
+            'iframeCredentialMode' => 'credentialless',
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function iframeContentSecurityPolicySummary(string $value): array
+    {
+        $csp = self::metaContentSecurityPolicySummary($value, 'iframe-csp');
+        $issueCodes = array_values(array_map(
+            static fn (string $code): string => $code === 'missing-meta-csp-content'
+                ? 'empty-iframe-csp'
+                : $code,
+            $csp['cspIssueCodes']
+        ));
+
+        return $csp + [
+            'iframeCspReviewPolicy' => 'iframe-csp-attribute-review',
+            'iframeCspRaw' => $value,
+            'iframeCspByteLength' => strlen($value),
+            'iframeCspSha256' => hash('sha256', $value),
+            'iframeCspIssueCodes' => $issueCodes,
+            'iframeCspValid' => $issueCodes === [],
+        ];
     }
 
     /**
@@ -26916,6 +27368,41 @@ final class XmlHtmlDom
         $preload = strtolower(trim($media->getAttribute('preload')));
 
         return in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : 'auto';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaPreloadReviewSummary(\DOMElement $media): array
+    {
+        $raw = self::attributeOrNull($media, 'preload');
+        $normalized = $raw === null ? null : strtolower(trim($raw));
+        $keyword = match ($normalized) {
+            null => null,
+            '', 'auto' => 'auto',
+            'metadata' => 'metadata',
+            'none' => 'none',
+            default => null,
+        };
+        $issueCodes = $raw !== null && $keyword === null ? ['invalid-media-preload-token'] : [];
+
+        return [
+            'mediaPreloadReviewPolicy' => 'media-preload-state-review',
+            'preloadRaw' => $raw,
+            'preloadKeyword' => $keyword,
+            'preloadState' => $keyword ?? 'auto',
+            'preloadValid' => $raw === null ? null : $keyword !== null,
+            'preloadDefaulted' => $raw === null || $normalized === '' || $keyword === null,
+            'preloadDefaultReason' => match (true) {
+                $raw === null => 'missing-attribute',
+                $normalized === '' => 'empty-attribute',
+                $keyword === null => 'invalid-token',
+                default => null,
+            },
+            'preloadAutoplayOverride' => $media->hasAttribute('autoplay'),
+            'mediaPreloadIssueCodes' => $issueCodes,
+            'mediaPreloadIssueCount' => count($issueCodes),
+        ];
     }
 
     /**

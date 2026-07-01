@@ -30,6 +30,8 @@ final class DocxOpenXmlReader
     private const NS_O = 'urn:schemas-microsoft-com:office:office';
     private const NS_DS = 'http://schemas.openxmlformats.org/officeDocument/2006/customXml';
     private const NS_ACTIVEX = 'http://schemas.microsoft.com/office/2006/activeX';
+    private const NS_CUSTOM_UI = 'http://schemas.microsoft.com/office/2006/01/customui';
+    private const NS_CUSTOM_UI2 = 'http://schemas.microsoft.com/office/2009/07/customui';
     private const OFFICE_DOCUMENT_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const CORE_PROPERTIES_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
     private const EXTENDED_PROPERTIES_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties';
@@ -76,6 +78,9 @@ final class DocxOpenXmlReader
     private const VBA_PROJECT_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProject';
     private const VBA_PROJECT_SIGNATURE_REL = 'http://schemas.microsoft.com/office/2006/relationships/vbaProjectSignature';
     private const VBA_DATA_REL = 'http://schemas.microsoft.com/office/2006/relationships/wordVbaData';
+    private const CUSTOM_UI_REL = 'http://schemas.microsoft.com/office/2006/relationships/ui/extensibility';
+    private const CUSTOM_UI2_REL = 'http://schemas.microsoft.com/office/2007/relationships/ui/extensibility';
+    private const CUSTOM_UI_QAT_REL = 'http://schemas.microsoft.com/office/2006/relationships/ui/userCustomization';
     private const THUMBNAIL_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/thumbnail';
     private const DIGITAL_SIGNATURE_ORIGIN_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/origin';
     private const DIGITAL_SIGNATURE_SIGNATURE_REL = 'http://schemas.openxmlformats.org/package/2006/relationships/digital-signature/signature';
@@ -233,8 +238,31 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceExternalCount'] = $packageRootResources['externalCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipCount'] = $packageRootResources['targetRelationshipCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipRecordCount'] = $packageRootResources['targetRelationshipRecordCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipExistingTargetCount'] = $packageRootResources['targetRelationshipExistingTargetCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipMissingTargetCount'] = $packageRootResources['targetRelationshipMissingTargetCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipExternalTargetCount'] = $packageRootResources['targetRelationshipExternalTargetCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipAllowedExternalTargetCount'] = $packageRootResources['targetRelationshipAllowedExternalTargetCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipUnsafeExternalTargetCount'] = $packageRootResources['targetRelationshipUnsafeExternalTargetCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipMissingContentTypeTargetCount'] = $packageRootResources['targetRelationshipMissingContentTypeTargetCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipIssueCount'] = $packageRootResources['targetRelationshipIssueCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipIssueCodes'] = $packageRootResources['targetRelationshipIssueCodes'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCount'] = $packageRootResources['issueCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCodes'] = $packageRootResources['issueCodes'];
+        $customUiParts = $this->packageCustomUiProvenance($parts, $rootRelationships, $contentTypes);
+        $packageProvenance['customUiParts'] = $customUiParts;
+        $packageProvenance['summary']['customUiPartCount'] = $customUiParts['count'];
+        $packageProvenance['summary']['customUiPartExistingCount'] = $customUiParts['existingCount'];
+        $packageProvenance['summary']['customUiPartMissingCount'] = $customUiParts['missingCount'];
+        $packageProvenance['summary']['customUiPartExternalCount'] = $customUiParts['externalCount'];
+        $packageProvenance['summary']['customUiPartValidRootCount'] = $customUiParts['validRootCount'];
+        $packageProvenance['summary']['customUiPartInvalidRootCount'] = $customUiParts['invalidRootCount'];
+        $packageProvenance['summary']['customUiPartInvalidXmlCount'] = $customUiParts['invalidXmlCount'];
+        $packageProvenance['summary']['customUiImageRelationshipCount'] = $customUiParts['imageRelationshipCount'];
+        $packageProvenance['summary']['customUiImageRelationshipExistingCount'] = $customUiParts['imageExistingCount'];
+        $packageProvenance['summary']['customUiImageRelationshipMissingCount'] = $customUiParts['imageMissingCount'];
+        $packageProvenance['summary']['customUiImageRelationshipExternalCount'] = $customUiParts['imageExternalCount'];
+        $packageProvenance['summary']['customUiIssueCount'] = $customUiParts['issueCount'];
+        $packageProvenance['summary']['customUiIssueCodes'] = $customUiParts['issueCodes'];
         $stylesPart = $this->stylesPart($parts, $documentRelationships, $documentPart);
         $stylesWithEffectsPart = $this->relatedDocumentPart($parts, $documentRelationships, $documentPart, self::STYLES_WITH_EFFECTS_REL, 'stylesWithEffects.xml');
         $styles = $this->readStyles($stylesPart['xml'], $stylesPart['partName']);
@@ -1039,6 +1067,39 @@ final class DocxOpenXmlReader
             $packageProvenance['summary']['settingsViewStateIssueCount'] = (int) ($viewStateDetails['issueCount'] ?? 0);
             $packageProvenance['summary']['settingsViewStateIssueCodes'] = $viewStateDetails['issueCodes'] ?? [];
         }
+        $protectionDetails = $settings['protectionDetails'] ?? null;
+        if (is_array($protectionDetails)) {
+            $packageProvenance['summary']['settingsProtectionCount'] = (int) ($protectionDetails['count'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionKinds'] = $protectionDetails['kinds'] ?? [];
+            $packageProvenance['summary']['settingsProtectionHashValueCount'] = (int) ($protectionDetails['hashValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionSaltValueCount'] = (int) ($protectionDetails['saltValueCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionAlgorithmNameCount'] = (int) ($protectionDetails['algorithmNameCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionSpinCountAttributeCount'] = (int) ($protectionDetails['spinCountAttributeCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionCryptographicMetadataCount'] = (int) ($protectionDetails['cryptographicMetadataCount'] ?? 0);
+            $packageProvenance['summary']['settingsProtectionReviewPolicy'] = $protectionDetails['reviewPolicy'] ?? 'settings-protection-metadata-only';
+
+            $byKind = is_array($protectionDetails['byKind'] ?? null) ? $protectionDetails['byKind'] : [];
+            $documentProtection = is_array($byKind['documentProtection'] ?? null) ? $byKind['documentProtection'] : null;
+            if ($documentProtection !== null) {
+                $packageProvenance['summary']['settingsDocumentProtectionPresent'] = true;
+                $packageProvenance['summary']['settingsDocumentProtectionEnforced'] = $documentProtection['enforcement'] ?? null;
+                $packageProvenance['summary']['settingsDocumentProtectionEdit'] = $documentProtection['edit'] ?? null;
+                $packageProvenance['summary']['settingsDocumentProtectionAlgorithmName'] = $documentProtection['algorithmName'] ?? null;
+                $packageProvenance['summary']['settingsDocumentProtectionHashValuePresent'] = $documentProtection['hashValuePresent'] ?? false;
+                $packageProvenance['summary']['settingsDocumentProtectionSaltValuePresent'] = $documentProtection['saltValuePresent'] ?? false;
+                $packageProvenance['summary']['settingsDocumentProtectionSpinCount'] = $documentProtection['spinCount'] ?? $documentProtection['cryptSpinCount'] ?? null;
+            }
+
+            $writeProtection = is_array($byKind['writeProtection'] ?? null) ? $byKind['writeProtection'] : null;
+            if ($writeProtection !== null) {
+                $packageProvenance['summary']['settingsWriteProtectionPresent'] = true;
+                $packageProvenance['summary']['settingsWriteProtectionRecommended'] = $writeProtection['recommended'] ?? null;
+                $packageProvenance['summary']['settingsWriteProtectionAlgorithmName'] = $writeProtection['algorithmName'] ?? null;
+                $packageProvenance['summary']['settingsWriteProtectionHashValuePresent'] = $writeProtection['hashValuePresent'] ?? false;
+                $packageProvenance['summary']['settingsWriteProtectionSaltValuePresent'] = $writeProtection['saltValuePresent'] ?? false;
+                $packageProvenance['summary']['settingsWriteProtectionSpinCount'] = $writeProtection['spinCount'] ?? $writeProtection['cryptSpinCount'] ?? null;
+            }
+        }
         $compatibilityDetails = $settings['compatibilityDetails'] ?? null;
         if (is_array($compatibilityDetails)) {
             $packageProvenance['summary']['settingsCompatibilityCount'] = (int) ($compatibilityDetails['count'] ?? 0);
@@ -1277,6 +1338,7 @@ final class DocxOpenXmlReader
                 'packageThumbnails' => $packageThumbnails,
                 'digitalSignatures' => $digitalSignatures,
                 'packageRootRelationshipResources' => $packageRootResources,
+                'customUiParts' => $customUiParts,
                 'media' => $media,
             ],
         ];
@@ -14001,6 +14063,7 @@ final class DocxOpenXmlReader
             array_keys($relationshipTargetBaseNameStemCounts),
             static fn (string $baseNameStem): bool => ($relationshipTargetBaseNameStemCounts[$baseNameStem] ?? 0) > 1,
         ));
+        $duplicateRelationshipTargetParts = $this->duplicateRelationshipTargetPartSummary($relationshipParts);
         ksort($relationshipTargetPathDepthCounts, SORT_NUMERIC);
         ksort($relationshipTargetPathDepths, SORT_NUMERIC);
         foreach ($relationshipTargetPathDepths as &$targetPathDepthSummary) {
@@ -14176,6 +14239,7 @@ final class DocxOpenXmlReader
                 (int) ($syntaxSuffixSummary['structuredSyntaxSourceCount'] ?? 0);
         }
         ksort($relationshipSourceContentTypeSyntaxSuffixCounts, SORT_STRING);
+        $relationshipSourceContentTypeParameters = $this->relationshipSourceContentTypeParameterSummary($relationshipSources);
         $relationshipSourceContentTypeParameterValues = $this->relationshipSourceContentTypeParameterValueSummary($relationshipSources);
         $relationshipSourceContentTypeParameterValueBucketCounts = [];
         foreach ($relationshipSourceContentTypeParameterValues as $parameterValueSummary) {
@@ -14419,9 +14483,11 @@ final class DocxOpenXmlReader
             'relationshipSourceContentTypeCounts' => $relationshipSourceContentTypeCounts,
             'relationshipSourceContentTypeSourceCounts' => $relationshipSourceContentTypeSourceCounts,
             'relationshipSourceParameterizedContentTypeCount' => $relationshipSourceParameterizedContentTypeCount,
+            'relationshipSourceContentTypeParameterCount' => array_sum($relationshipSourceContentTypeParameterNameCounts),
             'relationshipSourceContentTypeParameterNameCounts' => $relationshipSourceContentTypeParameterNameCounts,
             'relationshipSourceContentTypeParameterValueCounts' => $relationshipSourceContentTypeParameterValueCounts,
             'relationshipSourceContentTypeParameterSourceCounts' => $relationshipSourceContentTypeParameterSourceCounts,
+            'relationshipSourceContentTypeParameters' => $relationshipSourceContentTypeParameters,
             'relationshipSourceContentTypeParameterValueBucketCount' => count($relationshipSourceContentTypeParameterValues),
             'relationshipSourceContentTypeParameterValueBucketCounts' => $relationshipSourceContentTypeParameterValueBucketCounts,
             'relationshipSourceContentTypeParameterValues' => $relationshipSourceContentTypeParameterValues,
@@ -14501,6 +14567,10 @@ final class DocxOpenXmlReader
             'relationshipTargetMissingBaseNameStemCounts' => $relationshipTargetMissingBaseNameStemCounts,
             'duplicateRelationshipTargetBaseNameStemCount' => count($duplicateRelationshipTargetBaseNameStems),
             'duplicateRelationshipTargetBaseNameStems' => $duplicateRelationshipTargetBaseNameStems,
+            'duplicateRelationshipTargetPartCount' => $duplicateRelationshipTargetParts['groupCount'],
+            'duplicateRelationshipTargetPartRelationshipCount' => $duplicateRelationshipTargetParts['relationshipCount'],
+            'duplicateRelationshipTargetParts' => $duplicateRelationshipTargetParts['targetParts'],
+            'duplicateRelationshipTargetPartGroups' => $duplicateRelationshipTargetParts['groups'],
             'relationshipTargetBaseNameStems' => array_values($relationshipTargetBaseNameStems),
             'relationshipTargetPathDepthCount' => count($relationshipTargetPathDepths),
             'relationshipTargetPathDepthCounts' => $relationshipTargetPathDepthCounts,
@@ -14674,6 +14744,130 @@ final class DocxOpenXmlReader
             'unexpectedRootRelationshipParts' => $unexpectedRootRelationshipParts,
             'relationshipsWithExplicitInternalTargetMode' => $relationshipsWithExplicitInternalTargetMode,
             'relationshipsWithUnexpectedTargetMode' => $relationshipsWithUnexpectedTargetMode,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $relationshipParts
+     * @return array{groupCount:int, relationshipCount:int, targetParts:list<string>, groups:list<array<string, mixed>>}
+     */
+    private function duplicateRelationshipTargetPartSummary(array $relationshipParts): array
+    {
+        $groups = [];
+        foreach ($relationshipParts as $relationshipsPartName => $relationshipPart) {
+            foreach (($relationshipPart['relationships'] ?? []) as $relationship) {
+                if (!is_array($relationship) || ($relationship['external'] ?? false) === true) {
+                    continue;
+                }
+
+                $targetPart = is_string($relationship['targetPart'] ?? null) ? $relationship['targetPart'] : '';
+                if ($targetPart === '') {
+                    continue;
+                }
+
+                if (!isset($groups[$targetPart])) {
+                    $groups[$targetPart] = [
+                        'targetPart' => $targetPart,
+                        'relationshipCount' => 0,
+                        'existingTargetCount' => 0,
+                        'missingTargetCount' => 0,
+                        'sourceParts' => [],
+                        'relationshipParts' => [],
+                        'relationshipIds' => [],
+                        'relationshipTypes' => [],
+                        'targets' => [],
+                        'resolvedTargets' => [],
+                        'targetReferenceSuffixes' => [],
+                        'contentTypes' => [],
+                        'contentTypeSourceCounts' => [],
+                        'relationshipTypeCounts' => [],
+                        'relationships' => [],
+                    ];
+                }
+
+                ++$groups[$targetPart]['relationshipCount'];
+                if (($relationship['exists'] ?? false) === true) {
+                    ++$groups[$targetPart]['existingTargetCount'];
+                } else {
+                    ++$groups[$targetPart]['missingTargetCount'];
+                }
+
+                $relationshipType = is_string($relationship['type'] ?? null) ? $relationship['type'] : '';
+                $relationshipTypeKey = $relationshipType === '' ? '(missing-type)' : $relationshipType;
+                $groups[$targetPart]['relationshipTypeCounts'][$relationshipTypeKey] =
+                    ($groups[$targetPart]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+
+                $contentTypeSource = is_string($relationship['contentTypeSource'] ?? null)
+                    ? $relationship['contentTypeSource']
+                    : 'missing';
+                if ($contentTypeSource === '') {
+                    $contentTypeSource = 'missing';
+                }
+                $groups[$targetPart]['contentTypeSourceCounts'][$contentTypeSource] =
+                    ($groups[$targetPart]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+                $this->appendUniqueString(
+                    $groups[$targetPart]['sourceParts'],
+                    is_string($relationship['sourcePart'] ?? null) ? $relationship['sourcePart'] : null,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['relationshipParts'],
+                    is_string($relationship['relationshipsPart'] ?? null)
+                        ? $relationship['relationshipsPart']
+                        : (string) $relationshipsPartName,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['relationshipIds'],
+                    is_string($relationship['id'] ?? null) ? $relationship['id'] : null,
+                );
+                $this->appendUniqueString($groups[$targetPart]['relationshipTypes'], $relationshipType);
+                $this->appendUniqueString(
+                    $groups[$targetPart]['targets'],
+                    is_string($relationship['target'] ?? null) ? $relationship['target'] : null,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['resolvedTargets'],
+                    is_string($relationship['resolvedTarget'] ?? null) ? $relationship['resolvedTarget'] : null,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['targetReferenceSuffixes'],
+                    is_string($relationship['targetReferenceSuffix'] ?? null) ? $relationship['targetReferenceSuffix'] : null,
+                );
+                $this->appendUniqueString(
+                    $groups[$targetPart]['contentTypes'],
+                    is_string($relationship['contentType'] ?? null) ? $relationship['contentType'] : null,
+                );
+                $groups[$targetPart]['relationships'][] = $this->relationshipProvenanceSummaryItem($relationship);
+            }
+        }
+
+        ksort($groups, SORT_STRING);
+        $duplicates = [];
+        $relationshipCount = 0;
+        foreach ($groups as $targetPart => $group) {
+            if ((int) ($group['relationshipCount'] ?? 0) < 2) {
+                continue;
+            }
+
+            sort($group['sourceParts'], SORT_STRING);
+            sort($group['relationshipParts'], SORT_STRING);
+            sort($group['relationshipIds'], SORT_STRING);
+            sort($group['relationshipTypes'], SORT_STRING);
+            sort($group['targets'], SORT_STRING);
+            sort($group['resolvedTargets'], SORT_STRING);
+            sort($group['targetReferenceSuffixes'], SORT_STRING);
+            sort($group['contentTypes'], SORT_STRING);
+            ksort($group['contentTypeSourceCounts'], SORT_STRING);
+            ksort($group['relationshipTypeCounts'], SORT_STRING);
+            $duplicates[$targetPart] = $group;
+            $relationshipCount += (int) $group['relationshipCount'];
+        }
+
+        return [
+            'groupCount' => count($duplicates),
+            'relationshipCount' => $relationshipCount,
+            'targetParts' => array_keys($duplicates),
+            'groups' => array_values($duplicates),
         ];
     }
 
@@ -16002,6 +16196,12 @@ final class DocxOpenXmlReader
             $directory = is_string($part['directory'] ?? null)
                 ? $part['directory']
                 : $this->packagePartDirectory((string) $partName);
+            $directoryDepth = is_int($part['directoryDepth'] ?? null)
+                ? (int) $part['directoryDepth']
+                : $this->packagePartDirectoryDepth($directory);
+            $topLevelSegment = is_string($part['topLevelSegment'] ?? null)
+                ? $part['topLevelSegment']
+                : $this->packagePartTopLevelSegment((string) $partName);
             $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
                 ? $part['contentTypeSource']
                 : 'missing';
@@ -16015,6 +16215,8 @@ final class DocxOpenXmlReader
             $partSummary = [
                 'partName' => (string) ($part['partName'] ?? $partName),
                 'directory' => $directory,
+                'directoryDepth' => $directoryDepth,
+                'topLevelSegment' => $topLevelSegment,
                 'bytes' => $bytes,
                 'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
                 'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
@@ -16036,8 +16238,12 @@ final class DocxOpenXmlReader
                         'contentTypeSourceCounts' => [],
                         'contentTypeBaseCounts' => [],
                         'directories' => [],
+                        'directoryDepthCounts' => [],
+                        'topLevelSegmentCounts' => [],
+                        'topLevelSegments' => [],
                         'partNames' => [],
                         'largestPart' => null,
+                        'deepestPart' => null,
                     ];
                 }
 
@@ -16045,6 +16251,11 @@ final class DocxOpenXmlReader
                 $roles[$role]['byteLength'] += $bytes;
                 $roles[$role]['partNames'][] = (string) $partName;
                 $roles[$role]['directories'][$directory] = true;
+                $roles[$role]['directoryDepthCounts'][(string) $directoryDepth] =
+                    ($roles[$role]['directoryDepthCounts'][(string) $directoryDepth] ?? 0) + 1;
+                $roles[$role]['topLevelSegments'][$topLevelSegment] = true;
+                $roles[$role]['topLevelSegmentCounts'][$topLevelSegment] =
+                    ($roles[$role]['topLevelSegmentCounts'][$topLevelSegment] ?? 0) + 1;
                 $roles[$role]['contentTypeSourceCounts'][$contentTypeSource] =
                     ($roles[$role]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
                 $roles[$role]['contentTypeBaseCounts'][$contentTypeBaseKey] =
@@ -16071,17 +16282,34 @@ final class DocxOpenXmlReader
                 ) {
                     $roles[$role]['largestPart'] = $partSummary;
                 }
+
+                $deepestPart = $roles[$role]['deepestPart'];
+                if (
+                    !is_array($deepestPart)
+                    || $partSummary['directoryDepth'] > (int) ($deepestPart['directoryDepth'] ?? -1)
+                    || (
+                        $partSummary['directoryDepth'] === (int) ($deepestPart['directoryDepth'] ?? -1)
+                        && strcmp($partSummary['partName'], (string) ($deepestPart['partName'] ?? '')) < 0
+                    )
+                ) {
+                    $roles[$role]['deepestPart'] = $partSummary;
+                }
             }
         }
 
         ksort($roles, SORT_STRING);
         foreach ($roles as $role => $summary) {
             $directories = array_keys($summary['directories']);
+            $topLevelSegments = array_keys($summary['topLevelSegments']);
             sort($directories, SORT_STRING);
+            sort($topLevelSegments, SORT_STRING);
             sort($summary['partNames'], SORT_STRING);
+            ksort($summary['directoryDepthCounts'], SORT_NUMERIC);
+            ksort($summary['topLevelSegmentCounts'], SORT_STRING);
             ksort($summary['contentTypeSourceCounts'], SORT_STRING);
             ksort($summary['contentTypeBaseCounts'], SORT_STRING);
             $summary['directories'] = $directories;
+            $summary['topLevelSegments'] = $topLevelSegments;
             $roles[$role] = $summary;
         }
 
@@ -18771,6 +18999,198 @@ final class DocxOpenXmlReader
      * @param list<array<string, mixed>> $relationshipSources
      * @return list<array<string, mixed>>
      */
+    private function relationshipSourceContentTypeParameterSummary(array $relationshipSources): array
+    {
+        $parametersByName = [];
+        $bucketSourceKeys = [];
+        foreach ($relationshipSources as $source) {
+            $parameters = is_array($source['sourceContentTypeParameters'] ?? null)
+                ? $source['sourceContentTypeParameters']
+                : [];
+            if ($parameters === []) {
+                continue;
+            }
+
+            $sourcePart = is_string($source['sourcePart'] ?? null) ? $source['sourcePart'] : '';
+            $relationshipsPart = is_string($source['relationshipsPart'] ?? null) ? $source['relationshipsPart'] : '';
+            $sourceKey = $relationshipsPart . "\0" . $sourcePart;
+
+            foreach ($parameters as $parameter) {
+                if (!is_array($parameter)) {
+                    continue;
+                }
+
+                $parameterName = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                if ($parameterName === '') {
+                    continue;
+                }
+
+                $parameterValue = is_scalar($parameter['value'] ?? null) ? (string) $parameter['value'] : '';
+                $parameterValueKey = $parameterValue === '' ? '(empty)' : $parameterValue;
+                if (!isset($parametersByName[$parameterName])) {
+                    $parametersByName[$parameterName] = [
+                        'name' => $parameterName,
+                        'parameterOccurrenceCount' => 0,
+                        'sourceCount' => 0,
+                        'existingSourceCount' => 0,
+                        'nonExistingSourceCount' => 0,
+                        'relationshipCount' => 0,
+                        'relationshipRecordCount' => 0,
+                        'existingSourceByteLength' => 0,
+                        'valueCounts' => [],
+                        'relationshipSourceKindCounts' => [],
+                        'sourceContentTypeBaseCounts' => [],
+                        'sourceContentTypeSourceCounts' => [],
+                        'sourceDirectoryCounts' => [],
+                        'sourceBaseNameCounts' => [],
+                        'sourcePartExtensionCounts' => [],
+                        'sourceRoleCounts' => [],
+                        'sourceContentTypes' => [],
+                        'sourceParts' => [],
+                        'relationshipParts' => [],
+                        'largestExistingSourcePart' => null,
+                    ];
+                    $bucketSourceKeys[$parameterName] = [];
+                }
+
+                ++$parametersByName[$parameterName]['parameterOccurrenceCount'];
+                $parametersByName[$parameterName]['valueCounts'][$parameterValueKey] =
+                    ($parametersByName[$parameterName]['valueCounts'][$parameterValueKey] ?? 0) + 1;
+                if (isset($bucketSourceKeys[$parameterName][$sourceKey])) {
+                    continue;
+                }
+                $bucketSourceKeys[$parameterName][$sourceKey] = true;
+
+                ++$parametersByName[$parameterName]['sourceCount'];
+                $sourceExists = ($source['sourceExists'] ?? false) === true;
+                if ($sourceExists) {
+                    ++$parametersByName[$parameterName]['existingSourceCount'];
+                } else {
+                    ++$parametersByName[$parameterName]['nonExistingSourceCount'];
+                }
+                $parametersByName[$parameterName]['relationshipCount'] += (int) ($source['relationshipCount'] ?? 0);
+                $parametersByName[$parameterName]['relationshipRecordCount'] += (int) ($source['relationshipRecordCount'] ?? 0);
+
+                $sourceKind = is_string($source['relationshipSourceKind'] ?? null)
+                    ? $source['relationshipSourceKind']
+                    : 'invalid-source';
+                $parametersByName[$parameterName]['relationshipSourceKindCounts'][$sourceKind] =
+                    ($parametersByName[$parameterName]['relationshipSourceKindCounts'][$sourceKind] ?? 0) + 1;
+
+                $contentTypeBase = is_string($source['sourceContentTypeBase'] ?? null)
+                    ? $source['sourceContentTypeBase']
+                    : '';
+                $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+                $parametersByName[$parameterName]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] =
+                    ($parametersByName[$parameterName]['sourceContentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+                $contentTypeSource = is_string($source['sourceContentTypeSource'] ?? null)
+                    ? $source['sourceContentTypeSource']
+                    : '';
+                $contentTypeSourceKey = $contentTypeSource === '' ? '(missing)' : $contentTypeSource;
+                $parametersByName[$parameterName]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] =
+                    ($parametersByName[$parameterName]['sourceContentTypeSourceCounts'][$contentTypeSourceKey] ?? 0) + 1;
+
+                $directory = is_string($source['sourceDirectory'] ?? null) ? $source['sourceDirectory'] : '';
+                $directoryKey = $directory === '' ? '(invalid-source)' : $directory;
+                $parametersByName[$parameterName]['sourceDirectoryCounts'][$directoryKey] =
+                    ($parametersByName[$parameterName]['sourceDirectoryCounts'][$directoryKey] ?? 0) + 1;
+
+                $baseName = is_string($source['sourceBaseName'] ?? null) ? $source['sourceBaseName'] : '';
+                $baseNameKey = $baseName === '' ? '(invalid-source)' : $baseName;
+                $parametersByName[$parameterName]['sourceBaseNameCounts'][$baseNameKey] =
+                    ($parametersByName[$parameterName]['sourceBaseNameCounts'][$baseNameKey] ?? 0) + 1;
+
+                $extension = is_string($source['sourcePartExtension'] ?? null)
+                    ? $source['sourcePartExtension']
+                    : null;
+                $extensionKey = $extension ?? '(none)';
+                $parametersByName[$parameterName]['sourcePartExtensionCounts'][$extensionKey] =
+                    ($parametersByName[$parameterName]['sourcePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+                foreach (($source['sourceRoles'] ?? []) as $role) {
+                    $role = (string) $role;
+                    if ($role === '') {
+                        continue;
+                    }
+
+                    $parametersByName[$parameterName]['sourceRoleCounts'][$role] =
+                        ($parametersByName[$parameterName]['sourceRoleCounts'][$role] ?? 0) + 1;
+                }
+
+                $this->appendUniqueString(
+                    $parametersByName[$parameterName]['sourceContentTypes'],
+                    is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+                );
+                $this->appendUniqueString($parametersByName[$parameterName]['sourceParts'], $sourcePart);
+                $this->appendUniqueString($parametersByName[$parameterName]['relationshipParts'], $relationshipsPart);
+
+                if (is_int($source['sourceBytes'] ?? null)) {
+                    $sourceBytes = (int) $source['sourceBytes'];
+                    $parametersByName[$parameterName]['existingSourceByteLength'] += $sourceBytes;
+                    $sourceSummary = [
+                        'sourcePart' => $sourcePart,
+                        'relationshipsPart' => $relationshipsPart,
+                        'relationshipSourceKind' => $sourceKind,
+                        'sourceDirectory' => $directory === '' ? null : $directory,
+                        'sourceBaseName' => $baseName === '' ? null : $baseName,
+                        'sourcePartExtension' => $extension,
+                        'sourcePathDepth' => is_int($source['sourcePathDepth'] ?? null) ? (int) $source['sourcePathDepth'] : null,
+                        'sourceBytes' => $sourceBytes,
+                        'sourceCrc32' => is_string($source['sourceCrc32'] ?? null) ? $source['sourceCrc32'] : null,
+                        'sourceSha256' => is_string($source['sourceSha256'] ?? null) ? $source['sourceSha256'] : null,
+                        'sourceContentType' => is_string($source['sourceContentType'] ?? null) ? $source['sourceContentType'] : null,
+                        'sourceContentTypeBase' => $contentTypeBase === '' ? null : $contentTypeBase,
+                        'sourceContentTypeSource' => $contentTypeSource === '' ? null : $contentTypeSource,
+                        'sourceContentTypeParameterCount' => is_int($source['sourceContentTypeParameterCount'] ?? null)
+                            ? (int) $source['sourceContentTypeParameterCount']
+                            : count($parameters),
+                        'sourceContentTypeParameters' => $parameters,
+                        'sourceContentTypeParameterMap' => is_array($source['sourceContentTypeParameterMap'] ?? null)
+                            ? $source['sourceContentTypeParameterMap']
+                            : [],
+                        'sourceRoles' => array_values(array_map('strval', $source['sourceRoles'] ?? [])),
+                        'relationshipCount' => (int) ($source['relationshipCount'] ?? 0),
+                        'relationshipRecordCount' => (int) ($source['relationshipRecordCount'] ?? 0),
+                    ];
+                    $largestPart = $parametersByName[$parameterName]['largestExistingSourcePart'];
+                    if (
+                        !is_array($largestPart)
+                        || $sourceSummary['sourceBytes'] > (int) ($largestPart['sourceBytes'] ?? 0)
+                        || (
+                            $sourceSummary['sourceBytes'] === (int) ($largestPart['sourceBytes'] ?? 0)
+                            && strcmp($sourceSummary['sourcePart'], (string) ($largestPart['sourcePart'] ?? '')) < 0
+                        )
+                    ) {
+                        $parametersByName[$parameterName]['largestExistingSourcePart'] = $sourceSummary;
+                    }
+                }
+            }
+        }
+
+        ksort($parametersByName, SORT_STRING);
+        foreach ($parametersByName as $parameterName => $summary) {
+            ksort($summary['valueCounts'], SORT_STRING);
+            ksort($summary['relationshipSourceKindCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['sourceContentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['sourceDirectoryCounts'], SORT_STRING);
+            ksort($summary['sourceBaseNameCounts'], SORT_STRING);
+            ksort($summary['sourcePartExtensionCounts'], SORT_STRING);
+            ksort($summary['sourceRoleCounts'], SORT_STRING);
+            sort($summary['sourceContentTypes'], SORT_STRING);
+            sort($summary['sourceParts'], SORT_STRING);
+            sort($summary['relationshipParts'], SORT_STRING);
+            $parametersByName[$parameterName] = $summary;
+        }
+
+        return array_values($parametersByName);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipSources
+     * @return list<array<string, mixed>>
+     */
     private function relationshipSourceContentTypeParameterValueSummary(array $relationshipSources): array
     {
         $parameterValues = [];
@@ -20005,6 +20425,13 @@ final class DocxOpenXmlReader
         $targetRelationshipTypes = [];
         $targetRelationshipTargetParts = [];
         $targetRelationshipExternalTargets = [];
+        $targetRelationshipExistingTargetParts = [];
+        $targetRelationshipMissingTargetParts = [];
+        $targetRelationshipAllowedExternalTargets = [];
+        $targetRelationshipUnsafeExternalTargets = [];
+        $targetRelationshipContentTypes = [];
+        $targetRelationshipContentTypeBases = [];
+        $targetRelationshipIssueCodes = [];
         $issueCodes = [];
 
         foreach ($rootRelationships as $relationship) {
@@ -20021,24 +20448,67 @@ final class DocxOpenXmlReader
             $targetRelationships = $targetHasRelationships && $relationshipsPart !== null
                 ? $this->readRelationshipsPart($parts, $relationshipsPart)
                 : [];
+            $itemTargetRelationships = [];
             $targetRelationshipIds = [];
             $itemTargetRelationshipTypes = [];
             $itemTargetRelationshipTargetParts = [];
             $itemTargetRelationshipExternalTargets = [];
+            $itemTargetRelationshipExistingTargetParts = [];
+            $itemTargetRelationshipMissingTargetParts = [];
+            $itemTargetRelationshipAllowedExternalTargets = [];
+            $itemTargetRelationshipUnsafeExternalTargets = [];
+            $itemTargetRelationshipContentTypes = [];
+            $itemTargetRelationshipContentTypeBases = [];
+            $itemTargetRelationshipIssueCodes = [];
             foreach ($targetRelationships as $targetRelationship) {
                 $this->appendUniqueString($targetRelationshipIds, is_string($targetRelationship['id'] ?? null) ? $targetRelationship['id'] : null);
                 $this->appendUniqueString($itemTargetRelationshipTypes, is_string($targetRelationship['type'] ?? null) ? $targetRelationship['type'] : null);
-                if (($targetRelationship['targetMode'] ?? '') === 'External') {
-                    $this->appendUniqueString($itemTargetRelationshipExternalTargets, is_string($targetRelationship['target'] ?? null) ? $targetRelationship['target'] : null);
+                $targetRelationshipSummary = $this->packageRootRelationshipTargetRelationshipItem(
+                    $parts,
+                    $targetRelationship,
+                    $targetPart ?? '',
+                    $relationshipsPart ?? '',
+                    $contentTypes,
+                );
+                $itemTargetRelationships[] = $targetRelationshipSummary;
+
+                if (($targetRelationshipSummary['external'] ?? false) === true) {
+                    $externalTarget = is_string($targetRelationshipSummary['target'] ?? null)
+                        ? $targetRelationshipSummary['target']
+                        : null;
+                    $this->appendUniqueString($itemTargetRelationshipExternalTargets, $externalTarget);
+                    if (($targetRelationshipSummary['externalTargetAllowed'] ?? null) === true) {
+                        $this->appendUniqueString($itemTargetRelationshipAllowedExternalTargets, $externalTarget);
+                    } else {
+                        $this->appendUniqueString($itemTargetRelationshipUnsafeExternalTargets, $externalTarget);
+                    }
                 } else {
+                    $targetRelationshipTargetPart = is_string($targetRelationshipSummary['targetPart'] ?? null)
+                        ? $targetRelationshipSummary['targetPart']
+                        : null;
+                    $this->appendUniqueString($itemTargetRelationshipTargetParts, $targetRelationshipTargetPart);
+                    if (($targetRelationshipSummary['exists'] ?? false) === true) {
+                        $this->appendUniqueString($itemTargetRelationshipExistingTargetParts, $targetRelationshipTargetPart);
+                    } else {
+                        $this->appendUniqueString($itemTargetRelationshipMissingTargetParts, $targetRelationshipTargetPart);
+                    }
                     $this->appendUniqueString(
-                        $itemTargetRelationshipTargetParts,
-                        is_string($targetRelationship['resolvedTarget'] ?? null)
-                            ? $this->stripQueryAndFragment($targetRelationship['resolvedTarget'])
-                            : null,
+                        $itemTargetRelationshipContentTypes,
+                        is_string($targetRelationshipSummary['contentType'] ?? null) ? $targetRelationshipSummary['contentType'] : null,
+                    );
+                    $this->appendUniqueString(
+                        $itemTargetRelationshipContentTypeBases,
+                        is_string($targetRelationshipSummary['contentTypeBase'] ?? null) ? $targetRelationshipSummary['contentTypeBase'] : null,
                     );
                 }
+
+                foreach (($targetRelationshipSummary['issues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $itemTargetRelationshipIssueCodes[$issue] = true;
+                    }
+                }
             }
+            ksort($itemTargetRelationshipIssueCodes, SORT_STRING);
             $externalTargetIssues = is_array($summary['externalTargetIssues'] ?? null)
                 ? array_values(array_map('strval', $summary['externalTargetIssues']))
                 : [];
@@ -20097,6 +20567,28 @@ final class DocxOpenXmlReader
                 'targetRelationshipTypes' => $itemTargetRelationshipTypes,
                 'targetRelationshipTargetParts' => $itemTargetRelationshipTargetParts,
                 'targetRelationshipExternalTargets' => $itemTargetRelationshipExternalTargets,
+                'targetRelationshipExistingTargetCount' => count($itemTargetRelationshipExistingTargetParts),
+                'targetRelationshipMissingTargetCount' => count($itemTargetRelationshipMissingTargetParts),
+                'targetRelationshipExternalTargetCount' => count($itemTargetRelationshipExternalTargets),
+                'targetRelationshipAllowedExternalTargetCount' => count($itemTargetRelationshipAllowedExternalTargets),
+                'targetRelationshipUnsafeExternalTargetCount' => count($itemTargetRelationshipUnsafeExternalTargets),
+                'targetRelationshipMissingContentTypeTargetCount' => count(array_filter(
+                    $itemTargetRelationships,
+                    static fn (array $item): bool => ($item['external'] ?? false) !== true
+                        && ($item['contentTypeSource'] ?? '') === 'missing',
+                )),
+                'targetRelationshipIssueCount' => count(array_filter(
+                    $itemTargetRelationships,
+                    static fn (array $item): bool => ($item['issues'] ?? []) !== [],
+                )),
+                'targetRelationshipIssueCodes' => array_keys($itemTargetRelationshipIssueCodes),
+                'targetRelationshipExistingTargetParts' => $itemTargetRelationshipExistingTargetParts,
+                'targetRelationshipMissingTargetParts' => $itemTargetRelationshipMissingTargetParts,
+                'targetRelationshipAllowedExternalTargets' => $itemTargetRelationshipAllowedExternalTargets,
+                'targetRelationshipUnsafeExternalTargets' => $itemTargetRelationshipUnsafeExternalTargets,
+                'targetRelationshipContentTypes' => $itemTargetRelationshipContentTypes,
+                'targetRelationshipContentTypeBases' => $itemTargetRelationshipContentTypeBases,
+                'targetRelationships' => $itemTargetRelationships,
                 'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
                 'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
                 'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
@@ -20125,9 +20617,31 @@ final class DocxOpenXmlReader
             foreach ($itemTargetRelationshipExternalTargets as $targetRelationshipExternalTarget) {
                 $this->appendUniqueString($targetRelationshipExternalTargets, is_string($targetRelationshipExternalTarget) ? $targetRelationshipExternalTarget : null);
             }
+            foreach ($itemTargetRelationshipExistingTargetParts as $targetRelationshipExistingTargetPart) {
+                $this->appendUniqueString($targetRelationshipExistingTargetParts, is_string($targetRelationshipExistingTargetPart) ? $targetRelationshipExistingTargetPart : null);
+            }
+            foreach ($itemTargetRelationshipMissingTargetParts as $targetRelationshipMissingTargetPart) {
+                $this->appendUniqueString($targetRelationshipMissingTargetParts, is_string($targetRelationshipMissingTargetPart) ? $targetRelationshipMissingTargetPart : null);
+            }
+            foreach ($itemTargetRelationshipAllowedExternalTargets as $targetRelationshipAllowedExternalTarget) {
+                $this->appendUniqueString($targetRelationshipAllowedExternalTargets, is_string($targetRelationshipAllowedExternalTarget) ? $targetRelationshipAllowedExternalTarget : null);
+            }
+            foreach ($itemTargetRelationshipUnsafeExternalTargets as $targetRelationshipUnsafeExternalTarget) {
+                $this->appendUniqueString($targetRelationshipUnsafeExternalTargets, is_string($targetRelationshipUnsafeExternalTarget) ? $targetRelationshipUnsafeExternalTarget : null);
+            }
+            foreach ($itemTargetRelationshipContentTypes as $targetRelationshipContentType) {
+                $this->appendUniqueString($targetRelationshipContentTypes, is_string($targetRelationshipContentType) ? $targetRelationshipContentType : null);
+            }
+            foreach ($itemTargetRelationshipContentTypeBases as $targetRelationshipContentTypeBase) {
+                $this->appendUniqueString($targetRelationshipContentTypeBases, is_string($targetRelationshipContentTypeBase) ? $targetRelationshipContentTypeBase : null);
+            }
+            foreach (array_keys($itemTargetRelationshipIssueCodes) as $targetRelationshipIssueCode) {
+                $targetRelationshipIssueCodes[$targetRelationshipIssueCode] = true;
+            }
         }
 
         ksort($issueCodes, SORT_STRING);
+        ksort($targetRelationshipIssueCodes, SORT_STRING);
 
         return [
             'present' => $items !== [],
@@ -20143,6 +20657,13 @@ final class DocxOpenXmlReader
             'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
             'targetRelationshipCount' => count(array_filter($items, static fn (array $item): bool => $item['targetHasRelationships'] === true)),
             'targetRelationshipRecordCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipRecordCount'] ?? 0), $items)),
+            'targetRelationshipExistingTargetCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipExistingTargetCount'] ?? 0), $items)),
+            'targetRelationshipMissingTargetCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipMissingTargetCount'] ?? 0), $items)),
+            'targetRelationshipExternalTargetCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipExternalTargetCount'] ?? 0), $items)),
+            'targetRelationshipAllowedExternalTargetCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipAllowedExternalTargetCount'] ?? 0), $items)),
+            'targetRelationshipUnsafeExternalTargetCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipUnsafeExternalTargetCount'] ?? 0), $items)),
+            'targetRelationshipMissingContentTypeTargetCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipMissingContentTypeTargetCount'] ?? 0), $items)),
+            'targetRelationshipIssueCount' => array_sum(array_map(static fn (array $item): int => (int) ($item['targetRelationshipIssueCount'] ?? 0), $items)),
             'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])),
             'relationshipIds' => $relationshipIds,
             'relationshipTypes' => $relationshipTypes,
@@ -20152,6 +20673,13 @@ final class DocxOpenXmlReader
             'targetRelationshipTypes' => $targetRelationshipTypes,
             'targetRelationshipTargetParts' => $targetRelationshipTargetParts,
             'targetRelationshipExternalTargets' => $targetRelationshipExternalTargets,
+            'targetRelationshipExistingTargetParts' => $targetRelationshipExistingTargetParts,
+            'targetRelationshipMissingTargetParts' => $targetRelationshipMissingTargetParts,
+            'targetRelationshipAllowedExternalTargets' => $targetRelationshipAllowedExternalTargets,
+            'targetRelationshipUnsafeExternalTargets' => $targetRelationshipUnsafeExternalTargets,
+            'targetRelationshipContentTypes' => $targetRelationshipContentTypes,
+            'targetRelationshipContentTypeBases' => $targetRelationshipContentTypeBases,
+            'targetRelationshipIssueCodes' => array_keys($targetRelationshipIssueCodes),
             'byteExposurePolicy' => 'package-root-relationship-bytes-blocked',
             'reviewPolicy' => 'package-root-relationship-metadata-only',
             'canExposeBytes' => false,
@@ -20159,6 +20687,476 @@ final class DocxOpenXmlReader
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
         ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function packageRootRelationshipTargetRelationshipItem(
+        array $parts,
+        array $relationship,
+        string $sourcePart,
+        string $relationshipsPart,
+        array $contentTypes
+    ): array {
+        $item = $this->relationshipInventorySummary($parts, $relationship, $sourcePart, $relationshipsPart, $contentTypes);
+        $issues = [];
+        if (($item['external'] ?? false) === true) {
+            foreach (($item['externalTargetIssues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issues[] = $issue;
+                }
+            }
+        } else {
+            if (($item['exists'] ?? false) !== true) {
+                $issues[] = 'missing-package-root-target-relationship-target';
+            }
+            if (($item['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-package-root-target-relationship-content-type';
+            }
+        }
+
+        $item['canExposeBytes'] = false;
+        $item['byteExposurePolicy'] = 'package-root-target-relationship-bytes-blocked';
+        $item['reviewPolicy'] = 'package-root-target-relationship-metadata-only';
+        $item['valid'] = $issues === [];
+        $item['issues'] = array_values(array_unique($issues));
+
+        return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $rootRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function packageCustomUiProvenance(array $parts, array $rootRelationships, array $contentTypes): array
+    {
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $relationshipTypes = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $rootNamespaces = [];
+        $kinds = [];
+        $issueCodes = [];
+        $imageRelationshipCount = 0;
+        $imageExistingCount = 0;
+        $imageMissingCount = 0;
+        $imageExternalCount = 0;
+        $imageIssueCount = 0;
+
+        foreach ($rootRelationships as $relationship) {
+            if (!$this->isCustomUiRelationshipType($relationship['type'])) {
+                continue;
+            }
+
+            $summary = $this->relationshipInventorySummary($parts, $relationship, '/', '_rels/.rels', $contentTypes);
+            $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $external = (bool) ($summary['external'] ?? false);
+            $exists = (bool) ($summary['exists'] ?? false);
+            $relationshipType = is_string($summary['type'] ?? null) ? $summary['type'] : '';
+            $kind = $this->customUiRelationshipKind($relationshipType);
+            $expectedRootNamespace = $this->customUiExpectedRootNamespace($relationshipType);
+            $rootProvenance = null;
+            $validXml = null;
+            $validRoot = null;
+            $rootNamespace = null;
+            $rootLocalName = null;
+            $rootQualifiedName = null;
+            $rootPrefix = null;
+            $rootAttributeCount = 0;
+            $rootNamespaceDeclarationCount = 0;
+            $rootNamespacePrefixes = [];
+            $xmlParseError = null;
+            $issues = [];
+
+            if ($external) {
+                $issues[] = 'external-custom-ui-target';
+                $externalTargetIssues = is_array($summary['externalTargetIssues'] ?? null)
+                    ? array_values(array_map('strval', $summary['externalTargetIssues']))
+                    : [];
+                $issues = array_merge($issues, $externalTargetIssues);
+            } elseif (!$exists) {
+                $issues[] = 'missing-custom-ui-part';
+            } elseif ($targetPart !== null) {
+                $rootProvenance = $this->xmlRootProvenance($parts[$targetPart], $targetPart);
+                $validXml = $rootProvenance['validXml'];
+                $xmlParseError = $rootProvenance['xmlParseError'];
+                $rootNamespace = $rootProvenance['namespace'];
+                $rootLocalName = $rootProvenance['localName'];
+                $rootQualifiedName = $rootProvenance['qualifiedName'];
+                $rootPrefix = $rootProvenance['prefix'];
+                $rootAttributeCount = $rootProvenance['attributeCount'];
+                $rootNamespaceDeclarationCount = $rootProvenance['namespaceDeclarationCount'];
+                $rootNamespacePrefixes = $rootProvenance['namespacePrefixes'];
+                $validRoot = $validXml === true
+                    && $rootNamespace === $expectedRootNamespace
+                    && $rootLocalName === 'customUI';
+
+                if ($validXml !== true) {
+                    $issues[] = 'invalid-custom-ui-xml';
+                } elseif ($validRoot !== true) {
+                    $issues[] = 'unexpected-custom-ui-root';
+                }
+            }
+
+            if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+                $issues[] = 'missing-custom-ui-content-type';
+            } elseif (
+                !$external
+                && $summary['contentTypeBase'] !== ''
+                && $summary['contentTypeBase'] !== 'application/xml'
+            ) {
+                $issues[] = 'unexpected-custom-ui-content-type';
+            }
+
+            $images = $targetPart === null
+                ? $this->emptyCustomUiImageRelationships(null)
+                : $this->customUiImageRelationships($parts, $targetPart, $contentTypes);
+            $imageRelationshipCount += $images['count'];
+            $imageExistingCount += $images['existingCount'];
+            $imageMissingCount += $images['missingCount'];
+            $imageExternalCount += $images['externalCount'];
+            $imageIssueCount += $images['issueCount'];
+            foreach ($images['issueCodes'] as $imageIssueCode) {
+                if (is_string($imageIssueCode) && $imageIssueCode !== '') {
+                    $issueCodes[$imageIssueCode] = true;
+                }
+            }
+
+            $issues = array_values(array_unique($issues));
+            sort($issues, SORT_STRING);
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+
+            $item = [
+                'source' => '/',
+                'id' => $summary['id'],
+                'type' => $summary['type'],
+                'kind' => $kind,
+                'target' => $summary['target'],
+                'targetMode' => $summary['targetMode'],
+                'external' => $external,
+                'resolvedTarget' => $summary['resolvedTarget'],
+                'targetPart' => $targetPart,
+                'targetQuery' => $summary['targetQuery'],
+                'targetFragment' => $summary['targetFragment'],
+                'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+                'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
+                'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
+                'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
+                'sameSourcePart' => $summary['sameSourcePart'],
+                'externalTargetKind' => $summary['externalTargetKind'],
+                'externalTargetScheme' => $summary['externalTargetScheme'],
+                'externalTargetAllowed' => $summary['externalTargetAllowed'],
+                'externalTargetIssues' => $summary['externalTargetIssues'],
+                'exists' => $exists,
+                'contentType' => $summary['contentType'],
+                'contentTypeBase' => $summary['contentTypeBase'],
+                'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+                'contentTypeParameters' => $summary['contentTypeParameters'],
+                'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+                'contentTypeSource' => $summary['contentTypeSource'],
+                'defaultExtension' => $summary['defaultExtension'],
+                'overridePartName' => $summary['overridePartName'],
+                'expectedContentTypeBase' => 'application/xml',
+                'expectedRootNamespace' => $expectedRootNamespace,
+                'expectedRootLocalName' => 'customUI',
+                'validXml' => $validXml,
+                'xmlParseError' => $xmlParseError,
+                'validRoot' => $validRoot,
+                'rootNamespace' => $rootNamespace,
+                'rootLocalName' => $rootLocalName,
+                'rootQualifiedName' => $rootQualifiedName,
+                'rootPrefix' => $rootPrefix,
+                'rootAttributeCount' => $rootAttributeCount,
+                'rootNamespaceDeclarationCount' => $rootNamespaceDeclarationCount,
+                'rootNamespacePrefixes' => $rootNamespacePrefixes,
+                'relationshipsPart' => '_rels/.rels',
+                'targetRelationshipsPart' => $images['relationshipsPart'],
+                'targetRelationshipCount' => $images['relationshipCount'],
+                'imageRelationships' => $images,
+                'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+                'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+                'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+                'canExposeBytes' => false,
+                'byteExposurePolicy' => 'custom-ui-bytes-blocked',
+                'reviewPolicy' => 'custom-ui-metadata-only',
+                'valid' => $issues === [] && $images['issueCount'] === 0,
+                'issues' => $issues,
+            ];
+
+            $items[] = $item;
+            $byRelationshipId[(string) $item['id']] = $item;
+            $relationshipIds[] = (string) $item['id'];
+            $this->appendUniqueString($relationshipTypes, is_string($item['type'] ?? null) ? $item['type'] : null);
+            $this->appendUniqueString($targetParts, $targetPart);
+            if ($external) {
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($summary['contentType'] ?? null) ? $summary['contentType'] : null);
+            $this->appendUniqueString($rootNamespaces, is_string($rootNamespace) ? $rootNamespace : null);
+            $this->appendUniqueString($kinds, $kind);
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'present' => $items !== [],
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'existingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'validRootCount' => count(array_filter($items, static fn (array $item): bool => $item['validRoot'] === true)),
+            'invalidRootCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-custom-ui-root', $item['issues'], true))),
+            'invalidXmlCount' => count(array_filter($items, static fn (array $item): bool => in_array('invalid-custom-ui-xml', $item['issues'], true))),
+            'imageRelationshipCount' => $imageRelationshipCount,
+            'imageExistingCount' => $imageExistingCount,
+            'imageMissingCount' => $imageMissingCount,
+            'imageExternalCount' => $imageExternalCount,
+            'imageIssueCount' => $imageIssueCount,
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])) + $imageIssueCount,
+            'relationshipIds' => $relationshipIds,
+            'relationshipTypes' => $relationshipTypes,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'rootNamespaces' => $rootNamespaces,
+            'kinds' => $kinds,
+            'byteExposurePolicy' => 'custom-ui-bytes-blocked',
+            'reviewPolicy' => 'custom-ui-metadata-only',
+            'canExposeBytes' => false,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyCustomUiImageRelationships(?string $relationshipsPart): array
+    {
+        return [
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipCount' => 0,
+            'count' => 0,
+            'existingCount' => 0,
+            'missingCount' => 0,
+            'externalCount' => 0,
+            'unexpectedRelationshipTypeCount' => 0,
+            'issueCount' => 0,
+            'relationshipIds' => [],
+            'targetParts' => [],
+            'externalTargets' => [],
+            'contentTypes' => [],
+            'issueCodes' => [],
+            'byteExposurePolicy' => 'custom-ui-image-bytes-blocked',
+            'reviewPolicy' => 'custom-ui-image-metadata-only',
+            'canExposeBytes' => false,
+            'byRelationshipId' => [],
+            'items' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function customUiImageRelationships(array $parts, string $customUiPart, array $contentTypes): array
+    {
+        $relationshipsPart = $this->relationshipsPartFor($customUiPart);
+        if (!isset($parts[$relationshipsPart])) {
+            return $this->emptyCustomUiImageRelationships($relationshipsPart);
+        }
+
+        $relationships = $this->readRelationshipsPart($parts, $relationshipsPart);
+        $items = [];
+        $byRelationshipId = [];
+        $relationshipIds = [];
+        $targetParts = [];
+        $externalTargets = [];
+        $contentTypesSeen = [];
+        $issueCodes = [];
+        $unexpectedRelationshipTypeCount = 0;
+
+        foreach ($relationships as $relationship) {
+            if ($relationship['type'] !== self::IMAGE_REL) {
+                ++$unexpectedRelationshipTypeCount;
+                $issueCodes['unexpected-custom-ui-relationship-type'] = true;
+                continue;
+            }
+
+            $item = $this->customUiImageRelationshipItem(
+                $parts,
+                $relationship,
+                $customUiPart,
+                $relationshipsPart,
+                $contentTypes,
+                count($items),
+            );
+            $items[] = $item;
+            $byRelationshipId[(string) $item['relationshipId']] = $item;
+            $relationshipIds[] = (string) $item['relationshipId'];
+            $this->appendUniqueString($targetParts, is_string($item['targetPart'] ?? null) ? $item['targetPart'] : null);
+            if (($item['external'] ?? false) === true) {
+                $this->appendUniqueString($externalTargets, is_string($item['target'] ?? null) ? $item['target'] : null);
+            }
+            $this->appendUniqueString($contentTypesSeen, is_string($item['contentType'] ?? null) ? $item['contentType'] : null);
+            foreach (($item['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $issueCodes[$issue] = true;
+                }
+            }
+        }
+
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipCount' => count($relationships),
+            'count' => count($items),
+            'existingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === true,
+            )),
+            'missingCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['external'] === false && $item['exists'] === false,
+            )),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'unexpectedRelationshipTypeCount' => $unexpectedRelationshipTypeCount,
+            'issueCount' => count(array_filter($items, static fn (array $item): bool => $item['issues'] !== [])) + $unexpectedRelationshipTypeCount,
+            'relationshipIds' => $relationshipIds,
+            'targetParts' => $targetParts,
+            'externalTargets' => $externalTargets,
+            'contentTypes' => $contentTypesSeen,
+            'issueCodes' => array_keys($issueCodes),
+            'byteExposurePolicy' => 'custom-ui-image-bytes-blocked',
+            'reviewPolicy' => 'custom-ui-image-metadata-only',
+            'canExposeBytes' => false,
+            'byRelationshipId' => $byRelationshipId,
+            'items' => $items,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string} $relationship
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function customUiImageRelationshipItem(
+        array $parts,
+        array $relationship,
+        string $customUiPart,
+        string $relationshipsPart,
+        array $contentTypes,
+        int $index,
+    ): array {
+        $summary = $this->relationshipInventorySummary($parts, $relationship, $customUiPart, $relationshipsPart, $contentTypes);
+        $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+        $exists = (bool) ($summary['exists'] ?? false);
+        $external = (bool) ($summary['external'] ?? false);
+        $issues = [];
+
+        if ($external) {
+            $issues[] = 'external-custom-ui-image';
+            $externalTargetIssues = is_array($summary['externalTargetIssues'] ?? null)
+                ? array_values(array_map('strval', $summary['externalTargetIssues']))
+                : [];
+            $issues = array_merge($issues, $externalTargetIssues);
+        } elseif (!$exists) {
+            $issues[] = 'missing-custom-ui-image';
+        }
+        if (!$external && ($summary['contentTypeSource'] ?? '') === 'missing') {
+            $issues[] = 'missing-custom-ui-image-content-type';
+        } elseif (!$external && $summary['contentTypeBase'] !== '' && !$this->isImageContentType((string) $summary['contentTypeBase'])) {
+            $issues[] = 'unexpected-custom-ui-image-content-type';
+        }
+
+        $issues = array_values(array_unique($issues));
+        sort($issues, SORT_STRING);
+
+        return [
+            'index' => $index,
+            'sourcePart' => $customUiPart,
+            'relationshipsPart' => $relationshipsPart,
+            'relationshipId' => $summary['id'],
+            'type' => $summary['type'],
+            'target' => $summary['target'],
+            'targetMode' => $summary['targetMode'],
+            'external' => $external,
+            'resolvedTarget' => $summary['resolvedTarget'],
+            'targetPart' => $targetPart,
+            'targetQuery' => $summary['targetQuery'],
+            'targetFragment' => $summary['targetFragment'],
+            'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+            'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
+            'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
+            'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
+            'sameSourcePart' => $summary['sameSourcePart'],
+            'externalTargetKind' => $summary['externalTargetKind'],
+            'externalTargetScheme' => $summary['externalTargetScheme'],
+            'externalTargetAllowed' => $summary['externalTargetAllowed'],
+            'externalTargetIssues' => $summary['externalTargetIssues'],
+            'exists' => $exists,
+            'contentType' => $summary['contentType'],
+            'contentTypeBase' => $summary['contentTypeBase'],
+            'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+            'contentTypeParameters' => $summary['contentTypeParameters'],
+            'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+            'contentTypeSource' => $summary['contentTypeSource'],
+            'defaultExtension' => $summary['defaultExtension'],
+            'overridePartName' => $summary['overridePartName'],
+            'byteLength' => $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+            'crc32' => $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+            'sha256' => $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+            'canExposeBytes' => false,
+            'byteExposurePolicy' => 'custom-ui-image-bytes-blocked',
+            'reviewPolicy' => 'custom-ui-image-metadata-only',
+            'valid' => $issues === [],
+            'issues' => $issues,
+        ];
+    }
+
+    private function isCustomUiRelationshipType(string $relationshipType): bool
+    {
+        return $relationshipType === self::CUSTOM_UI_REL
+            || $relationshipType === self::CUSTOM_UI2_REL
+            || $relationshipType === self::CUSTOM_UI_QAT_REL;
+    }
+
+    private function customUiRelationshipKind(string $relationshipType): string
+    {
+        return match ($relationshipType) {
+            self::CUSTOM_UI2_REL => 'ribbon-custom-ui2',
+            self::CUSTOM_UI_QAT_REL => 'quick-access-toolbar',
+            default => 'ribbon-custom-ui',
+        };
+    }
+
+    private function customUiExpectedRootNamespace(string $relationshipType): string
+    {
+        return $relationshipType === self::CUSTOM_UI2_REL ? self::NS_CUSTOM_UI2 : self::NS_CUSTOM_UI;
     }
 
     /**
@@ -22819,6 +23817,14 @@ final class DocxOpenXmlReader
             $this->addPartRole($rolesByPart, $targetPart, 'root-relationship-target');
             $this->addRelationshipTargetInventoryRole($rolesByPart, $targetPart, $relationship['type']);
         }
+        $customUiSourceParts = [];
+        foreach ($rootRelationships as $relationship) {
+            if (!$this->isCustomUiRelationshipType($relationship['type']) || $this->isExternalRelationshipTarget($relationship)) {
+                continue;
+            }
+
+            $customUiSourceParts[$this->stripQueryAndFragment($relationship['resolvedTarget'])] = true;
+        }
         foreach ($documentRelationships as $relationship) {
             if ($this->isExternalRelationshipTarget($relationship)) {
                 continue;
@@ -22858,6 +23864,7 @@ final class DocxOpenXmlReader
             $isNumberingRelationshipPart = $relationshipSourceContentTypeBase === self::CT_WORD_NUMBERING;
             $isThemeRelationshipPart = $relationshipSourceContentTypeBase === self::CT_THEME;
             $isGlossaryRelationshipPart = $relationshipSourceContentTypeBase === self::CT_WORD_GLOSSARY_DOCUMENT;
+            $isCustomUiRelationshipPart = isset($customUiSourceParts[$relationshipSourcePart]);
             $isHeaderFooterRelationshipPart = isset($headerFooterSourceParts[$relationshipSourcePart])
                 || in_array($relationshipSourceContentTypeBase, [self::CT_WORD_HEADER, self::CT_WORD_FOOTER], true);
             $isHeaderRelationshipPart = isset($headerFooterSourceTypes[$relationshipSourcePart]['header'])
@@ -22895,6 +23902,9 @@ final class DocxOpenXmlReader
                 }
                 if ($isGlossaryRelationshipPart && $relationship['type'] === self::HYPERLINK_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'glossary-document-hyperlink-target');
+                }
+                if ($isCustomUiRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'custom-ui-image');
                 }
                 if ($isHeaderFooterRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'header-footer-media');
@@ -23164,6 +24174,9 @@ final class DocxOpenXmlReader
             self::VBA_PROJECT_REL => 'vba-project',
             self::VBA_PROJECT_SIGNATURE_REL => 'vba-project-signature',
             self::VBA_DATA_REL => 'vba-data',
+            self::CUSTOM_UI_REL => 'custom-ui',
+            self::CUSTOM_UI2_REL => 'custom-ui2',
+            self::CUSTOM_UI_QAT_REL => 'custom-ui-quick-access-toolbar',
             default => null,
         };
     }
@@ -24324,6 +25337,11 @@ final class DocxOpenXmlReader
             }
         }
 
+        $protectionDetails = $this->settingsProtectionDetails($settings);
+        if ($protectionDetails !== []) {
+            $settings['protectionDetails'] = $protectionDetails;
+        }
+
         $revisionView = $this->firstElement($xpath, '/w:settings/w:revisionView', $dom);
         if ($revisionView instanceof \DOMElement) {
             $revisionViewSettings = [];
@@ -24438,6 +25456,88 @@ final class DocxOpenXmlReader
         }
 
         return $settings;
+    }
+
+    /**
+     * @param array<string, mixed> $settings
+     * @return array<string, mixed>
+     */
+    private function settingsProtectionDetails(array $settings): array
+    {
+        $items = [];
+        $byKind = [];
+        foreach (['documentProtection', 'writeProtection'] as $kind) {
+            $protection = $settings[$kind] ?? null;
+            if (!is_array($protection) || $protection === []) {
+                continue;
+            }
+
+            $item = [
+                'kind' => $kind,
+                'attributeCount' => count($protection),
+                'edit' => is_string($protection['edit'] ?? null) ? $protection['edit'] : null,
+                'enforcement' => is_bool($protection['enforcement'] ?? null) ? $protection['enforcement'] : null,
+                'recommended' => is_bool($protection['recommended'] ?? null) ? $protection['recommended'] : null,
+                'algorithmName' => is_string($protection['algorithmName'] ?? null) ? $protection['algorithmName'] : null,
+                'cryptProviderType' => is_string($protection['cryptProviderType'] ?? null) ? $protection['cryptProviderType'] : null,
+                'cryptAlgorithmClass' => is_string($protection['cryptAlgorithmClass'] ?? null) ? $protection['cryptAlgorithmClass'] : null,
+                'cryptAlgorithmType' => is_string($protection['cryptAlgorithmType'] ?? null) ? $protection['cryptAlgorithmType'] : null,
+                'cryptAlgorithmSid' => is_int($protection['cryptAlgorithmSid'] ?? null) ? $protection['cryptAlgorithmSid'] : null,
+                'spinCount' => is_int($protection['spinCount'] ?? null) ? $protection['spinCount'] : null,
+                'cryptSpinCount' => is_int($protection['cryptSpinCount'] ?? null) ? $protection['cryptSpinCount'] : null,
+                'reviewPolicy' => 'settings-protection-metadata-only',
+                'rawValueExposurePolicy' => 'settings-protection-hash-and-salt-values-hashed',
+                'cryptographicValidation' => false,
+            ];
+
+            foreach (['hashValue', 'saltValue'] as $valueKey) {
+                $value = $protection[$valueKey] ?? null;
+                $present = is_string($value) && $value !== '';
+                $item[$valueKey . 'Present'] = $present;
+                $item[$valueKey . 'Length'] = $present ? strlen($value) : 0;
+                $item[$valueKey . 'Sha256'] = $present ? hash('sha256', $value) : null;
+            }
+
+            $item['cryptographicMetadataPresent'] = $item['algorithmName'] !== null
+                || $item['hashValuePresent'] === true
+                || $item['saltValuePresent'] === true
+                || $item['spinCount'] !== null
+                || $item['cryptProviderType'] !== null
+                || $item['cryptAlgorithmClass'] !== null
+                || $item['cryptAlgorithmType'] !== null
+                || $item['cryptAlgorithmSid'] !== null
+                || $item['cryptSpinCount'] !== null;
+
+            $items[] = $item;
+            $byKind[$kind] = $item;
+        }
+
+        if ($items === []) {
+            return [];
+        }
+
+        $kinds = array_column($items, 'kind');
+        sort($kinds, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'kinds' => $kinds,
+            'documentProtectionPresent' => isset($byKind['documentProtection']),
+            'writeProtectionPresent' => isset($byKind['writeProtection']),
+            'hashValueCount' => count(array_filter($items, static fn (array $item): bool => $item['hashValuePresent'] === true)),
+            'saltValueCount' => count(array_filter($items, static fn (array $item): bool => $item['saltValuePresent'] === true)),
+            'algorithmNameCount' => count(array_filter($items, static fn (array $item): bool => $item['algorithmName'] !== null)),
+            'spinCountAttributeCount' => count(array_filter(
+                $items,
+                static fn (array $item): bool => $item['spinCount'] !== null || $item['cryptSpinCount'] !== null,
+            )),
+            'cryptographicMetadataCount' => count(array_filter($items, static fn (array $item): bool => $item['cryptographicMetadataPresent'] === true)),
+            'reviewPolicy' => 'settings-protection-metadata-only',
+            'rawValueExposurePolicy' => 'settings-protection-hash-and-salt-values-hashed',
+            'cryptographicValidation' => false,
+            'items' => $items,
+            'byKind' => $byKind,
+        ];
     }
 
     /**

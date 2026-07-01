@@ -136,6 +136,68 @@ return [
         $t->same('application/vnd.openxmlformats-package.relationships+xml', $types->contentTypeForPart('/word/_rels/document.xml.rels'));
         $t->same(null, $types->contentTypeForPart('/word/media/no-extension'));
     },
+    'preflights OPC content type parameter provenance before package graph handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="html" ContentType="text/html; charset=&quot;utf-8; wp&quot;; boundary=review"/>
+  <Override PartName="/word/chunks/review.xhtml" ContentType="application/xhtml+xml; profile=&quot;urn:wp\&quot;review&quot;; charset=utf-8"/>
+</Types>
+XML;
+
+        $summary = OpcContentTypes::preflightXml($contentTypesXml);
+        $types = OpcContentTypes::fromXml($contentTypesXml);
+        $manifest = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => 'word/chunks/source.html', 'data' => '<p>source</p>'],
+            ['name' => 'word/chunks/review.xhtml', 'data' => '<html/>'],
+        ]));
+        $entries = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $html = $summary['records'][0];
+        $xhtml = $summary['records'][1];
+        $t->same(true, $summary['valid']);
+        $t->same(2, $summary['parameterizedContentTypeRecordCount']);
+        $t->same(4, $summary['contentTypeParameterCount']);
+        $t->same(2, $summary['contentTypeQuotedParameterCount']);
+        $t->same([
+            'boundary' => 1,
+            'charset' => 2,
+            'profile' => 1,
+        ], $summary['contentTypeParameterNameCounts']);
+
+        $t->same('text/html; charset="utf-8; wp"; boundary=review', $types->contentTypeForPart('/word/chunks/source.html'));
+        $t->same('text/html', $html['contentTypeMediaType']);
+        $t->same(true, $html['contentTypeHasParameters']);
+        $t->same(2, $html['contentTypeParameterCount']);
+        $t->same(['charset', 'boundary'], $html['contentTypeParameterNames']);
+        $t->same([
+            'charset' => 'utf-8; wp',
+            'boundary' => 'review',
+        ], $html['contentTypeParameterMap']);
+        $t->same(true, $html['contentTypeParameters'][0]['quoted']);
+        $t->same(true, $html['contentTypeParameters'][0]['valueContainsSemicolon']);
+        $t->same(false, $html['contentTypeParameters'][1]['quoted']);
+
+        $t->same('application/xhtml+xml; profile="urn:wp\"review"; charset=utf-8', $types->contentTypeForPart('/word/chunks/review.xhtml'));
+        $t->same('application/xhtml+xml', $xhtml['contentTypeMediaType']);
+        $t->same(['profile', 'charset'], $xhtml['contentTypeParameterNames']);
+        $t->same([
+            'profile' => 'urn:wp"review',
+            'charset' => 'utf-8',
+        ], $xhtml['contentTypeParameterMap']);
+        $t->same(true, $xhtml['contentTypeParameters'][0]['quoted']);
+        $t->same(true, $xhtml['contentTypeParameters'][0]['containsQuotedPair']);
+        $t->same(false, $xhtml['contentTypeParameters'][0]['valueContainsSemicolon']);
+
+        $t->same('text/html', $entries['word/chunks/source.html']['contentTypeMediaType']);
+        $t->same(['charset', 'boundary'], $entries['word/chunks/source.html']['contentTypeParameterNames']);
+        $t->same('utf-8; wp', $entries['word/chunks/source.html']['contentTypeParameterMap']['charset']);
+        $t->same('application/xhtml+xml', $entries['word/chunks/review.xhtml']['contentTypeMediaType']);
+        $t->same('urn:wp"review', $entries['word/chunks/review.xhtml']['contentTypeParameterMap']['profile']);
+    },
     'reports OPC content type resolution provenance for default and override matches' => static function (TestRunner $t) use ($contentTypesXml, $packageRelationshipsXml, $documentRelationshipsXml): void {
         $types = OpcContentTypes::fromXml($contentTypesXml);
 
@@ -1320,6 +1382,125 @@ XML;
         $t->same('binary', $summary['largestPayloadEntries'][3]['handoffKind']);
         $t->same('xml-part', $summary['largestPayloadEntries'][4]['role']);
         $t->same('xml', $summary['largestPayloadEntries'][4]['handoffKind']);
+    },
+    'summarizes OPC ZIP manifest directory roots before XML package handoff' => static function (TestRunner $t): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="png" ContentType="image/png"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+</Types>
+XML;
+        $rootRelationshipsXml = '<Relationships/>';
+        $coreXml = '<cp:coreProperties/>';
+        $documentXml = '<w:document/>';
+        $documentRelationshipsXml = '<Relationships><Relationship Id="rIdImage" Target="media/image.png"/></Relationships>';
+        $imageBytes = 'PNGDATA';
+        $binaryBytes = 'BINARYDATA';
+        $customXml = '<audit/>';
+
+        $parts = [
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
+            ['name' => '_rels/.rels', 'data' => $rootRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'docProps/core.xml', 'data' => $coreXml, 'compressionMethod' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'compressionMethod' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'compressionMethod' => 0],
+            ['name' => 'word/media/', 'data' => '', 'compressionMethod' => 0],
+            ['name' => 'word/media/image.png', 'data' => $imageBytes, 'compressionMethod' => 0],
+            ['name' => 'word/payload.bin', 'data' => $binaryBytes, 'compressionMethod' => 0],
+            ['name' => 'customXml/item1.xml', 'data' => $customXml, 'compressionMethod' => 0],
+        ];
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromParts($parts));
+        $centralSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest(ZipPackage::build($parts));
+        $roots = [];
+        foreach ($summary['directoryRootSummaries'] as $rootSummary) {
+            $roots[$rootSummary['directoryRoot']] = $rootSummary;
+        }
+        $centralRoots = [];
+        foreach ($centralSummary['directoryRootSummaries'] as $rootSummary) {
+            $centralRoots[$rootSummary['directoryRoot']] = $rootSummary;
+        }
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+
+        $expectedRootCounts = [
+            '/' => 1,
+            '_rels/' => 1,
+            'customXml/' => 1,
+            'docProps/' => 1,
+            'word/' => 5,
+        ];
+        $wordRootBytes = strlen($documentXml)
+            + strlen($documentRelationshipsXml)
+            + strlen($imageBytes)
+            + strlen($binaryBytes);
+        $expectedWordRoot = [
+            'directoryRoot' => 'word/',
+            'entryCount' => 5,
+            'fileEntryCount' => 4,
+            'directoryEntryCount' => 1,
+            'packagePartCount' => 4,
+            'validEntryCount' => 5,
+            'invalidEntryCount' => 0,
+            'unknownByteCountEntryCount' => 0,
+            'compressedBytes' => $wordRootBytes,
+            'uncompressedBytes' => $wordRootBytes,
+            'roleCounts' => [
+                'binary-part' => 1,
+                'directory' => 1,
+                'media' => 1,
+                'part-relationships' => 1,
+                'xml-part' => 1,
+            ],
+            'handoffKindCounts' => [
+                'binary' => 1,
+                'directory' => 1,
+                'media' => 1,
+                'relationships+xml' => 1,
+                'xml' => 1,
+            ],
+            'issueCounts' => [],
+            'issues' => [],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/document.xml',
+                'word/media/',
+                'word/media/image.png',
+                'word/payload.bin',
+            ],
+            'partNames' => [
+                '/word/_rels/document.xml.rels',
+                '/word/document.xml',
+                '/word/media/image.png',
+                '/word/payload.bin',
+            ],
+        ];
+
+        $t->same(true, $summary['valid']);
+        $t->same(true, $centralSummary['valid']);
+        $t->same(5, $summary['directoryRootCount']);
+        $t->same(5, $centralSummary['directoryRootCount']);
+        $t->same($expectedRootCounts, $summary['directoryRootCounts']);
+        $t->same($expectedRootCounts, $centralSummary['directoryRootCounts']);
+        $t->same([
+            'word/_rels/document.xml.rels',
+            'word/document.xml',
+            'word/media/',
+            'word/media/image.png',
+            'word/payload.bin',
+        ], $summary['entryNamesByDirectoryRoot']['word/']);
+        $t->same($summary['entryNamesByDirectoryRoot'], $centralSummary['entryNamesByDirectoryRoot']);
+        $t->same($expectedWordRoot, $roots['word/']);
+        $t->same($expectedWordRoot, $centralRoots['word/']);
+        $t->same(['document-properties' => 1], $roots['docProps/']['roleCounts']);
+        $t->same(['xml' => 1], $roots['docProps/']['handoffKindCounts']);
+        $t->same('/', $entries['[Content_Types].xml']['directoryRoot']);
+        $t->same('word/', $entries['word/media/image.png']['directoryRoot']);
+        $t->same('customXml/', $entries['customXml/item1.xml']['directoryRoot']);
     },
     'preflights OPC ZIP entry manifest content type declarations before graph construction' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

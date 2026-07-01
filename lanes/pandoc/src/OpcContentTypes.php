@@ -153,6 +153,7 @@ final class OpcContentTypes
                 ...$base,
                 'partName' => $partName,
                 'contentType' => $this->overrides[$partName],
+                ...self::contentTypeMetadata($this->overrides[$partName]),
                 'contentTypeSource' => 'override',
                 'defaultExtension' => null,
                 'overridePartName' => $partName,
@@ -167,6 +168,7 @@ final class OpcContentTypes
                 ...$base,
                 'partName' => $partName,
                 'contentType' => $this->overrides[$overridePartName],
+                ...self::contentTypeMetadata($this->overrides[$overridePartName]),
                 'contentTypeSource' => 'override',
                 'defaultExtension' => null,
                 'overridePartName' => $overridePartName,
@@ -188,6 +190,7 @@ final class OpcContentTypes
                 ...$base,
                 'partName' => $partName,
                 'contentType' => $default['contentType'],
+                ...self::contentTypeMetadata($default['contentType']),
                 'contentTypeSource' => 'default',
                 'defaultExtension' => $default['extension'],
                 'overridePartName' => null,
@@ -343,6 +346,7 @@ final class OpcContentTypes
             ...self::resolutionBase($uriReference, $partName, $suffix),
             'partName' => $partName,
             'contentType' => null,
+            ...self::emptyContentTypeMetadata(),
             'contentTypeSource' => 'missing',
             'defaultExtension' => null,
             'overridePartName' => null,
@@ -418,6 +422,87 @@ final class OpcContentTypes
         return true;
     }
 
+    /**
+     * @return array{contentTypeMediaType:?string, contentTypeHasParameters:bool, contentTypeParameterCount:int, contentTypeParameterNames:list<string>, contentTypeParameterMap:array<string, string>, contentTypeParameters:list<array{name:string, normalizedName:string, rawValue:string, value:string, quoted:bool, containsQuotedPair:bool, valueContainsSemicolon:bool}>, contentTypeQuotedParameterCount:int}
+     */
+    private static function emptyContentTypeMetadata(): array
+    {
+        return [
+            'contentTypeMediaType' => null,
+            'contentTypeHasParameters' => false,
+            'contentTypeParameterCount' => 0,
+            'contentTypeParameterNames' => [],
+            'contentTypeParameterMap' => [],
+            'contentTypeParameters' => [],
+            'contentTypeQuotedParameterCount' => 0,
+        ];
+    }
+
+    /**
+     * @return array{contentTypeMediaType:?string, contentTypeHasParameters:bool, contentTypeParameterCount:int, contentTypeParameterNames:list<string>, contentTypeParameterMap:array<string, string>, contentTypeParameters:list<array{name:string, normalizedName:string, rawValue:string, value:string, quoted:bool, containsQuotedPair:bool, valueContainsSemicolon:bool}>, contentTypeQuotedParameterCount:int}
+     */
+    private static function contentTypeMetadata(?string $contentType): array
+    {
+        if ($contentType === null || !self::isValidContentType($contentType)) {
+            return self::emptyContentTypeMetadata();
+        }
+
+        $token = '[A-Za-z0-9!#$%&\'*+.^_`{|}~-]+';
+        if (preg_match('/\A(' . $token . '\/' . $token . ')/', $contentType, $matches) !== 1) {
+            return self::emptyContentTypeMetadata();
+        }
+
+        $parameters = [];
+        $parameterNames = [];
+        $parameterMap = [];
+        $quotedParameterCount = 0;
+        $rest = substr($contentType, strlen($matches[1]));
+
+        while ($rest !== '') {
+            if (preg_match('/\A\s*;\s*(' . $token . ')\s*=\s*(' . $token . '|"(?:[^"\\\\\x00-\x1F\x7F]|\\\\[\x20-\x7E])*")/', $rest, $parameter) !== 1) {
+                break;
+            }
+
+            $name = $parameter[1];
+            $normalizedName = strtolower($name);
+            $rawValue = $parameter[2];
+            $quoted = str_starts_with($rawValue, '"') && str_ends_with($rawValue, '"');
+            $containsQuotedPair = false;
+            if ($quoted) {
+                ++$quotedParameterCount;
+                $inner = substr($rawValue, 1, -1);
+                $containsQuotedPair = preg_match('/\\\\[\x20-\x7E]/', $inner) === 1;
+                $value = preg_replace('/\\\\([\x20-\x7E])/', '$1', $inner) ?? $inner;
+            } else {
+                $value = $rawValue;
+            }
+
+            self::appendPreflightString($parameterNames, $normalizedName);
+            $parameterMap[$normalizedName] = $value;
+            $parameters[] = [
+                'name' => $name,
+                'normalizedName' => $normalizedName,
+                'rawValue' => $rawValue,
+                'value' => $value,
+                'quoted' => $quoted,
+                'containsQuotedPair' => $containsQuotedPair,
+                'valueContainsSemicolon' => str_contains($value, ';'),
+            ];
+
+            $rest = substr($rest, strlen($parameter[0]));
+        }
+
+        return [
+            'contentTypeMediaType' => $matches[1],
+            'contentTypeHasParameters' => $parameters !== [],
+            'contentTypeParameterCount' => count($parameters),
+            'contentTypeParameterNames' => $parameterNames,
+            'contentTypeParameterMap' => $parameterMap,
+            'contentTypeParameters' => $parameters,
+            'contentTypeQuotedParameterCount' => $quotedParameterCount,
+        ];
+    }
+
     private static function assertContentType(string $contentType): void
     {
         if (!self::isValidContentType($contentType)) {
@@ -486,6 +571,10 @@ final class OpcContentTypes
             'duplicateOverridePartNames' => [],
             'duplicateDefaultExtensionGroups' => [],
             'duplicateOverridePartNameGroups' => [],
+            'parameterizedContentTypeRecordCount' => 0,
+            'contentTypeParameterCount' => 0,
+            'contentTypeQuotedParameterCount' => 0,
+            'contentTypeParameterNameCounts' => [],
             'issueCounts' => [],
             'issues' => [],
             'records' => [],
@@ -506,6 +595,7 @@ final class OpcContentTypes
             'partName' => null,
             'normalizedPartName' => null,
             'contentType' => null,
+            ...self::emptyContentTypeMetadata(),
             'equivalenceKey' => null,
             'valid' => true,
             'issues' => [],
@@ -558,6 +648,8 @@ final class OpcContentTypes
             self::appendRecordIssue($record, 'missing-content-type');
         } elseif (!self::isValidContentType($contentType)) {
             self::appendRecordIssue($record, 'invalid-content-type');
+        } else {
+            $record = array_replace($record, self::contentTypeMetadata($contentType));
         }
     }
 
@@ -595,6 +687,8 @@ final class OpcContentTypes
             self::appendRecordIssue($record, 'missing-content-type');
         } elseif (!self::isValidContentType($contentType)) {
             self::appendRecordIssue($record, 'invalid-content-type');
+        } else {
+            $record = array_replace($record, self::contentTypeMetadata($contentType));
         }
     }
 
@@ -668,6 +762,10 @@ final class OpcContentTypes
         $summary['defaultCount'] = 0;
         $summary['overrideCount'] = 0;
         $summary['invalidCount'] = 0;
+        $summary['parameterizedContentTypeRecordCount'] = 0;
+        $summary['contentTypeParameterCount'] = 0;
+        $summary['contentTypeQuotedParameterCount'] = 0;
+        $summary['contentTypeParameterNameCounts'] = [];
         $summary['issueCounts'] = [];
         $summary['issues'] = [];
 
@@ -685,12 +783,24 @@ final class OpcContentTypes
                 $summary['invalidCount']++;
             }
 
+            if (($record['contentTypeHasParameters'] ?? false) === true) {
+                $summary['parameterizedContentTypeRecordCount']++;
+                $summary['contentTypeParameterCount'] += (int) ($record['contentTypeParameterCount'] ?? 0);
+                $summary['contentTypeQuotedParameterCount'] += (int) ($record['contentTypeQuotedParameterCount'] ?? 0);
+                foreach (is_array($record['contentTypeParameterNames'] ?? null) ? $record['contentTypeParameterNames'] : [] as $name) {
+                    if (is_string($name) && $name !== '') {
+                        $summary['contentTypeParameterNameCounts'][$name] = ($summary['contentTypeParameterNameCounts'][$name] ?? 0) + 1;
+                    }
+                }
+            }
+
             foreach ($record['issues'] as $issue) {
                 self::appendPreflightIssue($summary, $issue);
             }
         }
         unset($record);
 
+        ksort($summary['contentTypeParameterNameCounts'], SORT_STRING);
         ksort($summary['issueCounts'], SORT_STRING);
         sort($summary['issues'], SORT_STRING);
         $summary['duplicateDefaultExtensionCount'] = count($summary['duplicateDefaultExtensions']);

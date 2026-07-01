@@ -154,6 +154,7 @@ final class BibtexCslProcessor
                 ),
             ];
         }
+        $this->augmentReferenceProvenance($entries);
 
         return $entries;
     }
@@ -416,6 +417,14 @@ final class BibtexCslProcessor
         $languageOptionSummary = $this->biblatexOptionSummary($item['biblatex-language-options'] ?? []);
         if ($languageOptionSummary !== '') {
             $parts[] = 'BibLaTeX language options: ' . $languageOptionSummary;
+        }
+        $relatedSummary = trim((string) ($item['relatedSummary'] ?? $item['related-summary'] ?? ''));
+        if ($relatedSummary !== '') {
+            $parts[] = $relatedSummary;
+        }
+        $relatedOptionSummary = $this->biblatexOptionSummary($item['relatedOptions'] ?? []);
+        if ($relatedOptionSummary !== '') {
+            $parts[] = 'Related options: ' . $relatedOptionSummary;
         }
         $referenceContextSummary = $this->biblatexReferenceContextSummary(
             (string) ($item['biblatex-refsection'] ?? ''),
@@ -1000,6 +1009,251 @@ final class BibtexCslProcessor
         }
 
         return $item;
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, fields:array<string, string>, csl:array<string, mixed>}> $entries
+     */
+    private function augmentReferenceProvenance(array &$entries): void
+    {
+        foreach ($entries as $key => $entry) {
+            $fields = $entry['fields'];
+            $relatedKeys = $this->fieldKeyList($fields['related'] ?? '');
+            if ($relatedKeys !== []) {
+                $references = $this->cslReferenceItemsForKeys($relatedKeys, $entries);
+                $entries[$key]['csl']['related-keys'] = $relatedKeys;
+                $entries[$key]['csl']['relatedItems'] = $references['items'];
+                if ($references['missing'] !== []) {
+                    $entries[$key]['csl']['missing-related-keys'] = $references['missing'];
+                }
+
+                $relatedOptions = $this->fieldKeyList($this->firstRawField($fields, ['relatedoptions', 'related-options']));
+                if ($relatedOptions !== []) {
+                    $entries[$key]['csl']['relatedOptions'] = $relatedOptions;
+                }
+
+                $summary = $this->biblatexRelatedSummary(
+                    $references['items'],
+                    $references['missing'],
+                    (string) ($entries[$key]['csl']['related-type'] ?? ''),
+                    (string) ($entries[$key]['csl']['related-string'] ?? '')
+                );
+                if ($summary !== '') {
+                    $entries[$key]['csl']['relatedSummary'] = $summary;
+                    $entries[$key]['csl']['related-summary'] = $summary;
+                }
+            }
+
+            $xrefKeys = $this->fieldKeyList($this->firstRawField($fields, ['xref', 'crossref']));
+            if ($xrefKeys === []) {
+                continue;
+            }
+
+            $references = $this->cslReferenceItemsForKeys($xrefKeys, $entries);
+            $entries[$key]['csl']['xref-keys'] = $xrefKeys;
+            $entries[$key]['csl']['xrefItems'] = $references['items'];
+            if ($references['missing'] !== []) {
+                $entries[$key]['csl']['missing-xref-keys'] = $references['missing'];
+            }
+
+            $summary = $this->biblatexXrefSummary($references['items'], $references['missing'], $xrefKeys);
+            if ($summary !== '') {
+                $entries[$key]['csl']['xrefSummary'] = $summary;
+                $entries[$key]['csl']['xref-summary'] = $summary;
+            }
+        }
+    }
+
+    /**
+     * @param list<string> $keys
+     * @param array<string, array{id:string, type:string, fields:array<string, string>, csl:array<string, mixed>}> $entries
+     * @return array{items:list<array<string, mixed>>, missing:list<string>}
+     */
+    private function cslReferenceItemsForKeys(array $keys, array $entries): array
+    {
+        $items = [];
+        $missing = [];
+        $seen = [];
+
+        foreach ($keys as $key) {
+            $key = trim($key);
+            if ($key === '' || isset($seen[$key])) {
+                continue;
+            }
+            $seen[$key] = true;
+
+            $entry = $this->cslReferenceEntryForKey($key, $entries);
+            if ($entry === null) {
+                $missing[] = $key;
+                continue;
+            }
+
+            $items[] = $this->cslReferenceItemSummary($key, $entry['csl']);
+        }
+
+        return ['items' => $items, 'missing' => $missing];
+    }
+
+    /**
+     * @param array<string, array{id:string, type:string, fields:array<string, string>, csl:array<string, mixed>}> $entries
+     * @return array{id:string, type:string, fields:array<string, string>, csl:array<string, mixed>}|null
+     */
+    private function cslReferenceEntryForKey(string $key, array $entries): ?array
+    {
+        if (isset($entries[$key])) {
+            return $entries[$key];
+        }
+
+        foreach ($entries as $entry) {
+            $aliases = $entry['csl']['citation-aliases'] ?? [];
+            if (!is_array($aliases)) {
+                continue;
+            }
+
+            foreach ($aliases as $alias) {
+                if (trim((string) $alias) === $key) {
+                    return $entry;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private function cslReferenceItemSummary(string $requestedKey, array $item): array
+    {
+        $summary = [
+            'id' => (string) ($item['id'] ?? ''),
+            'citationKey' => $requestedKey,
+            'type' => (string) ($item['type'] ?? ''),
+            'title' => (string) ($item['title'] ?? ''),
+        ];
+
+        if (is_array($item['issued'] ?? null)) {
+            $summary['issued'] = $item['issued'];
+        }
+
+        return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $missing
+     */
+    private function biblatexRelatedSummary(array $items, array $missing, string $type, string $label): string
+    {
+        $values = $this->biblatexReferenceSummaryValues($items, $missing, []);
+        if ($values === '') {
+            return '';
+        }
+
+        $type = trim($type);
+        $label = trim($label);
+        $hasExplicitLabel = $label !== '';
+        if (!$hasExplicitLabel) {
+            $label = $this->defaultBiblatexRelatedTypeLabel($type);
+        }
+        if ($type !== '' && ($hasExplicitLabel || $label === 'Related source')) {
+            $label .= ' (' . $type . ')';
+        }
+
+        return $label . ': ' . $values;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $missing
+     * @param list<string> $fallbackKeys
+     */
+    private function biblatexXrefSummary(array $items, array $missing, array $fallbackKeys): string
+    {
+        $values = $this->biblatexReferenceSummaryValues($items, $missing, $fallbackKeys);
+
+        return $values === '' ? '' : 'Xref: ' . $values;
+    }
+
+    private function defaultBiblatexRelatedTypeLabel(string $type): string
+    {
+        return match (strtolower(str_replace('_', '-', trim($type)))) {
+            'license' => 'License',
+            default => 'Related source',
+        };
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $missing
+     * @param list<string> $fallbackKeys
+     */
+    private function biblatexReferenceSummaryValues(array $items, array $missing, array $fallbackKeys): string
+    {
+        $values = [];
+        foreach ($items as $item) {
+            $display = $this->biblatexReferenceItemDisplay($item);
+            if ($display !== '') {
+                $values[] = $display;
+            }
+        }
+
+        foreach ($missing as $key) {
+            $key = trim($key);
+            if ($key !== '') {
+                $values[] = 'missing: ' . $key;
+            }
+        }
+
+        if ($values === []) {
+            $values = array_values(array_filter(
+                array_map(static fn (string $key): string => trim($key), $fallbackKeys),
+                static fn (string $key): bool => $key !== ''
+            ));
+        }
+
+        return implode('; ', $values);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function biblatexReferenceItemDisplay(array $item): string
+    {
+        $label = trim((string) ($item['title'] ?? ''));
+        if ($label === '') {
+            $label = trim((string) ($item['id'] ?? ''));
+        }
+        if ($label === '') {
+            return '';
+        }
+
+        $date = $this->biblatexReferenceItemIssuedDisplay($item['issued'] ?? null);
+
+        return $date === '' ? $label : $label . ' (' . $date . ')';
+    }
+
+    private function biblatexReferenceItemIssuedDisplay(mixed $issued): string
+    {
+        if (!is_array($issued)) {
+            return '';
+        }
+
+        $dateParts = $issued['date-parts'] ?? null;
+        if (!is_array($dateParts) || !isset($dateParts[0]) || !is_array($dateParts[0])) {
+            return '';
+        }
+
+        $parts = array_values(array_filter(
+            array_map(
+                static fn (mixed $part): string => is_int($part) || is_string($part) ? trim((string) $part) : '',
+                $dateParts[0]
+            ),
+            static fn (string $part): bool => $part !== ''
+        ));
+
+        return implode('-', $parts);
     }
 
     /**
