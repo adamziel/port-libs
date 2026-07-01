@@ -17444,6 +17444,13 @@ final class DocxOpenXmlReader
             'contentTypeMissingOverrideTargetExtensionCounts' => $contentTypesPart['missingOverrideTargetExtensionCounts'] ?? [],
             'contentTypeOverrideDeclarationIssueCounts' => $contentTypesPart['overrideDeclarationIssueCounts'] ?? [],
             'contentTypeOverrideDeclarationIssues' => $contentTypesPart['overrideDeclarationIssues'] ?? [],
+            'contentTypeOverrideCaseFoldPartCount' => (int) ($contentTypesPart['overrideCaseFoldPartCount'] ?? 0),
+            'duplicateContentTypeOverrideCaseFoldPartCount' => (int) ($contentTypesPart['duplicateOverrideCaseFoldPartCount'] ?? 0),
+            'duplicateContentTypeOverrideCaseFoldDeclarationCount' => (int) ($contentTypesPart['duplicateOverrideCaseFoldDeclarationCount'] ?? 0),
+            'duplicateContentTypeOverrideCaseFoldPartNameCount' => (int) ($contentTypesPart['duplicateOverrideCaseFoldPartNameCount'] ?? 0),
+            'duplicateContentTypeOverrideCaseFoldPartNames' => $contentTypesPart['duplicateOverrideCaseFoldPartNames'] ?? [],
+            'duplicateContentTypeOverrideCaseFoldPartNameVariants' => $contentTypesPart['duplicateOverrideCaseFoldPartNameVariants'] ?? [],
+            'duplicateContentTypeOverrideCaseFoldPartGroups' => $contentTypesPart['duplicateOverrideCaseFoldPartGroups'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'contentTypeSourceByteLengths' => $contentTypeSourceByteLengths,
             'contentTypeBaseCounts' => $contentTypeBaseCounts,
@@ -26585,6 +26592,7 @@ final class DocxOpenXmlReader
         $parameterizedContentTypes = $this->parameterizedContentTypeDeclarations($defaults, $overrides);
         $defaultDeclarationSummary = $this->contentTypeDefaultDeclarationSummary($parts, $contentTypes);
         $overrideDeclarationSummary = $this->contentTypeOverrideDeclarationSummary($parts, $overrides);
+        $overrideCaseFoldPartSummary = $this->contentTypeOverrideCaseFoldPartSummary($parts, $overrides);
         $missingOverrides = array_values(array_filter(
             $overrideDeclarationSummary['declarations'],
             static fn (array $declaration): bool => ($declaration['exists'] ?? true) === false,
@@ -26629,6 +26637,13 @@ final class DocxOpenXmlReader
             'overrideDeclarationIssueCounts' => $overrideDeclarationSummary['issueCounts'],
             'overrideDeclarationIssues' => $overrideDeclarationSummary['issues'],
             'overrideDeclarations' => $overrideDeclarationSummary['declarations'],
+            'overrideCaseFoldPartCount' => $overrideCaseFoldPartSummary['caseFoldPartCount'],
+            'duplicateOverrideCaseFoldPartCount' => $overrideCaseFoldPartSummary['duplicateGroupCount'],
+            'duplicateOverrideCaseFoldDeclarationCount' => $overrideCaseFoldPartSummary['duplicateDeclarationCount'],
+            'duplicateOverrideCaseFoldPartNameCount' => $overrideCaseFoldPartSummary['duplicatePartNameCount'],
+            'duplicateOverrideCaseFoldPartNames' => $overrideCaseFoldPartSummary['duplicateCaseFoldPartNames'],
+            'duplicateOverrideCaseFoldPartNameVariants' => $overrideCaseFoldPartSummary['duplicatePartNameVariants'],
+            'duplicateOverrideCaseFoldPartGroups' => $overrideCaseFoldPartSummary['duplicateGroups'],
             'missingOverrideCount' => count($missingOverrides),
             'missingOverrideParts' => array_column($missingOverrides, 'partName'),
             'missingOverrides' => $missingOverrides,
@@ -26976,6 +26991,151 @@ final class DocxOpenXmlReader
             'issueCounts' => $issueCounts,
             'issues' => array_keys($issueCounts),
             'declarations' => $declarations,
+        ];
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array<string, mixed>> $overrides
+     * @return array<string, mixed>
+     */
+    private function contentTypeOverrideCaseFoldPartSummary(array $parts, array $overrides): array
+    {
+        $groups = [];
+        foreach ($overrides as $partName => $override) {
+            if (!is_string($partName) || $partName === '') {
+                continue;
+            }
+
+            $caseFoldPartName = $this->packagePartCaseFoldKey($partName);
+            $groups[$caseFoldPartName] ??= [
+                'caseFoldPartName' => $caseFoldPartName,
+                'declarationCount' => 0,
+                'partNameVariantCount' => 0,
+                'existingDeclarationCount' => 0,
+                'missingDeclarationCount' => 0,
+                'parameterizedDeclarationCount' => 0,
+                'existingPartByteLength' => 0,
+                'partNameCounts' => [],
+                'contentTypeBaseCounts' => [],
+                'contentTypeParameterNameCounts' => [],
+                'partNames' => [],
+                'existingPartNames' => [],
+                'missingPartNames' => [],
+                'contentTypes' => [],
+                'contentTypeBases' => [],
+                'largestExistingPart' => null,
+                '_seenExistingPartNames' => [],
+            ];
+
+            ++$groups[$caseFoldPartName]['declarationCount'];
+            $groups[$caseFoldPartName]['partNameCounts'][$partName] =
+                (int) ($groups[$caseFoldPartName]['partNameCounts'][$partName] ?? 0) + 1;
+            $groups[$caseFoldPartName]['partNameVariantCount'] = count($groups[$caseFoldPartName]['partNameCounts']);
+            $this->appendUniqueString($groups[$caseFoldPartName]['partNames'], $partName);
+
+            $exists = isset($parts[$partName]);
+            if ($exists) {
+                ++$groups[$caseFoldPartName]['existingDeclarationCount'];
+                $this->appendUniqueString($groups[$caseFoldPartName]['existingPartNames'], $partName);
+            } else {
+                ++$groups[$caseFoldPartName]['missingDeclarationCount'];
+                $this->appendUniqueString($groups[$caseFoldPartName]['missingPartNames'], $partName);
+            }
+
+            $contentType = is_string($override['contentType'] ?? null) ? $override['contentType'] : '';
+            $contentTypeBase = is_string($override['contentTypeBase'] ?? null) ? $override['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $groups[$caseFoldPartName]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                (int) ($groups[$caseFoldPartName]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            $this->appendUniqueString($groups[$caseFoldPartName]['contentTypes'], $contentType);
+            $this->appendUniqueString($groups[$caseFoldPartName]['contentTypeBases'], $contentTypeBase);
+
+            $parameterMap = is_array($override['contentTypeParameterMap'] ?? null)
+                ? $override['contentTypeParameterMap']
+                : [];
+            if ($parameterMap !== []) {
+                ++$groups[$caseFoldPartName]['parameterizedDeclarationCount'];
+            }
+            foreach ($parameterMap as $parameterName => $_parameterValue) {
+                if (is_string($parameterName) && $parameterName !== '') {
+                    $groups[$caseFoldPartName]['contentTypeParameterNameCounts'][$parameterName] =
+                        (int) ($groups[$caseFoldPartName]['contentTypeParameterNameCounts'][$parameterName] ?? 0) + 1;
+                }
+            }
+
+            if (!$exists || isset($groups[$caseFoldPartName]['_seenExistingPartNames'][$partName])) {
+                continue;
+            }
+
+            $groups[$caseFoldPartName]['_seenExistingPartNames'][$partName] = true;
+            $bytes = strlen($parts[$partName]);
+            $groups[$caseFoldPartName]['existingPartByteLength'] += $bytes;
+            $partSummary = [
+                'partName' => $partName,
+                'bytes' => $bytes,
+                'sha256' => hash('sha256', $parts[$partName]),
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeHasParameters' => (bool) ($override['contentTypeHasParameters'] ?? false),
+                'contentTypeParameterMap' => $parameterMap,
+            ];
+            $largestExistingPart = $groups[$caseFoldPartName]['largestExistingPart'];
+            if (
+                !is_array($largestExistingPart)
+                || $bytes > (int) ($largestExistingPart['bytes'] ?? 0)
+                || (
+                    $bytes === (int) ($largestExistingPart['bytes'] ?? 0)
+                    && strcmp($partName, (string) ($largestExistingPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $groups[$caseFoldPartName]['largestExistingPart'] = $partSummary;
+            }
+        }
+
+        ksort($groups, SORT_STRING);
+
+        $duplicateGroups = [];
+        $duplicateCaseFoldPartNames = [];
+        $duplicatePartNameVariants = [];
+        $duplicateDeclarationCount = 0;
+        $duplicatePartNameCount = 0;
+        foreach ($groups as &$group) {
+            ksort($group['partNameCounts'], SORT_STRING);
+            ksort($group['contentTypeBaseCounts'], SORT_STRING);
+            ksort($group['contentTypeParameterNameCounts'], SORT_STRING);
+            sort($group['partNames'], SORT_STRING);
+            sort($group['existingPartNames'], SORT_STRING);
+            sort($group['missingPartNames'], SORT_STRING);
+            sort($group['contentTypes'], SORT_STRING);
+            sort($group['contentTypeBases'], SORT_STRING);
+            unset($group['_seenExistingPartNames']);
+
+            if ((int) $group['partNameVariantCount'] < 2) {
+                continue;
+            }
+
+            $duplicateGroups[] = $group;
+            $duplicateCaseFoldPartNames[] = (string) $group['caseFoldPartName'];
+            $duplicateDeclarationCount += (int) $group['declarationCount'];
+            $duplicatePartNameCount += (int) $group['partNameVariantCount'];
+            foreach ($group['partNames'] as $partName) {
+                $this->appendUniqueString($duplicatePartNameVariants, is_string($partName) ? $partName : null);
+            }
+        }
+        unset($group);
+
+        sort($duplicateCaseFoldPartNames, SORT_STRING);
+        sort($duplicatePartNameVariants, SORT_STRING);
+
+        return [
+            'caseFoldPartCount' => count($groups),
+            'duplicateGroupCount' => count($duplicateGroups),
+            'duplicateDeclarationCount' => $duplicateDeclarationCount,
+            'duplicatePartNameCount' => $duplicatePartNameCount,
+            'duplicateCaseFoldPartNames' => $duplicateCaseFoldPartNames,
+            'duplicatePartNameVariants' => $duplicatePartNameVariants,
+            'duplicateGroups' => $duplicateGroups,
         ];
     }
 
