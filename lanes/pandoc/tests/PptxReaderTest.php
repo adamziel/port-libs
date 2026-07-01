@@ -197,7 +197,7 @@ XML);
         <a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}</a:tableStyleId></a:tblPr>
         <a:tblGrid><a:gridCol w="1828800"/><a:gridCol w="1828800"/><a:gridCol w="1828800"/></a:tblGrid>
         <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Col1</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col2</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Col3</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
-        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" marL="120"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB w="12700" cap="flat"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill><a:prstDash val="solid"/></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+        <a:tr><a:tc gridSpan="2"><a:txBody><a:p><a:r><a:t>Name</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr" marL="120"><a:solidFill><a:srgbClr val="D9EAF7"/></a:solidFill><a:lnB w="12700" cap="flat"><a:solidFill><a:schemeClr val="accent1"><a:lumMod val="60000"/><a:lumOff val="20000"/></a:schemeClr></a:solidFill><a:prstDash val="solid"/></a:lnB></a:tcPr></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Anton</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>Antich</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
         <a:tr><a:tc rowSpan="2"><a:txBody><a:p><a:r><a:t>Age</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>23</a:t></a:r></a:p></a:txBody></a:tc><a:tc><a:txBody><a:p><a:r><a:t>years</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
       </a:tbl></a:graphicData></a:graphic>
     </p:graphicFrame>
@@ -248,8 +248,8 @@ XML);
         <c:ser>
           <c:idx val="0"/><c:order val="0"/>
           <c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>North</c:v></c:pt></c:strCache></c:strRef></c:tx>
-          <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
-          <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
+          <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
+          <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>12</c:v></c:pt><c:pt idx="1"><c:v>18</c:v></c:pt></c:numCache></c:numRef></c:val>
         </c:ser>
         <c:axId val="10"/><c:axId val="20"/>
       </c:barChart>
@@ -258,8 +258,8 @@ XML);
         <c:ser>
           <c:idx val="1"/><c:order val="1"/>
           <c:tx><c:strRef><c:strCache><c:pt idx="0"><c:v>South</c:v></c:pt></c:strCache></c:strRef></c:tx>
-          <c:cat><c:strRef><c:strCache><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
-          <c:val><c:numRef><c:numCache><c:pt idx="0"><c:v>9</c:v></c:pt><c:pt idx="1"><c:v>13</c:v></c:pt></c:numCache></c:numRef></c:val>
+          <c:cat><c:strRef><c:f>Sheet1!$A$2:$A$3</c:f><c:strCache><c:ptCount val="2"/><c:pt idx="0"><c:v>Q1</c:v></c:pt><c:pt idx="1"><c:v>Q2</c:v></c:pt></c:strCache></c:strRef></c:cat>
+          <c:val><c:numRef><c:f>Sheet1!$C$2:$C$3</c:f><c:numCache><c:ptCount val="2"/><c:pt idx="0"><c:v>9</c:v></c:pt><c:pt idx="1"><c:v>13</c:v></c:pt></c:numCache></c:numRef></c:val>
         </c:ser>
         <c:axId val="10"/><c:axId val="20"/>
       </c:lineChart>
@@ -476,6 +476,8 @@ return [
         $commentDivs = $nodesWithClass($divs, 'pptx-comments');
         $backLayerParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Back layer'));
         $frontLayerParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Front layer'));
+        $layoutInheritedParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Inherited Layout Body'));
+        $masterInheritedParagraphs = array_values(array_filter($paragraphs, static fn (AstNode $node): bool => $node->attr('text') === 'Inherited Master Footer'));
 
         $t->same('pptx', $document->attr('sourceFormat'));
         $t->same([], $document->attr('meta'));
@@ -493,6 +495,20 @@ return [
         $t->same('Office Theme', $review['slides'][1]['context']['theme']['name'] ?? null);
         $t->same('4472C4', $review['slides'][1]['context']['theme']['colorScheme']['colors']['accent1'] ?? null);
         $t->same('Aptos', $review['slides'][1]['context']['theme']['fontScheme']['minorLatin'] ?? null);
+        $t->same(1, count($layoutInheritedParagraphs));
+        $t->same([
+            'source' => 'layout',
+            'sourcePart' => 'ppt/slideLayouts/slideLayout1.xml',
+            'lookupKey' => 'type:body;idx:7',
+            'lookupKeys' => ['type:body;idx:7', 'idx:7', 'type:body'],
+        ], $layoutInheritedParagraphs[0]->attr('pptxPlaceholderInheritance'));
+        $t->same(1, count($masterInheritedParagraphs));
+        $t->same([
+            'source' => 'master',
+            'sourcePart' => 'ppt/slideMasters/slideMaster1.xml',
+            'lookupKey' => 'type:ftr;idx:8',
+            'lookupKeys' => ['type:ftr;idx:8', 'idx:8', 'type:ftr'],
+        ], $masterInheritedParagraphs[0]->attr('pptxPlaceholderInheritance'));
         $t->same(1, $review['slides'][2]['chartCount'] ?? null);
         $t->same('ppt/charts/chart1.xml', $review['slides'][2]['charts'][0]['partName'] ?? null);
         $t->same('ppt/tableStyles.xml', $review['tableStyles']['partName'] ?? null);
@@ -561,10 +577,14 @@ return [
         $t->same('D9EAF7', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['fillColor'] ?? null);
         $t->same('ctr', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['verticalAlign'] ?? null);
         $t->same('theme:accent1', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borders']['bottom'] ?? null);
-        $t->same('4472C4', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['resolvedBorders']['bottom'] ?? null);
+        $t->same('5C77A9', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['resolvedBorders']['bottom'] ?? null);
         $t->same(12700, $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['width'] ?? null);
         $t->same('solid', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['dash'] ?? null);
-        $t->same('4472C4', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['resolvedColor'] ?? null);
+        $t->same([
+            'lumMod' => 60000,
+            'lumOff' => 20000,
+        ], $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['colorTransforms'] ?? null);
+        $t->same('5C77A9', $tables[0]->children[1]->children[0]->children[0]->attr('pptxCellStyle')['borderStyles']['bottom']['resolvedColor'] ?? null);
         $t->same(2, $tables[0]->children[1]->children[1]->children[0]->attr('rowspan'));
         $t->same('23', $tables[0]->children[1]->children[1]->children[1]->attr('text'));
         $t->same(1, count($images));
@@ -586,8 +606,15 @@ return [
         $t->same('standard', $chartDivs[0]->attr('pptxChart')['plots'][1]['grouping'] ?? null);
         $t->same(['Q1', 'Q2'], $chartDivs[0]->attr('pptxChart')['series'][0]['categories'] ?? null);
         $t->same(['12', '18'], $chartDivs[0]->attr('pptxChart')['series'][0]['values'] ?? null);
+        $t->same('Sheet1!$A$2:$A$3', $chartDivs[0]->attr('pptxChart')['series'][0]['categoryFormula'] ?? null);
+        $t->same(2, $chartDivs[0]->attr('pptxChart')['series'][0]['categoryPointCount'] ?? null);
+        $t->same(['0', '1'], $chartDivs[0]->attr('pptxChart')['series'][0]['categoryPointIndexes'] ?? null);
+        $t->same('Sheet1!$B$2:$B$3', $chartDivs[0]->attr('pptxChart')['series'][0]['valueFormula'] ?? null);
+        $t->same(2, $chartDivs[0]->attr('pptxChart')['series'][0]['valuePointCount'] ?? null);
+        $t->same(['0', '1'], $chartDivs[0]->attr('pptxChart')['series'][0]['valuePointIndexes'] ?? null);
         $t->same('line', $chartDivs[0]->attr('pptxChart')['series'][1]['plotType'] ?? null);
         $t->same(['9', '13'], $chartDivs[0]->attr('pptxChart')['series'][1]['values'] ?? null);
+        $t->same('Sheet1!$C$2:$C$3', $chartDivs[0]->attr('pptxChart')['series'][1]['valueFormula'] ?? null);
         $t->same('Quarter', $chartDivs[0]->attr('pptxChart')['axes'][0]['title'] ?? null);
         $t->same('Revenue', $chartDivs[0]->attr('pptxChart')['axes'][1]['title'] ?? null);
         $t->same('$#,##0', $chartDivs[0]->attr('pptxChart')['axes'][1]['numberFormat'] ?? null);

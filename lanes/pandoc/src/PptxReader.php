@@ -878,7 +878,10 @@ final class PptxReader
             return [];
         }
 
-        foreach (['layoutPlaceholders', 'masterPlaceholders'] as $bucket) {
+        foreach ([
+            'layoutPlaceholders' => ['source' => 'layout', 'sourcePartKey' => 'layoutPart'],
+            'masterPlaceholders' => ['source' => 'master', 'sourcePartKey' => 'masterPart'],
+        ] as $bucket => $source) {
             $placeholders = $slideContext[$bucket] ?? [];
             if (!is_array($placeholders)) {
                 continue;
@@ -886,12 +889,38 @@ final class PptxReader
             foreach ($keys as $key) {
                 $blocks = $placeholders[$key] ?? null;
                 if (is_array($blocks) && $blocks !== []) {
-                    return $blocks;
+                    return $this->withInheritedPlaceholderMetadata($blocks, [
+                        'source' => $source['source'],
+                        'sourcePart' => (string) ($slideContext[$source['sourcePartKey']] ?? ''),
+                        'lookupKey' => $key,
+                        'lookupKeys' => $keys,
+                    ]);
                 }
             }
         }
 
         return [];
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param array<string, mixed> $metadata
+     * @return list<AstNode>
+     */
+    private function withInheritedPlaceholderMetadata(array $blocks, array $metadata): array
+    {
+        return array_map(
+            static function (AstNode $block) use ($metadata): AstNode {
+                $attrs = $block->attrs;
+                $existing = $attrs['pptxPlaceholderInheritance'] ?? [];
+                $attrs['pptxPlaceholderInheritance'] = is_array($existing)
+                    ? array_replace($metadata, $existing)
+                    : $metadata;
+
+                return new AstNode($block->type, $attrs, $block->children);
+            },
+            $blocks
+        );
     }
 
     /**
@@ -1170,9 +1199,19 @@ final class PptxReader
 
     private function drawingColorValue(\DOMElement $container): string
     {
+        $metadata = $this->drawingColorMetadata($container);
+
+        return is_string($metadata['color'] ?? null) ? $metadata['color'] : '';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawingColorMetadata(\DOMElement $container): array
+    {
         $value = $this->drawingColorValueFromElement($container);
         if ($value !== '') {
-            return $value;
+            return $this->drawingColorMetadataFromValue($container, $value);
         }
 
         foreach ($container->getElementsByTagName('*') as $element) {
@@ -1182,11 +1221,44 @@ final class PptxReader
 
             $value = $this->drawingColorValueFromElement($element);
             if ($value !== '') {
-                return $value;
+                return $this->drawingColorMetadataFromValue($element, $value);
             }
         }
 
-        return '';
+        return [];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function drawingColorMetadataFromValue(\DOMElement $element, string $value): array
+    {
+        $metadata = ['color' => $value];
+        $transforms = $this->drawingColorTransforms($element);
+        if ($transforms !== []) {
+            $metadata['transforms'] = $transforms;
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function drawingColorTransforms(\DOMElement $colorElement): array
+    {
+        $transforms = [];
+        foreach ($this->childElements($colorElement, null) as $child) {
+            if (!in_array($child->localName, ['lumMod', 'lumOff', 'shade', 'tint'], true)) {
+                continue;
+            }
+            $value = $this->integerAttribute($child, 'val');
+            if ($value !== null) {
+                $transforms[$child->localName] = $value;
+            }
+        }
+
+        return $transforms;
     }
 
     private function drawingColorValueFromElement(\DOMElement $element): string
@@ -1822,14 +1894,18 @@ final class PptxReader
      */
     private function chartSeries(\DOMElement $seriesElement, string $plotType = ''): array
     {
+        $categoryCache = $this->chartCacheSummaryFor($seriesElement, ['cat', 'xVal']);
+        $valueCache = $this->chartCacheSummaryFor($seriesElement, ['val', 'yVal']);
         $series = [
             'name' => '',
-            'categories' => $this->chartCacheValuesFor($seriesElement, ['cat', 'xVal']),
-            'values' => $this->chartCacheValuesFor($seriesElement, ['val', 'yVal']),
+            'categories' => $categoryCache['values'],
+            'values' => $valueCache['values'],
         ];
         if ($plotType !== '') {
             $series['plotType'] = $plotType;
         }
+        $this->addChartCacheMetadata($series, 'category', $categoryCache);
+        $this->addChartCacheMetadata($series, 'value', $valueCache);
 
         $index = $this->firstChildElement($seriesElement, 'idx');
         if ($index instanceof \DOMElement && $index->getAttribute('val') !== '') {
@@ -1851,28 +1927,75 @@ final class PptxReader
 
     /**
      * @param list<string> $containers
-     * @return list<string>
+     * @return array{values:list<string>, pointIndexes:list<string>, pointCount?:int, formula?:string}
      */
-    private function chartCacheValuesFor(\DOMElement $seriesElement, array $containers): array
+    private function chartCacheSummaryFor(\DOMElement $seriesElement, array $containers): array
     {
         foreach ($this->childElements($seriesElement, null) as $child) {
             if (in_array($child->localName, $containers, true)) {
-                return $this->chartCacheValues($child);
+                return $this->chartCacheSummary($child);
             }
         }
 
-        return [];
+        return [
+            'values' => [],
+            'pointIndexes' => [],
+        ];
     }
 
     /**
-     * @return list<string>
+     * @param array<string, mixed> $series
+     * @param array{values:list<string>, pointIndexes:list<string>, pointCount?:int, formula?:string} $cache
      */
-    private function chartCacheValues(\DOMElement $container): array
+    private function addChartCacheMetadata(array &$series, string $prefix, array $cache): void
     {
+        if (is_string($cache['formula'] ?? null) && $cache['formula'] !== '') {
+            $series[$prefix . 'Formula'] = $cache['formula'];
+        }
+        if (is_int($cache['pointCount'] ?? null)) {
+            $series[$prefix . 'PointCount'] = $cache['pointCount'];
+        }
+        if ($cache['pointIndexes'] !== []) {
+            $series[$prefix . 'PointIndexes'] = $cache['pointIndexes'];
+        }
+    }
+
+    /**
+     * @return array{values:list<string>, pointIndexes:list<string>, pointCount?:int, formula?:string}
+     */
+    private function chartCacheSummary(\DOMElement $container): array
+    {
+        $summary = [
+            'values' => [],
+            'pointIndexes' => [],
+        ];
+        $formula = $this->firstDescendantElement($container, 'f');
+        if ($formula instanceof \DOMElement) {
+            $text = trim($this->allDescendantText($formula));
+            if ($text !== '') {
+                $summary['formula'] = $text;
+            }
+        }
+        foreach ($container->getElementsByTagName('*') as $count) {
+            if (!$count instanceof \DOMElement || $count->localName !== 'ptCount') {
+                continue;
+            }
+            $pointCount = $this->integerAttribute($count, 'val');
+            if ($pointCount !== null) {
+                $summary['pointCount'] = $pointCount;
+            }
+            break;
+        }
+
         $values = [];
+        $pointIndexes = [];
         foreach ($container->getElementsByTagName('*') as $point) {
             if (!$point instanceof \DOMElement || $point->localName !== 'pt') {
                 continue;
+            }
+            $pointIndex = trim($point->getAttribute('idx'));
+            if ($pointIndex !== '') {
+                $pointIndexes[] = $pointIndex;
             }
 
             $value = $this->firstChildElement($point, 'v');
@@ -1884,7 +2007,10 @@ final class PptxReader
             }
         }
         if ($values !== []) {
-            return $values;
+            $summary['values'] = $values;
+            $summary['pointIndexes'] = array_values(array_unique($pointIndexes));
+
+            return $summary;
         }
 
         foreach ($container->getElementsByTagName('*') as $value) {
@@ -1898,7 +2024,9 @@ final class PptxReader
             }
         }
 
-        return $values;
+        $summary['values'] = $values;
+
+        return $summary;
     }
 
     private function chartElementText(\DOMElement $element): string
@@ -2164,9 +2292,12 @@ final class PptxReader
     private function tableCellStyleContainerMetadata(\DOMElement $properties): array
     {
         $style = [];
-        $fillColor = $this->tableFillColor($properties);
-        if ($fillColor !== '') {
-            $style['fillColor'] = $fillColor;
+        $fillColor = $this->tableFillMetadata($properties);
+        if (is_string($fillColor['color'] ?? null) && $fillColor['color'] !== '') {
+            $style['fillColor'] = $fillColor['color'];
+            if (is_array($fillColor['transforms'] ?? null) && $fillColor['transforms'] !== []) {
+                $style['fillColorTransforms'] = $fillColor['transforms'];
+            }
         }
 
         $borders = [];
@@ -2198,20 +2329,23 @@ final class PptxReader
         return $style;
     }
 
-    private function tableFillColor(\DOMElement $properties): string
+    /**
+     * @return array<string, mixed>
+     */
+    private function tableFillMetadata(\DOMElement $properties): array
     {
         foreach ($this->childElements($properties, null) as $child) {
             if (!in_array($child->localName, ['solidFill', 'fill', 'fillRef'], true)) {
                 continue;
             }
 
-            $color = $this->drawingColorValue($child);
-            if ($color !== '') {
-                return $color;
+            $metadata = $this->drawingColorMetadata($child);
+            if (is_string($metadata['color'] ?? null) && $metadata['color'] !== '') {
+                return $metadata;
             }
         }
 
-        return '';
+        return [];
     }
 
     /**
@@ -2220,9 +2354,12 @@ final class PptxReader
     private function tableLineStyleMetadata(\DOMElement $line): array
     {
         $style = [];
-        $color = $this->drawingColorValue($line);
-        if ($color !== '') {
-            $style['color'] = $color;
+        $color = $this->drawingColorMetadata($line);
+        if (is_string($color['color'] ?? null) && $color['color'] !== '') {
+            $style['color'] = $color['color'];
+            if (is_array($color['transforms'] ?? null) && $color['transforms'] !== []) {
+                $style['colorTransforms'] = $color['transforms'];
+            }
         }
 
         $width = $this->integerAttribute($line, 'w');
@@ -2251,7 +2388,8 @@ final class PptxReader
     private function withResolvedThemeColors(array $style, array $theme): array
     {
         $fillColor = is_string($style['fillColor'] ?? null) ? $style['fillColor'] : '';
-        $resolvedFillColor = $this->resolveThemeColor($fillColor, $theme);
+        $fillTransforms = is_array($style['fillColorTransforms'] ?? null) ? $style['fillColorTransforms'] : [];
+        $resolvedFillColor = $this->resolveThemeColor($fillColor, $theme, $fillTransforms);
         if ($resolvedFillColor !== '' && $resolvedFillColor !== $fillColor) {
             $style['resolvedFillColor'] = $resolvedFillColor;
         }
@@ -2263,7 +2401,11 @@ final class PptxReader
                 continue;
             }
 
-            $resolved = $this->resolveThemeColor($color, $theme);
+            $borderTransforms = [];
+            if (is_array($style['borderStyles'][$side]['colorTransforms'] ?? null)) {
+                $borderTransforms = $style['borderStyles'][$side]['colorTransforms'];
+            }
+            $resolved = $this->resolveThemeColor($color, $theme, $borderTransforms);
             if ($resolved !== '' && $resolved !== $color) {
                 $resolvedBorders[$side] = $resolved;
             }
@@ -2279,7 +2421,8 @@ final class PptxReader
                 }
 
                 $color = is_string($border['color'] ?? null) ? $border['color'] : '';
-                $resolved = $this->resolveThemeColor($color, $theme);
+                $borderTransforms = is_array($border['colorTransforms'] ?? null) ? $border['colorTransforms'] : [];
+                $resolved = $this->resolveThemeColor($color, $theme, $borderTransforms);
                 if ($resolved !== '' && $resolved !== $color) {
                     $style['borderStyles'][$side]['resolvedColor'] = $resolved;
                 }
@@ -2289,16 +2432,65 @@ final class PptxReader
         return $style;
     }
 
-    private function resolveThemeColor(string $color, array $theme): string
+    /**
+     * @param array<string, int> $transforms
+     */
+    private function resolveThemeColor(string $color, array $theme, array $transforms = []): string
     {
-        if (!str_starts_with($color, 'theme:')) {
-            return $color;
+        $resolved = $color;
+        if (str_starts_with($color, 'theme:')) {
+            $key = substr($color, 6);
+            $colors = $theme['colorScheme']['colors'] ?? [];
+            $resolved = is_array($colors) && is_string($colors[$key] ?? null) ? $colors[$key] : '';
         }
 
-        $key = substr($color, 6);
-        $colors = $theme['colorScheme']['colors'] ?? [];
+        if ($resolved === '' || preg_match('/^[0-9A-F]{6}$/', $resolved) !== 1) {
+            return $resolved;
+        }
 
-        return is_array($colors) && is_string($colors[$key] ?? null) ? $colors[$key] : '';
+        return $transforms !== [] ? $this->applyColorTransforms($resolved, $transforms) : $resolved;
+    }
+
+    /**
+     * @param array<string, int> $transforms
+     */
+    private function applyColorTransforms(string $hex, array $transforms): string
+    {
+        $channels = [
+            hexdec(substr($hex, 0, 2)),
+            hexdec(substr($hex, 2, 2)),
+            hexdec(substr($hex, 4, 2)),
+        ];
+
+        if (isset($transforms['lumMod'])) {
+            $factor = max(0, $transforms['lumMod']) / 100000;
+            foreach ($channels as $index => $channel) {
+                $channels[$index] = $channel * $factor;
+            }
+        }
+        if (isset($transforms['lumOff'])) {
+            $offset = 255 * (max(0, $transforms['lumOff']) / 100000);
+            foreach ($channels as $index => $channel) {
+                $channels[$index] = $channel + $offset;
+            }
+        }
+        if (isset($transforms['shade'])) {
+            $factor = max(0, $transforms['shade']) / 100000;
+            foreach ($channels as $index => $channel) {
+                $channels[$index] = $channel * $factor;
+            }
+        }
+        if (isset($transforms['tint'])) {
+            $factor = max(0, $transforms['tint']) / 100000;
+            foreach ($channels as $index => $channel) {
+                $channels[$index] = $channel + ((255 - $channel) * $factor);
+            }
+        }
+
+        return strtoupper(implode('', array_map(
+            static fn (float|int $channel): string => sprintf('%02X', max(0, min(255, (int) round($channel)))),
+            $channels
+        )));
     }
 
     /**
