@@ -330,6 +330,7 @@ final class PptxReader
             return $blocks;
         }
 
+        $relationshipNamespace = $root->lookupNamespaceURI('r') ?? $spTree->lookupNamespaceURI('r');
         $zOrder = 0;
         foreach ($this->childElements($spTree, null) as $shapeElement) {
             if (!$this->isDrawableShapeElement($shapeElement)) {
@@ -339,7 +340,7 @@ final class PptxReader
             if ($this->isTitlePlaceholder($shapeElement)) {
                 continue;
             }
-            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder, $imageIssues, $shapeIssues, $richMedia) as $block) {
+            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $relationshipNamespace, $zOrder, $imageIssues, $shapeIssues, $richMedia) as $block) {
                 $blocks[] = $block;
             }
         }
@@ -1543,7 +1544,7 @@ final class PptxReader
      * @param list<array<string, string|bool|array<string, mixed>>> $richMedia
      * @return list<AstNode>
      */
-    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
+    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, ?string $relationshipNamespace, int $zOrder, array &$imageIssues, array &$shapeIssues, array &$richMedia): array
     {
         if ($shapeElement->localName === 'sp') {
             $textBody = $this->firstPresentationChildElement($shapeElement, 'txBody');
@@ -1562,7 +1563,7 @@ final class PptxReader
 
         if ($shapeElement->localName === 'pic') {
             $this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder);
-            $image = $this->pictureNode($package, $shapeElement, $slideRelationships, $imageIssues);
+            $image = $this->pictureNode($package, $shapeElement, $slideRelationships, $relationshipNamespace, $imageIssues);
 
             return $this->withShapeMetadata($image instanceof AstNode ? [new AstNode('paragraph', [], [$image])] : [], $shapeElement, $zOrder);
         }
@@ -1588,7 +1589,7 @@ final class PptxReader
             return $this->withShapeMetadata($tableNode instanceof AstNode ? [$tableNode] : [], $shapeElement, $zOrder);
         }
         if (str_contains($uri, 'diagram')) {
-            $diagram = $this->diagramNode($package, $graphicData, $slideRelationships);
+            $diagram = $this->diagramNode($package, $graphicData, $slideRelationships, $relationshipNamespace);
 
             return $this->withShapeMetadata($diagram instanceof AstNode ? [$diagram] : [], $shapeElement, $zOrder);
         }
@@ -2146,7 +2147,7 @@ final class PptxReader
     /**
      * @param list<array<string, mixed>> $imageIssues
      */
-    private function pictureNode(ZipPackage $package, \DOMElement $pictureElement, OpcRelationships $slideRelationships, array &$imageIssues): ?AstNode
+    private function pictureNode(ZipPackage $package, \DOMElement $pictureElement, OpcRelationships $slideRelationships, ?string $relationshipNamespace, array &$imageIssues): ?AstNode
     {
         $nonVisual = $this->firstPresentationChildElement($pictureElement, 'nvPicPr');
         $properties = $nonVisual instanceof \DOMElement ? $this->firstPresentationChildElement($nonVisual, 'cNvPr') : null;
@@ -2165,10 +2166,10 @@ final class PptxReader
         }
 
         $relationshipAttribute = 'embed';
-        $relationshipId = $this->relationshipAttribute($blip, $relationshipAttribute);
+        $relationshipId = $this->relationshipAttributeForPrefix($blip, 'r', $relationshipAttribute, $relationshipNamespace);
         if ($relationshipId === null) {
             $relationshipAttribute = 'link';
-            $relationshipId = $this->relationshipAttribute($blip, $relationshipAttribute);
+            $relationshipId = $this->relationshipAttributeForPrefix($blip, 'r', $relationshipAttribute, $relationshipNamespace);
         }
         if ($relationshipId === null) {
             $imageIssues[] = ['issue' => 'missing-image-relationship-id'];
@@ -3056,15 +3057,15 @@ final class PptxReader
         return $style;
     }
 
-    private function diagramNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships): ?AstNode
+    private function diagramNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships, ?string $relationshipNamespace): ?AstNode
     {
         $relIds = $this->firstChildElement($graphicData, 'relIds');
         if (!$relIds instanceof \DOMElement) {
             return $this->paragraph('[Graphic: diagram-no-relIds]');
         }
 
-        $dataRelId = $this->relationshipAttribute($relIds, 'dm');
-        $layoutRelId = $this->relationshipAttribute($relIds, 'lo');
+        $dataRelId = $this->relationshipAttributeForPrefix($relIds, 'r', 'dm', $relationshipNamespace);
+        $layoutRelId = $this->relationshipAttributeForPrefix($relIds, 'r', 'lo', $relationshipNamespace);
         if ($dataRelId === null || $layoutRelId === null) {
             return $this->paragraph('[Graphic: diagram-missing-rels]');
         }

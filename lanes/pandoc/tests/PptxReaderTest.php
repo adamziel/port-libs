@@ -1231,6 +1231,103 @@ XML);
     }
 };
 
+$buildWrongPrefixShapeRelationshipsPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-wrong-prefix-shape-rels-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="urn:not-office-relationships"
+       xmlns:rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Wrong prefix shapes</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="Wrong Prefix Picture" descr="Wrong prefix alt"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+      <p:blipFill><a:blip rel:embed="rIdImage"/></p:blipFill>
+    </p:pic>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Wrong Prefix SmartArt"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds rel:dm="rIdData" rel:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/wrong-prefix.png"/>
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/wrong-prefix.png', 'wrong-prefix-image-bytes');
+    $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/wrongPrefixLayout"/>
+XML);
+    $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>Wrong prefix parent</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Wrong prefix child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildRootTargetImagePptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-root-target-image-');
     if ($path === false) {
@@ -4602,6 +4699,23 @@ return [
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Malformed" , Space , Str "picture" , Space , Str "title" ]', $native);
         $t->true(!str_contains($native, 'Image'), 'Malformed nvSpPr title placeholder picture should be filtered before picture parsing');
         $t->true(!str_contains($native, 'malformed-title-picture.png'), 'Filtered title placeholder picture media should not become visible');
+    },
+
+    'uses slide r prefix binding for picture and SmartArt relationships like upstream' => static function (TestRunner $t) use ($buildWrongPrefixShapeRelationshipsPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildWrongPrefixShapeRelationshipsPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphs = $nodesOfType($document, 'paragraph');
+        $texts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $paragraphs);
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same([], $nodesOfType($document, 'image'));
+        $t->same([], $nodesWithClass($nodesOfType($document, 'div'), 'smartart'));
+        $t->same(true, in_array('[Graphic: diagram-missing-rels]', $texts, true));
+        $t->same(1, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Wrong" , Space , Str "prefix" , Space , Str "shapes" ]', $native);
+        $t->contains('Para [ Str "[Graphic:" , Space , Str "diagram-missing-rels]" ]', $native);
+        $t->true(!str_contains($native, 'wrong-prefix.png'), 'Picture relationship under the wrong r prefix binding should not become visible');
+        $t->true(!str_contains($native, 'Wrong prefix parent'), 'SmartArt relIds under the wrong r prefix binding should not parse the diagram');
     },
 
     'drops pptx pictures without nonvisual properties from visible content' => static function (TestRunner $t) use ($buildPictureWithoutNonVisualPropertiesPptxPackage, $nodesOfType): void {
