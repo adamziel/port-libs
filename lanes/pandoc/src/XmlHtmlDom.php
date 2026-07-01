@@ -31761,7 +31761,74 @@ final class XmlHtmlDom
             $valid[] = $token;
         }
 
+        $scriptsAllowed = in_array('allow-scripts', $valid, true);
+        $sameOriginAllowed = in_array('allow-same-origin', $valid, true);
+        $popupTokens = array_values(array_filter(
+            $valid,
+            static fn (string $token): bool => in_array($token, [
+                'allow-popups',
+                'allow-popups-to-escape-sandbox',
+            ], true)
+        ));
+        $topNavigationTokens = array_values(array_filter(
+            $valid,
+            static fn (string $token): bool => str_starts_with($token, 'allow-top-navigation')
+        ));
+        $navigationTokens = array_values(array_filter(
+            $valid,
+            static fn (string $token): bool => $token === 'allow-popups-to-escape-sandbox'
+                || str_starts_with($token, 'allow-top-navigation')
+        ));
+        $originStorageTokens = array_values(array_filter(
+            $valid,
+            static fn (string $token): bool => in_array($token, [
+                'allow-same-origin',
+                'allow-storage-access-by-user-activation',
+            ], true)
+        ));
+        $userActivationTokens = array_values(array_filter(
+            $valid,
+            static fn (string $token): bool => str_ends_with($token, '-by-user-activation')
+        ));
+        $escapeTokens = array_values(array_filter(
+            $valid,
+            static fn (string $token): bool => $token === 'allow-popups-to-escape-sandbox'
+        ));
+
+        $riskIssues = [];
+        foreach ($invalid as $token) {
+            $riskIssues[] = [
+                'code' => 'invalid-iframe-sandbox-token',
+                'token' => $token,
+            ];
+        }
+        foreach ($duplicates as $token) {
+            $riskIssues[] = [
+                'code' => 'duplicate-iframe-sandbox-token',
+                'token' => $token,
+            ];
+        }
+        if ($scriptsAllowed && $sameOriginAllowed) {
+            $riskIssues[] = [
+                'code' => 'iframe-sandbox-allows-scripts-same-origin',
+                'tokens' => ['allow-scripts', 'allow-same-origin'],
+            ];
+        }
+        if (in_array('allow-popups-to-escape-sandbox', $valid, true)) {
+            $riskIssues[] = [
+                'code' => 'iframe-sandbox-allows-popup-escape',
+                'token' => 'allow-popups-to-escape-sandbox',
+            ];
+        }
+        if ($topNavigationTokens !== []) {
+            $riskIssues[] = [
+                'code' => 'iframe-sandbox-allows-top-navigation',
+                'tokens' => $topNavigationTokens,
+            ];
+        }
+
         return [
+            'iframeSandboxReviewPolicy' => 'iframe-sandbox-token-risk-review',
             'sandboxRaw' => $value,
             'sandboxTokens' => $tokens,
             'sandboxValidTokens' => $valid,
@@ -31770,10 +31837,30 @@ final class XmlHtmlDom
             'sandboxTokenCount' => count($tokens),
             'sandboxValidTokenCount' => count($valid),
             'sandboxAllTokensValid' => $invalid === [],
-            'sandboxAllowsScripts' => in_array('allow-scripts', $valid, true),
-            'sandboxAllowsSameOrigin' => in_array('allow-same-origin', $valid, true),
-            'sandboxAllowsScriptsAndSameOrigin' => in_array('allow-scripts', $valid, true)
-                && in_array('allow-same-origin', $valid, true),
+            'sandboxStrict' => $tokens === [],
+            'sandboxRelaxationTokens' => $valid,
+            'sandboxExecutionTokens' => $scriptsAllowed ? ['allow-scripts'] : [],
+            'sandboxOriginStorageTokens' => $originStorageTokens,
+            'sandboxPopupTokens' => $popupTokens,
+            'sandboxNavigationTokens' => $navigationTokens,
+            'sandboxTopNavigationTokens' => $topNavigationTokens,
+            'sandboxUserActivationTokens' => $userActivationTokens,
+            'sandboxEscapeTokens' => $escapeTokens,
+            'sandboxAllowsScripts' => $scriptsAllowed,
+            'sandboxAllowsSameOrigin' => $sameOriginAllowed,
+            'sandboxAllowsScriptsAndSameOrigin' => $scriptsAllowed && $sameOriginAllowed,
+            'sandboxAllowsPopupEscape' => $escapeTokens !== [],
+            'sandboxAllowsTopNavigation' => $topNavigationTokens !== [],
+            'sandboxAllowsStorageAccessByUserActivation' => in_array(
+                'allow-storage-access-by-user-activation',
+                $valid,
+                true
+            ),
+            'sandboxRiskIssues' => $riskIssues,
+            'sandboxRiskIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $riskIssues
+            ))),
         ];
     }
 
