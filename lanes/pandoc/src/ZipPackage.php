@@ -12456,6 +12456,115 @@ final class ZipPackage
      * @param list<array<string, mixed>> $entries
      * @return list<array<string, mixed>>
      */
+    private static function entryHandoffPathSegmentSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $segments = is_array($entry['pathSegments'] ?? null)
+                ? array_values(array_filter($entry['pathSegments'], static fn (mixed $segment): bool => is_string($segment) && $segment !== ''))
+                : self::entryHandoffPathSegments($name);
+            if ($name === '' || $segments === []) {
+                continue;
+            }
+
+            $seenSegmentsForEntry = [];
+            foreach ($segments as $segmentIndex => $segment) {
+                if (!isset($summaries[$segment])) {
+                    $summaries[$segment] = [
+                        'segment' => $segment,
+                        'caseFoldSegment' => self::caseFoldZipEntryName($segment),
+                        'occurrenceCount' => 0,
+                        'entryCount' => 0,
+                        'fileEntryCount' => 0,
+                        'directoryEntryCount' => 0,
+                        'compressedBytes' => 0,
+                        'uncompressedBytes' => 0,
+                        'localRecordBytes' => 0,
+                        'sourceRecordBytes' => 0,
+                        'dataDescriptorEntryCount' => 0,
+                        'dataDescriptorBytes' => 0,
+                        'pathSegmentIndexCounts' => [],
+                        'directoryRootCounts' => [],
+                        'packagePartExtensionCounts' => [],
+                        'compressionMethodCounts' => [],
+                        'entryNames' => [],
+                    ];
+                }
+
+                ++$summaries[$segment]['occurrenceCount'];
+                $summaries[$segment]['pathSegmentIndexCounts'][$segmentIndex] =
+                    ($summaries[$segment]['pathSegmentIndexCounts'][$segmentIndex] ?? 0) + 1;
+
+                if (isset($seenSegmentsForEntry[$segment])) {
+                    continue;
+                }
+                $seenSegmentsForEntry[$segment] = true;
+
+                ++$summaries[$segment]['entryCount'];
+                if (($entry['isDirectory'] ?? false) === true) {
+                    ++$summaries[$segment]['directoryEntryCount'];
+                } else {
+                    ++$summaries[$segment]['fileEntryCount'];
+                }
+
+                $summaries[$segment]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+                $summaries[$segment]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+                $summaries[$segment]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+                $summaries[$segment]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+                $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+                if ($dataDescriptorBytes > 0) {
+                    ++$summaries[$segment]['dataDescriptorEntryCount'];
+                    $summaries[$segment]['dataDescriptorBytes'] += $dataDescriptorBytes;
+                }
+
+                $directoryRoot = is_string($entry['directoryRoot'] ?? null) && $entry['directoryRoot'] !== ''
+                    ? $entry['directoryRoot']
+                    : self::entryHandoffDirectoryRoot($name);
+                $summaries[$segment]['directoryRootCounts'][$directoryRoot] =
+                    ($summaries[$segment]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+
+                $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null) && $entry['packagePartExtensionKey'] !== ''
+                    ? $entry['packagePartExtensionKey']
+                    : (
+                        (($entry['isDirectory'] ?? false) === true)
+                            ? '(directory)'
+                            : (
+                                is_string($entry['entryExtensionKey'] ?? null) && $entry['entryExtensionKey'] !== ''
+                                    ? $entry['entryExtensionKey']
+                                    : '(none)'
+                            )
+                    );
+                $summaries[$segment]['packagePartExtensionCounts'][$extensionKey] =
+                    ($summaries[$segment]['packagePartExtensionCounts'][$extensionKey] ?? 0) + 1;
+
+                $compressionMethod = is_int($entry['compressionMethod'] ?? null)
+                    ? (string) $entry['compressionMethod']
+                    : '(missing)';
+                $summaries[$segment]['compressionMethodCounts'][$compressionMethod] =
+                    ($summaries[$segment]['compressionMethodCounts'][$compressionMethod] ?? 0) + 1;
+                $summaries[$segment]['entryNames'][] = $name;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['pathSegmentIndexCounts'], SORT_NUMERIC);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['packagePartExtensionCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
     private static function entryHandoffPathDepthSummaries(array $entries): array
     {
         $summaries = [];
@@ -12533,9 +12642,20 @@ final class ZipPackage
 
     private static function entryHandoffPathDepth(string $name): int
     {
-        $segments = array_values(array_filter(explode('/', $name), static fn (string $segment): bool => $segment !== ''));
+        return count(self::entryHandoffPathSegments($name));
+    }
 
-        return count($segments);
+    /**
+     * @return list<string>
+     */
+    private static function entryHandoffPathSegments(string $name): array
+    {
+        $trimmedName = trim($name, '/');
+        if ($trimmedName === '') {
+            return [];
+        }
+
+        return array_values(array_filter(explode('/', $trimmedName), static fn (string $segment): bool => $segment !== ''));
     }
 
     /**
@@ -19596,8 +19716,10 @@ final class ZipPackage
                 'entryBaseName' => self::entryHandoffBaseName($entry->name),
                 'entryExtension' => $entryExtension,
                 'entryExtensionKey' => $entryExtension ?? '(none)',
+                'packagePartExtensionKey' => $isDirectory ? '(directory)' : ($entryExtension ?? '(none)'),
                 'caseFoldName' => self::caseFoldZipEntryName($entry->name),
                 'caseFoldLeafName' => self::entryHandoffCaseFoldLeafName($entry->name),
+                'pathSegments' => self::entryHandoffPathSegments($entry->name),
                 'pathDepth' => self::entryHandoffPathDepth($entry->name),
                 'pathPrefixes' => self::entryHandoffPathPrefixes($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
@@ -19641,6 +19763,16 @@ final class ZipPackage
         $packagePartKindSummaries = self::entryHandoffPackagePartKindSummaries($entries);
         $extensionSummaries = self::entryHandoffExtensionSummaries($entries);
         $entryExtensionSummaries = self::entryHandoffEntryExtensionSummaries($entries);
+        $pathSegmentSummaries = self::entryHandoffPathSegmentSummaries($entries);
+        $pathSegmentCounts = [];
+        $pathSegmentEntryCounts = [];
+        $pathSegmentOccurrenceCount = 0;
+        foreach ($pathSegmentSummaries as $summary) {
+            $segment = (string) $summary['segment'];
+            $pathSegmentCounts[$segment] = (int) $summary['occurrenceCount'];
+            $pathSegmentEntryCounts[$segment] = (int) $summary['entryCount'];
+            $pathSegmentOccurrenceCount += (int) $summary['occurrenceCount'];
+        }
         $pathDepthSummaries = self::entryHandoffPathDepthSummaries($entries);
         $pathPrefixSummaries = self::entryHandoffPathPrefixSummaries($entries);
         $leafNameSummaries = self::entryHandoffLeafNameSummaries($entries);
@@ -19686,6 +19818,10 @@ final class ZipPackage
             'extensionlessFileEntryCount' => self::entryHandoffExtensionlessFileEntryCount($extensionSummaries),
             'entryExtensionBucketCount' => count($entryExtensionSummaries),
             'extensionlessEntryCount' => self::entryHandoffEntryExtensionlessEntryCount($entryExtensionSummaries),
+            'pathSegmentSummaryCount' => count($pathSegmentSummaries),
+            'pathSegmentOccurrenceCount' => $pathSegmentOccurrenceCount,
+            'pathSegmentCounts' => $pathSegmentCounts,
+            'pathSegmentEntryCounts' => $pathSegmentEntryCounts,
             'pathDepthBucketCount' => count($pathDepthSummaries),
             'maxPathDepth' => self::entryHandoffMaxPathDepth($pathDepthSummaries),
             'pathPrefixCount' => count($pathPrefixSummaries),
@@ -19713,6 +19849,7 @@ final class ZipPackage
             'packagePartKindSummaries' => $packagePartKindSummaries,
             'extensionSummaries' => $extensionSummaries,
             'entryExtensionSummaries' => $entryExtensionSummaries,
+            'pathSegmentSummaries' => $pathSegmentSummaries,
             'pathDepthSummaries' => $pathDepthSummaries,
             'pathPrefixSummaries' => $pathPrefixSummaries,
             'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,

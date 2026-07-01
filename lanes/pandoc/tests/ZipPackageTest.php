@@ -1336,6 +1336,7 @@ return [
         $manifest = $package->packageManifestPreflight();
         $strict = $package->strictImportPreflight(4096, 100.0, 4096);
         $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
         $expectedManifestJson = json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
@@ -1363,6 +1364,7 @@ return [
         $kinds = array_column($manifest['packagePartKindSummaries'], null, 'packagePartKind');
         $extensions = array_column($manifest['extensionSummaries'], null, 'extension');
         $entryExtensions = array_column($manifest['entryExtensionSummaries'], null, 'extensionKey');
+        $segments = array_column($manifest['pathSegmentSummaries'], null, 'segment');
         $depths = array_column($manifest['pathDepthSummaries'], null, 'pathDepth');
         $prefixes = array_column($manifest['pathPrefixSummaries'], null, 'pathPrefix');
         $caseFoldNameCollision = $manifest['caseFoldNameCollisionSummaries'][0];
@@ -1383,6 +1385,8 @@ return [
         $t->same(0, $manifest['extensionlessFileEntryCount']);
         $t->same(4, $manifest['entryExtensionBucketCount']);
         $t->same(1, $manifest['extensionlessEntryCount']);
+        $t->same(11, $manifest['pathSegmentSummaryCount']);
+        $t->same(16, $manifest['pathSegmentOccurrenceCount']);
         $t->same(3, $manifest['pathDepthBucketCount']);
         $t->same(3, $manifest['maxPathDepth']);
         $t->same(7, $manifest['pathPrefixCount']);
@@ -1409,6 +1413,10 @@ return [
         $t->same(2, $extensions['rels']['entryCount']);
         $t->same(2, $extensions['png']['entryCount']);
         $t->same(1, $entryExtensions['(none)']['directoryEntryCount']);
+        $t->same(4, $manifest['pathSegmentCounts']['word']);
+        $t->same(2, $manifest['pathSegmentCounts']['media']);
+        $t->same(1, $manifest['pathSegmentCounts']['Word']);
+        $t->same($manifest['pathSegmentCounts'], $manifest['pathSegmentEntryCounts']);
         $t->same(1, $depths[1]['entryCount']);
         $t->same(3, $depths[2]['entryCount']);
         $t->same(3, $depths[3]['entryCount']);
@@ -1426,9 +1434,72 @@ return [
         $t->same(['Word/Media/', 'word/media/'], $caseFoldLeafNameCollision['parentDirectories']);
         $t->same(['IMAGE.PNG', 'image.png'], $caseFoldLeafNameCollision['leafNames']);
 
+        $wordLocalRecordBytes = $entriesByName['word/document.xml']['localRecordBytes']
+            + $entriesByName['word/_rels/document.xml.rels']['localRecordBytes']
+            + $entriesByName['word/media/image.png']['localRecordBytes']
+            + $entriesByName['word/media/']['localRecordBytes'];
+        $wordSourceRecordBytes = $entriesByName['word/document.xml']['sourceRecordBytes']
+            + $entriesByName['word/_rels/document.xml.rels']['sourceRecordBytes']
+            + $entriesByName['word/media/image.png']['sourceRecordBytes']
+            + $entriesByName['word/media/']['sourceRecordBytes'];
+        $t->same([
+            'segment' => 'word',
+            'caseFoldSegment' => 'word',
+            'occurrenceCount' => 4,
+            'entryCount' => 4,
+            'fileEntryCount' => 3,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => strlen($documentXml) + strlen($documentRelationshipsXml) + strlen($lowerImageBytes),
+            'uncompressedBytes' => strlen($documentXml) + strlen($documentRelationshipsXml) + strlen($lowerImageBytes),
+            'localRecordBytes' => $wordLocalRecordBytes,
+            'sourceRecordBytes' => $wordSourceRecordBytes,
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'pathSegmentIndexCounts' => [0 => 4],
+            'directoryRootCounts' => ['word/' => 4],
+            'packagePartExtensionCounts' => ['(directory)' => 1, 'png' => 1, 'rels' => 1, 'xml' => 1],
+            'compressionMethodCounts' => ['0' => 4],
+            'entryNames' => [
+                'word/_rels/document.xml.rels',
+                'word/document.xml',
+                'word/media/',
+                'word/media/image.png',
+            ],
+        ], $segments['word']);
+
+        $mediaLocalRecordBytes = $entriesByName['word/media/image.png']['localRecordBytes']
+            + $entriesByName['word/media/']['localRecordBytes'];
+        $mediaSourceRecordBytes = $entriesByName['word/media/image.png']['sourceRecordBytes']
+            + $entriesByName['word/media/']['sourceRecordBytes'];
+        $t->same([
+            'segment' => 'media',
+            'caseFoldSegment' => 'media',
+            'occurrenceCount' => 2,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'compressedBytes' => strlen($lowerImageBytes),
+            'uncompressedBytes' => strlen($lowerImageBytes),
+            'localRecordBytes' => $mediaLocalRecordBytes,
+            'sourceRecordBytes' => $mediaSourceRecordBytes,
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'pathSegmentIndexCounts' => [1 => 2],
+            'directoryRootCounts' => ['word/' => 2],
+            'packagePartExtensionCounts' => ['(directory)' => 1, 'png' => 1],
+            'compressionMethodCounts' => ['0' => 2],
+            'entryNames' => ['word/media/', 'word/media/image.png'],
+        ], $segments['media']);
+
         $t->same('word/media/image.png', $manifest['entries'][4]['caseFoldName']);
         $t->same('image.png', $manifest['entries'][5]['caseFoldLeafName']);
+        $t->same(['Word', 'Media', 'IMAGE.PNG'], $manifest['entries'][5]['pathSegments']);
+        $t->same('word', $segments['Word']['caseFoldSegment']);
+        $t->same(['Word/' => 1], $segments['Word']['directoryRootCounts']);
+        $t->same(['png' => 1], $segments['Word']['packagePartExtensionCounts']);
         $t->same(['/', 'Word/', 'Word/Media/'], $manifest['entries'][5]['pathPrefixes']);
+        $t->same(['word', 'media'], $manifest['entries'][6]['pathSegments']);
+        $t->same('(directory)', $manifest['entries'][6]['packagePartExtensionKey']);
         $t->same($manifest, $strict['packageManifest']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
