@@ -163,6 +163,7 @@ final class OpenDocumentPackage
             : null;
         $rawCentralDirectoryExpansionRatio = self::rawCentralDirectoryExpansionRatioBucketPreflight($zipPreflight);
         $rawCentralDirectoryNameByteLength = self::rawCentralDirectoryNameByteLengthBucketPreflight($zipPreflight);
+        $rawCentralDirectoryCommentByteLength = self::rawCentralDirectoryCommentByteLengthBucketPreflight($zipPreflight);
         $diagnostics = [];
         $addDiagnostic = static function (string $diagnostic) use (&$diagnostics): void {
             if (!in_array($diagnostic, $diagnostics, true)) {
@@ -258,11 +259,194 @@ final class OpenDocumentPackage
             'rawCentralDirectoryNameByteLengthDecodedNameDiffersFromRawNameCount' => $rawCentralDirectoryNameByteLength['decodedNameDiffersFromRawNameCount'],
             'rawCentralDirectoryNameByteLengthByteExposurePolicy' => 'odf-raw-central-directory-name-byte-length-metadata-only',
             'rawCentralDirectoryNameByteLengthCanExposeBytes' => false,
+            'rawCentralDirectoryCommentByteLengthBucketSummaryCount' => $rawCentralDirectoryCommentByteLength['summaryCount'],
+            'rawCentralDirectoryCommentByteLengthBuckets' => $rawCentralDirectoryCommentByteLength['buckets'],
+            'rawCentralDirectoryCommentByteLengthBucketCounts' => $rawCentralDirectoryCommentByteLength['bucketCounts'],
+            'rawCentralDirectoryCommentByteLengthBucketSummaries' => $rawCentralDirectoryCommentByteLength['summaries'],
+            'rawCentralDirectoryCommentByteLengthEntryCount' => $rawCentralDirectoryCommentByteLength['entryCount'],
+            'rawCentralDirectoryCommentByteLengthCommentedEntryCount' => $rawCentralDirectoryCommentByteLength['commentedEntryCount'],
+            'rawCentralDirectoryCommentByteLengthRawCommentBytes' => $rawCentralDirectoryCommentByteLength['rawCommentBytes'],
+            'rawCentralDirectoryCommentByteLengthByteExposurePolicy' => 'odf-raw-central-directory-comment-byte-length-metadata-only',
+            'rawCentralDirectoryCommentByteLengthCanExposeBytes' => false,
             'zipRawStrictImport' => $zipPreflight,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
             'byteExposurePolicy' => 'odf-raw-package-import-metadata-only',
             'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $zipPreflight
+     * @return array{
+     *     summaryCount:int,
+     *     buckets:list<string>,
+     *     bucketCounts:array<string, int>,
+     *     summaries:list<array<string, mixed>>,
+     *     entryCount:int,
+     *     commentedEntryCount:int,
+     *     rawCommentBytes:int
+     * }
+     */
+    private static function rawCentralDirectoryCommentByteLengthBucketPreflight(array $zipPreflight): array
+    {
+        $centralDirectory = is_array($zipPreflight['centralDirectoryVariableFields'] ?? null)
+            ? $zipPreflight['centralDirectoryVariableFields']
+            : [];
+        $entries = is_array($centralDirectory['entries'] ?? null) ? $centralDirectory['entries'] : [];
+        $centralDirectorySize = is_array($zipPreflight['centralDirectorySize'] ?? null)
+            ? $zipPreflight['centralDirectorySize']
+            : [];
+        $sizeEntries = is_array($centralDirectorySize['entries'] ?? null) ? $centralDirectorySize['entries'] : [];
+        $sizeEntriesByIndex = [];
+        foreach ($sizeEntries as $sizeEntry) {
+            if (!is_array($sizeEntry)) {
+                continue;
+            }
+
+            $index = is_int($sizeEntry['centralDirectoryIndex'] ?? null) ? $sizeEntry['centralDirectoryIndex'] : null;
+            if ($index !== null) {
+                $sizeEntriesByIndex[$index] = $sizeEntry;
+            }
+        }
+
+        $summaries = [];
+        $entryCount = 0;
+        $commentedEntryCount = 0;
+        $rawCommentBytes = 0;
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+            $index = is_int($entry['centralDirectoryIndex'] ?? null) ? $entry['centralDirectoryIndex'] : null;
+            $sizeEntry = $index !== null && is_array($sizeEntriesByIndex[$index] ?? null)
+                ? $sizeEntriesByIndex[$index]
+                : [];
+
+            $commentLength = is_int($entry['rawCommentLength'] ?? null)
+                ? $entry['rawCommentLength']
+                : (
+                    is_int($entry['commentLength'] ?? null)
+                        ? $entry['commentLength']
+                        : 0
+                );
+            $bucket = self::packagePathByteLengthBucket($commentLength);
+            $bucketKey = $bucket['packagePathByteLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'rawCentralDirectoryCommentByteLengthBucket' => $bucketKey,
+                    'minRawCentralDirectoryCommentByteLength' => $bucket['minPackagePathByteLength'],
+                    'maxRawCentralDirectoryCommentByteLength' => $bucket['maxPackagePathByteLength'],
+                    'entryCount' => 0,
+                    'commentedEntryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'rawCommentBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'directoryRoots' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'commentedEntryNames' => [],
+                    'largestRawCommentEntryName' => null,
+                    'largestRawCommentByteLength' => 0,
+                ];
+            }
+
+            ++$entryCount;
+            ++$summaries[$bucketKey]['entryCount'];
+            $summaries[$bucketKey]['rawCommentBytes'] += $commentLength;
+            $rawCommentBytes += $commentLength;
+            if ($commentLength > 0) {
+                ++$commentedEntryCount;
+                ++$summaries[$bucketKey]['commentedEntryCount'];
+                $summaries[$bucketKey]['commentedEntryNames'][] = $name;
+            }
+
+            $recordOffset = is_int($entry['centralDirectoryOffset'] ?? null)
+                ? $entry['centralDirectoryOffset']
+                : (
+                    is_int($entry['recordOffset'] ?? null)
+                        ? $entry['recordOffset']
+                        : null
+                );
+            $recordEnd = is_int($entry['recordEnd'] ?? null) ? $entry['recordEnd'] : null;
+            if ($recordEnd === null && is_int($sizeEntry['recordEnd'] ?? null)) {
+                $recordEnd = $sizeEntry['recordEnd'];
+            }
+            if ($recordOffset !== null && $recordEnd !== null && $recordEnd >= $recordOffset) {
+                $summaries[$bucketKey]['centralDirectoryRecordBytes'] += $recordEnd - $recordOffset;
+            }
+            $isDirectory = ($entry['isDirectory'] ?? false) === true
+                || ($sizeEntry['isDirectory'] ?? false) === true
+                || str_ends_with($name, '/');
+            if ($isDirectory) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+
+            $summaries[$bucketKey]['entryNames'][] = $name;
+
+            $directoryRoot = self::packageDirectoryRoot($name);
+            if (!in_array($directoryRoot, $summaries[$bucketKey]['directoryRoots'], true)) {
+                $summaries[$bucketKey]['directoryRoots'][] = $directoryRoot;
+            }
+            $compressionMethodName = is_string($entry['compressionMethodName'] ?? null)
+                ? $entry['compressionMethodName']
+                : (
+                    is_string($sizeEntry['compressionMethodName'] ?? null)
+                        ? $sizeEntry['compressionMethodName']
+                        : ''
+                );
+            if ($compressionMethodName !== '' && !in_array($compressionMethodName, $summaries[$bucketKey]['compressionMethodNames'], true)) {
+                $summaries[$bucketKey]['compressionMethodNames'][] = $compressionMethodName;
+            }
+            if (
+                $commentLength > $summaries[$bucketKey]['largestRawCommentByteLength']
+                || (
+                    $commentLength === $summaries[$bucketKey]['largestRawCommentByteLength']
+                    && (
+                        $summaries[$bucketKey]['largestRawCommentEntryName'] === null
+                        || strcmp($name, (string) $summaries[$bucketKey]['largestRawCommentEntryName']) < 0
+                    )
+                )
+            ) {
+                $summaries[$bucketKey]['largestRawCommentEntryName'] = $name;
+                $summaries[$bucketKey]['largestRawCommentByteLength'] = $commentLength;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['commentedEntryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        $bucketCounts = [];
+        foreach (['up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes', '33-to-64-bytes', 'over-64-bytes'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+                $bucketCounts[$bucket] = $summaries[$bucket]['entryCount'];
+            }
+        }
+
+        return [
+            'summaryCount' => count($ordered),
+            'buckets' => array_keys($bucketCounts),
+            'bucketCounts' => $bucketCounts,
+            'summaries' => $ordered,
+            'entryCount' => $entryCount,
+            'commentedEntryCount' => $commentedEntryCount,
+            'rawCommentBytes' => $rawCommentBytes,
         ];
     }
 
