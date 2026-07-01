@@ -12259,6 +12259,61 @@ return [
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
     },
 
+    'preflights missing data descriptors before the next local header record' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $commentsXml = '<w:comments><w:comment>descriptor swallowed by central size</w:comment></w:comments>';
+        $compressedSize = strlen(gzdeflate($commentsXml));
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/comments.xml',
+                'data' => $commentsXml,
+                'method' => 8,
+                'descriptor' => true,
+                'centralCompressedSize' => $compressedSize + 16,
+            ],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>descriptor follower</w:p></w:document>',
+                'method' => 0,
+            ],
+        ]);
+
+        $summary = ZipPackage::dataDescriptorIntegrityPreflight($zip);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 1024, 20.0, 1024);
+        $descriptorEntry = $summary['descriptorEntries'][0];
+
+        $t->same(2, $summary['entryCount']);
+        $t->same(1, $summary['descriptorEntryCount']);
+        $t->same(0, $summary['matchedDescriptorEntryCount']);
+        $t->same(1, $summary['mismatchedDescriptorEntryCount']);
+        $t->same(false, $summary['isSupportedByBoundedReader']);
+        $t->same([
+            'data-descriptor-truncated',
+            'data-descriptor-missing-before-next-local-header',
+        ], $summary['issues']);
+        $t->same('word/comments.xml', $descriptorEntry['name']);
+        $t->same(false, $descriptorEntry['hasSignature']);
+        $t->same(null, $descriptorEntry['descriptorLength']);
+        $t->same(0, $descriptorEntry['descriptorSpan']);
+        $t->same(0, $descriptorEntry['descriptorBytesBeforeNextRecord']);
+        $t->same('local-header', $descriptorEntry['descriptorNextRecordKind']);
+        $t->same(true, $descriptorEntry['descriptorStartsWithRecordSignature']);
+        $t->same('504b0304', $descriptorEntry['descriptorStartSignatureHex']);
+        $t->same('local-file-header', $descriptorEntry['descriptorStartSignatureName']);
+        $t->same(null, $descriptorEntry['descriptorValuesMatchCentral']);
+        $t->same([
+            'data-descriptor-truncated',
+            'data-descriptor-missing-before-next-local-header',
+        ], $descriptorEntry['issues']);
+        $t->same($descriptorEntry, $summary['mismatchedDescriptorEntries'][0]);
+
+        $t->same(false, $rawStrict['isValid']);
+        $t->same(false, $rawStrict['canInstantiate']);
+        $t->same($summary, $rawStrict['dataDescriptors']);
+        $t->contains('data-descriptor-missing-before-next-local-header', implode(',', $rawStrict['diagnostics']));
+        $t->contains('zip-package-instantiation-failed', implode(',', $rawStrict['diagnostics']));
+        $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($zip));
+    },
+
     'rejects local header flags and methods before exposing package entries' => static function (TestRunner $t) use ($buildZipPackage): void {
         $localFlagMismatchZip = $buildZipPackage([
             [

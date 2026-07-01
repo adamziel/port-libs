@@ -19080,7 +19080,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{hasSignature:?bool, descriptorOffset:int, valueOffset:?int, descriptorLength:?int, nextOffset:int, descriptorSpan:int, descriptorEnd:?int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, issues:list<string>}
+     * @return array{hasSignature:?bool, descriptorOffset:int, valueOffset:?int, descriptorLength:?int, nextOffset:int, descriptorSpan:int, descriptorEnd:?int, surplusDescriptorBytes:?int, truncatedDescriptorBytes:?int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, descriptorBytesBeforeNextRecord:int, descriptorNextRecordKind:string, descriptorStartsWithRecordSignature:bool, descriptorStartSignatureHex:?string, descriptorStartSignatureName:?string, issues:list<string>}
      */
     private static function dataDescriptorIntegritySummaryFromBytes(
         string $bytes,
@@ -19094,12 +19094,14 @@ final class ZipPackage
     ): array {
         $descriptorSpan = $nextOffset - $descriptorOffset;
         $hasSignatureMarker = substr($bytes, $descriptorOffset, 4) === "PK\x07\x08";
+        $boundary = self::dataDescriptorBoundaryMetadata($bytes, $descriptorOffset, $nextOffset, $centralDirectoryOffset);
 
         if ($descriptorSpan === 20 && !$hasSignatureMarker) {
             $values = self::zip64DataDescriptorValuesFromBytes($bytes, $descriptorOffset, $centralDirectoryOffset);
 
             return self::dataDescriptorIntegrityResult(
                 $entryName,
+                $bytes,
                 $descriptorOffset,
                 $descriptorOffset,
                 20,
@@ -19110,6 +19112,7 @@ final class ZipPackage
                 $centralCompressedSize,
                 $centralUncompressedSize,
                 $nextOffset,
+                $centralDirectoryOffset,
                 ['zip64-sized-data-descriptor']
             );
         }
@@ -19119,6 +19122,7 @@ final class ZipPackage
 
             return self::dataDescriptorIntegrityResult(
                 $entryName,
+                $bytes,
                 $descriptorOffset,
                 $descriptorOffset + 4,
                 24,
@@ -19129,8 +19133,46 @@ final class ZipPackage
                 $centralCompressedSize,
                 $centralUncompressedSize,
                 $nextOffset,
+                $centralDirectoryOffset,
                 ['zip64-sized-data-descriptor']
             );
+        }
+
+        if (
+            !$hasSignatureMarker
+            && $descriptorSpan < 12
+            && $boundary['descriptorStartsWithRecordSignature']
+            && $boundary['descriptorStartSignatureName'] !== 'data-descriptor'
+        ) {
+            $issues = ['data-descriptor-truncated'];
+            $boundaryIssue = self::dataDescriptorBoundaryIssue(
+                $descriptorSpan,
+                12,
+                $nextOffset,
+                $centralDirectoryOffset
+            );
+            if ($boundaryIssue !== null) {
+                $issues[] = $boundaryIssue;
+            }
+
+            return [
+                'hasSignature' => false,
+                'descriptorOffset' => $descriptorOffset,
+                'valueOffset' => $descriptorOffset,
+                'descriptorLength' => null,
+                'nextOffset' => $nextOffset,
+                'descriptorSpan' => $descriptorSpan,
+                'descriptorEnd' => null,
+                'surplusDescriptorBytes' => null,
+                'truncatedDescriptorBytes' => null,
+                'crc32' => null,
+                'crc32Hex' => null,
+                'compressedSize' => null,
+                'uncompressedSize' => null,
+                'usesZip64SizedDescriptor' => false,
+                'descriptorValuesMatchCentral' => null,
+                'issues' => array_values(array_unique($issues)),
+            ] + $boundary;
         }
 
         $signedValues = $hasSignatureMarker
@@ -19171,6 +19213,18 @@ final class ZipPackage
             $hasSignature = false;
             $values = $unsignedValues;
         } else {
+            $issues = ['data-descriptor-truncated'];
+            $expectedLength = $hasSignatureMarker ? 16 : 12;
+            $boundaryIssue = self::dataDescriptorBoundaryIssue(
+                $descriptorSpan,
+                $expectedLength,
+                $nextOffset,
+                $centralDirectoryOffset
+            );
+            if ($boundaryIssue !== null) {
+                $issues[] = $boundaryIssue;
+            }
+
             return [
                 'hasSignature' => $hasSignatureMarker,
                 'descriptorOffset' => $descriptorOffset,
@@ -19187,8 +19241,8 @@ final class ZipPackage
                 'uncompressedSize' => null,
                 'usesZip64SizedDescriptor' => false,
                 'descriptorValuesMatchCentral' => null,
-                'issues' => ['data-descriptor-truncated'],
-            ];
+                'issues' => array_values(array_unique($issues)),
+            ] + $boundary;
         }
 
         $extraIssues = [];
@@ -19198,6 +19252,7 @@ final class ZipPackage
 
         return self::dataDescriptorIntegrityResult(
             $entryName,
+            $bytes,
             $descriptorOffset,
             $valueOffset,
             $descriptorLength,
@@ -19208,6 +19263,7 @@ final class ZipPackage
             $centralCompressedSize,
             $centralUncompressedSize,
             $nextOffset,
+            $centralDirectoryOffset,
             $extraIssues
         );
     }
@@ -19215,10 +19271,11 @@ final class ZipPackage
     /**
      * @param array{crc32:int, compressedSize:int, uncompressedSize:int}|null $values
      * @param list<string> $extraIssues
-     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:int, descriptorSpan:int, descriptorEnd:int, surplusDescriptorBytes:int, truncatedDescriptorBytes:int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, issues:list<string>}
+     * @return array{hasSignature:bool, descriptorOffset:int, valueOffset:int, descriptorLength:int, nextOffset:int, descriptorSpan:int, descriptorEnd:int, surplusDescriptorBytes:int, truncatedDescriptorBytes:int, crc32:?int, crc32Hex:?string, compressedSize:?int, uncompressedSize:?int, usesZip64SizedDescriptor:bool, descriptorValuesMatchCentral:?bool, descriptorBytesBeforeNextRecord:int, descriptorNextRecordKind:string, descriptorStartsWithRecordSignature:bool, descriptorStartSignatureHex:?string, descriptorStartSignatureName:?string, issues:list<string>}
      */
     private static function dataDescriptorIntegrityResult(
         string $entryName,
+        string $bytes,
         int $descriptorOffset,
         int $valueOffset,
         int $descriptorLength,
@@ -19229,6 +19286,7 @@ final class ZipPackage
         int $centralCompressedSize,
         int $centralUncompressedSize,
         int $nextOffset,
+        int $centralDirectoryOffset,
         array $extraIssues = []
     ): array {
         $issues = $extraIssues;
@@ -19237,11 +19295,21 @@ final class ZipPackage
         $compressedSize = null;
         $uncompressedSize = null;
         $descriptorEnd = $descriptorOffset + $descriptorLength;
+        $boundary = self::dataDescriptorBoundaryMetadata($bytes, $descriptorOffset, $nextOffset, $centralDirectoryOffset);
 
         if ($values === null) {
             $issues[] = $usesZip64SizedDescriptor
                 ? 'zip64-sized-data-descriptor-truncated'
                 : 'data-descriptor-truncated';
+            $boundaryIssue = self::dataDescriptorBoundaryIssue(
+                $nextOffset - $descriptorOffset,
+                $descriptorLength,
+                $nextOffset,
+                $centralDirectoryOffset
+            );
+            if ($boundaryIssue !== null) {
+                $issues[] = $boundaryIssue;
+            }
         } else {
             $crc32 = $values['crc32'];
             $compressedSize = $values['compressedSize'];
@@ -19278,7 +19346,7 @@ final class ZipPackage
             'usesZip64SizedDescriptor' => $usesZip64SizedDescriptor,
             'descriptorValuesMatchCentral' => $descriptorValuesMatchCentral,
             'issues' => array_values(array_unique($issues)),
-        ];
+        ] + $boundary;
     }
 
     /**
@@ -19338,6 +19406,55 @@ final class ZipPackage
             && $values['crc32'] === $centralCrc32
             && $values['compressedSize'] === $centralCompressedSize
             && $values['uncompressedSize'] === $centralUncompressedSize;
+    }
+
+    private static function dataDescriptorBoundaryIssue(
+        int $descriptorSpan,
+        int $expectedLength,
+        int $nextOffset,
+        int $centralDirectoryOffset
+    ): ?string {
+        if ($descriptorSpan >= $expectedLength) {
+            return null;
+        }
+
+        $boundary = $nextOffset === $centralDirectoryOffset ? 'central-directory' : 'next-local-header';
+
+        return $descriptorSpan <= 0
+            ? 'data-descriptor-missing-before-' . $boundary
+            : 'data-descriptor-truncated-before-' . $boundary;
+    }
+
+    /**
+     * @return array{
+     *     descriptorBytesBeforeNextRecord:int,
+     *     descriptorNextRecordKind:string,
+     *     descriptorStartsWithRecordSignature:bool,
+     *     descriptorStartSignatureHex:?string,
+     *     descriptorStartSignatureName:?string
+     * }
+     */
+    private static function dataDescriptorBoundaryMetadata(
+        string $bytes,
+        int $descriptorOffset,
+        int $nextOffset,
+        int $centralDirectoryOffset
+    ): array {
+        $availableBytes = max(0, strlen($bytes) - $descriptorOffset);
+        $signatureBytes = $availableBytes > 0
+            ? substr($bytes, $descriptorOffset, min(4, $availableBytes))
+            : '';
+        $signatureName = strlen($signatureBytes) === 4
+            ? self::zipRecordSignatureNameAt($bytes, $descriptorOffset)
+            : null;
+
+        return [
+            'descriptorBytesBeforeNextRecord' => max(0, $nextOffset - $descriptorOffset),
+            'descriptorNextRecordKind' => $nextOffset === $centralDirectoryOffset ? 'central-directory' : 'local-header',
+            'descriptorStartsWithRecordSignature' => $signatureName !== null,
+            'descriptorStartSignatureHex' => $signatureBytes === '' ? null : bin2hex($signatureBytes),
+            'descriptorStartSignatureName' => $signatureName,
+        ];
     }
 
     private function inflateEntry(ZipPackageEntry $entry, string $compressed, ?int $maxUncompressedBytes = null): string

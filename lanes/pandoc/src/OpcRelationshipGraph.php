@@ -1447,6 +1447,10 @@ final class OpcRelationshipGraph
             'endOfCentralDirectoryBytes' => $packageManifest['endOfCentralDirectoryBytes'],
             'endOfCentralDirectoryEnd' => $packageManifest['endOfCentralDirectoryEnd'],
             'endOfCentralDirectorySha256' => $packageManifest['endOfCentralDirectorySha256'],
+            'endOfCentralDirectoryFixedFields' => $packageManifest['endOfCentralDirectoryFixedFields'],
+            'endOfCentralDirectoryFixedFieldIssueCount' => $packageManifest['endOfCentralDirectoryFixedFieldIssueCount'],
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $packageManifest['hasEndOfCentralDirectoryFixedFieldIssues'],
+            'endOfCentralDirectoryFixedFieldIssues' => $packageManifest['endOfCentralDirectoryFixedFieldIssues'],
             'packageCommentOffset' => $packageManifest['packageCommentOffset'],
             'packageCommentBytes' => $packageManifest['packageCommentBytes'],
             'packageCommentEnd' => $packageManifest['packageCommentEnd'],
@@ -1652,6 +1656,11 @@ final class OpcRelationshipGraph
             : '';
         $packageCommentByteExposurePolicy = 'zip-package-comment-source-metadata-only';
         $canExposePackageCommentBytes = false;
+        $endOfCentralDirectoryFixedFields = ZipPackage::endOfCentralDirectoryFixedFieldsPreflight($bytes);
+        unset($endOfCentralDirectoryFixedFields['packageComment'], $endOfCentralDirectoryFixedFields['packageCommentHex']);
+        $endOfCentralDirectoryFixedFields['packageCommentByteExposurePolicy'] = $packageCommentByteExposurePolicy;
+        $endOfCentralDirectoryFixedFields['canExposePackageCommentBytes'] = $canExposePackageCommentBytes;
+        $endOfCentralDirectoryFixedFieldIssues = $endOfCentralDirectoryFixedFields['issues'];
         $centralDirectoryToEocdGapBytes = max(0, $endOfCentralDirectoryOffset - $centralDirectoryEnd);
         $centralDirectoryToEocdGapOffset = $centralDirectoryToEocdGapBytes > 0 ? $centralDirectoryEnd : null;
         $endOfCentralDirectoryBytes = 22 + $packageCommentBytes;
@@ -1717,6 +1726,10 @@ final class OpcRelationshipGraph
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'endOfCentralDirectoryFixedFields' => $endOfCentralDirectoryFixedFields,
+            'endOfCentralDirectoryFixedFieldIssueCount' => count($endOfCentralDirectoryFixedFieldIssues),
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues !== [],
+            'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentEnd' => $packageCommentEnd,
@@ -1756,6 +1769,10 @@ final class OpcRelationshipGraph
             'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
             'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
             'endOfCentralDirectorySha256' => $endOfCentralDirectorySha256,
+            'endOfCentralDirectoryFixedFields' => $endOfCentralDirectoryFixedFields,
+            'endOfCentralDirectoryFixedFieldIssueCount' => count($endOfCentralDirectoryFixedFieldIssues),
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues !== [],
+            'endOfCentralDirectoryFixedFieldIssues' => $endOfCentralDirectoryFixedFieldIssues,
             'packageCommentOffset' => $packageCommentOffset,
             'packageCommentBytes' => $packageCommentBytes,
             'packageCommentEnd' => $packageCommentEnd,
@@ -2714,6 +2731,10 @@ final class OpcRelationshipGraph
             'endOfCentralDirectoryBytes' => $packageSource['endOfCentralDirectoryBytes'],
             'endOfCentralDirectoryEnd' => $packageSource['endOfCentralDirectoryEnd'],
             'endOfCentralDirectorySha256' => $packageSource['endOfCentralDirectorySha256'],
+            'endOfCentralDirectoryFixedFields' => $packageSource['endOfCentralDirectoryFixedFields'],
+            'endOfCentralDirectoryFixedFieldIssueCount' => $packageSource['endOfCentralDirectoryFixedFieldIssueCount'],
+            'hasEndOfCentralDirectoryFixedFieldIssues' => $packageSource['hasEndOfCentralDirectoryFixedFieldIssues'],
+            'endOfCentralDirectoryFixedFieldIssues' => $packageSource['endOfCentralDirectoryFixedFieldIssues'],
             'packageCommentOffset' => $packageSource['packageCommentOffset'],
             'packageCommentBytes' => $packageSource['packageCommentBytes'],
             'packageCommentEnd' => $packageSource['packageCommentEnd'],
