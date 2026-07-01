@@ -157,7 +157,7 @@ NATIVE;
         $htmlFormat = ['t' => 'Format', 'c' => 'html5'];
         $markdownNative = ['t' => 'RawBlock', 'c' => [$markdownFormat, '$x$']];
         $texNative = ['t' => 'RawInline', 'c' => [$texFormat, '\\alpha']];
-        $htmlNative = ['t' => 'RawInline', 'c' => [$htmlFormat, '<span>ok</span>']];
+        $htmlNative = ['t' => 'RawInline', 'c' => ['html5', '<span>ok</span>']];
 
         $nativeDocument = (new NativeReader())->read($native);
         $rawBlock = $nativeDocument->children[0];
@@ -185,10 +185,10 @@ NATIVE;
         $t->same('RawInline', $htmlInline->attr('constructor'));
         $t->same($htmlNative, $htmlInline->attr('native'));
         $t->same('Format', $htmlInline->attr('formatConstructor'));
-        $t->same($htmlFormat, $htmlInline->attr('formatNative'));
+        $t->same(null, $htmlInline->attr('formatNative'));
         $t->same($markdownFormat, $jsonPacket['blocks'][0]['c'][0]);
         $t->same($texFormat, $jsonPacket['blocks'][1]['c'][0]['c'][0]);
-        $t->same($htmlFormat, $jsonPacket['blocks'][1]['c'][2]['c'][0]);
+        $t->same('html5', $jsonPacket['blocks'][1]['c'][2]['c'][0]);
         $t->same($jsonPacket['blocks'], $nativePacket['blocks']);
         $t->same(
             '[ RawBlock (Format "markdown+raw_tex") "$x$"' . "\n"

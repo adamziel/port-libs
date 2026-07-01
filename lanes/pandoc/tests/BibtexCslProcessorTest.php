@@ -4254,4 +4254,92 @@ XML);
         $t->contains('Accepted date: 2026-06-12', $blocks);
         $t->contains('Revised date: 2025-04/2025-05', $blocks);
     },
+    'carries legacy biblatex print and electronic serial identifier aliases in csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{print-serial-aliases,
+  author    = {Ng, Nia},
+  title     = {Print Serial Alias Packet},
+  date      = {2026},
+  isbn13    = {978-1-4028-9462-6},
+  printissn = {20493630}
+}
+
+@online{electronic-serial-aliases,
+  author         = {Roe, Pat},
+  title          = {Electronic Serial Alias Packet},
+  date           = {2025},
+  electronicisbn = {eISBN: 978 0 321 14653 0},
+  eissn          = {eISSN 1234567X}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $print = $items['print-serial-aliases'];
+        $electronic = $items['electronic-serial-aliases'];
+
+        $t->same('978-1-4028-9462-6', $print['ISBN']);
+        $t->same('2049-3630', $print['ISSN']);
+        $t->same('9780321146530', $electronic['ISBN']);
+        $t->same('1234-567X', $electronic['ISSN']);
+        $t->same('978-1-4028-9462-6', $print['rawBibtex']['fields']['isbn13']);
+        $t->same('20493630', $print['rawBibtex']['fields']['printissn']);
+        $t->same('eISBN: 978 0 321 14653 0', $electronic['rawBibtex']['fields']['electronicisbn']);
+        $t->same('eISSN 1234567X', $electronic['rawBibtex']['fields']['eissn']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="ISBN-13"/>
+        <text variable="printISSN"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="eISBN"/>
+      <text variable="eISSN"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalizedPrint = $styled->item('print-serial-aliases');
+        $normalizedElectronic = $styled->item('electronic-serial-aliases');
+        $t->same('978-1-4028-9462-6', $normalizedPrint['isbn'] ?? null);
+        $t->same('2049-3630', $normalizedPrint['issn'] ?? null);
+        $t->same('9780321146530', $normalizedElectronic['isbn'] ?? null);
+        $t->same('1234-567X', $normalizedElectronic['issn'] ?? null);
+        $t->same(
+            '[Print Serial Alias Packet | 978-1-4028-9462-6 | 2049-3630; Electronic Serial Alias Packet | 9780321146530 | 1234-567X]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'print-serial-aliases', 'text' => '[@print-serial-aliases]']),
+                new AstNode('citation', ['id' => 'electronic-serial-aliases', 'text' => '[@electronic-serial-aliases]']),
+            ])
+        );
+        $t->same(
+            'Print Serial Alias Packet :: 978-1-4028-9462-6 :: 2049-3630',
+            $styled->renderBibliographyEntry('print-serial-aliases')
+        );
+        $t->same(
+            'Electronic Serial Alias Packet :: 9780321146530 :: 1234-567X',
+            $styled->renderBibliographyEntry('electronic-serial-aliases')
+        );
+
+        $document = (new MarkdownReader())->read('Legacy serial aliases [@print-serial-aliases; @electronic-serial-aliases] stay visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['print-serial-aliases', 'electronic-serial-aliases'], $handoff['citedKeys']);
+        $t->same('978-1-4028-9462-6', $handoff['items'][0]['ISBN']);
+        $t->same('1234-567X', $handoff['items'][1]['ISSN']);
+        $t->contains('<p>Legacy serial aliases [Print Serial Alias Packet | 978-1-4028-9462-6 | 2049-3630; Electronic Serial Alias Packet | 9780321146530 | 1234-567X] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Print Serial Alias Packet :: 978-1-4028-9462-6 :: 2049-3630</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Electronic Serial Alias Packet :: 9780321146530 :: 1234-567X</dd>', $blocks);
+    },
 ];
