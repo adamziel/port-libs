@@ -18,6 +18,9 @@ final class PptxWriter
     private const NS_DC = 'http://purl.org/dc/elements/1.1/';
     private const NS_DCTERMS = 'http://purl.org/dc/terms/';
     private const NS_EP = 'http://schemas.openxmlformats.org/officeDocument/2006/extended-properties';
+    private const NS_A14 = 'http://schemas.microsoft.com/office/drawing/2010/main';
+    private const NS_M = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+    private const NS_MC = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
     private const NS_P = 'http://schemas.openxmlformats.org/presentationml/2006/main';
     private const NS_PIC = 'http://schemas.openxmlformats.org/drawingml/2006/picture';
     private const NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -1267,11 +1270,13 @@ final class PptxWriter
         $placeholderXml = $placeholderAttributes === [] ? '' : '<p:ph ' . implode(' ', $placeholderAttributes) . '/>';
         $paragraphXml = $paragraphs === [] ? '<a:p/>' : implode('', $paragraphs);
 
-        return '    <p:sp>' . "\n"
+        $shape = '    <p:sp>' . "\n"
             . '      <p:nvSpPr><p:cNvPr id="' . $id . '" name="' . $this->xml($name) . '"/><p:cNvSpPr txBox="1"/><p:nvPr>' . $placeholderXml . '</p:nvPr></p:nvSpPr>' . "\n"
             . '      <p:spPr><a:xfrm><a:off x="' . $x . '" y="' . $y . '"/><a:ext cx="' . $cx . '" cy="' . $cy . '"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>' . "\n"
             . '      <p:txBody><a:bodyPr wrap="square"/><a:lstStyle/>' . $paragraphXml . '</p:txBody>' . "\n"
             . '    </p:sp>';
+
+        return $this->mathAlternateXml($shape);
     }
 
     private function isOpenXmlRaw(AstNode $node): bool
@@ -1448,6 +1453,13 @@ final class PptxWriter
                         $runs[] = $this->runXml($code, $style + ['monospace' => true]);
                     }
                     break;
+                case 'math':
+                    $flushText();
+                    $mathXml = $this->mathRunXml($inline);
+                    if ($mathXml !== '') {
+                        $runs[] = $mathXml;
+                    }
+                    break;
                 case 'note':
                     $noteId = $this->endnoteId($inline);
                     if ($noteId !== null) {
@@ -1563,6 +1575,198 @@ final class PptxWriter
             : '<a:rPr ' . implode(' ', $attrs) . '>' . $children . '</a:rPr>';
 
         return '<a:r>' . $runProperties . '<a:t>' . $this->xml($text) . '</a:t></a:r>';
+    }
+
+    private function mathRunXml(AstNode $math): string
+    {
+        $tex = (string) $math->attr('text', '');
+        if (trim($tex) === '') {
+            return '';
+        }
+
+        $omml = $this->mathOmmlXml($math);
+        if ($omml === null) {
+            return $this->runXml($tex, []);
+        }
+
+        return '<a14:m>' . $omml . '</a14:m>';
+    }
+
+    private function mathOmmlXml(AstNode $math): ?string
+    {
+        try {
+            $mathml = (new MathTexConverter())->mathMlFor($math);
+        } catch (\Throwable) {
+            return null;
+        }
+
+        $document = new \DOMDocument();
+        if (!$document->loadXML($mathml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING)) {
+            return null;
+        }
+
+        $root = $document->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return null;
+        }
+
+        $body = $this->mathMlElementToOmml($root);
+        if ($body === null || $body === '') {
+            return null;
+        }
+
+        return '<m:oMath xmlns:m="' . self::NS_M . '">' . $body . '</m:oMath>';
+    }
+
+    private function mathMlElementToOmml(\DOMElement $element): ?string
+    {
+        return match ($element->localName) {
+            'math', 'semantics' => $this->mathMlPayloadToOmml($element),
+            'mrow', 'mstyle', 'mpadded', 'mphantom' => $this->mathMlChildrenToOmml($element),
+            'mi', 'mn', 'mo', 'mtext' => $this->ommlTextRun($element->textContent),
+            'mspace' => $this->ommlTextRun(' '),
+            'mfrac' => $this->mathMlFractionToOmml($element),
+            'msup' => $this->mathMlScriptToOmml($element, 'm:sSup', ['m:e', 'm:sup']),
+            'msub' => $this->mathMlScriptToOmml($element, 'm:sSub', ['m:e', 'm:sub']),
+            'msubsup' => $this->mathMlScriptToOmml($element, 'm:sSubSup', ['m:e', 'm:sub', 'm:sup']),
+            'msqrt' => $this->mathMlSqrtToOmml($element),
+            'mroot' => $this->mathMlRootToOmml($element),
+            'none' => '',
+            default => null,
+        };
+    }
+
+    private function mathMlPayloadToOmml(\DOMElement $element): ?string
+    {
+        foreach ($this->mathMlChildElements($element) as $child) {
+            if ($child->localName === 'annotation') {
+                continue;
+            }
+
+            return $this->mathMlElementToOmml($child);
+        }
+
+        return '';
+    }
+
+    private function mathMlChildrenToOmml(\DOMElement $element): ?string
+    {
+        $xml = '';
+        foreach ($this->mathMlChildElements($element) as $child) {
+            if ($child->localName === 'annotation') {
+                continue;
+            }
+            $childXml = $this->mathMlElementToOmml($child);
+            if ($childXml === null) {
+                return null;
+            }
+            $xml .= $childXml;
+        }
+
+        return $xml;
+    }
+
+    private function mathMlFractionToOmml(\DOMElement $element): ?string
+    {
+        $children = $this->mathMlChildElements($element);
+        if (count($children) < 2) {
+            return null;
+        }
+
+        $numerator = $this->mathMlElementToOmml($children[0]);
+        $denominator = $this->mathMlElementToOmml($children[1]);
+        if ($numerator === null || $denominator === null) {
+            return null;
+        }
+
+        return '<m:f><m:num>' . $numerator . '</m:num><m:den>' . $denominator . '</m:den></m:f>';
+    }
+
+    /**
+     * @param list<string> $childNames
+     */
+    private function mathMlScriptToOmml(\DOMElement $element, string $containerName, array $childNames): ?string
+    {
+        $children = $this->mathMlChildElements($element);
+        if (count($children) < count($childNames)) {
+            return null;
+        }
+
+        $xml = '<' . $containerName . '>';
+        foreach ($childNames as $index => $childName) {
+            $childXml = $this->mathMlElementToOmml($children[$index]);
+            if ($childXml === null) {
+                return null;
+            }
+            $xml .= '<' . $childName . '>' . $childXml . '</' . $childName . '>';
+        }
+
+        return $xml . '</' . $containerName . '>';
+    }
+
+    private function mathMlSqrtToOmml(\DOMElement $element): ?string
+    {
+        $body = $this->mathMlChildrenToOmml($element);
+        if ($body === null) {
+            return null;
+        }
+
+        return '<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:e>' . $body . '</m:e></m:rad>';
+    }
+
+    private function mathMlRootToOmml(\DOMElement $element): ?string
+    {
+        $children = $this->mathMlChildElements($element);
+        if (count($children) < 2) {
+            return null;
+        }
+
+        $base = $this->mathMlElementToOmml($children[0]);
+        $degree = $this->mathMlElementToOmml($children[1]);
+        if ($base === null || $degree === null) {
+            return null;
+        }
+
+        return '<m:rad><m:deg>' . $degree . '</m:deg><m:e>' . $base . '</m:e></m:rad>';
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function mathMlChildElements(\DOMElement $element): array
+    {
+        $children = [];
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $children[] = $child;
+            }
+        }
+
+        return $children;
+    }
+
+    private function ommlTextRun(string $text): string
+    {
+        if ($text === '') {
+            return '';
+        }
+
+        $space = preg_match('/^\s|\s$|\s{2,}/u', $text) === 1 ? ' xml:space="preserve"' : '';
+
+        return '<m:r><m:t' . $space . '>' . $this->xml($text) . '</m:t></m:r>';
+    }
+
+    private function mathAlternateXml(string $xml): string
+    {
+        if (!str_contains($xml, '<a14:m>')) {
+            return $xml;
+        }
+
+        return '    <mc:AlternateContent xmlns:mc="' . self::NS_MC . '">' . "\n"
+            . '      <mc:Choice xmlns:a14="' . self::NS_A14 . '" Requires="a14">' . "\n"
+            . $this->indentRawOpenXml($xml, 8) . "\n"
+            . '      </mc:Choice>' . "\n"
+            . '    </mc:AlternateContent>';
     }
 
     /**
@@ -2634,6 +2838,13 @@ final class PptxWriter
                     if ($code !== '') {
                         $flushText();
                         $runs[] = $this->runXml($code, $style + ['monospace' => true]);
+                    }
+                    break;
+                case 'math':
+                    $tex = (string) $inline->attr('text', '');
+                    if (trim($tex) !== '') {
+                        $flushText();
+                        $runs[] = $this->runXml($tex, []);
                     }
                     break;
                 case 'note':

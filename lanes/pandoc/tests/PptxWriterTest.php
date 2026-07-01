@@ -231,6 +231,14 @@ $upstreamInlineImageAltNative = <<<'NATIVE'
 ,Para [Emph [Str "Nested",Space,Image ("",[],[]) [Str "image",Space,Strong [Str "alt"]] ("nested-missing.png","fig:")]]]
 NATIVE;
 
+$upstreamMathInlineNative = <<<'NATIVE'
+[Para [Str "Inline",Space,Math InlineMath "x^2 + \\frac{a_1}{b}",Space,Str "done"]
+,Para [Str "Display",Space,Math DisplayMath "\\sqrt{b^2}"]
+,Div ("",["notes"],[])
+ [Para [Str "Note",Space,Math InlineMath "\\frac{n}{k}"]]
+,Para [Str "Fallback",Space,Math InlineMath "\\frac{a}{"]]
+NATIVE;
+
 $upstreamStartNumberingAtNative = <<<'NATIVE'
 [Header 2 ("example-numbering-mwe",[],[]) [Str "Example",Space,Str "numbering",Space,Str "MWE"]
 ,Para [Str "This",Space,Str "is",Space,Str "a",Space,Str "slide",Space,Str "with",Space,Str "examples",Space,Str "in",Space,Str "(1)",Space,Str "and",Space,Str "(2)"]
@@ -910,6 +918,29 @@ return [
         $t->contains('Note note alt', $notesText);
         $t->contains('b="1"', $notes);
         $t->true(!str_contains($notes, 'missing-note.png'), 'Missing note image target must not leak into notes XML');
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream math inlines to bounded PowerPoint OMML with TeX fallbacks' => static function (TestRunner $t) use ($upstreamMathInlineNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamMathInlineNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+
+        $slideDom = new DOMDocument();
+        $t->true($slideDom->loadXML($slide, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING), 'Slide XML with math alternate content must remain well-formed');
+
+        $t->contains('<mc:AlternateContent xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006">', $slide);
+        $t->contains('<mc:Choice xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" Requires="a14">', $slide);
+        $t->contains('<a14:m><m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">', $slide);
+        $t->contains('<m:sSup><m:e><m:r><m:t>x</m:t></m:r></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup>', $slide);
+        $t->contains('<m:f><m:num><m:sSub><m:e><m:r><m:t>a</m:t></m:r></m:e><m:sub><m:r><m:t>1</m:t></m:r></m:sub></m:sSub></m:num><m:den><m:r><m:t>b</m:t></m:r></m:den></m:f>', $slide);
+        $t->contains('<m:rad><m:radPr><m:degHide m:val="1"/></m:radPr><m:e><m:sSup><m:e><m:r><m:t>b</m:t></m:r></m:e><m:sup><m:r><m:t>2</m:t></m:r></m:sup></m:sSup></m:e></m:rad>', $slide);
+        $t->contains('<a:t>\\frac{a}{</a:t>', $slide);
+        $t->true(!str_contains($slide, '<annotation'), 'MathML annotations should not leak into slide XML');
+
+        $t->contains('<a:t>\\frac{n}{k}</a:t>', $notes);
+        $t->true(!str_contains($notes, '<a14:m>'), 'Speaker-note math should fall back to plain TeX like upstream');
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 
