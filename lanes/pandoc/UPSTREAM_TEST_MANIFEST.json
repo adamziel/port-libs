@@ -2184,6 +2184,8 @@
     "xmlHtmlDomFormSuccessfulControlReviewAssertions": 26,
     "mappedDocxContentTypeOverrideDeclarationParameterRollupCases": 1,
     "docxContentTypeOverrideDeclarationParameterRollupAssertions": 6,
+    "mappedPandocJsonSingleWrappedMetadataConstructorCases": 1,
+    "pandocJsonSingleWrappedMetadataConstructorAssertions": 14,
     "mappedPandocJsonSingleWrappedAttrTupleCases": 1,
     "pandocJsonSingleWrappedAttrTupleAssertions": 26,
     "mappedOdfManifestMediaTypeSummaryCompactCases": 1,
