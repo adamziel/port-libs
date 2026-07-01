@@ -13455,15 +13455,34 @@ final class DocxOpenXmlReader
         $summary['zipWindowsThumbnailCacheEntryCount'] = (int) ($zipPlatformMetadata['windowsThumbnailCacheEntryCount'] ?? 0);
         $summary['zipWindowsDesktopIniEntryCount'] = (int) ($zipPlatformMetadata['windowsDesktopIniEntryCount'] ?? 0);
         $zipCreatorHostSystems = is_array($zipPackage['creatorHostSystems'] ?? null) ? $zipPackage['creatorHostSystems'] : [];
+        $summary['zipCreatorHostSystemEntryCount'] = (int) ($zipCreatorHostSystems['entryCount'] ?? 0);
         $summary['zipKnownCreatorHostSystemEntryCount'] = (int) ($zipCreatorHostSystems['knownHostSystemEntryCount'] ?? 0);
         $summary['zipUnknownCreatorHostSystemEntryCount'] = (int) ($zipCreatorHostSystems['unknownHostSystemEntryCount'] ?? 0);
+        $summary['zipCreatorVersionMeetsNeededEntryCount'] = (int) ($zipCreatorHostSystems['creatorVersionMeetsNeededEntryCount'] ?? 0);
         $summary['zipCreatorVersionBelowNeededEntryCount'] = (int) ($zipCreatorHostSystems['creatorVersionBelowNeededEntryCount'] ?? 0);
+        $summary['zipCreatorVersionEqualNeededEntryCount'] = (int) ($zipCreatorHostSystems['creatorVersionEqualNeededEntryCount'] ?? 0);
+        $summary['zipCreatorVersionAboveNeededEntryCount'] = (int) ($zipCreatorHostSystems['creatorVersionAboveNeededEntryCount'] ?? 0);
+        $summary['zipCreatorVersionBelowNeededKnownHostEntryCount'] = (int) ($zipCreatorHostSystems['creatorVersionBelowNeededKnownHostEntryCount'] ?? 0);
+        $summary['zipCreatorVersionBelowNeededUnknownHostEntryCount'] = (int) ($zipCreatorHostSystems['creatorVersionBelowNeededUnknownHostEntryCount'] ?? 0);
         $summary['zipCreatorVersionComparisonCounts'] = is_array($zipCreatorHostSystems['creatorVersionComparisonCounts'] ?? null)
             ? $zipCreatorHostSystems['creatorVersionComparisonCounts']
             : [];
         $summary['zipCreatorHostSystems'] = is_array($zipCreatorHostSystems['hostSystems'] ?? null)
             ? $zipCreatorHostSystems['hostSystems']
             : [];
+        $summary['zipUnknownCreatorHostSystemEntries'] =
+            is_array($zipCreatorHostSystems['unknownEntries'] ?? null)
+                ? $zipCreatorHostSystems['unknownEntries']
+                : [];
+        $summary['zipCreatorVersionBelowNeededEntries'] =
+            is_array($zipCreatorHostSystems['creatorVersionBelowNeededEntries'] ?? null)
+                ? $zipCreatorHostSystems['creatorVersionBelowNeededEntries']
+                : [];
+        $summary['zipCreatorHostSystemEntries'] = is_array($zipCreatorHostSystems['entries'] ?? null)
+            ? $zipCreatorHostSystems['entries']
+            : [];
+        $summary['zipCreatorHostSystemReviewPolicy'] = 'docx-zip-creator-host-system-metadata-only';
+        $summary['zipCreatorHostSystemCanExposeBytes'] = false;
         $zipPermissions = is_array($zipPackage['permissions'] ?? null) ? $zipPackage['permissions'] : [];
         $summary['zipUnixModeEntryCount'] = (int) ($zipPermissions['unixModeEntryCount'] ?? 0);
         $summary['zipExecutableFileCount'] = (int) ($zipPermissions['executableFileCount'] ?? 0);
@@ -13798,6 +13817,26 @@ final class DocxOpenXmlReader
                 'compressionMethodName' => $part['compressionMethodName'] ?? null,
                 'compressedByteLength' => $part['compressedByteLength'] ?? null,
                 'zipCrc32' => $part['zipCrc32'] ?? null,
+                'zipVersionMadeBy' => $part['zipVersionMadeBy'] ?? null,
+                'zipMadeByHostSystem' => $part['zipMadeByHostSystem'] ?? null,
+                'zipMadeByHostSystemName' => is_string($part['zipMadeByHostSystemName'] ?? null)
+                    ? $part['zipMadeByHostSystemName']
+                    : null,
+                'zipMadeByVersion' => $part['zipMadeByVersion'] ?? null,
+                'zipVersionNeededToExtract' => $part['zipVersionNeededToExtract'] ?? null,
+                'zipCreatorVersionMeetsNeeded' => is_bool($part['zipCreatorVersionMeetsNeeded'] ?? null)
+                    ? $part['zipCreatorVersionMeetsNeeded']
+                    : null,
+                'zipCreatorVersionComparison' => is_string($part['zipCreatorVersionComparison'] ?? null)
+                    ? $part['zipCreatorVersionComparison']
+                    : null,
+                'zipCreatorVersionDelta' => $part['zipCreatorVersionDelta'] ?? null,
+                'zipCreatorHostSystemKnown' => is_bool($part['zipCreatorHostSystemKnown'] ?? null)
+                    ? $part['zipCreatorHostSystemKnown']
+                    : null,
+                'zipCreatorHostSystemIssues' => is_array($part['zipCreatorHostSystemIssues'] ?? null)
+                    ? array_values($part['zipCreatorHostSystemIssues'])
+                    : [],
                 'zipLastModifiedTimestamp' => $part['zipLastModifiedTimestamp'] ?? null,
                 'zipLastModifiedSource' => $part['zipLastModifiedSource'] ?? null,
                 'zipEntryCommentPresent' => (bool) ($part['zipEntryCommentPresent'] ?? false),
@@ -14011,6 +14050,48 @@ final class DocxOpenXmlReader
             'zipUnsupportedCompressionMethodCount' => (int) ($zipPackage['unsupportedCompressionMethodCount'] ?? 0),
             'zipCentralDirectoryOrderMatchesLocalHeaderOrder' =>
                 $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? null,
+            'zipCreatorHostSystemEntryCount' => (int) ($summary['zipCreatorHostSystemEntryCount'] ?? 0),
+            'zipKnownCreatorHostSystemEntryCount' =>
+                (int) ($summary['zipKnownCreatorHostSystemEntryCount'] ?? 0),
+            'zipUnknownCreatorHostSystemEntryCount' =>
+                (int) ($summary['zipUnknownCreatorHostSystemEntryCount'] ?? 0),
+            'zipCreatorVersionMeetsNeededEntryCount' =>
+                (int) ($summary['zipCreatorVersionMeetsNeededEntryCount'] ?? 0),
+            'zipCreatorVersionBelowNeededEntryCount' =>
+                (int) ($summary['zipCreatorVersionBelowNeededEntryCount'] ?? 0),
+            'zipCreatorVersionEqualNeededEntryCount' =>
+                (int) ($summary['zipCreatorVersionEqualNeededEntryCount'] ?? 0),
+            'zipCreatorVersionAboveNeededEntryCount' =>
+                (int) ($summary['zipCreatorVersionAboveNeededEntryCount'] ?? 0),
+            'zipCreatorVersionBelowNeededKnownHostEntryCount' =>
+                (int) ($summary['zipCreatorVersionBelowNeededKnownHostEntryCount'] ?? 0),
+            'zipCreatorVersionBelowNeededUnknownHostEntryCount' =>
+                (int) ($summary['zipCreatorVersionBelowNeededUnknownHostEntryCount'] ?? 0),
+            'zipCreatorVersionComparisonCounts' =>
+                is_array($summary['zipCreatorVersionComparisonCounts'] ?? null)
+                    ? $summary['zipCreatorVersionComparisonCounts']
+                    : [],
+            'zipCreatorHostSystems' => is_array($summary['zipCreatorHostSystems'] ?? null)
+                ? $summary['zipCreatorHostSystems']
+                : [],
+            'zipUnknownCreatorHostSystemEntries' =>
+                is_array($summary['zipUnknownCreatorHostSystemEntries'] ?? null)
+                    ? array_values($summary['zipUnknownCreatorHostSystemEntries'])
+                    : [],
+            'zipCreatorVersionBelowNeededEntries' =>
+                is_array($summary['zipCreatorVersionBelowNeededEntries'] ?? null)
+                    ? array_values($summary['zipCreatorVersionBelowNeededEntries'])
+                    : [],
+            'zipCreatorHostSystemEntries' => is_array($summary['zipCreatorHostSystemEntries'] ?? null)
+                ? array_values($summary['zipCreatorHostSystemEntries'])
+                : [],
+            'zipCreatorHostSystemReviewPolicy' => is_string(
+                $summary['zipCreatorHostSystemReviewPolicy'] ?? null
+            )
+                ? $summary['zipCreatorHostSystemReviewPolicy']
+                : 'docx-zip-creator-host-system-metadata-only',
+            'zipCreatorHostSystemCanExposeBytes' =>
+                ($summary['zipCreatorHostSystemCanExposeBytes'] ?? false) === true,
             'zipUnixOwners' => is_array($summary['zipUnixOwners'] ?? null)
                 ? $summary['zipUnixOwners']
                 : $this->emptyZipUnixOwnerProvenance(),
