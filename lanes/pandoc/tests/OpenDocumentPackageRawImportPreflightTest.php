@@ -123,6 +123,36 @@ $buildOdtZipBytesWithCentralDirectoryRatioBuckets = static function () use ($man
         . pack('VvvvvVVv', 0x06054b50, 0, 0, $entryCount, $entryCount, strlen($central), $centralOffset, 0);
 };
 
+$buildOdtZipBytesWithCentralDirectoryCommentBuckets = static function () use ($manifestXml, $contentXml): string {
+    return ZipPackage::fromParts([
+        ['name' => 'mimetype', 'data' => OpenDocumentPackage::TEXT_MIMETYPE, 'compressionMethod' => 0],
+        [
+            'name' => 'META-INF/manifest.xml',
+            'data' => $manifestXml,
+            'compressionMethod' => 0,
+            'comment' => str_repeat('m', 12),
+        ],
+        [
+            'name' => 'content.xml',
+            'data' => $contentXml,
+            'compressionMethod' => 8,
+            'comment' => str_repeat('c', 24),
+        ],
+        [
+            'name' => 'Pictures/review.png',
+            'data' => 'png',
+            'compressionMethod' => 0,
+            'comment' => str_repeat('p', 70),
+        ],
+        [
+            'name' => 'Thumbnails/',
+            'data' => '',
+            'compressionMethod' => 0,
+            'comment' => 'dir',
+        ],
+    ])->bytes();
+};
+
 $addZip64EndOfCentralDirectory = static function (string $zip) use ($packUInt64): string {
     $eocdOffset = strrpos($zip, "PK\x05\x06");
     if ($eocdOffset === false) {
@@ -276,6 +306,56 @@ return [
         $t->same(strlen('Payloads/zero-compressed.bin'), $indexByBucket['17-to-32-bytes']['longestRawNameByteLength']);
         $encodedSummary = json_encode($summary['rawCentralDirectoryNameByteLengthBucketSummaries'], JSON_THROW_ON_ERROR);
         $t->true(!str_contains($encodedSummary, str_repeat('H', 32)));
+    },
+
+    'summarizes raw ODT central directory comment byte length buckets before package instantiation' => static function (TestRunner $t) use ($buildOdtZipBytesWithCentralDirectoryCommentBuckets): void {
+        $summary = OpenDocumentPackage::rawImportPreflight(
+            $buildOdtZipBytesWithCentralDirectoryCommentBuckets()
+        );
+
+        $indexByBucket = [];
+        foreach ($summary['rawCentralDirectoryCommentByteLengthBucketSummaries'] as $bucketSummary) {
+            $indexByBucket[$bucketSummary['rawCentralDirectoryCommentByteLengthBucket']] = $bucketSummary;
+        }
+
+        $t->same(4, $summary['rawCentralDirectoryCommentByteLengthBucketSummaryCount']);
+        $t->same(['up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes', 'over-64-bytes'], $summary['rawCentralDirectoryCommentByteLengthBuckets']);
+        $t->same([
+            'up-to-8-bytes' => 2,
+            '9-to-16-bytes' => 1,
+            '17-to-32-bytes' => 1,
+            'over-64-bytes' => 1,
+        ], $summary['rawCentralDirectoryCommentByteLengthBucketCounts']);
+        $t->same(5, $summary['rawCentralDirectoryCommentByteLengthEntryCount']);
+        $t->same(4, $summary['rawCentralDirectoryCommentByteLengthCommentedEntryCount']);
+        $t->same(109, $summary['rawCentralDirectoryCommentByteLengthRawCommentBytes']);
+        $t->same('odf-raw-central-directory-comment-byte-length-metadata-only', $summary['rawCentralDirectoryCommentByteLengthByteExposurePolicy']);
+        $t->same(false, $summary['rawCentralDirectoryCommentByteLengthCanExposeBytes']);
+
+        $t->same(['Thumbnails/', 'mimetype'], $indexByBucket['up-to-8-bytes']['entryNames']);
+        $t->same(['Thumbnails/'], $indexByBucket['up-to-8-bytes']['commentedEntryNames']);
+        $t->same(['META-INF/manifest.xml'], $indexByBucket['9-to-16-bytes']['entryNames']);
+        $t->same(['content.xml'], $indexByBucket['17-to-32-bytes']['entryNames']);
+        $t->same(['Pictures/review.png'], $indexByBucket['over-64-bytes']['entryNames']);
+        $t->same(3, $indexByBucket['up-to-8-bytes']['rawCommentBytes']);
+        $t->same(12, $indexByBucket['9-to-16-bytes']['rawCommentBytes']);
+        $t->same(24, $indexByBucket['17-to-32-bytes']['rawCommentBytes']);
+        $t->same(70, $indexByBucket['over-64-bytes']['rawCommentBytes']);
+        $t->same(1, $indexByBucket['up-to-8-bytes']['directoryEntryCount']);
+        $t->same(1, $indexByBucket['up-to-8-bytes']['fileEntryCount']);
+        $t->same(['/'], $indexByBucket['up-to-8-bytes']['directoryRoots']);
+        $t->same(['META-INF/'], $indexByBucket['9-to-16-bytes']['directoryRoots']);
+        $t->same(['Pictures/'], $indexByBucket['over-64-bytes']['directoryRoots']);
+        $t->same(['stored'], $indexByBucket['up-to-8-bytes']['compressionMethodNames']);
+        $t->same(['stored'], $indexByBucket['9-to-16-bytes']['compressionMethodNames']);
+        $t->same(['deflated'], $indexByBucket['17-to-32-bytes']['compressionMethodNames']);
+        $t->same('Pictures/review.png', $indexByBucket['over-64-bytes']['largestRawCommentEntryName']);
+        $t->same(70, $indexByBucket['over-64-bytes']['largestRawCommentByteLength']);
+        $t->same($summary['zipRawStrictImport']['centralDirectoryVariableFields']['entries'], array_values($summary['zipRawStrictImport']['centralDirectoryVariableFields']['entries']));
+        $encodedSummary = json_encode($summary['rawCentralDirectoryCommentByteLengthBucketSummaries'], JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedSummary, str_repeat('p', 70)));
+        $t->true(!str_contains($encodedSummary, str_repeat('c', 24)));
+        $t->true(!str_contains($encodedSummary, str_repeat('m', 12)));
     },
 
     'preflights ZIP64 EOCD ODT packages before bounded package instantiation' => static function (TestRunner $t) use ($buildOdtZipBytes, $addZip64EndOfCentralDirectory): void {
