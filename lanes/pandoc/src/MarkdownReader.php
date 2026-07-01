@@ -10489,13 +10489,14 @@ final class MarkdownReader
             return null;
         }
 
-        if (preg_match('/\G@([A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-])/u', $text, $m, 0, $offset) !== 1) {
+        $citationId = $this->readBracketedCitationId($text, $offset);
+        if ($citationId === null) {
             return null;
         }
 
-        $next = $offset + strlen($m[0]);
-        $citationText = $m[0];
-        $attrs = ['id' => $m[1], 'text' => $citationText, 'mode' => 'author_in_text'];
+        $next = $citationId['next'];
+        $citationText = substr($text, $offset, $next - $offset);
+        $attrs = ['id' => $citationId['id'], 'text' => $citationText, 'mode' => 'author_in_text'];
         $suffix = $this->tryParseBareCitationSuffix($text, $next);
         if ($suffix !== null) {
             $next = $suffix['next'];
@@ -10628,7 +10629,7 @@ final class MarkdownReader
                     continue;
                 }
 
-                $id = substr($content, $at + 2, $cursor - $at - 2);
+                $id = $this->unescapeBracedCitationId(substr($content, $at + 2, $cursor - $at - 2));
                 return $id === '' ? null : ['id' => $id, 'next' => $cursor + 1];
             }
 
@@ -10640,6 +10641,23 @@ final class MarkdownReader
         }
 
         return ['id' => $match[1], 'next' => $at + strlen($match[0])];
+    }
+
+    private function unescapeBracedCitationId(string $source): string
+    {
+        $id = '';
+        $length = strlen($source);
+        for ($offset = 0; $offset < $length; $offset++) {
+            if ($source[$offset] === '\\' && $offset + 1 < $length) {
+                $id .= $source[$offset + 1];
+                $offset++;
+                continue;
+            }
+
+            $id .= $source[$offset];
+        }
+
+        return $id;
     }
 
     /**
