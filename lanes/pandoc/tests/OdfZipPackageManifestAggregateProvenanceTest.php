@@ -73,7 +73,7 @@ $package = $addCentralDirectorySignatureRecord(ZipPackage::fromParts([
     ['name' => 'content.xml', 'data' => $contentXml, 'compressionMethod' => 8, 'comment' => 'content aggregate'],
     ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
     ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
-    ['name' => 'Pictures/review.png', 'data' => $mediaBytes, 'compressionMethod' => 0, 'extraFieldData' => $extraField, 'comment' => 'media aggregate'],
+    ['name' => 'Pictures/review.png', 'data' => $mediaBytes, 'compressionMethod' => 0, 'extraFieldData' => $extraField, 'comment' => 'media aggregate', 'creatorHostSystem' => 10],
 ], 'odt aggregate package manifest'), $signatureData);
 
 $aggregateFields = [
@@ -128,6 +128,21 @@ $aggregateFields = [
     'deepestEntryNames' => 'zipPackageManifestDeepestEntryNames',
     'compressionMethodSummaryCount' => 'zipPackageManifestCompressionMethodSummaryCount',
     'compressionMethodSummaries' => 'zipPackageManifestCompressionMethodSummaries',
+    'creatorHostSystemSummaryCount' => 'zipPackageManifestCreatorHostSystemSummaryCount',
+    'knownCreatorHostSystemEntryCount' => 'zipPackageManifestKnownCreatorHostSystemEntryCount',
+    'unknownCreatorHostSystemEntryCount' => 'zipPackageManifestUnknownCreatorHostSystemEntryCount',
+    'creatorVersionMeetsNeededEntryCount' => 'zipPackageManifestCreatorVersionMeetsNeededEntryCount',
+    'creatorVersionBelowNeededEntryCount' => 'zipPackageManifestCreatorVersionBelowNeededEntryCount',
+    'creatorVersionEqualNeededEntryCount' => 'zipPackageManifestCreatorVersionEqualNeededEntryCount',
+    'creatorVersionAboveNeededEntryCount' => 'zipPackageManifestCreatorVersionAboveNeededEntryCount',
+    'creatorVersionBelowNeededKnownHostEntryCount' => 'zipPackageManifestCreatorVersionBelowNeededKnownHostEntryCount',
+    'creatorVersionBelowNeededUnknownHostEntryCount' => 'zipPackageManifestCreatorVersionBelowNeededUnknownHostEntryCount',
+    'hasUnknownCreatorHostSystems' => 'zipPackageManifestHasUnknownCreatorHostSystems',
+    'hasCreatorVersionBelowNeededEntries' => 'zipPackageManifestHasCreatorVersionBelowNeededEntries',
+    'creatorVersionComparisonCounts' => 'zipPackageManifestCreatorVersionComparisonCounts',
+    'creatorHostSystemSummaries' => 'zipPackageManifestCreatorHostSystemSummaries',
+    'unknownCreatorHostSystemEntries' => 'zipPackageManifestUnknownCreatorHostSystemEntries',
+    'creatorVersionBelowNeededEntries' => 'zipPackageManifestCreatorVersionBelowNeededEntries',
     'directoryRootCount' => 'zipPackageManifestDirectoryRootCount',
     'directoryRoots' => 'zipPackageManifestDirectoryRoots',
     'directoryRootSummaries' => 'zipPackageManifestDirectoryRootSummaries',
@@ -166,6 +181,14 @@ return [
         $t->same($zipManifest['manifestSha256'], $compactIdentity['zipPackageManifestSha256']);
         $t->same($zipManifest['manifestSha256'], $richProvenance['zipPackageManifestSha256']);
         $t->same($zipManifest['manifestSha256'], $richIdentity['zipPackageManifestSha256']);
+        $t->same(2, $richIdentity['zipPackageManifestCreatorHostSystemSummaryCount']);
+        $t->same(6, $richIdentity['zipPackageManifestKnownCreatorHostSystemEntryCount']);
+        $t->same(0, $richIdentity['zipPackageManifestUnknownCreatorHostSystemEntryCount']);
+        $t->same(['below-needed' => 0, 'equals-needed' => 6, 'above-needed' => 0], $richIdentity['zipPackageManifestCreatorVersionComparisonCounts']);
+        $t->same('windows-ntfs', $richIdentity['zipPackageManifestCreatorHostSystemSummaries'][1]['madeByHostSystemName']);
+        $t->same(['Pictures/review.png'], $richIdentity['zipPackageManifestCreatorHostSystemSummaries'][1]['entryNames']);
+        $t->same([], $richIdentity['zipPackageManifestUnknownCreatorHostSystemEntries']);
+        $t->same([], $richIdentity['zipPackageManifestCreatorVersionBelowNeededEntries']);
         $t->same(true, $richIdentity['zipPackageManifestHasLocalHeaderReviewFields']);
         $t->same(true, $richIdentity['zipPackageManifestHasCentralDirectoryReviewFields']);
         $t->same(true, $richIdentity['zipPackageManifestHasCentralDirectorySignature']);
