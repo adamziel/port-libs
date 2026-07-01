@@ -5620,6 +5620,8 @@ final class ZipPackage
             if ($isDuplicateRequest) {
                 $entryIssues[] = 'duplicate-selected-entry-request';
             }
+            $requestPathIsDirectory = $expectedKind === 'directory' || str_ends_with($name, '/');
+            $requestPathIdentity = self::entryHandoffPackagePartIdentity($name, $requestPathIsDirectory);
 
             $summary = [
                 'requestIndex' => $requestIndex,
@@ -5630,18 +5632,19 @@ final class ZipPackage
                 'expectedKind' => $expectedKind,
                 'exists' => $entry !== null,
                 'isDirectory' => null,
-                'directoryRoot' => null,
-                'pathSegments' => [],
-                'pathSegmentPositionReviews' => [],
-                'pathSegmentCount' => null,
-                'directoryDepth' => null,
-                'packagePartBaseName' => null,
-                'packagePartCaseFoldBaseName' => null,
-                'packagePartBaseNameStem' => null,
-                'packagePartCaseFoldBaseNameStem' => null,
-                'packagePartExtension' => null,
-                'packagePartExtensionKey' => null,
-                'extensionlessPackagePart' => false,
+                'directoryRoot' => self::entryHandoffDirectoryRoot($name),
+                'packagePathIdentitySource' => $entry instanceof ZipPackageEntry ? 'zip-entry' : 'request-path',
+                'pathSegments' => $requestPathIdentity['pathSegments'],
+                'pathSegmentPositionReviews' => $requestPathIdentity['pathSegmentPositionReviews'],
+                'pathSegmentCount' => $requestPathIdentity['pathSegmentCount'],
+                'directoryDepth' => $requestPathIdentity['directoryDepth'],
+                'packagePartBaseName' => $requestPathIdentity['packagePartBaseName'],
+                'packagePartCaseFoldBaseName' => $requestPathIdentity['packagePartCaseFoldBaseName'],
+                'packagePartBaseNameStem' => $requestPathIdentity['packagePartBaseNameStem'],
+                'packagePartCaseFoldBaseNameStem' => $requestPathIdentity['packagePartCaseFoldBaseNameStem'],
+                'packagePartExtension' => $requestPathIdentity['packagePartExtension'],
+                'packagePartExtensionKey' => $requestPathIdentity['packagePartExtensionKey'],
+                'extensionlessPackagePart' => $requestPathIdentity['extensionlessPackagePart'],
                 'compressionMethod' => null,
                 'compressionMethodName' => null,
                 'rawName' => null,
@@ -5895,6 +5898,7 @@ final class ZipPackage
             $compressedDataEnd = $compressedDataOffset + $entry->compressedSize;
             $summary['isDirectory'] = $isDirectory;
             $summary['directoryRoot'] = self::entryHandoffDirectoryRoot($entry->name);
+            $summary['packagePathIdentitySource'] = 'zip-entry';
             $summary = array_merge($summary, self::entryHandoffPackagePartIdentity($entry->name, $isDirectory));
             $summary['compressionMethod'] = $entry->compressionMethod;
             $summary['compressionMethodName'] = self::compressionMethodName($entry->compressionMethod);
@@ -6430,6 +6434,8 @@ final class ZipPackage
         $legacyEncodedCommentRequestCount = 0;
         $unicodeCommentExtraRequestCount = 0;
         $decodedCommentDiffersFromRawCommentRequestCount = 0;
+        $packagePathIdentitySourceCounts = [];
+        $entryNamesByPackagePathIdentitySource = [];
         $issueCounts = [];
 
         foreach ($entries as $entry) {
@@ -6489,6 +6495,19 @@ final class ZipPackage
             if (($entry['rawCommentMatchesDecodedComment'] ?? null) === false) {
                 ++$decodedCommentDiffersFromRawCommentRequestCount;
             }
+            $packagePathIdentitySource = is_string($entry['packagePathIdentitySource'] ?? null)
+                && $entry['packagePathIdentitySource'] !== ''
+                ? $entry['packagePathIdentitySource']
+                : 'unknown';
+            $packagePathIdentitySourceCounts[$packagePathIdentitySource] =
+                ($packagePathIdentitySourceCounts[$packagePathIdentitySource] ?? 0) + 1;
+            $entryName = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($entryName !== '') {
+                $entryNamesByPackagePathIdentitySource[$packagePathIdentitySource] ??= [];
+                if (!in_array($entryName, $entryNamesByPackagePathIdentitySource[$packagePathIdentitySource], true)) {
+                    $entryNamesByPackagePathIdentitySource[$packagePathIdentitySource][] = $entryName;
+                }
+            }
 
             $manifestEntries[] = [
                 'requestIndex' => $entry['requestIndex'] ?? null,
@@ -6501,6 +6520,7 @@ final class ZipPackage
                 'status' => $entry['status'] ?? null,
                 'isDirectory' => $entry['isDirectory'] ?? null,
                 'directoryRoot' => $entry['directoryRoot'] ?? null,
+                'packagePathIdentitySource' => $packagePathIdentitySource,
                 'pathSegments' => is_array($entry['pathSegments'] ?? null) ? $entry['pathSegments'] : [],
                 'pathSegmentPositionReviews' => is_array($entry['pathSegmentPositionReviews'] ?? null)
                     ? $entry['pathSegmentPositionReviews']
@@ -6541,6 +6561,12 @@ final class ZipPackage
 
         sort($roles, SORT_STRING);
         ksort($issueCounts, SORT_STRING);
+        ksort($packagePathIdentitySourceCounts, SORT_STRING);
+        foreach ($entryNamesByPackagePathIdentitySource as &$entryNames) {
+            sort($entryNames, SORT_STRING);
+        }
+        unset($entryNames);
+        ksort($entryNamesByPackagePathIdentitySource, SORT_STRING);
         $manifestIssues = array_values(array_filter($issues, 'is_string'));
         $manifestPayload = [
             'manifestVersion' => 'zip-selected-handoff-manifest-v1',
@@ -6565,6 +6591,8 @@ final class ZipPackage
             'roleCount' => count($roles),
             'roles' => $roles,
             'hasUnassignedRole' => $hasUnassignedRole,
+            'packagePathIdentitySourceCounts' => $packagePathIdentitySourceCounts,
+            'entryNamesByPackagePathIdentitySource' => $entryNamesByPackagePathIdentitySource,
             'entries' => $manifestEntries,
         ];
         $manifestJson = json_encode(

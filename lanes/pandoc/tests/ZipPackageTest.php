@@ -12840,9 +12840,13 @@ return [
         $t->same('word/optional.xml', $optionalMissing['name']);
         $t->same(false, $optionalMissing['required']);
         $t->same(false, $optionalMissing['exists']);
-        $t->same([], $optionalMissing['pathSegments']);
-        $t->same(null, $optionalMissing['packagePartBaseName']);
-        $t->same(null, $optionalMissing['packagePartExtensionKey']);
+        $t->same('request-path', $optionalMissing['packagePathIdentitySource']);
+        $t->same('word/', $optionalMissing['directoryRoot']);
+        $t->same(['word', 'optional.xml'], $optionalMissing['pathSegments']);
+        $t->same($pathSegmentPositionReviews(['word', 'optional.xml']), $optionalMissing['pathSegmentPositionReviews']);
+        $t->same('optional.xml', $optionalMissing['packagePartBaseName']);
+        $t->same('optional', $optionalMissing['packagePartBaseNameStem']);
+        $t->same('xml', $optionalMissing['packagePartExtensionKey']);
         $t->same('missing-optional', $optionalMissing['status']);
         $t->same([], $optionalMissing['issues']);
 
@@ -14834,6 +14838,14 @@ return [
         $t->same(['attachment', 'main-document', 'required-sidecar'], $manifest['roles']);
         $t->same(true, $manifest['hasUnassignedRole']);
         $t->same([
+            'request-path' => 2,
+            'zip-entry' => 4,
+        ], $manifest['packagePathIdentitySourceCounts']);
+        $t->same([
+            'request-path' => ['word/missing.xml', 'word/optional.xml'],
+            'zip-entry' => ['word/document.xml', 'word/media/image.png', 'word/media/large.bin'],
+        ], $manifest['entryNamesByPackagePathIdentitySource']);
+        $t->same([
             [
                 'requestIndex' => 0,
                 'name' => 'word/document.xml',
@@ -14959,6 +14971,15 @@ return [
         $t->same(['entry-uncompressed-size-exceeds-limit' => 1], $manifest['issueCounts']);
         $t->same(['main-document', 'media', 'metadata'], $manifest['roles']);
         $t->same(false, $manifest['hasUnassignedRole']);
+        $t->same([
+            'request-path' => 1,
+            'zip-entry' => 2,
+        ], $manifest['packagePathIdentitySourceCounts']);
+        $t->same([
+            'request-path' => ['docProps/missing.xml'],
+            'zip-entry' => ['word/document.xml', 'word/media/image.png'],
+        ], $manifest['entryNamesByPackagePathIdentitySource']);
+        $t->same('zip-entry', $manifest['entries'][0]['packagePathIdentitySource']);
         $t->same(['word', 'document.xml'], $manifest['entries'][0]['pathSegments']);
         $t->same($pathSegmentPositionReviews(['word', 'document.xml']), $manifest['entries'][0]['pathSegmentPositionReviews']);
         $t->same(2, $manifest['entries'][0]['pathSegmentCount']);
@@ -14966,6 +14987,7 @@ return [
         $t->same('document.xml', $manifest['entries'][0]['packagePartBaseName']);
         $t->same('document', $manifest['entries'][0]['packagePartBaseNameStem']);
         $t->same('xml', $manifest['entries'][0]['packagePartExtensionKey']);
+        $t->same('zip-entry', $manifest['entries'][1]['packagePathIdentitySource']);
         $t->same(['word', 'media', 'image.png'], $manifest['entries'][1]['pathSegments']);
         $t->same($pathSegmentPositionReviews(['word', 'media', 'image.png']), $manifest['entries'][1]['pathSegmentPositionReviews']);
         $t->same(3, $manifest['entries'][1]['pathSegmentCount']);
@@ -14973,10 +14995,17 @@ return [
         $t->same('image.png', $manifest['entries'][1]['packagePartBaseName']);
         $t->same('image', $manifest['entries'][1]['packagePartBaseNameStem']);
         $t->same('png', $manifest['entries'][1]['packagePartExtensionKey']);
-        $t->same([], $manifest['entries'][2]['pathSegments']);
-        $t->same(null, $manifest['entries'][2]['pathSegmentCount']);
-        $t->same(null, $manifest['entries'][2]['packagePartBaseName']);
-        $t->same(null, $manifest['entries'][2]['packagePartExtensionKey']);
+        $t->same('request-path', $manifest['entries'][2]['packagePathIdentitySource']);
+        $t->same('docProps/', $manifest['entries'][2]['directoryRoot']);
+        $t->same(['docProps', 'missing.xml'], $manifest['entries'][2]['pathSegments']);
+        $t->same($pathSegmentPositionReviews(['docProps', 'missing.xml']), $manifest['entries'][2]['pathSegmentPositionReviews']);
+        $t->same(2, $manifest['entries'][2]['pathSegmentCount']);
+        $t->same(1, $manifest['entries'][2]['directoryDepth']);
+        $t->same('missing.xml', $manifest['entries'][2]['packagePartBaseName']);
+        $t->same('missing', $manifest['entries'][2]['packagePartBaseNameStem']);
+        $t->same('xml', $manifest['entries'][2]['packagePartExtension']);
+        $t->same('xml', $manifest['entries'][2]['packagePartExtensionKey']);
+        $t->same(false, $manifest['entries'][2]['extensionlessPackagePart']);
         $t->same([
             [
                 'name' => 'word/document.xml',
@@ -15134,7 +15163,8 @@ return [
         $t->same(false, isset($handoffByExtension['bin']));
         $t->same(['entry-uncompressed-size-exceeds-limit'], $summary['issues']);
         $t->same('word/', $summary['entries'][6]['directoryRoot']);
-        $t->same(null, $summary['entries'][8]['directoryRoot']);
+        $t->same('customXml/', $summary['entries'][8]['directoryRoot']);
+        $t->same('request-path', $summary['entries'][8]['packagePathIdentitySource']);
     },
 
     'preflights aggregate zip package expansion before exposing media bytes' => static function (TestRunner $t) use ($buildZipPackage): void {
