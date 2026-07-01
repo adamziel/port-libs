@@ -749,6 +749,7 @@ return [
                 'crc32Hex' => sprintf('%08x', $crc32($contentXhtml)),
                 'compressedSize' => strlen(gzdeflate($contentXhtml)),
                 'uncompressedSize' => strlen($contentXhtml),
+                'expansionRatio' => strlen($contentXhtml) / strlen(gzdeflate($contentXhtml)),
                 'compressedDataSha256' => hash('sha256', gzdeflate($contentXhtml)),
             ],
             [
@@ -771,6 +772,7 @@ return [
                 'crc32Hex' => sprintf('%08x', $crc32('')),
                 'compressedSize' => 0,
                 'uncompressedSize' => 0,
+                'expansionRatio' => 0.0,
                 'compressedDataSha256' => hash('sha256', ''),
             ],
             [
@@ -793,6 +795,7 @@ return [
                 'crc32Hex' => sprintf('%08x', $crc32($mimetype)),
                 'compressedSize' => strlen($mimetype),
                 'uncompressedSize' => strlen($mimetype),
+                'expansionRatio' => 1.0,
                 'compressedDataSha256' => hash('sha256', $mimetype),
             ],
         ];
@@ -835,6 +838,7 @@ return [
                     'crc32Hex' => $entry['crc32Hex'],
                     'compressedSize' => $entry['compressedSize'],
                     'uncompressedSize' => $entry['uncompressedSize'],
+                    'expansionRatio' => $entry['expansionRatio'],
                     'localHeaderSha256' => hash(
                         'sha256',
                         substr($zip, $manifestEntry['localHeaderOffset'], $manifestEntry['localHeaderLength'])
@@ -894,6 +898,19 @@ return [
         foreach ($expectedEntries as $entry) {
             $expectedEntriesByName[$entry['name']] = $entry;
         }
+        $expectedSizeEntry = static fn (array $entry): array => [
+            'name' => $entry['name'],
+            'compressionMethod' => $entry['compressionMethod'],
+            'isDirectory' => $entry['isDirectory'],
+            'compressedSize' => $entry['compressedSize'],
+            'uncompressedSize' => $entry['uncompressedSize'],
+            'expansionRatio' => $entry['expansionRatio'],
+        ];
+        $expectedExpansionRatio = (strlen($contentXhtml) + strlen($mimetype))
+            / (strlen(gzdeflate($contentXhtml)) + strlen($mimetype));
+        $expectedLargestEntry = $expectedSizeEntry($expectedEntriesByName['OEBPS/content.xhtml']);
+        $expectedZeroByteEntries = [$expectedSizeEntry($expectedEntriesByName['OEBPS/images/'])];
+        $expectedUnknownExpansionRatioEntries = [];
         $expectedCompressionMethodSummaries = [
             [
                 'compressionMethod' => 0,
@@ -1060,6 +1077,14 @@ return [
             'localHeaderExtraFieldBytes' => 0,
             'localHeaderReviewFieldBytes' => 0,
             'localExtraFieldEntryCount' => 0,
+            'expansionRatio' => $expectedExpansionRatio,
+            'largestEntry' => $expectedLargestEntry,
+            'zeroByteEntryCount' => 1,
+            'zeroByteFileCount' => 0,
+            'emptyDirectoryEntryCount' => 1,
+            'zeroByteEntries' => $expectedZeroByteEntries,
+            'unknownExpansionRatioEntryCount' => 0,
+            'unknownExpansionRatioEntries' => $expectedUnknownExpansionRatioEntries,
             'centralDirectoryRecordBytes' => array_sum(array_column($expectedEntries, 'centralDirectoryRecordBytes')),
             'centralDirectoryFixedHeaderBytes' => 46 * count($expectedEntries),
             'centralDirectoryVariableFieldBytes' => strlen('OEBPS/content.xhtml')
@@ -1111,6 +1136,16 @@ return [
         $t->same(1, $manifest['directoryEntryCount']);
         $t->same(strlen(gzdeflate($contentXhtml)) + strlen($mimetype), $manifest['compressedBytes']);
         $t->same(strlen($contentXhtml) + strlen($mimetype), $manifest['uncompressedBytes']);
+        $t->same($expectedExpansionRatio, $manifest['expansionRatio']);
+        $t->same($expectedLargestEntry, $manifest['largestEntry']);
+        $t->same(1, $manifest['zeroByteEntryCount']);
+        $t->same(0, $manifest['zeroByteFileCount']);
+        $t->same(1, $manifest['emptyDirectoryEntryCount']);
+        $t->same(true, $manifest['hasZeroByteEntries']);
+        $t->same($expectedZeroByteEntries, $manifest['zeroByteEntries']);
+        $t->same(0, $manifest['unknownExpansionRatioEntryCount']);
+        $t->same(false, $manifest['hasUnknownExpansionRatioEntries']);
+        $t->same($expectedUnknownExpansionRatioEntries, $manifest['unknownExpansionRatioEntries']);
         $t->same(2, $manifest['storedEntryCount']);
         $t->same(1, $manifest['deflatedEntryCount']);
         $t->same(0, $manifest['unsupportedCompressionMethodCount']);
@@ -1225,6 +1260,7 @@ return [
                 'crc32Hex' => $entry['crc32Hex'],
                 'compressedSize' => $entry['compressedSize'],
                 'uncompressedSize' => $entry['uncompressedSize'],
+                'expansionRatio' => $entry['expansionRatio'],
                 'localHeaderSha256' => $entry['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $entry['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'],
@@ -1758,6 +1794,7 @@ return [
                 'crc32Hex' => sprintf('%08x', $crc32($documentXml)),
                 'compressedSize' => strlen($documentXml),
                 'uncompressedSize' => strlen($documentXml),
+                'expansionRatio' => 1.0,
                 'localHeaderSha256' => $documentEntry['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $documentEntry['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $documentEntry['localHeaderVariableFieldBytes'],
@@ -1816,6 +1853,7 @@ return [
                 'crc32Hex' => sprintf('%08x', $crc32($commentsXml)),
                 'compressedSize' => strlen($commentsCompressed),
                 'uncompressedSize' => strlen($commentsXml),
+                'expansionRatio' => strlen($commentsXml) / strlen($commentsCompressed),
                 'localHeaderSha256' => $commentsEntry['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $commentsEntry['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $commentsEntry['localHeaderVariableFieldBytes'],
@@ -1996,6 +2034,14 @@ return [
             'localHeaderExtraFieldBytes' => $manifest['localHeaderExtraFieldBytes'],
             'localHeaderReviewFieldBytes' => $manifest['localHeaderReviewFieldBytes'],
             'localExtraFieldEntryCount' => $manifest['localExtraFieldEntryCount'],
+            'expansionRatio' => $manifest['expansionRatio'],
+            'largestEntry' => $manifest['largestEntry'],
+            'zeroByteEntryCount' => $manifest['zeroByteEntryCount'],
+            'zeroByteFileCount' => $manifest['zeroByteFileCount'],
+            'emptyDirectoryEntryCount' => $manifest['emptyDirectoryEntryCount'],
+            'zeroByteEntries' => $manifest['zeroByteEntries'],
+            'unknownExpansionRatioEntryCount' => $manifest['unknownExpansionRatioEntryCount'],
+            'unknownExpansionRatioEntries' => $manifest['unknownExpansionRatioEntries'],
             'centralDirectoryRecordBytes' => $manifest['centralDirectoryRecordBytes'],
             'centralDirectoryFixedHeaderBytes' => $manifest['centralDirectoryFixedHeaderBytes'],
             'centralDirectoryVariableFieldBytes' => $manifest['centralDirectoryVariableFieldBytes'],
@@ -2102,6 +2148,7 @@ return [
                 'crc32Hex' => $entry['crc32Hex'],
                 'compressedSize' => $entry['compressedSize'],
                 'uncompressedSize' => $entry['uncompressedSize'],
+                'expansionRatio' => $entry['expansionRatio'],
                 'localHeaderSha256' => $entry['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $entry['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'],
@@ -14391,6 +14438,7 @@ return [
             'expansionRatio' => 0.0,
         ];
         $summary = $package->sizePreflight();
+        $manifest = $package->packageManifestPreflight();
 
         $t->same(5, $summary['entryCount']);
         $t->same(4, $summary['fileCount']);
@@ -14407,6 +14455,16 @@ return [
         $t->same($emptyDirectory, $summary['entries'][3]);
         $t->same('word/document.xml', $summary['largestEntry']['name']);
         $t->same($summary, $package->assertSizePreflight($totalUncompressed, 100.0));
+        $t->same($summary['expansionRatio'], $manifest['expansionRatio']);
+        $t->same($summary['largestEntry'], $manifest['largestEntry']);
+        $t->same($summary['zeroByteEntryCount'], $manifest['zeroByteEntryCount']);
+        $t->same($summary['zeroByteFileCount'], $manifest['zeroByteFileCount']);
+        $t->same($summary['emptyDirectoryEntryCount'], $manifest['emptyDirectoryEntryCount']);
+        $t->same($summary['hasZeroByteEntries'], $manifest['hasZeroByteEntries']);
+        $t->same($summary['zeroByteEntries'], $manifest['zeroByteEntries']);
+        $t->same($summary['unknownExpansionRatioEntryCount'], $manifest['unknownExpansionRatioEntryCount']);
+        $t->same($summary['hasUnknownExpansionRatioEntries'], $manifest['hasUnknownExpansionRatioEntries']);
+        $t->same($summary['unknownExpansionRatioEntries'], $manifest['unknownExpansionRatioEntries']);
 
         $strictSummary = $package->strictImportPreflight(2048, 100.0, 2048);
         $rawStrict = ZipPackage::rawStrictImportPreflight($package->bytes(), 2048, 100.0, 2048);
@@ -14516,6 +14574,7 @@ return [
         ];
 
         $summary = $package->sizePreflight();
+        $manifest = $package->packageManifestPreflight();
         $strict = $package->strictImportPreflight(4096, 100.0, 4096);
         $centralSummary = ZipPackage::centralDirectorySizePreflight($zip, null, 100.0);
         $rawStrict = ZipPackage::rawStrictImportPreflight($zip, null, 100.0, 4096);
@@ -14528,6 +14587,13 @@ return [
         $t->same(true, $summary['hasUnknownExpansionRatioEntries']);
         $t->same($expectedSizeEntry, $summary['unknownExpansionRatioEntries'][0]);
         $t->same($expectedSizeEntry, $summary['entries'][1]);
+        $t->same($summary['expansionRatio'], $manifest['expansionRatio']);
+        $t->same($summary['largestEntry'], $manifest['largestEntry']);
+        $t->same($summary['zeroByteEntryCount'], $manifest['zeroByteEntryCount']);
+        $t->same($summary['hasZeroByteEntries'], $manifest['hasZeroByteEntries']);
+        $t->same($summary['unknownExpansionRatioEntryCount'], $manifest['unknownExpansionRatioEntryCount']);
+        $t->same($summary['hasUnknownExpansionRatioEntries'], $manifest['hasUnknownExpansionRatioEntries']);
+        $t->same($summary['unknownExpansionRatioEntries'], $manifest['unknownExpansionRatioEntries']);
 
         $t->same(1, $centralSummary['unknownExpansionRatioEntryCount']);
         $t->same(true, $centralSummary['hasUnknownExpansionRatioEntries']);

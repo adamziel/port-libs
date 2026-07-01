@@ -13720,6 +13720,12 @@ final class ZipPackage
         $unsupportedCompressionMethodCount = 0;
         $compressedBytes = 0;
         $uncompressedBytes = 0;
+        $largestEntry = null;
+        $zeroByteEntryCount = 0;
+        $zeroByteFileCount = 0;
+        $emptyDirectoryEntryCount = 0;
+        $zeroByteEntries = [];
+        $unknownExpansionRatioEntries = [];
         $localHeaderBytes = 0;
         $localHeaderFixedHeaderBytes = 0;
         $localHeaderVariableFieldBytes = 0;
@@ -13822,6 +13828,30 @@ final class ZipPackage
 
             $compressedBytes += $entry->compressedSize;
             $uncompressedBytes += $entry->uncompressedSize;
+            $entryExpansionRatio = self::expansionRatio($entry->uncompressedSize, $entry->compressedSize);
+            $entrySizeSummary = [
+                'name' => $entry->name,
+                'compressionMethod' => $entry->compressionMethod,
+                'isDirectory' => $isDirectory,
+                'compressedSize' => $entry->compressedSize,
+                'uncompressedSize' => $entry->uncompressedSize,
+                'expansionRatio' => $entryExpansionRatio,
+            ];
+            if ($entryExpansionRatio === null) {
+                $unknownExpansionRatioEntries[] = $entrySizeSummary;
+            }
+            if ($entry->uncompressedSize === 0) {
+                ++$zeroByteEntryCount;
+                if ($isDirectory) {
+                    ++$emptyDirectoryEntryCount;
+                } else {
+                    ++$zeroByteFileCount;
+                }
+                $zeroByteEntries[] = $entrySizeSummary;
+            }
+            if ($largestEntry === null || $entry->uncompressedSize > $largestEntry['uncompressedSize']) {
+                $largestEntry = $entrySizeSummary;
+            }
             $localHeaderOrder = $localOrderByName[$entry->name] ?? null;
             $localHeaderLength = (int) $localHeader['localHeaderLength'];
             $entryLocalHeaderFixedHeaderBytes = 30;
@@ -14101,6 +14131,7 @@ final class ZipPackage
                 'crc32Hex' => $entry->crc32Hex(),
                 'compressedSize' => $entry->compressedSize,
                 'uncompressedSize' => $entry->uncompressedSize,
+                'expansionRatio' => $entryExpansionRatio,
                 'localHeaderOffset' => $entry->localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
@@ -14210,6 +14241,7 @@ final class ZipPackage
                 'crc32Hex' => $summary['crc32Hex'],
                 'compressedSize' => $summary['compressedSize'],
                 'uncompressedSize' => $summary['uncompressedSize'],
+                'expansionRatio' => $summary['expansionRatio'],
                 'localHeaderSha256' => $summary['localHeaderSha256'],
                 'localHeaderFixedHeaderBytes' => $summary['localHeaderFixedHeaderBytes'],
                 'localHeaderVariableFieldBytes' => $summary['localHeaderVariableFieldBytes'],
@@ -14261,6 +14293,7 @@ final class ZipPackage
                 static fn (array $summary): bool => is_string($summary['packagePartExtension'] ?? null)
             )
         ));
+        $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'packageSource' => $packageSource,
@@ -14294,6 +14327,14 @@ final class ZipPackage
             'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
             'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
             'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'expansionRatio' => $expansionRatio,
+            'largestEntry' => $largestEntry,
+            'zeroByteEntryCount' => $zeroByteEntryCount,
+            'zeroByteFileCount' => $zeroByteFileCount,
+            'emptyDirectoryEntryCount' => $emptyDirectoryEntryCount,
+            'zeroByteEntries' => $zeroByteEntries,
+            'unknownExpansionRatioEntryCount' => count($unknownExpansionRatioEntries),
+            'unknownExpansionRatioEntries' => $unknownExpansionRatioEntries,
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
             'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
@@ -14349,6 +14390,16 @@ final class ZipPackage
             'directoryEntryCount' => $directoryEntryCount,
             'compressedBytes' => $compressedBytes,
             'uncompressedBytes' => $uncompressedBytes,
+            'expansionRatio' => $expansionRatio,
+            'largestEntry' => $largestEntry,
+            'zeroByteEntryCount' => $zeroByteEntryCount,
+            'zeroByteFileCount' => $zeroByteFileCount,
+            'emptyDirectoryEntryCount' => $emptyDirectoryEntryCount,
+            'hasZeroByteEntries' => $zeroByteEntryCount > 0,
+            'zeroByteEntries' => $zeroByteEntries,
+            'unknownExpansionRatioEntryCount' => count($unknownExpansionRatioEntries),
+            'hasUnknownExpansionRatioEntries' => $unknownExpansionRatioEntries !== [],
+            'unknownExpansionRatioEntries' => $unknownExpansionRatioEntries,
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
             'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
