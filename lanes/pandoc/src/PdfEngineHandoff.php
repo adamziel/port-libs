@@ -744,6 +744,18 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['duplicateInputVariableNameCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-input-overrides:' . $typstBoundarySummary['duplicateInputVariableNameCount'];
             }
+            if (($typstBoundarySummary['featureGateCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-feature-gates:' . $typstBoundarySummary['featureGateCount'];
+            }
+            if (($typstBoundarySummary['featureGateHistoryCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-feature-gate-history:' . $typstBoundarySummary['featureGateHistoryCount'];
+            }
+            if (($typstBoundarySummary['featureGateEnvironmentShadowed'] ?? false) === true) {
+                $diagnostics[] = 'typst-boundary-summary-feature-gate-shadowed';
+            }
+            if (($typstBoundarySummary['featureGateIssueCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-feature-gate-issues:' . $typstBoundarySummary['featureGateIssueCount'];
+            }
             if (($typstBoundarySummary['diagnosticOutputControlCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-diagnostics:' . $typstBoundarySummary['diagnosticOutputControlCount'];
             }
@@ -10057,6 +10069,53 @@ final class PdfEngineHandoff
                 $pdfStandards,
                 static fn (string $standard): bool => preg_match('/\Aua-\d/', $standard) === 1
             ));
+        $featureGates = is_array($provenance['featureGates'] ?? null) ? $provenance['featureGates'] : [];
+        $featureGateEnvironment = is_array($provenance['featureGateEnvironment'] ?? null) ? $provenance['featureGateEnvironment'] : [];
+        $featureGateHistory = is_array($provenance['featureGateHistory'] ?? null) ? $provenance['featureGateHistory'] : [];
+        $featureGateOverrides = array_values(array_filter(
+            is_array($provenance['overrides'] ?? null) ? $provenance['overrides'] : [],
+            static fn (mixed $entry): bool => is_array($entry) && ($entry['option'] ?? null) === 'features'
+        ));
+        $selectedFeatureGates = array_values(array_filter(
+            is_array($featureGates['features'] ?? null) ? $featureGates['features'] : [],
+            static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+        ));
+        $environmentFeatureGates = array_values(array_filter(
+            is_array($featureGateEnvironment['features'] ?? null) ? $featureGateEnvironment['features'] : [],
+            static fn (mixed $feature): bool => is_string($feature) && $feature !== ''
+        ));
+        $featureGateIssues = [];
+        foreach (array_merge([$featureGates, $featureGateEnvironment], $featureGateHistory) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+            foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $featureGateIssues[] = $issue;
+                }
+            }
+        }
+        foreach ($featureGateOverrides as $override) {
+            if (is_array($override) && is_string($override['issue'] ?? null) && $override['issue'] !== '') {
+                $featureGateIssues[] = $override['issue'];
+            }
+        }
+        $featureGateIssues = array_values(array_unique($featureGateIssues));
+        sort($featureGateIssues);
+        $invalidFeatureGateHistoryCount = 0;
+        foreach ($featureGateHistory as $featureGateEntry) {
+            if (!is_array($featureGateEntry) || ($featureGateEntry['safe'] ?? false) !== true) {
+                ++$invalidFeatureGateHistoryCount;
+            }
+        }
+        if ($featureGateHistory === [] && $featureGates !== [] && ($featureGates['safe'] ?? false) !== true) {
+            $invalidFeatureGateHistoryCount = 1;
+        }
+        $featureGateEnvironmentVariable = is_string($featureGates['environmentVariable'] ?? null)
+            ? $featureGates['environmentVariable']
+            : (is_string($featureGateEnvironment['environmentVariable'] ?? null) ? $featureGateEnvironment['environmentVariable'] : null);
+        $featureGateEnvironmentPresent = $featureGateEnvironment !== [] || (($featureGates['source'] ?? null) === 'environment');
+        $featureGateEnvironmentShadowed = is_string($featureGateEnvironment['shadowedBy'] ?? null);
         $openOutput = is_array($provenance['openOutput'] ?? null) ? $provenance['openOutput'] : [];
         $openOutputViewers = is_array($openOutput['viewers'] ?? null) ? $openOutput['viewers'] : [];
         $openOutputDefaultViewerCount = 0;
@@ -10316,7 +10375,21 @@ final class PdfEngineHandoff
             'pdfExportOverrideCount' => count($pdfExportOverrides),
             'pdfExportIssueCount' => count($pdfExportIssues),
             'pdfExportIssues' => $pdfExportIssues,
-            'featureGateCount' => is_array($provenance['featureGates'] ?? null) && is_int($provenance['featureGates']['featureCount'] ?? null) ? $provenance['featureGates']['featureCount'] : 0,
+            'featureGateCount' => is_int($featureGates['featureCount'] ?? null) ? $featureGates['featureCount'] : count($selectedFeatureGates),
+            'selectedFeatureGateCount' => count($selectedFeatureGates),
+            'selectedFeatureGates' => $selectedFeatureGates,
+            'selectedFeatureGateValue' => is_string($featureGates['value'] ?? null) ? $featureGates['value'] : null,
+            'selectedFeatureGateSource' => is_string($featureGates['source'] ?? null) ? $featureGates['source'] : null,
+            'featureGateHistoryCount' => count($featureGateHistory),
+            'invalidFeatureGateHistoryCount' => $invalidFeatureGateHistoryCount,
+            'featureGateOverrideCount' => count($featureGateOverrides),
+            'environmentFeatureGateCount' => count($environmentFeatureGates),
+            'environmentFeatureGates' => $environmentFeatureGates,
+            'featureGateEnvironmentPresent' => $featureGateEnvironmentPresent,
+            'featureGateEnvironmentShadowed' => $featureGateEnvironmentShadowed,
+            'featureGateEnvironmentVariable' => $featureGateEnvironmentVariable,
+            'featureGateIssueCount' => count($featureGateIssues),
+            'featureGateIssues' => $featureGateIssues,
             'executionPolicyPresent' => $executionPolicy !== [],
             'selectedExecutionJobs' => $selectedExecutionJobs,
             'selectedExecutionJobMode' => $selectedExecutionJobMode,
