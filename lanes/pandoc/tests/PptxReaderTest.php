@@ -24,7 +24,48 @@ $buildPptxPackage = static function (): string {
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
+  <Relationship Id="rIdApp" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/>
+  <Relationship Id="rIdCustom" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/custom-properties" Target="docProps/custom.xml"/>
 </Relationships>
+XML);
+    $zip->addFromString('docProps/core.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+                   xmlns:dc="http://purl.org/dc/elements/1.1/"
+                   xmlns:dcterms="http://purl.org/dc/terms/"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:title>Reader Review Deck</dc:title>
+  <dc:creator>Ada Reviewer</dc:creator>
+  <dc:subject>PPTX reader parity</dc:subject>
+  <cp:keywords>pptx, parity, review</cp:keywords>
+  <dc:description>Review-only document property extraction.</dc:description>
+  <cp:category>Engineering</cp:category>
+  <dcterms:created xsi:type="dcterms:W3CDTF">2026-07-01T00:00:00Z</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">2026-07-01T01:02:03Z</dcterms:modified>
+</cp:coreProperties>
+XML);
+    $zip->addFromString('docProps/app.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">
+  <Application>PowerPoint</Application>
+  <PresentationFormat>On-screen Show (16:9)</PresentationFormat>
+  <Slides>5</Slides>
+  <Notes>1</Notes>
+  <HiddenSlides>0</HiddenSlides>
+  <Company>Port Libs</Company>
+  <LinksUpToDate>false</LinksUpToDate>
+</Properties>
+XML);
+    $zip->addFromString('docProps/custom.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties"
+            xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="2" name="ReviewStatus"><vt:lpwstr>current</vt:lpwstr></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="Reviewed"><vt:bool>true</vt:bool></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="Priority"><vt:i4>7</vt:i4></property>
+  <property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="5" name="ReviewStatus"><vt:lpwstr>duplicate ignored by byName</vt:lpwstr></property>
+</Properties>
 XML);
     $zip->addFromString('ppt/presentation.xml', <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -3707,6 +3748,22 @@ return [
             'emusPerInch' => 914400,
             'source' => 'presentation',
         ], $review['slideSize'] ?? null);
+        $t->same('docProps/core.xml', $review['documentProperties']['core']['partName'] ?? null);
+        $t->same(true, $review['documentProperties']['core']['exists'] ?? null);
+        $t->same('Reader Review Deck', $review['documentProperties']['core']['values']['title'] ?? null);
+        $t->same('Ada Reviewer', $review['documentProperties']['core']['values']['creator'] ?? null);
+        $t->same('2026-07-01T01:02:03Z', $review['documentProperties']['core']['values']['modified'] ?? null);
+        $t->same('docProps/app.xml', $review['documentProperties']['extended']['partName'] ?? null);
+        $t->same(5, $review['documentProperties']['extended']['values']['slides'] ?? null);
+        $t->same(1, $review['documentProperties']['extended']['values']['notes'] ?? null);
+        $t->same(false, $review['documentProperties']['extended']['values']['linksUpToDate'] ?? null);
+        $t->same('docProps/custom.xml', $review['documentProperties']['custom']['partName'] ?? null);
+        $t->same(4, $review['documentProperties']['custom']['count'] ?? null);
+        $t->same(1, $review['documentProperties']['custom']['duplicateNameCount'] ?? null);
+        $t->same(['ReviewStatus'], $review['documentProperties']['custom']['duplicateNames'] ?? null);
+        $t->same('current', $review['documentProperties']['custom']['byName']['ReviewStatus'] ?? null);
+        $t->same(true, $review['documentProperties']['custom']['byName']['Reviewed'] ?? null);
+        $t->same(7, $review['documentProperties']['custom']['byName']['Priority'] ?? null);
         $t->same('Ada Reviewer', $review['commentAuthors']['0']['name'] ?? null);
         $t->same(1, $review['slides'][4]['commentCount'] ?? null);
         $t->same('Review this clip', $review['slides'][4]['comments'][0]['text'] ?? null);
@@ -3852,6 +3909,7 @@ return [
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "LLMs" ]', $native);
         $t->contains('BulletList', $native);
         $t->contains('Table ( "" , [  ] , [  ] )', $native);
+        $t->true(!str_contains($native, 'Reader Review Deck'), 'PPTX document properties should remain review-only');
         $t->true(!str_contains($native, '(ColSpan 2)'), 'PPTX gridSpan should remain review-only in upstream-compatible native output');
         $t->true(!str_contains($native, '(RowSpan 2)'), 'PPTX rowSpan should remain review-only in upstream-compatible native output');
         $t->contains('Image ( "" , [  ] , [  ] ) [  ] ( "ppt/media/image1.png" , "Picture 6" )', $native);

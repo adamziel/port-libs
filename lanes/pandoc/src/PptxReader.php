@@ -13,6 +13,9 @@ final class PptxReader
     private const DRAWING_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/main';
     private const DIAGRAM_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const COMMENT_AUTHORS_PART = '/ppt/commentAuthors.xml';
+    private const CORE_PROPERTIES_RELATIONSHIP_SUFFIX = '/metadata/core-properties';
+    private const EXTENDED_PROPERTIES_RELATIONSHIP_SUFFIX = '/extended-properties';
+    private const CUSTOM_PROPERTIES_RELATIONSHIP_SUFFIX = '/custom-properties';
     private const MAX_XML_PART_BYTES = 8_388_608;
     private const EMUS_PER_INCH = 914_400;
     private const DEFAULT_SLIDE_WIDTH_EMU = 9_144_000;
@@ -36,6 +39,7 @@ final class PptxReader
         $presentationRelationships = $this->relationshipsOrEmpty($package, $presentationPart);
         $tableStyles = $this->presentationTableStyles($package, $presentationRelationships);
         $commentAuthors = $this->commentAuthors($package);
+        $documentProperties = $this->documentProperties($package, $rootRelationships);
 
         $blocks = [];
         $slideReviews = [];
@@ -96,6 +100,7 @@ final class PptxReader
                 'slideCount' => count($slides),
                 'slideSize' => $slideSize,
                 'slides' => $slideReviews,
+                'documentProperties' => $documentProperties,
                 'commentAuthors' => $commentAuthors,
                 'tableStyles' => $tableStyles,
                 'payloadExposurePolicy' => 'xml-text-and-media-reference-only',
@@ -523,6 +528,301 @@ final class PptxReader
         $summary['styleCount'] = count($styles);
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, array<string, mixed>>
+     */
+    private function documentProperties(ZipPackage $package, OpcRelationships $rootRelationships): array
+    {
+        return [
+            'core' => $this->documentPropertyPart(
+                $package,
+                $rootRelationships,
+                self::CORE_PROPERTIES_RELATIONSHIP_SUFFIX,
+                'docProps/core.xml',
+                'PPTX core properties',
+                fn (\DOMDocument $document): array => $this->coreDocumentProperties($document)
+            ),
+            'extended' => $this->documentPropertyPart(
+                $package,
+                $rootRelationships,
+                self::EXTENDED_PROPERTIES_RELATIONSHIP_SUFFIX,
+                'docProps/app.xml',
+                'PPTX extended properties',
+                fn (\DOMDocument $document): array => $this->extendedDocumentProperties($document)
+            ),
+            'custom' => $this->documentPropertyPart(
+                $package,
+                $rootRelationships,
+                self::CUSTOM_PROPERTIES_RELATIONSHIP_SUFFIX,
+                'docProps/custom.xml',
+                'PPTX custom properties',
+                fn (\DOMDocument $document): array => $this->customDocumentProperties($document)
+            ),
+        ];
+    }
+
+    /**
+     * @param callable(\DOMDocument): array<string, mixed> $extract
+     * @return array<string, mixed>
+     */
+    private function documentPropertyPart(ZipPackage $package, OpcRelationships $rootRelationships, string $relationshipTypeSuffix, string $fallbackPartName, string $label, callable $extract): array
+    {
+        $relationship = $this->firstRelationshipWithTypeSuffix($rootRelationships, $relationshipTypeSuffix);
+        $partName = $fallbackPartName;
+        $review = [
+            'partName' => $fallbackPartName,
+            'exists' => false,
+            'relationshipId' => '',
+            'relationshipType' => '',
+            'target' => '',
+            'external' => false,
+            'issues' => [],
+        ];
+
+        if ($relationship instanceof OpcRelationship) {
+            $review['relationshipId'] = $relationship->id;
+            $review['relationshipType'] = $relationship->type;
+            $review['target'] = $relationship->target;
+            $review['external'] = $relationship->isExternal();
+            if ($relationship->isExternal()) {
+                $review['externalTargetPolicy'] = $relationship->externalTargetPreflight();
+                $review['issues'][] = 'external-document-properties-part';
+
+                return $review;
+            }
+
+            $partName = ltrim(OpcPackagePath::stripQueryAndFragment($rootRelationships->resolveTarget($relationship)), '/');
+            $review['partName'] = $partName;
+        }
+
+        if (!$package->has($partName)) {
+            $review['issues'][] = 'missing-document-properties-part';
+
+            return $review;
+        }
+
+        $document = $this->optionalPackageXml($package, $partName, $label);
+        if (!$document instanceof \DOMDocument) {
+            $review['issues'][] = 'invalid-document-properties-part';
+
+            return $review;
+        }
+
+        $review['exists'] = true;
+
+        return array_replace($review, $extract($document));
+    }
+
+    /**
+     * @return array{values:array<string, string>, valueCount:int}
+     */
+    private function coreDocumentProperties(\DOMDocument $document): array
+    {
+        $values = [];
+        foreach ($document->getElementsByTagName('*') as $element) {
+            if (!$element instanceof \DOMElement) {
+                continue;
+            }
+
+            $key = match ($element->localName) {
+                'title' => 'title',
+                'creator' => 'creator',
+                'lastModifiedBy' => 'lastModifiedBy',
+                'revision' => 'revision',
+                'subject' => 'subject',
+                'keywords' => 'keywords',
+                'description' => 'description',
+                'category' => 'category',
+                'contentStatus' => 'contentStatus',
+                'created' => 'created',
+                'modified' => 'modified',
+                default => '',
+            };
+            if ($key === '') {
+                continue;
+            }
+
+            $value = $this->documentPropertyText($element);
+            if ($value !== '') {
+                $values[$key] = $value;
+            }
+        }
+
+        return [
+            'values' => $values,
+            'valueCount' => count($values),
+        ];
+    }
+
+    /**
+     * @return array{values:array<string, string|int|bool>, valueCount:int}
+     */
+    private function extendedDocumentProperties(\DOMDocument $document): array
+    {
+        $root = $document->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return ['values' => [], 'valueCount' => 0];
+        }
+
+        $integerKeys = array_fill_keys([
+            'bytes',
+            'characters',
+            'charactersWithSpaces',
+            'docSecurity',
+            'hiddenSlides',
+            'lines',
+            'linksDirty',
+            'mmClips',
+            'notes',
+            'pages',
+            'paragraphs',
+            'slides',
+            'totalTime',
+            'words',
+        ], true);
+        $booleanKeys = array_fill_keys([
+            'hyperlinksChanged',
+            'linksUpToDate',
+            'scaleCrop',
+            'sharedDoc',
+        ], true);
+        $values = [];
+        foreach ($this->childElements($root, null) as $element) {
+            $key = $this->lowerCamelName($element->localName);
+            if ($key === 'headingPairs' || $key === 'titlesOfParts') {
+                continue;
+            }
+
+            $text = $this->documentPropertyText($element);
+            if ($text === '') {
+                continue;
+            }
+            if (isset($integerKeys[$key]) && preg_match('/^-?\d+$/', $text) === 1) {
+                $values[$key] = (int) $text;
+                continue;
+            }
+            if (isset($booleanKeys[$key])) {
+                $values[$key] = $this->documentPropertyBoolean($text);
+                continue;
+            }
+
+            $values[$key] = $text;
+        }
+
+        return [
+            'values' => $values,
+            'valueCount' => count($values),
+        ];
+    }
+
+    /**
+     * @return array{count:int, duplicateNameCount:int, duplicateNames:list<string>, items:list<array<string, mixed>>, byName:array<string, mixed>}
+     */
+    private function customDocumentProperties(\DOMDocument $document): array
+    {
+        $root = $document->documentElement;
+        if (!$root instanceof \DOMElement) {
+            return ['count' => 0, 'duplicateNameCount' => 0, 'duplicateNames' => [], 'items' => [], 'byName' => []];
+        }
+
+        $items = [];
+        $byName = [];
+        $seen = [];
+        $duplicates = [];
+        foreach ($this->childElements($root, 'property') as $property) {
+            $name = trim($property->getAttribute('name'));
+            if ($name === '') {
+                continue;
+            }
+
+            $valueElement = null;
+            foreach ($this->childElements($property, null) as $child) {
+                $valueElement = $child;
+                break;
+            }
+            if (!$valueElement instanceof \DOMElement) {
+                continue;
+            }
+
+            $value = $this->documentPropertyTypedValue($valueElement);
+            $duplicate = isset($seen[$name]);
+            $seen[$name] = true;
+            if ($duplicate) {
+                $duplicates[$name] = true;
+            } else {
+                $byName[$name] = $value;
+            }
+
+            $item = [
+                'name' => $name,
+                'valueType' => $valueElement->localName,
+                'value' => $value,
+                'duplicate' => $duplicate,
+            ];
+            $pid = $property->getAttribute('pid');
+            if ($pid !== '' && preg_match('/^-?\d+$/', $pid) === 1) {
+                $item['pid'] = (int) $pid;
+            }
+            $fmtid = trim($property->getAttribute('fmtid'));
+            if ($fmtid !== '') {
+                $item['fmtid'] = $fmtid;
+            }
+            $items[] = $item;
+        }
+
+        $duplicateNames = array_keys($duplicates);
+        sort($duplicateNames, SORT_STRING);
+        ksort($byName, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'duplicateNameCount' => count($duplicateNames),
+            'duplicateNames' => $duplicateNames,
+            'items' => $items,
+            'byName' => $byName,
+        ];
+    }
+
+    private function documentPropertyTypedValue(\DOMElement $element): mixed
+    {
+        if (in_array($element->localName, ['array', 'vector'], true)) {
+            $values = [];
+            foreach ($this->childElements($element, null) as $child) {
+                $values[] = $this->documentPropertyTypedValue($child);
+            }
+
+            return $values;
+        }
+
+        $text = $this->documentPropertyText($element);
+
+        return match ($element->localName) {
+            'bool' => $this->documentPropertyBoolean($text),
+            'i1', 'i2', 'i4', 'i8', 'int', 'ui1', 'ui2', 'ui4', 'ui8', 'uint' => preg_match('/^-?\d+$/', $text) === 1 ? (int) $text : $text,
+            'decimal', 'r4', 'r8' => is_numeric($text) ? (float) $text : $text,
+            default => $text,
+        };
+    }
+
+    private function documentPropertyBoolean(string $value): bool
+    {
+        return in_array(strtolower(trim($value)), ['1', 'true', 'on', 'yes'], true);
+    }
+
+    private function documentPropertyText(\DOMElement $element): string
+    {
+        return trim(preg_replace('/\s+/', ' ', $element->textContent) ?? $element->textContent);
+    }
+
+    private function lowerCamelName(string $name): string
+    {
+        if ($name === 'MMClips') {
+            return 'mmClips';
+        }
+
+        return $name === '' ? '' : strtolower($name[0]) . substr($name, 1);
     }
 
     /**
