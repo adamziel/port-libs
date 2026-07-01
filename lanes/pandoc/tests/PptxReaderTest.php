@@ -3953,6 +3953,10 @@ XML);
       <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Graphic placeholders</a:t></a:r></a:p></p:txBody>
     </p:sp>
     <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="9" name="Missing GraphicData"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic/>
+    </p:graphicFrame>
+    <p:graphicFrame>
       <p:nvGraphicFramePr><p:cNvPr id="10" name="No URI Graphic"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
       <a:graphic><a:graphicData/></a:graphic>
     </p:graphicFrame>
@@ -7059,6 +7063,7 @@ return [
         $t->same('Diagram Missing Rels', $placeholderParagraphs[2]->attr('pptxShape')['name'] ?? null);
         $t->same('Diagram Unknown Rel', $placeholderParagraphs[3]->attr('pptxShape')['name'] ?? null);
         $t->same('Chart Diagram URI', $placeholderParagraphs[4]->attr('pptxShape')['name'] ?? null);
+        $t->true(!str_contains($native, 'Missing GraphicData'), 'Graphic frames without graphicData should be skipped like upstream');
         $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
     },
 
