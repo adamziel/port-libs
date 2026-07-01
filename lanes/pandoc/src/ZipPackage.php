@@ -6657,6 +6657,58 @@ final class ZipPackage
         return array_values($summaries);
     }
 
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestDirectoryRootSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $root = self::entryHandoffDirectoryRoot($name);
+            if (!isset($summaries[$root])) {
+                $summaries[$root] = [
+                    'directoryRoot' => $root,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$root]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$root]['directoryEntryCount'];
+            } else {
+                ++$summaries[$root]['fileEntryCount'];
+            }
+
+            $summaries[$root]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$root]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$root]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$root]['dataDescriptorEntryCount'];
+                $summaries[$root]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+            $summaries[$root]['entryNames'][] = $name;
+        }
+
+        ksort($summaries, SORT_STRING);
+
+        return array_values($summaries);
+    }
+
     private static function entryHandoffDirectoryRoot(string $name): string
     {
         $separator = strpos($name, '/');
@@ -13303,6 +13355,7 @@ final class ZipPackage
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
+                'directoryRoot' => self::entryHandoffDirectoryRoot($entry->name),
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => $localHeaderOrder,
                 'compressionMethod' => $entry->compressionMethod,
@@ -13334,6 +13387,7 @@ final class ZipPackage
             $manifestEntries[] = [
                 'name' => $summary['name'],
                 'isDirectory' => $summary['isDirectory'],
+                'directoryRoot' => $summary['directoryRoot'],
                 'centralDirectoryIndex' => $summary['centralDirectoryIndex'],
                 'localHeaderOrder' => $summary['localHeaderOrder'],
                 'compressionMethod' => $summary['compressionMethod'],
@@ -13355,6 +13409,7 @@ final class ZipPackage
         $localHeaderOrderNames = $this->localNames();
         ksort($compressionMethodSummaries, SORT_NUMERIC);
         $compressionMethodSummaries = array_values($compressionMethodSummaries);
+        $directoryRootSummaries = self::packageManifestDirectoryRootSummaries($entries);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
             'archiveBytes' => $archiveBytes,
@@ -13371,6 +13426,7 @@ final class ZipPackage
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'compressionMethodSummaries' => $compressionMethodSummaries,
+            'directoryRootSummaries' => $directoryRootSummaries,
             'entries' => $manifestEntries,
         ];
         $manifestJson = json_encode(
@@ -13409,6 +13465,8 @@ final class ZipPackage
             'centralDirectorySignatureSha256' => $centralDirectorySignatureSha256,
             'compressionMethodSummaryCount' => count($compressionMethodSummaries),
             'compressionMethodSummaries' => $compressionMethodSummaries,
+            'directoryRootCount' => count($directoryRootSummaries),
+            'directoryRootSummaries' => $directoryRootSummaries,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,

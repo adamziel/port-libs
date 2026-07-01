@@ -732,6 +732,7 @@ return [
             [
                 'name' => 'OEBPS/content.xhtml',
                 'isDirectory' => false,
+                'directoryRoot' => 'OEBPS/',
                 'centralDirectoryIndex' => 0,
                 'localHeaderOrder' => 1,
                 'compressionMethod' => 8,
@@ -743,6 +744,7 @@ return [
             [
                 'name' => 'OEBPS/images/',
                 'isDirectory' => true,
+                'directoryRoot' => 'OEBPS/',
                 'centralDirectoryIndex' => 1,
                 'localHeaderOrder' => 2,
                 'compressionMethod' => 0,
@@ -754,6 +756,7 @@ return [
             [
                 'name' => 'mimetype',
                 'isDirectory' => false,
+                'directoryRoot' => '/',
                 'centralDirectoryIndex' => 2,
                 'localHeaderOrder' => 0,
                 'compressionMethod' => 0,
@@ -775,6 +778,7 @@ return [
                 return [
                     'name' => $entry['name'],
                     'isDirectory' => $entry['isDirectory'],
+                    'directoryRoot' => $entry['directoryRoot'],
                     'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                     'localHeaderOrder' => $entry['localHeaderOrder'],
                     'compressionMethod' => $entry['compressionMethod'],
@@ -834,6 +838,33 @@ return [
                 'dataDescriptorBytes' => 0,
             ],
         ];
+        $expectedDirectoryRootSummaries = [
+            [
+                'directoryRoot' => '/',
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($mimetype),
+                'uncompressedBytes' => strlen($mimetype),
+                'localRecordBytes' => $expectedEntriesByName['mimetype']['localRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'entryNames' => ['mimetype'],
+            ],
+            [
+                'directoryRoot' => 'OEBPS/',
+                'entryCount' => 2,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 1,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)),
+                'uncompressedBytes' => strlen($contentXhtml),
+                'localRecordBytes' => $expectedEntriesByName['OEBPS/content.xhtml']['localRecordBytes']
+                    + $expectedEntriesByName['OEBPS/images/']['localRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'entryNames' => ['OEBPS/content.xhtml', 'OEBPS/images/'],
+            ],
+        ];
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
             'archiveBytes' => $manifest['archiveBytes'],
@@ -850,6 +881,7 @@ return [
             'centralDirectoryOrderNames' => $expectedCentralOrder,
             'localHeaderOrderNames' => $expectedLocalOrder,
             'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
+            'directoryRootSummaries' => $expectedDirectoryRootSummaries,
             'entries' => $expectedEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
@@ -885,6 +917,8 @@ return [
         $t->same(null, $manifest['centralDirectorySignatureSha256']);
         $t->same(2, $manifest['compressionMethodSummaryCount']);
         $t->same($expectedCompressionMethodSummaries, $manifest['compressionMethodSummaries']);
+        $t->same(2, $manifest['directoryRootCount']);
+        $t->same($expectedDirectoryRootSummaries, $manifest['directoryRootSummaries']);
         $t->same($expectedCentralOrder, $manifest['centralDirectoryOrderNames']);
         $t->same($expectedLocalOrder, $manifest['localHeaderOrderNames']);
         $t->same(false, $manifest['centralDirectoryOrderMatchesLocalHeaderOrder']);
@@ -892,6 +926,7 @@ return [
             static fn (array $entry): array => [
                 'name' => $entry['name'],
                 'isDirectory' => $entry['isDirectory'],
+                'directoryRoot' => $entry['directoryRoot'],
                 'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
                 'localHeaderOrder' => $entry['localHeaderOrder'],
                 'compressionMethod' => $entry['compressionMethod'],
