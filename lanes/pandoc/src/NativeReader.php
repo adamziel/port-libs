@@ -893,22 +893,28 @@ final class NativeReader
 
     private function parseRawBlock(): AstNode
     {
-        $format = $this->parseFormatTuple();
+        [$format, $formatNative] = $this->parseFormatTuple();
         $text = $this->expectString();
+        $attrs = [
+            'format' => $format,
+            'text' => $text,
+            'formatConstructor' => 'Format',
+            'formatNative' => $formatNative,
+        ];
 
         if ($this->isHtmlRawFormat($format)) {
-            return new AstNode('raw_html', ['format' => $format, 'text' => $text, 'html' => $text]);
+            return new AstNode('raw_html', $attrs + ['html' => $text]);
         }
 
         if ($this->isTexRawFormat($format)) {
-            return new AstNode('raw_tex', ['format' => $format, 'text' => $text, 'tex' => $text]);
+            return new AstNode('raw_tex', $attrs + ['tex' => $text]);
         }
 
         if ($this->isMarkdownRawFormat($format)) {
-            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+            return new AstNode('raw_markdown', $attrs + ['markdown' => $text]);
         }
 
-        return new AstNode('raw_block', ['format' => $format, 'text' => $text]);
+        return new AstNode('raw_block', $attrs);
     }
 
     /**
@@ -1071,22 +1077,28 @@ final class NativeReader
 
     private function parseRawInline(): AstNode
     {
-        $format = $this->parseFormatTuple();
+        [$format, $formatNative] = $this->parseFormatTuple();
         $text = $this->expectString();
+        $attrs = [
+            'format' => $format,
+            'text' => $text,
+            'formatConstructor' => 'Format',
+            'formatNative' => $formatNative,
+        ];
 
         if ($this->isHtmlRawFormat($format)) {
-            return new AstNode('raw_html_inline', ['format' => $format, 'text' => $text, 'html' => $text]);
+            return new AstNode('raw_html_inline', $attrs + ['html' => $text]);
         }
 
         if ($this->isTexRawFormat($format)) {
-            return new AstNode('raw_tex_inline', ['format' => $format, 'text' => $text, 'tex' => $text]);
+            return new AstNode('raw_tex_inline', $attrs + ['tex' => $text]);
         }
 
         if ($this->isMarkdownRawFormat($format)) {
-            return new AstNode('raw_markdown', ['format' => $format, 'text' => $text, 'markdown' => $text]);
+            return new AstNode('raw_markdown', $attrs + ['markdown' => $text]);
         }
 
-        return new AstNode('raw_inline', ['format' => $format, 'text' => $text]);
+        return new AstNode('raw_inline', $attrs);
     }
 
     private function isMarkdownRawFormat(string $format): bool
@@ -1342,14 +1354,17 @@ final class NativeReader
         return new AstNode('table_cell', $attrs, $this->parseBlockList());
     }
 
-    private function parseFormatTuple(): string
+    /**
+     * @return array{0:string, 1:array{t:string, c:string}}
+     */
+    private function parseFormatTuple(): array
     {
         $this->expectSymbol('(');
         $this->expectIdentifier('Format');
         $format = $this->expectString();
         $this->expectSymbol(')');
 
-        return $format;
+        return [$format, ['t' => 'Format', 'c' => $format]];
     }
 
     /**

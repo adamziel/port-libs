@@ -45,4 +45,46 @@ NATIVE;
             (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
         );
     },
+    'preserves textual native raw format constructor provenance' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ RawBlock (Format "markdown+raw_tex") "$x$"
+, Para [ RawInline (Format "latex") "\\alpha", Space, RawInline (Format "html5") "<span>ok</span>" ]
+]
+NATIVE;
+        $markdownFormat = ['t' => 'Format', 'c' => 'markdown+raw_tex'];
+        $texFormat = ['t' => 'Format', 'c' => 'latex'];
+        $htmlFormat = ['t' => 'Format', 'c' => 'html5'];
+
+        $nativeDocument = (new NativeReader())->read($native);
+        $rawBlock = $nativeDocument->children[0];
+        $paragraph = $nativeDocument->children[1];
+        $texInline = $paragraph->children[0];
+        $htmlInline = $paragraph->children[2];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('raw_markdown', $rawBlock->type);
+        $t->same('Format', $rawBlock->attr('formatConstructor'));
+        $t->same($markdownFormat, $rawBlock->attr('formatNative'));
+        $t->same('raw_tex_inline', $texInline->type);
+        $t->same('Format', $texInline->attr('formatConstructor'));
+        $t->same($texFormat, $texInline->attr('formatNative'));
+        $t->same('raw_html_inline', $htmlInline->type);
+        $t->same('Format', $htmlInline->attr('formatConstructor'));
+        $t->same($htmlFormat, $htmlInline->attr('formatNative'));
+        $t->same($markdownFormat, $jsonPacket['blocks'][0]['c'][0]);
+        $t->same($texFormat, $jsonPacket['blocks'][1]['c'][0]['c'][0]);
+        $t->same($htmlFormat, $jsonPacket['blocks'][1]['c'][2]['c'][0]);
+        $t->same($jsonPacket['blocks'], $nativePacket['blocks']);
+        $t->same(
+            '[ RawBlock (Format "markdown+raw_tex") "$x$"' . "\n"
+            . ', Para [ RawInline (Format "latex") "\\\\alpha" , Space , RawInline (Format "html5") "<span>ok</span>" ]' . "\n"
+            . ']',
+            (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
+        );
+    },
 ];
