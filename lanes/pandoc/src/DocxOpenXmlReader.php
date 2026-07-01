@@ -47146,6 +47146,7 @@ final class DocxOpenXmlReader
             'Application' => 'application',
             'AppVersion' => 'appVersion',
             'HyperlinkBase' => 'hyperlinkBase',
+            'PresentationFormat' => 'presentationFormat',
         ] as $source => $target) {
             $value = $this->extendedPropertyText($xpath, $source);
             if ($value !== '') {
@@ -47161,6 +47162,11 @@ final class DocxOpenXmlReader
             'Lines' => 'lines',
             'Paragraphs' => 'paragraphs',
             'DocSecurity' => 'docSecurity',
+            'Slides' => 'slides',
+            'Notes' => 'notes',
+            'TotalTime' => 'totalTime',
+            'HiddenSlides' => 'hiddenSlides',
+            'MMClips' => 'mmClips',
         ] as $source => $target) {
             $value = $this->extendedPropertyText($xpath, $source);
             if ($value !== '' && is_numeric($value)) {
