@@ -28,6 +28,8 @@ final class PptxWriter
     private const REL_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide';
     private const REL_SLIDE_LAYOUT = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout';
     private const REL_SLIDE_MASTER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster';
+    private const REL_NOTES_MASTER = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesMaster';
+    private const REL_NOTES_SLIDE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide';
     private const REL_THEME = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme';
     private const REL_TABLE_STYLES = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles';
     private const REL_IMAGE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
@@ -39,6 +41,8 @@ final class PptxWriter
     private const CT_SLIDE = 'application/vnd.openxmlformats-officedocument.presentationml.slide+xml';
     private const CT_SLIDE_LAYOUT = 'application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml';
     private const CT_SLIDE_MASTER = 'application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml';
+    private const CT_NOTES_MASTER = 'application/vnd.openxmlformats-officedocument.presentationml.notesMaster+xml';
+    private const CT_NOTES_SLIDE = 'application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml';
     private const CT_TABLE_STYLES = 'application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml';
     private const CT_THEME = 'application/vnd.openxmlformats-officedocument.theme+xml';
     private const CT_RELATIONSHIPS = 'application/vnd.openxmlformats-package.relationships+xml';
@@ -57,6 +61,8 @@ final class PptxWriter
         'ppt/slideLayouts/_rels/slideLayout1.xml.rels' => 103,
         'ppt/theme/theme1.xml' => 104,
         'ppt/tableStyles.xml' => 105,
+        'ppt/notesMasters/notesMaster1.xml' => 106,
+        'ppt/notesMasters/_rels/notesMaster1.xml.rels' => 107,
     ];
 
     /** @var list<array{name:string, data:string, contentType:string, extension:string, source:string}> */
@@ -93,6 +99,9 @@ final class PptxWriter
         $slides = $this->slides($document, $metadata);
         $slideParts = [];
         $slideRelationshipParts = [];
+        $notesSlideParts = [];
+        $notesSlideRelationshipParts = [];
+        $notesSlideCount = 0;
         foreach ($slides as $index => $slide) {
             $slideNumber = $index + 1;
             $relationships = [[
@@ -100,6 +109,22 @@ final class PptxWriter
                 'type' => self::REL_SLIDE_LAYOUT,
                 'target' => '../slideLayouts/slideLayout1.xml',
             ]];
+            if ($slide['notes'] !== []) {
+                $notesSlideCount++;
+                $relationships[] = [
+                    'id' => 'rIdNotes',
+                    'type' => self::REL_NOTES_SLIDE,
+                    'target' => '../notesSlides/notesSlide' . $notesSlideCount . '.xml',
+                ];
+                $notesSlideParts[] = [
+                    'name' => 'ppt/notesSlides/notesSlide' . $notesSlideCount . '.xml',
+                    'data' => $this->notesSlideXml($slide['notes'], $slideNumber),
+                ];
+                $notesSlideRelationshipParts[] = [
+                    'name' => 'ppt/notesSlides/_rels/notesSlide' . $notesSlideCount . '.xml.rels',
+                    'data' => $this->notesSlideRelationshipsXml($slideNumber),
+                ];
+            }
             $slideParts[] = [
                 'name' => 'ppt/slides/slide' . $slideNumber . '.xml',
                 'data' => $this->slideXml($slide, $slideNumber, $relationships),
@@ -111,12 +136,12 @@ final class PptxWriter
         }
 
         $parts = [
-            ['name' => '[Content_Types].xml', 'data' => $this->contentTypesXml(count($slides))],
+            ['name' => '[Content_Types].xml', 'data' => $this->contentTypesXml(count($slides), $notesSlideCount)],
             ['name' => '_rels/.rels', 'data' => $this->rootRelationshipsXml()],
             ['name' => 'docProps/core.xml', 'data' => $this->corePropertiesXml($metadata)],
-            ['name' => 'docProps/app.xml', 'data' => $this->extendedPropertiesXml($metadata, count($slides))],
-            ['name' => 'ppt/presentation.xml', 'data' => $this->presentationXml(count($slides))],
-            ['name' => 'ppt/_rels/presentation.xml.rels', 'data' => $this->presentationRelationshipsXml(count($slides))],
+            ['name' => 'docProps/app.xml', 'data' => $this->extendedPropertiesXml($metadata, count($slides), $notesSlideCount)],
+            ['name' => 'ppt/presentation.xml', 'data' => $this->presentationXml(count($slides), $notesSlideCount)],
+            ['name' => 'ppt/_rels/presentation.xml.rels', 'data' => $this->presentationRelationshipsXml(count($slides), $notesSlideCount)],
             ['name' => 'ppt/slideMasters/slideMaster1.xml', 'data' => $this->slideMasterXml()],
             ['name' => 'ppt/slideMasters/_rels/slideMaster1.xml.rels', 'data' => $this->slideMasterRelationshipsXml()],
             ['name' => 'ppt/slideLayouts/slideLayout1.xml', 'data' => $this->slideLayoutXml()],
@@ -124,11 +149,21 @@ final class PptxWriter
             ['name' => 'ppt/theme/theme1.xml', 'data' => $this->themeXml()],
             ['name' => 'ppt/tableStyles.xml', 'data' => $this->tableStylesXml()],
         ];
+        if ($notesSlideCount > 0) {
+            $parts[] = ['name' => 'ppt/notesMasters/notesMaster1.xml', 'data' => $this->notesMasterXml()];
+            $parts[] = ['name' => 'ppt/notesMasters/_rels/notesMaster1.xml.rels', 'data' => $this->notesMasterRelationshipsXml()];
+        }
 
         foreach ($slideParts as $part) {
             $parts[] = $part;
         }
         foreach ($slideRelationshipParts as $part) {
+            $parts[] = $part;
+        }
+        foreach ($notesSlideParts as $part) {
+            $parts[] = $part;
+        }
+        foreach ($notesSlideRelationshipParts as $part) {
             $parts[] = $part;
         }
         foreach ($this->mediaParts as $mediaPart) {
@@ -147,52 +182,87 @@ final class PptxWriter
 
     /**
      * @param array<string, mixed> $metadata
-     * @return list<array{title:string, blocks:list<AstNode>}>
+     * @return list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>}>
      */
     private function slides(AstNode $document, array $metadata): array
     {
         $slideLevel = $this->slideLevel($document);
         $slides = [];
         $current = null;
+        $pendingMetadataNotes = $this->metadataSpeakerNotes($document);
 
         foreach ($document->children as $block) {
+            if ($block->type === 'horizontal_rule') {
+                if ($current !== null) {
+                    $slides[] = $current;
+                    $current = null;
+                }
+                continue;
+            }
+
             if ($block->type === 'heading' && (int) $block->attr('level', 1) <= $slideLevel) {
                 if ($current !== null) {
                     $slides[] = $current;
                 }
                 $title = $this->blockText($block);
-                $current = [
-                    'title' => $title !== '' ? $title : 'Slide ' . (count($slides) + 1),
-                    'blocks' => [],
-                ];
+                $current = $this->newSlide($title !== '' ? $title : 'Slide ' . (count($slides) + 1));
+                if ($pendingMetadataNotes !== []) {
+                    array_push($current['notes'], ...$pendingMetadataNotes);
+                    $pendingMetadataNotes = [];
+                }
+                continue;
+            }
+
+            if ($this->isSpeakerNotesBlock($block)) {
+                if ($current === null) {
+                    $current = $this->newSlide((string) $metadata['title']);
+                    if ($pendingMetadataNotes !== []) {
+                        array_push($current['notes'], ...$pendingMetadataNotes);
+                        $pendingMetadataNotes = [];
+                    }
+                }
+                array_push($current['notes'], ...$block->children);
                 continue;
             }
 
             if ($current === null) {
-                $current = [
-                    'title' => (string) $metadata['title'],
-                    'blocks' => [],
-                ];
+                $current = $this->newSlide((string) $metadata['title']);
+                if ($pendingMetadataNotes !== []) {
+                    array_push($current['notes'], ...$pendingMetadataNotes);
+                    $pendingMetadataNotes = [];
+                }
             }
             $current['blocks'][] = $block;
         }
 
         if ($current === null) {
-            $current = [
-                'title' => (string) $metadata['title'],
-                'blocks' => [],
-            ];
+            $current = $this->newSlide((string) $metadata['title']);
+        }
+        if ($pendingMetadataNotes !== []) {
+            array_push($current['notes'], ...$pendingMetadataNotes);
         }
         $slides[] = $current;
 
         return $slides;
     }
 
+    /**
+     * @return array{title:string, blocks:list<AstNode>, notes:list<AstNode>}
+     */
+    private function newSlide(string $title): array
+    {
+        return [
+            'title' => $title,
+            'blocks' => [],
+            'notes' => [],
+        ];
+    }
+
     private function slideLevel(AstNode $document): int
     {
         foreach (['slideLevel', 'writerSlideLevel'] as $key) {
             if (isset($this->options[$key]) && is_numeric($this->options[$key])) {
-                return max(1, (int) $this->options[$key]);
+                return max(0, (int) $this->options[$key]);
             }
         }
 
@@ -200,7 +270,7 @@ final class PptxWriter
         if (is_array($meta)) {
             foreach (['slideLevel', 'writerSlideLevel'] as $key) {
                 if (isset($meta[$key]) && is_numeric($meta[$key])) {
-                    return max(1, (int) $meta[$key]);
+                    return max(0, (int) $meta[$key]);
                 }
             }
         }
@@ -209,7 +279,7 @@ final class PptxWriter
     }
 
     /**
-     * @param array{title:string, blocks:list<AstNode>} $slide
+     * @param array{title:string, blocks:list<AstNode>, notes:list<AstNode>} $slide
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      */
     private function slideXml(array $slide, int $slideNumber, array &$relationships): string
@@ -252,6 +322,10 @@ final class PptxWriter
      */
     private function blockShapes(AstNode $block, int &$shapeId, int &$slot, array &$relationships): array
     {
+        if ($this->isSpeakerNotesBlock($block)) {
+            return [];
+        }
+
         if ($block->type === 'div' || $block->type === 'block_quote') {
             $shapes = [];
             foreach ($block->children as $child) {
@@ -884,7 +958,7 @@ final class PptxWriter
         ]);
     }
 
-    private function presentationRelationshipsXml(int $slideCount): string
+    private function presentationRelationshipsXml(int $slideCount, int $notesSlideCount): string
     {
         $relationships = [];
         for ($slide = 1; $slide <= $slideCount; $slide++) {
@@ -895,6 +969,9 @@ final class PptxWriter
             ];
         }
         $relationships[] = ['id' => 'rIdMaster', 'type' => self::REL_SLIDE_MASTER, 'target' => 'slideMasters/slideMaster1.xml'];
+        if ($notesSlideCount > 0) {
+            $relationships[] = ['id' => 'rIdNotesMaster', 'type' => self::REL_NOTES_MASTER, 'target' => 'notesMasters/notesMaster1.xml'];
+        }
         $relationships[] = ['id' => 'rIdTableStyles', 'type' => self::REL_TABLE_STYLES, 'target' => 'tableStyles.xml'];
 
         return $this->relationshipsXml($relationships);
@@ -915,22 +992,75 @@ final class PptxWriter
         ]);
     }
 
-    private function presentationXml(int $slideCount): string
+    private function notesMasterRelationshipsXml(): string
+    {
+        return $this->relationshipsXml([
+            ['id' => 'rIdTheme', 'type' => self::REL_THEME, 'target' => '../theme/theme1.xml'],
+        ]);
+    }
+
+    private function notesSlideRelationshipsXml(int $slideNumber): string
+    {
+        return $this->relationshipsXml([
+            ['id' => 'rId1', 'type' => self::REL_NOTES_MASTER, 'target' => '../notesMasters/notesMaster1.xml'],
+            ['id' => 'rId2', 'type' => self::REL_SLIDE, 'target' => '../slides/slide' . $slideNumber . '.xml'],
+        ]);
+    }
+
+    private function presentationXml(int $slideCount, int $notesSlideCount): string
     {
         $slideIds = [];
         for ($slide = 1; $slide <= $slideCount; $slide++) {
             $slideIds[] = '    <p:sldId id="' . (255 + $slide) . '" r:id="rId' . $slide . '"/>';
         }
+        $notesMaster = $notesSlideCount === 0
+            ? ''
+            : '  <p:notesMasterIdLst><p:notesMasterId r:id="rIdNotesMaster"/></p:notesMasterIdLst>' . "\n";
 
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<p:presentation xmlns:a="' . self::NS_A . '" xmlns:p="' . self::NS_P . '" xmlns:r="' . self::NS_R . '">' . "\n"
             . '  <p:sldMasterIdLst><p:sldMasterId id="2147483648" r:id="rIdMaster"/></p:sldMasterIdLst>' . "\n"
+            . $notesMaster
             . '  <p:sldIdLst>' . "\n"
             . implode("\n", $slideIds) . "\n"
             . '  </p:sldIdLst>' . "\n"
             . '  <p:sldSz cx="' . self::SLIDE_WIDTH_EMU . '" cy="' . self::SLIDE_HEIGHT_EMU . '" type="screen16x9"/>' . "\n"
             . '  <p:notesSz cx="6858000" cy="9144000"/>' . "\n"
             . '</p:presentation>' . "\n";
+    }
+
+    private function notesMasterXml(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+            . '<p:notesMaster xmlns:a="' . self::NS_A . '" xmlns:p="' . self::NS_P . '" xmlns:r="' . self::NS_R . '">' . "\n"
+            . '  <p:cSld><p:spTree>' . "\n"
+            . '    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>' . "\n"
+            . '    <p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder"/><p:cNvSpPr/><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp>' . "\n"
+            . '    <p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody></p:sp>' . "\n"
+            . '    <p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number Placeholder"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" idx="2"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:fld id="{00000000-0000-0000-0000-000000000001}" type="slidenum"><a:rPr lang="en-US"/><a:t>#</a:t></a:fld><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>' . "\n"
+            . '  </p:spTree></p:cSld>' . "\n"
+            . '  <p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>' . "\n"
+            . '</p:notesMaster>' . "\n";
+    }
+
+    /**
+     * @param list<AstNode> $notes
+     */
+    private function notesSlideXml(array $notes, int $slideNumber): string
+    {
+        $paragraphs = $this->notesParagraphXmls($notes);
+        $body = $paragraphs === '' ? '<a:p/>' : $paragraphs;
+
+        return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+            . '<p:notes xmlns:a="' . self::NS_A . '" xmlns:p="' . self::NS_P . '" xmlns:r="' . self::NS_R . '">' . "\n"
+            . '  <p:cSld><p:spTree>' . "\n"
+            . '    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>' . "\n"
+            . '    <p:sp><p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/><p:cNvSpPr/><p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr><p:spPr/></p:sp>' . "\n"
+            . '    <p:sp><p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>' . $body . '</p:txBody></p:sp>' . "\n"
+            . '    <p:sp><p:nvSpPr><p:cNvPr id="4" name="Slide Number Placeholder 3"/><p:cNvSpPr/><p:nvPr><p:ph type="sldNum" idx="2"/></p:nvPr></p:nvSpPr><p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:fld id="{00000000-0000-0000-0000-' . str_pad((string) $slideNumber, 12, '0', STR_PAD_LEFT) . '}" type="slidenum"><a:rPr lang="en-US"/><a:t>' . $slideNumber . '</a:t></a:fld><a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>' . "\n"
+            . '  </p:spTree></p:cSld>' . "\n"
+            . '  <p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>' . "\n"
+            . '</p:notes>' . "\n";
     }
 
     private function slideMasterXml(): string
@@ -976,7 +1106,7 @@ final class PptxWriter
             . '</a:tblStyleLst>' . "\n";
     }
 
-    private function contentTypesXml(int $slideCount): string
+    private function contentTypesXml(int $slideCount, int $notesSlideCount): string
     {
         $defaults = [
             'rels' => self::CT_RELATIONSHIPS,
@@ -1003,6 +1133,12 @@ final class PptxWriter
         ];
         for ($slide = 1; $slide <= $slideCount; $slide++) {
             $overrides['/ppt/slides/slide' . $slide . '.xml'] = self::CT_SLIDE;
+        }
+        if ($notesSlideCount > 0) {
+            $overrides['/ppt/notesMasters/notesMaster1.xml'] = self::CT_NOTES_MASTER;
+            for ($noteSlide = 1; $noteSlide <= $notesSlideCount; $noteSlide++) {
+                $overrides['/ppt/notesSlides/notesSlide' . $noteSlide . '.xml'] = self::CT_NOTES_SLIDE;
+            }
         }
         ksort($overrides, SORT_STRING);
 
@@ -1041,17 +1177,183 @@ final class PptxWriter
     /**
      * @param array<string, mixed> $metadata
      */
-    private function extendedPropertiesXml(array $metadata, int $slideCount): string
+    private function extendedPropertiesXml(array $metadata, int $slideCount, int $notesSlideCount): string
     {
         return '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
             . '<Properties xmlns="' . self::NS_EP . '">' . "\n"
             . '  <Application>Port Libs Pandoc</Application>' . "\n"
             . '  <PresentationFormat>On-screen Show (16:9)</PresentationFormat>' . "\n"
             . '  <Slides>' . $slideCount . '</Slides>' . "\n"
-            . '  <Notes>0</Notes>' . "\n"
+            . '  <Notes>' . $notesSlideCount . '</Notes>' . "\n"
             . '  <HiddenSlides>0</HiddenSlides>' . "\n"
             . '  <Company>' . $this->xml((string) $metadata['creator']) . '</Company>' . "\n"
             . '</Properties>' . "\n";
+    }
+
+    /**
+     * @return list<AstNode>
+     */
+    private function metadataSpeakerNotes(AstNode $document): array
+    {
+        $meta = $document->attr('meta', []);
+        if (!is_array($meta)) {
+            return [];
+        }
+
+        return $this->metaBlocks($meta, ['notes', 'speaker-notes', 'speakerNotes']);
+    }
+
+    /**
+     * @param array<string, mixed> $meta
+     * @param list<string> $keys
+     * @return list<AstNode>
+     */
+    private function metaBlocks(array $meta, array $keys): array
+    {
+        foreach ($keys as $key) {
+            if (!array_key_exists($key, $meta)) {
+                continue;
+            }
+            $value = $meta[$key];
+            if (is_array($value) && ($value['type'] ?? null) === 'MetaBlocks' && isset($value['value']) && is_array($value['value'])) {
+                $blocks = array_values(array_filter($value['value'], static fn (mixed $item): bool => $item instanceof AstNode));
+                if ($blocks !== []) {
+                    return $blocks;
+                }
+            }
+            if (is_array($value) && array_is_list($value)) {
+                $blocks = array_values(array_filter($value, static fn (mixed $item): bool => $item instanceof AstNode));
+                if ($blocks !== []) {
+                    return $blocks;
+                }
+            }
+            if ($value instanceof AstNode) {
+                return [$value];
+            }
+        }
+
+        return [];
+    }
+
+    private function isSpeakerNotesBlock(AstNode $block): bool
+    {
+        if ($block->type !== 'div') {
+            return false;
+        }
+        $classes = $block->attr('classes', []);
+
+        return is_array($classes) && in_array('notes', $classes, true);
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function notesParagraphXmls(array $blocks): string
+    {
+        $paragraphs = [];
+        foreach ($blocks as $block) {
+            if ($block->type === 'plain' || $block->type === 'paragraph' || $block->type === 'heading') {
+                $paragraphs[] = $this->notesParagraphXml($block->children);
+                continue;
+            }
+            if ($block->type === 'bullet_list' || $block->type === 'ordered_list') {
+                $relationships = [];
+                foreach ($this->listParagraphXmls($block, $block->type === 'ordered_list', $relationships) as $paragraph) {
+                    $paragraphs[] = $paragraph;
+                }
+                continue;
+            }
+            if ($block->type === 'div' || $block->type === 'block_quote') {
+                $nested = $this->notesParagraphXmls($block->children);
+                if ($nested !== '') {
+                    $paragraphs[] = $nested;
+                }
+                continue;
+            }
+
+            $text = $this->blockText($block);
+            if ($text !== '') {
+                $paragraphs[] = $this->notesParagraphXml($this->textInlines($text));
+            }
+        }
+
+        return implode('', $paragraphs);
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     */
+    private function notesParagraphXml(array $inlines): string
+    {
+        $runs = $this->noteInlineRuns($inlines, []);
+
+        return '<a:p>' . ($runs === [] ? '' : implode('', $runs)) . '</a:p>';
+    }
+
+    /**
+     * @param list<AstNode> $inlines
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool} $style
+     * @return list<string>
+     */
+    private function noteInlineRuns(array $inlines, array $style): array
+    {
+        $runs = [];
+        foreach ($inlines as $inline) {
+            switch ($inline->type) {
+                case 'text':
+                    $text = (string) $inline->attr('text', '');
+                    if ($text !== '') {
+                        $runs[] = $this->runXml($text, $style);
+                    }
+                    break;
+                case 'softbreak':
+                case 'linebreak':
+                    $runs[] = $this->runXml(' ', $style);
+                    break;
+                case 'strong':
+                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['bold' => true]));
+                    break;
+                case 'emph':
+                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['italic' => true]));
+                    break;
+                case 'underline':
+                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['underline' => true]));
+                    break;
+                case 'strikeout':
+                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['strike' => true]));
+                    break;
+                case 'link':
+                case 'span':
+                case 'smallcaps':
+                case 'superscript':
+                case 'subscript':
+                case 'quoted':
+                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style));
+                    break;
+                case 'code':
+                    $code = (string) $inline->attr('text', '');
+                    if ($code !== '') {
+                        $runs[] = $this->runXml($code, $style);
+                    }
+                    break;
+                case 'note':
+                    break;
+                case 'image':
+                    $text = $this->imageFallbackText($inline);
+                    if ($text !== '') {
+                        $runs[] = $this->runXml($text, $style);
+                    }
+                    break;
+                default:
+                    $text = $this->inlineText([$inline]);
+                    if ($text !== '') {
+                        $runs[] = $this->runXml($text, $style);
+                    }
+                    break;
+            }
+        }
+
+        return $runs;
     }
 
     /**

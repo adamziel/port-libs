@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use PortLibs\Pandoc\AstNode;
+use PortLibs\Pandoc\NativeReader;
 use PortLibs\Pandoc\PandocConverter;
 use PortLibs\Pandoc\PptxReader;
 use PortLibs\Pandoc\PptxWriter;
@@ -64,6 +65,32 @@ $mediaOptions = [
         ],
     ],
 ];
+
+$upstreamSpeakerNotesNative = <<<'NATIVE'
+[Para [Str "Here",Space,Str "is",Space,Str "a",Space,Str "slide."]
+,Div ("",["notes"],[])
+ [Para [Str "Here",Space,Str "is",Space,Str "a",Space,Str "note."]
+ ,Para [Str "Here",Space,Str "is",Space,Emph [Str "some"],Space,Strong [Str "other"],Space,Str "formatting."]]
+,HorizontalRule
+,Para [Str "A",Space,Str "page",Space,Str "with",Space,Str "no",Space,Str "speaker",Space,Str "notes"]
+,HorizontalRule
+,Div ("",["notes"],[])
+ [Para [Str "The",Space,Str "first",Space,Str "note",Space,Str "div"]]
+,Para [Str "A",Space,Str "page",Space,Str "with",Space,Str "two",Space,Str "notes."]
+,Div ("",["notes"],[])
+ [Para [Str "The",Space,Str "second",Space,Str "note",Space,Str "div"]]
+,HorizontalRule
+,Para [Str "Strip",Space,Str "links",Space,Str "and",Space,Str "footnotes."]
+,Div ("",["notes"],[])
+ [Para [Str "No",Space,Link ("",[],[]) [Str "link"] ("https://www.google.com",""),Space,Str "here."]
+ ,Para [Str "No",Space,Str "note",Space,Str "here.",Note [Para [Str "You'll",Space,Str "never",Space,Str "read",Space,Str "this"]]]]]
+NATIVE;
+
+$metadataSpeakerNotesNative = <<<'NATIVE'
+Pandoc (Meta {unMeta = fromList [("author",MetaInlines [Str "Jesse",Space,Str "Rosenthal"]),("notes",MetaBlocks [Para [Str "These",Space,Str "are",Space,Str "speaker",Space,Str "notes",Space,Str "from",Space,Str "metadata."]]),("title",MetaInlines [Str "Testing"])]})
+[Header 1 ("a-header",[],[]) [Str "A",Space,Str "header"]
+,Para [Str "And",Space,Str "a",Space,Str "new",Space,Str "slide."]]
+NATIVE;
 
 $collectText = static function (AstNode $node) use (&$collectText): string {
     $text = '';
@@ -184,6 +211,79 @@ return [
 
         $t->contains('presentationml.presentation.main+xml', $package->read('[Content_Types].xml'));
         $t->contains('Roadmap', $package->read('ppt/slides/slide1.xml'));
+    },
+
+    'maps upstream speaker notes fixture semantics into notes slides' => static function (TestRunner $t) use ($upstreamSpeakerNotesNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamSpeakerNotesNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        foreach ([
+            'ppt/notesMasters/notesMaster1.xml',
+            'ppt/notesMasters/_rels/notesMaster1.xml.rels',
+            'ppt/notesSlides/notesSlide1.xml',
+            'ppt/notesSlides/notesSlide2.xml',
+            'ppt/notesSlides/notesSlide3.xml',
+            'ppt/notesSlides/_rels/notesSlide1.xml.rels',
+            'ppt/notesSlides/_rels/notesSlide2.xml.rels',
+            'ppt/notesSlides/_rels/notesSlide3.xml.rels',
+        ] as $partName) {
+            $t->true(in_array($partName, $names, true), "Missing speaker-notes part {$partName}");
+        }
+        $t->true(!in_array('ppt/notesSlides/notesSlide4.xml', $names, true), 'Only slides with notes should get notesSlide parts');
+
+        $contentTypes = $package->read('[Content_Types].xml');
+        $t->contains('presentationml.notesMaster+xml', $contentTypes);
+        $t->contains('presentationml.notesSlide+xml', $contentTypes);
+
+        $presentation = $package->read('ppt/presentation.xml');
+        $t->contains('<p:notesMasterIdLst>', $presentation);
+        $presentationRels = $package->read('ppt/_rels/presentation.xml.rels');
+        $t->contains('relationships/notesMaster', $presentationRels);
+        $t->contains('notesMasters/notesMaster1.xml', $presentationRels);
+
+        $slide1Rels = $package->read('ppt/slides/_rels/slide1.xml.rels');
+        $slide2Rels = $package->read('ppt/slides/_rels/slide2.xml.rels');
+        $slide3Rels = $package->read('ppt/slides/_rels/slide3.xml.rels');
+        $slide4Rels = $package->read('ppt/slides/_rels/slide4.xml.rels');
+        $t->contains('relationships/notesSlide', $slide1Rels);
+        $t->contains('../notesSlides/notesSlide1.xml', $slide1Rels);
+        $t->true(!str_contains($slide2Rels, 'relationships/notesSlide'), 'Slide without speaker notes must not point at a notes slide');
+        $t->contains('../notesSlides/notesSlide2.xml', $slide3Rels);
+        $t->contains('../notesSlides/notesSlide3.xml', $slide4Rels);
+
+        $notes1 = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $t->contains('Here', $notes1);
+        $t->contains('some', $notes1);
+        $t->contains('b="1"', $notes1);
+
+        $notes3 = $package->read('ppt/notesSlides/notesSlide3.xml');
+        $t->contains('No', $notes3);
+        $t->contains('link', $notes3);
+        $t->contains('here.', $notes3);
+        $t->true(!str_contains($notes3, 'https://www.google.com'), 'Speaker note hyperlinks are stripped like upstream PowerPoint output');
+        $t->true(!str_contains($notes3, "You'll never read this"), 'Inline footnotes inside speaker notes stay out of public notes output');
+
+        $notes1Rels = $package->read('ppt/notesSlides/_rels/notesSlide1.xml.rels');
+        $t->contains('relationships/notesMaster', $notes1Rels);
+        $t->contains('relationships/slide', $notes1Rels);
+        $t->contains('../slides/slide1.xml', $notes1Rels);
+
+        $app = $package->read('docProps/app.xml');
+        $t->contains('<Slides>4</Slides>', $app);
+        $t->contains('<Notes>3</Notes>', $app);
+    },
+
+    'maps metadata speaker notes into the generated presentation notes parts' => static function (TestRunner $t) use ($metadataSpeakerNotesNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($metadataSpeakerNotesNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $t->contains('These', $notes);
+        $t->contains('speaker', $notes);
+        $t->contains('metadata.', $notes);
+        $t->contains('relationships/notesSlide', $package->read('ppt/slides/_rels/slide1.xml.rels'));
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 
     'rejects non-document roots' => static function (TestRunner $t): void {

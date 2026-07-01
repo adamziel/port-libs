@@ -492,7 +492,7 @@ final class PandocFormatRegistry
         'pptx' => [
             'status' => 'partial',
             'implementation' => PptxWriter::class,
-            'notes' => 'Bounded PPTX output emits a deterministic PresentationML OPC ZIP package with content types, root/presentation/slide relationships, core and extended properties, a slide master/layout/theme, table styles, title/content slides, bullet and ordered list paragraphs, DrawingML tables, hyperlink relationships, and local image media parts. Full upstream PowerPoint writer template/layout/media parity remains open.',
+            'notes' => 'Bounded PPTX output emits a deterministic PresentationML OPC ZIP package with content types, root/presentation/slide relationships, core and extended properties, a slide master/layout/theme, table styles, title/content slides, bullet and ordered list paragraphs, DrawingML tables, hyperlink relationships, local image media parts, horizontal-rule slide splits, and speaker-note notesSlides/notesMaster parts from upstream-style notes Divs and metadata notes. Full upstream PowerPoint writer template/layout/media parity remains open.',
         ],
     ];
 
