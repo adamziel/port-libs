@@ -50,7 +50,8 @@ final class PptxReader
             $slideContext = $this->slideContext($package, $slideRelationships);
             $slideComments = $this->slideComments($package, $slideRelationships, $commentAuthors);
             $imageIssues = [];
-            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $tableStyles, $imageIssues);
+            $shapeIssues = [];
+            $slideBlocks = $this->slideToBlocks($package, $slide['index'], $slideDocument, $slideRelationships, $slideContext, $slideComments, $tableStyles, $imageIssues, $shapeIssues);
             foreach ($slideBlocks as $block) {
                 $blocks[] = $block;
             }
@@ -67,6 +68,8 @@ final class PptxReader
                 'comments' => $slideComments,
                 'imageIssueCount' => count($imageIssues),
                 'imageIssues' => $imageIssues,
+                'shapeIssueCount' => count($shapeIssues),
+                'shapeIssues' => $shapeIssues,
                 'richMediaCount' => count($richMedia),
                 'richMedia' => $richMedia,
                 'chartCount' => count($charts),
@@ -203,9 +206,10 @@ final class PptxReader
      * @param list<array<string, mixed>> $slideComments
      * @param array<string, mixed> $tableStyles
      * @param list<array<string, mixed>> $imageIssues
+     * @param list<array<string, mixed>> $shapeIssues
      * @return list<AstNode>
      */
-    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $tableStyles, array &$imageIssues): array
+    private function slideToBlocks(ZipPackage $package, int $slideIndex, \DOMDocument $document, OpcRelationships $slideRelationships, array $slideContext, array $slideComments, array $tableStyles, array &$imageIssues, array &$shapeIssues): array
     {
         $root = XmlHtmlDom::rootElement($document, 'sld');
         if (!$root instanceof \DOMElement) {
@@ -237,7 +241,7 @@ final class PptxReader
             if ($this->isTitlePlaceholder($shapeElement)) {
                 continue;
             }
-            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder, $imageIssues) as $block) {
+            foreach ($this->shapeToBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder, $imageIssues, $shapeIssues) as $block) {
                 $blocks[] = $block;
             }
         }
@@ -985,12 +989,13 @@ final class PptxReader
      * @param array<string, mixed> $slideContext
      * @param array<string, mixed> $tableStyles
      * @param list<array<string, mixed>> $imageIssues
+     * @param list<array<string, mixed>> $shapeIssues
      * @return list<AstNode>
      */
-    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder, array &$imageIssues): array
+    private function shapeToBlocks(ZipPackage $package, \DOMElement $shapeElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder, array &$imageIssues, array &$shapeIssues): array
     {
         if ($shapeElement->localName === 'grpSp') {
-            return $this->groupShapeBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder, $imageIssues);
+            return $this->groupShapeBlocks($package, $shapeElement, $slideRelationships, $slideContext, $tableStyles, $zOrder, $imageIssues, $shapeIssues);
         }
 
         if ($shapeElement->localName === 'sp') {
@@ -1029,12 +1034,12 @@ final class PptxReader
         }
 
         if ($shapeElement->localName !== 'graphicFrame') {
-            return $this->withShapeMetadata($this->richMediaBlocks($shapeElement, $slideRelationships), $shapeElement, $zOrder);
+            return $this->unsupportedDrawableShapeBlocks($shapeElement, $slideRelationships, $zOrder, $shapeIssues);
         }
 
         $graphicData = $this->graphicDataElement($shapeElement);
         if (!$graphicData instanceof \DOMElement) {
-            return $this->withShapeMetadata($this->richMediaBlocks($shapeElement, $slideRelationships), $shapeElement, $zOrder);
+            return $this->unsupportedDrawableShapeBlocks($shapeElement, $slideRelationships, $zOrder, $shapeIssues);
         }
 
         $uri = $graphicData->getAttribute('uri');
@@ -1061,9 +1066,10 @@ final class PptxReader
      * @param array<string, mixed> $slideContext
      * @param array<string, mixed> $tableStyles
      * @param list<array<string, mixed>> $imageIssues
+     * @param list<array<string, mixed>> $shapeIssues
      * @return list<AstNode>
      */
-    private function groupShapeBlocks(ZipPackage $package, \DOMElement $groupElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder, array &$imageIssues): array
+    private function groupShapeBlocks(ZipPackage $package, \DOMElement $groupElement, OpcRelationships $slideRelationships, array $slideContext, array $tableStyles, int $zOrder, array &$imageIssues, array &$shapeIssues): array
     {
         $blocks = [];
         $childZOrder = $zOrder * 1000;
@@ -1072,12 +1078,29 @@ final class PptxReader
                 continue;
             }
             $childZOrder++;
-            foreach ($this->shapeToBlocks($package, $childElement, $slideRelationships, $slideContext, $tableStyles, $childZOrder, $imageIssues) as $block) {
+            foreach ($this->shapeToBlocks($package, $childElement, $slideRelationships, $slideContext, $tableStyles, $childZOrder, $imageIssues, $shapeIssues) as $block) {
                 $blocks[] = $block;
             }
         }
 
         return $blocks;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $shapeIssues
+     * @return list<AstNode>
+     */
+    private function unsupportedDrawableShapeBlocks(\DOMElement $shapeElement, OpcRelationships $slideRelationships, int $zOrder, array &$shapeIssues): array
+    {
+        $blocks = $this->richMediaBlocks($shapeElement, $slideRelationships);
+        if ($blocks === []) {
+            $shapeIssues[] = array_replace(
+                ['issue' => 'unsupported-drawable-shape'],
+                $this->shapeMetadata($shapeElement, $zOrder)
+            );
+        }
+
+        return $this->withShapeMetadata($blocks, $shapeElement, $zOrder);
     }
 
     private function isDrawableShapeElement(\DOMElement $element): bool
