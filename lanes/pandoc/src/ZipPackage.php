@@ -5998,6 +5998,7 @@ final class ZipPackage
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
         $selectedSourceByteSpanBuckets = self::entryHandoffSourceByteSpanBuckets($selectedSourceByteSpanEntries);
         $selectedSourceManifest = self::selectedSourceByteSpanManifest($selectedSourceByteSpanEntries);
+        $selectedHandoffManifest = self::selectedEntryHandoffManifest($entries, $issues);
 
         return [
             'requestedEntryCount' => count($requests),
@@ -6098,6 +6099,8 @@ final class ZipPackage
             'selectedSourceByteSpanBucketCount' => count($selectedSourceByteSpanBuckets),
             'selectedSourceManifestVersion' => $selectedSourceManifest['manifestVersion'],
             'selectedSourceManifestSha256' => $selectedSourceManifest['manifestSha256'],
+            'selectedHandoffManifestVersion' => $selectedHandoffManifest['manifestVersion'],
+            'selectedHandoffManifestSha256' => $selectedHandoffManifest['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'isSupportedByBoundedReader' => $issues === [],
@@ -6126,6 +6129,7 @@ final class ZipPackage
             'selectedSourceByteSpanBuckets' => $selectedSourceByteSpanBuckets,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'selectedSourceManifest' => $selectedSourceManifest,
+            'selectedHandoffManifest' => $selectedHandoffManifest,
             'missingEntries' => $missingEntries,
             'failedEntries' => $failedEntries,
             'handoffEntries' => $handoffEntries,
@@ -6263,6 +6267,107 @@ final class ZipPackage
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
             'entries' => $manifestEntries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<string> $issues
+     * @return array<string, mixed>
+     */
+    private static function selectedEntryHandoffManifest(array $entries, array $issues): array
+    {
+        $manifestEntries = [];
+        $roles = [];
+        $hasUnassignedRole = false;
+        $presentRequestCount = 0;
+        $missingRequestCount = 0;
+        $handoffRequestCount = 0;
+        $failedRequestCount = 0;
+        $contentHashEntryCount = 0;
+        $issueCounts = [];
+
+        foreach ($entries as $entry) {
+            $entryIssues = array_values(array_filter($entry['issues'] ?? [], 'is_string'));
+            foreach ($entryIssues as $issue) {
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+            }
+
+            $role = is_string($entry['role'] ?? null) && $entry['role'] !== ''
+                ? $entry['role']
+                : null;
+            if ($role === null) {
+                $hasUnassignedRole = true;
+            } elseif (!in_array($role, $roles, true)) {
+                $roles[] = $role;
+            }
+
+            if (($entry['exists'] ?? false) === true) {
+                ++$presentRequestCount;
+            } else {
+                ++$missingRequestCount;
+            }
+
+            if (($entry['status'] ?? null) === 'ready' && ($entry['exists'] ?? false) === true) {
+                ++$handoffRequestCount;
+            }
+            if ($entryIssues !== []) {
+                ++$failedRequestCount;
+            }
+            if (is_string($entry['contentSha256'] ?? null) && $entry['contentSha256'] !== '') {
+                ++$contentHashEntryCount;
+            }
+
+            $manifestEntries[] = [
+                'requestIndex' => $entry['requestIndex'] ?? null,
+                'requestedName' => $entry['requestedName'] ?? null,
+                'name' => $entry['name'] ?? null,
+                'role' => $role,
+                'required' => ($entry['required'] ?? false) === true,
+                'expectedKind' => $entry['expectedKind'] ?? null,
+                'exists' => ($entry['exists'] ?? false) === true,
+                'status' => $entry['status'] ?? null,
+                'isDirectory' => $entry['isDirectory'] ?? null,
+                'directoryRoot' => $entry['directoryRoot'] ?? null,
+                'compressionMethod' => $entry['compressionMethod'] ?? null,
+                'compressedSize' => $entry['compressedSize'] ?? null,
+                'uncompressedSize' => $entry['uncompressedSize'] ?? null,
+                'crc32Hex' => $entry['crc32Hex'] ?? null,
+                'maxUncompressedBytes' => $entry['maxUncompressedBytes'] ?? null,
+                'isReadable' => ($entry['isReadable'] ?? false) === true,
+                'bytesRead' => $entry['bytesRead'] ?? null,
+                'contentSha256' => $entry['contentSha256'] ?? null,
+                'isDuplicateRequest' => ($entry['isDuplicateRequest'] ?? false) === true,
+                'issues' => $entryIssues,
+            ];
+        }
+
+        sort($roles, SORT_STRING);
+        ksort($issueCounts, SORT_STRING);
+        $manifestIssues = array_values(array_filter($issues, 'is_string'));
+        $manifestPayload = [
+            'manifestVersion' => 'zip-selected-handoff-manifest-v1',
+            'requestedEntryCount' => count($manifestEntries),
+            'presentRequestCount' => $presentRequestCount,
+            'missingRequestCount' => $missingRequestCount,
+            'handoffRequestCount' => $handoffRequestCount,
+            'failedRequestCount' => $failedRequestCount,
+            'contentHashEntryCount' => $contentHashEntryCount,
+            'issueCount' => count($manifestIssues),
+            'issues' => $manifestIssues,
+            'issueCounts' => $issueCounts,
+            'roleCount' => count($roles),
+            'roles' => $roles,
+            'hasUnassignedRole' => $hasUnassignedRole,
+            'entries' => $manifestEntries,
+        ];
+        $manifestJson = json_encode(
+            $manifestPayload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        return $manifestPayload + [
+            'manifestSha256' => hash('sha256', $manifestJson),
         ];
     }
 

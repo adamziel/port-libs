@@ -13069,6 +13069,204 @@ return [
         $t->same(['word/missing.xml'], $byRole['required-sidecar']['failedEntryNames']);
         $t->same(['missing-required-entry'], $byRole['required-sidecar']['issues']);
         $t->same(['missing-required-entry' => 1], $byRole['required-sidecar']['issueCounts']);
+
+        $manifest = $summary['selectedHandoffManifest'];
+        $manifestPayload = $manifest;
+        unset($manifestPayload['manifestSha256']);
+        $manifestJson = json_encode(
+            $manifestPayload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        $t->same('zip-selected-handoff-manifest-v1', $summary['selectedHandoffManifestVersion']);
+        $t->same('zip-selected-handoff-manifest-v1', $manifest['manifestVersion']);
+        $t->same(hash('sha256', $manifestJson), $summary['selectedHandoffManifestSha256']);
+        $t->same($summary['selectedHandoffManifestSha256'], $manifest['manifestSha256']);
+        $t->same(6, $manifest['requestedEntryCount']);
+        $t->same(4, $manifest['presentRequestCount']);
+        $t->same(2, $manifest['missingRequestCount']);
+        $t->same(1, $manifest['handoffRequestCount']);
+        $t->same(4, $manifest['failedRequestCount']);
+        $t->same(1, $manifest['contentHashEntryCount']);
+        $t->same(3, $manifest['issueCount']);
+        $t->same([
+            'duplicate-selected-entry-request',
+            'entry-uncompressed-size-exceeds-limit',
+            'missing-required-entry',
+        ], $manifest['issues']);
+        $t->same([
+            'duplicate-selected-entry-request' => 2,
+            'entry-uncompressed-size-exceeds-limit' => 1,
+            'missing-required-entry' => 1,
+        ], $manifest['issueCounts']);
+        $t->same(['attachment', 'main-document', 'required-sidecar'], $manifest['roles']);
+        $t->same(true, $manifest['hasUnassignedRole']);
+        $t->same([
+            [
+                'requestIndex' => 0,
+                'name' => 'word/document.xml',
+                'role' => 'main-document',
+                'status' => 'ready',
+                'exists' => true,
+                'isReadable' => true,
+                'bytesRead' => strlen($documentXml),
+                'contentSha256' => hash('sha256', $documentXml),
+                'issues' => [],
+            ],
+            [
+                'requestIndex' => 1,
+                'name' => 'word/media/image.png',
+                'role' => 'attachment',
+                'status' => 'blocked',
+                'exists' => true,
+                'isReadable' => false,
+                'bytesRead' => null,
+                'contentSha256' => null,
+                'issues' => ['duplicate-selected-entry-request'],
+            ],
+            [
+                'requestIndex' => 2,
+                'name' => 'word/media/image.png',
+                'role' => 'attachment',
+                'status' => 'blocked',
+                'exists' => true,
+                'isReadable' => false,
+                'bytesRead' => null,
+                'contentSha256' => null,
+                'issues' => ['duplicate-selected-entry-request'],
+            ],
+            [
+                'requestIndex' => 3,
+                'name' => 'word/media/large.bin',
+                'role' => 'attachment',
+                'status' => 'blocked',
+                'exists' => true,
+                'isReadable' => false,
+                'bytesRead' => null,
+                'contentSha256' => null,
+                'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            ],
+            [
+                'requestIndex' => 4,
+                'name' => 'word/missing.xml',
+                'role' => 'required-sidecar',
+                'status' => 'missing-required',
+                'exists' => false,
+                'isReadable' => false,
+                'bytesRead' => null,
+                'contentSha256' => null,
+                'issues' => ['missing-required-entry'],
+            ],
+            [
+                'requestIndex' => 5,
+                'name' => 'word/optional.xml',
+                'role' => null,
+                'status' => 'missing-optional',
+                'exists' => false,
+                'isReadable' => false,
+                'bytesRead' => null,
+                'contentSha256' => null,
+                'issues' => [],
+            ],
+        ], array_map(
+            static fn (array $entry): array => [
+                'requestIndex' => $entry['requestIndex'],
+                'name' => $entry['name'],
+                'role' => $entry['role'],
+                'status' => $entry['status'],
+                'exists' => $entry['exists'],
+                'isReadable' => $entry['isReadable'],
+                'bytesRead' => $entry['bytesRead'],
+                'contentSha256' => $entry['contentSha256'],
+                'issues' => $entry['issues'],
+            ],
+            $manifest['entries']
+        ));
+    },
+
+    'summarizes selected zip handoff manifest for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>manifest handoff</w:p></w:body></w:document>';
+        $mediaBytes = "manifest image bytes\n";
+        $package = ZipPackage::fromString($buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ]));
+
+        $summary = $package->entryHandoffPreflight([
+            ['name' => 'word/document.xml', 'required' => true, 'kind' => 'file', 'role' => 'main-document'],
+            ['name' => 'word/media/image.png', 'required' => false, 'kind' => 'file', 'role' => 'media', 'maxUncompressedBytes' => 4],
+            ['name' => 'docProps/missing.xml', 'required' => false, 'kind' => 'file', 'role' => 'metadata'],
+        ], 1024);
+        $manifest = $summary['selectedHandoffManifest'];
+        $manifestPayload = $manifest;
+        unset($manifestPayload['manifestSha256']);
+        $manifestJson = json_encode(
+            $manifestPayload,
+            JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR
+        );
+
+        $t->same('zip-selected-handoff-manifest-v1', $manifest['manifestVersion']);
+        $t->same(hash('sha256', $manifestJson), $manifest['manifestSha256']);
+        $t->same($manifest['manifestSha256'], $summary['selectedHandoffManifestSha256']);
+        $t->same(3, $manifest['requestedEntryCount']);
+        $t->same(2, $manifest['presentRequestCount']);
+        $t->same(1, $manifest['missingRequestCount']);
+        $t->same(1, $manifest['handoffRequestCount']);
+        $t->same(1, $manifest['failedRequestCount']);
+        $t->same(1, $manifest['contentHashEntryCount']);
+        $t->same(1, $manifest['issueCount']);
+        $t->same(['entry-uncompressed-size-exceeds-limit'], $manifest['issues']);
+        $t->same(['entry-uncompressed-size-exceeds-limit' => 1], $manifest['issueCounts']);
+        $t->same(['main-document', 'media', 'metadata'], $manifest['roles']);
+        $t->same(false, $manifest['hasUnassignedRole']);
+        $t->same([
+            [
+                'name' => 'word/document.xml',
+                'role' => 'main-document',
+                'status' => 'ready',
+                'exists' => true,
+                'isReadable' => true,
+                'contentSha256' => hash('sha256', $documentXml),
+                'issues' => [],
+            ],
+            [
+                'name' => 'word/media/image.png',
+                'role' => 'media',
+                'status' => 'blocked',
+                'exists' => true,
+                'isReadable' => false,
+                'contentSha256' => null,
+                'issues' => ['entry-uncompressed-size-exceeds-limit'],
+            ],
+            [
+                'name' => 'docProps/missing.xml',
+                'role' => 'metadata',
+                'status' => 'missing-optional',
+                'exists' => false,
+                'isReadable' => false,
+                'contentSha256' => null,
+                'issues' => [],
+            ],
+        ], array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'role' => $entry['role'],
+                'status' => $entry['status'],
+                'exists' => $entry['exists'],
+                'isReadable' => $entry['isReadable'],
+                'contentSha256' => $entry['contentSha256'],
+                'issues' => $entry['issues'],
+            ],
+            $manifest['entries']
+        ));
     },
 
     'summarizes selected zip handoff directory roots for package review' => static function (TestRunner $t) use ($buildZipPackage): void {
