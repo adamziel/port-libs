@@ -19520,6 +19520,14 @@ final class XmlHtmlDom
             $summary['popoverTargetActionDefaulted'] = !array_key_exists('popovertargetaction', $attributes);
         }
 
+        if (
+            array_key_exists('popover', $attributes)
+            || array_key_exists('popovertarget', $attributes)
+            || array_key_exists('popovertargetaction', $attributes)
+        ) {
+            $summary += self::popoverControlReviewSummary($attributes, $summary);
+        }
+
         return $summary;
     }
 
@@ -21947,6 +21955,70 @@ final class XmlHtmlDom
         $value = strtolower(trim($value));
 
         return in_array($value, ['', 'hide', 'show', 'toggle'], true) ? ($value === '' ? 'toggle' : $value) : null;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @param array<string, mixed> $summary
+     * @return array<string, mixed>
+     */
+    private static function popoverControlReviewSummary(array $attributes, array $summary): array
+    {
+        $hasPopover = array_key_exists('popover', $attributes);
+        $hasTarget = array_key_exists('popovertarget', $attributes);
+        $hasAction = array_key_exists('popovertargetaction', $attributes);
+        $issues = [];
+
+        if ($hasPopover && ($summary['popoverValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-popover-state',
+                'popoverRaw' => $attributes['popover'],
+            ];
+        }
+
+        if ($hasTarget) {
+            foreach (($summary['popoverTargetIssues'] ?? []) as $issue) {
+                if (is_array($issue)) {
+                    $issues[] = $issue;
+                }
+            }
+        } elseif ($hasAction) {
+            $issues[] = [
+                'code' => 'popover-target-action-without-target',
+                'actionRaw' => $attributes['popovertargetaction'],
+            ];
+        }
+
+        if ($hasAction && ($summary['popoverTargetActionValid'] ?? null) === false) {
+            $issues[] = [
+                'code' => 'invalid-popover-target-action',
+                'actionRaw' => $attributes['popovertargetaction'],
+            ];
+        }
+
+        $issueCodes = array_values(array_unique(array_filter(
+            array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ),
+            static fn (string $code): bool => $code !== ''
+        )));
+        $actionValid = !$hasAction || ($summary['popoverTargetActionValid'] ?? false) === true;
+        $targetInvokes = $hasTarget && ($summary['popoverTargetInvokesPopover'] ?? false) === true;
+        $popoverValid = !$hasPopover || ($summary['popoverValid'] ?? false) === true;
+
+        return [
+            'popoverControlReviewPolicy' => 'html-popover-control-issue-review',
+            'popoverControlAttributes' => array_values(array_filter(
+                ['popover', 'popovertarget', 'popovertargetaction'],
+                static fn (string $attribute): bool => array_key_exists($attribute, $attributes)
+            )),
+            'popoverControlDefinesPopover' => $hasPopover && $popoverValid,
+            'popoverControlInvokesPopover' => $targetInvokes && $actionValid && $issueCodes === [],
+            'popoverControlValid' => $issueCodes === [],
+            'popoverControlIssues' => $issues,
+            'popoverControlIssueCodes' => $issueCodes,
+        ];
     }
 
     /**
