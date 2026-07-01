@@ -1166,6 +1166,8 @@ final class XmlHtmlDom
         $root = self::requireFragmentRoot($dom);
         $comments = self::htmlFragmentCommentRecords($root);
         $issueCodes = [];
+        $issueCodeCounts = [];
+        $issueCodeCommentIndexes = [];
         $declarationLikeCount = 0;
         $unsafeBoundaryCount = 0;
         $emptyCount = 0;
@@ -1189,8 +1191,14 @@ final class XmlHtmlDom
                 if (is_string($code) && $code !== '' && !in_array($code, $issueCodes, true)) {
                     $issueCodes[] = $code;
                 }
+                if (is_string($code) && $code !== '') {
+                    $issueCodeCounts[$code] = ($issueCodeCounts[$code] ?? 0) + 1;
+                    $issueCodeCommentIndexes[$code][] = (int) ($comment['index'] ?? 0);
+                }
             }
         }
+        ksort($issueCodeCounts);
+        ksort($issueCodeCommentIndexes);
 
         return [
             'formatFamily' => 'xml-html5-dom',
@@ -1204,6 +1212,9 @@ final class XmlHtmlDom
             'emptyCommentCount' => $emptyCount,
             'multilineCommentCount' => $multilineCount,
             'commentIssueCodes' => $issueCodes,
+            'commentIssueCount' => array_sum($issueCodeCounts),
+            'commentIssueCodeCounts' => $issueCodeCounts,
+            'commentIssueCodeCommentIndexes' => $issueCodeCommentIndexes,
             'comments' => $comments,
         ];
     }
