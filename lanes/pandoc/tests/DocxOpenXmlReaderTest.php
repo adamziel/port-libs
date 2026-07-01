@@ -23095,6 +23095,125 @@ XML;
         $t->true(!str_contains((string) $encodedReview, 'hidden-gamma'), 'selected XML PI rollups should not expose theme PI data values');
         $t->true(!str_contains((string) $encodedReview, 'Processing Instruction Theme'), 'selected XML PI rollups should not expose selected part attribute values');
     },
+    'preserves docx selected openxml document type provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $settingsPublicId = '-//Port Libs//DOCX Settings Review//EN';
+        $settingsSystemId = 'file:///tmp/blocked-settings-review.dtd';
+        $themeSystemId = 'https://example.test/theme-review.dtd';
+        $hiddenEntity = 'selected-doctype:hidden-alpha';
+        $settingsInternalSubset = '<!ENTITY settingsReview "' . $hiddenEntity . "\">\n";
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/doctype-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsDoctype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?review=doctype#settings"/>' . "\n" .
+            '  <Relationship Id="rThemeDoctype" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/doctype-theme.xml?review=doctype#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE w:settings PUBLIC "{$settingsPublicId}" "{$settingsSystemId}" [
+  <!ENTITY settingsReview "{$hiddenEntity}">
+  <!NOTATION settingsNotation SYSTEM "urn:settings-notation">
+]>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/theme/doctype-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE a:theme SYSTEM "{$themeSystemId}">
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Document Type Theme">
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+
+        $t->same(2, $selected['xmlDoctypePartCount']);
+        $t->same(2, $selected['xmlDoctypeCount']);
+        $t->same(['word/settings.xml', 'word/theme/doctype-theme.xml'], $selected['xmlDoctypePartNames']);
+        $t->same(['a:theme' => 1, 'w:settings' => 1], $selected['xmlDoctypeNameCounts']);
+        $t->same(1, $selected['xmlDoctypePublicIdCount']);
+        $t->same(2, $selected['xmlDoctypeSystemIdCount']);
+        $t->same(1, $selected['xmlDoctypeInternalSubsetCount']);
+        $t->same(strlen($settingsInternalSubset), $selected['xmlDoctypeInternalSubsetByteLength']);
+        $t->same(1, $selected['xmlDoctypeEntityCount']);
+        $t->same(1, $selected['xmlDoctypeNotationCount']);
+        $t->same(1, $selected['xmlDoctypeAllowedSystemIdCount']);
+        $t->same(1, $selected['xmlDoctypeUnsafeSystemIdCount']);
+        $t->same(['file' => 1, 'https' => 1], $selected['xmlDoctypeSystemIdSchemeCounts']);
+        $t->same(['external-target-unsafe-scheme'], $selected['xmlDoctypeSystemIdIssueCodes']);
+
+        $t->same(true, $settings['xmlDoctypePresent']);
+        $t->same('w:settings', $settings['xmlDoctypeName']);
+        $t->same($settingsPublicId, $settings['xmlDoctypePublicId']);
+        $t->same($settingsSystemId, $settings['xmlDoctypeSystemId']);
+        $t->same(true, $settings['xmlDoctypeHasPublicId']);
+        $t->same(true, $settings['xmlDoctypeHasSystemId']);
+        $t->same(true, $settings['xmlDoctypeHasInternalSubset']);
+        $t->same(strlen($settingsInternalSubset), $settings['xmlDoctypeInternalSubsetByteLength']);
+        $t->same(sprintf('%08x', crc32($settingsInternalSubset)), $settings['xmlDoctypeInternalSubsetCrc32']);
+        $t->same(hash('sha256', $settingsInternalSubset), $settings['xmlDoctypeInternalSubsetSha256']);
+        $t->same(1, $settings['xmlDoctypeEntityCount']);
+        $t->same(['settingsReview'], $settings['xmlDoctypeEntityNames']);
+        $t->same(1, $settings['xmlDoctypeNotationCount']);
+        $t->same(['settingsNotation'], $settings['xmlDoctypeNotationNames']);
+        $t->same('absolute-uri', $settings['xmlDoctypeSystemIdKind']);
+        $t->same('file', $settings['xmlDoctypeSystemIdScheme']);
+        $t->same(false, $settings['xmlDoctypeSystemIdAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $settings['xmlDoctypeSystemIdIssues']);
+
+        $t->same(true, $theme['xmlDoctypePresent']);
+        $t->same('a:theme', $theme['xmlDoctypeName']);
+        $t->same(null, $theme['xmlDoctypePublicId']);
+        $t->same($themeSystemId, $theme['xmlDoctypeSystemId']);
+        $t->same(false, $theme['xmlDoctypeHasPublicId']);
+        $t->same(true, $theme['xmlDoctypeHasSystemId']);
+        $t->same(false, $theme['xmlDoctypeHasInternalSubset']);
+        $t->same('https', $theme['xmlDoctypeSystemIdScheme']);
+        $t->same(true, $theme['xmlDoctypeSystemIdAllowed']);
+        $t->same([], $theme['xmlDoctypeSystemIdIssues']);
+
+        $t->same($selected['xmlDoctypePartCount'], $summary['selectedXmlPartXmlDoctypePartCount']);
+        $t->same($selected['xmlDoctypeCount'], $summary['selectedXmlPartXmlDoctypeCount']);
+        $t->same($selected['xmlDoctypePartNames'], $summary['selectedXmlPartXmlDoctypePartNames']);
+        $t->same($selected['xmlDoctypeNameCounts'], $summary['selectedXmlPartXmlDoctypeNameCounts']);
+        $t->same($selected['xmlDoctypePublicIdCount'], $summary['selectedXmlPartXmlDoctypePublicIdCount']);
+        $t->same($selected['xmlDoctypeSystemIdCount'], $summary['selectedXmlPartXmlDoctypeSystemIdCount']);
+        $t->same($selected['xmlDoctypeInternalSubsetCount'], $summary['selectedXmlPartXmlDoctypeInternalSubsetCount']);
+        $t->same($selected['xmlDoctypeInternalSubsetByteLength'], $summary['selectedXmlPartXmlDoctypeInternalSubsetByteLength']);
+        $t->same($selected['xmlDoctypeEntityCount'], $summary['selectedXmlPartXmlDoctypeEntityCount']);
+        $t->same($selected['xmlDoctypeNotationCount'], $summary['selectedXmlPartXmlDoctypeNotationCount']);
+        $t->same($selected['xmlDoctypeAllowedSystemIdCount'], $summary['selectedXmlPartXmlDoctypeAllowedSystemIdCount']);
+        $t->same($selected['xmlDoctypeUnsafeSystemIdCount'], $summary['selectedXmlPartXmlDoctypeUnsafeSystemIdCount']);
+        $t->same($selected['xmlDoctypeSystemIdSchemeCounts'], $summary['selectedXmlPartXmlDoctypeSystemIdSchemeCounts']);
+        $t->same($selected['xmlDoctypeSystemIdIssueCodes'], $summary['selectedXmlPartXmlDoctypeSystemIdIssueCodes']);
+        $t->same($selected['xmlDoctypes'], $summary['selectedXmlPartXmlDoctypes']);
+        $t->same('settings', $summary['selectedXmlPartXmlDoctypes'][0]['kind']);
+        $t->same('theme', $summary['selectedXmlPartXmlDoctypes'][1]['kind']);
+
+        $encodedReview = json_encode([
+            $selected['xmlDoctypes'],
+            $summary['selectedXmlPartXmlDoctypes'],
+            $settings,
+            $theme,
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML doctype metadata should encode for review');
+        $t->true(!isset($settings['xmlDoctypeInternalSubset']), 'selected XML doctype metadata must not expose raw internal subset text');
+        $t->true(!str_contains((string) $encodedReview, $hiddenEntity), 'selected XML doctype rollups should not expose entity replacement text');
+        $t->true(!str_contains((string) $encodedReview, 'Document Type Theme'), 'selected XML doctype rollups should not expose selected part attribute values');
+    },
     'summarizes docx selected openxml text and cdata metadata for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $settingsText = "selected-settings-text:hidden-alpha\nline-two";

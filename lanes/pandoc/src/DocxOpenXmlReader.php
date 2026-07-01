@@ -880,6 +880,22 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneYesCount'] = $selectedXmlParts['xmlStandaloneYesCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneNoCount'] = $selectedXmlParts['xmlStandaloneNoCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypePartCount'] = $selectedXmlParts['xmlDoctypePartCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeCount'] = $selectedXmlParts['xmlDoctypeCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypePartNames'] = $selectedXmlParts['xmlDoctypePartNames'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeNameCount'] = count($selectedXmlParts['xmlDoctypeNameCounts']);
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeNameCounts'] = $selectedXmlParts['xmlDoctypeNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypePublicIdCount'] = $selectedXmlParts['xmlDoctypePublicIdCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeSystemIdCount'] = $selectedXmlParts['xmlDoctypeSystemIdCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeInternalSubsetCount'] = $selectedXmlParts['xmlDoctypeInternalSubsetCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeInternalSubsetByteLength'] = $selectedXmlParts['xmlDoctypeInternalSubsetByteLength'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeEntityCount'] = $selectedXmlParts['xmlDoctypeEntityCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeNotationCount'] = $selectedXmlParts['xmlDoctypeNotationCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeAllowedSystemIdCount'] = $selectedXmlParts['xmlDoctypeAllowedSystemIdCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeUnsafeSystemIdCount'] = $selectedXmlParts['xmlDoctypeUnsafeSystemIdCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeSystemIdSchemeCounts'] = $selectedXmlParts['xmlDoctypeSystemIdSchemeCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypeSystemIdIssueCodes'] = $selectedXmlParts['xmlDoctypeSystemIdIssueCodes'];
+        $packageProvenance['summary']['selectedXmlPartXmlDoctypes'] = $selectedXmlParts['xmlDoctypes'];
         $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionPartCount'] = $selectedXmlParts['xmlProcessingInstructionPartCount'];
         $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionCount'] = $selectedXmlParts['xmlProcessingInstructionCount'];
         $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionPartNames'] = $selectedXmlParts['xmlProcessingInstructionPartNames'];
@@ -34463,6 +34479,21 @@ final class DocxOpenXmlReader
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
+        $xmlDoctypePartCount = 0;
+        $xmlDoctypeCount = 0;
+        $xmlDoctypePartNames = [];
+        $xmlDoctypeNameCounts = [];
+        $xmlDoctypePublicIdCount = 0;
+        $xmlDoctypeSystemIdCount = 0;
+        $xmlDoctypeInternalSubsetCount = 0;
+        $xmlDoctypeInternalSubsetByteLength = 0;
+        $xmlDoctypeEntityCount = 0;
+        $xmlDoctypeNotationCount = 0;
+        $xmlDoctypeAllowedSystemIdCount = 0;
+        $xmlDoctypeUnsafeSystemIdCount = 0;
+        $xmlDoctypeSystemIdSchemeCounts = [];
+        $xmlDoctypeSystemIdIssueCodes = [];
+        $xmlDoctypes = [];
         $xmlProcessingInstructionPartCount = 0;
         $xmlProcessingInstructionCount = 0;
         $xmlProcessingInstructionPartNames = [];
@@ -34819,6 +34850,69 @@ final class DocxOpenXmlReader
                     ++$xmlStandaloneNoCount;
                 }
             }
+            if (($item['xmlDoctypePresent'] ?? false) === true) {
+                ++$xmlDoctypePartCount;
+                ++$xmlDoctypeCount;
+                $this->appendUniqueString(
+                    $xmlDoctypePartNames,
+                    is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                );
+
+                $doctypeName = is_string($item['xmlDoctypeName'] ?? null) && $item['xmlDoctypeName'] !== ''
+                    ? $item['xmlDoctypeName']
+                    : '(none)';
+                $xmlDoctypeNameCounts[$doctypeName] = ($xmlDoctypeNameCounts[$doctypeName] ?? 0) + 1;
+
+                if (($item['xmlDoctypeHasPublicId'] ?? false) === true) {
+                    ++$xmlDoctypePublicIdCount;
+                }
+                if (($item['xmlDoctypeHasSystemId'] ?? false) === true) {
+                    ++$xmlDoctypeSystemIdCount;
+                    $scheme = is_string($item['xmlDoctypeSystemIdScheme'] ?? null)
+                        ? $item['xmlDoctypeSystemIdScheme']
+                        : '(none)';
+                    $xmlDoctypeSystemIdSchemeCounts[$scheme] = ($xmlDoctypeSystemIdSchemeCounts[$scheme] ?? 0) + 1;
+                    if (($item['xmlDoctypeSystemIdAllowed'] ?? null) === true) {
+                        ++$xmlDoctypeAllowedSystemIdCount;
+                    } else {
+                        ++$xmlDoctypeUnsafeSystemIdCount;
+                    }
+                    foreach (($item['xmlDoctypeSystemIdIssues'] ?? []) as $issue) {
+                        if (is_string($issue) && $issue !== '') {
+                            $xmlDoctypeSystemIdIssueCodes[$issue] = true;
+                        }
+                    }
+                }
+                if (($item['xmlDoctypeHasInternalSubset'] ?? false) === true) {
+                    ++$xmlDoctypeInternalSubsetCount;
+                    $xmlDoctypeInternalSubsetByteLength += (int) ($item['xmlDoctypeInternalSubsetByteLength'] ?? 0);
+                }
+                $xmlDoctypeEntityCount += (int) ($item['xmlDoctypeEntityCount'] ?? 0);
+                $xmlDoctypeNotationCount += (int) ($item['xmlDoctypeNotationCount'] ?? 0);
+                $xmlDoctypes[] = [
+                    'kind' => is_string($item['kind'] ?? null) ? $item['kind'] : '',
+                    'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : '',
+                    'name' => is_string($item['xmlDoctypeName'] ?? null) ? $item['xmlDoctypeName'] : null,
+                    'publicId' => is_string($item['xmlDoctypePublicId'] ?? null) ? $item['xmlDoctypePublicId'] : null,
+                    'systemId' => is_string($item['xmlDoctypeSystemId'] ?? null) ? $item['xmlDoctypeSystemId'] : null,
+                    'hasInternalSubset' => (bool) ($item['xmlDoctypeHasInternalSubset'] ?? false),
+                    'internalSubsetByteLength' => (int) ($item['xmlDoctypeInternalSubsetByteLength'] ?? 0),
+                    'internalSubsetCrc32' => is_string($item['xmlDoctypeInternalSubsetCrc32'] ?? null)
+                        ? $item['xmlDoctypeInternalSubsetCrc32']
+                        : null,
+                    'internalSubsetSha256' => is_string($item['xmlDoctypeInternalSubsetSha256'] ?? null)
+                        ? $item['xmlDoctypeInternalSubsetSha256']
+                        : null,
+                    'entityCount' => (int) ($item['xmlDoctypeEntityCount'] ?? 0),
+                    'entityNames' => array_values(array_map('strval', $item['xmlDoctypeEntityNames'] ?? [])),
+                    'notationCount' => (int) ($item['xmlDoctypeNotationCount'] ?? 0),
+                    'notationNames' => array_values(array_map('strval', $item['xmlDoctypeNotationNames'] ?? [])),
+                    'systemIdKind' => is_string($item['xmlDoctypeSystemIdKind'] ?? null) ? $item['xmlDoctypeSystemIdKind'] : null,
+                    'systemIdScheme' => is_string($item['xmlDoctypeSystemIdScheme'] ?? null) ? $item['xmlDoctypeSystemIdScheme'] : null,
+                    'systemIdAllowed' => is_bool($item['xmlDoctypeSystemIdAllowed'] ?? null) ? $item['xmlDoctypeSystemIdAllowed'] : null,
+                    'systemIdIssues' => array_values(array_map('strval', $item['xmlDoctypeSystemIdIssues'] ?? [])),
+                ];
+            }
             $itemXmlProcessingInstructionCount = (int) ($item['xmlProcessingInstructionCount'] ?? 0);
             if ($itemXmlProcessingInstructionCount > 0) {
                 ++$xmlProcessingInstructionPartCount;
@@ -35151,6 +35245,9 @@ final class DocxOpenXmlReader
         ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
         ksort($xmlDeclarationAttributeNameCounts, SORT_STRING);
+        ksort($xmlDoctypeNameCounts, SORT_STRING);
+        ksort($xmlDoctypeSystemIdSchemeCounts, SORT_STRING);
+        ksort($xmlDoctypeSystemIdIssueCodes, SORT_STRING);
         ksort($xmlProcessingInstructionTargetCounts, SORT_STRING);
         ksort($xmlProcessingInstructionParentPathCounts, SORT_STRING);
         ksort($xmlProcessingInstructionParentNamespaceCounts, SORT_STRING);
@@ -35185,6 +35282,7 @@ final class DocxOpenXmlReader
         sort($xmlDeclarationPartNames, SORT_STRING);
         sort($xmlDeclarationVersions, SORT_STRING);
         sort($xmlDeclarationAttributeNames, SORT_STRING);
+        sort($xmlDoctypePartNames, SORT_STRING);
         sort($xmlProcessingInstructionPartNames, SORT_STRING);
         sort($xmlProcessingInstructionTargets, SORT_STRING);
         sort($xmlProcessingInstructionParentPaths, SORT_STRING);
@@ -35281,6 +35379,21 @@ final class DocxOpenXmlReader
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
             'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
             'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
+            'xmlDoctypePartCount' => $xmlDoctypePartCount,
+            'xmlDoctypeCount' => $xmlDoctypeCount,
+            'xmlDoctypePartNames' => $xmlDoctypePartNames,
+            'xmlDoctypeNameCounts' => $xmlDoctypeNameCounts,
+            'xmlDoctypePublicIdCount' => $xmlDoctypePublicIdCount,
+            'xmlDoctypeSystemIdCount' => $xmlDoctypeSystemIdCount,
+            'xmlDoctypeInternalSubsetCount' => $xmlDoctypeInternalSubsetCount,
+            'xmlDoctypeInternalSubsetByteLength' => $xmlDoctypeInternalSubsetByteLength,
+            'xmlDoctypeEntityCount' => $xmlDoctypeEntityCount,
+            'xmlDoctypeNotationCount' => $xmlDoctypeNotationCount,
+            'xmlDoctypeAllowedSystemIdCount' => $xmlDoctypeAllowedSystemIdCount,
+            'xmlDoctypeUnsafeSystemIdCount' => $xmlDoctypeUnsafeSystemIdCount,
+            'xmlDoctypeSystemIdSchemeCounts' => $xmlDoctypeSystemIdSchemeCounts,
+            'xmlDoctypeSystemIdIssueCodes' => array_keys($xmlDoctypeSystemIdIssueCodes),
+            'xmlDoctypes' => $xmlDoctypes,
             'xmlProcessingInstructionPartCount' => $xmlProcessingInstructionPartCount,
             'xmlProcessingInstructionCount' => $xmlProcessingInstructionCount,
             'xmlProcessingInstructionPartNames' => $xmlProcessingInstructionPartNames,
@@ -35442,6 +35555,24 @@ final class DocxOpenXmlReader
             'xmlDeclarationStandalone' => null,
             'xmlDeclarationAttributeCount' => 0,
             'xmlDeclarationAttributeNames' => [],
+            'xmlDoctypePresent' => false,
+            'xmlDoctypeName' => null,
+            'xmlDoctypePublicId' => null,
+            'xmlDoctypeSystemId' => null,
+            'xmlDoctypeHasPublicId' => false,
+            'xmlDoctypeHasSystemId' => false,
+            'xmlDoctypeHasInternalSubset' => false,
+            'xmlDoctypeInternalSubsetByteLength' => 0,
+            'xmlDoctypeInternalSubsetCrc32' => null,
+            'xmlDoctypeInternalSubsetSha256' => null,
+            'xmlDoctypeEntityCount' => 0,
+            'xmlDoctypeEntityNames' => [],
+            'xmlDoctypeNotationCount' => 0,
+            'xmlDoctypeNotationNames' => [],
+            'xmlDoctypeSystemIdKind' => null,
+            'xmlDoctypeSystemIdScheme' => null,
+            'xmlDoctypeSystemIdAllowed' => null,
+            'xmlDoctypeSystemIdIssues' => [],
             'xmlProcessingInstructionCount' => 0,
             'xmlProcessingInstructionTargets' => [],
             'xmlProcessingInstructionTargetCounts' => [],
@@ -35584,6 +35715,25 @@ final class DocxOpenXmlReader
         $item['rootChildElementFirstName'] = $root['childElementFirstName'];
         $item['rootChildElementLastName'] = $root['childElementLastName'];
         $item['rootChildElements'] = $root['childElements'];
+        $doctype = $this->xmlDocumentTypeProvenance($xml, $partName);
+        $item['xmlDoctypePresent'] = $doctype['present'];
+        $item['xmlDoctypeName'] = $doctype['name'];
+        $item['xmlDoctypePublicId'] = $doctype['publicId'];
+        $item['xmlDoctypeSystemId'] = $doctype['systemId'];
+        $item['xmlDoctypeHasPublicId'] = $doctype['hasPublicId'];
+        $item['xmlDoctypeHasSystemId'] = $doctype['hasSystemId'];
+        $item['xmlDoctypeHasInternalSubset'] = $doctype['hasInternalSubset'];
+        $item['xmlDoctypeInternalSubsetByteLength'] = $doctype['internalSubsetByteLength'];
+        $item['xmlDoctypeInternalSubsetCrc32'] = $doctype['internalSubsetCrc32'];
+        $item['xmlDoctypeInternalSubsetSha256'] = $doctype['internalSubsetSha256'];
+        $item['xmlDoctypeEntityCount'] = $doctype['entityCount'];
+        $item['xmlDoctypeEntityNames'] = $doctype['entityNames'];
+        $item['xmlDoctypeNotationCount'] = $doctype['notationCount'];
+        $item['xmlDoctypeNotationNames'] = $doctype['notationNames'];
+        $item['xmlDoctypeSystemIdKind'] = $doctype['systemIdKind'];
+        $item['xmlDoctypeSystemIdScheme'] = $doctype['systemIdScheme'];
+        $item['xmlDoctypeSystemIdAllowed'] = $doctype['systemIdAllowed'];
+        $item['xmlDoctypeSystemIdIssues'] = $doctype['systemIdIssues'];
         $processingInstructions = $this->xmlProcessingInstructionProvenance($xml, $partName);
         $item['xmlProcessingInstructionCount'] = $processingInstructions['count'];
         $item['xmlProcessingInstructionTargets'] = $processingInstructions['targets'];
@@ -35720,7 +35870,7 @@ final class DocxOpenXmlReader
         $doctype = $dom->doctype;
         $publicId = $doctype->publicId === '' ? null : $doctype->publicId;
         $systemId = $doctype->systemId === '' ? null : $doctype->systemId;
-        $internalSubset = $doctype->internalSubset;
+        $internalSubset = is_string($doctype->internalSubset) ? $doctype->internalSubset : '';
         $systemIdPolicy = $systemId === null ? null : $this->externalRelationshipTargetPolicy($systemId);
         $entityNames = $this->xmlDocumentTypeNamedNodeNames($doctype->entities);
         $notationNames = $this->xmlDocumentTypeNamedNodeNames($doctype->notations);
