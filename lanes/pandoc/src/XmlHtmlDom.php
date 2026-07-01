@@ -29112,38 +29112,48 @@ final class XmlHtmlDom
         $crossorigin = $crossoriginRaw === null ? null : self::htmlCorsSettingsAttributeState($crossoriginRaw);
         $referrerPolicyRaw = self::attributeOrNull($image, 'referrerpolicy');
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
-        $issueCodes = [];
+        $issues = [];
 
         if ($loadingRaw !== null && $loading === null) {
-            $issueCodes[] = 'invalid-image-loading';
+            $issues[] = ['code' => 'invalid-image-loading', 'value' => $loadingRaw];
         }
         if ($decodingRaw !== null && $decoding === null) {
-            $issueCodes[] = 'invalid-image-decoding';
+            $issues[] = ['code' => 'invalid-image-decoding', 'value' => $decodingRaw];
         }
         if ($fetchPriorityRaw !== null && $fetchPriority === null) {
-            $issueCodes[] = 'invalid-image-fetchpriority';
+            $issues[] = ['code' => 'invalid-image-fetchpriority', 'value' => $fetchPriorityRaw];
         }
         if ($crossoriginRaw !== null && $crossorigin === null) {
-            $issueCodes[] = 'invalid-image-crossorigin';
+            $issues[] = ['code' => 'invalid-image-crossorigin', 'value' => $crossoriginRaw];
         }
         if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
-            $issueCodes[] = 'invalid-image-referrerpolicy';
+            $issues[] = ['code' => 'invalid-image-referrerpolicy', 'value' => $referrerPolicyRaw];
         }
 
         return [
             'imageLoadingReviewPolicy' => 'image-loading-metadata-review',
+            'imageLoadingRaw' => $loadingRaw,
             'imageLoadingState' => $loading,
             'imageLoadingValid' => $loadingRaw === null ? null : $loading !== null,
+            'imageDecodingRaw' => $decodingRaw,
             'imageDecodingState' => $decoding,
             'imageDecodingValid' => $decodingRaw === null ? null : $decoding !== null,
+            'imageFetchPriorityRaw' => $fetchPriorityRaw,
             'imageFetchPriority' => $fetchPriority,
             'imageFetchPriorityValid' => $fetchPriorityRaw === null ? null : $fetchPriority !== null,
+            'imageCrossoriginRaw' => $crossoriginRaw,
             'imageCrossoriginState' => $crossorigin,
             'imageCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'imageReferrerPolicyRaw' => $referrerPolicyRaw,
             'imageReferrerPolicy' => $referrerPolicy,
             'imageReferrerPolicyValid' => $referrerPolicyRaw === null ? null : $referrerPolicy !== null,
-            'imageLoadingIssueCodes' => $issueCodes,
-            'imageLoadingIssueCount' => count($issueCodes),
+            'imageLoadingIssues' => $issues,
+            'imageLoadingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'imageLoadingIssueCount' => count($issues),
+            'imageLoadingPolicyValid' => $issues === [],
         ];
     }
 
