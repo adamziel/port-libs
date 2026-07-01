@@ -1200,6 +1200,12 @@ return [
             'pathSegmentCounts' => $manifest['pathSegmentCounts'],
             'pathSegmentEntryCounts' => $manifest['pathSegmentEntryCounts'],
             'pathSegmentSummaries' => $manifest['pathSegmentSummaries'],
+            'caseFoldPathSegmentSummaryCount' => $manifest['caseFoldPathSegmentSummaryCount'],
+            'caseFoldPathSegments' => $manifest['caseFoldPathSegments'],
+            'caseFoldPathSegmentOccurrenceCount' => $manifest['caseFoldPathSegmentOccurrenceCount'],
+            'caseFoldPathSegmentCounts' => $manifest['caseFoldPathSegmentCounts'],
+            'caseFoldPathSegmentEntryCounts' => $manifest['caseFoldPathSegmentEntryCounts'],
+            'caseFoldPathSegmentSummaries' => $manifest['caseFoldPathSegmentSummaries'],
             'pathSegmentPositionSummaryCount' => $manifest['pathSegmentPositionSummaryCount'],
             'pathSegmentPositionOccurrenceCount' => $manifest['pathSegmentPositionOccurrenceCount'],
             'pathSegmentPositionCounts' => $manifest['pathSegmentPositionCounts'],
@@ -1508,6 +1514,131 @@ return [
         $only = $positions['only'];
         $t->same(['mimetype' => 1], $only['segmentCounts']);
         $t->same(['mimetype'], $only['entryNames']);
+    },
+
+    'rolls up zip package manifest case-fold path segments before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document/>';
+        $upperMediaBytes = 'upper media bytes';
+        $lowerMediaBytes = 'lower media bytes';
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => 'Word/Media/review.PNG',
+                'data' => $upperMediaBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/media/review.png',
+                'data' => $lowerMediaBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => 'word/MEDIA/',
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => 'mimetype',
+                'data' => 'application/epub+zip',
+                'method' => 0,
+            ],
+        ]);
+        $manifest = ZipPackage::fromString($zip)->packageManifestPreflight();
+        $entriesByName = [];
+        foreach ($manifest['entries'] as $entry) {
+            $entriesByName[$entry['name']] = $entry;
+        }
+        $caseFoldSegments = [];
+        foreach ($manifest['caseFoldPathSegmentSummaries'] as $summary) {
+            $caseFoldSegments[$summary['caseFoldSegment']] = $summary;
+        }
+        $sumEntryBytes = static function (array $names, string $field) use ($entriesByName): int {
+            $bytes = 0;
+            foreach ($names as $name) {
+                $bytes += $entriesByName[$name][$field];
+            }
+
+            return $bytes;
+        };
+        $wordNames = [
+            'Word/Media/review.PNG',
+            'word/MEDIA/',
+            'word/document.xml',
+            'word/media/review.png',
+        ];
+        $mediaNames = [
+            'Word/Media/review.PNG',
+            'word/MEDIA/',
+            'word/media/review.png',
+        ];
+        $reviewNames = [
+            'Word/Media/review.PNG',
+            'word/media/review.png',
+        ];
+
+        $t->same(5, $manifest['caseFoldPathSegmentSummaryCount']);
+        $t->same(['document.xml', 'media', 'mimetype', 'review.png', 'word'], $manifest['caseFoldPathSegments']);
+        $t->same(11, $manifest['caseFoldPathSegmentOccurrenceCount']);
+        $t->same([
+            'document.xml' => 1,
+            'media' => 3,
+            'mimetype' => 1,
+            'review.png' => 2,
+            'word' => 4,
+        ], $manifest['caseFoldPathSegmentCounts']);
+        $t->same($manifest['caseFoldPathSegmentCounts'], $manifest['caseFoldPathSegmentEntryCounts']);
+
+        $word = $caseFoldSegments['word'];
+        $t->same('word', $word['caseFoldSegment']);
+        $t->same(4, $word['occurrenceCount']);
+        $t->same(4, $word['entryCount']);
+        $t->same(3, $word['fileEntryCount']);
+        $t->same(1, $word['directoryEntryCount']);
+        $t->same(strlen($documentXml) + strlen($upperMediaBytes) + strlen($lowerMediaBytes), $word['compressedBytes']);
+        $t->same(strlen($documentXml) + strlen($upperMediaBytes) + strlen($lowerMediaBytes), $word['uncompressedBytes']);
+        $t->same($sumEntryBytes($wordNames, 'localRecordBytes'), $word['localRecordBytes']);
+        $t->same($sumEntryBytes($wordNames, 'sourceRecordBytes'), $word['sourceRecordBytes']);
+        $t->same(2, $word['segmentVariantCount']);
+        $t->same(['Word' => 1, 'word' => 3], $word['segmentCounts']);
+        $t->same(['Word', 'word'], $word['segments']);
+        $t->same([0 => 4], $word['pathSegmentIndexCounts']);
+        $t->same(['Word/' => 1, 'word/' => 3], $word['directoryRootCounts']);
+        $t->same(['(directory)' => 1, 'png' => 2, 'xml' => 1], $word['packagePartExtensionCounts']);
+        $t->same(['0' => 4], $word['compressionMethodCounts']);
+        $t->same($wordNames, $word['entryNames']);
+
+        $media = $caseFoldSegments['media'];
+        $t->same(3, $media['occurrenceCount']);
+        $t->same(3, $media['entryCount']);
+        $t->same(2, $media['fileEntryCount']);
+        $t->same(1, $media['directoryEntryCount']);
+        $t->same(strlen($upperMediaBytes) + strlen($lowerMediaBytes), $media['compressedBytes']);
+        $t->same($sumEntryBytes($mediaNames, 'sourceRecordBytes'), $media['sourceRecordBytes']);
+        $t->same(3, $media['segmentVariantCount']);
+        $t->same(['MEDIA' => 1, 'Media' => 1, 'media' => 1], $media['segmentCounts']);
+        $t->same(['MEDIA', 'Media', 'media'], $media['segments']);
+        $t->same([1 => 3], $media['pathSegmentIndexCounts']);
+        $t->same(['Word/' => 1, 'word/' => 2], $media['directoryRootCounts']);
+        $t->same(['(directory)' => 1, 'png' => 2], $media['packagePartExtensionCounts']);
+        $t->same($mediaNames, $media['entryNames']);
+
+        $review = $caseFoldSegments['review.png'];
+        $t->same(2, $review['occurrenceCount']);
+        $t->same(2, $review['entryCount']);
+        $t->same(2, $review['fileEntryCount']);
+        $t->same(0, $review['directoryEntryCount']);
+        $t->same(strlen($upperMediaBytes) + strlen($lowerMediaBytes), $review['compressedBytes']);
+        $t->same($sumEntryBytes($reviewNames, 'sourceRecordBytes'), $review['sourceRecordBytes']);
+        $t->same(2, $review['segmentVariantCount']);
+        $t->same(['review.PNG' => 1, 'review.png' => 1], $review['segmentCounts']);
+        $t->same([2 => 2], $review['pathSegmentIndexCounts']);
+        $t->same(['Word/' => 1, 'word/' => 1], $review['directoryRootCounts']);
+        $t->same(['png' => 2], $review['packagePartExtensionCounts']);
+        $t->same($reviewNames, $review['entryNames']);
     },
 
     'rolls up zip package manifest basenames before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -2440,6 +2571,12 @@ return [
             'pathSegmentCounts' => $manifest['pathSegmentCounts'],
             'pathSegmentEntryCounts' => $manifest['pathSegmentEntryCounts'],
             'pathSegmentSummaries' => $manifest['pathSegmentSummaries'],
+            'caseFoldPathSegmentSummaryCount' => $manifest['caseFoldPathSegmentSummaryCount'],
+            'caseFoldPathSegments' => $manifest['caseFoldPathSegments'],
+            'caseFoldPathSegmentOccurrenceCount' => $manifest['caseFoldPathSegmentOccurrenceCount'],
+            'caseFoldPathSegmentCounts' => $manifest['caseFoldPathSegmentCounts'],
+            'caseFoldPathSegmentEntryCounts' => $manifest['caseFoldPathSegmentEntryCounts'],
+            'caseFoldPathSegmentSummaries' => $manifest['caseFoldPathSegmentSummaries'],
             'pathSegmentPositionSummaryCount' => $manifest['pathSegmentPositionSummaryCount'],
             'pathSegmentPositionOccurrenceCount' => $manifest['pathSegmentPositionOccurrenceCount'],
             'pathSegmentPositionCounts' => $manifest['pathSegmentPositionCounts'],
