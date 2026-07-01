@@ -2540,9 +2540,83 @@ final class WordPressBlockWriter
 
     private function renderFigureBlock(AstNode $node): string
     {
+        if (!$this->isImageOnlyFigure($node)) {
+            return '<!-- wp:html -->'
+                . "\n" . $this->renderMixedFigureHtml($node)
+                . "\n" . '<!-- /wp:html -->';
+        }
+
         return '<!-- wp:image -->'
             . "\n" . $this->renderFigureHtml($node)
             . "\n" . '<!-- /wp:image -->';
+    }
+
+    private function isImageOnlyFigure(AstNode $node): bool
+    {
+        if (count($node->children) !== 1) {
+            return false;
+        }
+
+        $child = $node->children[0];
+        if ($child->type === 'image') {
+            return true;
+        }
+
+        if (!in_array($child->type, ['plain', 'paragraph'], true) || count($child->children) !== 1) {
+            return false;
+        }
+
+        return $child->children[0]->type === 'image';
+    }
+
+    private function renderMixedFigureHtml(AstNode $node): string
+    {
+        $html = '<figure' . $this->renderBlockHtmlAttrs($node) . '>' . $this->renderFigureBlocksAsHtml($node->children);
+        $caption = trim((string) $node->attr('caption', ''));
+        if ($caption === '') {
+            $caption = $this->figureCaptionText($node);
+        }
+        if ($caption !== '') {
+            $html .= '<figcaption>' . $this->esc($caption) . '</figcaption>';
+        }
+
+        return $html . '</figure>';
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function renderFigureBlocksAsHtml(array $blocks): string
+    {
+        $html = '';
+        foreach ($blocks as $block) {
+            if ($this->shouldSkipEmptyParagraphLikeBlock($block)) {
+                continue;
+            }
+            if ($block->type === 'plain') {
+                $html .= '<p' . $this->renderBlockHtmlAttrs($block) . '>' . $this->renderInlines($block) . '</p>';
+                continue;
+            }
+            if ($block->type === 'code_block') {
+                $html .= $this->renderFigureCodeBlockHtml($block);
+                continue;
+            }
+
+            $html .= $this->renderBlocksAsHtml([$block]);
+        }
+
+        return $html;
+    }
+
+    private function renderFigureCodeBlockHtml(AstNode $node): string
+    {
+        $classes = $node->attr('classes', []);
+        $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
+        $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
+
+        return '<pre class="wp-block-code"' . $this->renderCodeBlockPreAttrs($node) . '><code' . $codeAttrs . '>'
+            . $this->esc((string) $node->attr('text', ''))
+            . '</code></pre>';
     }
 
     private function renderFigureHtml(AstNode $node): string
@@ -2916,7 +2990,9 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'figure') {
-                $html .= $this->renderFigureHtml($block);
+                $html .= $this->isImageOnlyFigure($block)
+                    ? $this->renderFigureHtml($block)
+                    : $this->renderMixedFigureHtml($block);
                 continue;
             }
             if ($block->type === 'image') {
