@@ -34949,6 +34949,24 @@ final class DocxOpenXmlReader
                 $summary['partCaseFoldDirectoryBaseNames'] ?? [],
                 'caseFoldDirectoryBaseName'
             ),
+            'packageDirectoryBaseNameStemCount' => (int) ($summary['partDirectoryBaseNameStemCount'] ?? 0),
+            'packageDirectoryBaseNameStemCounts' => $this->packageIdentityCountMap(
+                $summary['partDirectoryBaseNameStemCounts'] ?? []
+            ),
+            'entryNamesByPackageDirectoryBaseNameStem' => $this->packageIdentityLookupMapFromSummaries(
+                $summary['partDirectoryBaseNameStems'] ?? [],
+                'directoryBaseNameStem'
+            ),
+            'packageCaseFoldDirectoryBaseNameStemCount' => (int) (
+                $summary['partCaseFoldDirectoryBaseNameStemCount'] ?? 0
+            ),
+            'packageCaseFoldDirectoryBaseNameStemCounts' => $this->packageIdentityCountMap(
+                $summary['partCaseFoldDirectoryBaseNameStemCounts'] ?? []
+            ),
+            'entryNamesByPackageCaseFoldDirectoryBaseNameStem' => $this->packageIdentityLookupMapFromSummaries(
+                $summary['partCaseFoldDirectoryBaseNameStems'] ?? [],
+                'caseFoldDirectoryBaseNameStem'
+            ),
             'packageEntries' => $packageEntries,
         ];
         $identityJson = json_encode(
@@ -34981,14 +34999,21 @@ final class DocxOpenXmlReader
             $baseName = is_string($part['baseName'] ?? null)
                 ? $part['baseName']
                 : $this->packagePartBaseName($partName);
+            $directoryBaseNameStem = is_string($part['directoryBaseNameStem'] ?? null)
+                ? $part['directoryBaseNameStem']
+                : $this->packagePartDirectoryBaseNameStem($directory);
             $roles = $this->packageIdentitySortedStringList($part['roles'] ?? []);
             $entries[] = [
                 'partName' => $partName,
                 'directory' => $directory,
                 'directoryBaseName' => $directoryBaseName,
+                'directoryBaseNameStem' => $directoryBaseNameStem,
                 'caseFoldDirectoryBaseName' => is_string($part['caseFoldDirectoryBaseName'] ?? null)
                     ? $part['caseFoldDirectoryBaseName']
                     : $this->packagePartCaseFoldKey($directoryBaseName),
+                'caseFoldDirectoryBaseNameStem' => is_string($part['caseFoldDirectoryBaseNameStem'] ?? null)
+                    ? $part['caseFoldDirectoryBaseNameStem']
+                    : $this->packagePartCaseFoldKey($directoryBaseNameStem),
                 'baseName' => $baseName,
                 'caseFoldBaseName' => is_string($part['caseFoldBaseName'] ?? null)
                     ? $part['caseFoldBaseName']
