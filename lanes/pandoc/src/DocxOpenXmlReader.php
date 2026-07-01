@@ -25646,6 +25646,10 @@ final class DocxOpenXmlReader
     private function relationshipTargetInventoryRole(string $relationshipType): ?string
     {
         return match ($relationshipType) {
+            self::OFFICE_DOCUMENT_REL => 'office-document',
+            self::CORE_PROPERTIES_REL => 'core-properties',
+            self::EXTENDED_PROPERTIES_REL => 'extended-properties',
+            self::CUSTOM_PROPERTIES_REL => 'custom-properties',
             self::STYLES_REL => 'styles',
             self::STYLES_WITH_EFFECTS_REL => 'styles-with-effects',
             self::NUMBERING_REL => 'numbering',

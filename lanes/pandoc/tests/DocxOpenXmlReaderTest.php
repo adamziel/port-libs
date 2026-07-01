@@ -12295,6 +12295,7 @@ XML;
         $t->same(['customXml/review.json', 'docProps/core.xml', 'word/document.xml'], $application['overridePartNames']);
         $t->same([
             'content-types' => 1,
+            'core-properties' => 1,
             'office-document' => 1,
             'office-document-relationships' => 1,
             'package-part' => 3,
@@ -12644,7 +12645,7 @@ XML;
         $t->same(['xml' => 3], $override['contentTypeSyntaxSuffixCounts']);
         $t->same(['xml' => 3], $override['partExtensionCounts']);
         $t->same(['customXml/override-source.xml', 'docProps/core.xml', 'word/document.xml'], $override['overridePartNames']);
-        $t->same(['office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 2], $override['roleCounts']);
+        $t->same(['core-properties' => 1, 'office-document' => 1, 'package-part' => 1, 'root-relationship-target' => 2], $override['roleCounts']);
         $t->same('word/document.xml', $override['largestPart']['partName']);
         $t->same('word', $override['largestPart']['directory']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml', $override['largestPart']['contentTypeBase']);
@@ -12700,9 +12701,10 @@ XML;
             $roles[$role['role']] = $role;
         }
 
-        $t->same(9, $summary['partRoleCount']);
+        $t->same(10, $summary['partRoleCount']);
         $t->same([
             'content-types',
+            'core-properties',
             'document-relationship-target',
             'embedded-package',
             'office-document',
@@ -12766,6 +12768,12 @@ XML;
             'application/vnd.openxmlformats-package.core-properties+xml' => 1,
         ], $rootTargets['contentTypeBaseCounts']);
         $t->same(['docProps/core.xml', 'word/document.xml'], $rootTargets['partNames']);
+
+        $coreProperties = $roles['core-properties'];
+        $t->same(1, $coreProperties['partCount']);
+        $t->same(['override' => 1], $coreProperties['contentTypeSourceCounts']);
+        $t->same(['application/vnd.openxmlformats-package.core-properties+xml' => 1], $coreProperties['contentTypeBaseCounts']);
+        $t->same(['docProps/core.xml'], $coreProperties['partNames']);
 
         $t->same(1, $roles['content-types']['partCount']);
         $t->same(1, $roles['office-document']['partCount']);
