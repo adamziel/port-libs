@@ -15734,6 +15734,7 @@ final class OdfReader
                 'declared' => false,
                 'declaredSize' => null,
                 'declaredSizeMismatch' => false,
+                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? 'font-package-bytes-blocked',
             ];
         }
 
@@ -15816,6 +15817,7 @@ final class OdfReader
                 'declaredSize' => $item['declaredSize'] ?? null,
                 'declaredSizeMismatch' => ($item['declaredSizeMismatch'] ?? false) === true,
                 'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => $item['byteExposurePolicy'] ?? 'font-package-bytes-blocked',
                 'reviewPolicy' => 'package-font-metadata-only',
                 'issues' => $issues,
             ];
@@ -15850,6 +15852,8 @@ final class OdfReader
             'fontFileExtensionCounts' => $fontFileExtensionCounts,
             'recognizedFontFormatCount' => count(array_filter($items, static fn (array $item): bool => $item['recognizedFontFormat'] === true)),
             'unknownFontFormatCount' => count(array_filter($items, static fn (array $item): bool => $item['recognizedFontFormat'] !== true)),
+            'byteExposurePolicy' => 'font-package-bytes-blocked',
+            'reviewPolicy' => 'package-font-metadata-only',
             'items' => $items,
         ];
     }
@@ -16817,6 +16821,7 @@ final class OdfReader
                 continue;
             }
 
+            $byteExposurePolicy = $this->undeclaredPackageEntryByteExposurePolicy($entry->name);
             $entries[] = [
                 'part' => $entry->name,
                 'diagnostic' => 'odf-manifest-undeclared-package-entry',
@@ -16826,12 +16831,21 @@ final class OdfReader
                 'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                 'crc32' => $entry->crc32Hex(),
                 'canExposeBytes' => false,
-                'byteExposurePolicy' => 'undeclared-package-entry-no-bytes',
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'diagnostics' => ['odf-manifest-undeclared-package-entry'],
             ];
         }
 
         return $entries;
+    }
+
+    private function undeclaredPackageEntryByteExposurePolicy(string $part): string
+    {
+        if ($this->isFontPackagePartName($part)) {
+            return 'font-package-bytes-blocked';
+        }
+
+        return 'undeclared-package-entry-no-bytes';
     }
 
     /**
