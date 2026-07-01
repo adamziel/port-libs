@@ -15487,6 +15487,7 @@ final class DocxOpenXmlReader
         $partCaseFoldBaseNameStems = $this->packagePartCaseFoldBaseNameStemSummary($partInventory);
         $partNameCharacters = $this->packagePartNameCharacterSummary($partInventory);
         $partBaseNameCharacters = $this->packagePartBaseNameCharacterSummary($partInventory);
+        $partDirectoryNameCharacters = $this->packagePartDirectoryNameCharacterSummary($partInventory);
         $partXmlCdataSections = $this->packagePartXmlCdataSectionSummary($partInventory);
         $partXmlComments = $this->packagePartXmlCommentSummary($partInventory);
         $partXmlProcessingInstructions = $this->packagePartXmlProcessingInstructionSummary($partInventory);
@@ -19025,6 +19026,17 @@ final class DocxOpenXmlReader
             'partBaseNameCharacterFlagCounts' => $partBaseNameCharacters['flagCounts'],
             'partBaseNameCharacterFlagPartNames' => $partBaseNameCharacters['flagPartNames'],
             'partBaseNameCharacterFlagBaseNames' => $partBaseNameCharacters['flagBaseNames'],
+            'partDirectoryNameCharacterReviewDirectoryCount' => $partDirectoryNameCharacters['directoryCount'],
+            'partDirectoryNameCharacterReviewPartCount' => $partDirectoryNameCharacters['partCount'],
+            'partDirectoryNameUppercasePartCount' => (int) ($partDirectoryNameCharacters['flagPartCounts']['uppercase'] ?? 0),
+            'partDirectoryNameWhitespacePartCount' => (int) ($partDirectoryNameCharacters['flagPartCounts']['whitespace'] ?? 0),
+            'partDirectoryNamePercentEncodedOctetPartCount' => (int) ($partDirectoryNameCharacters['flagPartCounts']['percent-encoded-octet'] ?? 0),
+            'partDirectoryNameNonAsciiPartCount' => (int) ($partDirectoryNameCharacters['flagPartCounts']['non-ascii'] ?? 0),
+            'partDirectoryNameCharacterFlagPartCounts' => $partDirectoryNameCharacters['flagPartCounts'],
+            'partDirectoryNameCharacterFlagDirectories' => $partDirectoryNameCharacters['flagDirectories'],
+            'partDirectoryNameCharacterFlagPartNames' => $partDirectoryNameCharacters['flagPartNames'],
+            'partDirectoryNameCharacterReviewDirectories' => $partDirectoryNameCharacters['directories'],
+            'partDirectoryNameCharacterReviewDirectoryNames' => $partDirectoryNameCharacters['directoryNames'],
             'partXmlCdataSectionPartCount' => $partXmlCdataSections['partCount'],
             'partXmlCdataSectionCount' => $partXmlCdataSections['sectionCount'],
             'partXmlCdataSectionByteLength' => $partXmlCdataSections['byteLength'],
@@ -34057,6 +34069,187 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
+     * @return array{directoryCount:int, partCount:int, directoryNames:list<string>, flagPartCounts:array<string, int>, flagDirectories:array<string, list<string>>, flagPartNames:array<string, list<string>>, directories:list<array<string, mixed>>}
+     */
+    private function packagePartDirectoryNameCharacterSummary(array $partInventory): array
+    {
+        $directories = [];
+        $flagPartCounts = [];
+        $flagDirectories = [];
+        $flagPartNames = [];
+        $partNames = [];
+
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            if ($directory === '' || $directory === '/') {
+                continue;
+            }
+
+            $flags = is_array($part['directoryNameCharacterFlags'] ?? null)
+                ? array_values(array_map('strval', $part['directoryNameCharacterFlags']))
+                : $this->packagePartNameCharacterFlags($directory);
+            $flags = array_values(array_filter($flags, static fn (string $flag): bool => $flag !== ''));
+            if ($flags === []) {
+                continue;
+            }
+
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $baseName = is_string($part['baseName'] ?? null)
+                ? $part['baseName']
+                : $this->packagePartBaseName($partName);
+            $partExtension = array_key_exists('partExtension', $part) && $part['partExtension'] !== null
+                ? (string) $part['partExtension']
+                : $this->packagePartExtension($partName);
+            $partExtensionKey = ($partExtension === null || $partExtension === '') ? '(none)' : $partExtension;
+            $contentType = is_string($part['contentType'] ?? null) ? $part['contentType'] : '';
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $roles = array_values(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            ));
+
+            if (!isset($directories[$directory])) {
+                $directories[$directory] = [
+                    'directory' => $directory,
+                    'directoryDepth' => is_int($part['directoryDepth'] ?? null)
+                        ? (int) $part['directoryDepth']
+                        : $this->packagePartDirectoryDepth($directory),
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'flags' => $flags,
+                    'flagPartCounts' => [],
+                    'baseNameCounts' => [],
+                    'partExtensionCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'roleCounts' => [],
+                    'contentTypes' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                    'reviewPolicy' => 'package-part-directory-name-character-metadata-only',
+                ];
+            }
+
+            ++$directories[$directory]['partCount'];
+            $directories[$directory]['byteLength'] += $bytes;
+            $partNames[$partName] = true;
+
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$directories[$directory]['relationshipPartCount'];
+            }
+            if ($contentTypeSource === 'missing') {
+                ++$directories[$directory]['missingContentTypePartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$directories[$directory]['parameterizedPartCount'];
+            }
+
+            foreach ($flags as $flag) {
+                $flagPartCounts[$flag] = ($flagPartCounts[$flag] ?? 0) + 1;
+                $flagDirectories[$flag][$directory] = true;
+                $flagPartNames[$flag][$partName] = true;
+                $directories[$directory]['flagPartCounts'][$flag] =
+                    ($directories[$directory]['flagPartCounts'][$flag] ?? 0) + 1;
+            }
+
+            $directories[$directory]['baseNameCounts'][$baseName] =
+                ($directories[$directory]['baseNameCounts'][$baseName] ?? 0) + 1;
+            $directories[$directory]['partExtensionCounts'][$partExtensionKey] =
+                ($directories[$directory]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+            $directories[$directory]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($directories[$directory]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            $directories[$directory]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($directories[$directory]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            foreach ($roles as $role) {
+                $directories[$directory]['roleCounts'][$role] =
+                    ($directories[$directory]['roleCounts'][$role] ?? 0) + 1;
+            }
+            $this->appendUniqueString($directories[$directory]['contentTypes'], $contentType);
+            $this->appendUniqueString($directories[$directory]['partNames'], $partName);
+
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'baseName' => $baseName,
+                'partExtension' => $partExtension,
+                'bytes' => $bytes,
+                'crc32' => is_string($part['crc32'] ?? null) ? $part['crc32'] : null,
+                'sha256' => is_string($part['sha256'] ?? null) ? $part['sha256'] : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => $roles,
+            ];
+            $largestPart = $directories[$directory]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $directories[$directory]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($flagPartCounts, SORT_STRING);
+        ksort($flagDirectories, SORT_STRING);
+        foreach ($flagDirectories as &$directoryNames) {
+            $directoryNames = array_keys($directoryNames);
+            sort($directoryNames, SORT_STRING);
+        }
+        unset($directoryNames);
+
+        ksort($flagPartNames, SORT_STRING);
+        foreach ($flagPartNames as &$flaggedPartNames) {
+            $flaggedPartNames = array_keys($flaggedPartNames);
+            sort($flaggedPartNames, SORT_STRING);
+        }
+        unset($flaggedPartNames);
+
+        ksort($directories, SORT_STRING);
+        foreach ($directories as &$directory) {
+            ksort($directory['flagPartCounts'], SORT_STRING);
+            ksort($directory['baseNameCounts'], SORT_STRING);
+            ksort($directory['partExtensionCounts'], SORT_STRING);
+            ksort($directory['contentTypeBaseCounts'], SORT_STRING);
+            ksort($directory['contentTypeSourceCounts'], SORT_STRING);
+            ksort($directory['roleCounts'], SORT_STRING);
+            sort($directory['flags'], SORT_STRING);
+            sort($directory['contentTypes'], SORT_STRING);
+            sort($directory['partNames'], SORT_STRING);
+        }
+        unset($directory);
+
+        $directoryNames = array_keys($directories);
+
+        return [
+            'directoryCount' => count($directories),
+            'partCount' => count($partNames),
+            'directoryNames' => $directoryNames,
+            'flagPartCounts' => $flagPartCounts,
+            'flagDirectories' => $flagDirectories,
+            'flagPartNames' => $flagPartNames,
+            'directories' => array_values($directories),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
      * @return array{partCount:int, sectionCount:int, byteLength:int, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool}
      */
     private function packagePartXmlCdataSectionSummary(array $partInventory): array
@@ -40241,6 +40434,9 @@ final class DocxOpenXmlReader
             }
             $partNameCharacterFlags = $this->packagePartNameCharacterFlags($partName);
             $baseNameCharacterFlags = $this->packagePartNameCharacterFlags($baseName);
+            $directoryNameCharacterFlags = ($directory === '' || $directory === '/')
+                ? []
+                : $this->packagePartNameCharacterFlags($directory);
             $xmlCdataSections = $this->packagePartXmlCdataSectionMetadata(
                 $contents,
                 $partName,
@@ -40320,6 +40516,11 @@ final class DocxOpenXmlReader
                 'baseNameHasWhitespace' => in_array('whitespace', $baseNameCharacterFlags, true),
                 'baseNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $baseNameCharacterFlags, true),
                 'baseNameHasNonAscii' => in_array('non-ascii', $baseNameCharacterFlags, true),
+                'directoryNameCharacterFlags' => $directoryNameCharacterFlags,
+                'directoryNameHasUppercase' => in_array('uppercase', $directoryNameCharacterFlags, true),
+                'directoryNameHasWhitespace' => in_array('whitespace', $directoryNameCharacterFlags, true),
+                'directoryNameHasPercentEncodedOctet' => in_array('percent-encoded-octet', $directoryNameCharacterFlags, true),
+                'directoryNameHasNonAscii' => in_array('non-ascii', $directoryNameCharacterFlags, true),
             ];
             if ($entry['isRelationshipPart']) {
                 $relationshipSourcePart = $this->relationshipSourcePartForInventory($partName);
