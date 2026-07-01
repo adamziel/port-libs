@@ -1165,6 +1165,125 @@ return [
         $t->same($profile, $raw['strictImport']['packagePartProfile']);
     },
 
+    'summarizes zip package manifest path buckets without changing manifest hash contract' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $typesXml = '<Types/>';
+        $packageRelationshipsXml = '<Relationships/>';
+        $documentXml = '<w:document/>';
+        $documentRelationshipsXml = '<Relationships><Relationship Id="r"/></Relationships>';
+        $lowerImageBytes = 'lower image bytes';
+        $upperImageBytes = 'upper image bytes';
+        $zip = $buildZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $typesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => $packageRelationshipsXml, 'method' => 0],
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 0],
+            ['name' => 'word/_rels/document.xml.rels', 'data' => $documentRelationshipsXml, 'method' => 0],
+            ['name' => 'word/media/image.png', 'data' => $lowerImageBytes, 'method' => 0],
+            ['name' => 'Word/Media/IMAGE.PNG', 'data' => $upperImageBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $expectedManifestJson = json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'entries' => array_map(
+                static fn (array $entry): array => [
+                    'name' => $entry['name'],
+                    'isDirectory' => $entry['isDirectory'],
+                    'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                    'localHeaderOrder' => $entry['localHeaderOrder'],
+                    'compressionMethod' => $entry['compressionMethod'],
+                    'crc32Hex' => $entry['crc32Hex'],
+                    'compressedSize' => $entry['compressedSize'],
+                    'uncompressedSize' => $entry['uncompressedSize'],
+                    'localHeaderSha256' => $entry['localHeaderSha256'],
+                    'compressedDataSha256' => $entry['compressedDataSha256'],
+                    'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+                ],
+                $manifest['entries']
+            ),
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+
+        $roots = array_column($manifest['directoryRootSummaries'], null, 'directoryRoot');
+        $parents = array_column($manifest['parentDirectorySummaries'], null, 'parentDirectory');
+        $kinds = array_column($manifest['packagePartKindSummaries'], null, 'packagePartKind');
+        $extensions = array_column($manifest['extensionSummaries'], null, 'extension');
+        $entryExtensions = array_column($manifest['entryExtensionSummaries'], null, 'extensionKey');
+        $depths = array_column($manifest['pathDepthSummaries'], null, 'pathDepth');
+        $prefixes = array_column($manifest['pathPrefixSummaries'], null, 'pathPrefix');
+        $caseFoldNameCollision = $manifest['caseFoldNameCollisionSummaries'][0];
+        $caseFoldLeafNameCollision = $manifest['caseFoldLeafNameCollisionSummaries'][0];
+
+        $t->same(hash('sha256', $expectedManifestJson), $manifest['manifestSha256']);
+        $t->same(7, $manifest['entryCount']);
+        $t->same(6, $manifest['fileEntryCount']);
+        $t->same(1, $manifest['directoryEntryCount']);
+        $t->same(4, $manifest['directoryRootCount']);
+        $t->same(6, $manifest['parentDirectoryCount']);
+        $t->same(6, $manifest['packagePartKindCount']);
+        $t->same(2, $manifest['mediaPartEntryCount']);
+        $t->same(1, $manifest['relationshipPartEntryCount']);
+        $t->same(1, $manifest['markupPartEntryCount']);
+        $t->same(0, $manifest['metadataPartEntryCount']);
+        $t->same(3, $manifest['extensionBucketCount']);
+        $t->same(0, $manifest['extensionlessFileEntryCount']);
+        $t->same(4, $manifest['entryExtensionBucketCount']);
+        $t->same(1, $manifest['extensionlessEntryCount']);
+        $t->same(3, $manifest['pathDepthBucketCount']);
+        $t->same(3, $manifest['maxPathDepth']);
+        $t->same(7, $manifest['pathPrefixCount']);
+        $t->same(1, $manifest['caseFoldNameCollisionCount']);
+        $t->same(2, $manifest['caseFoldNameCollisionEntryCount']);
+        $t->same(1, $manifest['caseFoldLeafNameCollisionCount']);
+        $t->same(2, $manifest['caseFoldLeafNameCollisionEntryCount']);
+
+        $t->same(1, $roots['/']['entryCount']);
+        $t->same(1, $roots['_rels/']['entryCount']);
+        $t->same(1, $roots['Word/']['entryCount']);
+        $t->same(4, $roots['word/']['entryCount']);
+        $t->same(2, $parents['word/']['entryCount']);
+        $t->same(1, $parents['word/_rels/']['entryCount']);
+        $t->same(1, $parents['word/media/']['entryCount']);
+        $t->same(1, $parents['Word/Media/']['entryCount']);
+        $t->same(1, $kinds['content-types']['entryCount']);
+        $t->same(1, $kinds['root-relationships']['entryCount']);
+        $t->same(1, $kinds['markup-part']['entryCount']);
+        $t->same(1, $kinds['relationship-part']['entryCount']);
+        $t->same(2, $kinds['media']['entryCount']);
+        $t->same(1, $kinds['directory']['directoryEntryCount']);
+        $t->same(2, $extensions['xml']['entryCount']);
+        $t->same(2, $extensions['rels']['entryCount']);
+        $t->same(2, $extensions['png']['entryCount']);
+        $t->same(1, $entryExtensions['(none)']['directoryEntryCount']);
+        $t->same(1, $depths[1]['entryCount']);
+        $t->same(3, $depths[2]['entryCount']);
+        $t->same(3, $depths[3]['entryCount']);
+        $t->same(7, $prefixes['/']['entryCount']);
+        $t->same(4, $prefixes['word/']['entryCount']);
+        $t->same(2, $prefixes['word/']['directChildEntryCount']);
+        $t->same(2, $prefixes['word/']['descendantEntryCount']);
+        $t->same(1, $prefixes['word/media/']['entryCount']);
+        $t->same(1, $prefixes['Word/Media/']['entryCount']);
+
+        $t->same('word/media/image.png', $caseFoldNameCollision['caseFoldName']);
+        $t->same(['word/media/image.png', 'Word/Media/IMAGE.PNG'], $caseFoldNameCollision['entryNames']);
+        $t->same(['Word/Media/IMAGE.PNG', 'word/media/image.png'], $caseFoldNameCollision['exactEntryNames']);
+        $t->same('image.png', $caseFoldLeafNameCollision['caseFoldLeafName']);
+        $t->same(['Word/Media/', 'word/media/'], $caseFoldLeafNameCollision['parentDirectories']);
+        $t->same(['IMAGE.PNG', 'image.png'], $caseFoldLeafNameCollision['leafNames']);
+
+        $t->same('word/media/image.png', $manifest['entries'][4]['caseFoldName']);
+        $t->same('image.png', $manifest['entries'][5]['caseFoldLeafName']);
+        $t->same(['/', 'Word/', 'Word/Media/'], $manifest['entries'][5]['pathPrefixes']);
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
     'summarizes zip package manifest source byte spans for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentName = 'word/document.xml';
         $commentsName = 'word/comments.xml';
