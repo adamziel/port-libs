@@ -972,6 +972,8 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlScopeCounts'] = $contentControls['scopeCounts'];
         $packageProvenance['summary']['contentControlStoreItemIds'] = $contentControls['storeItemIds'];
         $packageProvenance['summary']['contentControlMatchedStoreItemIds'] = $contentControls['matchedStoreItemIds'];
+        $packageProvenance['summary']['contentControlAliasCount'] = $contentControls['aliasCount'];
+        $packageProvenance['summary']['contentControlAliases'] = $contentControls['aliases'];
         $packageProvenance['summary']['contentControlTags'] = $contentControls['tags'];
         $packageProvenance['summary']['contentControlLockCount'] = $contentControls['lockCount'];
         $packageProvenance['summary']['contentControlLockValueCounts'] = $contentControls['lockValueCounts'];
@@ -10395,6 +10397,7 @@ final class DocxOpenXmlReader
         $matchedStoreItemIds = [];
         $byStoreItemId = [];
         $partNames = [];
+        $aliases = [];
         $tags = [];
         $lockValueCounts = [];
         $appearanceValueCounts = [];
@@ -10417,6 +10420,8 @@ final class DocxOpenXmlReader
                 $itemSourceType = is_string($item['sourceType'] ?? null) ? $item['sourceType'] : 'unknown';
                 $sourceTypeCounts[$itemSourceType] = ($sourceTypeCounts[$itemSourceType] ?? 0) + 1;
                 $this->appendUniqueString($partNames, is_string($item['partName'] ?? null) ? $item['partName'] : null);
+                $alias = is_string($item['alias'] ?? null) ? $item['alias'] : '';
+                $this->appendUniqueString($aliases, $alias === '' ? null : $alias);
                 $tag = is_string($item['tag'] ?? null) ? $item['tag'] : '';
                 $this->appendUniqueString($tags, $tag === '' ? null : $tag);
                 $lock = is_string($item['lock'] ?? null) ? $item['lock'] : '';
@@ -10491,6 +10496,8 @@ final class DocxOpenXmlReader
             'partNames' => $partNames,
             'storeItemIds' => $storeItemIds,
             'matchedStoreItemIds' => $matchedStoreItemIds,
+            'aliasCount' => count($aliases),
+            'aliases' => $aliases,
             'tags' => $tags,
             'lockCount' => array_sum($lockValueCounts),
             'lockValueCounts' => $lockValueCounts,
@@ -10565,6 +10572,8 @@ final class DocxOpenXmlReader
             'partNames' => [],
             'storeItemIds' => [],
             'matchedStoreItemIds' => [],
+            'aliasCount' => 0,
+            'aliases' => [],
             'tags' => [],
             'lockCount' => 0,
             'lockValueCounts' => [],
