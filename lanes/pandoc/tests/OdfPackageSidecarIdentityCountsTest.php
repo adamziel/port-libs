@@ -89,6 +89,35 @@ return [
         $richResult = (new OdfReader())->readPackage($package);
         $richProvenance = $richResult['importReport']['manifest']['packageProvenance'];
         $richIdentity = $richProvenance['packageIdentity'];
+        $expectedManifestByteExposurePolicyCounts = [
+            'configuration-package-bytes-blocked' => 1,
+            'directory-entry-no-bytes' => 1,
+            'embedded-object-package-bytes-blocked' => 2,
+            'font-package-bytes-blocked' => 1,
+            'layout-cache-package-bytes-blocked' => 1,
+            'object-replacement-package-bytes-blocked' => 1,
+            'package-bytes-exposable' => 1,
+            'package-root-no-bytes' => 1,
+            'package-thumbnail-bytes-blocked' => 1,
+            'rdf-metadata-bytes-blocked' => 1,
+            'script-package-bytes-blocked' => 1,
+            'signature-package-bytes-blocked' => 1,
+        ];
+        $expectedManifestByteExposurePolicyPaths = [
+            '/',
+            'content.xml',
+            'Thumbnails/thumbnail.png',
+            'META-INF/documentsignatures.xml',
+            'Basic/Standard/Review.xml',
+            'Configurations2/accelerator/current.xml',
+            'Fonts/ReviewSans.woff2',
+            'manifest.rdf',
+            'ObjectReplacements/preview.png',
+            'layout-cache',
+            'Object%20Chart/',
+            'Object%20Chart/content.xml',
+            'Object%20Chart/Pictures/preview.png',
+        ];
 
         $t->same($compactInventory['corePackagePartCount'], $compactIdentity['corePackagePartCount']);
         $t->same($compactInventory['mediaResourcePartCount'], $compactIdentity['mediaResourcePartCount']);
@@ -102,6 +131,12 @@ return [
         $t->same(1, $compactIdentity['fontPackagePartCount']);
         $t->same(1, $compactIdentity['rdfMetadataPartCount']);
         $t->same(1, $compactIdentity['layoutCachePartCount']);
+        $t->same($expectedManifestByteExposurePolicyCounts, $compactSummary['manifestReview']['manifestByteExposurePolicyCounts']);
+        $t->same(13, $compactSummary['manifestReview']['manifestByteExposurePolicyItemCount']);
+        $t->same($expectedManifestByteExposurePolicyPaths, array_column($compactSummary['manifestReview']['manifestByteExposurePolicyItems'], 'path'));
+        $t->same($expectedManifestByteExposurePolicyCounts, $compactIdentity['manifestByteExposurePolicyCounts']);
+        $t->same(13, $compactIdentity['manifestByteExposurePolicyItemCount']);
+        $t->same($expectedManifestByteExposurePolicyPaths, array_column($compactIdentity['manifestByteExposurePolicyItems'], 'path'));
 
         $t->same($richProvenance['corePackagePartCount'], $richIdentity['corePackagePartCount']);
         $t->same($richProvenance['mediaResourcePartCount'], $richIdentity['mediaResourcePartCount']);
@@ -115,6 +150,12 @@ return [
         $t->same(1, $richIdentity['packageFontPartCount']);
         $t->same(1, $richIdentity['rdfMetadataPartCount']);
         $t->same(1, $richIdentity['layoutCachePartCount']);
+        $t->same($expectedManifestByteExposurePolicyCounts, $richProvenance['manifestByteExposurePolicyCounts']);
+        $t->same(13, $richProvenance['manifestByteExposurePolicyItemCount']);
+        $t->same($expectedManifestByteExposurePolicyPaths, array_column($richProvenance['manifestByteExposurePolicyItems'], 'fullPath'));
+        $t->same($expectedManifestByteExposurePolicyCounts, $richIdentity['manifestByteExposurePolicyCounts']);
+        $t->same(13, $richIdentity['manifestByteExposurePolicyItemCount']);
+        $t->same($richProvenance['manifestByteExposurePolicyItems'], $richIdentity['manifestByteExposurePolicyItems']);
 
         $t->same($richProvenance, $richResult['document']->attr('manifest')['packageProvenance']);
         $t->same(false, $compactIdentity['canExposeBytes']);

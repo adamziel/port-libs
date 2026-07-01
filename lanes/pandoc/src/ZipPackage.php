@@ -5218,6 +5218,11 @@ final class ZipPackage
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
+     *     selectedDataDescriptorReviewIssueCount:int,
+     *     selectedDataDescriptorReviewIssues:list<string>,
+     *     selectedDataDescriptorEntryNamesByReviewIssue:array<string, list<string>>,
+     *     selectedDataDescriptorReviewIssueSummaryCount:int,
+     *     selectedDataDescriptorReviewIssueSummaries:list<array<string, mixed>>,
      *     selectedSourceByteSpanBucketCount:int,
      *     selectedSourceByteSpanBuckets:list<array<string, mixed>>,
      *     selectedSourceManifestVersion:string,
@@ -6080,6 +6085,14 @@ final class ZipPackage
         $selectedSourceManifest = self::selectedSourceByteSpanManifest($selectedSourceByteSpanEntries);
         $selectedSourceArchiveTrailer = $this->selectedSourceArchiveTrailerHandoffProvenance();
         $selectedHandoffManifest = self::selectedEntryHandoffManifest($entries, $issues);
+        $selectedDataDescriptorReviewIssueSummaries = self::selectedDataDescriptorReviewIssueSummaries($selectedDataDescriptorProvenanceEntries);
+        $selectedDataDescriptorReviewIssues = [];
+        $selectedDataDescriptorEntryNamesByReviewIssue = [];
+        foreach ($selectedDataDescriptorReviewIssueSummaries as $issueSummary) {
+            $issue = (string) $issueSummary['issue'];
+            $selectedDataDescriptorReviewIssues[] = $issue;
+            $selectedDataDescriptorEntryNamesByReviewIssue[$issue] = $issueSummary['entryNames'];
+        }
 
         return [
             'requestedEntryCount' => count($requests),
@@ -6165,6 +6178,11 @@ final class ZipPackage
             'selectedDataDescriptorValuesMatchCentralEntryCount' => $selectedDataDescriptorValuesMatchCentralEntryCount,
             'selectedDataDescriptorIssueEntryCount' => count($selectedDataDescriptorIssueEntries),
             'selectedDataDescriptorIssues' => $selectedDataDescriptorIssues,
+            'selectedDataDescriptorReviewIssueCount' => count($selectedDataDescriptorReviewIssues),
+            'selectedDataDescriptorReviewIssues' => $selectedDataDescriptorReviewIssues,
+            'selectedDataDescriptorEntryNamesByReviewIssue' => $selectedDataDescriptorEntryNamesByReviewIssue,
+            'selectedDataDescriptorReviewIssueSummaryCount' => count($selectedDataDescriptorReviewIssueSummaries),
+            'selectedDataDescriptorReviewIssueSummaries' => $selectedDataDescriptorReviewIssueSummaries,
             'selectedSourceByteSpanEntryCount' => count($selectedSourceByteSpanEntries),
             'selectedSourceLocalRecordBytes' => $selectedSourceLocalRecordBytes,
             'selectedSourceLocalHeaderBytes' => $selectedSourceLocalHeaderBytes,
@@ -6239,6 +6257,7 @@ final class ZipPackage
             'selectedCentralDirectoryFixedFieldIssueEntries' => $selectedCentralDirectoryFixedFieldIssueEntries,
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
+            'selectedDataDescriptorReviewIssueSummaries' => $selectedDataDescriptorReviewIssueSummaries,
             'selectedSourceByteSpanBuckets' => $selectedSourceByteSpanBuckets,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'selectedSourceArchiveTrailer' => $selectedSourceArchiveTrailer,
@@ -6758,6 +6777,121 @@ final class ZipPackage
         return $manifestPayload + [
             'manifestSha256' => hash('sha256', $manifestJson),
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function selectedDataDescriptorReviewIssueSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $entryName = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            foreach (self::selectedDataDescriptorReviewIssuesForEntry($entry) as $issue) {
+                if (!isset($summaries[$issue])) {
+                    $summaries[$issue] = [
+                        'issue' => $issue,
+                        'entryCount' => 0,
+                        'entryNames' => [],
+                        'signedEntryCount' => 0,
+                        'unsignedEntryCount' => 0,
+                        'zip64SizedEntryCount' => 0,
+                        'zeroLocalHeaderPlaceholderEntryCount' => 0,
+                        'centralValueMatchEntryCount' => 0,
+                        'descriptorBytes' => 0,
+                        'descriptorSpanBytes' => 0,
+                        'surplusDescriptorBytes' => 0,
+                        'truncatedDescriptorBytes' => 0,
+                        'compressedBytes' => 0,
+                        'uncompressedBytes' => 0,
+                        'descriptorOffsets' => [],
+                        'descriptorValueOffsets' => [],
+                        'descriptorEnds' => [],
+                    ];
+                }
+
+                ++$summaries[$issue]['entryCount'];
+                if ($entryName !== '' && !in_array($entryName, $summaries[$issue]['entryNames'], true)) {
+                    $summaries[$issue]['entryNames'][] = $entryName;
+                }
+                if (($entry['dataDescriptorHasSignature'] ?? null) === true) {
+                    ++$summaries[$issue]['signedEntryCount'];
+                } elseif (($entry['dataDescriptorHasSignature'] ?? null) === false) {
+                    ++$summaries[$issue]['unsignedEntryCount'];
+                }
+                if (($entry['dataDescriptorUsesZip64SizedFields'] ?? false) === true) {
+                    ++$summaries[$issue]['zip64SizedEntryCount'];
+                }
+                if (($entry['hasZeroLocalHeaderPlaceholders'] ?? null) === true) {
+                    ++$summaries[$issue]['zeroLocalHeaderPlaceholderEntryCount'];
+                }
+                if (($entry['dataDescriptorValuesMatchCentral'] ?? null) === true) {
+                    ++$summaries[$issue]['centralValueMatchEntryCount'];
+                }
+
+                $summaries[$issue]['descriptorBytes'] += (int) ($entry['dataDescriptorLength'] ?? 0);
+                $summaries[$issue]['descriptorSpanBytes'] += (int) ($entry['dataDescriptorSpan'] ?? 0);
+                $summaries[$issue]['surplusDescriptorBytes'] += (int) ($entry['dataDescriptorSurplusBytes'] ?? 0);
+                $summaries[$issue]['truncatedDescriptorBytes'] += (int) ($entry['dataDescriptorTruncatedBytes'] ?? 0);
+                $summaries[$issue]['compressedBytes'] += (int) ($entry['dataDescriptorCompressedSize'] ?? 0);
+                $summaries[$issue]['uncompressedBytes'] += (int) ($entry['dataDescriptorUncompressedSize'] ?? 0);
+                if (is_int($entry['dataDescriptorOffset'] ?? null)
+                    && !in_array($entry['dataDescriptorOffset'], $summaries[$issue]['descriptorOffsets'], true)) {
+                    $summaries[$issue]['descriptorOffsets'][] = $entry['dataDescriptorOffset'];
+                }
+                if (is_int($entry['dataDescriptorValueOffset'] ?? null)
+                    && !in_array($entry['dataDescriptorValueOffset'], $summaries[$issue]['descriptorValueOffsets'], true)) {
+                    $summaries[$issue]['descriptorValueOffsets'][] = $entry['dataDescriptorValueOffset'];
+                }
+                if (is_int($entry['dataDescriptorEnd'] ?? null)
+                    && !in_array($entry['dataDescriptorEnd'], $summaries[$issue]['descriptorEnds'], true)) {
+                    $summaries[$issue]['descriptorEnds'][] = $entry['dataDescriptorEnd'];
+                }
+            }
+        }
+
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['descriptorOffsets'], SORT_NUMERIC);
+            sort($summary['descriptorValueOffsets'], SORT_NUMERIC);
+            sort($summary['descriptorEnds'], SORT_NUMERIC);
+        }
+        unset($summary);
+
+        return array_values($summaries);
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return list<string>
+     */
+    private static function selectedDataDescriptorReviewIssuesForEntry(array $entry): array
+    {
+        if (($entry['usesDataDescriptor'] ?? false) !== true) {
+            return [];
+        }
+
+        $issues = ['data-descriptor-entry'];
+        if (($entry['dataDescriptorHasSignature'] ?? null) === true) {
+            $issues[] = 'signed-data-descriptor-entry';
+        } elseif (($entry['dataDescriptorHasSignature'] ?? null) === false) {
+            $issues[] = 'unsigned-data-descriptor-entry';
+        }
+        if (($entry['dataDescriptorUsesZip64SizedFields'] ?? false) === true) {
+            $issues[] = 'zip64-sized-data-descriptor-entry';
+        }
+        if (($entry['hasZeroLocalHeaderPlaceholders'] ?? null) === false) {
+            $issues[] = 'data-descriptor-local-header-placeholders-not-zero';
+        }
+        foreach (array_values(array_filter($entry['dataDescriptorIssues'] ?? [], 'is_string')) as $issue) {
+            if (!in_array($issue, $issues, true)) {
+                $issues[] = $issue;
+            }
+        }
+
+        return $issues;
     }
 
     /**
