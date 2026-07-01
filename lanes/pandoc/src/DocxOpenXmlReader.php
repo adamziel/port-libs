@@ -18587,6 +18587,18 @@ final class DocxOpenXmlReader
             'duplicateContentTypeOverrideCaseFoldPartNames' => $contentTypesPart['duplicateOverrideCaseFoldPartNames'] ?? [],
             'duplicateContentTypeOverrideCaseFoldPartNameVariants' => $contentTypesPart['duplicateOverrideCaseFoldPartNameVariants'] ?? [],
             'duplicateContentTypeOverrideCaseFoldPartGroups' => $contentTypesPart['duplicateOverrideCaseFoldPartGroups'] ?? [],
+            'contentTypeOverrideBaseNameStemCount' => (int) ($contentTypesPart['overrideBaseNameStemCount'] ?? 0),
+            'contentTypeOverrideBaseNameStemCounts' => $contentTypesPart['overrideBaseNameStemCounts'] ?? [],
+            'duplicateContentTypeOverrideBaseNameStemCount' => (int) ($contentTypesPart['duplicateOverrideBaseNameStemCount'] ?? 0),
+            'duplicateContentTypeOverrideBaseNameStemDeclarationCount' => (int) ($contentTypesPart['duplicateOverrideBaseNameStemDeclarationCount'] ?? 0),
+            'duplicateContentTypeOverrideBaseNameStems' => $contentTypesPart['duplicateOverrideBaseNameStems'] ?? [],
+            'duplicateContentTypeOverrideBaseNameStemGroups' => $contentTypesPart['duplicateOverrideBaseNameStemGroups'] ?? [],
+            'contentTypeOverrideCaseFoldBaseNameStemCount' => (int) ($contentTypesPart['overrideCaseFoldBaseNameStemCount'] ?? 0),
+            'contentTypeOverrideCaseFoldBaseNameStemCounts' => $contentTypesPart['overrideCaseFoldBaseNameStemCounts'] ?? [],
+            'duplicateContentTypeOverrideCaseFoldBaseNameStemCount' => (int) ($contentTypesPart['duplicateOverrideCaseFoldBaseNameStemCount'] ?? 0),
+            'duplicateContentTypeOverrideCaseFoldBaseNameStemDeclarationCount' => (int) ($contentTypesPart['duplicateOverrideCaseFoldBaseNameStemDeclarationCount'] ?? 0),
+            'duplicateContentTypeOverrideCaseFoldBaseNameStems' => $contentTypesPart['duplicateOverrideCaseFoldBaseNameStems'] ?? [],
+            'duplicateContentTypeOverrideCaseFoldBaseNameStemGroups' => $contentTypesPart['duplicateOverrideCaseFoldBaseNameStemGroups'] ?? [],
             'contentTypeSourceCounts' => $contentTypeSourceCounts,
             'contentTypeSourceByteLengths' => $contentTypeSourceByteLengths,
             'contentTypeBaseCounts' => $contentTypeBaseCounts,
@@ -31014,6 +31026,16 @@ final class DocxOpenXmlReader
         $defaultDeclarationSummary = $this->contentTypeDefaultDeclarationSummary($parts, $contentTypes);
         $overrideDeclarationSummary = $this->contentTypeOverrideDeclarationSummary($parts, $overrides);
         $overrideCaseFoldPartSummary = $this->contentTypeOverrideCaseFoldPartSummary($parts, $overrides);
+        $overrideBaseNameStemSummary = $this->contentTypeOverrideBaseNameStemSummary(
+            $parts,
+            $overrideDeclarationSummary['declarations'],
+            false,
+        );
+        $overrideCaseFoldBaseNameStemSummary = $this->contentTypeOverrideBaseNameStemSummary(
+            $parts,
+            $overrideDeclarationSummary['declarations'],
+            true,
+        );
         $missingOverrides = array_values(array_filter(
             $overrideDeclarationSummary['declarations'],
             static fn (array $declaration): bool => ($declaration['exists'] ?? true) === false,
@@ -31068,6 +31090,18 @@ final class DocxOpenXmlReader
             'duplicateOverrideCaseFoldPartNames' => $overrideCaseFoldPartSummary['duplicateCaseFoldPartNames'],
             'duplicateOverrideCaseFoldPartNameVariants' => $overrideCaseFoldPartSummary['duplicatePartNameVariants'],
             'duplicateOverrideCaseFoldPartGroups' => $overrideCaseFoldPartSummary['duplicateGroups'],
+            'overrideBaseNameStemCount' => $overrideBaseNameStemSummary['stemCount'],
+            'overrideBaseNameStemCounts' => $overrideBaseNameStemSummary['stemCounts'],
+            'duplicateOverrideBaseNameStemCount' => $overrideBaseNameStemSummary['duplicateStemCount'],
+            'duplicateOverrideBaseNameStemDeclarationCount' => $overrideBaseNameStemSummary['duplicateDeclarationCount'],
+            'duplicateOverrideBaseNameStems' => $overrideBaseNameStemSummary['duplicateStems'],
+            'duplicateOverrideBaseNameStemGroups' => $overrideBaseNameStemSummary['duplicateGroups'],
+            'overrideCaseFoldBaseNameStemCount' => $overrideCaseFoldBaseNameStemSummary['stemCount'],
+            'overrideCaseFoldBaseNameStemCounts' => $overrideCaseFoldBaseNameStemSummary['stemCounts'],
+            'duplicateOverrideCaseFoldBaseNameStemCount' => $overrideCaseFoldBaseNameStemSummary['duplicateStemCount'],
+            'duplicateOverrideCaseFoldBaseNameStemDeclarationCount' => $overrideCaseFoldBaseNameStemSummary['duplicateDeclarationCount'],
+            'duplicateOverrideCaseFoldBaseNameStems' => $overrideCaseFoldBaseNameStemSummary['duplicateStems'],
+            'duplicateOverrideCaseFoldBaseNameStemGroups' => $overrideCaseFoldBaseNameStemSummary['duplicateGroups'],
             'missingOverrideCount' => count($missingOverrides),
             'missingOverrideParts' => array_column($missingOverrides, 'partName'),
             'missingOverrides' => $missingOverrides,
@@ -31585,6 +31619,209 @@ final class DocxOpenXmlReader
     }
 
     /**
+     * @param array<string, string> $parts
+     * @param list<array<string, mixed>> $declarations
+     * @return array<string, mixed>
+     */
+    private function contentTypeOverrideBaseNameStemSummary(array $parts, array $declarations, bool $caseFold): array
+    {
+        $groups = [];
+        foreach ($declarations as $declaration) {
+            $partName = is_string($declaration['partName'] ?? null) ? $declaration['partName'] : '';
+            if ($partName === '') {
+                continue;
+            }
+
+            $baseName = $this->packagePartBaseName($partName);
+            $baseNameStem = $this->packagePartBaseNameStem($partName);
+            $stemKey = $caseFold ? $this->packagePartCaseFoldKey($baseNameStem) : $baseNameStem;
+            $keyField = $caseFold ? 'caseFoldBaseNameStem' : 'baseNameStem';
+            if (!isset($groups[$stemKey])) {
+                $groups[$stemKey] = [
+                    $keyField => $stemKey,
+                    'declarationCount' => 0,
+                    'existingDeclarationCount' => 0,
+                    'missingDeclarationCount' => 0,
+                    'invalidDeclarationCount' => 0,
+                    'parameterizedDeclarationCount' => 0,
+                    'relationshipPartDeclarationCount' => 0,
+                    'existingPartByteLength' => 0,
+                    'baseNameVariantCount' => 0,
+                    'partExtensionVariantCount' => 0,
+                    'baseNameCounts' => [],
+                    'partNameCounts' => [],
+                    'directoryCounts' => [],
+                    'partExtensionCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeParameterNameCounts' => [],
+                    'roleCounts' => [],
+                    'issueCounts' => [],
+                    'partNames' => [],
+                    'existingPartNames' => [],
+                    'missingPartNames' => [],
+                    'largestExistingPart' => null,
+                    '_seenExistingPartNames' => [],
+                ];
+                if ($caseFold) {
+                    $groups[$stemKey]['baseNameStemVariantCount'] = 0;
+                    $groups[$stemKey]['baseNameStemCounts'] = [];
+                }
+            }
+
+            ++$groups[$stemKey]['declarationCount'];
+            $groups[$stemKey]['partNameCounts'][$partName] =
+                (int) ($groups[$stemKey]['partNameCounts'][$partName] ?? 0) + 1;
+            $groups[$stemKey]['baseNameCounts'][$baseName] =
+                (int) ($groups[$stemKey]['baseNameCounts'][$baseName] ?? 0) + 1;
+            if ($caseFold) {
+                $groups[$stemKey]['baseNameStemCounts'][$baseNameStem] =
+                    (int) ($groups[$stemKey]['baseNameStemCounts'][$baseNameStem] ?? 0) + 1;
+            }
+            $this->appendUniqueString($groups[$stemKey]['partNames'], $partName);
+
+            $exists = ($declaration['exists'] ?? false) === true && isset($parts[$partName]);
+            if ($exists) {
+                ++$groups[$stemKey]['existingDeclarationCount'];
+                $this->appendUniqueString($groups[$stemKey]['existingPartNames'], $partName);
+            } else {
+                ++$groups[$stemKey]['missingDeclarationCount'];
+                $this->appendUniqueString($groups[$stemKey]['missingPartNames'], $partName);
+            }
+
+            if (($declaration['valid'] ?? true) !== true) {
+                ++$groups[$stemKey]['invalidDeclarationCount'];
+            }
+            if (($declaration['relationshipPart'] ?? false) === true) {
+                ++$groups[$stemKey]['relationshipPartDeclarationCount'];
+            }
+
+            $directory = $this->packagePartDirectory($partName);
+            $groups[$stemKey]['directoryCounts'][$directory] =
+                (int) ($groups[$stemKey]['directoryCounts'][$directory] ?? 0) + 1;
+
+            $partExtension = $this->packagePartExtension($partName);
+            $partExtensionKey = $partExtension ?? '(none)';
+            $groups[$stemKey]['partExtensionCounts'][$partExtensionKey] =
+                (int) ($groups[$stemKey]['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+
+            $contentTypeBase = is_string($declaration['contentTypeBase'] ?? null)
+                ? $declaration['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $groups[$stemKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                (int) ($groups[$stemKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+
+            $parameterMap = is_array($declaration['contentTypeParameterMap'] ?? null)
+                ? $declaration['contentTypeParameterMap']
+                : [];
+            if ($parameterMap !== []) {
+                ++$groups[$stemKey]['parameterizedDeclarationCount'];
+            }
+            foreach ($parameterMap as $parameterName => $_parameterValue) {
+                if (is_string($parameterName) && $parameterName !== '') {
+                    $groups[$stemKey]['contentTypeParameterNameCounts'][$parameterName] =
+                        (int) ($groups[$stemKey]['contentTypeParameterNameCounts'][$parameterName] ?? 0) + 1;
+                }
+            }
+
+            foreach ($this->contentTypeOverrideDeclarationRoles($declaration) as $role) {
+                $groups[$stemKey]['roleCounts'][$role] =
+                    (int) ($groups[$stemKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+            foreach (array_values(array_map('strval', is_array($declaration['issues'] ?? null) ? $declaration['issues'] : [])) as $issue) {
+                if ($issue === '') {
+                    continue;
+                }
+                $groups[$stemKey]['issueCounts'][$issue] =
+                    (int) ($groups[$stemKey]['issueCounts'][$issue] ?? 0) + 1;
+            }
+
+            if (!$exists || isset($groups[$stemKey]['_seenExistingPartNames'][$partName])) {
+                continue;
+            }
+
+            $groups[$stemKey]['_seenExistingPartNames'][$partName] = true;
+            $bytes = strlen($parts[$partName]);
+            $groups[$stemKey]['existingPartByteLength'] += $bytes;
+            $partSummary = [
+                'partName' => $partName,
+                'directory' => $directory,
+                'baseName' => $baseName,
+                'baseNameStem' => $baseNameStem,
+                'caseFoldBaseNameStem' => $this->packagePartCaseFoldKey($baseNameStem),
+                'partExtension' => $partExtension,
+                'bytes' => $bytes,
+                'sha256' => hash('sha256', $parts[$partName]),
+                'contentType' => is_string($declaration['contentType'] ?? null) ? $declaration['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeHasParameters' => (bool) ($declaration['contentTypeHasParameters'] ?? false),
+                'contentTypeParameterMap' => $parameterMap,
+                'roles' => $this->contentTypeOverrideDeclarationRoles($declaration),
+            ];
+            $largestExistingPart = $groups[$stemKey]['largestExistingPart'];
+            if (
+                !is_array($largestExistingPart)
+                || $bytes > (int) ($largestExistingPart['bytes'] ?? 0)
+                || (
+                    $bytes === (int) ($largestExistingPart['bytes'] ?? 0)
+                    && strcmp($partName, (string) ($largestExistingPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $groups[$stemKey]['largestExistingPart'] = $partSummary;
+            }
+        }
+
+        ksort($groups, SORT_STRING);
+
+        $duplicateGroups = [];
+        $duplicateStems = [];
+        $duplicateDeclarationCount = 0;
+        $stemCounts = [];
+        foreach ($groups as $stem => &$group) {
+            ksort($group['baseNameCounts'], SORT_STRING);
+            ksort($group['partNameCounts'], SORT_STRING);
+            ksort($group['directoryCounts'], SORT_STRING);
+            ksort($group['partExtensionCounts'], SORT_STRING);
+            ksort($group['contentTypeBaseCounts'], SORT_STRING);
+            ksort($group['contentTypeParameterNameCounts'], SORT_STRING);
+            ksort($group['roleCounts'], SORT_STRING);
+            ksort($group['issueCounts'], SORT_STRING);
+            sort($group['partNames'], SORT_STRING);
+            sort($group['existingPartNames'], SORT_STRING);
+            sort($group['missingPartNames'], SORT_STRING);
+            if ($caseFold) {
+                ksort($group['baseNameStemCounts'], SORT_STRING);
+                $group['baseNameStemVariantCount'] = count($group['baseNameStemCounts']);
+            }
+            $group['baseNameVariantCount'] = count($group['baseNameCounts']);
+            $group['partExtensionVariantCount'] = count($group['partExtensionCounts']);
+            unset($group['_seenExistingPartNames']);
+
+            $declarationCount = (int) $group['declarationCount'];
+            $stemCounts[(string) $stem] = $declarationCount;
+            if ($declarationCount < 2) {
+                continue;
+            }
+
+            $duplicateGroups[] = $group;
+            $duplicateStems[] = (string) $stem;
+            $duplicateDeclarationCount += $declarationCount;
+        }
+        unset($group);
+
+        sort($duplicateStems, SORT_STRING);
+
+        return [
+            'stemCount' => count($groups),
+            'stemCounts' => $stemCounts,
+            'duplicateStemCount' => count($duplicateGroups),
+            'duplicateDeclarationCount' => $duplicateDeclarationCount,
+            'duplicateStems' => $duplicateStems,
+            'duplicateGroups' => $duplicateGroups,
+        ];
+    }
+
+    /**
      * @param list<array<string, mixed>> $missingOverrides
      * @return array<string, mixed>
      */
@@ -31683,6 +31920,30 @@ final class DocxOpenXmlReader
             'directoryCounts' => $directoryCounts,
             'extensionCounts' => $extensionCounts,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $declaration
+     * @return list<string>
+     */
+    private function contentTypeOverrideDeclarationRoles(array $declaration): array
+    {
+        $roles = ['content-type-override-target'];
+        $roles[] = ($declaration['exists'] ?? false) === true ? 'existing-package-part' : 'missing-package-part';
+        if (($declaration['relationshipPart'] ?? false) === true) {
+            $roles[] = 'relationship-part';
+            if (($declaration['relationshipSourceExists'] ?? null) === false) {
+                $roles[] = 'missing-relationship-source';
+            }
+        }
+
+        $contentTypeBase = is_string($declaration['contentTypeBase'] ?? null) ? $declaration['contentTypeBase'] : '';
+        $contentTypeRole = $this->contentTypeBaseInventoryRole($contentTypeBase);
+        if ($contentTypeRole !== null) {
+            $roles[] = $contentTypeRole;
+        }
+
+        return array_values(array_unique($roles));
     }
 
     /**
