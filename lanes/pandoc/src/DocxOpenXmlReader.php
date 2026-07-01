@@ -13113,6 +13113,11 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPackageAreaByteLengths'] = $packageIdentity['packageAreaByteLengths'];
         $summary['packageIdentityPackageAreaCompressedByteLengths'] =
             $packageIdentity['packageAreaCompressedByteLengths'];
+        $summary['packageIdentityPackageCrc32EntryCount'] = $packageIdentity['packageCrc32EntryCount'];
+        $summary['packageIdentityPackageCrc32Count'] = $packageIdentity['packageCrc32Count'];
+        $summary['packageIdentityPackageDuplicateCrc32Count'] = $packageIdentity['packageDuplicateCrc32Count'];
+        $summary['packageIdentityPackageDuplicateCrc32EntryCount'] =
+            $packageIdentity['packageDuplicateCrc32EntryCount'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -15994,6 +15999,7 @@ final class DocxOpenXmlReader
         $partRoles = $this->packagePartRoleSummary($partInventory);
         $largestParts = $this->largestPackagePartSummary($partInventory);
         $largestPart = $largestParts[0] ?? null;
+        $packageCrc32 = $this->packageCrc32Summary($partInventory);
         $duplicatePartDigests = $this->duplicatePackagePartDigestSummary($partInventory);
         $duplicatePartDigestPartCount = 0;
         $duplicatePartDigestByteLength = 0;
@@ -19754,6 +19760,17 @@ final class DocxOpenXmlReader
             'largestPartCount' => count($largestParts),
             'largestPartName' => $largestPart['partName'] ?? null,
             'largestPartBytes' => $largestPart['bytes'] ?? 0,
+            'packageCrc32EntryCount' => $packageCrc32['packageCrc32EntryCount'],
+            'packageCrc32Count' => $packageCrc32['packageCrc32Count'],
+            'packageDuplicateCrc32Count' => $packageCrc32['packageDuplicateCrc32Count'],
+            'packageDuplicateCrc32EntryCount' => $packageCrc32['packageDuplicateCrc32EntryCount'],
+            'packageCrc32Counts' => $packageCrc32['packageCrc32Counts'],
+            'packageCrc32ByteLengths' => $packageCrc32['packageCrc32ByteLengths'],
+            'packageCrc32CompressedByteLengths' => $packageCrc32['packageCrc32CompressedByteLengths'],
+            'packageCrc32SourceRecordBytes' => $packageCrc32['packageCrc32SourceRecordBytes'],
+            'entryNamesByPackageCrc32' => $packageCrc32['entryNamesByPackageCrc32'],
+            'packageCrc32Summaries' => $packageCrc32['packageCrc32Summaries'],
+            'packageDuplicateCrc32Summaries' => $packageCrc32['packageDuplicateCrc32Summaries'],
             'duplicatePartDigestGroupCount' => count($duplicatePartDigests),
             'duplicatePartDigestPartCount' => $duplicatePartDigestPartCount,
             'duplicatePartDigestByteLength' => $duplicatePartDigestByteLength,
@@ -21148,6 +21165,172 @@ final class DocxOpenXmlReader
         );
 
         return array_slice($items, 0, max(0, $limit));
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function packageCrc32Summary(array $partInventory): array
+    {
+        $groups = [];
+        foreach ($partInventory as $partName => $part) {
+            $crc32 = is_string($part['crc32'] ?? null) ? strtolower($part['crc32']) : '';
+            if ($crc32 === '') {
+                continue;
+            }
+
+            if (!isset($groups[$crc32])) {
+                $groups[$crc32] = [
+                    'crc32' => $crc32,
+                    'entryCount' => 0,
+                    'partCount' => 0,
+                    'entryNames' => [],
+                    'partNames' => [],
+                    'byteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'sourceRecordBytes' => 0,
+                    'exposableEntryCount' => 0,
+                    'blockedEntryCount' => 0,
+                    'relationshipPartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'zipEntryPresentCount' => 0,
+                    'sourceRecordEntryCount' => 0,
+                    'packageAreaCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'roleCounts' => [],
+                ];
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $compressedBytes = is_int($part['compressedByteLength'] ?? null)
+                ? (int) $part['compressedByteLength']
+                : $bytes;
+            $sourceRecordBytes = is_int($part['sourceRecordBytes'] ?? null)
+                ? (int) $part['sourceRecordBytes']
+                : 0;
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $packageArea = is_string($part['packageArea'] ?? null)
+                ? $part['packageArea']
+                : $this->packagePartArea($partName);
+            $compressionMethod = is_string($part['compressionMethodName'] ?? null) && $part['compressionMethodName'] !== ''
+                ? $part['compressionMethodName']
+                : null;
+            if ($compressionMethod === null && is_int($part['compressionMethod'] ?? null)) {
+                $compressionMethod = self::zipCompressionMethodName((int) $part['compressionMethod']);
+            }
+            $compressionMethodKey = $compressionMethod ?? '(missing)';
+            $byteExposurePolicy = $this->packagePartByteExposurePolicy($part);
+            $canExposeBytes = ($part['canExposeBytes'] ?? false) === true || ($part['zipCanExposeBytes'] ?? false) === true;
+            $roles = array_values(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== '',
+            ));
+            if ($roles === []) {
+                $roles = ['package-part'];
+            }
+
+            ++$groups[$crc32]['entryCount'];
+            ++$groups[$crc32]['partCount'];
+            $groups[$crc32]['entryNames'][] = $partName;
+            $groups[$crc32]['partNames'][] = $partName;
+            $groups[$crc32]['byteLength'] += $bytes;
+            $groups[$crc32]['compressedByteLength'] += $compressedBytes;
+            $groups[$crc32]['sourceRecordBytes'] += $sourceRecordBytes;
+            if ($canExposeBytes) {
+                ++$groups[$crc32]['exposableEntryCount'];
+            } else {
+                ++$groups[$crc32]['blockedEntryCount'];
+            }
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$groups[$crc32]['relationshipPartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$groups[$crc32]['parameterizedPartCount'];
+            }
+            if ($contentTypeSource === 'missing') {
+                ++$groups[$crc32]['missingContentTypePartCount'];
+            }
+            if (($part['zipEntryPresent'] ?? false) === true) {
+                ++$groups[$crc32]['zipEntryPresentCount'];
+            }
+            if ($sourceRecordBytes > 0) {
+                ++$groups[$crc32]['sourceRecordEntryCount'];
+            }
+
+            $groups[$crc32]['packageAreaCounts'][$packageArea] =
+                ($groups[$crc32]['packageAreaCounts'][$packageArea] ?? 0) + 1;
+            $groups[$crc32]['compressionMethodCounts'][$compressionMethodKey] =
+                ($groups[$crc32]['compressionMethodCounts'][$compressionMethodKey] ?? 0) + 1;
+            $groups[$crc32]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($groups[$crc32]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $groups[$crc32]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($groups[$crc32]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            $groups[$crc32]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($groups[$crc32]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            foreach ($roles as $role) {
+                $groups[$crc32]['roleCounts'][$role] =
+                    ($groups[$crc32]['roleCounts'][$role] ?? 0) + 1;
+            }
+        }
+
+        ksort($groups, SORT_STRING);
+        $counts = [];
+        $byteLengths = [];
+        $compressedByteLengths = [];
+        $sourceRecordBytes = [];
+        $entryNamesByCrc32 = [];
+        $summaries = [];
+        $duplicateSummaries = [];
+        $duplicateEntryCount = 0;
+        foreach ($groups as $crc32 => $summary) {
+            $summary['entryNames'] = array_values(array_unique(array_map('strval', $summary['entryNames'])));
+            sort($summary['entryNames'], SORT_STRING);
+            $summary['partNames'] = $summary['entryNames'];
+            ksort($summary['packageAreaCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+
+            $counts[$crc32] = (int) $summary['entryCount'];
+            $byteLengths[$crc32] = (int) $summary['byteLength'];
+            $compressedByteLengths[$crc32] = (int) $summary['compressedByteLength'];
+            $sourceRecordBytes[$crc32] = (int) $summary['sourceRecordBytes'];
+            $entryNamesByCrc32[$crc32] = $summary['entryNames'];
+            $summaries[] = $summary;
+            if ((int) $summary['entryCount'] > 1) {
+                $duplicateSummaries[] = $summary;
+                $duplicateEntryCount += (int) $summary['entryCount'];
+            }
+        }
+
+        return [
+            'packageCrc32EntryCount' => array_sum($counts),
+            'packageCrc32Count' => count($counts),
+            'packageDuplicateCrc32Count' => count($duplicateSummaries),
+            'packageDuplicateCrc32EntryCount' => $duplicateEntryCount,
+            'packageCrc32Counts' => $counts,
+            'packageCrc32ByteLengths' => $byteLengths,
+            'packageCrc32CompressedByteLengths' => $compressedByteLengths,
+            'packageCrc32SourceRecordBytes' => $sourceRecordBytes,
+            'entryNamesByPackageCrc32' => $entryNamesByCrc32,
+            'packageCrc32Summaries' => $summaries,
+            'packageDuplicateCrc32Summaries' => $duplicateSummaries,
+        ];
     }
 
     /**
@@ -44607,6 +44790,29 @@ final class DocxOpenXmlReader
             'entryNamesByPackageArea' => $this->packageIdentityStringListMap(
                 $summary['partNamesByPackageArea'] ?? []
             ),
+            'packageCrc32EntryCount' => (int) ($summary['packageCrc32EntryCount'] ?? 0),
+            'packageCrc32Count' => (int) ($summary['packageCrc32Count'] ?? 0),
+            'packageDuplicateCrc32Count' => (int) ($summary['packageDuplicateCrc32Count'] ?? 0),
+            'packageDuplicateCrc32EntryCount' => (int) ($summary['packageDuplicateCrc32EntryCount'] ?? 0),
+            'packageCrc32Counts' => $this->packageIdentityCountMap($summary['packageCrc32Counts'] ?? []),
+            'packageCrc32ByteLengths' => $this->packageIdentityCountMap(
+                $summary['packageCrc32ByteLengths'] ?? []
+            ),
+            'packageCrc32CompressedByteLengths' => $this->packageIdentityCountMap(
+                $summary['packageCrc32CompressedByteLengths'] ?? []
+            ),
+            'packageCrc32SourceRecordBytes' => $this->packageIdentityCountMap(
+                $summary['packageCrc32SourceRecordBytes'] ?? []
+            ),
+            'entryNamesByPackageCrc32' => $this->packageIdentityStringListMap(
+                $summary['entryNamesByPackageCrc32'] ?? []
+            ),
+            'packageCrc32Summaries' => is_array($summary['packageCrc32Summaries'] ?? null)
+                ? array_values($summary['packageCrc32Summaries'])
+                : [],
+            'packageDuplicateCrc32Summaries' => is_array($summary['packageDuplicateCrc32Summaries'] ?? null)
+                ? array_values($summary['packageDuplicateCrc32Summaries'])
+                : [],
             'relationshipPartCount' => (int) ($summary['relationshipPartCount'] ?? 0),
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
