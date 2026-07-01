@@ -366,7 +366,102 @@ XML);
         $t->same('https://ror.org/01abcde23', $handoff['items'][1]['ROR']);
         $t->contains('ORCID 0000-0002-1825-0097', $blocks);
         $t->contains('ROR https://ror.org/01abcde23', $blocks);
-    },    'carries biblatex annotations separately from abstracts in legacy csl handoff' => static function (TestRunner $t): void {
+    },
+    'carries legacy biblatex issuing authority names in csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@report{issuing-report,
+  title             = {Authority Name Report},
+  issuing-authority = {Board, Migration Review and Council, Standards},
+  number            = {R-42},
+  date              = {2026}
+}
+
+@legislation{authority-statute,
+  title     = {Authority Statute},
+  authority = {Assembly, Migration},
+  number    = {Act 12},
+  date      = {2025}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $report = $items['issuing-report'];
+        $statute = $items['authority-statute'];
+
+        $t->same('report', $report['type']);
+        $t->same('legislation', $statute['type']);
+        $t->same('Board', $report['authority'][0]['family']);
+        $t->same('Migration Review', $report['authority'][0]['given']);
+        $t->same('Council', $report['authority'][1]['family']);
+        $t->same('Standards', $report['authority'][1]['given']);
+        $t->same('Assembly', $statute['authority'][0]['family']);
+        $t->same('Migration', $statute['authority'][0]['given']);
+        $t->same('Board, Migration Review and Council, Standards', $report['rawBibtex']['fields']['issuing-authority']);
+        $t->same('Assembly, Migration', $statute['rawBibtex']['fields']['authority']);
+        $t->same(
+            'Migration Review Board and Standards Council. Authority Name Report. 2026. Number: R-42.',
+            $processor->renderBibliographyText($report)
+        );
+        $t->same(
+            'Authority Statute. 2025. Number: Act 12. Authority: Migration Assembly.',
+            $processor->renderBibliographyText($statute)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Issuing Authority Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-issuing-authority-review</id>
+    <updated>2026-07-01T15:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="authority"/>
+        <names variable="authority"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <names variable="issuing-authority"/>
+      <text variable="authority"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledReport = $styled->item('issuing-report');
+        $t->same('Migration Review Board; Standards Council', $styledReport['authority'] ?? null);
+        $t->same('Board', $styledReport['authorities'][0]['family'] ?? null);
+        $t->same('Standards', $styledReport['authorities'][1]['given'] ?? null);
+        $t->same(
+            '[Authority Name Report | Migration Review Board; Standards Council | Board and Council; Authority Statute | Migration Assembly | Assembly]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'issuing-report', 'text' => '[@issuing-report]']),
+                new AstNode('citation', ['id' => 'authority-statute', 'text' => '[@authority-statute]']),
+            ])
+        );
+        $t->same(
+            'Authority Name Report :: Board, Migration Review; Council, Standards :: Migration Review Board; Standards Council',
+            $styled->renderBibliographyEntry('issuing-report')
+        );
+
+        $document = (new MarkdownReader())->read('Authority names cite @issuing-report and [@authority-statute].');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['issuing-report', 'authority-statute'], $handoff['citedKeys']);
+        $t->same('Board', $handoff['items'][0]['authority'][0]['family'] ?? null);
+        $t->same('Assembly', $handoff['bibliography']->children[1]->attr('cslItem')['authority'][0]['family'] ?? null);
+        $t->contains('Migration Review Board and Standards Council. Authority Name Report', $blocks);
+        $t->contains('Authority: Migration Assembly', $blocks);
+    },
+    'carries biblatex annotations separately from abstracts in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @misc{annotated-source,
   author     = {Roe, Pat},

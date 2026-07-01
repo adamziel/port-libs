@@ -300,7 +300,11 @@ final class BibtexCslProcessor
     public function renderBibliographyText(array $item): string
     {
         $parts = [];
+        $authority = $this->renderNames($item['authority'] ?? []);
         $authors = $this->renderNames($item['author'] ?? []);
+        if ($authors === '' && $this->authorityActsAsAuthor($item)) {
+            $authors = $authority;
+        }
         if ($authors !== '') {
             $parts[] = $authors;
         }
@@ -520,6 +524,9 @@ final class BibtexCslProcessor
         }
         if (($item['gender'] ?? '') !== '') {
             $parts[] = 'BibLaTeX gender: ' . (string) $item['gender'];
+        }
+        if ($authority !== '' && $authority !== $authors) {
+            $parts[] = 'Authority: ' . $authority;
         }
         if (($item['annotation'] ?? '') !== '') {
             $parts[] = 'Annotation: ' . rtrim((string) $item['annotation'], '.');
@@ -995,6 +1002,7 @@ final class BibtexCslProcessor
             'short-author' => ['shortauthor', 'short-author'],
             'short-editor' => ['shorteditor', 'short-editor'],
             'holder' => ['holder'],
+            'authority' => ['authority', 'authority-list', 'authoritylist', 'issuingauthority', 'issuing-authority', 'issuingauthoritylist', 'issuing-authority-list'],
             'translator' => ['translator'],
             'chair' => ['chair'],
             'container-author' => ['bookauthor', 'container-author'],
@@ -1953,6 +1961,14 @@ final class BibtexCslProcessor
     private function entryNumberActsAsIssue(string $type): bool
     {
         return in_array(strtolower($type), ['article', 'periodical', 'review', 'suppperiodical'], true);
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private function authorityActsAsAuthor(array $item): bool
+    {
+        return (string) ($item['type'] ?? '') === 'report';
     }
 
     /**

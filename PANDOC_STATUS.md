@@ -22,7 +22,7 @@ ODF/ODT is marked ship-ready: 95 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | DOCX / OpenXML | 98 | 256 |
 | EPUB / EPUB3 | 105 | 11 |
 | CSV / TSV | 4 | 4 pinned CSV reader/parser evidence; RST csv-table integration remains tracked with RST |
-| CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 81 | 227 |
+| CSL / BibTeX / BibLaTeX / csljson / RIS / EndNote XML | 82 | 227 |
 | LaTeX / TeX / math | 21 | 36 |
 | DocBook | 28 | 17 |
 | RTF | 4 | 27 |
@@ -34,7 +34,7 @@ Latest package/core-format evidence: Shared ZIP/OPC manifests now expose creator
 
 Latest JSON/native evidence: table column-spec collection parsing now accepts single-wrapped multi-item `colSpecs` collections, preserves the collection wrapper sidecar through rebuilt JSON/native writers, and regenerates edited `ColWidth` payloads without reusing stale source sidecars. Focused JSON/native constructor validation passed with `6` files, `198` assertions, and `0` failures.
 
-Latest CSL/BibTeX evidence: BibLaTeX ISO date ranges now survive the legacy `BibtexCslProcessor` CSL handoff for issued, accessed, event, original, and reprint dates, including open-ended endpoints, so bounded native CSL styles and WordPress bibliography output can render the range metadata without external citeproc/Pandoc validators. Focused CSL/BibTeX validation passed with `1` file, `855` assertions, and `0` failures; the adjacent bibliography/CSL gate passed with `3` files, `7185` assertions, and `0` failures.
+Latest CSL/BibTeX evidence: legacy BibLaTeX `authority` and `issuing-authority` name aliases now survive the `BibtexCslProcessor` CSL handoff, including report creator fallback, direct fallback bibliography text, bounded CSL style rendering, and WordPress bibliography output without external citeproc/Pandoc validators. Focused CSL/BibTeX validation passed with `1` file, `937` assertions, and `0` failures; the adjacent bibliography/CSL gate passed with `3` files, `7,387` assertions, and `0` failures.
 
 Latest XML/HTML DOM evidence: button `commandfor` target summaries now carry dialog `closedby` policy review metadata, method-dialog form counts, and dialog close values for dialog command targets, preserving raw HTML/WordPress handoff while exposing invalid dialog close-policy diagnostics without browser, Pandoc, or external validator calls. Focused XML/HTML DOM validation passed with `2` files, `106` assertions, and `0` failures; the adjacent `XmlHtmlDomTest.php` gate passed with `1` file, `6,322` assertions, and `0` failures.
 
