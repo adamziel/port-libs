@@ -1278,9 +1278,21 @@ final class NativeReader
 
         $display = $this->parseInlineList();
         $sourceText = $this->plainInlineText($display);
+        $recordsNative = $this->citationRecordsNative($citations);
+        $displayNative = $this->nativeInlineListPayload($display);
+        $citeNative = is_array($recordsNative) && $displayNative !== null
+            ? ['t' => 'Cite', 'c' => [$recordsNative, $displayNative]]
+            : null;
 
         if (count($citations) === 1) {
             $attrs = $citations[0]->attrs;
+            if (is_array($recordsNative)) {
+                $attrs['citationRecordsNative'] = $recordsNative;
+            }
+            if ($citeNative !== null) {
+                $attrs['constructor'] = 'Cite';
+                $attrs['native'] = $citeNative;
+            }
             if ($sourceText !== '') {
                 $attrs['text'] = $sourceText;
             }
@@ -1289,6 +1301,13 @@ final class NativeReader
         }
 
         $attrs = [];
+        if (is_array($recordsNative)) {
+            $attrs['citationRecordsNative'] = $recordsNative;
+        }
+        if ($citeNative !== null) {
+            $attrs['constructor'] = 'Cite';
+            $attrs['native'] = $citeNative;
+        }
         if ($sourceText !== '') {
             $attrs['text'] = $sourceText;
         }
@@ -1297,6 +1316,24 @@ final class NativeReader
         }
 
         return new AstNode('citation_group', $attrs, $citations);
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<array<string, mixed>>|null
+     */
+    private function citationRecordsNative(array $citations): ?array
+    {
+        $records = [];
+        foreach ($citations as $citation) {
+            $native = $citation->attr('citationNative');
+            if (!is_array($native) || array_is_list($native)) {
+                return null;
+            }
+            $records[] = $native;
+        }
+
+        return $records;
     }
 
     private function parseCitationRecord(): AstNode
@@ -1325,18 +1362,31 @@ final class NativeReader
 
         $prefix = $fields['citationPrefix'] ?? [];
         $suffix = $fields['citationSuffix'] ?? [];
+        $prefixNative = $this->nativeInlineListPayload($prefix) ?? [];
+        $suffixNative = $this->nativeInlineListPayload($suffix) ?? [];
         $modeConstructor = (string) ($fields['citationMode'] ?? 'NormalCitation');
+        $modeNative = ['t' => $modeConstructor];
         $mode = $this->parseCitationMode($modeConstructor);
         $noteNum = (int) ($fields['citationNoteNum'] ?? 1);
         $hash = (int) ($fields['citationHash'] ?? 0);
         $text = $this->citationRecordSourceText($id, $mode, $prefix, $suffix);
+        $native = [
+            'citationId' => $id,
+            'citationPrefix' => $prefixNative,
+            'citationSuffix' => $suffixNative,
+            'citationMode' => $modeNative,
+            'citationNoteNum' => $noteNum,
+            'citationHash' => $hash,
+        ];
 
         $attrs = [
             'id' => $id,
             'text' => $text,
             'mode' => $mode,
+            'citationConstructor' => 'Citation',
+            'citationNative' => $native,
             'citationModeConstructor' => $modeConstructor,
-            'citationModeNative' => ['t' => $modeConstructor],
+            'citationModeNative' => $modeNative,
             'citationNoteNum' => $noteNum,
             'citationHash' => $hash,
             'noteNum' => $noteNum,
@@ -1344,11 +1394,11 @@ final class NativeReader
         ];
         if ($prefix !== []) {
             $attrs['prefix'] = $prefix;
-            $attrs['citationPrefixNative'] = $prefix;
+            $attrs['citationPrefixNative'] = $prefixNative;
         }
         if ($suffix !== []) {
             $attrs['suffix'] = $suffix;
-            $attrs['citationSuffixNative'] = $suffix;
+            $attrs['citationSuffixNative'] = $suffixNative;
         }
 
         return new AstNode('citation', $attrs, [

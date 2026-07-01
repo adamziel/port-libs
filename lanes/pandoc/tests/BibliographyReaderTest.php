@@ -401,6 +401,10 @@ XML;
         $t->same(['crossrefItems' => 1, 'references' => 1, 'relatedKeys' => 1], $review['relationFieldCounts']);
         $t->same(4, $review['relationReferenceCount']);
         $t->same(['crossrefItems' => 1, 'references' => 1, 'relatedKeys' => 2], $review['relationReferenceCounts']);
+        $t->same(1, $review['citationAliasBearingItemCount']);
+        $t->same(['citationAliases' => 1], $review['citationAliasFieldCounts']);
+        $t->same(1, $review['citationAliasValueCount']);
+        $t->same(['citationAliases' => 1], $review['citationAliasValueCounts']);
 
         $first = $items[0];
         $t->same(0, $first['index']);
@@ -415,6 +419,10 @@ XML;
         $t->same(['references'], $first['relationFields']);
         $t->same(1, $first['relationReferenceCount']);
         $t->same(['references' => 1], $first['relationReferenceCounts']);
+        $t->same(0, $first['citationAliasFieldCount']);
+        $t->same([], $first['citationAliasFields']);
+        $t->same(0, $first['citationAliasValueCount']);
+        $t->same([], $first['citationAliasValueCounts']);
         $t->same('source-values-omitted', $first['payloadExposurePolicy']);
 
         $second = $items[1];
@@ -426,6 +434,10 @@ XML;
         $t->same(['crossrefItems', 'relatedKeys'], $second['relationFields']);
         $t->same(3, $second['relationReferenceCount']);
         $t->same(['crossrefItems' => 1, 'relatedKeys' => 2], $second['relationReferenceCounts']);
+        $t->same(1, $second['citationAliasFieldCount']);
+        $t->same(['citationAliases'], $second['citationAliasFields']);
+        $t->same(1, $second['citationAliasValueCount']);
+        $t->same(['citationAliases' => 1], $second['citationAliasValueCounts']);
 
         $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
         $t->same(false, str_contains($reviewJson, 'Secret CSL JSON Packet Title'));
@@ -439,6 +451,7 @@ XML;
         $t->same(false, str_contains($reviewJson, 'private-related-one'));
         $t->same(false, str_contains($reviewJson, 'private-related-two'));
         $t->same(false, str_contains($reviewJson, 'Private Crossref Title'));
+        $t->same(false, str_contains($reviewJson, 'packet-two-alt'));
     },
     'records metadata only ris reader review provenance' => static function (TestRunner $t): void {
         $ris = <<<'RIS'
