@@ -2742,7 +2742,7 @@ final class PptxReader
         $connectionList = $this->firstDiagramChildElement($dataRoot, 'cxnLst');
         if ($connectionList instanceof \DOMElement) {
             foreach ($this->diagramChildElements($connectionList, 'cxn') as $connectionElement) {
-                if ($connectionElement->hasAttribute('type')) {
+                if ($connectionElement->getAttribute('type') !== '') {
                     continue;
                 }
                 $sourceId = $connectionElement->getAttribute('srcId');
