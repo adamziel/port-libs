@@ -565,6 +565,8 @@ final class OdfReader
             } else {
                 $rootMediaType = $mediaType;
             }
+            $pathShape = self::manifestPathShape($packageReference['partReference'] ?? $fullPath);
+            $packagePathShape = is_string($part) ? self::manifestPathShape($part) : null;
             $rawItems[] = [
                 'manifestIndex' => $manifestIndex,
                 'fullPath' => $fullPath,
@@ -573,6 +575,11 @@ final class OdfReader
                 'partSuffix' => $packageReference['partSuffix'],
                 'partQuery' => $packageReference['partQuery'],
                 'partFragment' => $packageReference['partFragment'],
+                'pathShape' => $pathShape,
+                'packagePathShape' => $packagePathShape,
+                'uriEncodedPartReference' => is_string($packageReference['partReference'])
+                    && is_string($part)
+                    && $packageReference['partReference'] !== $part,
                 'mediaType' => $mediaType,
                 'mediaTypeBase' => $mediaTypeReport['mediaTypeBase'],
                 'mediaTypeHasParameters' => $mediaTypeReport['mediaTypeHasParameters'],
@@ -1471,6 +1478,10 @@ final class OdfReader
         $manifestPartReferenceSuffixItems = [];
         $manifestPartReferenceQueryCount = 0;
         $manifestPartReferenceFragmentCount = 0;
+        $manifestPathKindCounts = [];
+        $manifestTopLevelSegmentCounts = [];
+        $manifestPathExtensionCounts = [];
+        $manifestPathShapeItems = [];
         $manifestFileEntryOrder = [];
         $manifestByteExposurePolicyCounts = [];
         $manifestByteExposurePolicyItems = [];
@@ -1575,9 +1586,9 @@ final class OdfReader
                 'partSuffix' => $item['partSuffix'] ?? null,
                 'partQuery' => $item['partQuery'] ?? null,
                 'partFragment' => $item['partFragment'] ?? null,
-                'uriEncodedPartReference' => is_string($item['partReference'] ?? null)
-                    && is_string($part)
-                    && $item['partReference'] !== $part,
+                'pathShape' => $item['pathShape'] ?? [],
+                'packagePathShape' => $item['packagePathShape'] ?? null,
+                'uriEncodedPartReference' => ($item['uriEncodedPartReference'] ?? false) === true,
                 'mediaType' => $item['mediaType'] ?? null,
                 'mediaTypeBase' => $item['mediaTypeBase'] ?? null,
                 'mediaTypeHasParameters' => ($item['mediaTypeHasParameters'] ?? false) === true,
@@ -1741,6 +1752,20 @@ final class OdfReader
                     'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
                 ];
             }
+            $manifestPathShape = is_array($item['pathShape'] ?? null) ? $item['pathShape'] : [];
+            $manifestPathKind = $manifestPathShape['kind'] ?? null;
+            if (is_string($manifestPathKind) && $manifestPathKind !== '') {
+                $manifestPathKindCounts[$manifestPathKind] = ($manifestPathKindCounts[$manifestPathKind] ?? 0) + 1;
+            }
+            $manifestTopLevelSegment = $manifestPathShape['topLevelSegment'] ?? null;
+            if (is_string($manifestTopLevelSegment) && $manifestTopLevelSegment !== '') {
+                $manifestTopLevelSegmentCounts[$manifestTopLevelSegment] = ($manifestTopLevelSegmentCounts[$manifestTopLevelSegment] ?? 0) + 1;
+            }
+            $manifestPathExtension = $manifestPathShape['extension'] ?? null;
+            if (is_string($manifestPathExtension) && $manifestPathExtension !== '') {
+                $manifestPathExtensionCounts[$manifestPathExtension] = ($manifestPathExtensionCounts[$manifestPathExtension] ?? 0) + 1;
+            }
+            $manifestPathShapeItems[] = self::manifestPathShapeItem($item);
             if (is_string($item['partQuery'] ?? null)) {
                 $manifestPartReferenceQueryCount++;
             }
@@ -1899,6 +1924,9 @@ final class OdfReader
                 'manifestPartSuffix' => is_array($manifestItem) ? $manifestItem['partSuffix'] : null,
                 'manifestPartQuery' => is_array($manifestItem) ? $manifestItem['partQuery'] : null,
                 'manifestPartFragment' => is_array($manifestItem) ? $manifestItem['partFragment'] : null,
+                'manifestPathShape' => is_array($manifestItem) ? ($manifestItem['pathShape'] ?? null) : null,
+                'manifestPackagePathShape' => is_array($manifestItem) ? ($manifestItem['packagePathShape'] ?? null) : null,
+                'manifestUriEncodedPartReference' => is_array($manifestItem) && ($manifestItem['uriEncodedPartReference'] ?? false) === true,
                 'manifestMediaType' => is_array($manifestItem) ? $manifestItem['mediaType'] : null,
                 'manifestMediaTypeBase' => is_array($manifestItem) ? $manifestItem['mediaTypeBase'] : null,
                 'manifestMediaFamily' => is_array($manifestItem) ? $this->packagePartManifestMediaFamily($entry->name, $manifestItem, $embeddedObjectPackage) : null,
@@ -2109,6 +2137,9 @@ final class OdfReader
         ksort($missingManifestDeclaredRoleCounts, SORT_STRING);
         ksort($missingManifestDeclaredByteExposurePolicyCounts, SORT_STRING);
         ksort($missingManifestDeclaredMediaTypeBaseCounts, SORT_STRING);
+        ksort($manifestPathKindCounts, SORT_STRING);
+        ksort($manifestTopLevelSegmentCounts, SORT_STRING);
+        ksort($manifestPathExtensionCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyCounts, SORT_STRING);
         ksort($packagePartByteExposurePolicyByteLengths, SORT_STRING);
         ksort($packagePartByteExposurePolicyCompressedByteLengths, SORT_STRING);
@@ -2211,6 +2242,10 @@ final class OdfReader
             'manifestPartReferenceQueryCount' => $manifestPartReferenceQueryCount,
             'manifestPartReferenceFragmentCount' => $manifestPartReferenceFragmentCount,
             'manifestPartReferenceSuffixItems' => $manifestPartReferenceSuffixItems,
+            'manifestPathKindCounts' => $manifestPathKindCounts,
+            'manifestTopLevelSegmentCounts' => $manifestTopLevelSegmentCounts,
+            'manifestPathExtensionCounts' => $manifestPathExtensionCounts,
+            'manifestPathShapeItems' => $manifestPathShapeItems,
             'undeclaredEntryCount' => count($undeclaredEntries),
             'packageDirectoryCount' => $packageDirectoryCount,
             'extensionlessPackagePartCount' => $packagePartExtensions['extensionlessPackagePartCount'],
@@ -3089,6 +3124,8 @@ final class OdfReader
                 'partSuffix' => $item['partSuffix'] ?? null,
                 'partQuery' => $item['partQuery'] ?? null,
                 'partFragment' => $item['partFragment'] ?? null,
+                'pathShape' => $item['pathShape'] ?? [],
+                'packagePathShape' => $item['packagePathShape'] ?? null,
                 'uriEncodedPartReference' => ($item['uriEncodedPartReference'] ?? false) === true,
                 'mediaType' => $item['mediaType'] ?? null,
                 'mediaTypeBase' => $item['mediaTypeBase'] ?? null,
@@ -3372,6 +3409,9 @@ final class OdfReader
                 'manifestPartSuffix' => $item['manifestPartSuffix'] ?? null,
                 'manifestPartQuery' => $item['manifestPartQuery'] ?? null,
                 'manifestPartFragment' => $item['manifestPartFragment'] ?? null,
+                'manifestPathShape' => $item['manifestPathShape'] ?? null,
+                'manifestPackagePathShape' => $item['manifestPackagePathShape'] ?? null,
+                'manifestUriEncodedPartReference' => ($item['manifestUriEncodedPartReference'] ?? false) === true,
                 'manifestMediaTypeBase' => $item['manifestMediaTypeBase'] ?? null,
                 'manifestMediaFamily' => $item['manifestMediaFamily'] ?? null,
                 'manifestDeclaredSize' => $item['manifestDeclaredSize'] ?? null,
@@ -3422,6 +3462,10 @@ final class OdfReader
             'manifestPartReferenceQueryCount' => $provenance['manifestPartReferenceQueryCount'] ?? 0,
             'manifestPartReferenceFragmentCount' => $provenance['manifestPartReferenceFragmentCount'] ?? 0,
             'manifestPartReferenceSuffixItems' => $provenance['manifestPartReferenceSuffixItems'] ?? [],
+            'manifestPathKindCounts' => $provenance['manifestPathKindCounts'] ?? [],
+            'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
+            'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
+            'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
             'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
@@ -3760,6 +3804,10 @@ final class OdfReader
             'manifestPartReferenceQueryCount' => $provenance['manifestPartReferenceQueryCount'] ?? 0,
             'manifestPartReferenceFragmentCount' => $provenance['manifestPartReferenceFragmentCount'] ?? 0,
             'manifestPartReferenceSuffixItems' => $provenance['manifestPartReferenceSuffixItems'] ?? [],
+            'manifestPathKindCounts' => $provenance['manifestPathKindCounts'] ?? [],
+            'manifestTopLevelSegmentCounts' => $provenance['manifestTopLevelSegmentCounts'] ?? [],
+            'manifestPathExtensionCounts' => $provenance['manifestPathExtensionCounts'] ?? [],
+            'manifestPathShapeItems' => $provenance['manifestPathShapeItems'] ?? [],
             'manifestMediaTypeSummary' => $manifestMediaTypeSummary,
             'manifestMediaTypeCount' => $manifestMediaTypeSummary['mediaTypeCount'] ?? 0,
             'manifestMediaTypeParameterizedItemCount' => $manifestMediaTypeSummary['parameterizedItemCount'] ?? 0,
@@ -6636,6 +6684,139 @@ final class OdfReader
             'segments' => $segments,
             'segmentCount' => count($segments),
             'directorySegmentCount' => count($directorySegments),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function manifestPathShape(?string $path): array
+    {
+        if ($path === null || $path === '') {
+            return [
+                'kind' => 'missing',
+                'segments' => [],
+                'pathSegmentPositionReviews' => [],
+                'segmentCount' => 0,
+                'directorySegmentCount' => 0,
+            ];
+        }
+
+        if ($path === '/') {
+            return [
+                'kind' => 'root',
+                'segments' => [],
+                'pathSegmentPositionReviews' => [],
+                'segmentCount' => 0,
+                'directorySegmentCount' => 0,
+            ];
+        }
+
+        $isDirectory = str_ends_with($path, '/');
+        $trimmed = trim($path, '/');
+        $segments = $trimmed === '' ? [] : explode('/', $trimmed);
+        $basename = $segments === [] ? null : $segments[count($segments) - 1];
+        $directorySegments = $isDirectory ? $segments : array_slice($segments, 0, -1);
+        $directory = $directorySegments === [] ? null : implode('/', $directorySegments) . '/';
+        $directoryBaseName = $directorySegments === [] ? null : $directorySegments[count($directorySegments) - 1];
+        $directoryBaseNameStem = is_string($directoryBaseName) && $directoryBaseName !== ''
+            ? self::packagePartBasenameStem($directoryBaseName)
+            : null;
+        $extension = null;
+
+        if (!$isDirectory && is_string($basename) && $basename !== '') {
+            $extension = strtolower(pathinfo($basename, PATHINFO_EXTENSION));
+            if ($extension === '') {
+                $extension = null;
+            }
+        }
+
+        return self::withoutEmpty([
+            'kind' => $isDirectory ? 'directory' : 'file',
+            'topLevelSegment' => $segments[0] ?? null,
+            'directory' => $directory,
+            'directoryBaseName' => $directoryBaseName,
+            'directoryBaseNameStem' => $directoryBaseNameStem,
+            'caseFoldDirectoryBaseNameStem' => is_string($directoryBaseNameStem) ? strtolower($directoryBaseNameStem) : null,
+            'basename' => $basename,
+            'extension' => $extension,
+            'segments' => $segments,
+            'pathSegmentPositionReviews' => self::pathSegmentPositionReviews($segments),
+            'segmentCount' => count($segments),
+            'directorySegmentCount' => count($directorySegments),
+        ]);
+    }
+
+    /**
+     * @param list<string> $segments
+     * @return list<array{pathSegmentIndex:int, segment:string, position:string, isFirst:bool, isLast:bool, isOnly:bool}>
+     */
+    private static function pathSegmentPositionReviews(array $segments): array
+    {
+        $reviews = [];
+        $segmentCount = count($segments);
+        foreach ($segments as $segmentIndex => $segment) {
+            if (!is_string($segment) || $segment === '') {
+                continue;
+            }
+
+            $isFirst = $segmentIndex === 0;
+            $isLast = $segmentIndex === $segmentCount - 1;
+            $isOnly = $segmentCount === 1;
+            $position = match (true) {
+                $isOnly => 'only',
+                $isFirst => 'first',
+                $isLast => 'last',
+                default => 'middle',
+            };
+
+            $reviews[] = [
+                'pathSegmentIndex' => $segmentIndex,
+                'segment' => $segment,
+                'position' => $position,
+                'isFirst' => $isFirst,
+                'isLast' => $isLast,
+                'isOnly' => $isOnly,
+            ];
+        }
+
+        return $reviews;
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     * @return array<string, mixed>
+     */
+    private static function manifestPathShapeItem(array $item): array
+    {
+        $pathShape = is_array($item['pathShape'] ?? null) ? $item['pathShape'] : [];
+        $packagePathShape = is_array($item['packagePathShape'] ?? null) ? $item['packagePathShape'] : null;
+
+        return self::withoutEmpty([
+            'manifestIndex' => $item['manifestIndex'] ?? null,
+            'fullPath' => $item['fullPath'] ?? null,
+            'part' => $item['part'] ?? null,
+            'partReference' => $item['partReference'] ?? null,
+            'partSuffix' => $item['partSuffix'] ?? null,
+            'partQuery' => $item['partQuery'] ?? null,
+            'partFragment' => $item['partFragment'] ?? null,
+            'pathShape' => $pathShape,
+            'packagePathShape' => $packagePathShape,
+            'pathKind' => $pathShape['kind'] ?? null,
+            'topLevelSegment' => $pathShape['topLevelSegment'] ?? null,
+            'directory' => $pathShape['directory'] ?? null,
+            'basename' => $pathShape['basename'] ?? null,
+            'extension' => $pathShape['extension'] ?? null,
+            'segmentCount' => $pathShape['segmentCount'] ?? null,
+            'directorySegmentCount' => $pathShape['directorySegmentCount'] ?? null,
+            'pathSegmentPositionReviews' => $pathShape['pathSegmentPositionReviews'] ?? [],
+            'uriEncodedPartReference' => ($item['uriEncodedPartReference'] ?? false) === true,
+            'mediaType' => $item['mediaType'] ?? null,
+            'exists' => ($item['exists'] ?? false) === true,
+            'isDirectory' => ($item['isDirectory'] ?? false) === true,
+            'encrypted' => ($item['encrypted'] ?? false) === true,
+            'canExposeBytes' => ($item['canExposeBytes'] ?? false) === true,
+            'byteExposurePolicy' => $item['byteExposurePolicy'] ?? null,
         ]);
     }
 
