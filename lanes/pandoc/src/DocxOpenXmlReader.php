@@ -880,6 +880,24 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneDeclarationCount'] = $selectedXmlParts['xmlStandaloneDeclarationCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneYesCount'] = $selectedXmlParts['xmlStandaloneYesCount'];
         $packageProvenance['summary']['selectedXmlPartXmlStandaloneNoCount'] = $selectedXmlParts['xmlStandaloneNoCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionPartCount'] = $selectedXmlParts['xmlProcessingInstructionPartCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionCount'] = $selectedXmlParts['xmlProcessingInstructionCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionPartNames'] = $selectedXmlParts['xmlProcessingInstructionPartNames'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionTargetCounts'] = $selectedXmlParts['xmlProcessingInstructionTargetCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionTargets'] = $selectedXmlParts['xmlProcessingInstructionTargets'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentPathCount'] = $selectedXmlParts['xmlProcessingInstructionParentPathCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentPathCounts'] = $selectedXmlParts['xmlProcessingInstructionParentPathCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentPaths'] = $selectedXmlParts['xmlProcessingInstructionParentPaths'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentNamespaceCount'] = $selectedXmlParts['xmlProcessingInstructionParentNamespaceCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentNamespaceCounts'] = $selectedXmlParts['xmlProcessingInstructionParentNamespaceCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentLocalNameCount'] = $selectedXmlParts['xmlProcessingInstructionParentLocalNameCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentLocalNameCounts'] = $selectedXmlParts['xmlProcessingInstructionParentLocalNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentQualifiedNameCount'] = $selectedXmlParts['xmlProcessingInstructionParentQualifiedNameCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionParentQualifiedNameCounts'] = $selectedXmlParts['xmlProcessingInstructionParentQualifiedNameCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionDataAttributeValueShapeCounts'] = $selectedXmlParts['xmlProcessingInstructionDataAttributeValueShapeCounts'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionDataAttributeValueShapes'] = $selectedXmlParts['xmlProcessingInstructionDataAttributeValueShapes'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructionDataAttributeTokenValueCount'] = $selectedXmlParts['xmlProcessingInstructionDataAttributeTokenValueCount'];
+        $packageProvenance['summary']['selectedXmlPartXmlProcessingInstructions'] = $selectedXmlParts['xmlProcessingInstructions'];
         $packageProvenance['summary']['selectedXmlPartXmlCommentPartCount'] = $selectedXmlParts['xmlCommentPartCount'];
         $packageProvenance['summary']['selectedXmlPartXmlCommentCount'] = $selectedXmlParts['xmlCommentCount'];
         $packageProvenance['summary']['selectedXmlPartXmlCommentByteLength'] = $selectedXmlParts['xmlCommentByteLength'];
@@ -34350,6 +34368,20 @@ final class DocxOpenXmlReader
         $xmlStandaloneDeclarationCount = 0;
         $xmlStandaloneYesCount = 0;
         $xmlStandaloneNoCount = 0;
+        $xmlProcessingInstructionPartCount = 0;
+        $xmlProcessingInstructionCount = 0;
+        $xmlProcessingInstructionPartNames = [];
+        $xmlProcessingInstructionTargetCounts = [];
+        $xmlProcessingInstructionTargets = [];
+        $xmlProcessingInstructionParentPathCounts = [];
+        $xmlProcessingInstructionParentPaths = [];
+        $xmlProcessingInstructionParentNamespaceCounts = [];
+        $xmlProcessingInstructionParentLocalNameCounts = [];
+        $xmlProcessingInstructionParentQualifiedNameCounts = [];
+        $xmlProcessingInstructionDataAttributeValueShapeCounts = [];
+        $xmlProcessingInstructionDataAttributeValueShapes = [];
+        $xmlProcessingInstructionDataAttributeTokenValueCount = 0;
+        $xmlProcessingInstructions = [];
         $xmlCommentPartCount = 0;
         $xmlCommentCount = 0;
         $xmlCommentByteLength = 0;
@@ -34692,6 +34724,98 @@ final class DocxOpenXmlReader
                     ++$xmlStandaloneNoCount;
                 }
             }
+            $itemXmlProcessingInstructionCount = (int) ($item['xmlProcessingInstructionCount'] ?? 0);
+            if ($itemXmlProcessingInstructionCount > 0) {
+                ++$xmlProcessingInstructionPartCount;
+                $xmlProcessingInstructionCount += $itemXmlProcessingInstructionCount;
+                $xmlProcessingInstructionDataAttributeTokenValueCount += (int) ($item['xmlProcessingInstructionDataAttributeTokenValueCount'] ?? 0);
+                $this->appendUniqueString(
+                    $xmlProcessingInstructionPartNames,
+                    is_string($item['partName'] ?? null) ? $item['partName'] : null,
+                );
+            }
+            foreach (($item['xmlProcessingInstructionTargetCounts'] ?? []) as $target => $count) {
+                if (!is_string($target) || $target === '') {
+                    continue;
+                }
+
+                $xmlProcessingInstructionTargetCounts[$target] =
+                    ($xmlProcessingInstructionTargetCounts[$target] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlProcessingInstructionTargets, $target);
+            }
+            foreach (($item['xmlProcessingInstructionParentPathCounts'] ?? []) as $parentPath => $count) {
+                if (!is_string($parentPath) || $parentPath === '') {
+                    continue;
+                }
+
+                $xmlProcessingInstructionParentPathCounts[$parentPath] =
+                    ($xmlProcessingInstructionParentPathCounts[$parentPath] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlProcessingInstructionParentPaths, $parentPath);
+            }
+            foreach (($item['xmlProcessingInstructionParentNamespaceCounts'] ?? []) as $namespace => $count) {
+                if (!is_string($namespace) || $namespace === '') {
+                    continue;
+                }
+
+                $xmlProcessingInstructionParentNamespaceCounts[$namespace] =
+                    ($xmlProcessingInstructionParentNamespaceCounts[$namespace] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlProcessingInstructionParentLocalNameCounts'] ?? []) as $localName => $count) {
+                if (!is_string($localName) || $localName === '') {
+                    continue;
+                }
+
+                $xmlProcessingInstructionParentLocalNameCounts[$localName] =
+                    ($xmlProcessingInstructionParentLocalNameCounts[$localName] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlProcessingInstructionParentQualifiedNameCounts'] ?? []) as $qualifiedName => $count) {
+                if (!is_string($qualifiedName) || $qualifiedName === '') {
+                    continue;
+                }
+
+                $xmlProcessingInstructionParentQualifiedNameCounts[$qualifiedName] =
+                    ($xmlProcessingInstructionParentQualifiedNameCounts[$qualifiedName] ?? 0) + (int) $count;
+            }
+            foreach (($item['xmlProcessingInstructionDataAttributeValueShapeCounts'] ?? []) as $valueShape => $count) {
+                if (!is_string($valueShape) || $valueShape === '') {
+                    continue;
+                }
+
+                $xmlProcessingInstructionDataAttributeValueShapeCounts[$valueShape] =
+                    ($xmlProcessingInstructionDataAttributeValueShapeCounts[$valueShape] ?? 0) + (int) $count;
+                $this->appendUniqueString($xmlProcessingInstructionDataAttributeValueShapes, $valueShape);
+            }
+            foreach (($item['xmlProcessingInstructions'] ?? []) as $processingInstruction) {
+                if (!is_array($processingInstruction)) {
+                    continue;
+                }
+
+                $xmlProcessingInstructions[] = [
+                    'kind' => is_string($item['kind'] ?? null) ? $item['kind'] : '',
+                    'partName' => is_string($item['partName'] ?? null) ? $item['partName'] : '',
+                    'ordinal' => (int) ($processingInstruction['ordinal'] ?? 0),
+                    'target' => is_string($processingInstruction['target'] ?? null) ? $processingInstruction['target'] : '',
+                    'targetKey' => is_string($processingInstruction['targetKey'] ?? null) ? $processingInstruction['targetKey'] : '',
+                    'parentPath' => is_string($processingInstruction['parentPath'] ?? null) ? $processingInstruction['parentPath'] : '/',
+                    'parentDepth' => (int) ($processingInstruction['parentDepth'] ?? 0),
+                    'parentNamespace' => is_string($processingInstruction['parentNamespace'] ?? null) ? $processingInstruction['parentNamespace'] : null,
+                    'parentLocalName' => is_string($processingInstruction['parentLocalName'] ?? null) ? $processingInstruction['parentLocalName'] : null,
+                    'parentQualifiedName' => is_string($processingInstruction['parentQualifiedName'] ?? null) ? $processingInstruction['parentQualifiedName'] : null,
+                    'dataByteLength' => (int) ($processingInstruction['dataByteLength'] ?? 0),
+                    'dataCrc32' => is_string($processingInstruction['dataCrc32'] ?? null) ? $processingInstruction['dataCrc32'] : null,
+                    'dataSha256' => is_string($processingInstruction['dataSha256'] ?? null) ? $processingInstruction['dataSha256'] : null,
+                    'dataAttributeCount' => (int) ($processingInstruction['dataAttributeCount'] ?? 0),
+                    'dataAttributeNames' => is_array($processingInstruction['dataAttributeNames'] ?? null)
+                        ? array_values(array_map('strval', $processingInstruction['dataAttributeNames']))
+                        : [],
+                    'dataAttributes' => is_array($processingInstruction['dataAttributes'] ?? null)
+                        ? array_values(array_filter(
+                            $processingInstruction['dataAttributes'],
+                            static fn (mixed $attribute): bool => is_array($attribute),
+                        ))
+                        : [],
+                ];
+            }
             $itemXmlCommentCount = (int) ($item['xmlCommentCount'] ?? 0);
             if ($itemXmlCommentCount > 0) {
                 ++$xmlCommentPartCount;
@@ -34932,6 +35056,12 @@ final class DocxOpenXmlReader
         ksort($xmlDeclarationVersionCounts, SORT_STRING);
         ksort($xmlDeclarationEncodingCounts, SORT_STRING);
         ksort($xmlDeclarationAttributeNameCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionTargetCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionParentPathCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionParentNamespaceCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionParentLocalNameCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionParentQualifiedNameCounts, SORT_STRING);
+        ksort($xmlProcessingInstructionDataAttributeValueShapeCounts, SORT_STRING);
         ksort($xmlCommentParentPathCounts, SORT_STRING);
         ksort($xmlCommentParentNamespaceCounts, SORT_STRING);
         ksort($xmlCommentParentLocalNameCounts, SORT_STRING);
@@ -34960,6 +35090,10 @@ final class DocxOpenXmlReader
         sort($xmlDeclarationPartNames, SORT_STRING);
         sort($xmlDeclarationVersions, SORT_STRING);
         sort($xmlDeclarationAttributeNames, SORT_STRING);
+        sort($xmlProcessingInstructionPartNames, SORT_STRING);
+        sort($xmlProcessingInstructionTargets, SORT_STRING);
+        sort($xmlProcessingInstructionParentPaths, SORT_STRING);
+        sort($xmlProcessingInstructionDataAttributeValueShapes, SORT_STRING);
         sort($xmlCommentPartNames, SORT_STRING);
         sort($xmlCommentParentPaths, SORT_STRING);
         sort($xmlCdataSectionPartNames, SORT_STRING);
@@ -35052,6 +35186,24 @@ final class DocxOpenXmlReader
             'xmlStandaloneDeclarationCount' => $xmlStandaloneDeclarationCount,
             'xmlStandaloneYesCount' => $xmlStandaloneYesCount,
             'xmlStandaloneNoCount' => $xmlStandaloneNoCount,
+            'xmlProcessingInstructionPartCount' => $xmlProcessingInstructionPartCount,
+            'xmlProcessingInstructionCount' => $xmlProcessingInstructionCount,
+            'xmlProcessingInstructionPartNames' => $xmlProcessingInstructionPartNames,
+            'xmlProcessingInstructionTargetCounts' => $xmlProcessingInstructionTargetCounts,
+            'xmlProcessingInstructionTargets' => $xmlProcessingInstructionTargets,
+            'xmlProcessingInstructionParentPathCount' => count($xmlProcessingInstructionParentPathCounts),
+            'xmlProcessingInstructionParentPathCounts' => $xmlProcessingInstructionParentPathCounts,
+            'xmlProcessingInstructionParentPaths' => $xmlProcessingInstructionParentPaths,
+            'xmlProcessingInstructionParentNamespaceCount' => count($xmlProcessingInstructionParentNamespaceCounts),
+            'xmlProcessingInstructionParentNamespaceCounts' => $xmlProcessingInstructionParentNamespaceCounts,
+            'xmlProcessingInstructionParentLocalNameCount' => count($xmlProcessingInstructionParentLocalNameCounts),
+            'xmlProcessingInstructionParentLocalNameCounts' => $xmlProcessingInstructionParentLocalNameCounts,
+            'xmlProcessingInstructionParentQualifiedNameCount' => count($xmlProcessingInstructionParentQualifiedNameCounts),
+            'xmlProcessingInstructionParentQualifiedNameCounts' => $xmlProcessingInstructionParentQualifiedNameCounts,
+            'xmlProcessingInstructionDataAttributeValueShapeCounts' => $xmlProcessingInstructionDataAttributeValueShapeCounts,
+            'xmlProcessingInstructionDataAttributeValueShapes' => $xmlProcessingInstructionDataAttributeValueShapes,
+            'xmlProcessingInstructionDataAttributeTokenValueCount' => $xmlProcessingInstructionDataAttributeTokenValueCount,
+            'xmlProcessingInstructions' => $xmlProcessingInstructions,
             'xmlCommentPartCount' => $xmlCommentPartCount,
             'xmlCommentCount' => $xmlCommentCount,
             'xmlCommentByteLength' => $xmlCommentByteLength,
@@ -35195,6 +35347,18 @@ final class DocxOpenXmlReader
             'xmlDeclarationStandalone' => null,
             'xmlDeclarationAttributeCount' => 0,
             'xmlDeclarationAttributeNames' => [],
+            'xmlProcessingInstructionCount' => 0,
+            'xmlProcessingInstructionTargets' => [],
+            'xmlProcessingInstructionTargetCounts' => [],
+            'xmlProcessingInstructionParentPathCounts' => [],
+            'xmlProcessingInstructionParentPaths' => [],
+            'xmlProcessingInstructionParentNamespaceCounts' => [],
+            'xmlProcessingInstructionParentLocalNameCounts' => [],
+            'xmlProcessingInstructionParentQualifiedNameCounts' => [],
+            'xmlProcessingInstructionDataAttributeValueShapeCounts' => [],
+            'xmlProcessingInstructionDataAttributeValueShapes' => [],
+            'xmlProcessingInstructionDataAttributeTokenValueCount' => 0,
+            'xmlProcessingInstructions' => [],
             'xmlCommentCount' => 0,
             'xmlCommentByteLength' => 0,
             'xmlCommentParentPathCounts' => [],
@@ -35325,6 +35489,19 @@ final class DocxOpenXmlReader
         $item['rootChildElementFirstName'] = $root['childElementFirstName'];
         $item['rootChildElementLastName'] = $root['childElementLastName'];
         $item['rootChildElements'] = $root['childElements'];
+        $processingInstructions = $this->xmlProcessingInstructionProvenance($xml, $partName);
+        $item['xmlProcessingInstructionCount'] = $processingInstructions['count'];
+        $item['xmlProcessingInstructionTargets'] = $processingInstructions['targets'];
+        $item['xmlProcessingInstructionTargetCounts'] = $processingInstructions['targetCounts'];
+        $item['xmlProcessingInstructionParentPathCounts'] = $processingInstructions['parentPathCounts'];
+        $item['xmlProcessingInstructionParentPaths'] = $processingInstructions['parentPaths'];
+        $item['xmlProcessingInstructionParentNamespaceCounts'] = $processingInstructions['parentNamespaceCounts'];
+        $item['xmlProcessingInstructionParentLocalNameCounts'] = $processingInstructions['parentLocalNameCounts'];
+        $item['xmlProcessingInstructionParentQualifiedNameCounts'] = $processingInstructions['parentQualifiedNameCounts'];
+        $item['xmlProcessingInstructionDataAttributeValueShapeCounts'] = $processingInstructions['dataAttributeValueShapeCounts'];
+        $item['xmlProcessingInstructionDataAttributeValueShapes'] = $processingInstructions['dataAttributeValueShapes'];
+        $item['xmlProcessingInstructionDataAttributeTokenValueCount'] = $processingInstructions['dataAttributeTokenValueCount'];
+        $item['xmlProcessingInstructions'] = $processingInstructions['items'];
         $comments = $this->xmlCommentProvenance($xml, $partName);
         $item['xmlCommentCount'] = $comments['count'];
         $item['xmlCommentByteLength'] = $comments['byteLength'];

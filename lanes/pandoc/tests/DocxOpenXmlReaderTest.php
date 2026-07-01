@@ -22866,6 +22866,139 @@ XML;
         $t->true(!str_contains((string) $encodedReview, 'hidden-alpha'), 'selected XML comment rollups should not expose comment text');
         $t->true(!str_contains((string) $encodedReview, 'Comment Theme'), 'selected XML comment rollups should not expose selected part attribute values');
     },
+    'preserves docx selected openxml processing instruction provenance' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $settingsRootData = 'href="../hidden-alpha.xml" mode="metadata review"';
+        $settingsChildData = 'target="hidden-beta" enabled="true"';
+        $themeData = 'profile="hidden-gamma" href="https://example.test/theme"';
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/>' . "\n" .
+            '  <Override PartName="/word/theme/pi-theme.xml" ContentType="application/vnd.openxmlformats-officedocument.theme+xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rSettingsPi" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings" Target="settings.xml?review=pi#settings"/>' . "\n" .
+            '  <Relationship Id="rThemePi" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/pi-theme.xml?review=pi#theme"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/settings.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<?selected-settings {$settingsRootData}?>
+<w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <?selected-settings-child {$settingsChildData}?>
+  <w:updateFields w:val="true"/>
+</w:settings>
+XML;
+        $parts['word/theme/pi-theme.xml'] = <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" name="Processing Instruction Theme">
+  <?theme-review {$themeData}?>
+  <a:themeElements/>
+</a:theme>
+XML;
+
+        $package = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance'];
+        $selected = $package['selectedXmlParts'];
+        $summary = $package['summary'];
+        $settings = $selected['byKind']['settings'];
+        $theme = $selected['byKind']['theme'];
+
+        $t->same(2, $selected['xmlProcessingInstructionPartCount']);
+        $t->same(3, $selected['xmlProcessingInstructionCount']);
+        $t->same(['word/settings.xml', 'word/theme/pi-theme.xml'], $selected['xmlProcessingInstructionPartNames']);
+        $t->same([
+            'selected-settings' => 1,
+            'selected-settings-child' => 1,
+            'theme-review' => 1,
+        ], $selected['xmlProcessingInstructionTargetCounts']);
+        $t->same(['selected-settings', 'selected-settings-child', 'theme-review'], $selected['xmlProcessingInstructionTargets']);
+        $t->same([
+            '/' => 1,
+            '/a:theme' => 1,
+            '/w:settings' => 1,
+        ], $selected['xmlProcessingInstructionParentPathCounts']);
+        $t->same(3, $selected['xmlProcessingInstructionParentPathCount']);
+        $t->same(['/', '/a:theme', '/w:settings'], $selected['xmlProcessingInstructionParentPaths']);
+        $t->same([
+            '(none)' => 1,
+            'http://schemas.openxmlformats.org/drawingml/2006/main' => 1,
+            'http://schemas.openxmlformats.org/wordprocessingml/2006/main' => 1,
+        ], $selected['xmlProcessingInstructionParentNamespaceCounts']);
+        $t->same(3, $selected['xmlProcessingInstructionParentNamespaceCount']);
+        $t->same(['(none)' => 1, 'settings' => 1, 'theme' => 1], $selected['xmlProcessingInstructionParentLocalNameCounts']);
+        $t->same(3, $selected['xmlProcessingInstructionParentLocalNameCount']);
+        $t->same(['(none)' => 1, 'a:theme' => 1, 'w:settings' => 1], $selected['xmlProcessingInstructionParentQualifiedNameCounts']);
+        $t->same(3, $selected['xmlProcessingInstructionParentQualifiedNameCount']);
+        $t->same([
+            'absolute-uri' => 1,
+            'boolean' => 1,
+            'relative-reference' => 1,
+            'token' => 2,
+            'token-list' => 1,
+        ], $selected['xmlProcessingInstructionDataAttributeValueShapeCounts']);
+        $t->same(['absolute-uri', 'boolean', 'relative-reference', 'token', 'token-list'], $selected['xmlProcessingInstructionDataAttributeValueShapes']);
+        $t->same(7, $selected['xmlProcessingInstructionDataAttributeTokenValueCount']);
+
+        $t->same(2, $settings['xmlProcessingInstructionCount']);
+        $t->same(['selected-settings' => 1, 'selected-settings-child' => 1], $settings['xmlProcessingInstructionTargetCounts']);
+        $t->same(['/' => 1, '/w:settings' => 1], $settings['xmlProcessingInstructionParentPathCounts']);
+        $t->same('selected-settings', $settings['xmlProcessingInstructions'][0]['target']);
+        $t->same('/', $settings['xmlProcessingInstructions'][0]['parentPath']);
+        $t->same(strlen($settingsRootData), $settings['xmlProcessingInstructions'][0]['dataByteLength']);
+        $t->same(sprintf('%08x', crc32($settingsRootData)), $settings['xmlProcessingInstructions'][0]['dataCrc32']);
+        $t->same(hash('sha256', $settingsRootData), $settings['xmlProcessingInstructions'][0]['dataSha256']);
+        $t->same(['href', 'mode'], $settings['xmlProcessingInstructions'][0]['dataAttributeNames']);
+        $t->same('selected-settings-child', $settings['xmlProcessingInstructions'][1]['target']);
+        $t->same('/w:settings', $settings['xmlProcessingInstructions'][1]['parentPath']);
+        $t->same('settings', $settings['xmlProcessingInstructions'][1]['parentLocalName']);
+        $t->same('w:settings', $settings['xmlProcessingInstructions'][1]['parentQualifiedName']);
+
+        $t->same(1, $theme['xmlProcessingInstructionCount']);
+        $t->same(['theme-review' => 1], $theme['xmlProcessingInstructionTargetCounts']);
+        $t->same('/a:theme', $theme['xmlProcessingInstructions'][0]['parentPath']);
+        $t->same('a:theme', $theme['xmlProcessingInstructions'][0]['parentQualifiedName']);
+        $t->same(strlen($themeData), $theme['xmlProcessingInstructions'][0]['dataByteLength']);
+        $t->same(sprintf('%08x', crc32($themeData)), $theme['xmlProcessingInstructions'][0]['dataCrc32']);
+        $t->same(hash('sha256', $themeData), $theme['xmlProcessingInstructions'][0]['dataSha256']);
+
+        $t->same($selected['xmlProcessingInstructionPartCount'], $summary['selectedXmlPartXmlProcessingInstructionPartCount']);
+        $t->same($selected['xmlProcessingInstructionCount'], $summary['selectedXmlPartXmlProcessingInstructionCount']);
+        $t->same($selected['xmlProcessingInstructionPartNames'], $summary['selectedXmlPartXmlProcessingInstructionPartNames']);
+        $t->same($selected['xmlProcessingInstructionTargetCounts'], $summary['selectedXmlPartXmlProcessingInstructionTargetCounts']);
+        $t->same($selected['xmlProcessingInstructionTargets'], $summary['selectedXmlPartXmlProcessingInstructionTargets']);
+        $t->same($selected['xmlProcessingInstructionParentPathCount'], $summary['selectedXmlPartXmlProcessingInstructionParentPathCount']);
+        $t->same($selected['xmlProcessingInstructionParentPathCounts'], $summary['selectedXmlPartXmlProcessingInstructionParentPathCounts']);
+        $t->same($selected['xmlProcessingInstructionParentPaths'], $summary['selectedXmlPartXmlProcessingInstructionParentPaths']);
+        $t->same($selected['xmlProcessingInstructionParentNamespaceCount'], $summary['selectedXmlPartXmlProcessingInstructionParentNamespaceCount']);
+        $t->same($selected['xmlProcessingInstructionParentNamespaceCounts'], $summary['selectedXmlPartXmlProcessingInstructionParentNamespaceCounts']);
+        $t->same($selected['xmlProcessingInstructionParentLocalNameCount'], $summary['selectedXmlPartXmlProcessingInstructionParentLocalNameCount']);
+        $t->same($selected['xmlProcessingInstructionParentLocalNameCounts'], $summary['selectedXmlPartXmlProcessingInstructionParentLocalNameCounts']);
+        $t->same($selected['xmlProcessingInstructionParentQualifiedNameCount'], $summary['selectedXmlPartXmlProcessingInstructionParentQualifiedNameCount']);
+        $t->same($selected['xmlProcessingInstructionParentQualifiedNameCounts'], $summary['selectedXmlPartXmlProcessingInstructionParentQualifiedNameCounts']);
+        $t->same($selected['xmlProcessingInstructionDataAttributeValueShapeCounts'], $summary['selectedXmlPartXmlProcessingInstructionDataAttributeValueShapeCounts']);
+        $t->same($selected['xmlProcessingInstructionDataAttributeValueShapes'], $summary['selectedXmlPartXmlProcessingInstructionDataAttributeValueShapes']);
+        $t->same($selected['xmlProcessingInstructionDataAttributeTokenValueCount'], $summary['selectedXmlPartXmlProcessingInstructionDataAttributeTokenValueCount']);
+        $t->same($selected['xmlProcessingInstructions'], $summary['selectedXmlPartXmlProcessingInstructions']);
+        $t->same('settings', $summary['selectedXmlPartXmlProcessingInstructions'][0]['kind']);
+        $t->same('theme', $summary['selectedXmlPartXmlProcessingInstructions'][2]['kind']);
+
+        $encodedReview = json_encode([
+            $selected['xmlProcessingInstructions'],
+            $summary['selectedXmlPartXmlProcessingInstructions'],
+            $settings['xmlProcessingInstructions'],
+            $theme['xmlProcessingInstructions'],
+        ]);
+        $t->true(is_string($encodedReview), 'selected XML PI metadata should encode for review');
+        $t->true(!isset($settings['xmlProcessingInstructions'][0]['data']), 'selected XML PI metadata must not expose raw PI data');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-alpha'), 'selected XML PI rollups should not expose root PI data values');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-beta'), 'selected XML PI rollups should not expose child PI data values');
+        $t->true(!str_contains((string) $encodedReview, 'hidden-gamma'), 'selected XML PI rollups should not expose theme PI data values');
+        $t->true(!str_contains((string) $encodedReview, 'Processing Instruction Theme'), 'selected XML PI rollups should not expose selected part attribute values');
+    },
     'summarizes docx selected openxml text and cdata metadata for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $settingsText = "selected-settings-text:hidden-alpha\nline-two";
