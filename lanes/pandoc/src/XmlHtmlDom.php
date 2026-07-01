@@ -17393,6 +17393,15 @@ final class XmlHtmlDom
         $referrerPolicy = $referrerPolicyRaw === null ? null : self::referrerPolicyState($referrerPolicyRaw);
         $blocking = self::htmlBlockingTokenSummary($script);
         $issues = [];
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $issues[] = ['code' => 'invalid-script-crossorigin', 'crossoriginRaw' => $crossoriginRaw];
+        }
+        if ($fetchPriorityRaw !== null && $fetchPriority === null) {
+            $issues[] = ['code' => 'invalid-script-fetchpriority', 'fetchpriorityRaw' => $fetchPriorityRaw];
+        }
+        if ($referrerPolicyRaw !== null && $referrerPolicy === null) {
+            $issues[] = ['code' => 'invalid-script-referrerpolicy', 'referrerpolicyRaw' => $referrerPolicyRaw];
+        }
         foreach ($blocking['invalid'] as $token) {
             $issues[] = ['code' => 'invalid-script-blocking-token', 'token' => $token];
         }
