@@ -8971,7 +8971,18 @@ final class ZipPackage
      *     isSingleDisk:?bool,
      *     centralDirectoryEndMatchesRecordOffset:?bool,
      *     eocdFieldsMatchZip64Record:?bool,
+     *     eocdZip64ResolutionFieldCount:int,
+     *     eocdZip64SentinelFieldCount:int,
+     *     eocdZip64ResolvedFieldCount:int,
+     *     eocdZip64MissingFieldCount:int,
+     *     eocdZip64MirroredFieldCount:int,
+     *     eocdZip64MismatchedFieldCount:int,
+     *     eocdZip64SentinelFields:list<string>,
+     *     eocdZip64ResolvedFields:list<string>,
+     *     eocdZip64MissingFields:list<string>,
+     *     eocdZip64MirroredFields:list<string>,
      *     eocdZip64MismatchedFields:list<string>,
+     *     eocdZip64FieldResolutions:list<array<string, mixed>>,
      *     eocdDiskNumber:int,
      *     eocdCentralDirectoryDisk:int,
      *     eocdDiskEntryCount:int,
@@ -8995,22 +9006,61 @@ final class ZipPackage
             || $eocdCentralDirectorySize === 0xffffffff
             || $eocdCentralDirectoryOffset === 0xffffffff;
         $issues = $zip64['zip64Issues'];
+        $eocdZip64FieldResolutions = [];
+        $eocdZip64SentinelFields = [];
+        $eocdZip64ResolvedFields = [];
+        $eocdZip64MissingFields = [];
+        $eocdZip64MirroredFields = [];
         $eocdZip64MismatchedFields = [];
         $eocdFieldsMatchZip64Record = null;
-        if ($zip64['hasZip64EndOfCentralDirectory']) {
-            foreach ([
-                ['diskNumber', $eocdDiskNumber, 0xffff, $zip64['zip64DiskNumber']],
-                ['centralDirectoryDisk', $eocdCentralDirectoryDisk, 0xffff, $zip64['zip64CentralDirectoryDisk']],
-                ['diskEntryCount', $eocdDiskEntryCount, 0xffff, $zip64['zip64DiskEntryCount']],
-                ['totalEntryCount', $eocdTotalEntryCount, 0xffff, $zip64['zip64TotalEntryCount']],
-                ['centralDirectorySize', $eocdCentralDirectorySize, 0xffffffff, $zip64['zip64CentralDirectorySize']],
-                ['centralDirectoryOffset', $eocdCentralDirectoryOffset, 0xffffffff, $zip64['zip64CentralDirectoryOffset']],
-            ] as [$field, $eocdValue, $sentinel, $zip64Value]) {
-                if ($eocdValue !== $sentinel && $zip64Value !== null && $eocdValue !== $zip64Value) {
-                    $eocdZip64MismatchedFields[] = $field;
+        foreach ([
+            ['diskNumber', $eocdDiskNumber, 0xffff, $zip64['zip64DiskNumber']],
+            ['centralDirectoryDisk', $eocdCentralDirectoryDisk, 0xffff, $zip64['zip64CentralDirectoryDisk']],
+            ['diskEntryCount', $eocdDiskEntryCount, 0xffff, $zip64['zip64DiskEntryCount']],
+            ['totalEntryCount', $eocdTotalEntryCount, 0xffff, $zip64['zip64TotalEntryCount']],
+            ['centralDirectorySize', $eocdCentralDirectorySize, 0xffffffff, $zip64['zip64CentralDirectorySize']],
+            ['centralDirectoryOffset', $eocdCentralDirectoryOffset, 0xffffffff, $zip64['zip64CentralDirectoryOffset']],
+        ] as [$field, $eocdValue, $sentinel, $zip64Value]) {
+            $usesZip64Record = $eocdValue === $sentinel;
+            $zip64ValueAvailable = $zip64Value !== null;
+            $matchesZip64Record = $zip64ValueAvailable
+                ? ($usesZip64Record || $eocdValue === $zip64Value)
+                : null;
+            if ($usesZip64Record) {
+                $eocdZip64SentinelFields[] = $field;
+                if ($zip64ValueAvailable) {
+                    $eocdZip64ResolvedFields[] = $field;
+                } else {
+                    $eocdZip64MissingFields[] = $field;
                 }
+            } elseif ($zip64ValueAvailable && $eocdValue === $zip64Value) {
+                $eocdZip64MirroredFields[] = $field;
+            } elseif ($zip64ValueAvailable) {
+                $eocdZip64MismatchedFields[] = $field;
             }
 
+            $resolution = 'classic-eocd';
+            if ($usesZip64Record && $zip64ValueAvailable) {
+                $resolution = 'zip64-record';
+            } elseif ($usesZip64Record) {
+                $resolution = 'zip64-record-missing';
+            } elseif ($zip64ValueAvailable && $eocdValue === $zip64Value) {
+                $resolution = 'classic-eocd-mirror';
+            } elseif ($zip64ValueAvailable) {
+                $resolution = 'classic-eocd-mismatch';
+            }
+
+            $eocdZip64FieldResolutions[] = [
+                'field' => $field,
+                'eocdValue' => $eocdValue,
+                'eocdSentinelValue' => $sentinel,
+                'zip64Value' => $zip64Value,
+                'usesZip64Record' => $usesZip64Record,
+                'matchesZip64Record' => $matchesZip64Record,
+                'resolution' => $resolution,
+            ];
+        }
+        if ($zip64['hasZip64EndOfCentralDirectory']) {
             $eocdFieldsMatchZip64Record = $eocdZip64MismatchedFields === [];
             if ($eocdZip64MismatchedFields !== []) {
                 $issues[] = 'zip64-eocd-field-mismatch';
@@ -9053,7 +9103,18 @@ final class ZipPackage
             'isSingleDisk' => $zip64['zip64IsSingleDisk'],
             'centralDirectoryEndMatchesRecordOffset' => $zip64['zip64CentralDirectoryEndMatchesRecordOffset'],
             'eocdFieldsMatchZip64Record' => $eocdFieldsMatchZip64Record,
+            'eocdZip64ResolutionFieldCount' => count($eocdZip64FieldResolutions),
+            'eocdZip64SentinelFieldCount' => count($eocdZip64SentinelFields),
+            'eocdZip64ResolvedFieldCount' => count($eocdZip64ResolvedFields),
+            'eocdZip64MissingFieldCount' => count($eocdZip64MissingFields),
+            'eocdZip64MirroredFieldCount' => count($eocdZip64MirroredFields),
+            'eocdZip64MismatchedFieldCount' => count($eocdZip64MismatchedFields),
+            'eocdZip64SentinelFields' => $eocdZip64SentinelFields,
+            'eocdZip64ResolvedFields' => $eocdZip64ResolvedFields,
+            'eocdZip64MissingFields' => $eocdZip64MissingFields,
+            'eocdZip64MirroredFields' => $eocdZip64MirroredFields,
             'eocdZip64MismatchedFields' => $eocdZip64MismatchedFields,
+            'eocdZip64FieldResolutions' => $eocdZip64FieldResolutions,
             'eocdDiskNumber' => $eocdDiskNumber,
             'eocdCentralDirectoryDisk' => $eocdCentralDirectoryDisk,
             'eocdDiskEntryCount' => $eocdDiskEntryCount,

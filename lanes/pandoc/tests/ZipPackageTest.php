@@ -8870,7 +8870,37 @@ return [
         $t->same($summary['recordOffset'], $summary['centralDirectoryEnd']);
         $t->same(true, $summary['centralDirectoryEndMatchesRecordOffset']);
         $t->same(true, $summary['eocdFieldsMatchZip64Record']);
+        $t->same(6, $summary['eocdZip64ResolutionFieldCount']);
+        $t->same(4, $summary['eocdZip64SentinelFieldCount']);
+        $t->same(4, $summary['eocdZip64ResolvedFieldCount']);
+        $t->same(0, $summary['eocdZip64MissingFieldCount']);
+        $t->same(2, $summary['eocdZip64MirroredFieldCount']);
+        $t->same(0, $summary['eocdZip64MismatchedFieldCount']);
+        $t->same([
+            'diskEntryCount',
+            'totalEntryCount',
+            'centralDirectorySize',
+            'centralDirectoryOffset',
+        ], $summary['eocdZip64SentinelFields']);
+        $t->same($summary['eocdZip64SentinelFields'], $summary['eocdZip64ResolvedFields']);
+        $t->same([], $summary['eocdZip64MissingFields']);
+        $t->same([
+            'diskNumber',
+            'centralDirectoryDisk',
+        ], $summary['eocdZip64MirroredFields']);
         $t->same([], $summary['eocdZip64MismatchedFields']);
+        $t->same([
+            'diskNumber' => 'classic-eocd-mirror',
+            'centralDirectoryDisk' => 'classic-eocd-mirror',
+            'diskEntryCount' => 'zip64-record',
+            'totalEntryCount' => 'zip64-record',
+            'centralDirectorySize' => 'zip64-record',
+            'centralDirectoryOffset' => 'zip64-record',
+        ], array_column($summary['eocdZip64FieldResolutions'], 'resolution', 'field'));
+        $t->same(0xffffffff, $summary['eocdZip64FieldResolutions'][4]['eocdSentinelValue']);
+        $t->same($summary['centralDirectorySize'], $summary['eocdZip64FieldResolutions'][4]['zip64Value']);
+        $t->same(true, $summary['eocdZip64FieldResolutions'][4]['usesZip64Record']);
+        $t->same(true, $summary['eocdZip64FieldResolutions'][4]['matchesZip64Record']);
         $t->same(true, $summary['isSingleDisk']);
 
         $locatorOffset = $summary['locatorOffset'];
@@ -8892,10 +8922,30 @@ return [
         $eocdMismatchSummary = ZipPackage::zip64EndOfCentralDirectoryAccountingPreflight($eocdMismatchZip);
         $eocdMismatchRaw = ZipPackage::rawStrictImportPreflight($eocdMismatchZip, 512, 20.0, 512);
         $t->same(false, $eocdMismatchSummary['eocdFieldsMatchZip64Record']);
+        $t->same(2, $eocdMismatchSummary['eocdZip64SentinelFieldCount']);
+        $t->same(2, $eocdMismatchSummary['eocdZip64ResolvedFieldCount']);
+        $t->same(2, $eocdMismatchSummary['eocdZip64MirroredFieldCount']);
+        $t->same(2, $eocdMismatchSummary['eocdZip64MismatchedFieldCount']);
+        $t->same([
+            'centralDirectorySize',
+            'centralDirectoryOffset',
+        ], $eocdMismatchSummary['eocdZip64SentinelFields']);
+        $t->same([
+            'diskNumber',
+            'centralDirectoryDisk',
+        ], $eocdMismatchSummary['eocdZip64MirroredFields']);
         $t->same([
             'diskEntryCount',
             'totalEntryCount',
         ], $eocdMismatchSummary['eocdZip64MismatchedFields']);
+        $t->same([
+            'diskNumber' => 'classic-eocd-mirror',
+            'centralDirectoryDisk' => 'classic-eocd-mirror',
+            'diskEntryCount' => 'classic-eocd-mismatch',
+            'totalEntryCount' => 'classic-eocd-mismatch',
+            'centralDirectorySize' => 'zip64-record',
+            'centralDirectoryOffset' => 'zip64-record',
+        ], array_column($eocdMismatchSummary['eocdZip64FieldResolutions'], 'resolution', 'field'));
         $t->same([
             'zip64-end-of-central-directory',
             'zip64-eocd-field-mismatch',
@@ -8921,7 +8971,27 @@ return [
         $t->same(false, $sentinelOnlySummary['isSupportedByBoundedReader']);
         $t->same(['zip64-end-of-central-directory-required'], $sentinelOnlySummary['issues']);
         $t->same(null, $sentinelOnlySummary['eocdFieldsMatchZip64Record']);
+        $t->same(6, $sentinelOnlySummary['eocdZip64ResolutionFieldCount']);
+        $t->same(2, $sentinelOnlySummary['eocdZip64SentinelFieldCount']);
+        $t->same(0, $sentinelOnlySummary['eocdZip64ResolvedFieldCount']);
+        $t->same(2, $sentinelOnlySummary['eocdZip64MissingFieldCount']);
+        $t->same(0, $sentinelOnlySummary['eocdZip64MirroredFieldCount']);
+        $t->same(0, $sentinelOnlySummary['eocdZip64MismatchedFieldCount']);
+        $t->same([
+            'totalEntryCount',
+            'centralDirectorySize',
+        ], $sentinelOnlySummary['eocdZip64SentinelFields']);
+        $t->same([], $sentinelOnlySummary['eocdZip64ResolvedFields']);
+        $t->same($sentinelOnlySummary['eocdZip64SentinelFields'], $sentinelOnlySummary['eocdZip64MissingFields']);
         $t->same([], $sentinelOnlySummary['eocdZip64MismatchedFields']);
+        $t->same([
+            'diskNumber' => 'classic-eocd',
+            'centralDirectoryDisk' => 'classic-eocd',
+            'diskEntryCount' => 'classic-eocd',
+            'totalEntryCount' => 'zip64-record-missing',
+            'centralDirectorySize' => 'zip64-record-missing',
+            'centralDirectoryOffset' => 'classic-eocd',
+        ], array_column($sentinelOnlySummary['eocdZip64FieldResolutions'], 'resolution', 'field'));
         $t->throws(\RuntimeException::class, static fn (): ZipPackage => ZipPackage::fromString($sentinelOnlyZip));
     },
 
