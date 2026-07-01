@@ -8,6 +8,7 @@ final class PptxReader
 {
     private const OFFICE_DOCUMENT_RELATIONSHIP = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    private const DIAGRAM_NAMESPACE = 'http://schemas.openxmlformats.org/drawingml/2006/diagram';
     private const COMMENT_AUTHORS_PART = '/ppt/commentAuthors.xml';
     private const MAX_XML_PART_BYTES = 8_388_608;
     private const EMUS_PER_INCH = 914_400;
@@ -2610,7 +2611,7 @@ final class PptxReader
         if (!$dataRoot instanceof \DOMElement || !$layoutRoot instanceof \DOMElement) {
             return $this->paragraph('[Diagram parse error: diagram-invalid-xml]');
         }
-        if (!$this->firstChildElement($dataRoot, 'ptLst') instanceof \DOMElement) {
+        if (!$this->firstDiagramChildElement($dataRoot, 'ptLst') instanceof \DOMElement) {
             return $this->paragraph('[Diagram parse error: Missing dgm:ptLst]');
         }
 
@@ -2654,7 +2655,7 @@ final class PptxReader
             return $position === false ? $uniqueId : substr($uniqueId, $position + 1);
         }
 
-        $title = $this->firstChildElement($layoutRoot, 'title');
+        $title = $this->firstDiagramChildElement($layoutRoot, 'title');
 
         return $title instanceof \DOMElement && $title->hasAttribute('val') ? $title->getAttribute('val') : 'unknown';
     }
@@ -2664,16 +2665,15 @@ final class PptxReader
      */
     private function diagramNodes(\DOMElement $dataRoot): array
     {
-        $pointList = $this->firstChildElement($dataRoot, 'ptLst');
-        $connectionList = $this->firstChildElement($dataRoot, 'cxnLst');
-        if (!$pointList instanceof \DOMElement || !$connectionList instanceof \DOMElement) {
+        $pointList = $this->firstDiagramChildElement($dataRoot, 'ptLst');
+        if (!$pointList instanceof \DOMElement) {
             return [];
         }
 
         $nodeText = [];
-        foreach ($this->childElements($pointList, 'pt') as $pointElement) {
+        foreach ($this->diagramChildElements($pointList, 'pt') as $pointElement) {
             $modelId = $pointElement->getAttribute('modelId');
-            $textElement = $this->firstChildElement($pointElement, 't');
+            $textElement = $this->firstDiagramChildElement($pointElement, 't');
             $text = $textElement instanceof \DOMElement ? $this->allDescendantText($textElement) : '';
             if ($modelId !== '' && trim($text) !== '') {
                 $nodeText[$modelId] = $text;
@@ -2681,17 +2681,20 @@ final class PptxReader
         }
 
         $childrenByParent = [];
-        foreach ($this->childElements($connectionList, 'cxn') as $connectionElement) {
-            if ($connectionElement->hasAttribute('type')) {
-                continue;
+        $connectionList = $this->firstDiagramChildElement($dataRoot, 'cxnLst');
+        if ($connectionList instanceof \DOMElement) {
+            foreach ($this->diagramChildElements($connectionList, 'cxn') as $connectionElement) {
+                if ($connectionElement->hasAttribute('type')) {
+                    continue;
+                }
+                $sourceId = $connectionElement->getAttribute('srcId');
+                $destinationId = $connectionElement->getAttribute('destId');
+                if ($sourceId === '' || $destinationId === '') {
+                    continue;
+                }
+                $childrenByParent[$sourceId] ??= [];
+                $childrenByParent[$sourceId][] = $destinationId;
             }
-            $sourceId = $connectionElement->getAttribute('srcId');
-            $destinationId = $connectionElement->getAttribute('destId');
-            if ($sourceId === '' || $destinationId === '') {
-                continue;
-            }
-            $childrenByParent[$sourceId] ??= [];
-            $childrenByParent[$sourceId][] = $destinationId;
         }
 
         $parentIds = array_keys($childrenByParent);
@@ -2714,6 +2717,26 @@ final class PptxReader
         }
 
         return $nodes;
+    }
+
+    private function firstDiagramChildElement(\DOMElement $parent, string $localName): ?\DOMElement
+    {
+        foreach ($this->diagramChildElements($parent, $localName) as $child) {
+            return $child;
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private function diagramChildElements(\DOMElement $parent, string $localName): array
+    {
+        return array_values(array_filter(
+            $this->childElements($parent, $localName),
+            static fn (\DOMElement $child): bool => $child->namespaceURI === self::DIAGRAM_NAMESPACE
+        ));
     }
 
     private function isTitlePlaceholder(\DOMElement $shapeElement): bool
