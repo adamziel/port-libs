@@ -23685,6 +23685,10 @@ final class OdfReader
         $encryptedReferenceCount = 0;
         $exposableReferenceCount = 0;
         $blockedReferenceCount = 0;
+        $embeddedObjectReferenceCount = 0;
+        $mediaResourceReferenceCount = 0;
+        $packageRolePrecedenceReferenceCount = 0;
+        $mediaFamilyCounts = [];
 
         foreach ($items as $item) {
             $role = (string) ($item['referenceRole'] ?? '');
@@ -23715,11 +23719,25 @@ final class OdfReader
             } else {
                 ++$blockedReferenceCount;
             }
+            if (($item['embeddedObjectPackagePart'] ?? false) === true) {
+                ++$embeddedObjectReferenceCount;
+            }
+            if (($item['mediaResource'] ?? false) === true) {
+                ++$mediaResourceReferenceCount;
+            }
+            if (is_array($item['packageRolePrecedence'] ?? null) && $item['packageRolePrecedence'] !== []) {
+                ++$packageRolePrecedenceReferenceCount;
+            }
+            $family = $item['effectiveMediaFamily'] ?? null;
+            if (is_string($family) && $family !== '') {
+                $mediaFamilyCounts[$family] = ($mediaFamilyCounts[$family] ?? 0) + 1;
+            }
         }
 
         ksort($referenceRoleCounts, SORT_STRING);
         ksort($partReferenceCounts, SORT_STRING);
         ksort($byteExposurePolicyCounts, SORT_STRING);
+        ksort($mediaFamilyCounts, SORT_STRING);
 
         return [
             'count' => count($items),
@@ -23734,7 +23752,11 @@ final class OdfReader
             'encryptedReferenceCount' => $encryptedReferenceCount,
             'exposableReferenceCount' => $exposableReferenceCount,
             'blockedReferenceCount' => $blockedReferenceCount,
+            'embeddedObjectReferenceCount' => $embeddedObjectReferenceCount,
+            'mediaResourceReferenceCount' => $mediaResourceReferenceCount,
+            'packageRolePrecedenceReferenceCount' => $packageRolePrecedenceReferenceCount,
             'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'mediaFamilyCounts' => $mediaFamilyCounts,
             'byteExposurePolicy' => 'odf-content-package-reference-metadata-only',
             'canExposeBytes' => false,
             'items' => $items,
@@ -23805,6 +23827,19 @@ final class OdfReader
         $byteExposurePolicy = $declared
             ? ($manifestItem['byteExposurePolicy'] ?? null)
             : ($canExposeBytes ? 'package-bytes-exposable' : 'content-reference-metadata-only');
+        $mediaType = is_array($manifestItem) ? ($manifestItem['mediaType'] ?? null) : $node->attr('mediaType');
+        $mediaTypeText = is_string($mediaType) ? $mediaType : '';
+        $mediaTypeBase = is_array($manifestItem)
+            ? (string) ($manifestItem['mediaTypeBase'] ?? self::mediaTypeReport($mediaTypeText)['mediaTypeBase'])
+            : self::mediaTypeReport($mediaTypeText)['mediaTypeBase'];
+        $declaredMediaFamily = self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase);
+        $packagePathMediaFamily = self::mediaResourceFamilyFromPackagePart($sourcePart);
+        $packageRolePrecedence = is_array($manifestItem) ? $this->mediaResourcePackagePrecedenceRoles($manifestItem) : [];
+        $mediaResource = $packageRolePrecedence === []
+            && ($referenceRole === 'draw:image' || self::isManifestMediaResourceCandidate($sourcePart, $mediaTypeBase));
+        $effectiveMediaFamily = ($mediaResource || $declaredMediaFamily !== null || $packagePathMediaFamily !== null)
+            ? ($declaredMediaFamily ?? $packagePathMediaFamily ?? 'other')
+            : null;
 
         return self::withoutEmpty([
             'index' => $index,
@@ -23821,8 +23856,19 @@ final class OdfReader
             'manifestPartSuffix' => is_array($manifestItem) ? ($manifestItem['partSuffix'] ?? null) : null,
             'manifestPartQuery' => is_array($manifestItem) ? ($manifestItem['partQuery'] ?? null) : null,
             'manifestPartFragment' => is_array($manifestItem) ? ($manifestItem['partFragment'] ?? null) : null,
-            'mediaType' => is_array($manifestItem) ? ($manifestItem['mediaType'] ?? null) : $node->attr('mediaType'),
-            'mediaTypeBase' => is_array($manifestItem) ? ($manifestItem['mediaTypeBase'] ?? null) : null,
+            'mediaType' => $mediaType,
+            'mediaTypeBase' => $mediaTypeBase === '' ? null : $mediaTypeBase,
+            'declaredMediaFamily' => $declaredMediaFamily,
+            'packagePathMediaFamily' => $packagePathMediaFamily,
+            'effectiveMediaFamily' => $effectiveMediaFamily,
+            'mediaResource' => $mediaResource,
+            'packageRolePrecedence' => $packageRolePrecedence,
+            'embeddedObjectPackagePart' => is_array($manifestItem) && ($manifestItem['embeddedObjectPackagePart'] ?? false) === true,
+            'embeddedObjectRoot' => is_array($manifestItem) && ($manifestItem['embeddedObjectRoot'] ?? false) === true,
+            'embeddedObjectContainedPart' => is_array($manifestItem) && ($manifestItem['embeddedObjectContainedPart'] ?? false) === true,
+            'embeddedObjectRootPart' => is_array($manifestItem) ? ($manifestItem['embeddedObjectRootPart'] ?? null) : null,
+            'embeddedObjectPath' => is_array($manifestItem) ? ($manifestItem['embeddedObjectPath'] ?? null) : null,
+            'embeddedObjectType' => is_array($manifestItem) ? ($manifestItem['embeddedObjectType'] ?? null) : null,
             'exists' => $exists,
             'encrypted' => $encrypted,
             'canExposeBytes' => $canExposeBytes,
