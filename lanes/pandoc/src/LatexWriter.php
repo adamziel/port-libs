@@ -684,13 +684,29 @@ final class LatexWriter
     {
         $tokens = [];
         foreach ($nodes as $node) {
-            if (in_array($node->type, ['emph', 'strong', 'underline', 'strikeout'], true)) {
+            if (in_array($node->type, ['emph', 'strong', 'underline', 'strikeout', 'superscript', 'subscript', 'small_caps'], true)) {
                 array_push($tokens, ...$this->inlineTokens(
                     $node->children,
                     $escapeText,
                     $protectImages,
-                    array_merge($styles, [$node->type])
+                    array_merge($styles, [$this->latexStyleKey($node)])
                 ));
+                continue;
+            }
+
+            if ($node->type === 'quoted') {
+                [$opening, $closing] = $this->quoteDelimiters($node);
+                $tokens[] = [
+                    'kind' => 'text',
+                    'text' => $opening,
+                    'styles' => $styles,
+                ];
+                array_push($tokens, ...$this->inlineTokens($node->children, $escapeText, $protectImages, $styles));
+                $tokens[] = [
+                    'kind' => 'text',
+                    'text' => $closing,
+                    'styles' => $styles,
+                ];
                 continue;
             }
 
@@ -715,7 +731,7 @@ final class LatexWriter
                     ? $this->escapeText((string) $node->attr('text', ''))
                     : (string) $node->attr('text', ''),
                 'softbreak', 'linebreak' => "\n",
-                'code' => $this->renderCode($node, in_array('strikeout', $styles, true)),
+                'code' => $this->renderCode($node, $this->styleListContains($styles, 'strikeout')),
                 'math' => $this->renderMath($node),
                 'link' => $this->renderLink($node),
                 'image' => $this->renderImage($node, $protectImages),
@@ -808,9 +824,58 @@ final class LatexWriter
         return match ($style) {
             'strong' => '\textbf{',
             'underline' => '\ul{',
+            'native_underline' => '\underline{',
             'strikeout' => '\st{',
+            'native_strikeout' => '\sout{',
+            'superscript' => '\textsuperscript{',
+            'subscript' => '\textsubscript{',
+            'small_caps' => '\textsc{',
             default => '\emph{',
         };
+    }
+
+    private function latexStyleKey(AstNode $node): string
+    {
+        return match ($node->type) {
+            'underline' => $this->hasPandocInlineConstructor($node, 'Underline') ? 'native_underline' : 'underline',
+            'strikeout' => $this->hasPandocInlineConstructor($node, 'Strikeout') ? 'native_strikeout' : 'strikeout',
+            default => $node->type,
+        };
+    }
+
+    private function hasPandocInlineConstructor(AstNode $node, string $constructor): bool
+    {
+        if ($node->attr('constructor') === $constructor) {
+            return true;
+        }
+
+        $native = $node->attr('native');
+
+        return is_array($native)
+            && !array_is_list($native)
+            && ($native['t'] ?? null) === $constructor;
+    }
+
+    /**
+     * @param list<string> $styles
+     */
+    private function styleListContains(array $styles, string $style): bool
+    {
+        foreach ($styles as $candidate) {
+            if ($candidate === $style || $candidate === 'native_' . $style) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @return array{0:string, 1:string}
+     */
+    private function quoteDelimiters(AstNode $node): array
+    {
+        return $node->attr('kind') === 'single' ? ['`', "'"] : ['``', "''"];
     }
 
     private function noteNeedsStyleSplit(AstNode $node): bool
@@ -1082,6 +1147,10 @@ final class LatexWriter
             'strong',
             'underline',
             'strikeout',
+            'superscript',
+            'subscript',
+            'small_caps',
+            'quoted',
             'softbreak',
             'linebreak',
             'code',
