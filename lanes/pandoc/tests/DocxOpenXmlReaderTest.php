@@ -508,6 +508,67 @@ return [
         $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][1]['centralEntryNames']);
         $t->same(['word/document.xml'], $summary['zipExtraFieldIdUsage'][1]['localEntryNames']);
     },
+    'preserves docx source zip package manifest hashes across package ingestion' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === '[Content_Types].xml' || $zipPart['name'] === 'word/media/review.png') {
+                $zipPart['compressionMethod'] = 0;
+            }
+        }
+        unset($zipPart);
+
+        $zip = ZipPackage::fromParts($zipParts, 'docx manifest review');
+        $manifest = $zip->packageManifestPreflight();
+        $manifestEntriesByName = [];
+        foreach ($manifest['entries'] as $manifestEntry) {
+            $manifestEntriesByName[$manifestEntry['name']] = $manifestEntry;
+        }
+
+        $documentCompressed = gzdeflate($parts['word/document.xml']);
+        $t->true(is_string($documentCompressed), 'fixture document XML should deflate');
+
+        $document = (new DocxOpenXmlReader())->readZipPackage($zip);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $zipPackage = $package['zipPackage'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+        $documentManifest = $manifestEntriesByName['word/document.xml'];
+        $contentTypesManifest = $manifestEntriesByName['[Content_Types].xml'];
+        $documentPart = $package['parts']['word/document.xml'];
+        $contentTypesPart = $package['parts']['[Content_Types].xml'];
+
+        $t->same($manifest, $zipPackage['packageManifest']);
+        $t->same('zip-package-manifest-v1', $summary['zipPackageManifestVersion']);
+        $t->same($manifest['manifestSha256'], $summary['zipPackageManifestSha256']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestEntryCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestLocalHeaderHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCompressedDataHashCount']);
+        $t->same($manifest['entryCount'], $summary['zipPackageManifestCentralDirectoryRecordHashCount']);
+
+        $t->same($documentManifest['localHeaderLength'], $documentEntry['localHeaderLength']);
+        $t->same($documentManifest['localHeaderSha256'], $documentEntry['localHeaderSha256']);
+        $t->same($documentManifest['compressedDataOffset'], $documentEntry['compressedDataOffset']);
+        $t->same($documentManifest['compressedDataEnd'], $documentEntry['compressedDataEnd']);
+        $t->same($documentManifest['compressedDataSha256'], $documentEntry['compressedDataSha256']);
+        $t->same(hash('sha256', $documentCompressed), $documentEntry['compressedDataSha256']);
+        $t->same($documentManifest['centralDirectoryRecordOffset'], $documentEntry['centralDirectoryRecordOffset']);
+        $t->same($documentManifest['centralDirectoryRecordEnd'], $documentEntry['centralDirectoryRecordEnd']);
+        $t->same($documentManifest['centralDirectoryRecordSha256'], $documentEntry['centralDirectoryRecordSha256']);
+
+        $t->same($documentEntry['localHeaderSha256'], $documentPart['localHeaderSha256']);
+        $t->same($documentEntry['compressedDataSha256'], $documentPart['compressedDataSha256']);
+        $t->same($documentEntry['centralDirectoryRecordSha256'], $documentPart['centralDirectoryRecordSha256']);
+        $t->same($documentEntry['compressedDataOffset'], $documentPart['compressedDataOffset']);
+        $t->same($documentEntry['compressedDataEnd'], $documentPart['compressedDataEnd']);
+
+        $t->same(0, $contentTypesEntry['compressionMethod']);
+        $t->same(hash('sha256', $parts['[Content_Types].xml']), $contentTypesEntry['compressedDataSha256']);
+        $t->same($contentTypesManifest['localHeaderSha256'], $contentTypesPart['localHeaderSha256']);
+        $t->same($contentTypesManifest['compressedDataSha256'], $contentTypesPart['compressedDataSha256']);
+        $t->same($contentTypesManifest['centralDirectoryRecordSha256'], $contentTypesPart['centralDirectoryRecordSha256']);
+    },
     'preserves docx unsupported zip compression provenance without aborting ingestion' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $unsupportedPart = 'word/media/review-bzip2.bin';

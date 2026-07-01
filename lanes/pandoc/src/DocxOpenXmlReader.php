@@ -10653,6 +10653,20 @@ final class DocxOpenXmlReader
         $summary['zipDeflatedUncompressedByteLength'] = (int) ($compressionMethods['deflatedUncompressedBytes'] ?? 0);
         $summary['zipUnsupportedCompressedByteLength'] = (int) ($compressionMethods['unsupportedCompressedBytes'] ?? 0);
         $summary['zipUnsupportedUncompressedByteLength'] = (int) ($compressionMethods['unsupportedUncompressedBytes'] ?? 0);
+        $zipPackageManifest = is_array($zipPackage['packageManifest'] ?? null)
+            ? $zipPackage['packageManifest']
+            : $this->emptyZipPackageManifestProvenance();
+        $zipManifestHashCounts = $this->zipPackageManifestHashCounts($zipPackageManifest);
+        $summary['zipPackageManifestVersion'] = is_string($zipPackageManifest['manifestVersion'] ?? null)
+            ? $zipPackageManifest['manifestVersion']
+            : null;
+        $summary['zipPackageManifestSha256'] = is_string($zipPackageManifest['manifestSha256'] ?? null)
+            ? $zipPackageManifest['manifestSha256']
+            : null;
+        $summary['zipPackageManifestEntryCount'] = (int) ($zipPackageManifest['entryCount'] ?? 0);
+        $summary['zipPackageManifestLocalHeaderHashCount'] = $zipManifestHashCounts['localHeaderHashCount'];
+        $summary['zipPackageManifestCompressedDataHashCount'] = $zipManifestHashCounts['compressedDataHashCount'];
+        $summary['zipPackageManifestCentralDirectoryRecordHashCount'] = $zipManifestHashCounts['centralDirectoryRecordHashCount'];
         $zipDataDescriptors = $zipPackage['dataDescriptors'];
         $summary['zipDataDescriptorEntryCount'] = $zipDataDescriptors['descriptorEntryCount'];
         $summary['zipSignedDataDescriptorEntryCount'] = $zipDataDescriptors['signedDescriptorEntryCount'];
@@ -10779,6 +10793,7 @@ final class DocxOpenXmlReader
                 'extraFields' => $this->emptyZipExtraFieldProvenance(),
                 'namePolicy' => $this->emptyZipNamePolicyProvenance(),
                 'comments' => $this->emptyZipCommentProvenance(),
+                'packageManifest' => $this->emptyZipPackageManifestProvenance(),
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
                 'canExposeBytes' => false,
                 'entries' => [],
@@ -10791,6 +10806,13 @@ final class DocxOpenXmlReader
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
         $extraFields = $sourcePackage->extraFieldPreflight();
         $comments = $sourcePackage->commentPreflight();
+        $packageManifest = $sourcePackage->packageManifestPreflight();
+        $manifestEntriesByName = [];
+        foreach (($packageManifest['entries'] ?? []) as $manifestEntry) {
+            if (is_array($manifestEntry) && is_string($manifestEntry['name'] ?? null)) {
+                $manifestEntriesByName[$manifestEntry['name']] = $manifestEntry;
+            }
+        }
         $extraFieldEntriesByName = [];
         foreach (($extraFields['entries'] ?? []) as $extraFieldEntry) {
             if (is_array($extraFieldEntry) && is_string($extraFieldEntry['name'] ?? null)) {
@@ -10838,6 +10860,7 @@ final class DocxOpenXmlReader
             $localOrder = $localOrderByName[$entry->name] ?? null;
             $extraFieldEntry = $extraFieldEntriesByName[$entry->name] ?? null;
             $commentEntry = $commentEntriesByName[$entry->name] ?? null;
+            $manifestEntry = $manifestEntriesByName[$entry->name] ?? null;
             $summary = [
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
@@ -10845,6 +10868,14 @@ final class DocxOpenXmlReader
                 'centralDirectoryIndex' => $centralDirectoryIndex,
                 'localHeaderOrder' => is_array($localOrder) ? $localOrder['localHeaderOrder'] : null,
                 'localHeaderOffset' => $entry->localHeaderOffset,
+                'localHeaderLength' => is_array($manifestEntry) ? ($manifestEntry['localHeaderLength'] ?? null) : null,
+                'localHeaderSha256' => is_array($manifestEntry) ? ($manifestEntry['localHeaderSha256'] ?? null) : null,
+                'compressedDataOffset' => is_array($manifestEntry) ? ($manifestEntry['compressedDataOffset'] ?? null) : null,
+                'compressedDataEnd' => is_array($manifestEntry) ? ($manifestEntry['compressedDataEnd'] ?? null) : null,
+                'compressedDataSha256' => is_array($manifestEntry) ? ($manifestEntry['compressedDataSha256'] ?? null) : null,
+                'centralDirectoryRecordOffset' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordOffset'] ?? null) : null,
+                'centralDirectoryRecordEnd' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordEnd'] ?? null) : null,
+                'centralDirectoryRecordSha256' => is_array($manifestEntry) ? ($manifestEntry['centralDirectoryRecordSha256'] ?? null) : null,
                 'matchesCentralDirectoryOrder' => is_array($localOrder)
                     ? $localOrder['matchesCentralDirectoryOrder']
                     : null,
@@ -10900,11 +10931,73 @@ final class DocxOpenXmlReader
             'extraFields' => $extraFields,
             'namePolicy' => $this->zipNamePolicyProvenance($sourcePackage),
             'comments' => $comments,
+            'packageManifest' => $packageManifest,
             'localHeaderOrder' => $localHeaderOrder,
             'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             'canExposeBytes' => false,
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipPackageManifestProvenance(): array
+    {
+        return [
+            'manifestVersion' => null,
+            'manifestSha256' => null,
+            'entryCount' => 0,
+            'fileEntryCount' => 0,
+            'directoryEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'storedEntryCount' => 0,
+            'deflatedEntryCount' => 0,
+            'unsupportedCompressionMethodCount' => 0,
+            'centralDirectoryOrderNames' => [],
+            'localHeaderOrderNames' => [],
+            'centralDirectoryOrderMatchesLocalHeaderOrder' => null,
+            'entries' => [],
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageManifest
+     * @return array{localHeaderHashCount:int, compressedDataHashCount:int, centralDirectoryRecordHashCount:int}
+     */
+    private function zipPackageManifestHashCounts(array $packageManifest): array
+    {
+        $localHeaderHashCount = 0;
+        $compressedDataHashCount = 0;
+        $centralDirectoryRecordHashCount = 0;
+
+        foreach (($packageManifest['entries'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (is_string($entry['localHeaderSha256'] ?? null) && $entry['localHeaderSha256'] !== '') {
+                ++$localHeaderHashCount;
+            }
+
+            if (is_string($entry['compressedDataSha256'] ?? null) && $entry['compressedDataSha256'] !== '') {
+                ++$compressedDataHashCount;
+            }
+
+            if (
+                is_string($entry['centralDirectoryRecordSha256'] ?? null)
+                && $entry['centralDirectoryRecordSha256'] !== ''
+            ) {
+                ++$centralDirectoryRecordHashCount;
+            }
+        }
+
+        return [
+            'localHeaderHashCount' => $localHeaderHashCount,
+            'compressedDataHashCount' => $compressedDataHashCount,
+            'centralDirectoryRecordHashCount' => $centralDirectoryRecordHashCount,
         ];
     }
 
@@ -11227,6 +11320,14 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['centralDirectoryIndex'] = $entry['centralDirectoryIndex'] ?? null;
             $partInventory[$partName]['localHeaderOrder'] = $entry['localHeaderOrder'] ?? null;
             $partInventory[$partName]['localHeaderOffset'] = $entry['localHeaderOffset'] ?? null;
+            $partInventory[$partName]['localHeaderLength'] = $entry['localHeaderLength'] ?? null;
+            $partInventory[$partName]['localHeaderSha256'] = $entry['localHeaderSha256'] ?? null;
+            $partInventory[$partName]['compressedDataOffset'] = $entry['compressedDataOffset'] ?? null;
+            $partInventory[$partName]['compressedDataEnd'] = $entry['compressedDataEnd'] ?? null;
+            $partInventory[$partName]['compressedDataSha256'] = $entry['compressedDataSha256'] ?? null;
+            $partInventory[$partName]['centralDirectoryRecordOffset'] = $entry['centralDirectoryRecordOffset'] ?? null;
+            $partInventory[$partName]['centralDirectoryRecordEnd'] = $entry['centralDirectoryRecordEnd'] ?? null;
+            $partInventory[$partName]['centralDirectoryRecordSha256'] = $entry['centralDirectoryRecordSha256'] ?? null;
             $partInventory[$partName]['matchesCentralDirectoryOrder'] = $entry['matchesCentralDirectoryOrder'] ?? null;
             $partInventory[$partName]['compressionMethod'] = $entry['compressionMethod'] ?? null;
             $partInventory[$partName]['compressionMethodName'] = $entry['compressionMethodName'] ?? null;
