@@ -352,9 +352,10 @@ final class PptxReader
 
     private function shapeTree(\DOMElement $slide): ?\DOMElement
     {
-        $commonSlideData = $this->firstPresentationChildElement($slide, 'cSld');
+        $presentationNamespace = $this->localNamespaceForPrefix($slide, 'p');
+        $commonSlideData = $this->firstChildElementForPrefix($slide, 'p', 'cSld', $presentationNamespace);
 
-        return $commonSlideData instanceof \DOMElement ? $this->firstPresentationChildElement($commonSlideData, 'spTree') : null;
+        return $commonSlideData instanceof \DOMElement ? $this->firstChildElementForPrefix($commonSlideData, 'p', 'spTree', $presentationNamespace) : null;
     }
 
     private function slideTitle(\DOMElement $slide): string
