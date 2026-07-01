@@ -1571,8 +1571,15 @@ final class PdfEngineHandoff
             $engineTexts,
             $typstRoot
         );
-        $typstWarningSourceIssueCount = $this->countTypstWarningSourceIssues($typstWarningProvenance);
+        $typstWarningSourceIssueCount = $this->countTypstDiagnosticSourceIssues($typstWarningProvenance);
         $typstWarningSourcePolicy = $this->typstWarningSourcePolicyFor($typstWarningProvenance);
+        $typstErrorProvenance = $this->extractTypstErrorProvenance(
+            $engine,
+            $engineTexts,
+            $typstRoot
+        );
+        $typstErrorSourceIssueCount = $this->countTypstDiagnosticSourceIssues($typstErrorProvenance);
+        $typstErrorSourcePolicy = $this->typstErrorSourcePolicyFor($typstErrorProvenance);
         $engineMissingDependencies = $this->extractEngineMissingDependencies($engineTexts);
         $engineMissingDependencyKinds = $this->summarizeEngineMissingDependencyKinds($engineMissingDependencies);
         $bibliographyMessages = $this->extractBibliographyMessages(array_merge($engineTexts, $bibliographyLogTexts));
@@ -1610,6 +1617,33 @@ final class PdfEngineHandoff
                 $diagnostics[] = 'typst-warning-source-packages:' . $typstWarningSourcePolicy['packageReferenceCount'];
             }
         }
+        if ($typstErrorProvenance !== []) {
+            $diagnostics[] = 'typst-error-provenance:' . count($typstErrorProvenance);
+            if ($typstErrorSourceIssueCount > 0) {
+                $diagnostics[] = 'typst-error-source-issues:' . $typstErrorSourceIssueCount;
+            }
+            foreach ($typstErrorProvenance as $error) {
+                if (
+                    in_array('error-source-outside-root', $error['issues'], true)
+                    && is_string($error['sourceFile'])
+                    && $error['sourceFile'] !== ''
+                ) {
+                    $diagnostics[] = 'typst-error-source-outside-root:' . $error['sourceFile'];
+                }
+            }
+        }
+        if ($typstErrorSourcePolicy !== []) {
+            $diagnostics[] = 'typst-error-source-policy:' . $typstErrorSourcePolicy['reviewStatus'];
+            foreach ($typstErrorSourcePolicy['sourceKindCounts'] as $sourceKind => $count) {
+                $diagnostics[] = 'typst-error-source-kind:' . $sourceKind . ':' . $count;
+            }
+            foreach ($typstErrorSourcePolicy['sourceClassCounts'] as $sourceClass => $count) {
+                $diagnostics[] = 'typst-error-source-class:' . $sourceClass . ':' . $count;
+            }
+            if ($typstErrorSourcePolicy['packageReferenceCount'] > 0) {
+                $diagnostics[] = 'typst-error-source-packages:' . $typstErrorSourcePolicy['packageReferenceCount'];
+            }
+        }
         $typstBoundaryMatrix = $this->typstBoundaryMatrixFor(
             $engine,
             $typstBoundaryProvenance,
@@ -1621,7 +1655,8 @@ final class PdfEngineHandoff
             $typstExternalDependencyPolicy,
             $typstPackageDependencyPolicy,
             $typstTimingSourcePolicy,
-            $typstWarningProvenance
+            $typstWarningProvenance,
+            $typstErrorProvenance
         );
         if ($typstBoundaryMatrix !== []) {
             $diagnostics[] = 'typst-boundary-matrix:' . $typstBoundaryMatrix['reviewStatus'];
@@ -5430,6 +5465,9 @@ final class PdfEngineHandoff
         if ($typstWarningSourceIssueCount > 0) {
             $artifactProvenanceIssues[] = 'typst-warning-source-issues:' . $typstWarningSourceIssueCount;
         }
+        if ($typstErrorSourceIssueCount > 0) {
+            $artifactProvenanceIssues[] = 'typst-error-source-issues:' . $typstErrorSourceIssueCount;
+        }
         if ($engineMissingDependencies !== []) {
             $artifactProvenanceIssues[] = 'engine-missing-dependencies:' . count($engineMissingDependencies);
         }
@@ -5519,6 +5557,8 @@ final class PdfEngineHandoff
             'typstWarningProvenance' => $typstWarningProvenance,
             'typstWarningSourcePolicy' => $typstWarningSourcePolicy,
             'engineErrors' => $engineMessages['errors'],
+            'typstErrorProvenance' => $typstErrorProvenance,
+            'typstErrorSourcePolicy' => $typstErrorSourcePolicy,
             'bibliographyLogFiles' => $bibliographyLogFiles,
             'bibliographyWarnings' => $bibliographyMessages['warnings'],
             'bibliographyErrors' => $bibliographyMessages['errors'],
@@ -5595,6 +5635,8 @@ final class PdfEngineHandoff
             'typstWarningProvenance' => $typstWarningProvenance,
             'typstWarningSourcePolicy' => $typstWarningSourcePolicy,
             'engineErrors' => $engineMessages['errors'],
+            'typstErrorProvenance' => $typstErrorProvenance,
+            'typstErrorSourcePolicy' => $typstErrorSourcePolicy,
             'engineMissingDependencies' => $engineMissingDependencies,
             'engineMissingDependencyKinds' => $engineMissingDependencyKinds,
             'bibliographyWarnings' => $bibliographyMessages['warnings'],
@@ -6303,6 +6345,8 @@ final class PdfEngineHandoff
             'finalTypstTimingSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstTimingSourcePolicy'] ?? null) ? $finalRun['typstTimingSourcePolicy'] : [],
             'finalTypstWarningProvenance' => is_array($finalRun) && is_array($finalRun['typstWarningProvenance'] ?? null) ? $finalRun['typstWarningProvenance'] : [],
             'finalTypstWarningSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstWarningSourcePolicy'] ?? null) ? $finalRun['typstWarningSourcePolicy'] : [],
+            'finalTypstErrorProvenance' => is_array($finalRun) && is_array($finalRun['typstErrorProvenance'] ?? null) ? $finalRun['typstErrorProvenance'] : [],
+            'finalTypstErrorSourcePolicy' => is_array($finalRun) && is_array($finalRun['typstErrorSourcePolicy'] ?? null) ? $finalRun['typstErrorSourcePolicy'] : [],
             'finalEngineBoundaryRoot' => is_array($finalRun) && is_string($finalRun['engineBoundaryRoot'] ?? null) ? $finalRun['engineBoundaryRoot'] : null,
             'finalEngineBoundaryViolations' => is_array($finalRun) && is_array($finalRun['engineBoundaryViolations'] ?? null) ? $finalRun['engineBoundaryViolations'] : [],
             'finalEngineTranscriptInputFiles' => is_array($finalRun) && is_array($finalRun['engineTranscriptInputFiles'] ?? null) ? $finalRun['engineTranscriptInputFiles'] : [],
@@ -8334,14 +8378,16 @@ final class PdfEngineHandoff
         array $externalDependencyPolicy = [],
         array $packageDependencyPolicy = [],
         array $timingSourcePolicy = [],
-        array $warningProvenance = []
+        array $warningProvenance = [],
+        array $errorProvenance = []
     ): array {
         $hasRuntimeProvenance = $readBoundaryPolicy !== []
             || $dependencyOutputPolicy !== []
             || $externalDependencyPolicy !== []
             || $packageDependencyPolicy !== []
             || $timingSourcePolicy !== []
-            || $warningProvenance !== [];
+            || $warningProvenance !== []
+            || $errorProvenance !== [];
         if ($engine !== 'typst' || ($provenance === [] && $sourceInput === [] && !$hasRuntimeProvenance)) {
             return [];
         }
@@ -9381,6 +9427,52 @@ final class PdfEngineHandoff
                 'packageReferenceCount' => is_int($warningSourcePolicy['packageReferenceCount'] ?? null) ? $warningSourcePolicy['packageReferenceCount'] : 0,
                 'packageReferences' => is_array($warningSourcePolicy['packageReferences'] ?? null) ? $warningSourcePolicy['packageReferences'] : [],
             ], $warningIssues);
+        }
+
+        if ($errorProvenance !== []) {
+            $errorIssues = $listIssues($errorProvenance);
+            $errorSourcePolicy = $this->typstErrorSourcePolicyFor($errorProvenance);
+            $insideRootCount = 0;
+            $outsideRootCount = 0;
+            $unboundedCount = 0;
+            $externalSourceCount = 0;
+            $unknownSourceCount = 0;
+            $locatedSourceCount = 0;
+            $hintCount = 0;
+            foreach ($errorProvenance as $error) {
+                if (!is_array($error)) {
+                    continue;
+                }
+
+                if (is_string($error['sourceFile'] ?? null) && $error['sourceFile'] !== '') {
+                    ++$locatedSourceCount;
+                }
+                $hintCount += count(is_array($error['hints'] ?? null) ? $error['hints'] : []);
+
+                match ($error['boundaryStatus'] ?? null) {
+                    'inside-root' => ++$insideRootCount,
+                    'outside-root' => ++$outsideRootCount,
+                    'unbounded' => ++$unboundedCount,
+                    'external-source' => ++$externalSourceCount,
+                    'unknown-source' => ++$unknownSourceCount,
+                    default => null,
+                };
+            }
+            $appendCase('error-provenance', $errorIssues === [] ? 'ok' : 'review', count($errorProvenance), [
+                'sourceIssueCount' => count($errorIssues),
+                'locatedSourceCount' => $locatedSourceCount,
+                'insideRootCount' => $insideRootCount,
+                'outsideRootCount' => $outsideRootCount,
+                'unboundedCount' => $unboundedCount,
+                'externalSourceCount' => $externalSourceCount,
+                'unknownSourceCount' => $unknownSourceCount,
+                'hintCount' => $hintCount,
+                'totalSourceIssueCount' => is_int($errorSourcePolicy['sourceIssueCount'] ?? null) ? $errorSourcePolicy['sourceIssueCount'] : count($errorIssues),
+                'sourceKindCounts' => is_array($errorSourcePolicy['sourceKindCounts'] ?? null) ? $errorSourcePolicy['sourceKindCounts'] : [],
+                'sourceClassCounts' => is_array($errorSourcePolicy['sourceClassCounts'] ?? null) ? $errorSourcePolicy['sourceClassCounts'] : [],
+                'packageReferenceCount' => is_int($errorSourcePolicy['packageReferenceCount'] ?? null) ? $errorSourcePolicy['packageReferenceCount'] : 0,
+                'packageReferences' => is_array($errorSourcePolicy['packageReferences'] ?? null) ? $errorSourcePolicy['packageReferences'] : [],
+            ], $errorIssues);
         }
 
         if ($cases === []) {
@@ -13329,28 +13421,46 @@ final class PdfEngineHandoff
      */
     private function extractTypstWarningProvenance(string $engine, array $texts, ?string $root): array
     {
+        return $this->extractTypstDiagnosticProvenance($engine, $texts, $root, 'warning');
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return list<array{message:string, sourceFile:string|null, line:int|null, column:int|null, endLine:int|null, endColumn:int|null, hints:list<string>, root:string|null, insideRoot:bool|null, boundaryStatus:string, issues:list<string>}>
+     */
+    private function extractTypstErrorProvenance(string $engine, array $texts, ?string $root): array
+    {
+        return $this->extractTypstDiagnosticProvenance($engine, $texts, $root, 'error');
+    }
+
+    /**
+     * @param list<string> $texts
+     * @return list<array{message:string, sourceFile:string|null, line:int|null, column:int|null, endLine:int|null, endColumn:int|null, hints:list<string>, root:string|null, insideRoot:bool|null, boundaryStatus:string, issues:list<string>}>
+     */
+    private function extractTypstDiagnosticProvenance(string $engine, array $texts, ?string $root, string $severity): array
+    {
         if ($engine !== 'typst') {
             return [];
         }
 
-        $warnings = [];
+        $diagnostics = [];
         $seen = [];
         foreach ($texts as $text) {
             if (!is_string($text) || $text === '') {
                 continue;
             }
 
-            foreach ($this->extractTypstJsonWarningProvenance($text, $root) as $warning) {
-                $key = json_encode($warning);
+            foreach ($this->extractTypstJsonDiagnosticProvenance($text, $root, $severity) as $diagnostic) {
+                $key = json_encode($diagnostic);
                 if ($key === false) {
-                    $key = serialize($warning);
+                    $key = serialize($diagnostic);
                 }
                 if (isset($seen[$key])) {
                     continue;
                 }
 
                 $seen[$key] = true;
-                $warnings[] = $warning;
+                $diagnostics[] = $diagnostic;
             }
 
             $lines = preg_split('/\R/u', $text);
@@ -13361,8 +13471,8 @@ final class PdfEngineHandoff
             for ($index = 0; $index < $lineCount; $index++) {
                 $line = trim((string) $lines[$index]);
                 if (
-                    preg_match('/\Awarning:\s*(.+)\z/i', $line, $matches) !== 1
-                    || preg_match('/\b0\s+warnings?\b/i', $line) === 1
+                    preg_match('/\A' . preg_quote($severity, '/') . ':\s*(.+)\z/i', $line, $matches) !== 1
+                    || ($severity === 'warning' && preg_match('/\b0\s+warnings?\b/i', $line) === 1)
                 ) {
                     continue;
                 }
@@ -13388,26 +13498,27 @@ final class PdfEngineHandoff
                     }
                 }
 
-                $warning = $this->typstWarningProvenanceEntry(
+                $diagnostic = $this->typstDiagnosticProvenanceEntry(
+                    $severity,
                     $message,
                     $location,
                     $root,
                     array_values(array_unique($hints))
                 );
-                $key = json_encode($warning);
+                $key = json_encode($diagnostic);
                 if ($key === false) {
-                    $key = serialize($warning);
+                    $key = serialize($diagnostic);
                 }
                 if (isset($seen[$key])) {
                     continue;
                 }
 
                 $seen[$key] = true;
-                $warnings[] = $warning;
+                $diagnostics[] = $diagnostic;
             }
         }
 
-        return $warnings;
+        return $diagnostics;
     }
 
     /**
@@ -13415,14 +13526,22 @@ final class PdfEngineHandoff
      */
     private function extractTypstJsonWarningProvenance(string $text, ?string $root): array
     {
-        $warnings = [];
+        return $this->extractTypstJsonDiagnosticProvenance($text, $root, 'warning');
+    }
+
+    /**
+     * @return list<array{message:string, sourceFile:string|null, line:int|null, column:int|null, endLine:int|null, endColumn:int|null, hints:list<string>, root:string|null, insideRoot:bool|null, boundaryStatus:string, issues:list<string>}>
+     */
+    private function extractTypstJsonDiagnosticProvenance(string $text, ?string $root, string $severity): array
+    {
+        $diagnostics = [];
         foreach ($this->decodeJsonDiagnosticRecords($text) as $record) {
             if (!is_array($record)) {
                 continue;
             }
 
-            $severity = $record['severity'] ?? $record['level'] ?? $record['kind'] ?? null;
-            if (!is_string($severity) || strtolower($severity) !== 'warning') {
+            $recordSeverity = $record['severity'] ?? $record['level'] ?? $record['kind'] ?? null;
+            if (!is_string($recordSeverity) || strtolower($recordSeverity) !== $severity) {
                 continue;
             }
 
@@ -13431,7 +13550,8 @@ final class PdfEngineHandoff
                 continue;
             }
 
-            $warnings[] = $this->typstWarningProvenanceEntry(
+            $diagnostics[] = $this->typstDiagnosticProvenanceEntry(
+                $severity,
                 trim($message),
                 $this->parseTypstJsonDiagnosticLocation($record),
                 $root,
@@ -13439,7 +13559,7 @@ final class PdfEngineHandoff
             );
         }
 
-        return $warnings;
+        return $diagnostics;
     }
 
     /**
@@ -13685,6 +13805,17 @@ final class PdfEngineHandoff
      */
     private function typstWarningProvenanceEntry(string $message, ?array $location, ?string $root, array $hints): array
     {
+        return $this->typstDiagnosticProvenanceEntry('warning', $message, $location, $root, $hints);
+    }
+
+    /**
+     * @param array{sourceFile:string, sourceLocal:bool, line:int, column:int, endLine:int|null, endColumn:int|null}|null $location
+     * @param list<string> $hints
+     * @return array{message:string, sourceFile:string|null, line:int|null, column:int|null, endLine:int|null, endColumn:int|null, hints:list<string>, root:string|null, insideRoot:bool|null, boundaryStatus:string, issues:list<string>}
+     */
+    private function typstDiagnosticProvenanceEntry(string $severity, string $message, ?array $location, ?string $root, array $hints): array
+    {
+        $issuePrefix = $severity === 'error' ? 'error-source' : 'warning-source';
         $sourceFile = null;
         $line = null;
         $column = null;
@@ -13692,7 +13823,7 @@ final class PdfEngineHandoff
         $endColumn = null;
         $insideRoot = null;
         $boundaryStatus = 'unknown-source';
-        $issues = ['warning-source-missing'];
+        $issues = [$issuePrefix . '-missing'];
 
         if ($location !== null) {
             $sourceFile = $location['sourceFile'];
@@ -13705,7 +13836,7 @@ final class PdfEngineHandoff
             if (!$location['sourceLocal']) {
                 $insideRoot = false;
                 $boundaryStatus = 'external-source';
-                $issues[] = 'warning-source-external';
+                $issues[] = $issuePrefix . '-external';
             } elseif ($root === null) {
                 $boundaryStatus = 'unbounded';
             } elseif ($root === '.' || $sourceFile === $root || str_starts_with($sourceFile, $root . '/')) {
@@ -13714,7 +13845,7 @@ final class PdfEngineHandoff
             } else {
                 $insideRoot = false;
                 $boundaryStatus = 'outside-root';
-                $issues[] = 'warning-source-outside-root';
+                $issues[] = $issuePrefix . '-outside-root';
             }
         }
 
@@ -13739,7 +13870,25 @@ final class PdfEngineHandoff
      */
     private function typstWarningSourcePolicyFor(array $warnings): array
     {
-        if ($warnings === []) {
+        return $this->typstDiagnosticSourcePolicyFor($warnings, 'warning');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $errors
+     * @return array<string, mixed>
+     */
+    private function typstErrorSourcePolicyFor(array $errors): array
+    {
+        return $this->typstDiagnosticSourcePolicyFor($errors, 'error');
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>
+     */
+    private function typstDiagnosticSourcePolicyFor(array $diagnostics, string $severity): array
+    {
+        if ($diagnostics === []) {
             return [];
         }
 
@@ -13752,38 +13901,38 @@ final class PdfEngineHandoff
         $issues = [];
         $sourceIssueCount = 0;
 
-        foreach ($warnings as $warning) {
-            if (!is_array($warning)) {
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic)) {
                 continue;
             }
 
-            $sourceFile = is_string($warning['sourceFile'] ?? null) ? $warning['sourceFile'] : null;
+            $sourceFile = is_string($diagnostic['sourceFile'] ?? null) ? $diagnostic['sourceFile'] : null;
             if ($sourceFile !== null && $sourceFile !== '') {
                 ++$locatedSourceCount;
                 $sourceFiles[$sourceFile] = true;
             }
 
-            $sourceKind = $this->typstWarningSourceKindFor($warning);
-            $sourceClass = $this->typstWarningSourceClassFor($warning, $sourceKind);
+            $sourceKind = $this->typstWarningSourceKindFor($diagnostic);
+            $sourceClass = $this->typstWarningSourceClassFor($diagnostic, $sourceKind);
             $sourceKindCounts[$sourceKind] = ($sourceKindCounts[$sourceKind] ?? 0) + 1;
             $sourceClassCounts[$sourceClass] = ($sourceClassCounts[$sourceClass] ?? 0) + 1;
 
-            $boundaryStatus = is_string($warning['boundaryStatus'] ?? null) && $warning['boundaryStatus'] !== ''
-                ? $warning['boundaryStatus']
+            $boundaryStatus = is_string($diagnostic['boundaryStatus'] ?? null) && $diagnostic['boundaryStatus'] !== ''
+                ? $diagnostic['boundaryStatus']
                 : 'unknown-source';
             $boundaryStatusCounts[$boundaryStatus] = ($boundaryStatusCounts[$boundaryStatus] ?? 0) + 1;
 
             $dependency = $sourceKind === 'typst-package'
-                ? $this->typstWarningPackageDependencyFor($warning)
+                ? $this->typstWarningPackageDependencyFor($diagnostic)
                 : null;
             if ($dependency !== null) {
                 $packageReferences[$dependency['reference']] = true;
             }
 
-            if (!is_array($warning['issues'] ?? null)) {
+            if (!is_array($diagnostic['issues'] ?? null)) {
                 continue;
             }
-            foreach ($warning['issues'] as $issue) {
+            foreach ($diagnostic['issues'] as $issue) {
                 if (!is_string($issue) || $issue === '') {
                     continue;
                 }
@@ -13805,7 +13954,7 @@ final class PdfEngineHandoff
 
         return [
             'reviewStatus' => $sourceIssueCount === 0 ? 'ok' : 'review',
-            'warningCount' => count($warnings),
+            $severity . 'Count' => count($diagnostics),
             'locatedSourceCount' => $locatedSourceCount,
             'sourceFileCount' => count($sourceFileList),
             'sourceFiles' => $sourceFileList,
@@ -13878,17 +14027,17 @@ final class PdfEngineHandoff
     }
 
     /**
-     * @param list<array{issues:list<string>}> $warnings
+     * @param list<array{issues:list<string>}> $diagnostics
      */
-    private function countTypstWarningSourceIssues(array $warnings): int
+    private function countTypstDiagnosticSourceIssues(array $diagnostics): int
     {
         $count = 0;
-        foreach ($warnings as $warning) {
-            if (!is_array($warning['issues'] ?? null)) {
+        foreach ($diagnostics as $diagnostic) {
+            if (!is_array($diagnostic['issues'] ?? null)) {
                 continue;
             }
 
-            $count += count($warning['issues']);
+            $count += count($diagnostic['issues']);
         }
 
         return $count;
