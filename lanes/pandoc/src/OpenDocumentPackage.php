@@ -1728,6 +1728,7 @@ final class OpenDocumentPackage
             'manifestPaths' => array_column($manifestEntries, 'path'),
             'packagePaths' => array_column($packageEntries, 'path'),
             'manifestPackageCoverage' => $packageInventory['manifestPackageCoverage'] ?? [],
+            'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
             'entryCommentCount' => is_int($comments['entryCommentCount'] ?? null) ? $comments['entryCommentCount'] : 0,
