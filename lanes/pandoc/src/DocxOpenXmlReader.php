@@ -263,6 +263,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageThumbnailInvalidCount'] = $packageThumbnails['invalidCount'];
         $packageProvenance['summary']['packageThumbnailIssueCount'] = $packageThumbnails['issueCount'];
         $packageProvenance['summary']['packageThumbnailIssueCodes'] = $packageThumbnails['issueCodes'];
+        $packageProvenance['summary']['packageThumbnailContentTypeBaseCounts'] = $packageThumbnails['contentTypeBaseCounts'];
+        $packageProvenance['summary']['packageThumbnailContentTypeSourceCounts'] = $packageThumbnails['contentTypeSourceCounts'];
+        $packageProvenance['summary']['packageThumbnailTargetPartExtensionCounts'] = $packageThumbnails['targetPartExtensionCounts'];
+        $packageProvenance['summary']['packageThumbnailByteExposurePolicyCounts'] = $packageThumbnails['byteExposurePolicyCounts'];
+        $packageProvenance['summary']['packageThumbnailReadableByteLength'] = $packageThumbnails['readableByteLength'];
         $digitalSignatures = $this->packageDigitalSignatureProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['digitalSignatures'] = $digitalSignatures;
         $packageProvenance['summary']['digitalSignatureOriginCount'] = $digitalSignatures['originCount'];
@@ -39005,6 +39010,7 @@ final class DocxOpenXmlReader
                 'storedByteLength' => null,
                 'storedCrc32' => null,
                 'canExposeAsDocumentMedia' => false,
+                'byteExposurePolicy' => 'package-thumbnail-metadata-only',
                 'reviewPolicy' => 'package-thumbnail-metadata-only',
                 'valid' => $issues === [],
                 'issues' => $issues,
@@ -39021,6 +39027,7 @@ final class DocxOpenXmlReader
         }
 
         ksort($issueCodes, SORT_STRING);
+        $aggregate = $this->packageThumbnailAggregateSummary($items);
 
         return [
             'count' => count($items),
@@ -39039,9 +39046,69 @@ final class DocxOpenXmlReader
             'targetParts' => $targetParts,
             'externalTargets' => $externalTargets,
             'contentTypes' => $contentTypesSeen,
+            'contentTypeBaseCounts' => $aggregate['contentTypeBaseCounts'],
+            'contentTypeSourceCounts' => $aggregate['contentTypeSourceCounts'],
+            'targetPartExtensionCounts' => $aggregate['targetPartExtensionCounts'],
+            'byteExposurePolicyCounts' => $aggregate['byteExposurePolicyCounts'],
+            'readableByteLength' => $aggregate['readableByteLength'],
             'issueCodes' => array_keys($issueCodes),
             'byRelationshipId' => $byRelationshipId,
             'items' => $items,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @return array{contentTypeBaseCounts:array<string, int>, contentTypeSourceCounts:array<string, int>, targetPartExtensionCounts:array<string, int>, byteExposurePolicyCounts:array<string, int>, readableByteLength:int}
+     */
+    private function packageThumbnailAggregateSummary(array $items): array
+    {
+        $contentTypeBaseCounts = [];
+        $contentTypeSourceCounts = [];
+        $targetPartExtensionCounts = [];
+        $byteExposurePolicyCounts = [];
+        $readableByteLength = 0;
+
+        foreach ($items as $item) {
+            $contentTypeBase = (string) ($item['contentTypeBase'] ?? '');
+            if ($contentTypeBase !== '') {
+                $contentTypeBaseCounts[$contentTypeBase] = ($contentTypeBaseCounts[$contentTypeBase] ?? 0) + 1;
+            }
+
+            $contentTypeSource = (string) ($item['contentTypeSource'] ?? '');
+            if ($contentTypeSource !== '') {
+                $contentTypeSourceCounts[$contentTypeSource] = ($contentTypeSourceCounts[$contentTypeSource] ?? 0) + 1;
+            }
+
+            $targetPart = $item['targetPart'] ?? null;
+            if (is_string($targetPart) && $targetPart !== '') {
+                $extension = strtolower(pathinfo($targetPart, PATHINFO_EXTENSION));
+                $extensionKey = $extension === '' ? '(none)' : $extension;
+                $targetPartExtensionCounts[$extensionKey] = ($targetPartExtensionCounts[$extensionKey] ?? 0) + 1;
+            }
+
+            $byteExposurePolicy = (string) ($item['byteExposurePolicy'] ?? '');
+            if ($byteExposurePolicy !== '') {
+                $byteExposurePolicyCounts[$byteExposurePolicy] = ($byteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+            }
+
+            $byteLength = $item['byteLength'] ?? null;
+            if (is_int($byteLength)) {
+                $readableByteLength += $byteLength;
+            }
+        }
+
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeSourceCounts, SORT_STRING);
+        ksort($targetPartExtensionCounts, SORT_STRING);
+        ksort($byteExposurePolicyCounts, SORT_STRING);
+
+        return [
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeSourceCounts' => $contentTypeSourceCounts,
+            'targetPartExtensionCounts' => $targetPartExtensionCounts,
+            'byteExposurePolicyCounts' => $byteExposurePolicyCounts,
+            'readableByteLength' => $readableByteLength,
         ];
     }
 
