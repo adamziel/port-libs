@@ -13100,6 +13100,21 @@ final class DocxOpenXmlReader
         $summary['zipCommentControlByteEntryCount'] = (int) ($zipComments['commentControlByteEntryCount'] ?? 0);
         $summary['zipCommentUnicodeFormatControlEntryCount'] = (int) ($zipComments['commentUnicodeFormatControlEntryCount'] ?? 0);
         $summary['zipCommentBidiControlEntryCount'] = (int) ($zipComments['commentBidiControlEntryCount'] ?? 0);
+        $zipEntryComments = $this->zipEntryCommentPackageProvenance($zipComments, $partInventory);
+        $summary['zipEntryCommentSummaryCount'] = $zipEntryComments['summaryCount'];
+        $summary['zipEntryCommentByteLength'] = $zipEntryComments['commentByteLength'];
+        $summary['zipEntryCommentIssueEntryCount'] = $zipEntryComments['issueEntryCount'];
+        $summary['zipEntryCommentIssueCount'] = $zipEntryComments['issueCount'];
+        $summary['zipEntryCommentIssueCodes'] = $zipEntryComments['issueCodes'];
+        $summary['zipEntryCommentRoleSummaryCount'] = $zipEntryComments['roleSummaryCount'];
+        $summary['zipEntryCommentRoles'] = $zipEntryComments['roles'];
+        $summary['zipEntryCommentRoleSummaries'] = $zipEntryComments['roleSummaries'];
+        $summary['zipEntryCommentDirectoryRootSummaryCount'] = $zipEntryComments['directoryRootSummaryCount'];
+        $summary['zipEntryCommentDirectoryRoots'] = $zipEntryComments['directoryRoots'];
+        $summary['zipEntryCommentDirectoryRootSummaries'] = $zipEntryComments['directoryRootSummaries'];
+        $summary['zipEntryCommentPackagePartExtensionSummaryCount'] = $zipEntryComments['packagePartExtensionSummaryCount'];
+        $summary['zipEntryCommentPackagePartExtensions'] = $zipEntryComments['packagePartExtensions'];
+        $summary['zipEntryCommentPackagePartExtensionSummaries'] = $zipEntryComments['packagePartExtensionSummaries'];
         $packageIdentity = $this->packageIdentityProvenance($partInventory, $summary);
         $summary['packageIdentityReviewPolicy'] = $packageIdentity['reviewPolicy'];
         $summary['packageIdentityVersion'] = $packageIdentity['identityVersion'];
@@ -13122,6 +13137,7 @@ final class DocxOpenXmlReader
             'documentRelationshipsPart' => $documentRelationshipsPart,
             'parts' => $partInventory,
             'zipPackage' => $zipPackage,
+            'zipEntryComments' => $zipEntryComments,
             'packageIdentity' => $packageIdentity,
             'summary' => $summary,
         ];
@@ -14480,6 +14496,316 @@ final class DocxOpenXmlReader
             'unixOwnerMetadataByteExposurePolicy' => 'zip-unix-owner-metadata-only',
             'unixOwnerMetadataCanExposeBytes' => false,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $zipComments
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return array<string, mixed>
+     */
+    private function zipEntryCommentPackageProvenance(array $zipComments, array $partInventory): array
+    {
+        $entries = [];
+        $commentByteLength = 0;
+        $issueEntryCount = 0;
+        $issueCodes = [];
+
+        foreach (($zipComments['commentedEntries'] ?? []) as $commentEntry) {
+            if (!is_array($commentEntry) || !is_string($commentEntry['name'] ?? null) || $commentEntry['name'] === '') {
+                continue;
+            }
+
+            $partName = $commentEntry['name'];
+            $part = is_array($partInventory[$partName] ?? null) ? $partInventory[$partName] : [];
+            $rawComment = is_string($commentEntry['rawComment'] ?? null) ? $commentEntry['rawComment'] : '';
+            $commentLength = is_int($commentEntry['commentLength'] ?? null)
+                ? (int) $commentEntry['commentLength']
+                : strlen($rawComment);
+            $directory = is_string($part['directory'] ?? null)
+                ? $part['directory']
+                : $this->packagePartDirectory($partName);
+            $directoryRoot = is_string($part['zipDirectoryRoot'] ?? null)
+                ? $part['zipDirectoryRoot']
+                : $this->packagePartTopLevelSegment($partName);
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+            $partExtension = is_string($part['partExtension'] ?? null)
+                ? $part['partExtension']
+                : $this->packagePartExtension($partName);
+            $partExtensionKey = $partExtension ?? '(none)';
+            $roles = array_values(array_unique(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            )));
+            if ($roles === []) {
+                $roles = ['zip-commented-entry'];
+            }
+            $issues = array_values(array_filter(
+                array_map('strval', is_array($commentEntry['issues'] ?? null) ? $commentEntry['issues'] : []),
+                static fn (string $issue): bool => $issue !== '',
+            ));
+
+            $commentByteLength += $commentLength;
+            if ($issues !== []) {
+                ++$issueEntryCount;
+                foreach ($issues as $issue) {
+                    $issueCodes[$issue] = true;
+                }
+            }
+
+            $entries[] = [
+                'partName' => $partName,
+                'inventoryPresent' => $part !== [],
+                'directoryRoot' => $directoryRoot,
+                'directory' => $directory,
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                'partExtensionKey' => $partExtensionKey,
+                'partExtension' => $partExtension,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '',
+                'contentTypeSource' => is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing',
+                'roles' => $roles,
+                'commentLength' => $commentLength,
+                'commentEncoding' => is_string($commentEntry['commentEncoding'] ?? null) ? $commentEntry['commentEncoding'] : 'utf-8',
+                'commentCrc32' => $commentLength > 0 ? sprintf('%08x', crc32($rawComment)) : null,
+                'commentSha256' => $commentLength > 0 ? hash('sha256', $rawComment) : null,
+                'commentIssueCount' => count($issues),
+                'commentIssues' => $issues,
+                'byteExposurePolicy' => 'docx-zip-entry-comment-metadata-only',
+                'canExposeBytes' => false,
+            ];
+        }
+
+        ksort($issueCodes, SORT_STRING);
+        $roleSummaries = $this->zipEntryCommentRoleSummaries($entries);
+        $directoryRootSummaries = $this->zipEntryCommentDirectoryRootSummaries($entries);
+        $extensionSummaries = $this->zipEntryCommentPackagePartExtensionSummaries($entries);
+
+        return [
+            'summaryCount' => count($entries),
+            'commentByteLength' => $commentByteLength,
+            'issueEntryCount' => $issueEntryCount,
+            'issueCount' => count($issueCodes),
+            'issueCodes' => array_keys($issueCodes),
+            'commentedEntryNames' => array_map(static fn (array $entry): string => $entry['partName'], $entries),
+            'roleSummaryCount' => count($roleSummaries),
+            'roles' => array_map(static fn (array $summary): string => $summary['role'], $roleSummaries),
+            'roleSummaries' => $roleSummaries,
+            'directoryRootSummaryCount' => count($directoryRootSummaries),
+            'directoryRoots' => array_map(static fn (array $summary): string => $summary['directoryRoot'], $directoryRootSummaries),
+            'directoryRootSummaries' => $directoryRootSummaries,
+            'packagePartExtensionSummaryCount' => count($extensionSummaries),
+            'packagePartExtensions' => array_map(static fn (array $summary): string => $summary['partExtensionKey'], $extensionSummaries),
+            'packagePartExtensionSummaries' => $extensionSummaries,
+            'entries' => $entries,
+            'byteExposurePolicy' => 'docx-zip-entry-comment-metadata-only',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function zipEntryCommentRoleSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $roles = array_values(array_filter(
+                array_map('strval', $entry['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            ));
+            if ($roles === []) {
+                $roles = ['zip-commented-entry'];
+            }
+
+            foreach ($roles as $role) {
+                if (!isset($summaries[$role])) {
+                    $summaries[$role] = [
+                        'role' => $role,
+                    ] + $this->emptyZipEntryCommentGroupSummary();
+                }
+                $this->accumulateZipEntryCommentGroupSummary($summaries[$role], $entry);
+            }
+        }
+
+        return $this->sortedZipEntryCommentGroupSummaries($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function zipEntryCommentDirectoryRootSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '/';
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+            if (!isset($summaries[$directoryRoot])) {
+                $summaries[$directoryRoot] = [
+                    'directoryRoot' => $directoryRoot,
+                ] + $this->emptyZipEntryCommentGroupSummary();
+            }
+            $this->accumulateZipEntryCommentGroupSummary($summaries[$directoryRoot], $entry);
+        }
+
+        return $this->sortedZipEntryCommentGroupSummaries($summaries);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private function zipEntryCommentPackagePartExtensionSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $partExtension = is_string($entry['partExtension'] ?? null) ? $entry['partExtension'] : null;
+            $partExtensionKey = is_string($entry['partExtensionKey'] ?? null)
+                ? $entry['partExtensionKey']
+                : ($partExtension ?? '(none)');
+            if (!isset($summaries[$partExtensionKey])) {
+                $summaries[$partExtensionKey] = [
+                    'partExtensionKey' => $partExtensionKey,
+                    'partExtension' => $partExtension,
+                    'extensionlessPackagePart' => $partExtension === null,
+                ] + $this->emptyZipEntryCommentGroupSummary();
+            }
+            $this->accumulateZipEntryCommentGroupSummary($summaries[$partExtensionKey], $entry);
+        }
+
+        return $this->sortedZipEntryCommentGroupSummaries($summaries);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipEntryCommentGroupSummary(): array
+    {
+        return [
+            'entryCount' => 0,
+            'commentByteLength' => 0,
+            'issueEntryCount' => 0,
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'directoryRootCounts' => [],
+            'partExtensionCounts' => [],
+            'contentTypeBaseCounts' => [],
+            'contentTypeSourceCounts' => [],
+            'roleCounts' => [],
+            'partNames' => [],
+            'largestCommentedPart' => null,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @param array<string, mixed> $entry
+     */
+    private function accumulateZipEntryCommentGroupSummary(array &$summary, array $entry): void
+    {
+        ++$summary['entryCount'];
+        $commentLength = is_int($entry['commentLength'] ?? null) ? (int) $entry['commentLength'] : 0;
+        $summary['commentByteLength'] += $commentLength;
+        $partName = is_string($entry['partName'] ?? null) ? $entry['partName'] : '';
+        if ($partName !== '') {
+            $summary['partNames'][] = $partName;
+        }
+
+        $directoryRoot = is_string($entry['directoryRoot'] ?? null) ? $entry['directoryRoot'] : '/';
+        if ($directoryRoot === '') {
+            $directoryRoot = '/';
+        }
+        $summary['directoryRootCounts'][$directoryRoot] = ($summary['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+
+        $partExtensionKey = is_string($entry['partExtensionKey'] ?? null) ? $entry['partExtensionKey'] : '(none)';
+        $summary['partExtensionCounts'][$partExtensionKey] = ($summary['partExtensionCounts'][$partExtensionKey] ?? 0) + 1;
+
+        $contentTypeBase = is_string($entry['contentTypeBase'] ?? null) && $entry['contentTypeBase'] !== ''
+            ? $entry['contentTypeBase']
+            : '(missing)';
+        $summary['contentTypeBaseCounts'][$contentTypeBase] = ($summary['contentTypeBaseCounts'][$contentTypeBase] ?? 0) + 1;
+
+        $contentTypeSource = is_string($entry['contentTypeSource'] ?? null) && $entry['contentTypeSource'] !== ''
+            ? $entry['contentTypeSource']
+            : 'missing';
+        $summary['contentTypeSourceCounts'][$contentTypeSource] =
+            ($summary['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+
+        foreach (($entry['roles'] ?? []) as $role) {
+            $role = (string) $role;
+            if ($role === '') {
+                continue;
+            }
+            $summary['roleCounts'][$role] = ($summary['roleCounts'][$role] ?? 0) + 1;
+        }
+
+        $issues = array_values(array_filter(
+            array_map('strval', is_array($entry['commentIssues'] ?? null) ? $entry['commentIssues'] : []),
+            static fn (string $issue): bool => $issue !== '',
+        ));
+        if ($issues !== []) {
+            ++$summary['issueEntryCount'];
+            foreach ($issues as $issue) {
+                $summary['issueCodes'][$issue] = true;
+            }
+        }
+        $summary['issueCount'] = count($summary['issueCodes']);
+
+        $partSummary = [
+            'partName' => $partName,
+            'directoryRoot' => $directoryRoot,
+            'directory' => is_string($entry['directory'] ?? null) ? $entry['directory'] : null,
+            'baseName' => is_string($entry['baseName'] ?? null) ? $entry['baseName'] : null,
+            'partExtensionKey' => $partExtensionKey,
+            'partExtension' => is_string($entry['partExtension'] ?? null) ? $entry['partExtension'] : null,
+            'commentLength' => $commentLength,
+            'commentCrc32' => is_string($entry['commentCrc32'] ?? null) ? $entry['commentCrc32'] : null,
+            'commentSha256' => is_string($entry['commentSha256'] ?? null) ? $entry['commentSha256'] : null,
+            'contentType' => is_string($entry['contentType'] ?? null) ? $entry['contentType'] : '',
+            'contentTypeBase' => is_string($entry['contentTypeBase'] ?? null) ? $entry['contentTypeBase'] : '',
+            'contentTypeSource' => $contentTypeSource,
+            'roles' => array_values(array_map('strval', $entry['roles'] ?? [])),
+            'commentIssueCount' => count($issues),
+            'commentIssues' => $issues,
+        ];
+        $largestPart = $summary['largestCommentedPart'];
+        if (
+            !is_array($largestPart)
+            || $commentLength > (int) ($largestPart['commentLength'] ?? 0)
+            || (
+                $commentLength === (int) ($largestPart['commentLength'] ?? 0)
+                && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+            )
+        ) {
+            $summary['largestCommentedPart'] = $partSummary;
+        }
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $summaries
+     * @return list<array<string, mixed>>
+     */
+    private function sortedZipEntryCommentGroupSummaries(array $summaries): array
+    {
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['partExtensionCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['issueCodes'], SORT_STRING);
+            $summary['issueCodes'] = array_keys($summary['issueCodes']);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**
