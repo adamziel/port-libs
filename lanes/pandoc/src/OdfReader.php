@@ -3260,6 +3260,10 @@ final class OdfReader
         $packagePaths = [];
         $declaredZipEntryPaths = [];
         $undeclaredZipEntryPaths = [];
+        $manifestPackageReferenceMediaFamilyCounts = [];
+        $manifestPackageMissingReferenceMediaFamilyCounts = [];
+        $manifestPackageReferenceByteExposurePolicyCounts = [];
+        $manifestPackageMissingReferenceByteExposurePolicyCounts = [];
         $manifestPackageFileReferenceCount = 0;
         $manifestPackageDirectoryReferenceCount = 0;
         $manifestPackageExistingReferenceCount = 0;
@@ -3326,6 +3330,26 @@ final class OdfReader
             }
 
             $part = is_array($packageParts[$packagePath] ?? null) ? $packageParts[$packagePath] : null;
+            $mediaFamily = self::manifestPackageCoverageMediaFamily($entry, $part);
+            if (is_string($mediaFamily) && $mediaFamily !== '') {
+                $manifestPackageReferenceMediaFamilyCounts[$mediaFamily] =
+                    ($manifestPackageReferenceMediaFamilyCounts[$mediaFamily] ?? 0) + 1;
+                if (!$exists) {
+                    $manifestPackageMissingReferenceMediaFamilyCounts[$mediaFamily] =
+                        ($manifestPackageMissingReferenceMediaFamilyCounts[$mediaFamily] ?? 0) + 1;
+                }
+            }
+
+            $byteExposurePolicy = is_string($entry['byteExposurePolicy'] ?? null) ? $entry['byteExposurePolicy'] : null;
+            if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                $manifestPackageReferenceByteExposurePolicyCounts[$byteExposurePolicy] =
+                    ($manifestPackageReferenceByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                if (!$exists) {
+                    $manifestPackageMissingReferenceByteExposurePolicyCounts[$byteExposurePolicy] =
+                        ($manifestPackageMissingReferenceByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                }
+            }
+
             $manifestReferences[] = self::withoutEmpty([
                 'manifestIndex' => $entry['manifestIndex'] ?? null,
                 'manifestPath' => $manifestPath,
@@ -3336,7 +3360,8 @@ final class OdfReader
                 'virtualDirectoryReference' => $isDirectory && $exists && !$hasZipEntry,
                 'missingPackageReference' => !$exists,
                 'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
-                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+                'manifestMediaFamily' => $mediaFamily,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'roles' => is_array($part) ? ($part['roles'] ?? []) : [],
             ]);
         }
@@ -3360,6 +3385,10 @@ final class OdfReader
         }
 
         $manifestPackageReferenceCount = count($manifestPackageReferencePaths);
+        ksort($manifestPackageReferenceMediaFamilyCounts, SORT_STRING);
+        ksort($manifestPackageMissingReferenceMediaFamilyCounts, SORT_STRING);
+        ksort($manifestPackageReferenceByteExposurePolicyCounts, SORT_STRING);
+        ksort($manifestPackageMissingReferenceByteExposurePolicyCounts, SORT_STRING);
 
         return [
             'present' => true,
@@ -3378,6 +3407,10 @@ final class OdfReader
             'manifestPackageMissingReferencePaths' => $sortStringList($missingPackageReferencePaths),
             'manifestPackageDirectoryReferencePaths' => $sortStringList($directoryPackageReferencePaths),
             'manifestPackageVirtualDirectoryReferencePaths' => $sortStringList($virtualDirectoryPackageReferencePaths),
+            'manifestPackageReferenceMediaFamilyCounts' => $manifestPackageReferenceMediaFamilyCounts,
+            'manifestPackageMissingReferenceMediaFamilyCounts' => $manifestPackageMissingReferenceMediaFamilyCounts,
+            'manifestPackageReferenceByteExposurePolicyCounts' => $manifestPackageReferenceByteExposurePolicyCounts,
+            'manifestPackageMissingReferenceByteExposurePolicyCounts' => $manifestPackageMissingReferenceByteExposurePolicyCounts,
             'packageEntryCount' => count($packageParts),
             'packageFileEntryCount' => $packageFileEntryCount,
             'packageDirectoryEntryCount' => $packageDirectoryEntryCount,
@@ -3392,6 +3425,48 @@ final class OdfReader
             'canExposeBytes' => false,
             'manifestReferences' => $manifestReferences,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @param array<string, mixed>|null $part
+     */
+    private static function manifestPackageCoverageMediaFamily(array $entry, ?array $part): ?string
+    {
+        if (is_array($part) && is_string($part['manifestMediaFamily'] ?? null) && $part['manifestMediaFamily'] !== '') {
+            return $part['manifestMediaFamily'];
+        }
+
+        $packagePath = is_string($entry['part'] ?? null) ? $entry['part'] : '';
+        $mediaTypeBase = strtolower(trim((string) ($entry['mediaTypeBase'] ?? '')));
+        $isDirectory = ($entry['isDirectory'] ?? false) === true || ($packagePath !== '' && str_ends_with($packagePath, '/'));
+        if ($isDirectory) {
+            return 'directory';
+        }
+        if ($mediaTypeBase === 'application/rdf+xml') {
+            return 'rdf';
+        }
+
+        $mediaResourceFamily = self::mediaResourceFamilyFromMediaTypeBase($mediaTypeBase);
+        if ($mediaResourceFamily !== null) {
+            return $mediaResourceFamily;
+        }
+
+        $packageMediaResourceFamily = self::mediaResourceFamilyFromPackagePart($packagePath);
+        if ($mediaTypeBase === 'application/octet-stream' && $packageMediaResourceFamily !== null) {
+            return $packageMediaResourceFamily;
+        }
+        if (self::isXmlMediaTypeBase($mediaTypeBase)) {
+            return 'xml';
+        }
+        if (($entry['missingMediaType'] ?? false) === true || $mediaTypeBase === '') {
+            return 'missing-media-type';
+        }
+        if ($mediaTypeBase === 'application/octet-stream' || str_starts_with($mediaTypeBase, 'application/vnd.')) {
+            return 'binary';
+        }
+
+        return 'other';
     }
 
     /**

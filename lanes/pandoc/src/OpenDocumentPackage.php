@@ -2128,6 +2128,10 @@ final class OpenDocumentPackage
         $packagePaths = [];
         $declaredZipEntryPaths = [];
         $undeclaredZipEntryPaths = [];
+        $manifestPackageReferenceMediaFamilyCounts = [];
+        $manifestPackageMissingReferenceMediaFamilyCounts = [];
+        $manifestPackageReferenceByteExposurePolicyCounts = [];
+        $manifestPackageMissingReferenceByteExposurePolicyCounts = [];
         $manifestPackageFileReferenceCount = 0;
         $manifestPackageDirectoryReferenceCount = 0;
         $manifestPackageExistingReferenceCount = 0;
@@ -2194,6 +2198,28 @@ final class OpenDocumentPackage
             }
 
             $part = is_array($packageParts[$packagePath] ?? null) ? $packageParts[$packagePath] : null;
+            $mediaFamily = is_string($entry['manifestMediaFamily'] ?? null)
+                ? $entry['manifestMediaFamily']
+                : (is_array($part) && is_string($part['manifestMediaFamily'] ?? null) ? $part['manifestMediaFamily'] : null);
+            if (is_string($mediaFamily) && $mediaFamily !== '') {
+                $manifestPackageReferenceMediaFamilyCounts[$mediaFamily] =
+                    ($manifestPackageReferenceMediaFamilyCounts[$mediaFamily] ?? 0) + 1;
+                if (!$exists) {
+                    $manifestPackageMissingReferenceMediaFamilyCounts[$mediaFamily] =
+                        ($manifestPackageMissingReferenceMediaFamilyCounts[$mediaFamily] ?? 0) + 1;
+                }
+            }
+
+            $byteExposurePolicy = is_string($entry['byteExposurePolicy'] ?? null) ? $entry['byteExposurePolicy'] : null;
+            if (is_string($byteExposurePolicy) && $byteExposurePolicy !== '') {
+                $manifestPackageReferenceByteExposurePolicyCounts[$byteExposurePolicy] =
+                    ($manifestPackageReferenceByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                if (!$exists) {
+                    $manifestPackageMissingReferenceByteExposurePolicyCounts[$byteExposurePolicy] =
+                        ($manifestPackageMissingReferenceByteExposurePolicyCounts[$byteExposurePolicy] ?? 0) + 1;
+                }
+            }
+
             $manifestReferences[] = self::withoutEmptyValues([
                 'manifestIndex' => $entry['manifestIndex'] ?? null,
                 'manifestPath' => $manifestPath,
@@ -2205,7 +2231,7 @@ final class OpenDocumentPackage
                 'missingPackageReference' => !$exists,
                 'mediaTypeBase' => $entry['mediaTypeBase'] ?? null,
                 'manifestMediaFamily' => $entry['manifestMediaFamily'] ?? null,
-                'byteExposurePolicy' => $entry['byteExposurePolicy'] ?? null,
+                'byteExposurePolicy' => $byteExposurePolicy,
                 'roles' => is_array($part) ? ($part['roles'] ?? []) : [],
             ]);
         }
@@ -2229,6 +2255,10 @@ final class OpenDocumentPackage
         }
 
         $manifestPackageReferenceCount = count($manifestPackageReferencePaths);
+        ksort($manifestPackageReferenceMediaFamilyCounts, SORT_STRING);
+        ksort($manifestPackageMissingReferenceMediaFamilyCounts, SORT_STRING);
+        ksort($manifestPackageReferenceByteExposurePolicyCounts, SORT_STRING);
+        ksort($manifestPackageMissingReferenceByteExposurePolicyCounts, SORT_STRING);
 
         return [
             'present' => true,
@@ -2247,6 +2277,10 @@ final class OpenDocumentPackage
             'manifestPackageMissingReferencePaths' => $sortStringList($missingPackageReferencePaths),
             'manifestPackageDirectoryReferencePaths' => $sortStringList($directoryPackageReferencePaths),
             'manifestPackageVirtualDirectoryReferencePaths' => $sortStringList($virtualDirectoryPackageReferencePaths),
+            'manifestPackageReferenceMediaFamilyCounts' => $manifestPackageReferenceMediaFamilyCounts,
+            'manifestPackageMissingReferenceMediaFamilyCounts' => $manifestPackageMissingReferenceMediaFamilyCounts,
+            'manifestPackageReferenceByteExposurePolicyCounts' => $manifestPackageReferenceByteExposurePolicyCounts,
+            'manifestPackageMissingReferenceByteExposurePolicyCounts' => $manifestPackageMissingReferenceByteExposurePolicyCounts,
             'packageEntryCount' => count($packageParts),
             'packageFileEntryCount' => $packageFileEntryCount,
             'packageDirectoryEntryCount' => $packageDirectoryEntryCount,

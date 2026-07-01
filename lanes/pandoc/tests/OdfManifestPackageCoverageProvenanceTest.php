@@ -128,6 +128,18 @@ return [
             $t->same(['Pictures/missing.png'], $coverage['manifestPackageMissingReferencePaths']);
             $t->same(['Pictures/'], $coverage['manifestPackageDirectoryReferencePaths']);
             $t->same(['Pictures/'], $coverage['manifestPackageVirtualDirectoryReferencePaths']);
+            $t->same([
+                'directory' => 1,
+                'image' => 2,
+                'xml' => 3,
+            ], $coverage['manifestPackageReferenceMediaFamilyCounts']);
+            $t->same(['image' => 1], $coverage['manifestPackageMissingReferenceMediaFamilyCounts']);
+            $t->same([
+                'directory-entry-no-bytes' => 1,
+                'missing-package-part' => 1,
+                'package-bytes-exposable' => 4,
+            ], $coverage['manifestPackageReferenceByteExposurePolicyCounts']);
+            $t->same(['missing-package-part' => 1], $coverage['manifestPackageMissingReferenceByteExposurePolicyCounts']);
             $t->same(7, $coverage['packageEntryCount']);
             $t->same(7, $coverage['packageFileEntryCount']);
             $t->same(0, $coverage['packageDirectoryEntryCount']);
@@ -150,6 +162,9 @@ return [
             $t->same(true, $references['Pictures/']['exists']);
             $t->same(true, $references['Pictures/missing.png']['missingPackageReference']);
             $t->same(false, $references['Pictures/missing.png']['exists']);
+            $t->same('image', $references['Pictures/missing.png']['manifestMediaFamily']);
+            $t->same('missing-package-part', $references['Pictures/missing.png']['byteExposurePolicy']);
+            $t->same('directory', $references['Pictures/']['manifestMediaFamily']);
             $t->same(['manifest-declared', 'media-resource'], $references['Pictures/hero.png']['roles']);
         }
 
