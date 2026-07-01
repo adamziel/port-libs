@@ -19707,9 +19707,23 @@ final class DocxOpenXmlReader
             'partXmlElementAttributeGroupAttributeCount' => $partXmlRoots['xmlElementAttributeGroupAttributeCount'],
             'partXmlElementAttributeGroupMaxAttributeCount' => $partXmlRoots['xmlElementAttributeGroupMaxAttributeCount'],
             'partXmlElementAttributeGroupMultiAttributeCount' => $partXmlRoots['xmlElementAttributeGroupMultiAttributeCount'],
+            'partXmlElementAttributeGroupXmlLangCount' => $partXmlRoots['xmlElementAttributeGroupXmlLangCount'],
+            'partXmlElementAttributeGroupRelationshipAttributeCount' => $partXmlRoots['xmlElementAttributeGroupRelationshipAttributeCount'],
+            'partXmlElementAttributeGroupUnqualifiedAttributeCount' => $partXmlRoots['xmlElementAttributeGroupUnqualifiedAttributeCount'],
+            'partXmlElementAttributeGroupNamespacedAttributeCount' => $partXmlRoots['xmlElementAttributeGroupNamespacedAttributeCount'],
             'partXmlElementAttributeGroupPartNames' => $partXmlRoots['xmlElementAttributeGroupPartNames'],
             'partXmlElementAttributeGroupAttributeCountBucketCount' => count($partXmlRoots['xmlElementAttributeGroupAttributeCountBuckets']),
             'partXmlElementAttributeGroupAttributeCountBuckets' => $partXmlRoots['xmlElementAttributeGroupAttributeCountBuckets'],
+            'partXmlElementAttributeGroupAttributeNamespaceCountCount' => count($partXmlRoots['xmlElementAttributeGroupAttributeNamespaceCountCounts']),
+            'partXmlElementAttributeGroupAttributeNamespaceCountCounts' => $partXmlRoots['xmlElementAttributeGroupAttributeNamespaceCountCounts'],
+            'partXmlElementAttributeGroupAttributeNamespaceCount' => count($partXmlRoots['xmlElementAttributeGroupAttributeNamespaceCounts']),
+            'partXmlElementAttributeGroupAttributeNamespaceCounts' => $partXmlRoots['xmlElementAttributeGroupAttributeNamespaceCounts'],
+            'partXmlElementAttributeGroupAttributeNamespaces' => $partXmlRoots['xmlElementAttributeGroupAttributeNamespaces'],
+            'partXmlElementAttributeGroupAttributePrefixCountCount' => count($partXmlRoots['xmlElementAttributeGroupAttributePrefixCountCounts']),
+            'partXmlElementAttributeGroupAttributePrefixCountCounts' => $partXmlRoots['xmlElementAttributeGroupAttributePrefixCountCounts'],
+            'partXmlElementAttributeGroupAttributePrefixCount' => count($partXmlRoots['xmlElementAttributeGroupAttributePrefixCounts']),
+            'partXmlElementAttributeGroupAttributePrefixCounts' => $partXmlRoots['xmlElementAttributeGroupAttributePrefixCounts'],
+            'partXmlElementAttributeGroupAttributePrefixes' => $partXmlRoots['xmlElementAttributeGroupAttributePrefixes'],
             'partXmlElementAttributeGroupElementPathCount' => $partXmlRoots['xmlElementAttributeGroupElementPathCount'],
             'partXmlElementAttributeGroupElementPathCounts' => $partXmlRoots['xmlElementAttributeGroupElementPathCounts'],
             'partXmlElementAttributeGroupElementPaths' => $partXmlRoots['xmlElementAttributeGroupElementPaths'],
@@ -28085,6 +28099,12 @@ final class DocxOpenXmlReader
         $xmlElementAttributeGroupFirstAttributeNameCounts = [];
         $xmlElementAttributeGroupLastAttributeNameCounts = [];
         $xmlElementAttributeGroupAttributeNameSequenceCounts = [];
+        $xmlElementAttributeGroupAttributeNamespaceCountCounts = [];
+        $xmlElementAttributeGroupAttributeNamespaceCounts = [];
+        $xmlElementAttributeGroupAttributeNamespaces = [];
+        $xmlElementAttributeGroupAttributePrefixCountCounts = [];
+        $xmlElementAttributeGroupAttributePrefixCounts = [];
+        $xmlElementAttributeGroupAttributePrefixes = [];
         $xmlElementAttributeGroups = [];
         $xmlElementAttributeIndexCounts = [];
         $xmlElementAttributeParentAttributeCountBucketCounts = [];
@@ -28274,6 +28294,10 @@ final class DocxOpenXmlReader
         $xmlElementAttributeGroupAttributeCount = 0;
         $xmlElementAttributeGroupMaxAttributeCount = 0;
         $xmlElementAttributeGroupMultiAttributeCount = 0;
+        $xmlElementAttributeGroupXmlLangCount = 0;
+        $xmlElementAttributeGroupRelationshipAttributeCount = 0;
+        $xmlElementAttributeGroupUnqualifiedAttributeCount = 0;
+        $xmlElementAttributeGroupNamespacedAttributeCount = 0;
         $xmlElementAttributeXmlReservedPartCount = 0;
         $xmlElementAttributeXmlReservedCount = 0;
         $xmlElementAttributeXmlReservedSpaceCount = 0;
@@ -30935,6 +30959,45 @@ final class DocxOpenXmlReader
                     continue;
                 }
 
+                if (($group['hasXmlLang'] ?? false) === true) {
+                    ++$xmlElementAttributeGroupXmlLangCount;
+                }
+                if (($group['hasRelationshipAttribute'] ?? false) === true) {
+                    ++$xmlElementAttributeGroupRelationshipAttributeCount;
+                }
+                if (($group['hasUnqualifiedAttribute'] ?? false) === true) {
+                    ++$xmlElementAttributeGroupUnqualifiedAttributeCount;
+                }
+                if (($group['hasNamespacedAttribute'] ?? false) === true) {
+                    ++$xmlElementAttributeGroupNamespacedAttributeCount;
+                }
+
+                $groupAttributeNamespaceCount = max(0, (int) ($group['attributeNamespaceCount'] ?? 0));
+                $groupAttributePrefixCount = max(0, (int) ($group['attributePrefixCount'] ?? 0));
+                $groupAttributeNamespaceCountKey = (string) $groupAttributeNamespaceCount;
+                $groupAttributePrefixCountKey = (string) $groupAttributePrefixCount;
+                $xmlElementAttributeGroupAttributeNamespaceCountCounts[$groupAttributeNamespaceCountKey] =
+                    ($xmlElementAttributeGroupAttributeNamespaceCountCounts[$groupAttributeNamespaceCountKey] ?? 0) + 1;
+                $xmlElementAttributeGroupAttributePrefixCountCounts[$groupAttributePrefixCountKey] =
+                    ($xmlElementAttributeGroupAttributePrefixCountCounts[$groupAttributePrefixCountKey] ?? 0) + 1;
+
+                foreach (($group['attributeNamespaces'] ?? []) as $attributeNamespace) {
+                    if (!is_string($attributeNamespace) || $attributeNamespace === '') {
+                        continue;
+                    }
+                    $xmlElementAttributeGroupAttributeNamespaceCounts[$attributeNamespace] =
+                        ($xmlElementAttributeGroupAttributeNamespaceCounts[$attributeNamespace] ?? 0) + 1;
+                    $this->appendUniqueString($xmlElementAttributeGroupAttributeNamespaces, $attributeNamespace);
+                }
+                foreach (($group['attributePrefixes'] ?? []) as $attributePrefix) {
+                    if (!is_string($attributePrefix) || $attributePrefix === '') {
+                        continue;
+                    }
+                    $xmlElementAttributeGroupAttributePrefixCounts[$attributePrefix] =
+                        ($xmlElementAttributeGroupAttributePrefixCounts[$attributePrefix] ?? 0) + 1;
+                    $this->appendUniqueString($xmlElementAttributeGroupAttributePrefixes, $attributePrefix);
+                }
+
                 $xmlElementAttributeGroups[] = [
                     'partName' => $partName,
                     'directory' => is_string($part['directory'] ?? null)
@@ -32115,6 +32178,10 @@ final class DocxOpenXmlReader
         ksort($xmlElementAttributeGroupFirstAttributeNameCounts, SORT_STRING);
         ksort($xmlElementAttributeGroupLastAttributeNameCounts, SORT_STRING);
         ksort($xmlElementAttributeGroupAttributeNameSequenceCounts, SORT_STRING);
+        ksort($xmlElementAttributeGroupAttributeNamespaceCountCounts, SORT_NUMERIC);
+        ksort($xmlElementAttributeGroupAttributeNamespaceCounts, SORT_STRING);
+        ksort($xmlElementAttributeGroupAttributePrefixCountCounts, SORT_NUMERIC);
+        ksort($xmlElementAttributeGroupAttributePrefixCounts, SORT_STRING);
         ksort($xmlElementAttributeIndexCounts, SORT_NUMERIC);
         ksort($xmlElementAttributeParentAttributeCountBucketCounts, SORT_STRING);
         sort($xmlProcessingInstructionTargets, SORT_STRING);
@@ -32213,6 +32280,8 @@ final class DocxOpenXmlReader
         sort($xmlElementAttributeSetElementPaths, SORT_STRING);
         sort($xmlElementAttributeGroupPartNames, SORT_STRING);
         sort($xmlElementAttributeGroupElementPaths, SORT_STRING);
+        sort($xmlElementAttributeGroupAttributeNamespaces, SORT_STRING);
+        sort($xmlElementAttributeGroupAttributePrefixes, SORT_STRING);
         ksort($xmlElementAttributeValueLengthBucketCounts, SORT_STRING);
         sort($xmlElementAttributeValueLengthBuckets, SORT_STRING);
         ksort($xmlElementAttributeXmlReservedLocalNameCounts, SORT_STRING);
@@ -32881,8 +32950,18 @@ final class DocxOpenXmlReader
             'xmlElementAttributeGroupAttributeCount' => $xmlElementAttributeGroupAttributeCount,
             'xmlElementAttributeGroupMaxAttributeCount' => $xmlElementAttributeGroupMaxAttributeCount,
             'xmlElementAttributeGroupMultiAttributeCount' => $xmlElementAttributeGroupMultiAttributeCount,
+            'xmlElementAttributeGroupXmlLangCount' => $xmlElementAttributeGroupXmlLangCount,
+            'xmlElementAttributeGroupRelationshipAttributeCount' => $xmlElementAttributeGroupRelationshipAttributeCount,
+            'xmlElementAttributeGroupUnqualifiedAttributeCount' => $xmlElementAttributeGroupUnqualifiedAttributeCount,
+            'xmlElementAttributeGroupNamespacedAttributeCount' => $xmlElementAttributeGroupNamespacedAttributeCount,
             'xmlElementAttributeGroupPartNames' => $xmlElementAttributeGroupPartNames,
             'xmlElementAttributeGroupAttributeCountBuckets' => $xmlElementAttributeGroupAttributeCountBuckets,
+            'xmlElementAttributeGroupAttributeNamespaceCountCounts' => $xmlElementAttributeGroupAttributeNamespaceCountCounts,
+            'xmlElementAttributeGroupAttributeNamespaceCounts' => $xmlElementAttributeGroupAttributeNamespaceCounts,
+            'xmlElementAttributeGroupAttributeNamespaces' => $xmlElementAttributeGroupAttributeNamespaces,
+            'xmlElementAttributeGroupAttributePrefixCountCounts' => $xmlElementAttributeGroupAttributePrefixCountCounts,
+            'xmlElementAttributeGroupAttributePrefixCounts' => $xmlElementAttributeGroupAttributePrefixCounts,
+            'xmlElementAttributeGroupAttributePrefixes' => $xmlElementAttributeGroupAttributePrefixes,
             'xmlElementAttributeGroupElementPathCount' => count($xmlElementAttributeGroupElementPathCounts),
             'xmlElementAttributeGroupElementPathCounts' => $xmlElementAttributeGroupElementPathCounts,
             'xmlElementAttributeGroupElementPaths' => $xmlElementAttributeGroupElementPaths,
