@@ -1252,6 +1252,10 @@ final class PptxReader
             return $this->unsupportedDrawableShapeBlocks($shapeElement, $slideRelationships, $zOrder, $shapeIssues);
         }
 
+        if (!$graphicData->hasAttribute('uri')) {
+            return $this->withShapeMetadata([$this->paragraph('[Graphic: no-uri]')], $shapeElement, $zOrder);
+        }
+
         $uri = $graphicData->getAttribute('uri');
         if (str_contains($uri, 'table')) {
             $table = $this->firstDescendantElement($graphicData, 'tbl');
@@ -3048,13 +3052,13 @@ final class PptxReader
     {
         $relIds = $this->firstChildElement($graphicData, 'relIds');
         if (!$relIds instanceof \DOMElement) {
-            return $this->paragraph('[Diagram parse error: diagram-no-relIds]');
+            return $this->paragraph('[Graphic: diagram-no-relIds]');
         }
 
         $dataRelId = $this->relationshipId($relIds, 'dm');
         $layoutRelId = $this->relationshipId($relIds, 'lo');
         if ($dataRelId === '' || $layoutRelId === '') {
-            return $this->paragraph('[Diagram parse error: diagram-missing-rels]');
+            return $this->paragraph('[Graphic: diagram-missing-rels]');
         }
 
         $dataRelationship = $slideRelationships->byId($dataRelId);
