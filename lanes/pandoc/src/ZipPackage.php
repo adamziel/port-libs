@@ -15819,6 +15819,14 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $dosAttributeProvenance = self::packageManifestDosAttributeProvenance(
+            $entries,
+            $this->dosAttributePreflight()['entries']
+        );
+        $internalAttributeProvenance = self::packageManifestInternalAttributeProvenance(
+            $entries,
+            $this->internalAttributePreflight()['entries']
+        );
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15916,6 +15924,8 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            ...$dosAttributeProvenance,
+            ...$internalAttributeProvenance,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
             'deepestEntryNames' => $deepestEntryNames,
@@ -16106,6 +16116,8 @@ final class ZipPackage
             'entryCommentSummaryCount' => count($entryCommentSummaries),
             'entryCommentSourceRecordBytes' => $entryCommentSourceRecordBytes,
             'entryCommentSummaries' => $entryCommentSummaries,
+            ...$dosAttributeProvenance,
+            ...$internalAttributeProvenance,
             'hasCentralDirectoryReviewFields' => $centralDirectoryReviewFieldBytes > 0,
             'maxPathSegmentCount' => $maxPathSegmentCount,
             'maxDirectoryDepth' => $maxDirectoryDepth,
@@ -16334,6 +16346,300 @@ final class ZipPackage
             'issues' => $issues,
             'entries' => $entrySummaries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array<string, mixed>> $attributeEntries
+     * @return array<string, mixed>
+     */
+    private static function packageManifestDosAttributeProvenance(array $entries, array $attributeEntries): array
+    {
+        $attributeNames = [];
+        $attributeNameCounts = [];
+        $entryNamesByAttributeName = [];
+        $issueCounts = [];
+        $entryNamesByIssue = [];
+        $summaries = [];
+        $dosAttributeEntryCount = 0;
+        $hiddenSystemOrVolumeLabelEntryCount = 0;
+
+        foreach ($entries as $index => $entry) {
+            $attributeEntry = is_array($attributeEntries[$index] ?? null) ? $attributeEntries[$index] : [];
+            $dosAttributes = is_int($attributeEntry['dosAttributes'] ?? null)
+                ? $attributeEntry['dosAttributes']
+                : 0;
+            if ($dosAttributes === 0) {
+                continue;
+            }
+
+            $entryName = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $names = array_values(array_filter(
+                is_array($attributeEntry['dosAttributeNames'] ?? null) ? $attributeEntry['dosAttributeNames'] : [],
+                'is_string'
+            ));
+            $issues = [];
+            if (($attributeEntry['hasHiddenAttribute'] ?? false) === true) {
+                $issues[] = 'dos-hidden-attribute';
+            }
+            if (($attributeEntry['hasSystemAttribute'] ?? false) === true) {
+                $issues[] = 'dos-system-attribute';
+            }
+            if (($attributeEntry['hasVolumeLabelAttribute'] ?? false) === true) {
+                $issues[] = 'dos-volume-label-attribute';
+            }
+
+            ++$dosAttributeEntryCount;
+            if ($issues !== []) {
+                ++$hiddenSystemOrVolumeLabelEntryCount;
+            }
+
+            foreach ($names as $name) {
+                self::appendPackageManifestString($attributeNames, $name);
+                $attributeNameCounts[$name] = ($attributeNameCounts[$name] ?? 0) + 1;
+                $entryNamesByAttributeName[$name] ??= [];
+                self::appendPackageManifestString($entryNamesByAttributeName[$name], $entryName);
+            }
+            foreach ($issues as $issue) {
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                $entryNamesByIssue[$issue] ??= [];
+                self::appendPackageManifestString($entryNamesByIssue[$issue], $entryName);
+            }
+
+            $key = sprintf('%02x', $dosAttributes);
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'dosAttributes' => $dosAttributes,
+                    'dosAttributesHex' => $key,
+                    'dosAttributeNames' => $names,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'directoryRoots' => [],
+                    'packagePartExtensionKeys' => [],
+                    'entryNames' => [],
+                    'issueCount' => 0,
+                    'issues' => [],
+                ];
+            }
+
+            ++$summaries[$key]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$key]['directoryEntryCount'];
+            } else {
+                ++$summaries[$key]['fileEntryCount'];
+            }
+            $summaries[$key]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$key]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$key]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$key]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            if (is_string($entry['directoryRoot'] ?? null)) {
+                self::appendPackageManifestString($summaries[$key]['directoryRoots'], $entry['directoryRoot']);
+            }
+            if (is_string($entry['packagePartExtensionKey'] ?? null)) {
+                self::appendPackageManifestString(
+                    $summaries[$key]['packagePartExtensionKeys'],
+                    $entry['packagePartExtensionKey']
+                );
+            }
+            self::appendPackageManifestString($summaries[$key]['entryNames'], $entryName);
+            foreach ($issues as $issue) {
+                self::appendPackageManifestString($summaries[$key]['issues'], $issue);
+            }
+            $summaries[$key]['issueCount'] = count($summaries[$key]['issues']);
+        }
+
+        sort($attributeNames, SORT_STRING);
+        ksort($attributeNameCounts, SORT_STRING);
+        self::sortPackageManifestStringListMap($entryNamesByAttributeName);
+        ksort($issueCounts, SORT_STRING);
+        self::sortPackageManifestStringListMap($entryNamesByIssue);
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['dosAttributeNames'], SORT_STRING);
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            $summary['issueCount'] = count($summary['issues']);
+        }
+        unset($summary);
+
+        return [
+            'dosAttributeProvenanceVersion' => 'zip-package-dos-attribute-provenance-v1',
+            'dosAttributeEntryCount' => $dosAttributeEntryCount,
+            'hasDosAttributeEntries' => $dosAttributeEntryCount > 0,
+            'hiddenSystemOrVolumeLabelEntryCount' => $hiddenSystemOrVolumeLabelEntryCount,
+            'hasHiddenSystemOrVolumeLabelEntries' => $hiddenSystemOrVolumeLabelEntryCount > 0,
+            'dosAttributeNames' => $attributeNames,
+            'dosAttributeNameCounts' => $attributeNameCounts,
+            'entryNamesByDosAttributeName' => $entryNamesByAttributeName,
+            'dosAttributeIssueCounts' => $issueCounts,
+            'entryNamesByDosAttributeIssue' => $entryNamesByIssue,
+            'dosAttributeSummaryCount' => count($summaries),
+            'dosAttributeSummaries' => array_values($summaries),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @param list<array<string, mixed>> $attributeEntries
+     * @return array<string, mixed>
+     */
+    private static function packageManifestInternalAttributeProvenance(array $entries, array $attributeEntries): array
+    {
+        $attributeNames = [];
+        $attributeNameCounts = [];
+        $entryNamesByAttributeName = [];
+        $issueCounts = [];
+        $entryNamesByIssue = [];
+        $summaries = [];
+        $internalAttributeEntryCount = 0;
+        $textInternalAttributeEntryCount = 0;
+        $unknownInternalAttributeEntryCount = 0;
+
+        foreach ($entries as $index => $entry) {
+            $attributeEntry = is_array($attributeEntries[$index] ?? null) ? $attributeEntries[$index] : [];
+            $internalAttributes = is_int($attributeEntry['internalFileAttributes'] ?? null)
+                ? $attributeEntry['internalFileAttributes']
+                : 0;
+            if ($internalAttributes === 0) {
+                continue;
+            }
+
+            $entryName = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            $names = array_values(array_filter(
+                is_array($attributeEntry['internalAttributeNames'] ?? null)
+                    ? $attributeEntry['internalAttributeNames']
+                    : [],
+                'is_string'
+            ));
+            $issues = array_values(array_filter(
+                is_array($attributeEntry['issues'] ?? null) ? $attributeEntry['issues'] : [],
+                'is_string'
+            ));
+            if (($attributeEntry['hasTextInternalAttribute'] ?? false) === true) {
+                ++$textInternalAttributeEntryCount;
+            }
+            if (($attributeEntry['hasUnknownInternalAttributeBits'] ?? false) === true) {
+                ++$unknownInternalAttributeEntryCount;
+            }
+            ++$internalAttributeEntryCount;
+
+            foreach ($names as $name) {
+                self::appendPackageManifestString($attributeNames, $name);
+                $attributeNameCounts[$name] = ($attributeNameCounts[$name] ?? 0) + 1;
+                $entryNamesByAttributeName[$name] ??= [];
+                self::appendPackageManifestString($entryNamesByAttributeName[$name], $entryName);
+            }
+            foreach ($issues as $issue) {
+                $issueCounts[$issue] = ($issueCounts[$issue] ?? 0) + 1;
+                $entryNamesByIssue[$issue] ??= [];
+                self::appendPackageManifestString($entryNamesByIssue[$issue], $entryName);
+            }
+
+            $key = sprintf('%04x', $internalAttributes);
+            if (!isset($summaries[$key])) {
+                $summaries[$key] = [
+                    'internalFileAttributes' => $internalAttributes,
+                    'internalFileAttributesHex' => $key,
+                    'internalAttributeNames' => $names,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'directoryRoots' => [],
+                    'packagePartExtensionKeys' => [],
+                    'entryNames' => [],
+                    'issueCount' => 0,
+                    'issues' => [],
+                ];
+            }
+
+            ++$summaries[$key]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$key]['directoryEntryCount'];
+            } else {
+                ++$summaries[$key]['fileEntryCount'];
+            }
+            $summaries[$key]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$key]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$key]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$key]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            if (is_string($entry['directoryRoot'] ?? null)) {
+                self::appendPackageManifestString($summaries[$key]['directoryRoots'], $entry['directoryRoot']);
+            }
+            if (is_string($entry['packagePartExtensionKey'] ?? null)) {
+                self::appendPackageManifestString(
+                    $summaries[$key]['packagePartExtensionKeys'],
+                    $entry['packagePartExtensionKey']
+                );
+            }
+            self::appendPackageManifestString($summaries[$key]['entryNames'], $entryName);
+            foreach ($issues as $issue) {
+                self::appendPackageManifestString($summaries[$key]['issues'], $issue);
+            }
+            $summaries[$key]['issueCount'] = count($summaries[$key]['issues']);
+        }
+
+        sort($attributeNames, SORT_STRING);
+        ksort($attributeNameCounts, SORT_STRING);
+        self::sortPackageManifestStringListMap($entryNamesByAttributeName);
+        ksort($issueCounts, SORT_STRING);
+        self::sortPackageManifestStringListMap($entryNamesByIssue);
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as &$summary) {
+            sort($summary['internalAttributeNames'], SORT_STRING);
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['packagePartExtensionKeys'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+            sort($summary['issues'], SORT_STRING);
+            $summary['issueCount'] = count($summary['issues']);
+        }
+        unset($summary);
+
+        return [
+            'internalAttributeProvenanceVersion' => 'zip-package-internal-attribute-provenance-v1',
+            'internalAttributeEntryCount' => $internalAttributeEntryCount,
+            'hasInternalAttributeEntries' => $internalAttributeEntryCount > 0,
+            'textInternalAttributeEntryCount' => $textInternalAttributeEntryCount,
+            'unknownInternalAttributeEntryCount' => $unknownInternalAttributeEntryCount,
+            'internalAttributeNames' => $attributeNames,
+            'internalAttributeNameCounts' => $attributeNameCounts,
+            'entryNamesByInternalAttributeName' => $entryNamesByAttributeName,
+            'internalAttributeIssueCounts' => $issueCounts,
+            'entryNamesByInternalAttributeIssue' => $entryNamesByIssue,
+            'internalAttributeSummaryCount' => count($summaries),
+            'internalAttributeSummaries' => array_values($summaries),
+        ];
+    }
+
+    private static function appendPackageManifestString(array &$values, string $value): void
+    {
+        if ($value === '' || in_array($value, $values, true)) {
+            return;
+        }
+
+        $values[] = $value;
+    }
+
+    /**
+     * @param array<string, list<string>> $map
+     */
+    private static function sortPackageManifestStringListMap(array &$map): void
+    {
+        ksort($map, SORT_STRING);
+        foreach ($map as &$values) {
+            sort($values, SORT_STRING);
+        }
+        unset($values);
     }
 
     /**
