@@ -188,15 +188,65 @@ $aggregateFields = [
     'centralDirectoryOrderMatchesLocalHeaderOrder' => 'zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder',
 ];
 
+$indexBy = static function (array $items, string $key): array {
+    $indexed = [];
+    foreach ($items as $item) {
+        $indexed[(string) $item[$key]] = $item;
+    }
+
+    return $indexed;
+};
+
+$packageManifestEntryScalarSubset = static function (array $item): array {
+    $keys = [
+        'zipPackageManifestCompressionMethodName',
+        'zipPackageManifestCrc32Hex',
+        'zipPackageManifestCompressedSize',
+        'zipPackageManifestUncompressedSize',
+        'zipPackageManifestExpansionRatio',
+        'zipPackageManifestVersionMadeBy',
+        'zipPackageManifestMadeByHostSystem',
+        'zipPackageManifestMadeByHostSystemName',
+        'zipPackageManifestMadeByVersion',
+        'zipPackageManifestVersionNeededToExtract',
+        'zipPackageManifestCreatorVersionMeetsNeeded',
+        'zipPackageManifestCreatorVersionComparison',
+        'zipPackageManifestCreatorVersionDelta',
+        'zipPackageManifestCreatorHostSystemIsKnown',
+        'zipPackageManifestCreatorHostSystemIssues',
+        'zipPackageManifestPackagePartExtension',
+        'zipPackageManifestPackagePartExtensionKey',
+        'zipPackageManifestExtensionlessPackagePart',
+    ];
+    $defaults = [
+        'zipPackageManifestCreatorHostSystemIssues' => [],
+    ];
+
+    $subset = [];
+    foreach ($keys as $key) {
+        $subset[$key] = array_key_exists($key, $item) ? $item[$key] : ($defaults[$key] ?? null);
+    }
+
+    return $subset;
+};
+
 return [
-    'carries ODT ZIP package manifest aggregate byte-layout provenance through compact and rich identities' => static function (TestRunner $t) use ($package, $aggregateFields): void {
+    'carries ODT ZIP package manifest aggregate byte-layout provenance through compact and rich identities' => static function (TestRunner $t) use (
+        $package,
+        $aggregateFields,
+        $indexBy,
+        $packageManifestEntryScalarSubset
+    ): void {
         $zipManifest = $package->packageManifestPreflight();
+        $zipManifestEntries = $indexBy($zipManifest['entries'], 'name');
         $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
         $compactInventory = $compactSummary['packageInventory'];
         $compactIdentity = $compactSummary['packageIdentity'];
         $richResult = (new OdfReader())->readPackage($package);
         $richProvenance = $richResult['importReport']['manifest']['packageProvenance'];
         $richIdentity = $richProvenance['packageIdentity'];
+        $compactIdentityEntries = $indexBy($compactIdentity['packageEntries'], 'path');
+        $richIdentityEntries = $indexBy($richIdentity['packageEntries'], 'part');
 
         foreach ($aggregateFields as $manifestKey => $provenanceKey) {
             $t->same($zipManifest[$manifestKey], $compactInventory[$provenanceKey], "{$provenanceKey} compact inventory");
@@ -226,6 +276,34 @@ return [
         $t->same(true, $richIdentity['zipPackageManifestHasCentralDirectorySignature']);
         $t->same('central-directory-signature-metadata-only', $richIdentity['zipPackageManifestCentralDirectorySignatureByteExposurePolicy']);
         $t->same(false, $richIdentity['zipPackageManifestCentralDirectorySignatureCanExposeBytes']);
+        foreach (['content.xml', 'Pictures/review.png'] as $name) {
+            $zipEntry = $zipManifestEntries[$name];
+            $expectedEntryScalarProvenance = [
+                'zipPackageManifestCompressionMethodName' => $zipEntry['compressionMethodName'],
+                'zipPackageManifestCrc32Hex' => $zipEntry['crc32Hex'],
+                'zipPackageManifestCompressedSize' => $zipEntry['compressedSize'],
+                'zipPackageManifestUncompressedSize' => $zipEntry['uncompressedSize'],
+                'zipPackageManifestExpansionRatio' => $zipEntry['expansionRatio'],
+                'zipPackageManifestVersionMadeBy' => $zipEntry['versionMadeBy'],
+                'zipPackageManifestMadeByHostSystem' => $zipEntry['madeByHostSystem'],
+                'zipPackageManifestMadeByHostSystemName' => $zipEntry['madeByHostSystemName'],
+                'zipPackageManifestMadeByVersion' => $zipEntry['madeByVersion'],
+                'zipPackageManifestVersionNeededToExtract' => $zipEntry['versionNeededToExtract'],
+                'zipPackageManifestCreatorVersionMeetsNeeded' => $zipEntry['creatorVersionMeetsNeeded'],
+                'zipPackageManifestCreatorVersionComparison' => $zipEntry['creatorVersionComparison'],
+                'zipPackageManifestCreatorVersionDelta' => $zipEntry['creatorVersionDelta'],
+                'zipPackageManifestCreatorHostSystemIsKnown' => $zipEntry['creatorHostSystemIsKnown'],
+                'zipPackageManifestCreatorHostSystemIssues' => $zipEntry['creatorHostSystemIssues'],
+                'zipPackageManifestPackagePartExtension' => $zipEntry['packagePartExtension'],
+                'zipPackageManifestPackagePartExtensionKey' => $zipEntry['packagePartExtensionKey'],
+                'zipPackageManifestExtensionlessPackagePart' => $zipEntry['extensionlessPackagePart'],
+            ];
+
+            $t->same($expectedEntryScalarProvenance, $packageManifestEntryScalarSubset($compactInventory['parts'][$name]), "{$name} compact inventory package-manifest scalar provenance");
+            $t->same($expectedEntryScalarProvenance, $packageManifestEntryScalarSubset($compactIdentityEntries[$name]), "{$name} compact identity package-manifest scalar provenance");
+            $t->same($expectedEntryScalarProvenance, $packageManifestEntryScalarSubset($richProvenance['parts'][$name]), "{$name} rich provenance package-manifest scalar provenance");
+            $t->same($expectedEntryScalarProvenance, $packageManifestEntryScalarSubset($richIdentityEntries[$name]), "{$name} rich identity package-manifest scalar provenance");
+        }
         $t->same(false, array_key_exists('centralDirectorySignatureData', $richIdentity));
         $t->same(false, array_key_exists('zipPackageManifestCentralDirectorySignatureData', $richIdentity));
         $t->same(false, $richIdentity['canExposeBytes']);
