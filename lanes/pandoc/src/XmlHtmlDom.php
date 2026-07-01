@@ -20006,6 +20006,7 @@ final class XmlHtmlDom
             $summary['contentEditableRaw'] = $attributes['contenteditable'];
             $summary['contentEditable'] = $contentEditable;
             $summary['contentEditableValid'] = $contentEditable !== null;
+            $summary += self::contentEditableAttributeReviewSummary($element, $contentEditable);
         }
 
         $summary += self::effectiveContentEditableSummary($element, $attributes);
@@ -20033,6 +20034,7 @@ final class XmlHtmlDom
             $summary['spellcheckRaw'] = $attributes['spellcheck'];
             $summary['spellcheck'] = $spellcheck;
             $summary['spellcheckValid'] = $spellcheck !== null;
+            $summary += self::spellcheckAttributeReviewSummary($element, $spellcheck);
         }
 
         $summary += self::effectiveSpellcheckSummary($element, $attributes);
@@ -21470,6 +21472,33 @@ final class XmlHtmlDom
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    private static function contentEditableAttributeReviewSummary(\DOMElement $element, bool|string|null $state): array
+    {
+        $issueCodes = [];
+        if ($state === null) {
+            $issueCodes[] = 'invalid-html-contenteditable-token';
+        }
+
+        return [
+            'contentEditableReviewPolicy' => 'html-contenteditable-state-review',
+            'contentEditableReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
+            'contentEditableElement' => self::htmlElementName($element),
+            'contentEditableMode' => match ($state) {
+                true => 'rich-text',
+                false => 'not-editable',
+                'plaintext-only' => 'plain-text',
+                default => null,
+            },
+            'contentEditableInvalidValueDefaulted' => $state === null,
+            'contentEditableIssueCodes' => $issueCodes,
+            'contentEditableIssueCount' => count($issueCodes),
+            'contentEditableReviewOnlyNoEditingEngine' => true,
+        ];
+    }
+
+    /**
      * @param array<string, string> $attributes
      * @return array<string, mixed>
      */
@@ -21531,6 +21560,28 @@ final class XmlHtmlDom
             'false' => false,
             default => null,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function spellcheckAttributeReviewSummary(\DOMElement $element, ?bool $state): array
+    {
+        $issueCodes = [];
+        if ($state === null) {
+            $issueCodes[] = 'invalid-html-spellcheck-token';
+        }
+
+        return [
+            'spellcheckReviewPolicy' => 'html-spellcheck-state-review',
+            'spellcheckReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
+            'spellcheckElement' => self::htmlElementName($element),
+            'spellcheckCheckingEnabled' => $state,
+            'spellcheckInvalidValueDefaulted' => $state === null,
+            'spellcheckIssueCodes' => $issueCodes,
+            'spellcheckIssueCount' => count($issueCodes),
+            'spellcheckReviewOnlyNoSpellcheckingService' => true,
+        ];
     }
 
     /**
