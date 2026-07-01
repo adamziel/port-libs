@@ -1167,7 +1167,7 @@ final class CitationCslProcessor
         $originalIssn = self::firstStringField($item, ['original-issn', 'originalISSN', 'originalIssn', 'originalissn', 'original-ISSN', 'origissn', 'origIssn', 'origISSN', 'orig-issn']);
         $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'archivePrefix', 'eprinttype', 'eprint-type', 'eprintType']);
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
-        $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass']);
+        $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass', 'primaryclass', 'primary-class', 'primary_class', 'primaryClass']);
         $archiveLocation = self::firstStringField($item, ['archive_location', 'archive-location', 'archiveLocation', 'archivelocation', 'eprint']);
         $archiveSummary = self::firstStringField($item, ['archive-summary', 'archiveSummary', 'archivesummary', 'eprint-summary', 'eprintSummary', 'eprintsummary'])
             ?: self::archiveSummary($archive, $archiveCollection, $archivePlace, $archiveLocation);
@@ -6920,7 +6920,7 @@ final class CitationCslProcessor
             'keyword-list', 'keywordlist', 'category-list', 'categorylist',
             'citation-alias', 'citationalias', 'citation-aliases', 'citationaliases',
             'citation-alias-summary', 'citation-aliases-summary', 'citationaliassummary', 'citationaliasessummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
-            'archive', 'archive-place', 'archiveplace', 'archive_collection', 'archive-collection', 'archivecollection',
+            'archive', 'archive-place', 'archiveplace', 'eprintclass', 'eprint-class', 'primaryclass', 'primary-class', 'primary_class', 'archive_collection', 'archive-collection', 'archivecollection',
             'archive_location', 'archive-location', 'archivelocation', 'archive-summary', 'archivesummary' => $this->normalizeSortText($this->renderVariableValue($item, $variable, $scope)),
             'type' => $this->normalizeSortText((string) $item['type']),
             'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
@@ -11287,7 +11287,7 @@ final class CitationCslProcessor
             'authority-identifiers', 'authority-identifier-summary', 'creator-identifiers', 'creator-identifier-summary' => (string) ($item['authorityIdentifierSummary'] ?? ''),
             'archive' => (string) $item['archive'],
             'archive_collection', 'archive-collection', 'archivecollection' => (string) ($item['archiveCollection'] ?? ''),
-            'archive-place', 'archiveplace' => (string) $item['archivePlace'],
+            'archive-place', 'archiveplace', 'eprintclass', 'eprint-class', 'primaryclass', 'primary-class', 'primary_class' => (string) $item['archivePlace'],
             'archive_location', 'archive-location', 'archivelocation' => (string) $item['archiveLocation'],
             'archive-summary', 'archive-summary-text', 'archivesummary', 'eprint-summary', 'eprintsummary' => (string) ($item['archiveSummary'] ?? ''),
             'call-number', 'callnumber' => (string) $item['callNumber'],
