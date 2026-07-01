@@ -1174,7 +1174,7 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
-    'preflights zip package manifest data descriptor source records for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+    'preflights zip package manifest data descriptor source records for package handoff' => static function (TestRunner $t) use ($buildZipPackage, $crc32): void {
         $documentXml = '<w:document><w:body><w:p>descriptor manifest source</w:p></w:body></w:document>';
         $commentsXml = '<w:comments><w:comment>descriptor manifest sidecar</w:comment></w:comments>';
         $commentsCompressed = gzdeflate($commentsXml);
@@ -1198,10 +1198,137 @@ return [
 
         $documentEntry = $manifest['entries'][0];
         $commentsEntry = $manifest['entries'][1];
+        $descriptorBytes = substr(
+            $zip,
+            $commentsEntry['dataDescriptorOffset'],
+            $commentsEntry['dataDescriptorBytes']
+        );
+        $expectedManifestEntries = [
+            [
+                'name' => 'word/document.xml',
+                'isDirectory' => false,
+                'directoryRoot' => 'word/',
+                'centralDirectoryIndex' => 0,
+                'localHeaderOrder' => 0,
+                'compressionMethod' => 0,
+                'crc32Hex' => sprintf('%08x', $crc32($documentXml)),
+                'compressedSize' => strlen($documentXml),
+                'uncompressedSize' => strlen($documentXml),
+                'localHeaderSha256' => $documentEntry['localHeaderSha256'],
+                'localRecordBytes' => $documentEntry['localRecordBytes'],
+                'localRecordSha256' => $documentEntry['localRecordSha256'],
+                'compressedDataSha256' => hash('sha256', $documentXml),
+                'usesDataDescriptor' => false,
+                'dataDescriptorBytes' => 0,
+                'dataDescriptorSha256' => null,
+                'centralDirectoryRecordSha256' => $documentEntry['centralDirectoryRecordSha256'],
+            ],
+            [
+                'name' => 'word/comments.xml',
+                'isDirectory' => false,
+                'directoryRoot' => 'word/',
+                'centralDirectoryIndex' => 1,
+                'localHeaderOrder' => 1,
+                'compressionMethod' => 8,
+                'crc32Hex' => sprintf('%08x', $crc32($commentsXml)),
+                'compressedSize' => strlen($commentsCompressed),
+                'uncompressedSize' => strlen($commentsXml),
+                'localHeaderSha256' => $commentsEntry['localHeaderSha256'],
+                'localRecordBytes' => $commentsEntry['localRecordBytes'],
+                'localRecordSha256' => $commentsEntry['localRecordSha256'],
+                'compressedDataSha256' => hash('sha256', $commentsCompressed),
+                'usesDataDescriptor' => true,
+                'dataDescriptorBytes' => strlen($descriptorBytes),
+                'dataDescriptorSha256' => hash('sha256', $descriptorBytes),
+                'centralDirectoryRecordSha256' => $commentsEntry['centralDirectoryRecordSha256'],
+            ],
+        ];
+        $expectedCompressionMethodSummaries = [
+            [
+                'compressionMethod' => 0,
+                'compressionMethodName' => 'stored',
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($documentXml),
+                'uncompressedBytes' => strlen($documentXml),
+                'localRecordBytes' => $documentEntry['localRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+            ],
+            [
+                'compressionMethod' => 8,
+                'compressionMethodName' => 'deflated',
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($commentsCompressed),
+                'uncompressedBytes' => strlen($commentsXml),
+                'localRecordBytes' => $commentsEntry['localRecordBytes'],
+                'dataDescriptorEntryCount' => 1,
+                'dataDescriptorBytes' => strlen($descriptorBytes),
+            ],
+        ];
+        $expectedDirectoryRootSummaries = [
+            [
+                'directoryRoot' => 'word/',
+                'entryCount' => 2,
+                'fileEntryCount' => 2,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($documentXml) + strlen($commentsCompressed),
+                'uncompressedBytes' => strlen($documentXml) + strlen($commentsXml),
+                'localRecordBytes' => $documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'],
+                'dataDescriptorEntryCount' => 1,
+                'dataDescriptorBytes' => strlen($descriptorBytes),
+                'entryNames' => ['word/document.xml', 'word/comments.xml'],
+            ],
+        ];
+        $expectedHash = hash('sha256', json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'archiveBytes' => $manifest['archiveBytes'],
+            'archiveSha256' => $manifest['archiveSha256'],
+            'centralDirectoryOffset' => $manifest['centralDirectoryOffset'],
+            'centralDirectoryBytes' => $manifest['centralDirectoryBytes'],
+            'centralDirectorySha256' => $manifest['centralDirectorySha256'],
+            'endOfCentralDirectoryOffset' => $manifest['endOfCentralDirectoryOffset'],
+            'endOfCentralDirectoryBytes' => $manifest['endOfCentralDirectoryBytes'],
+            'endOfCentralDirectorySha256' => $manifest['endOfCentralDirectorySha256'],
+            'centralDirectorySignatureOffset' => $manifest['centralDirectorySignatureOffset'],
+            'centralDirectorySignatureBytes' => $manifest['centralDirectorySignatureBytes'],
+            'centralDirectorySignatureSha256' => $manifest['centralDirectorySignatureSha256'],
+            'centralDirectoryOrderNames' => ['word/document.xml', 'word/comments.xml'],
+            'localHeaderOrderNames' => ['word/document.xml', 'word/comments.xml'],
+            'compressionMethodSummaries' => $expectedCompressionMethodSummaries,
+            'directoryRootSummaries' => $expectedDirectoryRootSummaries,
+            'entries' => $expectedManifestEntries,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
         $t->same(1, $manifest['dataDescriptorEntryCount']);
         $t->same(16, $manifest['dataDescriptorBytes']);
         $t->same($documentEntry['localRecordBytes'] + $commentsEntry['localRecordBytes'], $manifest['localRecordBytes']);
+        $t->same($expectedHash, $manifest['manifestSha256']);
+        $t->same($expectedManifestEntries, array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'isDirectory' => $entry['isDirectory'],
+                'directoryRoot' => $entry['directoryRoot'],
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                'localHeaderOrder' => $entry['localHeaderOrder'],
+                'compressionMethod' => $entry['compressionMethod'],
+                'crc32Hex' => $entry['crc32Hex'],
+                'compressedSize' => $entry['compressedSize'],
+                'uncompressedSize' => $entry['uncompressedSize'],
+                'localHeaderSha256' => $entry['localHeaderSha256'],
+                'localRecordBytes' => $entry['localRecordBytes'],
+                'localRecordSha256' => $entry['localRecordSha256'],
+                'compressedDataSha256' => $entry['compressedDataSha256'],
+                'usesDataDescriptor' => $entry['usesDataDescriptor'],
+                'dataDescriptorBytes' => $entry['dataDescriptorBytes'],
+                'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
+                'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+            ],
+            $manifest['entries']
+        ));
 
         $t->same(false, $documentEntry['usesDataDescriptor']);
         $t->same(0, $documentEntry['dataDescriptorBytes']);
