@@ -216,6 +216,10 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['documentPackageIdentityPackageRelationshipPartCount'] = $documentPackageIdentity['packageRelationshipPartCount'];
         $packageProvenance['summary']['documentPackageIdentityPackageRelationshipCount'] = $documentPackageIdentity['packageRelationshipCount'];
         $packageProvenance['summary']['documentPackageIdentityPackageRelationshipRecordCount'] = $documentPackageIdentity['packageRelationshipRecordCount'];
+        $packageProvenance['summary']['documentPackageIdentityPackageAreaCount'] = $documentPackageIdentity['packageAreaCount'];
+        $packageProvenance['summary']['documentPackageIdentityPackageAreaCounts'] = $documentPackageIdentity['packageAreaCounts'];
+        $packageProvenance['summary']['documentPackageIdentityPackageAreaByteLengths'] = $documentPackageIdentity['packageAreaByteLengths'];
+        $packageProvenance['summary']['documentPackageIdentityPackageAreaCompressedByteLengths'] = $documentPackageIdentity['packageAreaCompressedByteLengths'];
         $packageProvenance['summary']['documentPackageIdentityRootRelationshipCount'] = $documentPackageIdentity['rootRelationshipCount'];
         $packageProvenance['summary']['documentPackageIdentityRootRelationshipRecordCount'] = $documentPackageIdentity['rootRelationshipRecordCount'];
         $packageProvenance['summary']['documentPackageIdentityRootOfficeDocumentRelationshipId'] = $documentPackageIdentity['rootOfficeDocumentRelationshipId'];
@@ -13010,6 +13014,11 @@ final class DocxOpenXmlReader
         $summary['packageIdentityByteExposurePolicy'] = $packageIdentity['byteExposurePolicy'];
         $summary['packageIdentityCanExposeBytes'] = $packageIdentity['canExposeBytes'];
         $summary['packageIdentityEntryCount'] = $packageIdentity['packageEntryCount'];
+        $summary['packageIdentityPackageAreaCount'] = $packageIdentity['packageAreaCount'];
+        $summary['packageIdentityPackageAreaCounts'] = $packageIdentity['packageAreaCounts'];
+        $summary['packageIdentityPackageAreaByteLengths'] = $packageIdentity['packageAreaByteLengths'];
+        $summary['packageIdentityPackageAreaCompressedByteLengths'] =
+            $packageIdentity['packageAreaCompressedByteLengths'];
 
         return [
             'contentTypesPart' => $contentTypesPart,
@@ -15432,6 +15441,7 @@ final class DocxOpenXmlReader
             }
         }
         ksort($partDirectoryDepthCounts, SORT_NUMERIC);
+        $packageAreas = $this->packagePartAreaSummary($partInventory);
         $partTopLevelSegments = $this->packagePartTopLevelSegmentSummary($partInventory);
         $partTopLevelSegmentCounts = [];
         $duplicatePartTopLevelSegments = [];
@@ -19106,6 +19116,12 @@ final class DocxOpenXmlReader
 
         return [
             'partCount' => count($partInventory),
+            'packageAreaCount' => $packageAreas['packageAreaCount'],
+            'packageAreaCounts' => $packageAreas['packageAreaCounts'],
+            'packageAreaByteLengths' => $packageAreas['packageAreaByteLengths'],
+            'packageAreaCompressedByteLengths' => $packageAreas['packageAreaCompressedByteLengths'],
+            'packageAreaSummaries' => $packageAreas['packageAreaSummaries'],
+            'partNamesByPackageArea' => $packageAreas['partNamesByPackageArea'],
             'partDirectoryCount' => count($partDirectories),
             'partDirectoryDepthCount' => count($partDirectoryDepths),
             'partDirectoryDepthCounts' => $partDirectoryDepthCounts,
@@ -30378,6 +30394,148 @@ final class DocxOpenXmlReader
 
     /**
      * @param array<string, array<string, mixed>> $partInventory
+     * @return array{packageAreaCount:int, packageAreaCounts:array<string, int>, packageAreaByteLengths:array<string, int>, packageAreaCompressedByteLengths:array<string, int>, packageAreaSummaries:list<array<string, mixed>>, partNamesByPackageArea:array<string, list<string>>}
+     */
+    private function packagePartAreaSummary(array $partInventory): array
+    {
+        $areaCounts = [];
+        $areaByteLengths = [];
+        $areaCompressedByteLengths = [];
+        $partNamesByArea = [];
+        $summaries = [];
+        foreach ($partInventory as $partName => $part) {
+            $partName = (string) ($part['partName'] ?? $partName);
+            $area = is_string($part['packageArea'] ?? null)
+                ? $part['packageArea']
+                : $this->packagePartArea($partName);
+            $bytes = (int) ($part['bytes'] ?? 0);
+            $compressedBytes = is_int($part['compressedByteLength'] ?? null)
+                ? (int) $part['compressedByteLength']
+                : $bytes;
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null)
+                ? $part['contentTypeSource']
+                : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null)
+                ? $part['contentTypeBase']
+                : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $roles = array_values(array_filter(
+                array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []),
+                static fn (string $role): bool => $role !== '',
+            ));
+            if ($roles === []) {
+                $roles = ['package-part'];
+            }
+            $byteExposurePolicy = $this->packagePartByteExposurePolicy($part);
+
+            $areaCounts[$area] = ($areaCounts[$area] ?? 0) + 1;
+            $areaByteLengths[$area] = ($areaByteLengths[$area] ?? 0) + $bytes;
+            $areaCompressedByteLengths[$area] = ($areaCompressedByteLengths[$area] ?? 0) + $compressedBytes;
+            $partNamesByArea[$area][] = $partName;
+
+            if (!isset($summaries[$area])) {
+                $summaries[$area] = [
+                    'packageArea' => $area,
+                    'partCount' => 0,
+                    'byteLength' => 0,
+                    'compressedByteLength' => 0,
+                    'relationshipPartCount' => 0,
+                    'missingContentTypePartCount' => 0,
+                    'parameterizedPartCount' => 0,
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'byteExposurePolicyCounts' => [],
+                    'partNames' => [],
+                    'largestPart' => null,
+                ];
+            }
+
+            ++$summaries[$area]['partCount'];
+            $summaries[$area]['byteLength'] += $bytes;
+            $summaries[$area]['compressedByteLength'] += $compressedBytes;
+            $summaries[$area]['partNames'][] = $partName;
+            $summaries[$area]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($summaries[$area]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $summaries[$area]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($summaries[$area]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            $summaries[$area]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($summaries[$area]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            if (($part['isRelationshipPart'] ?? false) === true) {
+                ++$summaries[$area]['relationshipPartCount'];
+            }
+            if (($part['contentTypeHasParameters'] ?? false) === true) {
+                ++$summaries[$area]['parameterizedPartCount'];
+            }
+            if ($contentTypeSource === 'missing') {
+                ++$summaries[$area]['missingContentTypePartCount'];
+            }
+            foreach ($roles as $role) {
+                $summaries[$area]['roleCounts'][$role] =
+                    ($summaries[$area]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'packageArea' => $area,
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                'bytes' => $bytes,
+                'compressedByteLength' => $compressedBytes,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'byteExposurePolicy' => $byteExposurePolicy,
+                'isRelationshipPart' => (bool) ($part['isRelationshipPart'] ?? false),
+                'roles' => $roles,
+            ];
+            $largestPart = $summaries[$area]['largestPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['bytes'] > (int) ($largestPart['bytes'] ?? 0)
+                || (
+                    $partSummary['bytes'] === (int) ($largestPart['bytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $summaries[$area]['largestPart'] = $partSummary;
+            }
+        }
+
+        ksort($areaCounts, SORT_STRING);
+        ksort($areaByteLengths, SORT_STRING);
+        ksort($areaCompressedByteLengths, SORT_STRING);
+        ksort($partNamesByArea, SORT_STRING);
+        foreach ($partNamesByArea as &$partNames) {
+            $partNames = array_values(array_unique(array_map('strval', $partNames)));
+            sort($partNames, SORT_STRING);
+        }
+        unset($partNames);
+        ksort($summaries, SORT_STRING);
+        foreach ($summaries as $area => $summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            $summaries[$area] = $summary;
+        }
+
+        return [
+            'packageAreaCount' => count($summaries),
+            'packageAreaCounts' => $areaCounts,
+            'packageAreaByteLengths' => $areaByteLengths,
+            'packageAreaCompressedByteLengths' => $areaCompressedByteLengths,
+            'packageAreaSummaries' => array_values($summaries),
+            'partNamesByPackageArea' => $partNamesByArea,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
      * @return list<array<string, mixed>>
      */
     private function packagePartCaseFoldTopLevelSegmentSummary(array $partInventory): array
@@ -41281,6 +41439,7 @@ final class DocxOpenXmlReader
             $baseName = $this->packagePartBaseName($partName);
             $baseNameStem = $this->packagePartBaseNameStem($partName);
             $pathSegments = $this->packagePartPathSegments($partName);
+            $packageArea = $this->packagePartArea($partName);
             $roles = array_keys($rolesByPart[$partName] ?? []);
             if ($roles === []) {
                 $roles = ['package-part'];
@@ -41323,6 +41482,7 @@ final class DocxOpenXmlReader
                 'caseFoldBaseName' => $this->packagePartCaseFoldKey($baseName),
                 'caseFoldBaseNameStem' => $this->packagePartCaseFoldKey($baseNameStem),
                 'pathSegments' => $pathSegments,
+                'packageArea' => $packageArea,
                 'pathSegmentPositionReviews' => $this->packagePartPathSegmentPositionReviews($pathSegments),
                 'topLevelSegment' => $pathSegments[0] ?? '',
                 'pathSegmentCount' => count($pathSegments),
@@ -41524,6 +41684,16 @@ final class DocxOpenXmlReader
     private function packagePartTopLevelSegment(string $partName): string
     {
         return $this->packagePartPathSegments($partName)[0] ?? '';
+    }
+
+    private function packagePartArea(string $partName): string
+    {
+        $segments = $this->packagePartPathSegments($partName);
+        if ($segments === [] || count($segments) === 1) {
+            return '/';
+        }
+
+        return $segments[0] . '/';
     }
 
     private function packagePartExtension(string $partName): ?string
@@ -41770,6 +41940,20 @@ final class DocxOpenXmlReader
             'packageEntryCount' => count($packageEntries),
             'partCount' => count($packageEntries),
             'packageByteLength' => (int) ($summary['packageByteLength'] ?? 0),
+            'packageAreaCount' => (int) ($summary['packageAreaCount'] ?? 0),
+            'packageAreaCounts' => $this->packageIdentityCountMap($summary['packageAreaCounts'] ?? []),
+            'packageAreaByteLengths' => $this->packageIdentityCountMap(
+                $summary['packageAreaByteLengths'] ?? []
+            ),
+            'packageAreaCompressedByteLengths' => $this->packageIdentityCountMap(
+                $summary['packageAreaCompressedByteLengths'] ?? []
+            ),
+            'packageAreaSummaries' => is_array($summary['packageAreaSummaries'] ?? null)
+                ? array_values($summary['packageAreaSummaries'])
+                : [],
+            'entryNamesByPackageArea' => $this->packageIdentityStringListMap(
+                $summary['partNamesByPackageArea'] ?? []
+            ),
             'relationshipPartCount' => (int) ($summary['relationshipPartCount'] ?? 0),
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'zipPackagePresent' => ($summary['zipPackagePresent'] ?? false) === true,
@@ -42118,6 +42302,9 @@ final class DocxOpenXmlReader
                     ? $part['caseFoldDirectoryBaseNameStem']
                     : $this->packagePartCaseFoldKey($directoryBaseNameStem),
                 'baseName' => $baseName,
+                'packageArea' => is_string($part['packageArea'] ?? null)
+                    ? $part['packageArea']
+                    : $this->packagePartArea($partName),
                 'caseFoldBaseName' => is_string($part['caseFoldBaseName'] ?? null)
                     ? $part['caseFoldBaseName']
                     : $this->packagePartCaseFoldKey($baseName),
@@ -42429,6 +42616,15 @@ final class DocxOpenXmlReader
             'packageRelationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'packageRelationshipRecordCount' => (int) ($summary['relationshipRecordCount'] ?? 0),
             'packageMissingContentTypePartCount' => (int) ($summary['missingContentTypePartCount'] ?? 0),
+            'packageAreaCount' => (int) ($summary['packageAreaCount'] ?? 0),
+            'packageAreaCounts' => $this->packageIdentityCountMap($summary['packageAreaCounts'] ?? []),
+            'packageAreaByteLengths' => $this->packageIdentityCountMap($summary['packageAreaByteLengths'] ?? []),
+            'packageAreaCompressedByteLengths' => $this->packageIdentityCountMap(
+                $summary['packageAreaCompressedByteLengths'] ?? []
+            ),
+            'entryNamesByPackageArea' => $this->packageIdentityStringListMap(
+                $summary['partNamesByPackageArea'] ?? []
+            ),
             'rootRelationshipsPart' => '_rels/.rels',
             'rootRelationshipsPartExists' => $rootRelationshipContext['exists'],
             'rootRelationshipCount' => $rootRelationshipContext['relationshipCount'],
