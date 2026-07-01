@@ -4602,7 +4602,7 @@ final class MarkdownWriter
         $lines = ['<table' . $this->renderNodeHtmlAttributes($table) . '>'];
         $caption = $this->tableCaptionInlines($table);
         if ($caption !== []) {
-            $lines[] = '<caption' . $this->renderRawHtmlTableCaptionAttrs($table) . '>' . $this->renderRawHtmlTableCaptionHtml($table, $caption) . '</caption>';
+            $lines[] = '<caption>' . $this->renderHtmlInlines($caption) . '</caption>';
         }
 
         $colgroup = $this->renderHtmlTableColgroup($table);
@@ -4629,10 +4629,9 @@ final class MarkdownWriter
             foreach ($this->tableBodyHeadRows($body) as $row) {
                 $lines[] = $this->renderRawHtmlTableRow($row, $table, true);
             }
-            $rowHeadColumns = max(0, (int) $body->attr('rowHeadColumns', 0));
             foreach ($body->children as $row) {
                 if ($row->type === 'table_row') {
-                    $lines[] = $this->renderRawHtmlTableRow($row, $table, false, $rowHeadColumns);
+                    $lines[] = $this->renderRawHtmlTableRow($row, $table, false);
                 }
             }
             $lines[] = '</tbody>';
@@ -4652,48 +4651,18 @@ final class MarkdownWriter
         return $lines;
     }
 
-    /**
-     * @param list<AstNode> $caption
-     */
-    private function renderRawHtmlTableCaptionHtml(AstNode $table, array $caption): string
-    {
-        $blocks = $table->attr('captionBlocks', []);
-        if (is_array($blocks) && $blocks !== []) {
-            foreach ($blocks as $block) {
-                if (!$block instanceof AstNode) {
-                    return $this->renderHtmlInlines($caption);
-                }
-            }
-
-            return $this->renderBlocksAsHtmlFragments($blocks);
-        }
-
-        return $this->renderHtmlInlines($caption);
-    }
-
-    private function renderRawHtmlTableCaptionAttrs(AstNode $table): string
-    {
-        $shortCaption = trim($this->plainInlineText($this->tableShortCaptionInlines($table)));
-
-        return $shortCaption === '' ? '' : ' data-pandoc-short-caption="' . $this->escapeHtml($shortCaption) . '"';
-    }
-
-    private function renderRawHtmlTableRow(AstNode $row, AstNode $table, bool $header, int $rowHeadColumns = 0): string
+    private function renderRawHtmlTableRow(AstNode $row, AstNode $table, bool $header): string
     {
         $html = '<tr' . $this->renderNodeHtmlAttributes($row) . '>';
-        $logicalColumn = 0;
-        foreach ($row->children as $cell) {
+        foreach ($row->children as $index => $cell) {
             if ($cell->type !== 'table_cell') {
                 continue;
             }
 
-            $colspan = max(1, (int) $cell->attr('colspan', 1));
-            $rowHeader = !$header && $logicalColumn < $rowHeadColumns && $logicalColumn + $colspan <= $rowHeadColumns;
-            $tag = $header || $cell->attr('header') === true || $rowHeader ? 'th' : 'td';
-            $html .= '<' . $tag . $this->renderRawHtmlTableCellAttributes($table, $logicalColumn, $cell, $rowHeader) . '>'
+            $tag = $header || $cell->attr('header') === true ? 'th' : 'td';
+            $html .= '<' . $tag . $this->renderRawHtmlTableCellAttributes($table, $index, $cell) . '>'
                 . $this->renderRawHtmlTableCellContent($cell)
                 . '</' . $tag . '>';
-            $logicalColumn += $colspan;
         }
 
         return $html . '</tr>';
@@ -4718,7 +4687,7 @@ final class MarkdownWriter
             : $this->renderHtmlInlines($cell->children);
     }
 
-    private function renderRawHtmlTableCellAttributes(AstNode $table, int $column, AstNode $cell, bool $rowHeader = false): string
+    private function renderRawHtmlTableCellAttributes(AstNode $table, int $column, AstNode $cell): string
     {
         $attrs = $this->renderNodeHtmlAttributes($cell, ['style']);
         $colspan = (int) $cell->attr('colspan', 1);
@@ -4729,10 +4698,6 @@ final class MarkdownWriter
         $rowspan = (int) $cell->attr('rowspan', 1);
         if ($rowspan > 1) {
             $attrs .= ' rowspan="' . $rowspan . '"';
-        }
-
-        if ($rowHeader && !str_contains(strtolower($attrs), ' scope=')) {
-            $attrs .= ' scope="row"';
         }
 
         $styles = [];
@@ -5016,12 +4981,6 @@ final class MarkdownWriter
             }
         }
 
-        $captionBlocks = $table->attr('captionBlocks', []);
-        $blockInlines = $this->tablePlainCaptionBlockInlines($captionBlocks);
-        if ($blockInlines !== []) {
-            return $blockInlines;
-        }
-
         $caption = (string) $table->attr('caption', '');
 
         return $caption === '' ? [] : [new AstNode('text', ['text' => $caption])];
@@ -5046,38 +5005,21 @@ final class MarkdownWriter
         }
 
         $captionBlocks = $table->attr('shortCaptionBlocks', []);
-        $blockInlines = $this->tablePlainCaptionBlockInlines($captionBlocks);
-        if ($blockInlines !== []) {
-            return $blockInlines;
+        if (is_array($captionBlocks)) {
+            $nodes = [];
+            foreach ($captionBlocks as $block) {
+                if ($block instanceof AstNode && in_array($block->type, ['plain', 'paragraph'], true)) {
+                    array_push($nodes, ...$block->children);
+                }
+            }
+            if ($nodes !== []) {
+                return $nodes;
+            }
         }
 
         $caption = (string) $table->attr('shortCaption', '');
 
         return $caption === '' ? [] : [new AstNode('text', ['text' => $caption])];
-    }
-
-    /**
-     * @return list<AstNode>
-     */
-    private function tablePlainCaptionBlockInlines(mixed $blocks): array
-    {
-        if (!is_array($blocks)) {
-            return [];
-        }
-
-        $nodes = [];
-        foreach ($blocks as $block) {
-            if (!$block instanceof AstNode || !in_array($block->type, ['plain', 'paragraph'], true)) {
-                return [];
-            }
-
-            if ($nodes !== []) {
-                $nodes[] = new AstNode('softbreak');
-            }
-            array_push($nodes, ...$block->children);
-        }
-
-        return $nodes;
     }
 
     /**
