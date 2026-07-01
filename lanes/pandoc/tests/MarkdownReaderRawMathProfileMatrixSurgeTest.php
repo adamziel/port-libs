@@ -32,6 +32,9 @@ $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'raw_inline') {
         return (string) $node->attr('text', '');
     }
+    if ($node->type === 'raw_html_inline') {
+        return (string) $node->attr('text', $node->attr('html', ''));
+    }
     if ($node->type === 'softbreak' || $node->type === 'linebreak') {
         return "\n";
     }
@@ -92,9 +95,10 @@ $rawProfileCases = [
         'disabledExtensions' => ['raw_attribute' => false, 'raw_html' => true],
         'enabledOptions' => ['rawAttribute' => true, 'rawHtml' => true],
         'disabledOptions' => ['rawAttribute' => false, 'rawHtml' => true],
-        'match' => static fn (AstNode $node): bool => $node->type === 'raw_inline'
+        'match' => static fn (AstNode $node): bool => $node->type === 'raw_html_inline'
             && $node->attr('format') === 'html'
-            && $node->attr('text') === '<b>raw</b>',
+            && $node->attr('text') === '<b>raw</b>'
+            && $node->attr('html') === '<b>raw</b>',
     ],
     'raw attribute fenced html' => [
         'markdown' => '```{=html}' . "\n" . '<section>raw</section>' . "\n" . '```',

@@ -76,6 +76,10 @@ $rawSurgeExpectedNodeType = static function (array $case, string $kind): string 
     };
 };
 
+$rawSurgeInitialInlineNodeType = static function (array $case): string {
+    return $case['family'] === 'html' ? 'raw_html_inline' : 'raw_inline';
+};
+
 $rawSurgeTextAttr = static function (AstNode $node, array $case): string {
     return match ($case['family']) {
         'html' => (string) $node->attr('html', $node->attr('text', '')),
@@ -111,7 +115,7 @@ $tests = [];
 
 foreach ($rawSurgeCases as $case) {
     $tests['maps upstream markdown raw attribute inline format ' . $case['format'] . ' with metadata'] =
-        static function (TestRunner $t) use ($case, $rawSurgeInlinePayload): void {
+        static function (TestRunner $t) use ($case, $rawSurgeInitialInlineNodeType, $rawSurgeInlinePayload, $rawSurgeTextAttr): void {
             $format = $case['format'];
             $rawText = $rawSurgeInlinePayload($case);
             $document = (new MarkdownReader())->read(implode("\n", [
@@ -132,9 +136,9 @@ foreach ($rawSurgeCases as $case) {
             $t->same($case['family'], $meta['review']['family'] ?? null);
             $t->same('inline', $meta['review']['kind'] ?? null);
             $t->same('paragraph', $paragraph->type);
-            $t->same('raw_inline', $raw->type);
+            $t->same($rawSurgeInitialInlineNodeType($case), $raw->type);
             $t->same($format, $raw->attr('format'));
-            $t->same($rawText, $raw->attr('text'));
+            $t->same($rawText, $rawSurgeTextAttr($raw, $case));
             $t->contains($rawText, $markdown);
             $t->true(
                 !str_contains($markdown, '`' . $rawText . '`{=' . $format . '}'),

@@ -11169,8 +11169,16 @@ final class MarkdownReader
                 $text .= (string) $node->attr('text', '');
                 continue;
             }
-            if ($node->type === 'raw_tex') {
-                $text .= (string) $node->attr('tex', '');
+            if ($node->type === 'raw_html_inline') {
+                $text .= (string) $node->attr('text', $node->attr('html', ''));
+                continue;
+            }
+            if ($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') {
+                $text .= (string) $node->attr('text', $node->attr('tex', ''));
+                continue;
+            }
+            if ($node->type === 'raw_inline' || $node->type === 'raw_markdown') {
+                $text .= (string) $node->attr('text', $node->attr('markdown', ''));
                 continue;
             }
             if ($node->type === 'softbreak') {
@@ -11199,8 +11207,16 @@ final class MarkdownReader
                 $text .= (string) $node->attr('text', '');
                 continue;
             }
-            if ($node->type === 'raw_tex') {
-                $text .= (string) $node->attr('tex', '');
+            if ($node->type === 'raw_html_inline') {
+                $text .= (string) $node->attr('text', $node->attr('html', ''));
+                continue;
+            }
+            if ($node->type === 'raw_tex' || $node->type === 'raw_tex_inline') {
+                $text .= (string) $node->attr('text', $node->attr('tex', ''));
+                continue;
+            }
+            if ($node->type === 'raw_inline' || $node->type === 'raw_markdown') {
+                $text .= (string) $node->attr('text', $node->attr('markdown', ''));
                 continue;
             }
             if ($node->type === 'softbreak') {
@@ -11427,10 +11443,34 @@ final class MarkdownReader
 
     private function rawInlineNode(string $format, string $text): AstNode
     {
+        if ($this->isRawAttributeHtmlFormat($format)) {
+            return new AstNode('raw_html_inline', [
+                'format' => $format,
+                'html' => $text,
+                'text' => $text,
+            ]);
+        }
+
         return new AstNode('raw_inline', [
             'format' => $format,
             'text' => $text,
         ]);
+    }
+
+    private function isRawAttributeHtmlFormat(string $format): bool
+    {
+        $normalized = strtolower(str_replace('-', '+', $format));
+        $baseFormat = $this->rawAttributeFormatBase($format);
+
+        return in_array($normalized, ['html', 'html4', 'html5', 'xhtml'], true)
+            || in_array($baseFormat, ['html', 'html4', 'html5', 'xhtml'], true);
+    }
+
+    private function rawAttributeFormatBase(string $format): string
+    {
+        $format = strtolower(str_replace('-', '+', $format));
+
+        return explode('+', $format, 2)[0];
     }
 
     private function rawBlockNode(string $format, string $text): AstNode

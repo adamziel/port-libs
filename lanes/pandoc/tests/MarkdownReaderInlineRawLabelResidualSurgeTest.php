@@ -43,6 +43,10 @@ $inlineText = static function (array $nodes) use (&$inlineText): string {
             $text .= (string) $node->attr('text', '');
             continue;
         }
+        if ($node->type === 'raw_html_inline') {
+            $text .= (string) $node->attr('text', $node->attr('html', ''));
+            continue;
+        }
         if ($node->type === 'raw_tex') {
             $text .= (string) $node->attr('tex', '');
             continue;
@@ -153,10 +157,14 @@ $cases = [
         'markdown' => '[`<span data-x="]">x</span>`{=html}](/raw-html "Raw &amp; title")',
         'url' => '/raw-html',
         'title' => 'Raw & title',
-        'types' => ['raw_inline'],
+        'types' => ['raw_html_inline'],
         'text' => '<span data-x="]">x</span>',
         'childAttrs' => [
-            0 => ['format' => 'html', 'text' => '<span data-x="]">x</span>'],
+            0 => [
+                'format' => 'html',
+                'text' => '<span data-x="]">x</span>',
+                'html' => '<span data-x="]">x</span>',
+            ],
         ],
     ],
     'direct raw inline markdown bracket text' => [
@@ -232,10 +240,14 @@ $cases = [
         'kind' => 'link',
         'markdown' => "[`<b>x]</b>`{=html}][ref-raw]\n\n[ref-raw]: /ref-raw",
         'url' => '/ref-raw',
-        'types' => ['raw_inline'],
+        'types' => ['raw_html_inline'],
         'text' => '<b>x]</b>',
         'childAttrs' => [
-            0 => ['format' => 'html', 'text' => '<b>x]</b>'],
+            0 => [
+                'format' => 'html',
+                'text' => '<b>x]</b>',
+                'html' => '<b>x]</b>',
+            ],
         ],
     ],
     'reference dollar math attr close bracket' => [
@@ -281,10 +293,14 @@ $cases = [
         'kind' => 'image',
         'markdown' => 'Lead ![`<b>x]</b>`{=html}](img-raw.png) trail',
         'url' => 'img-raw.png',
-        'types' => ['raw_inline'],
+        'types' => ['raw_html_inline'],
         'text' => '<b>x]</b>',
         'childAttrs' => [
-            0 => ['format' => 'html', 'text' => '<b>x]</b>'],
+            0 => [
+                'format' => 'html',
+                'text' => '<b>x]</b>',
+                'html' => '<b>x]</b>',
+            ],
         ],
     ],
     'image dollar math bracket text' => [

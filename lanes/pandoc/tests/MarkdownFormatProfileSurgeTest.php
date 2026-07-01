@@ -232,7 +232,10 @@ $overrideCases = [
         'name' => 'gfm raw attribute extension enables html raw attribute',
         'assert' => static function (TestRunner $t): void {
             $document = (new MarkdownReader(['format' => 'gfm+raw_attribute']))->read('Before `<b>raw</b>`{=html} after.');
-            $t->same('raw_inline', $document->children[0]->children[1]->type ?? null);
+            $raw = $document->children[0]->children[1] ?? new AstNode('missing');
+            $t->same('raw_html_inline', $raw->type);
+            $t->same('html', $raw->attr('format'));
+            $t->same('<b>raw</b>', $raw->attr('html'));
         },
     ],
     [
@@ -240,7 +243,7 @@ $overrideCases = [
         'assert' => static function (TestRunner $t): void {
             $document = (new MarkdownReader(['format' => 'markdown-raw_attribute']))->read('Before `<b>raw</b>`{=html} after.');
             $types = array_map(static fn (AstNode $node): string => $node->type, $document->children[0]->children);
-            $t->same(false, in_array('raw_inline', $types, true));
+            $t->same(false, in_array('raw_html_inline', $types, true));
         },
     ],
     [

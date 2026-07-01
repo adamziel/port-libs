@@ -15,6 +15,9 @@ $inlineText = static function (AstNode $node) use (&$inlineText): string {
     if ($node->type === 'raw_inline') {
         return (string) $node->attr('text', '');
     }
+    if ($node->type === 'raw_html_inline') {
+        return (string) $node->attr('text', $node->attr('html', ''));
+    }
     if ($node->type === 'softbreak' || $node->type === 'linebreak') {
         return "\n";
     }
@@ -149,10 +152,11 @@ $featureProbes = [
     'raw inline attribute' => [
         'markdown' => 'Before `<b>x</b>`{=html} after.',
         'literal' => 'Before <b>x</b>{=html} after.',
-        'match' => static fn (AstNode $node): bool => $node->type === 'raw_inline',
+        'match' => static fn (AstNode $node): bool => $node->type === 'raw_html_inline',
         'assert' => static function (TestRunner $t, AstNode $node): void {
             $t->same('html', $node->attr('format'));
             $t->same('<b>x</b>', $node->attr('text'));
+            $t->same('<b>x</b>', $node->attr('html'));
         },
     ],
     'inline code attributes' => [
