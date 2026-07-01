@@ -12672,6 +12672,13 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestCompressedBytes'] = (int) ($zipPackageManifest['compressedBytes'] ?? 0);
         $summary['zipPackageManifestUncompressedBytes'] = (int) ($zipPackageManifest['uncompressedBytes'] ?? 0);
         $summary['zipPackageManifestExpansionRatio'] = $zipPackageManifest['expansionRatio'] ?? null;
+        $summary['zipPackageManifestExpansionRatioBucketSummaryCount'] = (int) ($zipPackageManifest['expansionRatioBucketSummaryCount'] ?? 0);
+        $summary['zipPackageManifestExpansionRatioBuckets'] = is_array($zipPackageManifest['expansionRatioBuckets'] ?? null)
+            ? $zipPackageManifest['expansionRatioBuckets']
+            : [];
+        $summary['zipPackageManifestExpansionRatioBucketSummaries'] = is_array($zipPackageManifest['expansionRatioBucketSummaries'] ?? null)
+            ? $zipPackageManifest['expansionRatioBucketSummaries']
+            : [];
         $summary['zipPackageManifestLargestEntry'] = is_array($zipPackageManifest['largestEntry'] ?? null)
             ? $zipPackageManifest['largestEntry']
             : null;
@@ -13795,6 +13802,9 @@ final class DocxOpenXmlReader
             'compressedBytes' => 0,
             'uncompressedBytes' => 0,
             'expansionRatio' => null,
+            'expansionRatioBucketSummaryCount' => 0,
+            'expansionRatioBuckets' => [],
+            'expansionRatioBucketSummaries' => [],
             'largestEntry' => null,
             'zeroByteEntryCount' => 0,
             'zeroByteFileCount' => 0,
@@ -14021,6 +14031,13 @@ final class DocxOpenXmlReader
             'packageManifestCompressedBytes' => (int) ($packageManifest['compressedBytes'] ?? 0),
             'packageManifestUncompressedBytes' => (int) ($packageManifest['uncompressedBytes'] ?? 0),
             'packageManifestExpansionRatio' => $packageManifest['expansionRatio'] ?? null,
+            'packageManifestExpansionRatioBucketSummaryCount' => (int) ($packageManifest['expansionRatioBucketSummaryCount'] ?? 0),
+            'packageManifestExpansionRatioBuckets' => is_array($packageManifest['expansionRatioBuckets'] ?? null)
+                ? $packageManifest['expansionRatioBuckets']
+                : [],
+            'packageManifestExpansionRatioBucketSummaries' => is_array($packageManifest['expansionRatioBucketSummaries'] ?? null)
+                ? $packageManifest['expansionRatioBucketSummaries']
+                : [],
             'packageManifestLargestEntry' => is_array($packageManifest['largestEntry'] ?? null)
                 ? $packageManifest['largestEntry']
                 : null,

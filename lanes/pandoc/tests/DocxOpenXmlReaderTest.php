@@ -1266,6 +1266,9 @@ XML,
             'compressedBytes' => 'packageManifestCompressedBytes',
             'uncompressedBytes' => 'packageManifestUncompressedBytes',
             'expansionRatio' => 'packageManifestExpansionRatio',
+            'expansionRatioBucketSummaryCount' => 'packageManifestExpansionRatioBucketSummaryCount',
+            'expansionRatioBuckets' => 'packageManifestExpansionRatioBuckets',
+            'expansionRatioBucketSummaries' => 'packageManifestExpansionRatioBucketSummaries',
             'largestEntry' => 'packageManifestLargestEntry',
             'zeroByteEntryCount' => 'packageManifestZeroByteEntryCount',
             'zeroByteFileCount' => 'packageManifestZeroByteFileCount',
@@ -1398,6 +1401,9 @@ XML,
         $t->same($manifest['compressedBytes'], $summary['zipPackageManifestCompressedBytes']);
         $t->same($manifest['uncompressedBytes'], $summary['zipPackageManifestUncompressedBytes']);
         $t->same($manifest['expansionRatio'], $summary['zipPackageManifestExpansionRatio']);
+        $t->same($manifest['expansionRatioBucketSummaryCount'], $summary['zipPackageManifestExpansionRatioBucketSummaryCount']);
+        $t->same($manifest['expansionRatioBuckets'], $summary['zipPackageManifestExpansionRatioBuckets']);
+        $t->same($manifest['expansionRatioBucketSummaries'], $summary['zipPackageManifestExpansionRatioBucketSummaries']);
         $t->same($manifest['largestEntry'], $summary['zipPackageManifestLargestEntry']);
         $t->same($manifest['zeroByteEntryCount'], $summary['zipPackageManifestZeroByteEntryCount']);
         $t->same($manifest['zeroByteFileCount'], $summary['zipPackageManifestZeroByteFileCount']);
