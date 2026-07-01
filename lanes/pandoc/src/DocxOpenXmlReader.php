@@ -24159,6 +24159,9 @@ final class DocxOpenXmlReader
             self::CUSTOM_UI_REL => 'custom-ui',
             self::CUSTOM_UI2_REL => 'custom-ui2',
             self::CUSTOM_UI_QAT_REL => 'custom-ui-quick-access-toolbar',
+            self::THUMBNAIL_REL => 'package-thumbnail',
+            self::DIGITAL_SIGNATURE_ORIGIN_REL => 'digital-signature-origin',
+            self::DIGITAL_SIGNATURE_SIGNATURE_REL => 'digital-signature-signature',
             default => null,
         };
     }
