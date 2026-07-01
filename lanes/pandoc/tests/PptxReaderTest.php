@@ -2947,7 +2947,9 @@ XML);
       <p:nvSpPr><p:cNvPr id="3" name="Overflow level body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
       <p:txBody><a:bodyPr/><a:lstStyle/>
         <a:p><a:pPr lvl="9223372036854775807"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Max int level</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="-9223372036854775808"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Min int level</a:t></a:r></a:p>
         <a:p><a:pPr lvl="9223372036854775808"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Overflow level fallback</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="-9223372036854775809"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Negative overflow level fallback</a:t></a:r></a:p>
         <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Explicit zero joins fallback</a:t></a:r></a:p>
       </p:txBody>
     </p:sp>
@@ -7169,12 +7171,13 @@ return [
         };
         $native = PandocConverter::write($document, 'native');
 
-        $t->same(2, count($topLevelLists));
+        $t->same(3, count($topLevelLists));
         $t->same([
             ['Max int level'],
-            ['Overflow level fallback', 'Explicit zero joins fallback'],
+            ['Min int level'],
+            ['Overflow level fallback', 'Negative overflow level fallback', 'Explicit zero joins fallback'],
         ], array_map($itemTexts, $topLevelLists));
-        $t->same(2, substr_count($native, 'BulletList'));
+        $t->same(3, substr_count($native, 'BulletList'));
     },
 
     'splits pptx list levels instead of nesting like upstream' => static function (TestRunner $t) use ($buildNestedListPptxPackage, $nodesOfType): void {
