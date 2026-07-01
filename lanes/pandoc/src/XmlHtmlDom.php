@@ -27459,15 +27459,54 @@ final class XmlHtmlDom
      */
     private static function progressMeasurementSummary(\DOMElement $progress, bool $includeLabels): array
     {
-        $max = self::positiveNumericAttribute($progress, 'max', 1.0);
-        $value = self::numericAttribute($progress, 'value', null);
-        $value = $value === null ? null : self::boundedNumber($value, 0.0, $max);
+        $maxRaw = self::attributeOrNull($progress, 'max');
+        $valueRaw = self::attributeOrNull($progress, 'value');
+        $maxNumber = self::measurementNumber($maxRaw);
+        $valueNumber = self::measurementNumber($valueRaw);
+        $issues = [];
+
+        $max = 1.0;
+        if ($maxRaw !== null) {
+            if ($maxNumber === null) {
+                $issues[] = self::measurementIssue('invalid-progress-max', 'max', $maxRaw);
+            } elseif ($maxNumber <= 0.0) {
+                $issues[] = self::measurementIssue('nonpositive-progress-max', 'max', $maxRaw, $maxNumber);
+            } else {
+                $max = $maxNumber;
+            }
+        }
+
+        $value = null;
+        $valueClamped = false;
+        if ($valueRaw !== null) {
+            if ($valueNumber === null) {
+                $issues[] = self::measurementIssue('invalid-progress-value', 'value', $valueRaw);
+            } else {
+                $value = self::boundedNumber($valueNumber, 0.0, $max);
+                $valueClamped = $value !== $valueNumber;
+                if ($valueNumber < 0.0) {
+                    $issues[] = self::measurementIssue('progress-value-underflow', 'value', $valueRaw, $valueNumber, 0.0, $max);
+                } elseif ($valueNumber > $max) {
+                    $issues[] = self::measurementIssue('progress-value-overflow', 'value', $valueRaw, $valueNumber, 0.0, $max);
+                }
+            }
+        }
+
         $summary = [
+            'progressReviewPolicy' => 'html-progress-measurement-review',
             'measurement' => 'progress',
+            'progressValueRaw' => $valueRaw,
+            'progressMaxRaw' => $maxRaw,
             'value' => $value,
             'max' => $max,
             'position' => $value === null ? null : $value / $max,
             'indeterminate' => $value === null,
+            'progressValueValid' => $valueRaw === null || ($valueNumber !== null && !$valueClamped),
+            'progressMaxValid' => $maxRaw === null || ($maxNumber !== null && $maxNumber > 0.0),
+            'progressValueClamped' => $valueClamped,
+            'progressIssues' => $issues,
+            'progressIssueCodes' => self::measurementIssueCodes($issues),
+            'progressValid' => $issues === [],
         ];
 
         if ($includeLabels) {
@@ -27482,17 +27521,71 @@ final class XmlHtmlDom
      */
     private static function meterMeasurementSummary(\DOMElement $meter, bool $includeLabels): array
     {
-        $min = self::numericAttribute($meter, 'min', 0.0) ?? 0.0;
-        $max = self::numericAttribute($meter, 'max', 1.0) ?? 1.0;
+        $minRaw = self::attributeOrNull($meter, 'min');
+        $maxRaw = self::attributeOrNull($meter, 'max');
+        $valueRaw = self::attributeOrNull($meter, 'value');
+        $minNumber = self::measurementNumber($minRaw);
+        $maxNumber = self::measurementNumber($maxRaw);
+        $valueNumber = self::measurementNumber($valueRaw);
+        $issues = [];
+        $thresholdNumbers = [];
+
+        $min = 0.0;
+        if ($minRaw !== null) {
+            if ($minNumber === null) {
+                $issues[] = self::measurementIssue('invalid-meter-min', 'min', $minRaw);
+            } else {
+                $min = $minNumber;
+            }
+        }
+
+        $max = 1.0;
+        if ($maxRaw !== null) {
+            if ($maxNumber === null) {
+                $issues[] = self::measurementIssue('invalid-meter-max', 'max', $maxRaw);
+            } else {
+                $max = $maxNumber;
+            }
+        }
+
+        $rangeValid = $minRaw === null || $minNumber !== null;
+        $rangeValid = $rangeValid && ($maxRaw === null || $maxNumber !== null);
         if ($max < $min) {
+            $issues[] = self::measurementIssue('meter-min-exceeds-max', 'max', $maxRaw, $max, $min, $max);
             $max = $min;
+            $rangeValid = false;
+        }
+
+        $value = $min;
+        $valueClamped = false;
+        if ($valueRaw !== null) {
+            if ($valueNumber === null) {
+                $issues[] = self::measurementIssue('invalid-meter-value', 'value', $valueRaw);
+            } else {
+                $value = self::boundedNumber($valueNumber, $min, $max);
+                $valueClamped = $value !== $valueNumber;
+                if ($valueNumber < $min) {
+                    $issues[] = self::measurementIssue('meter-value-underflow', 'value', $valueRaw, $valueNumber, $min, $max);
+                } elseif ($valueNumber > $max) {
+                    $issues[] = self::measurementIssue('meter-value-overflow', 'value', $valueRaw, $valueNumber, $min, $max);
+                }
+            }
         }
 
         $summary = [
+            'meterReviewPolicy' => 'html-meter-measurement-review',
             'measurement' => 'meter',
+            'meterValueRaw' => $valueRaw,
+            'meterMinRaw' => $minRaw,
+            'meterMaxRaw' => $maxRaw,
             'min' => $min,
             'max' => $max,
-            'value' => self::boundedNumber(self::numericAttribute($meter, 'value', $min) ?? $min, $min, $max),
+            'value' => $value,
+            'meterValueValid' => $valueRaw === null || ($valueNumber !== null && !$valueClamped),
+            'meterMinValid' => $minRaw === null || $minNumber !== null,
+            'meterMaxValid' => $maxRaw === null || $maxNumber !== null,
+            'meterRangeValid' => $rangeValid,
+            'meterValueClamped' => $valueClamped,
         ];
 
         if ($includeLabels) {
@@ -27500,13 +27593,116 @@ final class XmlHtmlDom
         }
 
         foreach (['low', 'high', 'optimum'] as $threshold) {
-            $thresholdValue = self::numericAttribute($meter, $threshold, null);
+            $thresholdRaw = self::attributeOrNull($meter, $threshold);
+            $summary['meter' . ucfirst($threshold) . 'Raw'] = $thresholdRaw;
+            $thresholdValue = self::measurementNumber($thresholdRaw);
+            $thresholdNumbers[$threshold] = $thresholdValue;
             if ($thresholdValue !== null) {
                 $summary[$threshold] = $thresholdValue;
+                if ($thresholdValue < $min || $thresholdValue > $max) {
+                    $issues[] = self::measurementIssue(
+                        'meter-' . $threshold . '-out-of-range',
+                        $threshold,
+                        $thresholdRaw,
+                        $thresholdValue,
+                        $min,
+                        $max
+                    );
+                }
+            } elseif ($thresholdRaw !== null) {
+                $issues[] = self::measurementIssue('invalid-meter-' . $threshold, $threshold, $thresholdRaw);
             }
         }
 
+        if (
+            $thresholdNumbers['low'] !== null
+            && $thresholdNumbers['high'] !== null
+            && $thresholdNumbers['low'] > $thresholdNumbers['high']
+        ) {
+            $issues[] = self::measurementIssue(
+                'meter-low-exceeds-high',
+                'low',
+                self::attributeOrNull($meter, 'low'),
+                $thresholdNumbers['low'],
+                $min,
+                $max
+            );
+        }
+
+        $thresholdsValid = true;
+        foreach ($issues as $issue) {
+            $code = (string) ($issue['code'] ?? '');
+            if (str_contains($code, 'meter-low') || str_contains($code, 'meter-high') || str_contains($code, 'meter-optimum')) {
+                $thresholdsValid = false;
+                break;
+            }
+        }
+
+        $summary['meterThresholdsValid'] = $thresholdsValid;
+        $summary['meterIssues'] = $issues;
+        $summary['meterIssueCodes'] = self::measurementIssueCodes($issues);
+        $summary['meterValid'] = $issues === [];
+
         return $summary;
+    }
+
+    private static function measurementNumber(?string $raw): ?float
+    {
+        if ($raw === null) {
+            return null;
+        }
+
+        $value = trim($raw);
+        if ($value === '' || !is_numeric($value)) {
+            return null;
+        }
+
+        $number = (float) $value;
+
+        return is_finite($number) ? $number : null;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function measurementIssue(
+        string $code,
+        string $attribute,
+        ?string $raw = null,
+        ?float $value = null,
+        ?float $min = null,
+        ?float $max = null
+    ): array {
+        $issue = [
+            'code' => $code,
+            'attribute' => $attribute,
+        ];
+        if ($raw !== null) {
+            $issue['raw'] = $raw;
+        }
+        if ($value !== null) {
+            $issue['value'] = $value;
+        }
+        if ($min !== null) {
+            $issue['min'] = $min;
+        }
+        if ($max !== null) {
+            $issue['max'] = $max;
+        }
+
+        return $issue;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $issues
+     * @return list<string>
+     */
+    private static function measurementIssueCodes(array $issues): array
+    {
+        return array_values(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        ));
     }
 
     /**
