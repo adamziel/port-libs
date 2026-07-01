@@ -498,6 +498,9 @@ final class CitationCslProcessor
             $attrs['cslLocatorDiagnostics'] = $locatorDiagnostics;
             $attrs['cslLocatorDiagnosticSummary'] = $this->citationLocatorDiagnosticSummaryForDiagnostics($locatorDiagnostics);
             $attrs['cslLocatorDiagnosticReasons'] = $this->citationLocatorDiagnosticReasonsForDiagnostics($locatorDiagnostics);
+            $attrs['cslLocatorDiagnosticCount'] = count($locatorDiagnostics);
+            $attrs['cslLocatorDiagnosticSeverityCounts'] = $this->citationLocatorDiagnosticSeverityCountsForDiagnostics($locatorDiagnostics);
+            $attrs['cslLocatorDiagnosticSeveritySummary'] = $this->citationLocatorDiagnosticSeveritySummaryForDiagnostics($locatorDiagnostics);
         }
 
         return new AstNode(
@@ -10027,6 +10030,10 @@ final class CitationCslProcessor
                 'locator-diagnostics',
                 'citation-locator-diagnostic-reasons',
                 'locator-diagnostic-reasons',
+                'citation-locator-diagnostic-count',
+                'locator-diagnostic-count',
+                'citation-locator-diagnostic-severity-summary',
+                'locator-diagnostic-severity-summary',
             ], true)) {
                 return true;
             }
@@ -11242,6 +11249,8 @@ final class CitationCslProcessor
             'citation-locator-raw', 'locator-raw' => $this->citationLocatorRawValue($citation),
             'citation-locator-diagnostic-summary', 'citation-locator-diagnostics', 'locator-diagnostic-summary', 'locator-diagnostics' => $this->citationLocatorDiagnosticSummary($citation),
             'citation-locator-diagnostic-reasons', 'locator-diagnostic-reasons' => $this->citationLocatorDiagnosticReasons($citation),
+            'citation-locator-diagnostic-count', 'locator-diagnostic-count' => $this->citationLocatorDiagnosticCount($citation),
+            'citation-locator-diagnostic-severity-summary', 'locator-diagnostic-severity-summary' => $this->citationLocatorDiagnosticSeveritySummary($citation),
             'citation-prefix' => $this->citationPrefixValue($citation),
             'citation-suffix' => $this->citationSuffixValue($citation),
             'citation-affix-summary', 'citation-affixes' => $this->citationAffixSummaryForCitation($citation),
@@ -12384,6 +12393,9 @@ final class CitationCslProcessor
             'cslLocatorDiagnostics' => $diagnostics,
             'cslLocatorDiagnosticSummary' => $this->citationLocatorDiagnosticSummaryForDiagnostics($diagnostics),
             'cslLocatorDiagnosticReasons' => $this->citationLocatorDiagnosticReasonsForDiagnostics($diagnostics),
+            'cslLocatorDiagnosticCount' => count($diagnostics),
+            'cslLocatorDiagnosticSeverityCounts' => $this->citationLocatorDiagnosticSeverityCountsForDiagnostics($diagnostics),
+            'cslLocatorDiagnosticSeveritySummary' => $this->citationLocatorDiagnosticSeveritySummaryForDiagnostics($diagnostics),
         ];
         $parts = $this->citationLocatorParts($citation);
         if ($parts['value'] !== '') {
@@ -12425,6 +12437,24 @@ final class CitationCslProcessor
             : '';
     }
 
+    private function citationLocatorDiagnosticCount(?AstNode $citation): string
+    {
+        if (!$citation instanceof AstNode) {
+            return '';
+        }
+
+        $count = count($this->citationLocatorDiagnosticsForCitation($citation));
+
+        return $count === 0 ? '' : (string) $count;
+    }
+
+    private function citationLocatorDiagnosticSeveritySummary(?AstNode $citation): string
+    {
+        return $citation instanceof AstNode
+            ? $this->citationLocatorDiagnosticSeveritySummaryForDiagnostics($this->citationLocatorDiagnosticsForCitation($citation))
+            : '';
+    }
+
     /**
      * @param list<array<string, mixed>> $diagnostics
      */
@@ -12437,6 +12467,48 @@ final class CitationCslProcessor
             ),
             static fn (string $value): bool => $value !== ''
         ))));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private function citationLocatorDiagnosticSeverityCountsForDiagnostics(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $severity = trim((string) ($diagnostic['severity'] ?? ''));
+            if ($severity === '') {
+                $severity = 'unspecified';
+            }
+
+            $counts[$severity] = ($counts[$severity] ?? 0) + 1;
+        }
+
+        $ordered = [];
+        foreach (['error', 'warning', 'info', 'unspecified'] as $severity) {
+            if (isset($counts[$severity])) {
+                $ordered[$severity] = $counts[$severity];
+                unset($counts[$severity]);
+            }
+        }
+        ksort($counts, SORT_STRING);
+
+        return $ordered + $counts;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     */
+    private function citationLocatorDiagnosticSeveritySummaryForDiagnostics(array $diagnostics): string
+    {
+        $counts = $this->citationLocatorDiagnosticSeverityCountsForDiagnostics($diagnostics);
+
+        return implode('; ', array_map(
+            static fn (string $severity, int $count): string => $severity . ': ' . $count,
+            array_keys($counts),
+            $counts
+        ));
     }
 
     /**
