@@ -17804,6 +17804,69 @@ XML;
         $t->same('bullet_list', $bullet->type);
         $t->same('-', $bullet->attr('bulletChar'));
     },
+    'summarizes docx numbering relationship aggregate buckets for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $numberingRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
+        $numberingContentType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
+        $reviewNumberingXml = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:abstractNum w:abstractNumId="30">
+    <w:lvl w:ilvl="0"><w:start w:val="4"/><w:numFmt w:val="upperLetter"/><w:lvlText w:val="%1."/></w:lvl>
+  </w:abstractNum>
+  <w:num w:numId="7"><w:abstractNumId w:val="30"/></w:num>
+</w:numbering>
+XML;
+        $parts['[Content_Types].xml'] = str_replace(
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>',
+            '  <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>' . "\n" .
+            '  <Override PartName="/word/review-numbering.xml" ContentType="' . $numberingContentType . '; profile=review-numbering"/>' . "\n" .
+            '  <Override PartName="/word/missing-numbering.xml" ContentType="' . $numberingContentType . '"/>' . "\n" .
+            '  <Override PartName="/word/bad-numbering.xml" ContentType="application/xml"/>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rNumberingReview" Type="' . $numberingRel . '" Target="review-numbering.xml?variant=list#numbering"/>' . "\n" .
+            '  <Relationship Id="rMissingNumbering" Type="' . $numberingRel . '" Target="missing-numbering.xml"/>' . "\n" .
+            '  <Relationship Id="rExternalNumbering" Type="' . $numberingRel . '" Target="https://example.test/numbering.xml?remote=1#external" TargetMode="External"/>' . "\n" .
+            '  <Relationship Id="rWrongNumbering" Type="' . $numberingRel . '" Target="bad-numbering.xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/review-numbering.xml'] = $reviewNumberingXml;
+        $parts['word/bad-numbering.xml'] = '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+
+        $docx = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx');
+        $review = $docx['numberingRelationshipReview'];
+        $summary = $docx['packageProvenance']['summary'];
+
+        $t->same(4, $review['relationshipCount']);
+        $t->same(3, $review['internalRelationshipCount']);
+        $t->same(1, $review['externalRelationshipCount']);
+        $t->same(2, $review['targetReferenceSuffixCount']);
+        $t->same(['?remote=1#external', '?variant=list#numbering'], $review['targetReferenceSuffixes']);
+        $t->same([$numberingRel => 4], $review['relationshipTypeCounts']);
+        $t->same([
+            '(missing)' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml' => 2,
+            'application/xml' => 1,
+        ], $review['contentTypeBaseCounts']);
+        $t->same(['missing' => 1, 'override' => 3], $review['contentTypeSourceCounts']);
+        $t->same(['xml' => 3], $review['targetExtensionCounts']);
+        $t->same(['absolute-uri' => 1], $review['externalTargetKindCounts']);
+        $t->same(['https' => 1], $review['externalTargetSchemeCounts']);
+        $t->same(['external-numbering-relationship', 'missing-numbering-part', 'unexpected-numbering-content-type'], $review['issueCodes']);
+
+        $t->same($review['targetReferenceSuffixCount'], $summary['numberingRelationshipTargetReferenceSuffixCount']);
+        $t->same($review['targetReferenceSuffixes'], $summary['numberingRelationshipTargetReferenceSuffixes']);
+        $t->same($review['relationshipTypeCounts'], $summary['numberingRelationshipRelationshipTypeCounts']);
+        $t->same($review['contentTypeBaseCounts'], $summary['numberingRelationshipContentTypeBaseCounts']);
+        $t->same($review['contentTypeSourceCounts'], $summary['numberingRelationshipContentTypeSourceCounts']);
+        $t->same($review['targetExtensionCounts'], $summary['numberingRelationshipTargetExtensionCounts']);
+        $t->same($review['externalTargetKindCounts'], $summary['numberingRelationshipExternalTargetKindCounts']);
+        $t->same($review['externalTargetSchemeCounts'], $summary['numberingRelationshipExternalTargetSchemeCounts']);
+    },
     'preserves raw docx numbering relationship records before id de-duplication' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $numberingRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
