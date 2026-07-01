@@ -32,6 +32,9 @@ final class OpenDocumentPackage
     private const MANIFEST_ROOT_STRUCTURAL_ATTRIBUTES = [
         'version' => true,
     ];
+    private const OFFICE_DOCUMENT_ROOT_STRUCTURAL_ATTRIBUTES = [
+        'version' => true,
+    ];
     private const PREFERRED_VIEW_MODE_VALUES = [
         'edit' => true,
         'presentation-slide-show' => true,
@@ -289,6 +292,7 @@ final class OpenDocumentPackage
      *     packageConfigurations:array<string, mixed>,
      *     packageFonts:array<string, mixed>,
      *     packageLayoutCaches:array<string, mixed>,
+     *     documentParts:array<string, mixed>,
      *     packageStyles:array<string, mixed>,
      *     comments:array<string, mixed>,
      *     rdfMetadata:array<string, mixed>,
@@ -314,6 +318,7 @@ final class OpenDocumentPackage
         $packageConfigurations = self::packageConfigurationMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageFonts = self::packageFontMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
         $packageLayoutCaches = self::packageLayoutCacheMetadata($this->package, $this->manifestEntries, $undeclaredPackageEntries);
+        $documentParts = $this->documentPartPackageProvenance($packageInventory);
         $packageStyles = $this->packageStyleProvenance($packageInventory);
         foreach ($this->manifestEntries as $entry) {
             if (self::isMediaResourceManifestEntry($entry)) {
@@ -409,6 +414,7 @@ final class OpenDocumentPackage
             'packageConfigurations' => $packageConfigurations,
             'packageFonts' => $packageFonts,
             'packageLayoutCaches' => $packageLayoutCaches,
+            'documentParts' => $documentParts,
             'packageStyles' => $packageStyles,
             'rdfMetadata' => $this->rdfMetadata,
             'manifestEncryption' => self::manifestEncryptionSummary($this->manifestEntries),
@@ -424,6 +430,187 @@ final class OpenDocumentPackage
             'settings' => $this->settings,
             'styleNames' => array_keys($this->stylesByName),
             'contentBlocks' => count($this->readContentDocument()->children),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $packageInventory
+     * @return array<string, mixed>
+     */
+    private function documentPartPackageProvenance(array $packageInventory): array
+    {
+        $expectedRoots = [
+            'content.xml' => 'document-content',
+            'styles.xml' => 'document-styles',
+            'meta.xml' => 'document-meta',
+            'settings.xml' => 'document-settings',
+        ];
+        $parts = is_array($packageInventory['parts'] ?? null) ? $packageInventory['parts'] : [];
+        $items = [];
+        $versionCounts = [];
+        $missingVersionParts = [];
+        $versionMismatches = [];
+        $rootCustomAttributeCount = 0;
+        $rootCustomAttributeNames = [];
+        $rootCustomAttributeItems = [];
+        $diagnosticCodeCounts = [];
+        $diagnosticCount = 0;
+        $declaredCount = 0;
+        $packagePartCount = 0;
+        $missingPackagePartCount = 0;
+        $undeclaredPackagePartCount = 0;
+
+        foreach ($expectedRoots as $part => $expectedRoot) {
+            $manifestEntry = $this->manifestEntriesByPath[$part] ?? null;
+            $inventoryPart = is_array($parts[$part] ?? null) ? $parts[$part] : null;
+            if (!is_array($manifestEntry) && !is_array($inventoryPart)) {
+                continue;
+            }
+
+            $declaredInManifest = is_array($manifestEntry);
+            if ($declaredInManifest) {
+                ++$declaredCount;
+            }
+            if (is_array($inventoryPart)) {
+                ++$packagePartCount;
+            }
+
+            $diagnostics = [];
+            $rootName = null;
+            $rootNamespace = null;
+            $validRoot = false;
+            $officeVersion = null;
+            $rootAttributeProvenance = self::emptyAttributeProvenance();
+
+            if (!is_array($inventoryPart)) {
+                ++$missingPackagePartCount;
+                $diagnostics[] = 'odf-document-part-missing-package-part';
+            } elseif (!$declaredInManifest) {
+                ++$undeclaredPackagePartCount;
+                $diagnostics[] = 'odf-document-part-undeclared-package-part';
+            } else {
+                $dom = self::loadXml($this->package->read($part), 'ODT ' . $part);
+                $root = $dom->documentElement;
+                if ($root instanceof \DOMElement) {
+                    $rootName = $root->localName;
+                    $rootNamespace = $root->namespaceURI;
+                    $validRoot = $root->namespaceURI === self::OFFICE_NAMESPACE
+                        && in_array($root->localName, [$expectedRoot, 'document'], true);
+                    $officeVersion = self::optionalString(self::namespacedAttribute($root, self::OFFICE_NAMESPACE, 'version'));
+                    $rootAttributeProvenance = self::documentPartRootAttributeProvenance($root);
+                }
+
+                if (!$validRoot) {
+                    $diagnostics[] = 'odf-document-part-unexpected-root';
+                }
+                if ($officeVersion === null) {
+                    $diagnostics[] = 'odf-document-part-missing-office-version';
+                    $missingVersionParts[] = $part;
+                } else {
+                    $versionCounts[$officeVersion] = ($versionCounts[$officeVersion] ?? 0) + 1;
+                    if ($this->manifestVersion !== null && $officeVersion !== $this->manifestVersion) {
+                        $diagnostics[] = 'odf-document-part-version-mismatch';
+                        $versionMismatches[] = [
+                            'part' => $part,
+                            'officeVersion' => $officeVersion,
+                            'manifestVersion' => $this->manifestVersion,
+                        ];
+                    }
+                }
+            }
+
+            $partCustomAttributeCount = (int) ($rootAttributeProvenance['customAttributeCount'] ?? 0);
+            if ($partCustomAttributeCount > 0) {
+                $rootCustomAttributeCount += $partCustomAttributeCount;
+                foreach ($rootAttributeProvenance['customAttributeNames'] ?? [] as $attributeName) {
+                    if (is_string($attributeName) && $attributeName !== '' && !in_array($attributeName, $rootCustomAttributeNames, true)) {
+                        $rootCustomAttributeNames[] = $attributeName;
+                    }
+                }
+                $rootCustomAttributeItems[] = [
+                    'part' => $part,
+                    'expectedRoot' => $expectedRoot,
+                    'rootName' => $rootName,
+                    'rootCustomAttributeCount' => $partCustomAttributeCount,
+                    'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                    'rootCustomAttributes' => $rootAttributeProvenance['customAttributes'] ?? [],
+                    'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                    'rootNamespaceDeclarationCount' => $rootAttributeProvenance['namespaceDeclarationCount'] ?? 0,
+                    'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                    'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                    'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
+                ];
+            }
+
+            $diagnostics = array_values(array_unique($diagnostics));
+            foreach ($diagnostics as $diagnostic) {
+                $diagnosticCodeCounts[$diagnostic] = ($diagnosticCodeCounts[$diagnostic] ?? 0) + 1;
+            }
+            $diagnosticCount += count($diagnostics);
+
+            $items[] = [
+                'part' => $part,
+                'expectedRoot' => $expectedRoot,
+                'acceptedRootNames' => [$expectedRoot, 'document'],
+                'rootName' => $rootName,
+                'rootNamespace' => $rootNamespace,
+                'validRoot' => $validRoot,
+                'officeVersion' => $officeVersion,
+                'manifestVersion' => $this->manifestVersion,
+                'declaredInManifest' => $declaredInManifest,
+                'manifestIndex' => is_array($manifestEntry) ? ($manifestEntry['manifestIndex'] ?? null) : null,
+                'manifestPath' => is_array($manifestEntry) ? ($manifestEntry['path'] ?? null) : null,
+                'manifestMediaType' => is_array($manifestEntry) ? ($manifestEntry['mediaType'] ?? null) : null,
+                'exists' => is_array($inventoryPart),
+                'storedByteLength' => is_array($inventoryPart) ? ($inventoryPart['byteLength'] ?? null) : null,
+                'compressedByteLength' => is_array($inventoryPart) ? ($inventoryPart['compressedByteLength'] ?? null) : null,
+                'compressionMethod' => is_array($inventoryPart) ? ($inventoryPart['compressionMethod'] ?? null) : null,
+                'compressionMethodName' => is_array($inventoryPart) ? ($inventoryPart['compressionMethodName'] ?? null) : null,
+                'crc32' => is_array($inventoryPart) ? ($inventoryPart['crc32'] ?? null) : null,
+                'packageByteExposurePolicy' => is_array($inventoryPart) ? ($inventoryPart['byteExposurePolicy'] ?? null) : null,
+                'byteExposurePolicy' => 'odf-document-part-package-provenance-metadata-only',
+                'canExposeBytes' => false,
+                'rootAttributeCount' => $rootAttributeProvenance['attributeCount'] ?? 0,
+                'rootAttributeNames' => $rootAttributeProvenance['attributeNames'] ?? [],
+                'rootAttributes' => $rootAttributeProvenance['attributes'] ?? [],
+                'rootCustomAttributeCount' => $rootAttributeProvenance['customAttributeCount'] ?? 0,
+                'rootCustomAttributeNames' => $rootAttributeProvenance['customAttributeNames'] ?? [],
+                'rootCustomAttributes' => $rootAttributeProvenance['customAttributes'] ?? [],
+                'rootCustomAttributeMap' => $rootAttributeProvenance['customAttributeMap'] ?? [],
+                'rootNamespaceDeclarationCount' => $rootAttributeProvenance['namespaceDeclarationCount'] ?? 0,
+                'rootNamespaceDeclarationNames' => $rootAttributeProvenance['namespaceDeclarationNames'] ?? [],
+                'rootNamespaceDeclarations' => $rootAttributeProvenance['namespaceDeclarations'] ?? [],
+                'rootNamespaceDeclarationMap' => $rootAttributeProvenance['namespaceDeclarationMap'] ?? [],
+                'diagnostics' => $diagnostics,
+            ];
+        }
+
+        ksort($versionCounts, SORT_STRING);
+        ksort($diagnosticCodeCounts, SORT_STRING);
+        sort($rootCustomAttributeNames, SORT_STRING);
+
+        return [
+            'count' => count($items),
+            'declaredCount' => $declaredCount,
+            'packagePartCount' => $packagePartCount,
+            'missingPackagePartCount' => $missingPackagePartCount,
+            'undeclaredPackagePartCount' => $undeclaredPackagePartCount,
+            'versionedCount' => array_sum($versionCounts),
+            'missingVersionCount' => count($missingVersionParts),
+            'missingVersionParts' => $missingVersionParts,
+            'versionMismatchCount' => count($versionMismatches),
+            'versionMismatches' => $versionMismatches,
+            'manifestVersion' => $this->manifestVersion,
+            'versionCounts' => $versionCounts,
+            'rootCustomAttributePartCount' => count($rootCustomAttributeItems),
+            'rootCustomAttributeCount' => $rootCustomAttributeCount,
+            'rootCustomAttributeNames' => $rootCustomAttributeNames,
+            'rootCustomAttributeItems' => $rootCustomAttributeItems,
+            'diagnosticCount' => $diagnosticCount,
+            'diagnosticCodeCounts' => $diagnosticCodeCounts,
+            'byteExposurePolicy' => 'odf-document-part-package-provenance-metadata-only',
+            'canExposeBytes' => false,
+            'items' => $items,
         ];
     }
 
@@ -5172,6 +5359,30 @@ final class OpenDocumentPackage
 
     /**
      * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
+     * }
+     */
+    private static function documentPartRootAttributeProvenance(\DOMElement $element): array
+    {
+        return self::manifestElementAttributeProvenance(
+            $element,
+            self::OFFICE_DOCUMENT_ROOT_STRUCTURAL_ATTRIBUTES,
+            self::OFFICE_NAMESPACE
+        );
+    }
+
+    /**
+     * @return array{
      *     extensionElementCount:int,
      *     extensionElementNames:list<string>,
      *     extensionElements:list<array<string, mixed>>
@@ -5260,6 +5471,38 @@ final class OpenDocumentPackage
     }
 
     /**
+     * @return array{
+     *     attributeCount:int,
+     *     attributeNames:list<string>,
+     *     attributes:list<array<string, mixed>>,
+     *     customAttributeCount:int,
+     *     customAttributeNames:list<string>,
+     *     customAttributes:list<array<string, mixed>>,
+     *     customAttributeMap:array<string, string>,
+     *     namespaceDeclarationCount:int,
+     *     namespaceDeclarationNames:list<string>,
+     *     namespaceDeclarations:list<array<string, mixed>>,
+     *     namespaceDeclarationMap:array<string, string>
+     * }
+     */
+    private static function emptyAttributeProvenance(): array
+    {
+        return [
+            'attributeCount' => 0,
+            'attributeNames' => [],
+            'attributes' => [],
+            'customAttributeCount' => 0,
+            'customAttributeNames' => [],
+            'customAttributes' => [],
+            'customAttributeMap' => [],
+            'namespaceDeclarationCount' => 0,
+            'namespaceDeclarationNames' => [],
+            'namespaceDeclarations' => [],
+            'namespaceDeclarationMap' => [],
+        ];
+    }
+
+    /**
      * @param array<string, bool> $structuralAttributes
      * @return array{
      *     attributeCount:int,
@@ -5275,7 +5518,11 @@ final class OpenDocumentPackage
      *     namespaceDeclarationMap:array<string, string>
      * }
      */
-    private static function manifestElementAttributeProvenance(\DOMElement $element, array $structuralAttributes): array
+    private static function manifestElementAttributeProvenance(
+        \DOMElement $element,
+        array $structuralAttributes,
+        string $structuralNamespace = self::MANIFEST_NAMESPACE
+    ): array
     {
         $attributes = [];
         $customAttributes = [];
@@ -5322,7 +5569,7 @@ final class OpenDocumentPackage
                 $name = $attribute->prefix !== ''
                     ? $attribute->prefix . ':' . $attribute->localName
                     : $attribute->name;
-                $structural = $attribute->namespaceURI === self::MANIFEST_NAMESPACE
+                $structural = $attribute->namespaceURI === $structuralNamespace
                     && isset($structuralAttributes[$attribute->localName]);
                 $record = [
                     'name' => $name,
