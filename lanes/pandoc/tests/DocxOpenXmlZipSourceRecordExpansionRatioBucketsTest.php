@@ -131,9 +131,15 @@ return [
         $t->same('zero-byte', $inventory['customXml/empty.bin']['zipExpansionRatioBucket']);
         $t->same('up-to-1x', $inventory['customXml/stored.bin']['zipExpansionRatioBucket']);
         $t->same('over-100x', $inventory['word/media/high.bin']['zipExpansionRatioBucket']);
+        $t->same('zero-byte', $inventory['customXml/empty.bin']['zipSourceRecordExpansionRatioBucket']);
+        $t->same('up-to-1x', $inventory['customXml/stored.bin']['zipSourceRecordExpansionRatioBucket']);
+        $t->same('over-100x', $inventory['word/media/high.bin']['zipSourceRecordExpansionRatioBucket']);
         $t->same('zero-byte', $identityEntries['customXml/empty.bin']['zipExpansionRatioBucket']);
         $t->same('up-to-1x', $identityEntries['customXml/stored.bin']['zipExpansionRatioBucket']);
         $t->same('over-100x', $identityEntries['word/media/high.bin']['zipExpansionRatioBucket']);
+        $t->same('zero-byte', $identityEntries['customXml/empty.bin']['zipSourceRecordExpansionRatioBucket']);
+        $t->same('up-to-1x', $identityEntries['customXml/stored.bin']['zipSourceRecordExpansionRatioBucket']);
+        $t->same('over-100x', $identityEntries['word/media/high.bin']['zipSourceRecordExpansionRatioBucket']);
     },
 ];
 

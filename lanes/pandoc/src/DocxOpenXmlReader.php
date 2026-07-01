@@ -14853,6 +14853,12 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['zipExpansionRatioBucket'] = $entry['expansionRatioBucket'] ?? 'unknown';
             $partInventory[$partName]['zipExpansionRatioBucketMin'] = $entry['expansionRatioBucketMin'] ?? null;
             $partInventory[$partName]['zipExpansionRatioBucketMax'] = $entry['expansionRatioBucketMax'] ?? null;
+            $partInventory[$partName]['zipSourceRecordExpansionRatioBucket'] =
+                $partInventory[$partName]['zipExpansionRatioBucket'];
+            $partInventory[$partName]['zipSourceRecordExpansionRatioBucketMin'] =
+                $partInventory[$partName]['zipExpansionRatioBucketMin'];
+            $partInventory[$partName]['zipSourceRecordExpansionRatioBucketMax'] =
+                $partInventory[$partName]['zipExpansionRatioBucketMax'];
             $partInventory[$partName]['zipHasUnknownExpansionRatio'] = $entry['hasUnknownExpansionRatio'] ?? false;
             $partInventory[$partName]['zipCrc32'] = $entry['crc32'] ?? null;
             $partInventory[$partName]['zipByteExposurePolicy'] = $entry['byteExposurePolicy'] ?? null;
@@ -41832,6 +41838,17 @@ final class DocxOpenXmlReader
                 'zipExpansionRatioBucketMax' => is_int($part['zipExpansionRatioBucketMax'] ?? null)
                     || is_float($part['zipExpansionRatioBucketMax'] ?? null)
                     ? (float) $part['zipExpansionRatioBucketMax']
+                    : null,
+                'zipSourceRecordExpansionRatioBucket' => is_string($part['zipSourceRecordExpansionRatioBucket'] ?? null)
+                    ? $part['zipSourceRecordExpansionRatioBucket']
+                    : null,
+                'zipSourceRecordExpansionRatioBucketMin' => is_int($part['zipSourceRecordExpansionRatioBucketMin'] ?? null)
+                    || is_float($part['zipSourceRecordExpansionRatioBucketMin'] ?? null)
+                    ? (float) $part['zipSourceRecordExpansionRatioBucketMin']
+                    : null,
+                'zipSourceRecordExpansionRatioBucketMax' => is_int($part['zipSourceRecordExpansionRatioBucketMax'] ?? null)
+                    || is_float($part['zipSourceRecordExpansionRatioBucketMax'] ?? null)
+                    ? (float) $part['zipSourceRecordExpansionRatioBucketMax']
                     : null,
                 'pathSegmentCount' => is_int($part['pathSegmentCount'] ?? null)
                     ? $part['pathSegmentCount']
