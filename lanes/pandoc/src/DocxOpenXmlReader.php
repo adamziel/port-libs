@@ -15509,6 +15509,9 @@ final class DocxOpenXmlReader
         $partZipSourceRecordCompressionMethods = $this->packagePartZipSourceRecordCompressionMethodSummary($partInventory);
         $partZipSourceRecordCompressionMethodCounts = [];
         $partZipSourceRecordCompressionMethodBytes = [];
+        $partZipSourceRecordCompressionMethodCompressedByteLengths = [];
+        $partZipSourceRecordCompressionMethodUncompressedByteLengths = [];
+        $partZipSourceRecordCompressionMethodExpansionRatios = [];
         $partZipSourceRecordCompressionMethodDataDescriptorPartCount = 0;
         $partZipSourceRecordCompressionMethodIssuePartCount = 0;
         $partZipSourceRecordCompressionMethodUnsupportedPartCount = 0;
@@ -15518,6 +15521,12 @@ final class DocxOpenXmlReader
                 (int) ($sourceRecordCompressionMethod['partCount'] ?? 0);
             $partZipSourceRecordCompressionMethodBytes[$compressionMethodKey] =
                 (int) ($sourceRecordCompressionMethod['sourceRecordBytes'] ?? 0);
+            $partZipSourceRecordCompressionMethodCompressedByteLengths[$compressionMethodKey] =
+                (int) ($sourceRecordCompressionMethod['compressedByteLength'] ?? 0);
+            $partZipSourceRecordCompressionMethodUncompressedByteLengths[$compressionMethodKey] =
+                (int) ($sourceRecordCompressionMethod['uncompressedByteLength'] ?? 0);
+            $partZipSourceRecordCompressionMethodExpansionRatios[$compressionMethodKey] =
+                $sourceRecordCompressionMethod['expansionRatio'] ?? null;
             $partZipSourceRecordCompressionMethodDataDescriptorPartCount +=
                 (int) ($sourceRecordCompressionMethod['dataDescriptorPartCount'] ?? 0);
             $partZipSourceRecordCompressionMethodIssuePartCount +=
@@ -15527,6 +15536,9 @@ final class DocxOpenXmlReader
         }
         ksort($partZipSourceRecordCompressionMethodCounts, SORT_STRING);
         ksort($partZipSourceRecordCompressionMethodBytes, SORT_STRING);
+        ksort($partZipSourceRecordCompressionMethodCompressedByteLengths, SORT_STRING);
+        ksort($partZipSourceRecordCompressionMethodUncompressedByteLengths, SORT_STRING);
+        ksort($partZipSourceRecordCompressionMethodExpansionRatios, SORT_STRING);
         $partZipSourceRecordRoles = $this->packagePartZipSourceRecordRoleSummary($partInventory);
         $partZipSourceRecordRoleCounts = [];
         $partZipSourceRecordRoleBytes = [];
@@ -18305,6 +18317,9 @@ final class DocxOpenXmlReader
             'partZipSourceRecordCompressionMethodCount' => count($partZipSourceRecordCompressionMethods),
             'partZipSourceRecordCompressionMethodCounts' => $partZipSourceRecordCompressionMethodCounts,
             'partZipSourceRecordCompressionMethodBytes' => $partZipSourceRecordCompressionMethodBytes,
+            'partZipSourceRecordCompressionMethodCompressedByteLengths' => $partZipSourceRecordCompressionMethodCompressedByteLengths,
+            'partZipSourceRecordCompressionMethodUncompressedByteLengths' => $partZipSourceRecordCompressionMethodUncompressedByteLengths,
+            'partZipSourceRecordCompressionMethodExpansionRatios' => $partZipSourceRecordCompressionMethodExpansionRatios,
             'partZipSourceRecordCompressionMethodDataDescriptorPartCount' => $partZipSourceRecordCompressionMethodDataDescriptorPartCount,
             'partZipSourceRecordCompressionMethodIssuePartCount' => $partZipSourceRecordCompressionMethodIssuePartCount,
             'partZipSourceRecordCompressionMethodUnsupportedPartCount' => $partZipSourceRecordCompressionMethodUnsupportedPartCount,

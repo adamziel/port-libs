@@ -28,6 +28,18 @@ return [
             docx_zip_source_record_compression_method_sums($inventory, 'sourceRecordBytes'),
             $summary['partZipSourceRecordCompressionMethodBytes']
         );
+        $t->same(
+            docx_zip_source_record_compression_method_sums($inventory, 'compressedByteLength'),
+            $summary['partZipSourceRecordCompressionMethodCompressedByteLengths']
+        );
+        $t->same(
+            docx_zip_source_record_compression_method_sums($inventory, 'bytes'),
+            $summary['partZipSourceRecordCompressionMethodUncompressedByteLengths']
+        );
+        $t->same(
+            docx_zip_source_record_compression_method_ratios($inventory),
+            $summary['partZipSourceRecordCompressionMethodExpansionRatios']
+        );
         $t->same(0, $summary['partZipSourceRecordCompressionMethodDataDescriptorPartCount']);
         $t->same(0, $summary['partZipSourceRecordCompressionMethodIssuePartCount']);
         $t->same(0, $summary['partZipSourceRecordCompressionMethodUnsupportedPartCount']);
@@ -54,6 +66,18 @@ return [
         $t->same(
             docx_zip_source_record_compression_method_sum_for_key($inventory, '0', 'centralDirectoryRecordBytes'),
             $stored['centralDirectoryRecordBytes']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodCompressedByteLengths']['0'],
+            $stored['compressedByteLength']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodUncompressedByteLengths']['0'],
+            $stored['uncompressedByteLength']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodExpansionRatios']['0'],
+            $stored['expansionRatio']
         );
         $t->same('word/embeddings/review.xlsx', $stored['largestSourceRecordPart']['partName']);
         $t->same(0, $stored['largestSourceRecordPart']['compressionMethod']);
@@ -82,6 +106,18 @@ return [
         $t->same(
             docx_zip_source_record_compression_method_sum_for_key($inventory, '8', 'compressedDataBytes'),
             $deflated['compressedDataBytes']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodCompressedByteLengths']['8'],
+            $deflated['compressedByteLength']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodUncompressedByteLengths']['8'],
+            $deflated['uncompressedByteLength']
+        );
+        $t->same(
+            $summary['partZipSourceRecordCompressionMethodExpansionRatios']['8'],
+            $deflated['expansionRatio']
         );
         $t->same(
             docx_zip_source_record_compression_method_largest($inventory, '8'),
@@ -218,6 +254,28 @@ function docx_zip_source_record_compression_method_sum_for_key(array $inventory,
     }
 
     return $sum;
+}
+
+/**
+ * @param array<string, array<string, mixed>> $inventory
+ * @return array<string, ?float>
+ */
+function docx_zip_source_record_compression_method_ratios(array $inventory): array
+{
+    $compressed = docx_zip_source_record_compression_method_sums($inventory, 'compressedByteLength');
+    $uncompressed = docx_zip_source_record_compression_method_sums($inventory, 'bytes');
+    $ratios = [];
+
+    foreach ($uncompressed as $key => $uncompressedBytes) {
+        $compressedBytes = $compressed[$key] ?? 0;
+        $ratios[$key] = $uncompressedBytes === 0
+            ? 0.0
+            : ($compressedBytes === 0 ? null : (float) ($uncompressedBytes / $compressedBytes));
+    }
+
+    ksort($ratios, SORT_STRING);
+
+    return $ratios;
 }
 
 /**
