@@ -28696,6 +28696,13 @@ final class DocxOpenXmlReader
             $isNumberingRelationshipPart = $relationshipSourceContentTypeBase === self::CT_WORD_NUMBERING;
             $isThemeRelationshipPart = $relationshipSourceContentTypeBase === self::CT_THEME;
             $isGlossaryRelationshipPart = $relationshipSourceContentTypeBase === self::CT_WORD_GLOSSARY_DOCUMENT;
+            $isChartRelationshipPart = $relationshipSourceContentTypeBase === self::CT_CHART;
+            $isDiagramRelationshipPart = in_array($relationshipSourceContentTypeBase, [
+                self::CT_DIAGRAM_DATA,
+                self::CT_DIAGRAM_LAYOUT,
+                self::CT_DIAGRAM_QUICK_STYLE,
+                self::CT_DIAGRAM_COLORS,
+            ], true);
             $isCustomUiRelationshipPart = isset($customUiSourceParts[$relationshipSourcePart]);
             $isHeaderFooterRelationshipPart = isset($headerFooterSourceParts[$relationshipSourcePart])
                 || in_array($relationshipSourceContentTypeBase, [self::CT_WORD_HEADER, self::CT_WORD_FOOTER], true);
@@ -28734,6 +28741,12 @@ final class DocxOpenXmlReader
                 }
                 if ($isGlossaryRelationshipPart && $relationship['type'] === self::HYPERLINK_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'glossary-document-hyperlink-target');
+                }
+                if ($isChartRelationshipPart && $relationship['type'] === self::EMBEDDED_PACKAGE_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'chart-embedded-package');
+                }
+                if ($isDiagramRelationshipPart && $relationship['type'] === self::EMBEDDED_PACKAGE_REL) {
+                    $this->addPartRole($rolesByPart, $targetPart, 'diagram-embedded-package');
                 }
                 if ($isCustomUiRelationshipPart && $relationship['type'] === self::IMAGE_REL) {
                     $this->addPartRole($rolesByPart, $targetPart, 'custom-ui-image');
