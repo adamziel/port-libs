@@ -864,6 +864,68 @@ return [
         $t->same($expectedContentNamespaceMap, $readerProvenance['parts']['content.xml']['manifestNamespaceDeclarationMap']);
         $t->same($expectedHeroNamespaceMap, $readerProvenance['parts']['Pictures/hero.png']['manifestNamespaceDeclarationMap']);
     },
+    'hashes compact ODT manifest custom attribute namespace provenance in package identity' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $manifest = str_replace(
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml"/>',
+            ],
+            [
+                '<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" xmlns:wp="urn:wordpress:review" manifest:version="1.3" wp:packet="root-review">',
+                '<manifest:file-entry manifest:media-type="text/xml" manifest:full-path="content.xml" xmlns:asset="urn:wordpress:asset-review" asset:state="canonical"/>',
+            ],
+            $manifestXml
+        );
+
+        $identity = OpenDocumentPackage::fromPackage($buildOdtPackage(manifest: $manifest))->summarize()['packageIdentity'];
+        $changedRootIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: str_replace('wp:packet="root-review"', 'wp:packet="root-recheck"', $manifest)
+        ))->summarize()['packageIdentity'];
+        $changedEntryIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: str_replace('asset:state="canonical"', 'asset:state="alternate"', $manifest)
+        ))->summarize()['packageIdentity'];
+        $changedNamespaceIdentity = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: str_replace('urn:wordpress:asset-review', 'urn:wordpress:asset-review-v2', $manifest)
+        ))->summarize()['packageIdentity'];
+
+        $manifestIdentityByPath = [];
+        foreach ($identity['manifestEntries'] as $entry) {
+            $manifestIdentityByPath[$entry['path']] = $entry;
+        }
+        $packageIdentityByPath = [];
+        foreach ($identity['packageEntries'] as $entry) {
+            $packageIdentityByPath[$entry['path']] = $entry;
+        }
+
+        $expectedRootNamespaceMap = [
+            'xmlns:manifest' => OpenDocumentPackage::MANIFEST_NAMESPACE,
+            'xmlns:wp' => 'urn:wordpress:review',
+        ];
+        $expectedContentNamespaceMap = [
+            'xmlns:asset' => 'urn:wordpress:asset-review',
+            'xmlns:manifest' => OpenDocumentPackage::MANIFEST_NAMESPACE,
+            'xmlns:wp' => 'urn:wordpress:review',
+        ];
+
+        $t->same(1, $identity['manifestRootCustomAttributeCount']);
+        $t->same(['wp:packet'], $identity['manifestRootCustomAttributeNames']);
+        $t->same(['wp:packet' => 'root-review'], $identity['manifestRootCustomAttributeMap']);
+        $t->same(2, $identity['manifestRootNamespaceDeclarationCount']);
+        $t->same(['xmlns:manifest', 'xmlns:wp'], $identity['manifestRootNamespaceDeclarationNames']);
+        $t->same($expectedRootNamespaceMap, $identity['manifestRootNamespaceDeclarationMap']);
+        $t->same(1, $manifestIdentityByPath['content.xml']['customManifestAttributeCount']);
+        $t->same(['asset:state'], $manifestIdentityByPath['content.xml']['customManifestAttributeNames']);
+        $t->same(['asset:state' => 'canonical'], $manifestIdentityByPath['content.xml']['customManifestAttributeMap']);
+        $t->same(3, $manifestIdentityByPath['content.xml']['manifestNamespaceDeclarationCount']);
+        $t->same($expectedContentNamespaceMap, $manifestIdentityByPath['content.xml']['manifestNamespaceDeclarationMap']);
+        $t->same(['asset:state' => 'canonical'], $packageIdentityByPath['content.xml']['customManifestAttributeMap']);
+        $t->same($expectedContentNamespaceMap, $packageIdentityByPath['content.xml']['manifestNamespaceDeclarationMap']);
+        $t->true($identity['identitySha256'] !== $changedRootIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedEntryIdentity['identitySha256']);
+        $t->true($identity['identitySha256'] !== $changedNamespaceIdentity['identitySha256']);
+        $t->same(false, $identity['canExposeBytes']);
+        $t->same('odf-package-identity-metadata-only', $identity['byteExposurePolicy']);
+    },
     'preserves ODT compact manifest root version preferred view and encryption provenance' => static function (TestRunner $t) use ($buildOdtPackage): void {
         $manifest = <<<'XML'
 <manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.4">
