@@ -30,6 +30,30 @@ return [
         $t->same('<p title="A &amp; B">A &lt; B &amp; C "quoted"</p><input checked disabled value="publish">', $fragment->serializeHtml());
         $t->same('<p title="A &amp; B">A &lt; B &amp; C "quoted"</p><input checked disabled value="publish">', $fragment->serialize());
     },
+    'serializes newer html5 boolean attributes without valued fallbacks' => static function (TestRunner $t): void {
+        $fragment = XmlHtmlDomFragment::parseHtml(
+            '<section inert data-review="42">'
+            . '<video controls disablepictureinpicture disableremoteplayback><source src="/clip.mp4" typemustmatch=""></video>'
+            . '<div shadowrootclonable shadowrootcustomelementregistry shadowrootdelegatesfocus shadowrootserializable></div>'
+            . '</section>'
+        );
+        $section = $fragment->children()[0];
+        $video = $section->children[0];
+        $source = $video->children[0];
+        $div = $section->children[1];
+
+        $t->same('<section inert data-review="42"><video controls disablepictureinpicture disableremoteplayback><source src="/clip.mp4" typemustmatch></video><div shadowrootclonable shadowrootcustomelementregistry shadowrootdelegatesfocus shadowrootserializable></div></section>', $fragment->serializeHtml());
+        $t->same(['inert' => true, 'data-review' => '42'], $section->attr('attributes'));
+        $t->same(['controls' => true, 'disablepictureinpicture' => true, 'disableremoteplayback' => true], $video->attr('attributes'));
+        $t->same(['src' => '/clip.mp4', 'typemustmatch' => true], $source->attr('attributes'));
+        $t->same([
+            'shadowrootclonable' => true,
+            'shadowrootcustomelementregistry' => true,
+            'shadowrootdelegatesfocus' => true,
+            'shadowrootserializable' => true,
+        ], $div->attr('attributes'));
+        $t->same([], $fragment->diagnostics());
+    },
     'applies html parser implicit paragraph close behavior' => static function (TestRunner $t): void {
         $fragment = XmlHtmlDomFragment::parseHtml('<p>First legacy paragraph<p>Second legacy paragraph');
 

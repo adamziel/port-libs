@@ -34,9 +34,12 @@ final class XmlHtmlDomFragment
         'controls',
         'default',
         'defer',
+        'disablepictureinpicture',
+        'disableremoteplayback',
         'disabled',
         'formnovalidate',
         'hidden',
+        'inert',
         'ismap',
         'itemscope',
         'loop',
@@ -50,6 +53,11 @@ final class XmlHtmlDomFragment
         'required',
         'reversed',
         'selected',
+        'shadowrootclonable',
+        'shadowrootcustomelementregistry',
+        'shadowrootdelegatesfocus',
+        'shadowrootserializable',
+        'typemustmatch',
     ];
 
     /** @var list<string> */
