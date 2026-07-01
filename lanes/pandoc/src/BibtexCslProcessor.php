@@ -83,6 +83,7 @@ final class BibtexCslProcessor
         'nameb',
         'namec',
         'narrator',
+        'organizer',
         'origauthor',
         'original-author',
         'originalauthor',
