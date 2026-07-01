@@ -9096,12 +9096,46 @@ final class PdfEngineHandoff
                 ++$reviewCaseCount;
             }
         }
+        $caseNames = [];
+        $caseReviewStatusCounts = [];
+        $caseNamesByReviewStatus = [];
+        $caseObservedCounts = [];
+        $caseIssueCounts = [];
+        $caseObservedTotal = 0;
+        foreach ($cases as $case) {
+            $caseName = is_string($case['case'] ?? null) && $case['case'] !== '' ? $case['case'] : 'unknown';
+            $reviewStatus = is_string($case['reviewStatus'] ?? null) && $case['reviewStatus'] !== '' ? $case['reviewStatus'] : 'unknown';
+            $observed = is_int($case['observed'] ?? null) ? max(0, $case['observed']) : 0;
+            $caseIssues = is_array($case['issues'] ?? null) ? $normalizeIssues($case['issues']) : [];
+
+            $caseNames[] = $caseName;
+            $caseReviewStatusCounts[$reviewStatus] = ($caseReviewStatusCounts[$reviewStatus] ?? 0) + 1;
+            $caseNamesByReviewStatus[$reviewStatus] ??= [];
+            $caseNamesByReviewStatus[$reviewStatus][] = $caseName;
+            $caseObservedCounts[$caseName] = ($caseObservedCounts[$caseName] ?? 0) + $observed;
+            $caseIssueCounts[$caseName] = ($caseIssueCounts[$caseName] ?? 0) + count($caseIssues);
+            $caseObservedTotal += $observed;
+        }
+        ksort($caseReviewStatusCounts);
+        ksort($caseNamesByReviewStatus);
+        foreach ($caseNamesByReviewStatus as &$statusCaseNames) {
+            sort($statusCaseNames);
+        }
+        unset($statusCaseNames);
+        ksort($caseObservedCounts);
+        ksort($caseIssueCounts);
 
         return [
             'reviewStatus' => $reviewCaseCount === 0 && $matrixIssues === [] ? 'ok' : 'review',
             'caseCount' => count($cases),
             'reviewCaseCount' => $reviewCaseCount,
             'issueCount' => count($matrixIssues),
+            'caseObservedTotal' => $caseObservedTotal,
+            'caseNames' => $caseNames,
+            'caseReviewStatusCounts' => $caseReviewStatusCounts,
+            'caseNamesByReviewStatus' => $caseNamesByReviewStatus,
+            'caseObservedCounts' => $caseObservedCounts,
+            'caseIssueCounts' => $caseIssueCounts,
             'cases' => $cases,
             'issues' => $matrixIssues,
         ];
