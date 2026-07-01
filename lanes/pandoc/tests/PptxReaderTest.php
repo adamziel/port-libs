@@ -1111,6 +1111,77 @@ XML);
     }
 };
 
+$buildNestedListPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-nested-list-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Nested list slide</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="3" name="Nested list body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/>
+        <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Parent bullet</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="1"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Child bullet</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="1"><a:buAutoNum type="arabicPeriod" startAt="2"/></a:pPr><a:r><a:t>Numbered child</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Second parent</a:t></a:r></a:p>
+      </p:txBody>
+    </p:sp>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildSpeakerNotesPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-speaker-notes-');
     if ($path === false) {
@@ -1739,6 +1810,41 @@ return [
         $t->same('Alpha item', $itemText($orderedLists[1]->children[0]));
         $t->contains('OrderedList ( 3 , Decimal , Period )', $native);
         $t->contains('OrderedList ( 1 , UpperAlpha , OneParen )', $native);
+    },
+
+    'preserves pptx nested list levels inside list items' => static function (TestRunner $t) use ($buildNestedListPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildNestedListPptxPackage());
+        $bulletLists = $nodesOfType($document, 'bullet_list');
+        $orderedLists = $nodesOfType($document, 'ordered_list');
+        $topLevelLists = array_values(array_filter(
+            $document->children,
+            static fn (AstNode $node): bool => in_array($node->type, ['bullet_list', 'ordered_list'], true)
+        ));
+        $itemText = static function (AstNode $item): string {
+            $plain = $item->children[0] ?? new AstNode('plain');
+            $text = '';
+            foreach ($plain->children as $inline) {
+                if ($inline->type === 'text') {
+                    $text .= (string) $inline->attr('text');
+                } elseif ($inline->type === 'space') {
+                    $text .= ' ';
+                }
+            }
+
+            return $text;
+        };
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(['bullet_list'], array_map(static fn (AstNode $node): string => $node->type, $topLevelLists));
+        $t->same(2, count($bulletLists));
+        $t->same(1, count($orderedLists));
+        $t->same(2, count($topLevelLists[0]->children));
+        $t->same(['Parent bullet', 'Second parent'], array_map($itemText, $topLevelLists[0]->children));
+        $t->same(['plain', 'bullet_list', 'ordered_list'], array_map(static fn (AstNode $node): string => $node->type, $topLevelLists[0]->children[0]->children));
+        $t->same('Child bullet', $itemText($topLevelLists[0]->children[0]->children[1]->children[0]));
+        $t->same(2, $topLevelLists[0]->children[0]->children[2]->attr('start'));
+        $t->same('Numbered child', $itemText($topLevelLists[0]->children[0]->children[2]->children[0]));
+        $t->contains('OrderedList ( 2 , Decimal , Period )', $native);
     },
 
     'preserves pptx speaker notes as notes divs' => static function (TestRunner $t) use ($buildSpeakerNotesPptxPackage, $nodesOfType, $nodesWithClass): void {

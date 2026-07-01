@@ -1734,31 +1734,83 @@ final class PptxReader
                 continue;
             }
 
-            $items = [];
-            $level = $paragraph['level'];
-            $style = (string) ($paragraph['style'] ?? 'decimal');
-            $delimiter = (string) ($paragraph['delimiter'] ?? 'period');
-            while ($index < $count && $this->paragraphContinuesList($paragraphs[$index], $listType, $level, $style, $delimiter, $items === [])) {
-                $items[] = new AstNode('list_item', [], [
-                    new AstNode('plain', [], $this->parsedParagraphInlines($paragraphs[$index])),
-                ]);
-                $index++;
-            }
-            $attrs = [];
-            if ($listType === 'ordered_list') {
-                $attrs = [
-                    'start' => max(1, (int) ($paragraph['start'] ?? 1)),
-                    'style' => $style,
-                    'delimiter' => $delimiter,
-                ];
-                if (isset($paragraph['pptxAutoNumberType']) && is_string($paragraph['pptxAutoNumberType'])) {
-                    $attrs['pptxAutoNumberType'] = $paragraph['pptxAutoNumberType'];
-                }
-            }
-            $blocks[] = new AstNode($listType, $attrs, $items);
+            $blocks[] = $this->paragraphListBlock($paragraphs, $index, $paragraph['level']);
         }
 
         return $blocks;
+    }
+
+    /**
+     * @param list<array{level:int, bullet:bool, listType:string, text:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>}> $paragraphs
+     */
+    private function paragraphListBlock(array $paragraphs, int &$index, int $level): AstNode
+    {
+        $paragraph = $paragraphs[$index];
+        $listType = (string) ($paragraph['listType'] ?? '');
+        $style = (string) ($paragraph['style'] ?? 'decimal');
+        $delimiter = (string) ($paragraph['delimiter'] ?? 'period');
+        $items = [];
+        $count = count($paragraphs);
+        while ($index < $count) {
+            $current = $paragraphs[$index];
+            $currentType = (string) ($current['listType'] ?? '');
+            if ($currentType === '') {
+                break;
+            }
+
+            $currentLevel = $current['level'];
+            if ($currentLevel < $level) {
+                break;
+            }
+
+            if ($currentLevel > $level) {
+                if ($items === []) {
+                    break;
+                }
+
+                $nested = $this->paragraphListBlock($paragraphs, $index, $currentLevel);
+                $items[count($items) - 1] = $this->listItemWithAppendedBlock($items[count($items) - 1], $nested);
+                continue;
+            }
+
+            if (!$this->paragraphContinuesList($current, $listType, $level, $style, $delimiter, $items === [])) {
+                break;
+            }
+
+            $items[] = new AstNode('list_item', [], [
+                new AstNode('plain', [], $this->parsedParagraphInlines($current)),
+            ]);
+            $index++;
+        }
+
+        return new AstNode($listType, $this->paragraphListAttrs($paragraph, $style, $delimiter), $items);
+    }
+
+    private function listItemWithAppendedBlock(AstNode $item, AstNode $block): AstNode
+    {
+        return new AstNode($item->type, $item->attrs, [...$item->children, $block]);
+    }
+
+    /**
+     * @param array{level:int, bullet:bool, listType:string, text:string, start?:int, startExplicit?:bool, style?:string, delimiter?:string, pptxAutoNumberType?:string, inlines?:list<AstNode>} $paragraph
+     * @return array<string, mixed>
+     */
+    private function paragraphListAttrs(array $paragraph, string $style, string $delimiter): array
+    {
+        if (($paragraph['listType'] ?? '') !== 'ordered_list') {
+            return [];
+        }
+
+        $attrs = [
+            'start' => max(1, (int) ($paragraph['start'] ?? 1)),
+            'style' => $style,
+            'delimiter' => $delimiter,
+        ];
+        if (isset($paragraph['pptxAutoNumberType']) && is_string($paragraph['pptxAutoNumberType'])) {
+            $attrs['pptxAutoNumberType'] = $paragraph['pptxAutoNumberType'];
+        }
+
+        return $attrs;
     }
 
     /**
