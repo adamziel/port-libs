@@ -58,6 +58,7 @@ $parts = [
     ['name' => 'styles.xml', 'data' => $stylesXml, 'compressionMethod' => 8],
     ['name' => 'meta.xml', 'data' => $metaXml, 'compressionMethod' => 0],
     ['name' => 'Pictures/source.png', 'data' => 'SOURCEPNG', 'compressionMethod' => 0],
+    ['name' => 'Scripts/private.js', 'data' => 'alert("blocked");', 'compressionMethod' => 0],
 ];
 
 $buildPackage = static fn (?array $packageParts = null): ZipPackage => ZipPackage::fromParts(
@@ -198,7 +199,7 @@ $expectedSourceRecord = static function (array $zipEntry): array {
 };
 
 return [
-    'carries ODT ZIP source record provenance through compact and rich package review' => static function (TestRunner $t) use ($buildPackage, $indexBy, $sourceRecordSubset, $expectedSourceRecord, $parts): void {
+    'carries ODT ZIP source record provenance through compact and rich package review' => static function (TestRunner $t) use ($buildPackage, $indexBy, $sourceRecordSubset, $expectedSourceRecord, $parts, $contentXml): void {
         $package = $buildPackage();
         $zipBytes = $package->bytes();
         $zipManifestByName = $indexBy($package->packageManifestPreflight()['entries'], 'name');
@@ -209,6 +210,11 @@ return [
         $richIdentity = $richProvenance['packageIdentity'];
         $richIdentityParts = $indexBy($richIdentity['packageEntries'], 'part');
         $compactIdentityParts = $indexBy($compactSummary['packageIdentity']['packageEntries'], 'path');
+        $compactHandoff = $compactSummary['packageByteHandoff'];
+        $compactInventoryHandoff = $compactInventory['packageByteHandoff'];
+        $richHandoff = $richProvenance['packageByteHandoff'];
+        $handoffSourceEntries = $indexBy($richHandoff['selectedSourceManifest']['entries'], 'name');
+        $handoffEntries = $indexBy($richHandoff['handoffEntries'], 'name');
 
         $contentZipEntry = $zipManifestByName['content.xml'];
         $mediaZipEntry = $zipManifestByName['Pictures/source.png'];
@@ -274,6 +280,45 @@ return [
             $richContent['zipCentralDirectoryRawCommentSha256']
         );
         $t->same(true, $richIdentityParts['content.xml']['zipHasSourceRecordProvenance']);
+        $t->same($compactHandoff, $compactInventoryHandoff);
+        $t->same($compactHandoff['selectedSourceManifest'], $richHandoff['selectedSourceManifest']);
+        $t->same($compactHandoff['selectedHandoffManifest'], $richHandoff['selectedHandoffManifest']);
+        $t->same('zip-selected-source-manifest-v2', $richHandoff['selectedSourceManifestVersion']);
+        $t->same($richHandoff['selectedSourceManifest']['manifestSha256'], $richHandoff['selectedSourceManifestSha256']);
+        $t->same('zip-selected-handoff-manifest-v1', $richHandoff['selectedHandoffManifestVersion']);
+        $t->same($richHandoff['selectedHandoffManifest']['manifestSha256'], $richHandoff['selectedHandoffManifestSha256']);
+        $t->same(4, $richHandoff['requestCount']);
+        $t->same(4, $richHandoff['requestedEntryCount']);
+        $t->same(4, $richHandoff['selectedUniqueEntryCount']);
+        $t->same(4, $richHandoff['handoffEntryCount']);
+        $t->same(0, $richHandoff['failedEntryCount']);
+        $t->same(0, $richHandoff['missingEntryCount']);
+        $t->same(true, $richHandoff['isSupportedByBoundedReader']);
+        $t->same([], $richHandoff['issues']);
+        $t->same([
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'Pictures/source.png',
+        ], array_column($richHandoff['selectedSourceManifest']['entries'], 'name'));
+        $t->same(false, isset($handoffSourceEntries['Scripts/private.js']));
+        $t->same('script-package-bytes-blocked', $richProvenance['parts']['Scripts/private.js']['byteExposurePolicy']);
+        $t->same(false, $richProvenance['parts']['Scripts/private.js']['canExposeBytes']);
+        $t->same(['media-resource', 'odf-content', 'odf-meta', 'odf-styles'], array_column($richHandoff['roleSummaries'], 'role'));
+        $t->same(strlen('content source review'), $richHandoff['selectedSourceCentralDirectoryRawCommentBytes']);
+        $t->same(strlen('content source review'), $richHandoff['selectedSourceCentralDirectoryReviewFieldBytes']);
+        $t->same(strlen('content source review'), $richHandoff['selectedSourceReviewFieldBytes']);
+        $t->same($richHandoff['selectedSourceReviewFieldBytes'], $richHandoff['selectedSourceManifest']['reviewFieldBytes']);
+        $t->same($richHandoff['selectedSourceLocalRecordBytes'], $richHandoff['selectedSourceManifest']['localRecordBytes']);
+        $t->same($richHandoff['selectedSourceLocalHeaderBytes'], $richHandoff['selectedSourceManifest']['localHeaderBytes']);
+        $t->same($richHandoff['selectedSourceCentralDirectoryRecordBytes'], $richHandoff['selectedSourceManifest']['centralDirectoryRecordBytes']);
+        $t->same($richHandoff['selectedSourceTotalRecordBytes'], $richHandoff['selectedSourceManifest']['sourceRecordBytes']);
+        $t->same(strlen('content source review'), $handoffSourceEntries['content.xml']['centralDirectoryRawCommentBytes']);
+        $t->same(strlen('content source review'), $handoffSourceEntries['content.xml']['centralDirectoryReviewFieldBytes']);
+        $t->same(hash('sha256', $contentXml), $handoffEntries['content.xml']['contentSha256']);
+        $t->same(hash('sha256', 'SOURCEPNG'), $handoffEntries['Pictures/source.png']['contentSha256']);
+        $t->same('odf-selected-package-byte-handoff-metadata-only', $richHandoff['byteExposurePolicy']);
+        $t->same(false, $richHandoff['canExposeBytes']);
         $t->true($richIdentity['identitySha256'] !== $changedIdentity['identitySha256']);
         $t->same(false, $richIdentity['canExposeBytes']);
         $t->same('odf-package-identity-metadata-only', $richIdentity['byteExposurePolicy']);

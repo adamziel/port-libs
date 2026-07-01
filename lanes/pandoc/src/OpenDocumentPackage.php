@@ -281,6 +281,7 @@ final class OpenDocumentPackage
      *     encryptedParts:list<string>,
      *     manifestReview:array<string, mixed>,
      *     packageInventory:array<string, mixed>,
+     *     packageByteHandoff:array<string, mixed>,
      *     packageIdentity:array<string, mixed>,
      *     undeclaredPackageEntryCount:int,
      *     undeclaredPackageEntries:list<array<string, mixed>>,
@@ -426,6 +427,7 @@ final class OpenDocumentPackage
                 $this->manifestRootExtensionElements
             ),
             'packageInventory' => $packageInventory,
+            'packageByteHandoff' => $packageInventory['packageByteHandoff'],
             'packageIdentity' => $this->packageIdentity($packageInventory),
             'metadata' => $this->metadata,
             'settings' => $this->settings,
@@ -1077,6 +1079,7 @@ final class OpenDocumentPackage
         $packageAreaSummaries = self::finalizePackageAreaSummaries($packageAreaSummaries);
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($this->manifestEntries, $parts, $undeclaredEntries);
+        $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($this->package, $parts, 'path');
 
         return [
             'entryCount' => count($parts),
@@ -1125,6 +1128,7 @@ final class OpenDocumentPackage
             'byteExposurePolicyItems' => $byteExposurePolicyItems,
             'byteExposurePolicyByteLengths' => $byteExposurePolicyByteLengths,
             'byteExposurePolicyCompressedByteLengths' => $byteExposurePolicyCompressedByteLengths,
+            'packageByteHandoff' => $packageByteHandoff,
             'manifestMediaFamilyCounts' => $manifestMediaFamilyCounts,
             'manifestMediaFamilyByteLengths' => $manifestMediaFamilyByteLengths,
             'manifestMediaFamilyCompressedByteLengths' => $manifestMediaFamilyCompressedByteLengths,

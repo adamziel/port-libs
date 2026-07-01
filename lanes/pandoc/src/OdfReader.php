@@ -1994,6 +1994,7 @@ final class OdfReader
         $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
+        $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
         sort($manifestCustomAttributeNames, SORT_STRING);
         sort($manifestCustomChildElementNames, SORT_STRING);
 
@@ -2068,6 +2069,7 @@ final class OdfReader
             'packagePartByteExposurePolicyCounts' => $packagePartByteExposurePolicyCounts,
             'packagePartByteExposurePolicyByteLengths' => $packagePartByteExposurePolicyByteLengths,
             'packagePartByteExposurePolicyCompressedByteLengths' => $packagePartByteExposurePolicyCompressedByteLengths,
+            'packageByteHandoff' => $packageByteHandoff,
             'packageAreaCounts' => $packageAreaCounts,
             'packageAreaByteLengths' => $packageAreaByteLengths,
             'packageAreaCompressedByteLengths' => $packageAreaCompressedByteLengths,
