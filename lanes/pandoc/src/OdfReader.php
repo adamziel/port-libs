@@ -1438,6 +1438,7 @@ final class OdfReader
         $internalAttributes = $package->internalAttributePreflight();
         $extraFields = $package->extraFieldPreflight();
         $packageManifest = $package->packageManifestPreflight();
+        $zipPackageManifestSummary = self::zipPackageManifestAggregateProvenance($packageManifest);
         $packageManifestEntriesByName = self::zipPreflightEntriesByName($packageManifest);
         $localHeaderMetadata = ZipPackage::localHeaderMetadataPreflight($package->bytes());
         $manifestByPart = [];
@@ -2055,6 +2056,7 @@ final class OdfReader
             'centralDirectoryOrderMatchesLocalHeaderOrder' => !$localHeaderOrder['hasCentralDirectoryOrderMismatch'],
             'zipPackageManifest' => $packageManifest,
             'zipPackageManifestSha256' => $packageManifest['manifestSha256'],
+            ...$zipPackageManifestSummary,
             'packageSource' => $packageManifest['packageSource'],
             'archiveLength' => $packageManifest['archiveLength'],
             'archiveSha256' => $packageManifest['archiveSha256'],
@@ -2145,6 +2147,9 @@ final class OdfReader
      */
     private function packageIdentityProvenance(array $provenance): array
     {
+        $zipPackageManifestSummary = self::zipPackageManifestAggregateProvenance(
+            is_array($provenance['zipPackageManifest'] ?? null) ? $provenance['zipPackageManifest'] : []
+        );
         $manifestEntries = [];
         foreach ($provenance['manifestFileEntryOrder'] ?? [] as $item) {
             if (!is_array($item)) {
@@ -2479,6 +2484,7 @@ final class OdfReader
             'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
             'centralDirectoryOrderMatchesLocalHeaderOrder' => ($provenance['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? false) === true,
             'zipPackageManifestSha256' => $provenance['zipPackageManifestSha256'] ?? null,
+            ...$zipPackageManifestSummary,
             'packageSource' => $provenance['packageSource'] ?? [],
             'archiveLength' => $provenance['archiveLength'] ?? 0,
             'archiveSha256' => $provenance['archiveSha256'] ?? null,
@@ -2583,6 +2589,7 @@ final class OdfReader
             'stylePackageProvenance' => $provenance['stylePackageProvenance'] ?? [],
             'undeclaredEntryCount' => $provenance['undeclaredEntryCount'] ?? 0,
             'zipPackageManifestSha256' => $provenance['zipPackageManifestSha256'] ?? null,
+            ...$zipPackageManifestSummary,
             'packageSource' => $provenance['packageSource'] ?? [],
             'archiveLength' => $provenance['archiveLength'] ?? 0,
             'archiveSha256' => $provenance['archiveSha256'] ?? null,
@@ -3736,6 +3743,58 @@ final class OdfReader
             'zipSourceRecordBytes' => $sourceRecordBytes,
             'zipHasSourceRecordProvenance' => is_string($entry['localRecordSha256'] ?? null)
                 && is_string($entry['centralDirectoryRecordSha256'] ?? null),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $manifest
+     * @return array<string, mixed>
+     */
+    private static function zipPackageManifestAggregateProvenance(array $manifest): array
+    {
+        return [
+            'zipPackageManifestVersion' => $manifest['manifestVersion'] ?? null,
+            'zipPackageManifestEntryCount' => $manifest['entryCount'] ?? 0,
+            'zipPackageManifestFileEntryCount' => $manifest['fileEntryCount'] ?? 0,
+            'zipPackageManifestDirectoryEntryCount' => $manifest['directoryEntryCount'] ?? 0,
+            'zipPackageManifestCompressedBytes' => $manifest['compressedBytes'] ?? 0,
+            'zipPackageManifestUncompressedBytes' => $manifest['uncompressedBytes'] ?? 0,
+            'zipPackageManifestLocalHeaderBytes' => $manifest['localHeaderBytes'] ?? 0,
+            'zipPackageManifestLocalHeaderFixedHeaderBytes' => $manifest['localHeaderFixedHeaderBytes'] ?? 0,
+            'zipPackageManifestLocalHeaderVariableFieldBytes' => $manifest['localHeaderVariableFieldBytes'] ?? 0,
+            'zipPackageManifestLocalHeaderRawNameBytes' => $manifest['localHeaderRawNameBytes'] ?? 0,
+            'zipPackageManifestLocalHeaderExtraFieldBytes' => $manifest['localHeaderExtraFieldBytes'] ?? 0,
+            'zipPackageManifestLocalHeaderReviewFieldBytes' => $manifest['localHeaderReviewFieldBytes'] ?? 0,
+            'zipPackageManifestLocalExtraFieldEntryCount' => $manifest['localExtraFieldEntryCount'] ?? 0,
+            'zipPackageManifestHasLocalHeaderReviewFields' => ($manifest['hasLocalHeaderReviewFields'] ?? false) === true,
+            'zipPackageManifestLocalRecordBytes' => $manifest['localRecordBytes'] ?? 0,
+            'zipPackageManifestDataDescriptorEntryCount' => $manifest['dataDescriptorEntryCount'] ?? 0,
+            'zipPackageManifestDataDescriptorBytes' => $manifest['dataDescriptorBytes'] ?? 0,
+            'zipPackageManifestStoredEntryCount' => $manifest['storedEntryCount'] ?? 0,
+            'zipPackageManifestDeflatedEntryCount' => $manifest['deflatedEntryCount'] ?? 0,
+            'zipPackageManifestUnsupportedCompressionMethodCount' => $manifest['unsupportedCompressionMethodCount'] ?? 0,
+            'zipPackageManifestCentralDirectoryRecordBytes' => $manifest['centralDirectoryRecordBytes'] ?? 0,
+            'zipPackageManifestCentralDirectoryFixedHeaderBytes' => $manifest['centralDirectoryFixedHeaderBytes'] ?? 0,
+            'zipPackageManifestCentralDirectoryVariableFieldBytes' => $manifest['centralDirectoryVariableFieldBytes'] ?? 0,
+            'zipPackageManifestCentralDirectoryRawNameBytes' => $manifest['centralDirectoryRawNameBytes'] ?? 0,
+            'zipPackageManifestCentralDirectoryExtraFieldBytes' => $manifest['centralDirectoryExtraFieldBytes'] ?? 0,
+            'zipPackageManifestCentralDirectoryRawCommentBytes' => $manifest['centralDirectoryRawCommentBytes'] ?? 0,
+            'zipPackageManifestCentralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'] ?? 0,
+            'zipPackageManifestCentralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'] ?? 0,
+            'zipPackageManifestEntryCommentCount' => $manifest['entryCommentCount'] ?? 0,
+            'zipPackageManifestHasCentralDirectoryReviewFields' => ($manifest['hasCentralDirectoryReviewFields'] ?? false) === true,
+            'zipPackageManifestMaxPathSegmentCount' => $manifest['maxPathSegmentCount'] ?? 0,
+            'zipPackageManifestMaxDirectoryDepth' => $manifest['maxDirectoryDepth'] ?? 0,
+            'zipPackageManifestDeepestEntryNames' => is_array($manifest['deepestEntryNames'] ?? null) ? $manifest['deepestEntryNames'] : [],
+            'zipPackageManifestDeepestEntryNameCount' => is_array($manifest['deepestEntryNames'] ?? null) ? count($manifest['deepestEntryNames']) : 0,
+            'zipPackageManifestCompressionMethodSummaryCount' => $manifest['compressionMethodSummaryCount'] ?? 0,
+            'zipPackageManifestCompressionMethodSummaries' => is_array($manifest['compressionMethodSummaries'] ?? null) ? $manifest['compressionMethodSummaries'] : [],
+            'zipPackageManifestDirectoryRootCount' => $manifest['directoryRootCount'] ?? 0,
+            'zipPackageManifestDirectoryRoots' => is_array($manifest['directoryRoots'] ?? null) ? $manifest['directoryRoots'] : [],
+            'zipPackageManifestDirectoryRootSummaries' => is_array($manifest['directoryRootSummaries'] ?? null) ? $manifest['directoryRootSummaries'] : [],
+            'zipPackageManifestCentralDirectoryOrderNames' => is_array($manifest['centralDirectoryOrderNames'] ?? null) ? $manifest['centralDirectoryOrderNames'] : [],
+            'zipPackageManifestLocalHeaderOrderNames' => is_array($manifest['localHeaderOrderNames'] ?? null) ? $manifest['localHeaderOrderNames'] : [],
+            'zipPackageManifestCentralDirectoryOrderMatchesLocalHeaderOrder' => ($manifest['centralDirectoryOrderMatchesLocalHeaderOrder'] ?? false) === true,
         ];
     }
 
