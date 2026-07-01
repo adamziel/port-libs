@@ -3461,6 +3461,90 @@ XML);
     }
 };
 
+$buildShadowedDrawingMediaPrefixPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-shadowed-drawing-media-prefix-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+       xmlns:a="urn:not-drawingml">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Shadowed drawing media title</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:pic>
+      <p:nvPicPr><p:cNvPr id="7" name="Shadowed Drawing Picture" descr="Shadowed drawing alt"/><p:cNvPicPr/><p:nvPr/></p:nvPicPr>
+      <p:blipFill xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:blip r:embed="rIdImage"/></p:blipFill>
+    </p:pic>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Shadowed Drawing Table"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">
+          <a:tbl>
+            <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Shadowed table header</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+            <a:tr><a:tc><a:txBody><a:p><a:r><a:t>Shadowed table body</a:t></a:r></a:p></a:txBody></a:tc></a:tr>
+          </a:tbl>
+        </a:graphicData>
+      </a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/shadowed-drawing.png"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/media/shadowed-drawing.png', 'shadowed-drawing-image-bytes');
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildWrongNamespacePresentationSlidesPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-wrong-ns-presentation-');
     if ($path === false) {
@@ -5333,6 +5417,24 @@ return [
         $t->same([], $nodesOfType($document, 'paragraph'));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Shadowed" , Space , Str "drawing" , Space , Str "prefix" , Space , Str "title" ]', $native);
         $t->true(!str_contains($native, 'Shadowed drawing prefix body'), 'Locally corrected text-body DrawingML should not override the slide root a prefix binding');
+    },
+
+    'uses the slide root a prefix binding for pictures and graphic frames like upstream' => static function (TestRunner $t) use ($buildShadowedDrawingMediaPrefixPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildShadowedDrawingMediaPrefixPptxPackage());
+        $review = $document->attr('pptx');
+        $headings = $nodesOfType($document, 'heading');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('Shadowed drawing media title', $headings[0]->attr('text'));
+        $t->same([], $nodesOfType($document, 'image'));
+        $t->same([], $nodesOfType($document, 'table'));
+        $t->same(0, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same(1, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "Shadowed" , Space , Str "drawing" , Space , Str "media" , Space , Str "title" ]', $native);
+        $t->true(!str_contains($native, 'shadowed-drawing.png'), 'Locally corrected picture DrawingML should not override the slide root a prefix binding');
+        $t->true(!str_contains($native, 'Shadowed table header'), 'Locally corrected graphic-frame DrawingML should not override the slide root a prefix binding');
+        $t->true(!str_contains($native, 'Shadowed table body'), 'Locally corrected table DrawingML should not become visible under a wrong slide root a binding');
     },
 
     'ignores pptx presentation slide lists outside the presentation namespace like upstream' => static function (TestRunner $t) use ($buildWrongNamespacePresentationSlidesPptxPackage): void {

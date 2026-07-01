@@ -1567,7 +1567,7 @@ final class PptxReader
 
         if ($shapeElement->localName === 'pic') {
             $this->appendRichMediaReviews($richMedia, $shapeElement, $slideRelationships, $zOrder);
-            $image = $this->pictureNode($package, $shapeElement, $slideRelationships, $relationshipNamespace, $imageIssues);
+            $image = $this->pictureNode($package, $shapeElement, $slideRelationships, $relationshipNamespace, $drawingNamespace, $imageIssues);
 
             return $this->withShapeMetadata($image instanceof AstNode ? [new AstNode('paragraph', [], [$image])] : [], $shapeElement, $zOrder);
         }
@@ -1576,7 +1576,7 @@ final class PptxReader
             return $this->unsupportedDrawableShapeBlocks($shapeElement, $slideRelationships, $zOrder, $shapeIssues, $richMedia);
         }
 
-        $graphicData = $this->graphicDataElement($shapeElement);
+        $graphicData = $this->graphicDataElement($shapeElement, $drawingNamespace);
         if (!$graphicData instanceof \DOMElement) {
             return $this->unsupportedDrawableShapeBlocks($shapeElement, $slideRelationships, $zOrder, $shapeIssues, $richMedia);
         }
@@ -2153,7 +2153,7 @@ final class PptxReader
     /**
      * @param list<array<string, mixed>> $imageIssues
      */
-    private function pictureNode(ZipPackage $package, \DOMElement $pictureElement, OpcRelationships $slideRelationships, ?string $relationshipNamespace, array &$imageIssues): ?AstNode
+    private function pictureNode(ZipPackage $package, \DOMElement $pictureElement, OpcRelationships $slideRelationships, ?string $relationshipNamespace, ?string $drawingNamespace, array &$imageIssues): ?AstNode
     {
         $nonVisual = $this->firstPresentationChildElement($pictureElement, 'nvPicPr');
         $properties = $nonVisual instanceof \DOMElement ? $this->firstPresentationChildElement($nonVisual, 'cNvPr') : null;
@@ -2166,7 +2166,7 @@ final class PptxReader
         $title = $properties->getAttribute('name');
         $alt = $properties->getAttribute('descr');
         $blipFill = $this->firstPresentationChildElement($pictureElement, 'blipFill');
-        $blip = $blipFill instanceof \DOMElement ? $this->firstDrawingChildElement($blipFill, 'blip') : null;
+        $blip = $blipFill instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($blipFill, 'a', 'blip', $drawingNamespace) : null;
         if (!$blip instanceof \DOMElement) {
             return null;
         }
@@ -2248,11 +2248,11 @@ final class PptxReader
         return $target;
     }
 
-    private function graphicDataElement(\DOMElement $graphicFrame): ?\DOMElement
+    private function graphicDataElement(\DOMElement $graphicFrame, ?string $drawingNamespace): ?\DOMElement
     {
-        $graphic = $this->firstDrawingChildElement($graphicFrame, 'graphic');
+        $graphic = $this->firstChildElementForOuterPrefix($graphicFrame, 'a', 'graphic', $drawingNamespace);
 
-        return $graphic instanceof \DOMElement ? $this->firstDrawingChildElement($graphic, 'graphicData') : null;
+        return $graphic instanceof \DOMElement ? $this->firstChildElementForOuterPrefix($graphic, 'a', 'graphicData', $drawingNamespace) : null;
     }
 
     private function chartNode(ZipPackage $package, \DOMElement $graphicData, OpcRelationships $slideRelationships): ?AstNode
@@ -3411,6 +3411,16 @@ final class PptxReader
         }
 
         return null;
+    }
+
+    private function firstChildElementForOuterPrefix(\DOMElement $parent, string $prefix, string $localName, ?string $outerNamespace): ?\DOMElement
+    {
+        return $this->firstChildElementForPrefix(
+            $parent,
+            $prefix,
+            $localName,
+            $outerNamespace ?? $this->localNamespaceForPrefix($parent, $prefix)
+        );
     }
 
     /**
