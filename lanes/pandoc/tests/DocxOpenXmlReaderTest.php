@@ -4520,7 +4520,7 @@ XML;
         $parts['[Content_Types].xml'] = str_replace(
             '</Types>',
             '  <Default Extension="bin" ContentType="application/octet-stream; profile=package-default"/>' . "\n" .
-            '  <Default Extension="unused" ContentType="application/vnd.example.unused"/>' . "\n" .
+            '  <Default Extension="unused" ContentType="application/vnd.example.unused; profile=unused-default; flavor=shadow"/>' . "\n" .
             '</Types>',
             $parts['[Content_Types].xml']
         );
@@ -4551,6 +4551,15 @@ XML;
         $t->same(1, $contentTypesPart['extensionlessMissingContentTypePartCount']);
         $t->same(['unused'], $contentTypesPart['unusedDefaultExtensions']);
         $t->same(['payload'], $contentTypesPart['missingDefaultExtensions']);
+        $t->same(2, $contentTypesPart['parameterizedDefaultDeclarationCount']);
+        $t->same([
+            'application/octet-stream' => 1,
+            'application/vnd.example.unused' => 1,
+            'application/vnd.openxmlformats-package.relationships+xml' => 1,
+            'application/xml' => 1,
+            'image/png' => 1,
+        ], $contentTypesPart['defaultDeclarationContentTypeBaseCounts']);
+        $t->same(['flavor' => 1, 'profile' => 2], $contentTypesPart['defaultDeclarationContentTypeParameterNameCounts']);
         $t->same([
             'missing-content-type' => 2,
             'missing-content-type-default' => 1,
@@ -4571,6 +4580,8 @@ XML;
         $t->same('application/octet-stream', $declarations['bin']['contentTypeBase']);
         $t->same(['profile' => 'package-default'], $declarations['bin']['contentTypeParameterMap']);
         $t->same(0, $declarations['unused']['packagePartCount']);
+        $t->same(true, $declarations['unused']['contentTypeHasParameters']);
+        $t->same(['profile' => 'unused-default', 'flavor' => 'shadow'], $declarations['unused']['contentTypeParameterMap']);
 
         $t->same('payload', $missingParts['word/custom/raw.payload']['extension']);
         $t->same(['missing-content-type', 'missing-content-type-default'], $missingParts['word/custom/raw.payload']['issues']);
@@ -4588,6 +4599,9 @@ XML;
         $t->same($contentTypesPart['extensionlessMissingContentTypePartCount'], $summary['contentTypeExtensionlessMissingContentTypePartCount']);
         $t->same($contentTypesPart['unusedDefaultExtensions'], $summary['contentTypeUnusedDefaultExtensions']);
         $t->same($contentTypesPart['missingDefaultExtensions'], $summary['contentTypeMissingDefaultExtensions']);
+        $t->same($contentTypesPart['parameterizedDefaultDeclarationCount'], $summary['contentTypeParameterizedDefaultDeclarationCount']);
+        $t->same($contentTypesPart['defaultDeclarationContentTypeBaseCounts'], $summary['contentTypeDefaultDeclarationContentTypeBaseCounts']);
+        $t->same($contentTypesPart['defaultDeclarationContentTypeParameterNameCounts'], $summary['contentTypeDefaultDeclarationContentTypeParameterNameCounts']);
         $t->same($contentTypesPart['defaultDeclarationIssueCounts'], $summary['contentTypeDefaultDeclarationIssueCounts']);
         $t->same($contentTypesPart['defaultDeclarationIssues'], $summary['contentTypeDefaultDeclarationIssues']);
     },

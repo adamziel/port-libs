@@ -17206,6 +17206,9 @@ final class DocxOpenXmlReader
             'contentTypeExtensionlessMissingContentTypePartCount' => (int) ($contentTypesPart['extensionlessMissingContentTypePartCount'] ?? 0),
             'contentTypeUnusedDefaultExtensions' => $contentTypesPart['unusedDefaultExtensions'] ?? [],
             'contentTypeMissingDefaultExtensions' => $contentTypesPart['missingDefaultExtensions'] ?? [],
+            'contentTypeParameterizedDefaultDeclarationCount' => (int) ($contentTypesPart['parameterizedDefaultDeclarationCount'] ?? 0),
+            'contentTypeDefaultDeclarationContentTypeBaseCounts' => $contentTypesPart['defaultDeclarationContentTypeBaseCounts'] ?? [],
+            'contentTypeDefaultDeclarationContentTypeParameterNameCounts' => $contentTypesPart['defaultDeclarationContentTypeParameterNameCounts'] ?? [],
             'contentTypeDefaultDeclarationIssueCounts' => $contentTypesPart['defaultDeclarationIssueCounts'] ?? [],
             'contentTypeDefaultDeclarationIssues' => $contentTypesPart['defaultDeclarationIssues'] ?? [],
             'contentTypeDefaultDeclarationMissingParts' => $contentTypesPart['defaultDeclarationMissingParts'] ?? [],
@@ -26399,6 +26402,9 @@ final class DocxOpenXmlReader
             'extensionlessMissingContentTypePartCount' => $defaultDeclarationSummary['extensionlessMissingPartCount'],
             'unusedDefaultExtensions' => $defaultDeclarationSummary['unusedExtensions'],
             'missingDefaultExtensions' => $defaultDeclarationSummary['missingExtensions'],
+            'parameterizedDefaultDeclarationCount' => $defaultDeclarationSummary['parameterizedDeclarationCount'],
+            'defaultDeclarationContentTypeBaseCounts' => $defaultDeclarationSummary['contentTypeBaseCounts'],
+            'defaultDeclarationContentTypeParameterNameCounts' => $defaultDeclarationSummary['contentTypeParameterNameCounts'],
             'defaultDeclarationIssueCounts' => $defaultDeclarationSummary['issueCounts'],
             'defaultDeclarationIssues' => $defaultDeclarationSummary['issues'],
             'defaultDeclarations' => $defaultDeclarationSummary['declarations'],
@@ -26556,7 +26562,26 @@ final class DocxOpenXmlReader
         $missingParts = [];
         $missingExtensions = [];
         $issueCounts = [];
+        $contentTypeBaseCounts = [];
+        $contentTypeParameterNameCounts = [];
+        $parameterizedDeclarationCount = 0;
         $extensionlessMissingPartCount = 0;
+        foreach ($declarations as $declaration) {
+            $contentTypeBase = is_string($declaration['contentTypeBase'] ?? null) ? $declaration['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $contentTypeBaseCounts[$contentTypeBaseKey] = ($contentTypeBaseCounts[$contentTypeBaseKey] ?? 0) + 1;
+            $parameterMap = is_array($declaration['contentTypeParameterMap'] ?? null)
+                ? $declaration['contentTypeParameterMap']
+                : [];
+            if ($parameterMap !== []) {
+                ++$parameterizedDeclarationCount;
+            }
+            foreach ($parameterMap as $parameterName => $_parameterValue) {
+                if (is_string($parameterName) && $parameterName !== '') {
+                    $contentTypeParameterNameCounts[$parameterName] = ($contentTypeParameterNameCounts[$parameterName] ?? 0) + 1;
+                }
+            }
+        }
 
         foreach ($parts as $partName => $contents) {
             $resolution = $this->contentTypeResolutionForPart($partName, $contentTypes);
@@ -26623,6 +26648,8 @@ final class DocxOpenXmlReader
 
         sort($unusedExtensions, SORT_STRING);
         sort($missingExtensions, SORT_STRING);
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($contentTypeParameterNameCounts, SORT_STRING);
         ksort($issueCounts, SORT_STRING);
         usort(
             $missingParts,
@@ -26639,6 +26666,9 @@ final class DocxOpenXmlReader
             'extensionlessMissingPartCount' => $extensionlessMissingPartCount,
             'unusedExtensions' => $unusedExtensions,
             'missingExtensions' => $missingExtensions,
+            'parameterizedDeclarationCount' => $parameterizedDeclarationCount,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'contentTypeParameterNameCounts' => $contentTypeParameterNameCounts,
             'issueCounts' => $issueCounts,
             'issues' => array_keys($issueCounts),
             'declarations' => array_values($declarations),
