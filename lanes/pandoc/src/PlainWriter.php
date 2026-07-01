@@ -32,6 +32,13 @@ final class PlainWriter
      *     softWrapBreakCount:int,
      *     wrapSplitLineCount:int,
      *     generatedWrapBreakCount:int,
+     *     wrapOpportunityBreakCount:int,
+     *     spaceWrapOpportunityBreakCount:int,
+     *     unicodeSpaceWrapOpportunityBreakCount:int,
+     *     tabWrapOpportunityBreakCount:int,
+     *     zeroWidthSpaceWrapOpportunityBreakCount:int,
+     *     softHyphenWrapOpportunityBreakCount:int,
+     *     visibleBreakAfterWrapOpportunityBreakCount:int,
      *     maxGeneratedWrapBreaksPerSourceLine:int,
      *     wrappedSourceLineCount:int,
      *     wrappedSourceLineSampleLimit:int,
@@ -129,6 +136,13 @@ final class PlainWriter
         $softWrapBreakCount = 0;
         $wrapSplitLineCount = 0;
         $generatedWrapBreakCount = 0;
+        $wrapOpportunityBreakCount = 0;
+        $spaceWrapOpportunityBreakCount = 0;
+        $unicodeSpaceWrapOpportunityBreakCount = 0;
+        $tabWrapOpportunityBreakCount = 0;
+        $zeroWidthSpaceWrapOpportunityBreakCount = 0;
+        $softHyphenWrapOpportunityBreakCount = 0;
+        $visibleBreakAfterWrapOpportunityBreakCount = 0;
         $maxGeneratedWrapBreaksPerSourceLine = 0;
         $wrappedSourceLineCount = 0;
         $wrappedSourceLines = [];
@@ -193,6 +207,14 @@ final class PlainWriter
                 $wrapMetrics['maxGeneratedBreaksPerSourceLine']
             );
             $wrappedSourceLineCount += $wrapMetrics['splitLineCount'];
+            $wrapOpportunityMetrics = $this->wrapOpportunityBreakMetrics($source, $columns, $wrapMode, $ambiguousWidth);
+            $wrapOpportunityBreakCount += $wrapOpportunityMetrics['wrapOpportunityBreakCount'];
+            $spaceWrapOpportunityBreakCount += $wrapOpportunityMetrics['spaceWrapOpportunityBreakCount'];
+            $unicodeSpaceWrapOpportunityBreakCount += $wrapOpportunityMetrics['unicodeSpaceWrapOpportunityBreakCount'];
+            $tabWrapOpportunityBreakCount += $wrapOpportunityMetrics['tabWrapOpportunityBreakCount'];
+            $zeroWidthSpaceWrapOpportunityBreakCount += $wrapOpportunityMetrics['zeroWidthSpaceWrapOpportunityBreakCount'];
+            $softHyphenWrapOpportunityBreakCount += $wrapOpportunityMetrics['softHyphenWrapOpportunityBreakCount'];
+            $visibleBreakAfterWrapOpportunityBreakCount += $wrapOpportunityMetrics['visibleBreakAfterWrapOpportunityBreakCount'];
             foreach ($wrapMetrics['wrappedSourceLines'] as $lineDiagnostic) {
                 if (count($wrappedSourceLines) >= self::WRAPPED_SOURCE_LINE_SAMPLE_LIMIT) {
                     break;
@@ -292,6 +314,13 @@ final class PlainWriter
                 'softWrapBreakCount' => $softWrapBreakCount,
                 'wrapSplitLineCount' => $wrapSplitLineCount,
                 'generatedWrapBreakCount' => $generatedWrapBreakCount,
+                'wrapOpportunityBreakCount' => $wrapOpportunityBreakCount,
+                'spaceWrapOpportunityBreakCount' => $spaceWrapOpportunityBreakCount,
+                'unicodeSpaceWrapOpportunityBreakCount' => $unicodeSpaceWrapOpportunityBreakCount,
+                'tabWrapOpportunityBreakCount' => $tabWrapOpportunityBreakCount,
+                'zeroWidthSpaceWrapOpportunityBreakCount' => $zeroWidthSpaceWrapOpportunityBreakCount,
+                'softHyphenWrapOpportunityBreakCount' => $softHyphenWrapOpportunityBreakCount,
+                'visibleBreakAfterWrapOpportunityBreakCount' => $visibleBreakAfterWrapOpportunityBreakCount,
                 'maxGeneratedWrapBreaksPerSourceLine' => $maxGeneratedWrapBreaksPerSourceLine,
                 'wrappedSourceLineCount' => $wrappedSourceLineCount,
                 'wrappedSourceLineSampleLimit' => self::WRAPPED_SOURCE_LINE_SAMPLE_LIMIT,
@@ -914,6 +943,264 @@ final class PlainWriter
         }
 
         return $breaks;
+    }
+
+    /**
+     * @return array{
+     *   wrapOpportunityBreakCount:int,
+     *   spaceWrapOpportunityBreakCount:int,
+     *   unicodeSpaceWrapOpportunityBreakCount:int,
+     *   tabWrapOpportunityBreakCount:int,
+     *   zeroWidthSpaceWrapOpportunityBreakCount:int,
+     *   softHyphenWrapOpportunityBreakCount:int,
+     *   visibleBreakAfterWrapOpportunityBreakCount:int
+     * }
+     */
+    private function wrapOpportunityBreakMetrics(string $source, int $columns, string $wrapMode, string $ambiguousWidth): array
+    {
+        $metrics = $this->emptyWrapOpportunityBreakMetrics();
+        if ($wrapMode !== 'auto' || $columns <= 0) {
+            return $metrics;
+        }
+
+        $sourceLines = preg_split('/\R/u', $source);
+        if ($sourceLines === false) {
+            $sourceLines = explode("\n", $source);
+        }
+
+        foreach ($sourceLines as $line) {
+            foreach ($this->wrapOpportunityBreakMetricsForLine($line, $columns, $ambiguousWidth) as $key => $value) {
+                $metrics[$key] += $value;
+            }
+        }
+
+        return $metrics;
+    }
+
+    /**
+     * @return array{
+     *   wrapOpportunityBreakCount:int,
+     *   spaceWrapOpportunityBreakCount:int,
+     *   unicodeSpaceWrapOpportunityBreakCount:int,
+     *   tabWrapOpportunityBreakCount:int,
+     *   zeroWidthSpaceWrapOpportunityBreakCount:int,
+     *   softHyphenWrapOpportunityBreakCount:int,
+     *   visibleBreakAfterWrapOpportunityBreakCount:int
+     * }
+     */
+    private function wrapOpportunityBreakMetricsForLine(string $line, int $columns, string $ambiguousWidth): array
+    {
+        $metrics = $this->emptyWrapOpportunityBreakMetrics();
+        $fragments = $this->diagnosticWrapFragments($line);
+        if ($fragments === []) {
+            return $metrics;
+        }
+
+        $current = '';
+        $lineIndex = 0;
+        foreach ($fragments as $fragment) {
+            $text = $fragment['text'];
+            if ($current === '') {
+                [$lineIndex, $current] = $this->startDiagnosticWrappedToken($lineIndex, $text, $columns, $ambiguousWidth);
+                continue;
+            }
+
+            $candidate = $current
+                . $this->diagnosticWrapSeparatorText($fragment['separatorType'], $fragment['separatorText'])
+                . $text;
+            if (UnicodeText::displayWidth($candidate, $ambiguousWidth) <= $columns) {
+                $current = $candidate;
+                continue;
+            }
+
+            $this->incrementWrapOpportunityBreakMetric($metrics, $fragment['separatorType']);
+            ++$lineIndex;
+            [$lineIndex, $current] = $this->startDiagnosticWrappedToken($lineIndex, $text, $columns, $ambiguousWidth);
+        }
+
+        return $metrics;
+    }
+
+    /**
+     * @return array{
+     *   wrapOpportunityBreakCount:int,
+     *   spaceWrapOpportunityBreakCount:int,
+     *   unicodeSpaceWrapOpportunityBreakCount:int,
+     *   tabWrapOpportunityBreakCount:int,
+     *   zeroWidthSpaceWrapOpportunityBreakCount:int,
+     *   softHyphenWrapOpportunityBreakCount:int,
+     *   visibleBreakAfterWrapOpportunityBreakCount:int
+     * }
+     */
+    private function emptyWrapOpportunityBreakMetrics(): array
+    {
+        return [
+            'wrapOpportunityBreakCount' => 0,
+            'spaceWrapOpportunityBreakCount' => 0,
+            'unicodeSpaceWrapOpportunityBreakCount' => 0,
+            'tabWrapOpportunityBreakCount' => 0,
+            'zeroWidthSpaceWrapOpportunityBreakCount' => 0,
+            'softHyphenWrapOpportunityBreakCount' => 0,
+            'visibleBreakAfterWrapOpportunityBreakCount' => 0,
+        ];
+    }
+
+    /**
+     * @param array{
+     *   wrapOpportunityBreakCount:int,
+     *   spaceWrapOpportunityBreakCount:int,
+     *   unicodeSpaceWrapOpportunityBreakCount:int,
+     *   tabWrapOpportunityBreakCount:int,
+     *   zeroWidthSpaceWrapOpportunityBreakCount:int,
+     *   softHyphenWrapOpportunityBreakCount:int,
+     *   visibleBreakAfterWrapOpportunityBreakCount:int
+     * } $metrics
+     */
+    private function incrementWrapOpportunityBreakMetric(array &$metrics, string $separatorType): void
+    {
+        $metric = match ($separatorType) {
+            'space' => 'spaceWrapOpportunityBreakCount',
+            'unicodeSpace' => 'unicodeSpaceWrapOpportunityBreakCount',
+            'tab' => 'tabWrapOpportunityBreakCount',
+            'zeroWidthSpace' => 'zeroWidthSpaceWrapOpportunityBreakCount',
+            'softHyphen' => 'softHyphenWrapOpportunityBreakCount',
+            'visibleBreakAfter' => 'visibleBreakAfterWrapOpportunityBreakCount',
+            default => null,
+        };
+
+        if ($metric === null) {
+            return;
+        }
+
+        ++$metrics['wrapOpportunityBreakCount'];
+        ++$metrics[$metric];
+    }
+
+    /**
+     * @return array{0:int, 1:string}
+     */
+    private function startDiagnosticWrappedToken(int $lineIndex, string $token, int $columns, string $ambiguousWidth): array
+    {
+        while ($token !== '' && UnicodeText::displayWidth($token, $ambiguousWidth) > $columns) {
+            [$segment, $token] = UnicodeText::splitAtDisplayWidth($token, $columns, $ambiguousWidth);
+            if ($segment === '') {
+                [$segment, $token] = UnicodeText::splitAtDisplayWidth($token, 1, $ambiguousWidth);
+            }
+            ++$lineIndex;
+        }
+
+        return [$lineIndex, $token];
+    }
+
+    /**
+     * @return list<array{text:string, separatorType:string, separatorText:string}>
+     */
+    private function diagnosticWrapFragments(string $line): array
+    {
+        $line = trim($line);
+        if ($line === '') {
+            return [];
+        }
+
+        $fragments = [];
+        $buffer = '';
+        $separatorType = 'none';
+        $separatorText = '';
+        foreach (UnicodeText::characters($line) as $char) {
+            if ($char === "\u{0F0B}") {
+                $buffer .= $char;
+                $this->appendDiagnosticWrapFragment($fragments, $separatorType, $separatorText, $buffer);
+                $buffer = '';
+                $separatorType = 'visibleBreakAfter';
+                $separatorText = '';
+                continue;
+            }
+
+            $separator = $this->diagnosticWrapSeparator($char);
+            if ($separator !== null) {
+                $this->appendDiagnosticWrapFragment($fragments, $separatorType, $separatorText, $buffer);
+                $buffer = '';
+                $separatorType = $separator['type'];
+                $separatorText = $separator['text'];
+                continue;
+            }
+
+            $buffer .= $char;
+        }
+        $this->appendDiagnosticWrapFragment($fragments, $separatorType, $separatorText, $buffer);
+
+        return $fragments;
+    }
+
+    /**
+     * @param list<array{text:string, separatorType:string, separatorText:string}> $fragments
+     */
+    private function appendDiagnosticWrapFragment(array &$fragments, string $separatorType, string $separatorText, string $buffer): void
+    {
+        if ($buffer === '') {
+            return;
+        }
+
+        $fragments[] = [
+            'text' => $buffer,
+            'separatorType' => $separatorType,
+            'separatorText' => $separatorText,
+        ];
+    }
+
+    /**
+     * @return array{type:string, text:string}|null
+     */
+    private function diagnosticWrapSeparator(string $char): ?array
+    {
+        if ($char === ' ') {
+            return ['type' => 'space', 'text' => ' '];
+        }
+        if ($char === "\t") {
+            return ['type' => 'tab', 'text' => ' '];
+        }
+        if ($char === "\u{200B}") {
+            return ['type' => 'zeroWidthSpace', 'text' => ''];
+        }
+        if ($char === "\u{00AD}") {
+            return ['type' => 'softHyphen', 'text' => ''];
+        }
+        if ($this->isDiagnosticUnicodeWrapWhitespace($char)) {
+            return ['type' => 'unicodeSpace', 'text' => $this->diagnosticUnicodeWrapWhitespaceText($char)];
+        }
+
+        return null;
+    }
+
+    private function diagnosticWrapSeparatorText(string $separatorType, string $separatorText): string
+    {
+        return in_array($separatorType, ['space', 'tab', 'unicodeSpace'], true) ? $separatorText : '';
+    }
+
+    private function diagnosticUnicodeWrapWhitespaceText(string $char): string
+    {
+        return in_array($char, ["\x0B", "\x0C"], true) ? ' ' : $char;
+    }
+
+    private function isDiagnosticUnicodeWrapWhitespace(string $char): bool
+    {
+        return in_array($char, [
+            "\x0B",
+            "\x0C",
+            "\u{1680}",
+            "\u{2000}",
+            "\u{2001}",
+            "\u{2002}",
+            "\u{2003}",
+            "\u{2004}",
+            "\u{2005}",
+            "\u{2006}",
+            "\u{2008}",
+            "\u{2009}",
+            "\u{200A}",
+            "\u{205F}",
+            "\u{3000}",
+        ], true);
     }
 
     /**

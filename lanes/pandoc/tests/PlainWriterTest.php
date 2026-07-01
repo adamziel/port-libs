@@ -614,6 +614,62 @@ return [
             'lineEndingNormalizationCount' => 0,
         ], $result['diagnostics']['blocks'][0]);
     },
+    'reports actual wrap opportunity boundaries in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
+        $document = new AstNode('document', [], [
+            new AstNode('code_block', [
+                'text' => implode("\n", [
+                    'Alpha beta',
+                    "Thin\u{2009}space",
+                    "Column\tstop",
+                    "Zero\u{200B}Width",
+                    "Soft\u{00AD}Hyphen",
+                    "Tibetan\u{0F0B}mark",
+                    'IdentifierLong',
+                ]),
+            ]),
+        ]);
+
+        $result = (new PlainWriter(['columns' => 8]))->writeWithDiagnostics($document);
+
+        $t->same(implode("\n", [
+            'Alpha',
+            'beta',
+            'Thin',
+            'space',
+            'Column',
+            'stop',
+            'Zero',
+            'Width',
+            'Soft-',
+            'Hyphen',
+            "Tibetan\u{0F0B}",
+            'mark',
+            'Identifi',
+            'erLong',
+        ]), $result['text']);
+        $t->same(7, $result['diagnostics']['generatedWrapBreakCount']);
+        $t->same(6, $result['diagnostics']['wrapOpportunityBreakCount']);
+        $t->same(1, $result['diagnostics']['spaceWrapOpportunityBreakCount']);
+        $t->same(1, $result['diagnostics']['unicodeSpaceWrapOpportunityBreakCount']);
+        $t->same(1, $result['diagnostics']['tabWrapOpportunityBreakCount']);
+        $t->same(1, $result['diagnostics']['zeroWidthSpaceWrapOpportunityBreakCount']);
+        $t->same(1, $result['diagnostics']['softHyphenWrapOpportunityBreakCount']);
+        $t->same(1, $result['diagnostics']['visibleBreakAfterWrapOpportunityBreakCount']);
+        $t->same(1, $result['diagnostics']['forcedWrapBreakCount']);
+        $t->same(
+            $result['diagnostics']['generatedWrapBreakCount'],
+            $result['diagnostics']['wrapOpportunityBreakCount'] + $result['diagnostics']['forcedWrapBreakCount']
+        );
+        $t->same(6, $result['diagnostics']['softBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['spaceBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['unicodeSpaceBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['tabBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['zeroWidthSpaceBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['softHyphenBreakOpportunityCount']);
+        $t->same(1, $result['diagnostics']['visibleBreakAfterOpportunityCount']);
+        $t->same(14, $result['diagnostics']['outputLineCount']);
+        $t->same(8, $result['diagnostics']['maxOutputDisplayWidth']);
+    },
     'reports inserted soft wrap breaks in plain writer wrapping diagnostics' => static function (TestRunner $t): void {
         $document = new AstNode('document', [], [
             new AstNode('code_block', ['text' => "Alpha beta gamma\nWide tail piece"]),
