@@ -15369,6 +15369,11 @@ final class ZipPackage
             static fn (array $summary): int => (int) $summary['entryCount'],
             $duplicateCrc32Summaries
         ));
+        $expansionRatioBucketSummaries = self::packageManifestExpansionRatioBucketSummaries($entries);
+        $expansionRatioBuckets = array_map(
+            static fn (array $summary): string => (string) $summary['expansionRatioBucket'],
+            $expansionRatioBucketSummaries
+        );
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15411,6 +15416,9 @@ final class ZipPackage
             'zeroByteEntries' => $zeroByteEntries,
             'unknownExpansionRatioEntryCount' => count($unknownExpansionRatioEntries),
             'unknownExpansionRatioEntries' => $unknownExpansionRatioEntries,
+            'expansionRatioBucketSummaryCount' => count($expansionRatioBucketSummaries),
+            'expansionRatioBuckets' => $expansionRatioBuckets,
+            'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
             'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
@@ -15517,6 +15525,9 @@ final class ZipPackage
             'unknownExpansionRatioEntryCount' => count($unknownExpansionRatioEntries),
             'hasUnknownExpansionRatioEntries' => $unknownExpansionRatioEntries !== [],
             'unknownExpansionRatioEntries' => $unknownExpansionRatioEntries,
+            'expansionRatioBucketSummaryCount' => count($expansionRatioBucketSummaries),
+            'expansionRatioBuckets' => $expansionRatioBuckets,
+            'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
             'localHeaderBytes' => $localHeaderBytes,
             'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
             'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
@@ -15664,6 +15675,161 @@ final class ZipPackage
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'centralDirectoryOrderMatchesLocalHeaderOrder' => $centralDirectoryOrderNames === $localHeaderOrderNames,
             'entries' => $entries,
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestExpansionRatioBucketSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $compressedSize = (int) ($entry['compressedSize'] ?? 0);
+            $uncompressedSize = (int) ($entry['uncompressedSize'] ?? 0);
+            $expansionRatio = array_key_exists('expansionRatio', $entry)
+                ? (is_float($entry['expansionRatio']) || is_int($entry['expansionRatio'])
+                    ? (float) $entry['expansionRatio']
+                    : null)
+                : self::expansionRatio($uncompressedSize, $compressedSize);
+            $bucket = self::packageManifestExpansionRatioBucket($expansionRatio);
+            $bucketKey = $bucket['expansionRatioBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'expansionRatioBucket' => $bucket['expansionRatioBucket'],
+                    'minExpansionRatio' => $bucket['minExpansionRatio'],
+                    'maxExpansionRatio' => $bucket['maxExpansionRatio'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'unknownExpansionRatioEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'directoryRoots' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'largestExpansionRatioEntryName' => null,
+                    'largestExpansionRatio' => null,
+                ];
+            }
+
+            ++$summaries[$bucketKey]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+            if ($expansionRatio === null) {
+                ++$summaries[$bucketKey]['unknownExpansionRatioEntryCount'];
+            }
+
+            $summaries[$bucketKey]['compressedBytes'] += $compressedSize;
+            $summaries[$bucketKey]['uncompressedBytes'] += $uncompressedSize;
+            $summaries[$bucketKey]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$bucketKey]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$bucketKey]['dataDescriptorEntryCount'];
+                $summaries[$bucketKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+            $summaries[$bucketKey]['entryNames'][] = $name;
+
+            foreach ([
+                'directoryRoots' => (string) ($entry['directoryRoot'] ?? ''),
+                'compressionMethodNames' => (string) ($entry['compressionMethodName'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$bucketKey][$field], true)) {
+                    $summaries[$bucketKey][$field][] = $value;
+                }
+            }
+
+            if (
+                $expansionRatio !== null
+                && (
+                    !is_float($summaries[$bucketKey]['largestExpansionRatio'])
+                    || $expansionRatio > $summaries[$bucketKey]['largestExpansionRatio']
+                )
+            ) {
+                $summaries[$bucketKey]['largestExpansionRatioEntryName'] = $name;
+                $summaries[$bucketKey]['largestExpansionRatio'] = $expansionRatio;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        foreach (['zero-byte', 'up-to-1x', '1x-to-10x', '10x-to-100x', 'over-100x', 'unknown'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+            }
+        }
+
+        return $ordered;
+    }
+
+    /**
+     * @return array{expansionRatioBucket:string,minExpansionRatio:?float,maxExpansionRatio:?float}
+     */
+    private static function packageManifestExpansionRatioBucket(?float $expansionRatio): array
+    {
+        if ($expansionRatio === null) {
+            return [
+                'expansionRatioBucket' => 'unknown',
+                'minExpansionRatio' => null,
+                'maxExpansionRatio' => null,
+            ];
+        }
+
+        if ($expansionRatio <= 0.0) {
+            return [
+                'expansionRatioBucket' => 'zero-byte',
+                'minExpansionRatio' => 0.0,
+                'maxExpansionRatio' => 0.0,
+            ];
+        }
+
+        if ($expansionRatio <= 1.0) {
+            return [
+                'expansionRatioBucket' => 'up-to-1x',
+                'minExpansionRatio' => 0.0,
+                'maxExpansionRatio' => 1.0,
+            ];
+        }
+
+        if ($expansionRatio <= 10.0) {
+            return [
+                'expansionRatioBucket' => '1x-to-10x',
+                'minExpansionRatio' => 1.0,
+                'maxExpansionRatio' => 10.0,
+            ];
+        }
+
+        if ($expansionRatio <= 100.0) {
+            return [
+                'expansionRatioBucket' => '10x-to-100x',
+                'minExpansionRatio' => 10.0,
+                'maxExpansionRatio' => 100.0,
+            ];
+        }
+
+        return [
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
         ];
     }
 

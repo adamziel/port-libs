@@ -966,6 +966,72 @@ return [
         $expectedLargestEntry = $expectedSizeEntry($expectedEntriesByName['OEBPS/content.xhtml']);
         $expectedZeroByteEntries = [$expectedSizeEntry($expectedEntriesByName['OEBPS/images/'])];
         $expectedUnknownExpansionRatioEntries = [];
+        $expectedExpansionRatioBucketSummaries = [
+            [
+                'expansionRatioBucket' => 'zero-byte',
+                'minExpansionRatio' => 0.0,
+                'maxExpansionRatio' => 0.0,
+                'entryCount' => 1,
+                'fileEntryCount' => 0,
+                'directoryEntryCount' => 1,
+                'unknownExpansionRatioEntryCount' => 0,
+                'compressedBytes' => 0,
+                'uncompressedBytes' => 0,
+                'localRecordBytes' => $expectedEntriesByName['OEBPS/images/']['localRecordBytes'],
+                'sourceRecordBytes' => $expectedEntriesByName['OEBPS/images/']['sourceRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'directoryRoots' => ['OEBPS/'],
+                'compressionMethodNames' => ['stored'],
+                'entryNames' => ['OEBPS/images/'],
+                'largestExpansionRatioEntryName' => 'OEBPS/images/',
+                'largestExpansionRatio' => 0.0,
+            ],
+            [
+                'expansionRatioBucket' => 'up-to-1x',
+                'minExpansionRatio' => 0.0,
+                'maxExpansionRatio' => 1.0,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'unknownExpansionRatioEntryCount' => 0,
+                'compressedBytes' => strlen($mimetype),
+                'uncompressedBytes' => strlen($mimetype),
+                'localRecordBytes' => $expectedEntriesByName['mimetype']['localRecordBytes'],
+                'sourceRecordBytes' => $expectedEntriesByName['mimetype']['sourceRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'directoryRoots' => ['/'],
+                'compressionMethodNames' => ['stored'],
+                'entryNames' => ['mimetype'],
+                'largestExpansionRatioEntryName' => 'mimetype',
+                'largestExpansionRatio' => 1.0,
+            ],
+            [
+                'expansionRatioBucket' => '1x-to-10x',
+                'minExpansionRatio' => 1.0,
+                'maxExpansionRatio' => 10.0,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'unknownExpansionRatioEntryCount' => 0,
+                'compressedBytes' => strlen(gzdeflate($contentXhtml)),
+                'uncompressedBytes' => strlen($contentXhtml),
+                'localRecordBytes' => $expectedEntriesByName['OEBPS/content.xhtml']['localRecordBytes'],
+                'sourceRecordBytes' => $expectedEntriesByName['OEBPS/content.xhtml']['sourceRecordBytes'],
+                'dataDescriptorEntryCount' => 0,
+                'dataDescriptorBytes' => 0,
+                'directoryRoots' => ['OEBPS/'],
+                'compressionMethodNames' => ['deflated'],
+                'entryNames' => ['OEBPS/content.xhtml'],
+                'largestExpansionRatioEntryName' => 'OEBPS/content.xhtml',
+                'largestExpansionRatio' => strlen($contentXhtml) / strlen(gzdeflate($contentXhtml)),
+            ],
+        ];
+        $expectedExpansionRatioBuckets = array_map(
+            static fn (array $summary): string => $summary['expansionRatioBucket'],
+            $expectedExpansionRatioBucketSummaries
+        );
         $expectedCompressionMethodSummaries = [
             [
                 'compressionMethod' => 0,
@@ -1162,6 +1228,9 @@ return [
             'zeroByteEntries' => $expectedZeroByteEntries,
             'unknownExpansionRatioEntryCount' => 0,
             'unknownExpansionRatioEntries' => $expectedUnknownExpansionRatioEntries,
+            'expansionRatioBucketSummaryCount' => count($expectedExpansionRatioBucketSummaries),
+            'expansionRatioBuckets' => $expectedExpansionRatioBuckets,
+            'expansionRatioBucketSummaries' => $expectedExpansionRatioBucketSummaries,
             'centralDirectoryRecordBytes' => array_sum(array_column($expectedEntries, 'centralDirectoryRecordBytes')),
             'centralDirectoryFixedHeaderBytes' => 46 * count($expectedEntries),
             'centralDirectoryVariableFieldBytes' => strlen('OEBPS/content.xhtml')
@@ -1264,6 +1333,9 @@ return [
         $t->same(0, $manifest['unknownExpansionRatioEntryCount']);
         $t->same(false, $manifest['hasUnknownExpansionRatioEntries']);
         $t->same($expectedUnknownExpansionRatioEntries, $manifest['unknownExpansionRatioEntries']);
+        $t->same(count($expectedExpansionRatioBucketSummaries), $manifest['expansionRatioBucketSummaryCount']);
+        $t->same($expectedExpansionRatioBuckets, $manifest['expansionRatioBuckets']);
+        $t->same($expectedExpansionRatioBucketSummaries, $manifest['expansionRatioBucketSummaries']);
         $t->same(2, $manifest['storedEntryCount']);
         $t->same(1, $manifest['deflatedEntryCount']);
         $t->same(0, $manifest['unsupportedCompressionMethodCount']);
@@ -1435,6 +1507,140 @@ return [
             ],
             $manifest['entries']
         ));
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'summarizes zip package manifest expansion ratio buckets for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = str_repeat('D', 2048);
+        $styleXml = '<style/>';
+        $emptyBytes = '';
+        $mediaBytes = str_repeat('M', 70000);
+        $unknownName = 'word/media/zero-compressed.bin';
+        $unknownUncompressedSize = 37;
+        $zip = $buildZipPackage([
+            ['name' => 'word/document.xml', 'data' => $documentXml, 'method' => 8],
+            ['name' => 'word/styles.xml', 'data' => $styleXml, 'method' => 0],
+            ['name' => 'word/media/empty.bin', 'data' => $emptyBytes, 'method' => 0],
+            ['name' => 'word/media/', 'data' => '', 'method' => 0],
+            ['name' => 'word/media/large.bin', 'data' => $mediaBytes, 'method' => 8],
+            [
+                'name' => $unknownName,
+                'data' => '',
+                'method' => 12,
+                'centralCompressedSize' => 0,
+                'centralUncompressedSize' => $unknownUncompressedSize,
+                'localCompressedSize' => 0,
+                'localUncompressedSize' => $unknownUncompressedSize,
+            ],
+        ]);
+        $documentCompressed = strlen(gzdeflate($documentXml));
+        $mediaCompressed = strlen(gzdeflate($mediaBytes));
+        $documentRatio = strlen($documentXml) / $documentCompressed;
+        $mediaRatio = strlen($mediaBytes) / $mediaCompressed;
+        $largestHighRatioName = $mediaRatio > $documentRatio ? 'word/media/large.bin' : 'word/document.xml';
+        $largestHighRatio = max($documentRatio, $mediaRatio);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(131072, 100000.0, 131072);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 131072, 100000.0, 131072);
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $sumEntryField = static function (array $names, string $field) use ($entriesByName): int {
+            $total = 0;
+            foreach ($names as $name) {
+                $total += (int) $entriesByName[$name][$field];
+            }
+
+            return $total;
+        };
+        $buckets = array_column($manifest['expansionRatioBucketSummaries'], null, 'expansionRatioBucket');
+
+        $t->same(4, $manifest['expansionRatioBucketSummaryCount']);
+        $t->same(['zero-byte', 'up-to-1x', 'over-100x', 'unknown'], $manifest['expansionRatioBuckets']);
+
+        $t->same([
+            'expansionRatioBucket' => 'zero-byte',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 0.0,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => 0,
+            'localRecordBytes' => $sumEntryField(['word/media/empty.bin', 'word/media/'], 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField(['word/media/empty.bin', 'word/media/'], 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => ['word/media/empty.bin', 'word/media/'],
+            'largestExpansionRatioEntryName' => 'word/media/empty.bin',
+            'largestExpansionRatio' => 0.0,
+        ], $buckets['zero-byte']);
+        $t->same([
+            'expansionRatioBucket' => 'up-to-1x',
+            'minExpansionRatio' => 0.0,
+            'maxExpansionRatio' => 1.0,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => strlen($styleXml),
+            'uncompressedBytes' => strlen($styleXml),
+            'localRecordBytes' => $entriesByName['word/styles.xml']['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName['word/styles.xml']['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['stored'],
+            'entryNames' => ['word/styles.xml'],
+            'largestExpansionRatioEntryName' => 'word/styles.xml',
+            'largestExpansionRatio' => 1.0,
+        ], $buckets['up-to-1x']);
+        $t->same([
+            'expansionRatioBucket' => 'over-100x',
+            'minExpansionRatio' => 100.0,
+            'maxExpansionRatio' => null,
+            'entryCount' => 2,
+            'fileEntryCount' => 2,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 0,
+            'compressedBytes' => $documentCompressed + $mediaCompressed,
+            'uncompressedBytes' => strlen($documentXml) + strlen($mediaBytes),
+            'localRecordBytes' => $sumEntryField(['word/document.xml', 'word/media/large.bin'], 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField(['word/document.xml', 'word/media/large.bin'], 'sourceRecordBytes'),
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['deflated'],
+            'entryNames' => ['word/document.xml', 'word/media/large.bin'],
+            'largestExpansionRatioEntryName' => $largestHighRatioName,
+            'largestExpansionRatio' => $largestHighRatio,
+        ], $buckets['over-100x']);
+        $t->same([
+            'expansionRatioBucket' => 'unknown',
+            'minExpansionRatio' => null,
+            'maxExpansionRatio' => null,
+            'entryCount' => 1,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 0,
+            'unknownExpansionRatioEntryCount' => 1,
+            'compressedBytes' => 0,
+            'uncompressedBytes' => $unknownUncompressedSize,
+            'localRecordBytes' => $entriesByName[$unknownName]['localRecordBytes'],
+            'sourceRecordBytes' => $entriesByName[$unknownName]['sourceRecordBytes'],
+            'dataDescriptorEntryCount' => 0,
+            'dataDescriptorBytes' => 0,
+            'directoryRoots' => ['word/'],
+            'compressionMethodNames' => ['unsupported'],
+            'entryNames' => [$unknownName],
+            'largestExpansionRatioEntryName' => null,
+            'largestExpansionRatio' => null,
+        ], $buckets['unknown']);
+
         $t->same($manifest, $strict['packageManifest']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
@@ -2607,6 +2813,9 @@ return [
             'zeroByteEntries' => $manifest['zeroByteEntries'],
             'unknownExpansionRatioEntryCount' => $manifest['unknownExpansionRatioEntryCount'],
             'unknownExpansionRatioEntries' => $manifest['unknownExpansionRatioEntries'],
+            'expansionRatioBucketSummaryCount' => $manifest['expansionRatioBucketSummaryCount'],
+            'expansionRatioBuckets' => $manifest['expansionRatioBuckets'],
+            'expansionRatioBucketSummaries' => $manifest['expansionRatioBucketSummaries'],
             'centralDirectoryRecordBytes' => $manifest['centralDirectoryRecordBytes'],
             'centralDirectoryFixedHeaderBytes' => $manifest['centralDirectoryFixedHeaderBytes'],
             'centralDirectoryVariableFieldBytes' => $manifest['centralDirectoryVariableFieldBytes'],
