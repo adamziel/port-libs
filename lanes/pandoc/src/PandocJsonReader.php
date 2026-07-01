@@ -518,8 +518,8 @@ final class PandocJsonReader
 
     private function singleWrappedMetaContent(mixed $content): mixed
     {
-        if (is_array($content) && array_is_list($content) && count($content) === 1) {
-            return $content[0];
+        while (is_array($content) && array_is_list($content) && count($content) === 1) {
+            $content = $content[0];
         }
 
         return $content;
