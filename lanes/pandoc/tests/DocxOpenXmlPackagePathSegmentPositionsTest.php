@@ -16,6 +16,7 @@ $tests = [
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $positions = [];
         foreach ($summary['partPathSegmentPositions'] as $position) {
@@ -75,6 +76,26 @@ $tests = [
         $t->same(1, $summary['partPathSegmentPositionParameterizedPartCount']);
         $t->same(3, $summary['partPathSegmentPositionMissingContentTypeBucketCount']);
         $t->same(['first', 'last', 'middle', 'only'], array_column($summary['partPathSegmentPositions'], 'position'));
+        $t->same($summary['partPathSegmentPositionBucketCount'], $identity['packagePathSegmentPositionBucketCount']);
+        $t->same(
+            $summary['partPathSegmentPositionOccurrenceCount'],
+            $identity['packagePathSegmentPositionOccurrenceCount']
+        );
+        $t->same($summary['partPathSegmentPositionCounts'], $identity['packagePathSegmentPositionCounts']);
+        $t->same($summary['partPathSegmentPositionPartCounts'], $identity['packagePathSegmentPositionPartCounts']);
+        $t->same(
+            $summary['partPathSegmentPositionParameterizedBucketCount'],
+            $identity['packagePathSegmentPositionParameterizedBucketCount']
+        );
+        $t->same(
+            $summary['partPathSegmentPositionParameterizedPartCount'],
+            $identity['packagePathSegmentPositionParameterizedPartCount']
+        );
+        $t->same(
+            $summary['partPathSegmentPositionMissingContentTypeBucketCount'],
+            $identity['packagePathSegmentPositionMissingContentTypeBucketCount']
+        );
+        $t->same($summary['partPathSegmentPositions'], $identity['packagePathSegmentPositions']);
 
         $word = $segments['word'];
         $wordPartNames = [

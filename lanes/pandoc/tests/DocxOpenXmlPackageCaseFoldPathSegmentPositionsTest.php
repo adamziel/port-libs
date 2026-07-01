@@ -10,7 +10,9 @@ return [
         $relationshipContentType = 'application/vnd.openxmlformats-package.relationships+xml';
 
         $document = (new DocxOpenXmlReader())->readPackage($parts);
-        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $positions = [];
         foreach ($summary['partCaseFoldPathSegmentPositions'] as $position) {
             $positions[$position['position']] = $position;
@@ -31,6 +33,47 @@ return [
         $t->same(1, $summary['duplicatePartCaseFoldPathSegmentPositionCaseFoldSegmentCount']);
         $t->same(['middle'], $summary['duplicatePartCaseFoldPathSegmentPositions']);
         $t->same(['first', 'last', 'middle', 'only'], array_column($summary['partCaseFoldPathSegmentPositions'], 'position'));
+        $t->same(
+            $summary['partCaseFoldPathSegmentPositionBucketCount'],
+            $identity['packageCaseFoldPathSegmentPositionBucketCount']
+        );
+        $t->same(
+            $summary['partCaseFoldPathSegmentPositionOccurrenceCount'],
+            $identity['packageCaseFoldPathSegmentPositionOccurrenceCount']
+        );
+        $t->same(
+            $summary['partCaseFoldPathSegmentPositionCounts'],
+            $identity['packageCaseFoldPathSegmentPositionCounts']
+        );
+        $t->same(
+            $summary['partCaseFoldPathSegmentPositionPartCounts'],
+            $identity['packageCaseFoldPathSegmentPositionPartCounts']
+        );
+        $t->same(
+            $summary['partCaseFoldPathSegmentPositionParameterizedBucketCount'],
+            $identity['packageCaseFoldPathSegmentPositionParameterizedBucketCount']
+        );
+        $t->same(
+            $summary['partCaseFoldPathSegmentPositionParameterizedPartCount'],
+            $identity['packageCaseFoldPathSegmentPositionParameterizedPartCount']
+        );
+        $t->same(
+            $summary['partCaseFoldPathSegmentPositionMissingContentTypeBucketCount'],
+            $identity['packageCaseFoldPathSegmentPositionMissingContentTypeBucketCount']
+        );
+        $t->same(
+            $summary['duplicatePartCaseFoldPathSegmentPositionCount'],
+            $identity['duplicatePackageCaseFoldPathSegmentPositionCount']
+        );
+        $t->same(
+            $summary['duplicatePartCaseFoldPathSegmentPositionCaseFoldSegmentCount'],
+            $identity['duplicatePackageCaseFoldPathSegmentPositionCaseFoldSegmentCount']
+        );
+        $t->same(
+            $summary['duplicatePartCaseFoldPathSegmentPositions'],
+            $identity['duplicatePackageCaseFoldPathSegmentPositions']
+        );
+        $t->same($summary['partCaseFoldPathSegmentPositions'], $identity['packageCaseFoldPathSegmentPositions']);
 
         $first = $positions['first'];
         $firstPartNames = [
