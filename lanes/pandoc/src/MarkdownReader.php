@@ -6966,7 +6966,9 @@ final class MarkdownReader
         $widths = $firstBoundary['widths'];
         $headerRow = null;
         $bodyRows = [];
+        $footRows = [];
         $sawHeader = false;
+        $readingFoot = false;
 
         while ($cursor < $count) {
             $sectionLines = [];
@@ -6989,7 +6991,7 @@ final class MarkdownReader
                 return null;
             }
 
-            if (!$sawHeader && $boundary['header']) {
+            if (!$readingFoot && !$sawHeader && $bodyRows === [] && $boundary['header']) {
                 $headerRow = $this->buildGridTableRow($cellLines, true);
                 $alignments = $boundary['alignments'];
                 $widths = $boundary['widths'];
@@ -6998,8 +7000,34 @@ final class MarkdownReader
                 continue;
             }
 
+            if ($readingFoot) {
+                $footRows[] = $this->buildGridTableRow($cellLines, false);
+                $cursor++;
+                if ($boundary['header']) {
+                    [$caption, $next] = $this->readTableCaption($lines, $cursor);
+                    $index = $next - 1;
+
+                    return $this->buildGridTable($headerRow, $bodyRows, $alignments, $caption, $widths, $footRows);
+                }
+
+                if ($cursor < $count && $this->isGridTableContentLine($lines[$cursor])) {
+                    continue;
+                }
+
+                return null;
+            }
+
             $bodyRows[] = $this->buildGridTableRow($cellLines, false);
             $cursor++;
+            if ($boundary['header']) {
+                $readingFoot = true;
+                if ($cursor < $count && $this->isGridTableContentLine($lines[$cursor])) {
+                    continue;
+                }
+
+                return null;
+            }
+
             if ($cursor < $count && $this->isGridTableContentLine($lines[$cursor])) {
                 continue;
             }
@@ -8039,9 +8067,9 @@ final class MarkdownReader
      * @param list<string> $alignments
      * @param list<float>|null $widths
      */
-    private function buildGridTable(?AstNode $headerRow, array $bodyRows, array $alignments, string $caption, ?array $widths): AstNode
+    private function buildGridTable(?AstNode $headerRow, array $bodyRows, array $alignments, string $caption, ?array $widths, array $footRows = []): AstNode
     {
-        return $this->buildGridTableRows($headerRow instanceof AstNode ? [$headerRow] : [], $bodyRows, $alignments, $caption, $widths);
+        return $this->buildGridTableRows($headerRow instanceof AstNode ? [$headerRow] : [], $bodyRows, $alignments, $caption, $widths, $footRows);
     }
 
     /**
@@ -8049,8 +8077,9 @@ final class MarkdownReader
      * @param list<AstNode> $bodyRows
      * @param list<string> $alignments
      * @param list<float>|null $widths
+     * @param list<AstNode> $footRows
      */
-    private function buildGridTableRows(array $headerRows, array $bodyRows, array $alignments, string $caption, ?array $widths): AstNode
+    private function buildGridTableRows(array $headerRows, array $bodyRows, array $alignments, string $caption, ?array $widths, array $footRows = []): AstNode
     {
         $children = [];
         if ($headerRows !== []) {
@@ -8060,6 +8089,9 @@ final class MarkdownReader
         }
 
         $children[] = new AstNode('table_body', [], $bodyRows);
+        if ($footRows !== []) {
+            $children[] = new AstNode('table_foot', [], $footRows);
+        }
 
         $attrs = [
             'caption' => $caption,
