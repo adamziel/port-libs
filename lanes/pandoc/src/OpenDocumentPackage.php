@@ -704,7 +704,9 @@ final class OpenDocumentPackage
         $internalAttributesByName = self::zipPreflightEntriesByName($internalAttributes);
         $extraFields = $this->package->extraFieldPreflight();
         $packageManifest = $this->package->packageManifestPreflight();
+        $localHeaderMetadata = ZipPackage::localHeaderMetadataPreflight($this->package->bytes());
         $packageManifestByName = self::zipPreflightEntriesByName($packageManifest);
+        $localHeaderMetadataByName = self::zipLocalHeaderMetadataEntriesByName($localHeaderMetadata);
         $extraFieldsByName = self::zipPreflightEntriesByName($extraFields);
         $objectPackageRootParts = self::embeddedObjectPackageRootParts($this->manifestEntries);
         $localOrderByName = [];
@@ -786,6 +788,7 @@ final class OpenDocumentPackage
             $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldsByName[$entry->name] ?? null);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $packageManifestEntrySource = self::zipPackageManifestEntrySourceProvenance($packageManifestByName[$entry->name] ?? null);
+            $localHeaderMetadataProvenance = self::zipLocalHeaderMetadataProvenance($localHeaderMetadataByName[$entry->name] ?? null);
             $platformAttributeProvenance = self::zipPlatformAttributeProvenance(
                 $entry,
                 $platformMetadataByName[$entry->name] ?? null,
@@ -906,7 +909,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $extraFieldProvenance + $packageManifestEntrySource + $timestampProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $extraFieldProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -1157,6 +1160,14 @@ final class OpenDocumentPackage
             'roleCompressedByteLengths' => $roleCompressedByteLengths,
             'unsupportedCompressionPartNames' => array_keys($unsupportedCompressionPartNames),
             'localHeaderOrder' => $localHeaderOrder,
+            'localHeaderMetadataEntryCount' => $localHeaderMetadata['entryCount'],
+            'localHeaderMetadataTotalEntryCount' => $localHeaderMetadata['totalEntryCount'],
+            'localHeaderMetadataCentralDirectoryOffset' => $localHeaderMetadata['centralDirectoryOffset'],
+            'localHeaderMetadataCentralDirectoryBytes' => $localHeaderMetadata['centralDirectorySize'],
+            'localHeaderMetadataIsSupportedByBoundedReader' => $localHeaderMetadata['isSupportedByBoundedReader'],
+            'localHeaderMetadataIssueCodes' => $localHeaderMetadata['issues'],
+            'localHeaderMetadataMismatchEntryCount' => $localHeaderMetadata['mismatchedEntryCount'],
+            'localHeaderMetadataMismatchedEntries' => self::zipLocalHeaderMetadataMismatchProvenance($localHeaderMetadata),
             'compressionMethods' => $compressionMethods,
             'extraFields' => $extraFields,
             'hasZipExtraFields' => $extraFields['extraFieldEntryCount'] > 0,
@@ -1318,6 +1329,22 @@ final class OpenDocumentPackage
                 'zipCentralDirectoryReviewFieldBytes' => $part['zipCentralDirectoryReviewFieldBytes'] ?? null,
                 'zipSourceRecordBytes' => $part['zipSourceRecordBytes'] ?? null,
                 'zipHasSourceRecordProvenance' => ($part['zipHasSourceRecordProvenance'] ?? false) === true,
+                'zipLocalHeaderMetadataMatchesCentralDirectory' => $part['zipLocalHeaderMetadataMatchesCentralDirectory'] ?? null,
+                'zipLocalHeaderMetadataIssues' => $part['zipLocalHeaderMetadataIssues'] ?? [],
+                'zipCentralVersionNeededToExtract' => $part['zipCentralVersionNeededToExtract'] ?? null,
+                'zipLocalVersionNeededToExtract' => $part['zipLocalVersionNeededToExtract'] ?? null,
+                'zipCentralGeneralPurposeFlags' => $part['zipCentralGeneralPurposeFlags'] ?? null,
+                'zipLocalGeneralPurposeFlags' => $part['zipLocalGeneralPurposeFlags'] ?? null,
+                'zipCentralCompressionMethod' => $part['zipCentralCompressionMethod'] ?? null,
+                'zipLocalCompressionMethod' => $part['zipLocalCompressionMethod'] ?? null,
+                'zipCentralCrc32' => $part['zipCentralCrc32'] ?? null,
+                'zipLocalCrc32' => $part['zipLocalCrc32'] ?? null,
+                'zipCentralCompressedSize' => $part['zipCentralCompressedSize'] ?? null,
+                'zipLocalCompressedSize' => $part['zipLocalCompressedSize'] ?? null,
+                'zipCentralUncompressedSize' => $part['zipCentralUncompressedSize'] ?? null,
+                'zipLocalUncompressedSize' => $part['zipLocalUncompressedSize'] ?? null,
+                'zipLocalHeaderUsesDataDescriptor' => ($part['zipLocalHeaderUsesDataDescriptor'] ?? false) === true,
+                'zipLocalHeaderHasZeroDataDescriptorPlaceholders' => $part['zipLocalHeaderHasZeroDataDescriptorPlaceholders'] ?? null,
                 'madeByHostSystem' => $part['madeByHostSystem'] ?? null,
                 'madeByHostSystemName' => $part['madeByHostSystemName'] ?? null,
                 'madeByVersion' => $part['madeByVersion'] ?? null,
@@ -1481,6 +1508,11 @@ final class OpenDocumentPackage
             'unicodePathExtraEntryCount' => $packageInventory['unicodePathExtraEntryCount'] ?? 0,
             'decodedNameDiffersFromRawNameEntryCount' => $packageInventory['decodedNameDiffersFromRawNameEntryCount'] ?? 0,
             'rawNameProvenanceEntries' => $packageInventory['rawNameProvenanceEntries'] ?? [],
+            'localHeaderMetadataEntryCount' => $packageInventory['localHeaderMetadataEntryCount'] ?? 0,
+            'localHeaderMetadataIsSupportedByBoundedReader' => ($packageInventory['localHeaderMetadataIsSupportedByBoundedReader'] ?? false) === true,
+            'localHeaderMetadataIssueCodes' => $packageInventory['localHeaderMetadataIssueCodes'] ?? [],
+            'localHeaderMetadataMismatchEntryCount' => $packageInventory['localHeaderMetadataMismatchEntryCount'] ?? 0,
+            'localHeaderMetadataMismatchedEntries' => $packageInventory['localHeaderMetadataMismatchedEntries'] ?? [],
             'zipPackageManifestSha256' => $packageInventory['zipPackageManifestSha256'] ?? null,
             'packageSource' => $packageInventory['packageSource'] ?? [],
             'archiveLength' => $packageInventory['archiveLength'] ?? 0,
@@ -1905,6 +1937,109 @@ final class OpenDocumentPackage
         }
 
         return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return array<string, array<string, mixed>>
+     */
+    private static function zipLocalHeaderMetadataEntriesByName(array $summary): array
+    {
+        $entriesByName = [];
+        foreach (is_array($summary['entries'] ?? null) ? $summary['entries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = $entry['centralName'] ?? null;
+            if (is_string($name) && $name !== '') {
+                $entriesByName[$name] = $entry;
+            }
+        }
+
+        return $entriesByName;
+    }
+
+    /**
+     * @param array<string, mixed> $summary
+     * @return list<array<string, mixed>>
+     */
+    private static function zipLocalHeaderMetadataMismatchProvenance(array $summary): array
+    {
+        $items = [];
+        foreach (is_array($summary['mismatchedEntries'] ?? null) ? $summary['mismatchedEntries'] : [] as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $part = $entry['centralName'] ?? null;
+            if (!is_string($part) || $part === '') {
+                continue;
+            }
+
+            $items[] = self::withoutEmptyValues([
+                'path' => $part,
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'] ?? null,
+                'localHeaderOffset' => $entry['localHeaderOffset'] ?? null,
+                'issues' => is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+                'centralVersionNeededToExtract' => $entry['centralVersionNeededToExtract'] ?? null,
+                'localVersionNeededToExtract' => $entry['localVersionNeededToExtract'] ?? null,
+                'centralGeneralPurposeFlags' => $entry['centralGeneralPurposeFlags'] ?? null,
+                'localGeneralPurposeFlags' => $entry['localGeneralPurposeFlags'] ?? null,
+                'centralCompressionMethod' => $entry['centralCompressionMethod'] ?? null,
+                'localCompressionMethod' => $entry['localCompressionMethod'] ?? null,
+                'usesDataDescriptor' => ($entry['usesDataDescriptor'] ?? false) === true,
+                'hasZeroLocalHeaderPlaceholders' => $entry['hasZeroLocalHeaderPlaceholders'] ?? null,
+            ]);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipLocalHeaderMetadataProvenance(?array $entry): array
+    {
+        if ($entry === null) {
+            return [
+                'zipLocalHeaderMetadataMatchesCentralDirectory' => null,
+                'zipLocalHeaderMetadataIssues' => [],
+            ];
+        }
+
+        return [
+            'zipLocalHeaderMetadataMatchesCentralDirectory' => ($entry['hasMetadataMismatch'] ?? false) !== true,
+            'zipLocalHeaderMetadataIssues' => is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+            'zipLocalFixedHeaderOffset' => $entry['localFixedHeaderOffset'] ?? null,
+            'zipLocalFixedHeaderBytes' => $entry['localFixedHeaderLength'] ?? null,
+            'zipLocalFixedHeaderEnd' => $entry['localHeaderEnd'] ?? null,
+            'zipLocalVariableFieldsOffset' => $entry['localVariableFieldsOffset'] ?? null,
+            'zipLocalVariableFieldsBytes' => $entry['localVariableFieldsLength'] ?? null,
+            'zipLocalRawNameOffset' => $entry['localRawNameOffset'] ?? null,
+            'zipLocalRawNameBytes' => $entry['localRawNameLength'] ?? null,
+            'zipLocalExtraFieldOffset' => $entry['localExtraFieldOffset'] ?? null,
+            'zipLocalExtraFieldBytes' => $entry['localExtraFieldLength'] ?? null,
+            'zipCentralVersionNeededToExtract' => $entry['centralVersionNeededToExtract'] ?? null,
+            'zipLocalVersionNeededToExtract' => $entry['localVersionNeededToExtract'] ?? null,
+            'zipCentralGeneralPurposeFlags' => $entry['centralGeneralPurposeFlags'] ?? null,
+            'zipLocalGeneralPurposeFlags' => $entry['localGeneralPurposeFlags'] ?? null,
+            'zipCentralCompressionMethod' => $entry['centralCompressionMethod'] ?? null,
+            'zipLocalCompressionMethod' => $entry['localCompressionMethod'] ?? null,
+            'zipCentralModifiedDosTime' => $entry['centralModifiedDosTime'] ?? null,
+            'zipLocalModifiedDosTime' => $entry['localModifiedDosTime'] ?? null,
+            'zipCentralModifiedDosDate' => $entry['centralModifiedDosDate'] ?? null,
+            'zipLocalModifiedDosDate' => $entry['localModifiedDosDate'] ?? null,
+            'zipCentralCrc32' => $entry['centralCrc32'] ?? null,
+            'zipLocalCrc32' => $entry['localCrc32'] ?? null,
+            'zipCentralCompressedSize' => $entry['centralCompressedSize'] ?? null,
+            'zipLocalCompressedSize' => $entry['localCompressedSize'] ?? null,
+            'zipCentralUncompressedSize' => $entry['centralUncompressedSize'] ?? null,
+            'zipLocalUncompressedSize' => $entry['localUncompressedSize'] ?? null,
+            'zipLocalHeaderUsesDataDescriptor' => ($entry['usesDataDescriptor'] ?? false) === true,
+            'zipLocalHeaderHasZeroDataDescriptorPlaceholders' => $entry['hasZeroLocalHeaderPlaceholders'] ?? null,
+        ];
     }
 
     /**
