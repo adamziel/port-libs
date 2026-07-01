@@ -42,6 +42,32 @@ $wordElementCount = static function (string $xml, string $localName): int {
 
     return $dom->getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $localName)->length;
 };
+$wordLangAttributes = static function (string $xml): array {
+    $previous = libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $loaded = $dom->loadXML($xml, LIBXML_NONET);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
+    if (!$loaded) {
+        throw new RuntimeException('Unable to parse generated DOCX styles XML');
+    }
+
+    $namespace = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+    $rows = [];
+    foreach ($dom->getElementsByTagNameNS($namespace, 'lang') as $lang) {
+        if (!$lang instanceof DOMElement) {
+            continue;
+        }
+
+        $rows[] = [
+            'val' => $lang->getAttributeNS($namespace, 'val'),
+            'eastAsia' => $lang->getAttributeNS($namespace, 'eastAsia'),
+            'bidi' => $lang->getAttributeNS($namespace, 'bidi'),
+        ];
+    }
+
+    return $rows;
+};
 $removeTree = static function (string $path) use (&$removeTree): void {
     if (!is_dir($path)) {
         return;
@@ -461,7 +487,7 @@ return [
             $paragraph([$text('First'), new AstNode('space'), $text('chapter.')]),
         ]);
 
-        [, $parts] = $packageParts((new DocxWriter(['topLevelDivision' => 'chapter']))->write($document));
+        [, $parts] = $packageParts((new DocxWriter(['writerTopLevelDivision' => 'TopLevelChapter']))->write($document));
         $documentXml = $parts['word/document.xml'];
 
         $t->same(1, $wordElementCount($documentXml, 'sectPr'));
@@ -478,33 +504,75 @@ return [
             $paragraph([$text('Third'), new AstNode('space'), $text('chapter.')]),
         ]);
 
-        [, $parts] = $packageParts((new DocxWriter(['topLevelDivision' => 'chapter']))->write($document));
+        [, $parts] = $packageParts((new DocxWriter(['writerTopLevelDivision' => 'TopLevelChapter']))->write($document));
         $documentXml = $parts['word/document.xml'];
 
         $t->same(3, $wordElementCount($documentXml, 'sectPr'));
         $t->same(2, substr_count($documentXml, '<w:p><w:pPr><w:sectPr>'));
     },
 
-    'upstream direct HUnit: no media directory override in content types' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx): void {
+    'upstream direct HUnit: no media directory override in content types' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx, $jpeg250x250At120Dpi): void {
+        $mediaDir = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'port-libs-docx-writer-media-' . getmypid() . '-' . bin2hex(random_bytes(4));
+        if (!mkdir($mediaDir, 0777, true) && !is_dir($mediaDir)) {
+            throw new RuntimeException('Unable to create DOCX writer media fixture directory');
+        }
+        $imageBytes = $jpeg250x250At120Dpi();
+        $imagePath = $mediaDir . DIRECTORY_SEPARATOR . 'lalune.jpg';
+        if (file_put_contents($imagePath, $imageBytes) === false) {
+            throw new RuntimeException('Unable to write DOCX writer media fixture');
+        }
+
         $referenceContentTypes = '<?xml version="1.0" encoding="UTF-8"?>'
             . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
             . '<Default Extension="xml" ContentType="application/xml"/>'
-            . '<Override PartName="/word/media/" ContentType="image/png"/>'
+            . '<Default Extension="jpg" ContentType="image/jpeg"/>'
+            . '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
+            . '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
             . '</Types>';
 
-        $withReferenceDocx([
-            ['name' => '[Content_Types].xml', 'data' => $referenceContentTypes],
-            ['name' => 'word/styles.xml', 'data' => '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:lang w:val="en-US"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>'],
-        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts): void {
-            [, $parts] = $packageParts((new DocxWriter(['referenceDocxPath' => $referencePath]))->write(
-                $doc([$paragraph([$text('Inline'), new AstNode('space'), new AstNode('emph', [], [$text('formatting')])])])
-            ));
+        try {
+            $withReferenceDocx([
+                ['name' => '[Content_Types].xml', 'data' => $referenceContentTypes],
+                ['name' => 'word/styles.xml', 'data' => '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:lang w:val="en-US"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>'],
+                ['name' => 'word/media/', 'data' => ''],
+                ['name' => 'word/media/image1.jpg', 'data' => $imageBytes],
+            ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts, $mediaDir, $imageBytes): void {
+                [, $parts] = $packageParts((new DocxWriter([
+                    'referenceDocxPath' => $referencePath,
+                    'mediaBasePath' => $mediaDir,
+                ]))->write(
+                    $doc([
+                        $paragraph([
+                            $text('Inline'),
+                            new AstNode('space'),
+                            new AstNode('image', ['url' => 'lalune.jpg'], [$text('image')]),
+                            new AstNode('space'),
+                            new AstNode('emph', [], [$text('formatting')]),
+                        ]),
+                    ])
+                ));
 
-            $t->true(!str_contains($parts['[Content_Types].xml'], 'PartName="/word/media/"'), 'Generated content types must not copy a directory Override from reference.docx');
-        });
+                $contentTypesXml = $parts['[Content_Types].xml'];
+                $contentTypes = OpcContentTypes::fromXml($contentTypesXml);
+                $overrides = $contentTypes->overrides();
+
+                $t->same($imageBytes, $parts['word/media/rId9.jpg'] ?? null);
+                $t->same('image/jpeg', $contentTypes->defaults()['jpg'] ?? null);
+                $t->same('image/jpeg', $contentTypes->contentTypeForPart('/word/media/rId9.jpg'));
+                $t->true(!str_contains($contentTypesXml, 'PartName="/word/media/"'), 'Generated content types must not copy a directory Override from reference.docx');
+                $t->true(!array_key_exists('/word/media/', $overrides), 'Generated content types must not contain a media directory Override');
+                foreach (array_keys($overrides) as $partName) {
+                    $t->true(!str_starts_with($partName, '/word/media/'), 'Generated media content types should be extension defaults, not media part Overrides');
+                }
+            });
+        } finally {
+            @unlink($imagePath);
+            @rmdir($mediaDir);
+        }
     },
 
-    'upstream direct HUnit: language from reference docx is preserved' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx): void {
+    'upstream direct HUnit: language from reference docx is preserved' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx, $wordLangAttributes): void {
         $referenceStyles = '<?xml version="1.0" encoding="UTF-8"?>'
             . '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
             . '<w:docDefaults><w:rPrDefault><w:rPr><w:lang w:bidi="ar-SA" w:eastAsia="zh-CN" w:val="de-DE"/></w:rPr></w:rPrDefault></w:docDefaults>'
@@ -512,12 +580,14 @@ return [
 
         $withReferenceDocx([
             ['name' => 'word/styles.xml', 'data' => $referenceStyles],
-        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts): void {
+        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts, $wordLangAttributes): void {
             [, $parts] = $packageParts((new DocxWriter(['referenceDocxPath' => $referencePath]))->write(
                 $doc([$paragraph([$text('Reference language')])])
             ));
 
-            $t->contains('w:val="de-DE"', $parts['word/styles.xml']);
+            $t->same([
+                ['val' => 'de-DE', 'eastAsia' => 'zh-CN', 'bidi' => 'ar-SA'],
+            ], $wordLangAttributes($parts['word/styles.xml']));
         });
     },
 
@@ -538,11 +608,12 @@ return [
 
             $t->same(1, $wordElementCount($documentXml, 'sectPr'));
             $t->same(1, $wordElementCount($documentXml, 'pgSz'));
-            $t->contains('type="continuous"', $documentXml);
+            $t->contains('<w:pgSz', $documentXml);
+            $t->contains('w:type="continuous"', $documentXml);
         });
     },
 
-    'upstream direct HUnit: language from metadata overrides reference docx' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx): void {
+    'upstream direct HUnit: language from metadata overrides reference docx' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx, $wordLangAttributes): void {
         $referenceStyles = '<?xml version="1.0" encoding="UTF-8"?>'
             . '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
             . '<w:docDefaults><w:rPrDefault><w:rPr><w:lang w:bidi="ar-SA" w:eastAsia="zh-CN" w:val="de-DE"/></w:rPr></w:rPrDefault></w:docDefaults>'
@@ -550,7 +621,7 @@ return [
 
         $withReferenceDocx([
             ['name' => 'word/styles.xml', 'data' => $referenceStyles],
-        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts): void {
+        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts, $wordLangAttributes): void {
             [, $parts] = $packageParts((new DocxWriter(['referenceDocxPath' => $referencePath]))->write(
                 $doc(
                     [$paragraph([$text('Metadata language')])],
@@ -558,8 +629,9 @@ return [
                 )
             ));
 
-            $t->contains('w:val="fr-FR"', $parts['word/styles.xml']);
-            $t->true(!str_contains($parts['word/styles.xml'], 'w:val="de-DE"'), 'Metadata language should override the reference styles language');
+            $t->same([
+                ['val' => 'fr-FR', 'eastAsia' => 'zh-CN', 'bidi' => 'ar-SA'],
+            ], $wordLangAttributes($parts['word/styles.xml']));
         });
     },
 

@@ -22,7 +22,8 @@
       "static DOCX Haskell reader and writer test-case counts from the pinned upstream source",
       "which Haskell DOCX cases are not covered by the local 74/74 reader/native parser-acceptance gate or the local 38/38 writer-golden stable package gate",
       "the exact local gate evidence currently checked into this lane",
-      "local PHP DocxWriter mirror assertions cover the seven direct upstream writer HUnit cases not exercised by the writer-golden gate"
+      "local PHP DocxWriter mirror assertions cover the seven direct upstream writer HUnit cases not exercised by the writer-golden gate",
+      "focused local PHP DocxWriter language mirror assertions cover the german-reference.docx w:lang de-DE preservation case and the metadata lang=fr-FR override case"
     ],
     "doesNotAssert": [
       "that upstream Haskell/Cabal/Tasty tests were executed",
@@ -83,6 +84,32 @@
       "mirroredDirectHunitCaseCount": 7,
       "passedMirrorCaseCount": 7,
       "failedMirrorCaseCount": 0,
+      "focusedLanguageReferenceMirror": {
+        "status": "passed-local-direct-writer-language-reference-mirrors",
+        "evidenceKind": "php-docx-writer-direct-hunit-language-reference-mirror-tests",
+        "tool": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
+        "testFile": "lanes/pandoc/tests/DocxWriterTest.php",
+        "upstreamDenominator": "haskellWriterInventory.notCoveredCases",
+        "referenceFixtureMode": "synthetic local reference.docx with german-reference.docx w:lang de-DE semantics",
+        "expectedDirectHunitCaseCount": 2,
+        "mirroredDirectHunitCaseCount": 2,
+        "passedMirrorCaseCount": 2,
+        "failedMirrorCaseCount": 0,
+        "mirroredLabels": [
+          "language from reference docx is preserved",
+          "language from metadata overrides reference docx"
+        ],
+        "assertions": [
+          "reference styles w:lang w:val remains de-DE when document metadata has no language",
+          "metadata lang=fr-FR rewrites reference styles w:lang w:val to fr-FR",
+          "reference w:eastAsia and w:bidi language attributes are retained by both paths"
+        ],
+        "doesNotProve": [
+          "upstream Haskell/Cabal/Tasty runner success",
+          "byte-for-byte DOCX package equality with german-reference.docx",
+          "full DOCX/OpenXML parity"
+        ]
+      },
       "mirroredLabels": [
         "no section break before first chapter (#10578)",
         "section breaks between chapters (#11482)",
@@ -91,6 +118,67 @@
         "section properties from non-w-prefix reference docx",
         "language from metadata overrides reference docx",
         "FirstParagraph after heading with footnote (#11573)"
+      ],
+      "focusedMirrorAssertions": [
+        {
+          "label": "section breaks between chapters (#11482)",
+          "upstreamOption": "writerTopLevelDivision=TopLevelChapter",
+          "localTest": "upstream direct HUnit: section breaks between chapters (#11482)",
+          "documentShape": "three level-1 chapters",
+          "assertions": [
+            "word/document.xml contains exactly 3 w:sectPr elements",
+            "word/document.xml contains exactly 2 inserted section-break paragraphs before later chapters"
+          ]
+        }
+      ],
+      "caseRows": [
+        {
+          "label": "no section break before first chapter (#10578)",
+          "localTestName": "upstream direct HUnit: no section break before first chapter (#10578)",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "chapter top-level division does not emit a leading section break before the first heading"
+        },
+        {
+          "label": "section breaks between chapters (#11482)",
+          "localTestName": "upstream direct HUnit: section breaks between chapters (#11482)",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "chapter top-level division emits section properties between later level-1 headings"
+        },
+        {
+          "label": "no media directory override in content types",
+          "localTestName": "upstream direct HUnit: no media directory override in content types",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "generated [Content_Types].xml uses media extension defaults without media directory or media part overrides"
+        },
+        {
+          "label": "language from reference docx is preserved",
+          "localTestName": "upstream direct HUnit: language from reference docx is preserved",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "reference styles language survives when document metadata does not override it"
+        },
+        {
+          "label": "section properties from non-w-prefix reference docx",
+          "localTestName": "upstream direct HUnit: section properties from non-w-prefix reference docx",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "reference section properties are imported even when the source XML uses a non-w WordprocessingML prefix"
+        },
+        {
+          "label": "language from metadata overrides reference docx",
+          "localTestName": "upstream direct HUnit: language from metadata overrides reference docx",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "document metadata language replaces the reference styles language"
+        },
+        {
+          "label": "FirstParagraph after heading with footnote (#11573)",
+          "localTestName": "upstream direct HUnit: FirstParagraph after heading with footnote (#11573)",
+          "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
+          "assertionFocus": "a paragraph following a heading that contains an inline footnote keeps the upstream FirstParagraph paragraph style",
+          "assertedDocumentXmlFragments": [
+            "<w:pStyle w:val=\"Heading3\"/>",
+            "<w:footnoteReference w:id=\"9\"/>",
+            "<w:p><w:pPr><w:pStyle w:val=\"FirstParagraph\"/></w:pPr><w:r><w:t xml:space=\"preserve\">Para after.</w:t></w:r></w:p>"
+          ]
+        }
       ],
       "proves": [
         "local PHP DocxWriter has focused XML-level mirror assertions for each direct upstream writer HUnit case outside the 38/38 writer-golden gate"

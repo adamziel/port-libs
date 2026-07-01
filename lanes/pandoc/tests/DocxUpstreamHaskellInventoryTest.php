@@ -173,6 +173,55 @@ return [
         $t->same(7, $directWriterGate['mirroredDirectHunitCaseCount']);
         $t->same(7, $directWriterGate['passedMirrorCaseCount']);
         $t->same(0, $directWriterGate['failedMirrorCaseCount']);
+        $languageReferenceMirror = $directWriterGate['focusedLanguageReferenceMirror'] ?? null;
+        $t->true(is_array($languageReferenceMirror), 'Direct writer HUnit mirror gate must include focused language-reference evidence');
+        $t->same('passed-local-direct-writer-language-reference-mirrors', $languageReferenceMirror['status'] ?? null);
+        $t->same('php-docx-writer-direct-hunit-language-reference-mirror-tests', $languageReferenceMirror['evidenceKind'] ?? null);
+        $t->same('synthetic local reference.docx with german-reference.docx w:lang de-DE semantics', $languageReferenceMirror['referenceFixtureMode'] ?? null);
+        $t->same(2, $languageReferenceMirror['expectedDirectHunitCaseCount'] ?? null);
+        $t->same(2, $languageReferenceMirror['mirroredDirectHunitCaseCount'] ?? null);
+        $t->same(2, $languageReferenceMirror['passedMirrorCaseCount'] ?? null);
+        $t->same(0, $languageReferenceMirror['failedMirrorCaseCount'] ?? null);
+        $t->same([
+            'language from reference docx is preserved',
+            'language from metadata overrides reference docx',
+        ], $languageReferenceMirror['mirroredLabels'] ?? null);
+        $t->true(in_array('metadata lang=fr-FR rewrites reference styles w:lang w:val to fr-FR', $languageReferenceMirror['assertions'] ?? [], true));
+        $t->true(in_array('byte-for-byte DOCX package equality with german-reference.docx', $languageReferenceMirror['doesNotProve'] ?? [], true));
+        $t->same([
+            [
+                'label' => 'section breaks between chapters (#11482)',
+                'upstreamOption' => 'writerTopLevelDivision=TopLevelChapter',
+                'localTest' => 'upstream direct HUnit: section breaks between chapters (#11482)',
+                'documentShape' => 'three level-1 chapters',
+                'assertions' => [
+                    'word/document.xml contains exactly 3 w:sectPr elements',
+                    'word/document.xml contains exactly 2 inserted section-break paragraphs before later chapters',
+                ],
+            ],
+        ], $directWriterGate['focusedMirrorAssertions']);
+        $directWriterRows = $directWriterGate['caseRows'] ?? [];
+        $t->same(7, count($directWriterRows));
+        $t->same($directWriterGate['mirroredLabels'], $labels($directWriterRows));
+        $mediaRows = array_values(array_filter(
+            $directWriterRows,
+            static fn (array $row): bool => ($row['label'] ?? null) === 'no media directory override in content types'
+        ));
+        $t->same(1, count($mediaRows));
+        $t->same('generated [Content_Types].xml uses media extension defaults without media directory or media part overrides', $mediaRows[0]['assertionFocus'] ?? null);
+        $firstParagraphRows = array_values(array_filter(
+            $directWriterRows,
+            static fn (array $row): bool => ($row['label'] ?? null) === 'FirstParagraph after heading with footnote (#11573)'
+        ));
+        $t->same(1, count($firstParagraphRows));
+        $t->same('upstream direct HUnit: FirstParagraph after heading with footnote (#11573)', $firstParagraphRows[0]['localTestName'] ?? null);
+        $t->same('lanes/pandoc/tests/DocxWriterTest.php', $firstParagraphRows[0]['localTestFile'] ?? null);
+        $t->same('a paragraph following a heading that contains an inline footnote keeps the upstream FirstParagraph paragraph style', $firstParagraphRows[0]['assertionFocus'] ?? null);
+        $t->same([
+            '<w:pStyle w:val="Heading3"/>',
+            '<w:footnoteReference w:id="9"/>',
+            '<w:p><w:pPr><w:pStyle w:val="FirstParagraph"/></w:pPr><w:r><w:t xml:space="preserve">Para after.</w:t></w:r></w:p>',
+        ], $firstParagraphRows[0]['assertedDocumentXmlFragments'] ?? null);
         $t->true(in_array('local PHP DocxWriter has focused XML-level mirror assertions for each direct upstream writer HUnit case outside the 38/38 writer-golden gate', $directWriterGate['proves'], true));
         $t->true(in_array('upstream Haskell/Cabal/Tasty runner success', $directWriterGate['doesNotProve'], true));
         $t->true(in_array('byte-for-byte DOCX package equality for the direct HUnit cases', $directWriterGate['doesNotProve'], true));

@@ -425,8 +425,18 @@ final class DocxWriter
         $types->addOverride('/word/settings.xml', self::CT_SETTINGS);
         $types->addOverride('/word/theme/theme1.xml', self::CT_THEME);
         $types->addOverride('/word/webSettings.xml', self::CT_WEB_SETTINGS);
+        $mediaDefaults = [];
         foreach ($this->mediaParts as $mediaPart) {
-            $types->addOverride('/' . $mediaPart['name'], $mediaPart['contentType']);
+            $extension = strtolower((string) pathinfo($mediaPart['name'], PATHINFO_EXTENSION));
+            if ($extension === '') {
+                $types->addOverride('/' . $mediaPart['name'], $mediaPart['contentType']);
+                continue;
+            }
+
+            $mediaDefaults[$extension] = $mediaPart['contentType'];
+        }
+        foreach ($mediaDefaults as $extension => $contentType) {
+            $types->addDefault($extension, $contentType);
         }
 
         return self::xmlDeclaration() . $types->toXml() . "\n";
