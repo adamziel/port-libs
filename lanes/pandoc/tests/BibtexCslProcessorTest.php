@@ -3735,6 +3735,82 @@ XML);
         ]));
         $t->same('Relation Review Manual :: Updated source (updated-by): Source Appendix Ledger (2025); missing: source-license :: dataonly, skipbib', $styled->renderBibliographyEntry('relation-manual'));
     },
+    'carries biblatex xref entry provenance in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@collection{source-dossier,
+  options = {dataonly},
+  editor  = {Curator, Eli},
+  title   = {Source Dossier},
+  date    = {2024}
+}
+
+@incollection{xref-chapter,
+  author = {Ng, Nia},
+  title  = {Xref Chapter Review},
+  date   = {2025},
+  pages  = {7--9},
+  xref   = {source-dossier, missing-dossier}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['xref-chapter'];
+
+        $t->same('source-dossier, missing-dossier', $item['xref']);
+        $t->same(['source-dossier', 'missing-dossier'], $item['xrefKeys']);
+        $t->same('source-dossier', $item['xrefItems'][0]['id'] ?? null);
+        $t->same('Source Dossier', $item['xrefItems'][0]['title'] ?? null);
+        $t->same(true, $item['xrefItems'][0]['dataOnly'] ?? null);
+        $t->same(['missing-dossier'], $item['missingXrefKeys']);
+        $t->same('Source Dossier (2024); missing: missing-dossier', $item['xrefSummary']);
+        $t->same('source-dossier, missing-dossier', $item['rawBibtex']['fields']['xref']);
+        $t->same(
+            'Nia Ng. Xref Chapter Review. 2025. 7-9. BibLaTeX xref parent: Source Dossier (2024); missing: missing-dossier.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="xref-keys"/>
+        <text variable="xref-summary"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="xref"/>
+      <text variable="missing-xref-keys"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('xref-chapter');
+        $t->same(['source-dossier', 'missing-dossier'], $styledItem['xrefKeys'] ?? null);
+        $t->same('Source Dossier', $styledItem['xrefItems'][0]['title'] ?? null);
+        $t->same('2024', $styledItem['xrefItems'][0]['issuedDate']['display'] ?? null);
+        $t->same(['missing-dossier'], $styledItem['missingXrefKeys'] ?? null);
+        $t->same('[Xref Chapter Review | source-dossier, missing-dossier | Xref: Source Dossier (2024); missing: missing-dossier]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'xref-chapter', 'text' => '[@xref-chapter]']),
+        ]));
+        $t->same('Xref Chapter Review :: Source Dossier (2024); missing: missing-dossier :: missing-dossier', $styled->renderBibliographyEntry('xref-chapter'));
+
+        $document = (new MarkdownReader())->read('Xref source [@xref-chapter] keeps see-also parent metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['xref-chapter'], $handoff['citedKeys']);
+        $t->same('Source Dossier (2024); missing: missing-dossier', $handoff['items'][0]['xrefSummary'] ?? null);
+        $t->same(['missing-dossier'], $handoff['bibliography']->children[0]->attr('cslItem')['missingXrefKeys'] ?? null);
+        $t->contains('BibLaTeX xref parent: Source Dossier (2024); missing: missing-dossier', $blocks);
+    },
     'carries biblatex related entry provenance in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @book{source-packet,

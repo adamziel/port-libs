@@ -582,6 +582,9 @@ final class BibtexCslProcessor
         if (($item['crossrefSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX crossref parent: ' . (string) $item['crossrefSummary'];
         }
+        if (($item['xrefSummary'] ?? '') !== '') {
+            $parts[] = 'BibLaTeX xref parent: ' . (string) $item['xrefSummary'];
+        }
         if (($item['xdataSummary'] ?? '') !== '') {
             $parts[] = 'BibLaTeX xdata packets: ' . (string) $item['xdataSummary'];
         }
@@ -1493,6 +1496,19 @@ final class BibtexCslProcessor
             $item['crossrefSummary'] = $this->summarizedReferenceValues($crossrefItems, $missing);
             if ($missing !== []) {
                 $item['missingCrossrefKeys'] = $missing;
+            }
+        }
+
+        $xref = $this->fieldKeyList($fields['xref'] ?? '');
+        if ($xref !== []) {
+            $xrefItems = $this->referencedEntrySummaries($xref, $entriesByKey);
+            $missing = $this->missingReferenceKeys($xref, $entriesByKey);
+
+            $item['xrefKeys'] = $xref;
+            $item['xrefItems'] = $xrefItems;
+            $item['xrefSummary'] = $this->summarizedReferenceValues($xrefItems, $missing);
+            if ($missing !== []) {
+                $item['missingXrefKeys'] = $missing;
             }
         }
 
