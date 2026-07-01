@@ -799,16 +799,20 @@ return [
         $documentXml = $parts['word/document.xml'];
         $mediaBytes = $parts['word/media/review.png'];
         $deflatedDocument = gzdeflate($documentXml);
-        $zip = ZipPackage::fromString(docx_openxml_reader_data_descriptor_zip($zipParts));
+        $zipBytes = docx_openxml_reader_data_descriptor_zip($zipParts);
+        $zip = ZipPackage::fromString($zipBytes);
         $document = (new DocxOpenXmlReader())->readZipPackage($zip);
         $package = $document->attr('docx')['packageProvenance'];
         $zipPackage = $package['zipPackage'];
         $dataDescriptors = $zipPackage['dataDescriptors'];
+        $sourceRecords = $zipPackage['sourceRecords'];
         $inventory = $package['parts'];
         $summary = $package['summary'];
         $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
         $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
         $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+        $documentSourceRecord = $sourceRecords['byPackagePath']['word/document.xml'];
+        $mediaSourceRecord = $sourceRecords['byPackagePath']['word/media/review.png'];
 
         $t->true(is_string($deflatedDocument), 'fixture document XML should deflate');
         $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
@@ -824,6 +828,19 @@ return [
         $t->same([], $dataDescriptors['issueCodes']);
         $t->same(28, $dataDescriptors['descriptorByteLength']);
         $t->same(['word/document.xml', 'word/media/review.png'], array_column($dataDescriptors['descriptorEntries'], 'name'));
+
+        $t->same(true, $sourceRecords['present']);
+        $t->same(count($zipParts), $sourceRecords['requestedEntryCount']);
+        $t->same(count($zipParts), $sourceRecords['entryCount']);
+        $t->same(0, $sourceRecords['issueCount']);
+        $t->same([], $sourceRecords['issues']);
+        $t->same(28, $sourceRecords['dataDescriptorBytes']);
+        $t->same(
+            $sourceRecords['localRecordBytes'] + $sourceRecords['centralDirectoryRecordBytes'],
+            $sourceRecords['totalRecordBytes']
+        );
+        $t->same('docx-zip-entry-metadata-only', $sourceRecords['byteExposurePolicy']);
+        $t->same(false, $sourceRecords['canExposeBytes']);
 
         $t->same(true, $documentEntry['usesDataDescriptor']);
         $t->same(true, $documentEntry['dataDescriptorHasSignature']);
@@ -842,6 +859,32 @@ return [
         $t->same(true, $documentEntry['hasZeroLocalHeaderPlaceholders']);
         $t->same(0, $documentEntry['dataDescriptorIssueCount']);
         $t->same([], $documentEntry['dataDescriptorIssues']);
+        $t->same($documentSourceRecord['localRecordSha256'], $documentEntry['localRecordSha256']);
+        $t->same($documentSourceRecord['sourceRecordBytes'], $documentEntry['sourceRecordBytes']);
+        $t->same(true, $documentEntry['hasSourceByteSpanProvenance']);
+        $t->same($documentEntry['localRecordOffset'] + $documentEntry['localRecordBytes'], $documentEntry['localRecordEnd']);
+        $t->same($documentEntry['compressedDataOffset'] + $documentEntry['compressedDataBytes'], $documentEntry['compressedDataEnd']);
+        $t->same(strlen($deflatedDocument), $documentEntry['compressedDataBytes']);
+        $t->same(true, $documentEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(16, $documentEntry['dataDescriptorBytes']);
+        $t->same(
+            hash('sha256', substr($zipBytes, $documentEntry['localRecordOffset'], $documentEntry['localRecordBytes'])),
+            $documentEntry['localRecordSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zipBytes, $documentEntry['compressedDataOffset'], $documentEntry['compressedDataBytes'])),
+            $documentEntry['compressedDataSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zipBytes, $documentEntry['dataDescriptorOffset'], $documentEntry['dataDescriptorBytes'])),
+            $documentEntry['dataDescriptorSha256']
+        );
+        $t->same(
+            hash('sha256', substr($zipBytes, $documentEntry['centralDirectoryRecordOffset'], $documentEntry['centralDirectoryRecordBytes'])),
+            $documentEntry['centralDirectoryRecordSha256']
+        );
+        $t->same(0, $documentEntry['sourceByteSpanIssueCount']);
+        $t->same([], $documentEntry['sourceByteSpanIssues']);
 
         $t->same(true, $mediaEntry['usesDataDescriptor']);
         $t->same(false, $mediaEntry['dataDescriptorHasSignature']);
@@ -854,11 +897,22 @@ return [
         $t->same(true, $mediaEntry['dataDescriptorValuesMatchCentral']);
         $t->same(true, $mediaEntry['hasZeroLocalHeaderPlaceholders']);
         $t->same([], $mediaEntry['dataDescriptorIssues']);
+        $t->same($mediaSourceRecord['localRecordSha256'], $mediaEntry['localRecordSha256']);
+        $t->same(true, $mediaEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(12, $mediaEntry['dataDescriptorBytes']);
+        $t->same(
+            hash('sha256', substr($zipBytes, $mediaEntry['dataDescriptorOffset'], $mediaEntry['dataDescriptorBytes'])),
+            $mediaEntry['dataDescriptorSha256']
+        );
 
         $t->same(false, $contentTypesEntry['usesDataDescriptor']);
         $t->same(null, $contentTypesEntry['dataDescriptorHasSignature']);
         $t->same(null, $contentTypesEntry['dataDescriptorLength']);
         $t->same([], $contentTypesEntry['dataDescriptorIssues']);
+        $t->same(true, $contentTypesEntry['hasSourceByteSpanProvenance']);
+        $t->same(false, $contentTypesEntry['sourceByteSpanIncludesDataDescriptor']);
+        $t->same(0, $contentTypesEntry['dataDescriptorBytes']);
+        $t->same(null, $contentTypesEntry['dataDescriptorSha256']);
 
         $t->same(true, $inventory['word/document.xml']['usesDataDescriptor']);
         $t->same(true, $inventory['word/document.xml']['dataDescriptorHasSignature']);
@@ -869,6 +923,11 @@ return [
         $t->same(true, $inventory['word/document.xml']['dataDescriptorValuesMatchCentral']);
         $t->same(true, $inventory['word/document.xml']['hasZeroLocalHeaderPlaceholders']);
         $t->same([], $inventory['word/document.xml']['dataDescriptorIssues']);
+        $t->same(true, $inventory['word/document.xml']['hasSourceByteSpanProvenance']);
+        $t->same($documentEntry['localRecordSha256'], $inventory['word/document.xml']['localRecordSha256']);
+        $t->same($documentEntry['sourceRecordBytes'], $inventory['word/document.xml']['sourceRecordBytes']);
+        $t->same($documentEntry['dataDescriptorSha256'], $inventory['word/document.xml']['dataDescriptorSha256']);
+        $t->same([], $inventory['word/document.xml']['sourceByteSpanIssues']);
         $t->same(false, $inventory['[Content_Types].xml']['usesDataDescriptor']);
 
         $t->same(2, $summary['zipDataDescriptorEntryCount']);
@@ -880,6 +939,15 @@ return [
         $t->same(0, $summary['zipDataDescriptorIssueCount']);
         $t->same([], $summary['zipDataDescriptorIssueCodes']);
         $t->same(28, $summary['zipDataDescriptorByteLength']);
+        $t->same(count($zipParts), $summary['zipSourceRecordEntryCount']);
+        $t->same(0, $summary['zipSourceRecordIssueCount']);
+        $t->same([], $summary['zipSourceRecordIssues']);
+        $t->same($sourceRecords['localRecordBytes'], $summary['zipSourceLocalRecordBytes']);
+        $t->same($sourceRecords['localHeaderBytes'], $summary['zipSourceLocalHeaderBytes']);
+        $t->same($sourceRecords['compressedDataBytes'], $summary['zipSourceCompressedDataBytes']);
+        $t->same(28, $summary['zipSourceDataDescriptorBytes']);
+        $t->same($sourceRecords['centralDirectoryRecordBytes'], $summary['zipSourceCentralDirectoryRecordBytes']);
+        $t->same($sourceRecords['totalRecordBytes'], $summary['zipSourceTotalRecordBytes']);
     },
     'preserves docx zip entry name policy provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
