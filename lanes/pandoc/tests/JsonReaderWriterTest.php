@@ -184,6 +184,31 @@ return [
         $t->same('Str', $citation['c'][1][0]['t']);
         $t->same('[@smith2026]', $citation['c'][1][0]['c']);
     },
+    'round trips nullary block constructors through current pandoc json' => static function (TestRunner $t): void {
+        $source = [
+            'pandoc-api-version' => [1, 23, 1, 2],
+            'meta' => [],
+            'blocks' => [
+                ['t' => 'HorizontalRule'],
+                ['t' => 'Null'],
+                ['t' => 'Para', 'c' => [
+                    ['t' => 'Str', 'c' => 'After'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => 'null'],
+                ]],
+            ],
+        ];
+
+        $document = (new JsonReader())->read(json_encode($source, JSON_THROW_ON_ERROR));
+        $decoded = json_decode((new JsonWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same(['horizontal_rule', 'null_block', 'paragraph'], array_map(static fn (AstNode $node): string => $node->type, $document->children));
+        $t->same('HorizontalRule', $decoded['blocks'][0]['t']);
+        $t->same(false, array_key_exists('c', $decoded['blocks'][0]));
+        $t->same('Null', $decoded['blocks'][1]['t']);
+        $t->same(false, array_key_exists('c', $decoded['blocks'][1]));
+        $t->same('Para', $decoded['blocks'][2]['t']);
+    },
     'rejects incompatible pandoc json api versions' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             (new JsonReader())->read(json_encode([
