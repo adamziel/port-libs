@@ -12714,6 +12714,13 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestExpansionRatioBucketSummaries'] = is_array($zipPackageManifest['expansionRatioBucketSummaries'] ?? null)
             ? $zipPackageManifest['expansionRatioBucketSummaries']
             : [];
+        $summary['zipPackageManifestNameLengthBucketSummaryCount'] = (int) ($zipPackageManifest['nameLengthBucketSummaryCount'] ?? 0);
+        $summary['zipPackageManifestNameLengthBuckets'] = is_array($zipPackageManifest['nameLengthBuckets'] ?? null)
+            ? $zipPackageManifest['nameLengthBuckets']
+            : [];
+        $summary['zipPackageManifestNameLengthBucketSummaries'] = is_array($zipPackageManifest['nameLengthBucketSummaries'] ?? null)
+            ? $zipPackageManifest['nameLengthBucketSummaries']
+            : [];
         $summary['zipPackageManifestLargestEntry'] = is_array($zipPackageManifest['largestEntry'] ?? null)
             ? $zipPackageManifest['largestEntry']
             : null;
@@ -13316,6 +13323,12 @@ final class DocxOpenXmlReader
                 'packagePath' => $entry->name,
                 'partName' => $isDirectory ? null : $entry->name,
                 'directoryRoot' => is_array($manifestEntry) ? ($manifestEntry['directoryRoot'] ?? null) : null,
+                'entryNameBytes' => is_array($manifestEntry)
+                    ? (int) ($manifestEntry['entryNameBytes'] ?? strlen($entry->name))
+                    : strlen($entry->name),
+                'entryNameLengthBucket' => is_array($manifestEntry) && is_string($manifestEntry['entryNameLengthBucket'] ?? null)
+                    ? $manifestEntry['entryNameLengthBucket']
+                    : null,
                 'caseFoldKey' => is_array($manifestEntry) && is_string($manifestEntry['caseFoldKey'] ?? null)
                     ? $manifestEntry['caseFoldKey']
                     : null,
@@ -14029,6 +14042,9 @@ final class DocxOpenXmlReader
             'expansionRatioBucketSummaryCount' => 0,
             'expansionRatioBuckets' => [],
             'expansionRatioBucketSummaries' => [],
+            'nameLengthBucketSummaryCount' => 0,
+            'nameLengthBuckets' => [],
+            'nameLengthBucketSummaries' => [],
             'largestEntry' => null,
             'zeroByteEntryCount' => 0,
             'zeroByteFileCount' => 0,
@@ -14283,6 +14299,13 @@ final class DocxOpenXmlReader
                 : [],
             'packageManifestExpansionRatioBucketSummaries' => is_array($packageManifest['expansionRatioBucketSummaries'] ?? null)
                 ? $packageManifest['expansionRatioBucketSummaries']
+                : [],
+            'packageManifestNameLengthBucketSummaryCount' => (int) ($packageManifest['nameLengthBucketSummaryCount'] ?? 0),
+            'packageManifestNameLengthBuckets' => is_array($packageManifest['nameLengthBuckets'] ?? null)
+                ? $packageManifest['nameLengthBuckets']
+                : [],
+            'packageManifestNameLengthBucketSummaries' => is_array($packageManifest['nameLengthBucketSummaries'] ?? null)
+                ? $packageManifest['nameLengthBucketSummaries']
                 : [],
             'packageManifestLargestEntry' => is_array($packageManifest['largestEntry'] ?? null)
                 ? $packageManifest['largestEntry']
