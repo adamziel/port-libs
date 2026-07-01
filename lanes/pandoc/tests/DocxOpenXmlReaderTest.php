@@ -8717,6 +8717,304 @@ XML;
         $t->same(1, $summary['externalRelationshipCount']);
         $t->true(!in_array('rLink', array_merge(...array_column($summary['relationshipTargetPathDepths'], 'relationshipIds')), true), 'external targets should not enter path depth buckets');
     },
+    'summarizes docx relationship target path segments for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml; profile=segments"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rRootSegment" Type="' . $customXmlRel . '" Target="/customXml/segment-review.xml?root=segment#xml"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rCommentsSegment" Type="' . $commentsRel . '" Target="comments.xml?review=segment#comments"/>' . "\n" .
+            '  <Relationship Id="rMissingSegment" Type="' . $imageRel . '" Target="media/deep/missing/segment.png?missing=1#asset"/>' . "\n" .
+            '  <Relationship Id="rDeepSegment" Type="' . $customXmlRel . '" Target="media/deep/segment.bin"/>' . "\n" .
+            '  <Relationship Id="rExternalSegment" Type="' . $hyperlinkRel . '" Target="https://example.test/media/deep/segment.png" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Segment header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/header/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderSegment" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/deep/segment.png"/>
+</Relationships>
+XML;
+        $parts['customXml/segment-review.xml'] = '<segment-review/>';
+        $parts['word/comments.xml'] = '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>';
+        $parts['word/media/deep/segment.bin'] = str_repeat('B', 33);
+        $parts['word/media/deep/segment.png'] = str_repeat('S', 60);
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $segments = [];
+        foreach ($summary['relationshipTargetPathSegments'] as $segment) {
+            $segments[$segment['segment']] = $segment;
+        }
+        $allRelationshipIds = array_merge(...array_column($summary['relationshipTargetPathSegments'], 'relationshipIds'));
+
+        $t->same(13, $summary['relationshipTargetPathSegmentCount']);
+        $t->same(24, $summary['relationshipTargetPathSegmentOccurrenceCount']);
+        $t->same([
+            'comments.xml',
+            'core.xml',
+            'customXml',
+            'deep',
+            'docProps',
+            'document.xml',
+            'media',
+            'missing',
+            'review.png',
+            'segment-review.xml',
+            'segment.bin',
+            'segment.png',
+            'word',
+        ], array_column($summary['relationshipTargetPathSegments'], 'segment'));
+        $t->true(!in_array('rLink', $allRelationshipIds, true), 'fixture external hyperlink should not enter target path segment buckets');
+        $t->true(!in_array('rExternalSegment', $allRelationshipIds, true), 'external segment target should not enter target path segment buckets');
+
+        $word = $segments['word'];
+        $t->same(6, $word['relationshipCount']);
+        $t->same(5, $word['existingTargetCount']);
+        $t->same(1, $word['missingTargetCount']);
+        $t->same(1, $word['parameterizedTargetCount']);
+        $t->same([0 => 6], $word['pathSegmentIndexCounts']);
+        $t->same([
+            'word' => 2,
+            'word/media' => 1,
+            'word/media/deep' => 2,
+            'word/media/deep/missing' => 1,
+        ], $word['targetDirectoryCounts']);
+        $t->same(['default' => 4, 'override' => 2], $word['contentTypeSourceCounts']);
+        $t->same([
+            $commentsRel => 1,
+            $customXmlRel => 1,
+            $imageRel => 3,
+            'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' => 1,
+        ], $word['relationshipTypeCounts']);
+        $t->same(['rCommentsSegment', 'rDeepSegment', 'rDoc', 'rHeaderSegment', 'rImage', 'rMissingSegment'], $word['relationshipIds']);
+        $t->same([
+            'word/comments.xml',
+            'word/document.xml',
+            'word/media/deep/missing/segment.png',
+            'word/media/deep/segment.bin',
+            'word/media/deep/segment.png',
+            'word/media/review.png',
+        ], $word['targetParts']);
+        $t->same('word/document.xml', $word['largestExistingTargetPart']['targetPart']);
+        $t->same(['word', 'document.xml'], $word['largestExistingTargetPart']['targetPathSegments']);
+
+        $deep = $segments['deep'];
+        $t->same(3, $deep['relationshipCount']);
+        $t->same(2, $deep['existingTargetCount']);
+        $t->same(1, $deep['missingTargetCount']);
+        $t->same([2 => 3], $deep['pathSegmentIndexCounts']);
+        $t->same(['application/octet-stream' => 1, 'image/png' => 2], $deep['contentTypeBaseCounts']);
+        $t->same(['default' => 3], $deep['contentTypeSourceCounts']);
+        $t->same([
+            'custom-xml-part' => 1,
+            'document-relationship-target' => 1,
+            'missing-relationship-target' => 1,
+            'relationship-target' => 1,
+        ], $deep['roleCounts']);
+        $t->same(['rDeepSegment', 'rHeaderSegment', 'rMissingSegment'], $deep['relationshipIds']);
+        $t->same(['word/media/deep/missing/segment.png', 'word/media/deep/segment.bin', 'word/media/deep/segment.png'], $deep['targetParts']);
+        $t->same('word/media/deep/segment.png', $deep['largestExistingTargetPart']['targetPart']);
+        $t->same(hash('sha256', $parts['word/media/deep/segment.png']), $deep['largestExistingTargetPart']['targetSha256']);
+
+        $png = $segments['segment.png'];
+        $t->same(2, $png['relationshipCount']);
+        $t->same(1, $png['existingTargetCount']);
+        $t->same(1, $png['missingTargetCount']);
+        $t->same([3 => 1, 4 => 1], $png['pathSegmentIndexCounts']);
+        $t->same(['word/media/deep' => 1, 'word/media/deep/missing' => 1], $png['targetDirectoryCounts']);
+        $t->same(['rHeaderSegment', 'rMissingSegment'], $png['relationshipIds']);
+        $t->same(['word/media/deep/missing/segment.png', 'word/media/deep/segment.png'], $png['targetParts']);
+
+        $customXml = $segments['customXml'];
+        $t->same(1, $customXml['relationshipCount']);
+        $t->same(['customXml' => 1], $customXml['targetDirectoryCounts']);
+        $t->same(['custom-xml-part' => 1, 'root-relationship-target' => 1], $customXml['roleCounts']);
+        $t->same(['_rels/.rels'], $customXml['relationshipParts']);
+        $t->same(['rRootSegment'], $customXml['relationshipIds']);
+        $t->same(['customXml/segment-review.xml'], $customXml['targetParts']);
+    },
+    'summarizes docx relationship target path segment positions for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
+        $hyperlinkRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+        $imageRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image';
+        $officeDocumentRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument';
+        $coreRel = 'http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties';
+
+        $parts['[Content_Types].xml'] = str_replace(
+            '</Types>',
+            '  <Default Extension="bin" ContentType="application/octet-stream"/>' . "\n" .
+            '  <Override PartName="/root-position.xml" ContentType="application/xml; profile=position"/>' . "\n" .
+            '</Types>',
+            $parts['[Content_Types].xml']
+        );
+        $parts['_rels/.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rOnlyPosition" Type="' . $customXmlRel . '" Target="root-position.xml?slot=only#target"/>' . "\n" .
+            '</Relationships>',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rDeepPosition" Type="' . $customXmlRel . '" Target="media/deep/path/position.bin?depth=4#payload"/>' . "\n" .
+            '  <Relationship Id="rMissingPosition" Type="' . $imageRel . '" Target="custom/missing/target-position.png?missing=1#asset"/>' . "\n" .
+            '  <Relationship Id="rExternalPosition" Type="' . $hyperlinkRel . '" Target="https://example.test/word/media/external-position.png" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['root-position.xml'] = '<root-position/>';
+        $parts['word/media/deep/path/position.bin'] = str_repeat('D', 57);
+
+        $summary = (new DocxOpenXmlReader())->readPackage($parts)->attr('docx')['packageProvenance']['summary'];
+        $positions = [];
+        foreach ($summary['relationshipTargetPathSegmentPositions'] as $position) {
+            $positions[$position['position']] = $position;
+        }
+        $allRelationshipIds = array_merge(...array_column($summary['relationshipTargetPathSegmentPositions'], 'relationshipIds'));
+
+        $t->same(4, $summary['relationshipTargetPathSegmentPositionBucketCount']);
+        $t->same(17, $summary['relationshipTargetPathSegmentPositionOccurrenceCount']);
+        $t->same($summary['relationshipTargetPathSegmentOccurrenceCount'], $summary['relationshipTargetPathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 5, 'last' => 5, 'middle' => 6, 'only' => 1], $summary['relationshipTargetPathSegmentPositionCounts']);
+        $t->same(['first', 'last', 'middle', 'only'], array_column($summary['relationshipTargetPathSegmentPositions'], 'position'));
+        $t->true(!in_array('rLink', $allRelationshipIds, true), 'fixture external hyperlink should not enter target path segment position buckets');
+        $t->true(!in_array('rExternalPosition', $allRelationshipIds, true), 'external position target should not enter target path segment position buckets');
+
+        $first = $positions['first'];
+        $t->same(5, $first['occurrenceCount']);
+        $t->same(5, $first['relationshipCount']);
+        $t->same(4, $first['existingTargetCount']);
+        $t->same(1, $first['missingTargetCount']);
+        $t->same(2, $first['uniqueSegmentCount']);
+        $t->same(['docProps' => 1, 'word' => 4], $first['segmentCounts']);
+        $t->same(['docProps', 'word'], $first['segments']);
+        $t->same([0 => 5], $first['pathSegmentIndexCounts']);
+        $t->same([
+            'docProps' => 1,
+            'word' => 1,
+            'word/custom/missing' => 1,
+            'word/media' => 1,
+            'word/media/deep/path' => 1,
+        ], $first['targetDirectoryCounts']);
+        $t->same(['default' => 3, 'override' => 2], $first['contentTypeSourceCounts']);
+        $t->same([
+            'application/octet-stream' => 1,
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml' => 1,
+            'application/vnd.openxmlformats-package.core-properties+xml' => 1,
+            'image/png' => 2,
+        ], $first['contentTypeBaseCounts']);
+        $t->same([
+            $customXmlRel => 1,
+            $imageRel => 2,
+            $officeDocumentRel => 1,
+            $coreRel => 1,
+        ], $first['relationshipTypeCounts']);
+        $t->same(['rCore', 'rDeepPosition', 'rDoc', 'rImage', 'rMissingPosition'], $first['relationshipIds']);
+        $t->same([
+            'docProps/core.xml',
+            'word/custom/missing/target-position.png',
+            'word/document.xml',
+            'word/media/deep/path/position.bin',
+            'word/media/review.png',
+        ], $first['targetParts']);
+        $t->same('word/document.xml', $first['largestExistingTargetPart']['targetPart']);
+
+        $middle = $positions['middle'];
+        $t->same(6, $middle['occurrenceCount']);
+        $t->same(3, $middle['relationshipCount']);
+        $t->same(2, $middle['existingTargetCount']);
+        $t->same(1, $middle['missingTargetCount']);
+        $t->same(5, $middle['uniqueSegmentCount']);
+        $t->same([
+            'custom' => 1,
+            'deep' => 1,
+            'media' => 2,
+            'missing' => 1,
+            'path' => 1,
+        ], $middle['segmentCounts']);
+        $t->same(['custom', 'deep', 'media', 'missing', 'path'], $middle['segments']);
+        $t->same([1 => 3, 2 => 2, 3 => 1], $middle['pathSegmentIndexCounts']);
+        $t->same([
+            'word/custom/missing' => 1,
+            'word/media' => 1,
+            'word/media/deep/path' => 1,
+        ], $middle['targetDirectoryCounts']);
+        $t->same(['application/octet-stream' => 1, 'image/png' => 2], $middle['contentTypeBaseCounts']);
+        $t->same(['default' => 3], $middle['contentTypeSourceCounts']);
+        $t->same([$customXmlRel => 1, $imageRel => 2], $middle['relationshipTypeCounts']);
+        $t->same(['rDeepPosition', 'rImage', 'rMissingPosition'], $middle['relationshipIds']);
+        $t->same([
+            'word/custom/missing/target-position.png',
+            'word/media/deep/path/position.bin',
+            'word/media/review.png',
+        ], $middle['targetParts']);
+        $t->same(57 + strlen('fake png bytes'), $middle['existingTargetByteLength']);
+        $t->same('word/media/deep/path/position.bin', $middle['largestExistingTargetPart']['targetPart']);
+        $t->same(57, $middle['largestExistingTargetPart']['targetBytes']);
+        $t->same(hash('sha256', $parts['word/media/deep/path/position.bin']), $middle['largestExistingTargetPart']['targetSha256']);
+
+        $last = $positions['last'];
+        $t->same(5, $last['occurrenceCount']);
+        $t->same(5, $last['relationshipCount']);
+        $t->same(4, $last['existingTargetCount']);
+        $t->same(1, $last['missingTargetCount']);
+        $t->same(5, $last['uniqueSegmentCount']);
+        $t->same([
+            'core.xml' => 1,
+            'document.xml' => 1,
+            'position.bin' => 1,
+            'review.png' => 1,
+            'target-position.png' => 1,
+        ], $last['segmentCounts']);
+        $t->same([1 => 2, 2 => 1, 3 => 1, 4 => 1], $last['pathSegmentIndexCounts']);
+        $t->same(['rCore', 'rDeepPosition', 'rDoc', 'rImage', 'rMissingPosition'], $last['relationshipIds']);
+        $t->same([
+            'docProps/core.xml',
+            'word/custom/missing/target-position.png',
+            'word/document.xml',
+            'word/media/deep/path/position.bin',
+            'word/media/review.png',
+        ], $last['targetParts']);
+
+        $only = $positions['only'];
+        $t->same(1, $only['occurrenceCount']);
+        $t->same(1, $only['relationshipCount']);
+        $t->same(1, $only['existingTargetCount']);
+        $t->same(0, $only['missingTargetCount']);
+        $t->same(1, $only['parameterizedTargetCount']);
+        $t->same(['root-position.xml' => 1], $only['segmentCounts']);
+        $t->same(['root-position.xml'], $only['segments']);
+        $t->same([0 => 1], $only['pathSegmentIndexCounts']);
+        $t->same(['/' => 1], $only['targetDirectoryCounts']);
+        $t->same(['application/xml' => 1], $only['contentTypeBaseCounts']);
+        $t->same(['override' => 1], $only['contentTypeSourceCounts']);
+        $t->same([$customXmlRel => 1], $only['relationshipTypeCounts']);
+        $t->same(['custom-xml-part' => 1, 'root-relationship-target' => 1], $only['roleCounts']);
+        $t->same(['/'], $only['sourceParts']);
+        $t->same(['_rels/.rels'], $only['relationshipParts']);
+        $t->same(['rOnlyPosition'], $only['relationshipIds']);
+        $t->same(['root-position.xml'], $only['targetParts']);
+        $t->same('root-position.xml', $only['largestExistingTargetPart']['targetPart']);
+        $t->same(hash('sha256', $parts['root-position.xml']), $only['largestExistingTargetPart']['targetSha256']);
+    },
     'summarizes docx relationship target extension buckets for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $commentsRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
