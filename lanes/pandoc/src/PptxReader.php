@@ -2094,7 +2094,7 @@ final class PptxReader
         }
 
         $level = trim($properties->getAttribute('lvl'));
-        if (preg_match('/^[+-]?\d+$/', $level) !== 1) {
+        if (preg_match('/^-?\d+$/', $level) !== 1) {
             return 0;
         }
 

@@ -2668,6 +2668,7 @@ XML);
       <p:txBody><a:bodyPr/><a:lstStyle/>
         <a:p><a:pPr lvl="-1"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Negative level bullet</a:t></a:r></a:p>
         <a:p><a:pPr lvl="0"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Zero level bullet</a:t></a:r></a:p>
+        <a:p><a:pPr lvl="+1"><a:buChar char="&#8226;"/></a:pPr><a:r><a:t>Plus level bullet</a:t></a:r></a:p>
       </p:txBody>
     </p:sp>
   </p:spTree></p:cSld>
@@ -6179,14 +6180,19 @@ return [
             $document->children,
             static fn (AstNode $node): bool => $node->type === 'bullet_list'
         ));
-        $itemText = static function (AstNode $list): string {
-            $inline = $list->children[0]->children[0]->children[0] ?? null;
+        $itemTexts = static function (AstNode $list): array {
+            return array_map(static function (AstNode $item): string {
+                $inline = $item->children[0]->children[0] ?? null;
 
-            return $inline instanceof AstNode ? (string) $inline->attr('text') : '';
+                return $inline instanceof AstNode ? (string) $inline->attr('text') : '';
+            }, $list->children);
         };
 
         $t->same(2, count($topLevelLists));
-        $t->same(['Negative level bullet', 'Zero level bullet'], array_map($itemText, $topLevelLists));
+        $t->same([
+            ['Negative level bullet'],
+            ['Zero level bullet', 'Plus level bullet'],
+        ], array_map($itemTexts, $topLevelLists));
     },
 
     'splits pptx list levels instead of nesting like upstream' => static function (TestRunner $t) use ($buildNestedListPptxPackage, $nodesOfType): void {
