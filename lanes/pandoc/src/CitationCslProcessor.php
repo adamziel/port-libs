@@ -8914,6 +8914,16 @@ final class CitationCslProcessor
             $parts[] = 'Reprint date: ' . (string) $reprintDate['display'] . '.';
         }
 
+        $availableDate = $item['availableDate'] ?? null;
+        if (is_array($availableDate) && (string) ($availableDate['display'] ?? '') !== '') {
+            $parts[] = 'Available date: ' . (string) $availableDate['display'] . '.';
+        }
+
+        $submittedDate = $item['submittedDate'] ?? null;
+        if (is_array($submittedDate) && (string) ($submittedDate['display'] ?? '') !== '') {
+            $parts[] = 'Submitted date: ' . (string) $submittedDate['display'] . '.';
+        }
+
         $labelDate = $item['labelDate'] ?? null;
         if (is_array($labelDate) && (string) ($labelDate['display'] ?? '') !== '') {
             $parts[] = 'Label date: ' . (string) $labelDate['display'] . '.';
