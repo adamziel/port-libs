@@ -820,6 +820,7 @@ final class DelimitedTextReader
         $rowWidthSummary = $this->rowWidthSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader);
         $rowRepairSummary = $this->rowRepairSummary($rows, $widths, $sourceRowIndexes, $blankRows, $hasHeader);
         $controlCharacters = $this->annotateControlCharactersWithRepair($controlCharacters, $rowRepairSummary);
+        $inputPrefixDiagnostics = $this->inputPrefixDiagnostics($inputPrefix);
         $diagnostics = $this->reviewDiagnostics($hasHeader, $formatInference, $inputPrefix, $sourceAnalysis, $rowWidthSummary, $controlCharacters);
         foreach ($parseDiagnostics as $diagnostic) {
             $diagnostics[] = $diagnostic;
@@ -842,6 +843,13 @@ final class DelimitedTextReader
             ],
             'formatInference' => $formatInference,
             'inputPrefix' => $inputPrefix,
+            'inputPrefixDiagnosticCount' => count($inputPrefixDiagnostics),
+            'inputPrefixDiagnosticCodes' => array_values(array_map(
+                static fn (array $diagnostic): string => (string) ($diagnostic['code'] ?? ''),
+                $inputPrefixDiagnostics
+            )),
+            'inputPrefixDiagnostics' => $inputPrefixDiagnostics,
+            'inputPrefixDiagnosticSummary' => $this->inputPrefixDiagnosticSummary($inputPrefix, $inputPrefixDiagnostics),
             'headerRow' => $hasHeader && $rowCount > 0,
             'headerOption' => $hasHeader ? 'first-row' : 'none',
             'headerSource' => $hasHeader && $rowCount > 0 ? 'source-row-0' : 'generated',
@@ -1184,6 +1192,71 @@ final class DelimitedTextReader
         }
 
         return $diagnostics;
+    }
+
+    /**
+     * @param array<string, mixed> $inputPrefix
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, mixed>
+     */
+    private function inputPrefixDiagnosticSummary(array $inputPrefix, array $diagnostics): array
+    {
+        $codes = [];
+        $codeCounts = [];
+        $severityCounts = [
+            'info' => 0,
+            'warning' => 0,
+            'error' => 0,
+        ];
+        foreach ($diagnostics as $diagnostic) {
+            $code = is_string($diagnostic['code'] ?? null) ? $diagnostic['code'] : '';
+            if ($code !== '') {
+                $codes[] = $code;
+                $codeCounts[$code] = ($codeCounts[$code] ?? 0) + 1;
+            }
+
+            $severity = is_string($diagnostic['severity'] ?? null) ? $diagnostic['severity'] : '';
+            if ($severity !== '') {
+                $severityCounts[$severity] = ($severityCounts[$severity] ?? 0) + 1;
+            }
+        }
+
+        $formatContext = is_array($inputPrefix['formatContext'] ?? null) ? $inputPrefix['formatContext'] : [];
+        $hasUtf8Bom = ($inputPrefix['bom'] ?? 'none') === 'utf-8';
+        $leadingWhitespaceSkipped = ((int) ($inputPrefix['leadingWhitespaceByteCount'] ?? 0)) > 0;
+        $nullByteCount = (int) ($inputPrefix['nullByteCount'] ?? 0);
+        $controlCharacterCount = (int) ($inputPrefix['controlCharacterCount'] ?? 0);
+
+        return [
+            'policy' => 'bounded-input-prefix-diagnostic-summary',
+            'diagnosticCount' => count($diagnostics),
+            'diagnosticCodes' => $codes,
+            'diagnosticCodeCounts' => $codeCounts,
+            'severityCounts' => $severityCounts,
+            'hasDiagnostics' => $diagnostics !== [],
+            'issueFlags' => array_values(array_filter([
+                $hasUtf8Bom ? 'utf8-bom' : null,
+                $leadingWhitespaceSkipped ? 'leading-whitespace' : null,
+                $nullByteCount > 0 ? 'null-byte' : null,
+                $controlCharacterCount > 0 ? 'control-character' : null,
+            ])),
+            'hasUtf8Bom' => $hasUtf8Bom,
+            'leadingWhitespaceSkipped' => $leadingWhitespaceSkipped,
+            'nullByteCount' => $nullByteCount,
+            'controlCharacterCount' => $controlCharacterCount,
+            'firstContentOffset' => (int) ($inputPrefix['firstContentOffset'] ?? 0),
+            'firstContentLine' => (int) ($inputPrefix['firstContentLine'] ?? 1),
+            'inspectionTruncated' => (bool) ($inputPrefix['inspectionTruncated'] ?? false),
+            'requestedFormat' => $formatContext['requestedFormat'] ?? null,
+            'selectedFormat' => $formatContext['selectedFormat'] ?? null,
+            'sourcePath' => $formatContext['sourcePath'] ?? null,
+            'sourcePathExtension' => $formatContext['sourcePathExtension'] ?? null,
+            'sourcePathFormat' => $formatContext['sourcePathFormat'] ?? null,
+            'extension' => $formatContext['extension'] ?? null,
+            'extensionFormat' => $formatContext['extensionFormat'] ?? null,
+            'formatMatchesContext' => $formatContext['formatMatchesContext'] ?? null,
+            'contextConflict' => $formatContext['contextConflict'] ?? false,
+        ];
     }
 
     /**
