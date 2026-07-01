@@ -6206,9 +6206,21 @@ final class ZipPackage
      *     manifestSha256:string,
      *     entryCount:int,
      *     localRecordBytes:int,
+     *     localHeaderBytes:int,
+     *     localHeaderVariableFieldBytes:int,
+     *     localRawNameBytes:int,
+     *     localExtraFieldBytes:int,
+     *     localHeaderReviewFieldBytes:int,
      *     compressedDataBytes:int,
      *     dataDescriptorBytes:int,
      *     centralDirectoryRecordBytes:int,
+     *     centralDirectoryFixedHeaderBytes:int,
+     *     centralDirectoryVariableFieldBytes:int,
+     *     centralDirectoryRawNameBytes:int,
+     *     centralDirectoryExtraFieldBytes:int,
+     *     centralDirectoryRawCommentBytes:int,
+     *     centralDirectoryReviewFieldBytes:int,
+     *     reviewFieldBytes:int,
      *     sourceRecordBytes:int,
      *     entries:list<array<string, mixed>>
      * }
@@ -6217,16 +6229,38 @@ final class ZipPackage
     {
         $manifestEntries = [];
         $localRecordBytes = 0;
+        $localHeaderBytes = 0;
+        $localHeaderVariableFieldBytes = 0;
+        $localRawNameBytes = 0;
+        $localExtraFieldBytes = 0;
+        $localHeaderReviewFieldBytes = 0;
         $compressedDataBytes = 0;
         $dataDescriptorBytes = 0;
         $centralDirectoryRecordBytes = 0;
+        $centralDirectoryFixedHeaderBytes = 0;
+        $centralDirectoryVariableFieldBytes = 0;
+        $centralDirectoryRawNameBytes = 0;
+        $centralDirectoryExtraFieldBytes = 0;
+        $centralDirectoryRawCommentBytes = 0;
+        $centralDirectoryReviewFieldBytes = 0;
         $sourceRecordBytes = 0;
 
         foreach ($entries as $entry) {
             $localRecordBytes += (int) ($entry['localRecordBytes'] ?? 0);
+            $localHeaderBytes += (int) ($entry['localHeaderBytes'] ?? 0);
+            $localHeaderVariableFieldBytes += (int) ($entry['localHeaderVariableFieldBytes'] ?? 0);
+            $localRawNameBytes += (int) ($entry['localRawNameBytes'] ?? 0);
+            $localExtraFieldBytes += (int) ($entry['localExtraFieldBytes'] ?? 0);
+            $localHeaderReviewFieldBytes += (int) ($entry['localHeaderReviewFieldBytes'] ?? 0);
             $compressedDataBytes += (int) ($entry['compressedDataBytes'] ?? 0);
             $dataDescriptorBytes += (int) ($entry['dataDescriptorBytes'] ?? 0);
             $centralDirectoryRecordBytes += (int) ($entry['centralDirectoryRecordBytes'] ?? 0);
+            $centralDirectoryFixedHeaderBytes += (int) ($entry['centralDirectoryFixedHeaderBytes'] ?? 0);
+            $centralDirectoryVariableFieldBytes += (int) ($entry['centralDirectoryVariableFieldBytes'] ?? 0);
+            $centralDirectoryRawNameBytes += (int) ($entry['centralDirectoryRawNameBytes'] ?? 0);
+            $centralDirectoryExtraFieldBytes += (int) ($entry['centralDirectoryExtraFieldBytes'] ?? 0);
+            $centralDirectoryRawCommentBytes += (int) ($entry['centralDirectoryRawCommentBytes'] ?? 0);
+            $centralDirectoryReviewFieldBytes += (int) ($entry['centralDirectoryReviewFieldBytes'] ?? 0);
             $sourceRecordBytes += (int) ($entry['sourceRecordBytes'] ?? 0);
 
             $manifestEntries[] = [
@@ -6234,6 +6268,18 @@ final class ZipPackage
                 'localRecordOffset' => $entry['localRecordOffset'] ?? null,
                 'localRecordBytes' => $entry['localRecordBytes'] ?? null,
                 'localRecordSha256' => $entry['localRecordSha256'] ?? null,
+                'localHeaderBytes' => $entry['localHeaderBytes'] ?? null,
+                'localHeaderSha256' => $entry['localHeaderSha256'] ?? null,
+                'localHeaderVariableFieldOffset' => $entry['localHeaderVariableFieldOffset'] ?? null,
+                'localHeaderVariableFieldBytes' => $entry['localHeaderVariableFieldBytes'] ?? null,
+                'localHeaderVariableFieldSha256' => $entry['localHeaderVariableFieldSha256'] ?? null,
+                'localRawNameOffset' => $entry['localRawNameOffset'] ?? null,
+                'localRawNameBytes' => $entry['localRawNameBytes'] ?? null,
+                'localRawNameSha256' => $entry['localRawNameSha256'] ?? null,
+                'localExtraFieldOffset' => $entry['localExtraFieldOffset'] ?? null,
+                'localExtraFieldBytes' => $entry['localExtraFieldBytes'] ?? null,
+                'localExtraFieldSha256' => $entry['localExtraFieldSha256'] ?? null,
+                'localHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'] ?? null,
                 'compressedDataOffset' => $entry['compressedDataOffset'] ?? null,
                 'compressedDataBytes' => $entry['compressedDataBytes'] ?? null,
                 'compressedDataSha256' => $entry['compressedDataSha256'] ?? null,
@@ -6243,13 +6289,46 @@ final class ZipPackage
                 'centralDirectoryRecordOffset' => $entry['centralDirectoryRecordOffset'] ?? null,
                 'centralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'] ?? null,
                 'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
+                'centralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'] ?? null,
+                'centralDirectoryVariableFieldOffset' => $entry['centralDirectoryVariableFieldOffset'] ?? null,
+                'centralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'] ?? null,
+                'centralDirectoryVariableFieldSha256' => $entry['centralDirectoryVariableFieldSha256'] ?? null,
+                'centralDirectoryRawNameOffset' => $entry['centralDirectoryRawNameOffset'] ?? null,
+                'centralDirectoryRawNameBytes' => $entry['centralDirectoryRawNameBytes'] ?? null,
+                'centralDirectoryRawNameSha256' => $entry['centralDirectoryRawNameSha256'] ?? null,
+                'centralDirectoryExtraFieldOffset' => $entry['centralDirectoryExtraFieldOffset'] ?? null,
+                'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'] ?? null,
+                'centralDirectoryExtraFieldSha256' => $entry['centralDirectoryExtraFieldSha256'] ?? null,
+                'centralDirectoryRawCommentOffset' => $entry['centralDirectoryRawCommentOffset'] ?? null,
+                'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'] ?? null,
+                'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'] ?? null,
+                'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'] ?? null,
                 'sourceRecordBytes' => $entry['sourceRecordBytes'] ?? null,
                 'sourceByteSpanIssues' => $entry['sourceByteSpanIssues'] ?? [],
             ];
         }
 
+        $reviewFieldBytes = $localHeaderReviewFieldBytes + $centralDirectoryReviewFieldBytes;
         $manifestPayload = [
-            'manifestVersion' => 'zip-selected-source-manifest-v1',
+            'manifestVersion' => 'zip-selected-source-manifest-v2',
+            'entryCount' => count($manifestEntries),
+            'localRecordBytes' => $localRecordBytes,
+            'localHeaderBytes' => $localHeaderBytes,
+            'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+            'localRawNameBytes' => $localRawNameBytes,
+            'localExtraFieldBytes' => $localExtraFieldBytes,
+            'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
+            'compressedDataBytes' => $compressedDataBytes,
+            'dataDescriptorBytes' => $dataDescriptorBytes,
+            'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+            'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+            'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+            'reviewFieldBytes' => $reviewFieldBytes,
+            'sourceRecordBytes' => $sourceRecordBytes,
             'entries' => $manifestEntries,
         ];
         $manifestJson = json_encode(
@@ -6258,13 +6337,25 @@ final class ZipPackage
         );
 
         return [
-            'manifestVersion' => 'zip-selected-source-manifest-v1',
+            'manifestVersion' => 'zip-selected-source-manifest-v2',
             'manifestSha256' => hash('sha256', $manifestJson),
             'entryCount' => count($manifestEntries),
             'localRecordBytes' => $localRecordBytes,
+            'localHeaderBytes' => $localHeaderBytes,
+            'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+            'localRawNameBytes' => $localRawNameBytes,
+            'localExtraFieldBytes' => $localExtraFieldBytes,
+            'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
             'compressedDataBytes' => $compressedDataBytes,
             'dataDescriptorBytes' => $dataDescriptorBytes,
             'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+            'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+            'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+            'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+            'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+            'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+            'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
+            'reviewFieldBytes' => $reviewFieldBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
             'entries' => $manifestEntries,
         ];

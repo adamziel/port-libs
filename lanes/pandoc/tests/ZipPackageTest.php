@@ -12568,6 +12568,18 @@ return [
                 'localRecordOffset' => $documentSpan['localRecordOffset'],
                 'localRecordBytes' => $documentSpan['localRecordBytes'],
                 'localRecordSha256' => hash('sha256', substr($zip, $documentSpan['localRecordOffset'], $documentSpan['localRecordBytes'])),
+                'localHeaderBytes' => $documentSpan['localHeaderBytes'],
+                'localHeaderSha256' => $documentSpan['localHeaderSha256'],
+                'localHeaderVariableFieldOffset' => $documentSpan['localHeaderVariableFieldOffset'],
+                'localHeaderVariableFieldBytes' => $documentSpan['localHeaderVariableFieldBytes'],
+                'localHeaderVariableFieldSha256' => $documentSpan['localHeaderVariableFieldSha256'],
+                'localRawNameOffset' => $documentSpan['localRawNameOffset'],
+                'localRawNameBytes' => $documentSpan['localRawNameBytes'],
+                'localRawNameSha256' => $documentSpan['localRawNameSha256'],
+                'localExtraFieldOffset' => $documentSpan['localExtraFieldOffset'],
+                'localExtraFieldBytes' => $documentSpan['localExtraFieldBytes'],
+                'localExtraFieldSha256' => $documentSpan['localExtraFieldSha256'],
+                'localHeaderReviewFieldBytes' => $documentSpan['localHeaderReviewFieldBytes'],
                 'compressedDataOffset' => $documentSpan['compressedDataOffset'],
                 'compressedDataBytes' => strlen($documentXml),
                 'compressedDataSha256' => hash('sha256', $documentXml),
@@ -12577,6 +12589,20 @@ return [
                 'centralDirectoryRecordOffset' => $documentSpan['centralDirectoryRecordOffset'],
                 'centralDirectoryRecordBytes' => $documentSpan['centralDirectoryRecordBytes'],
                 'centralDirectoryRecordSha256' => hash('sha256', substr($zip, $documentSpan['centralDirectoryRecordOffset'], $documentSpan['centralDirectoryRecordBytes'])),
+                'centralDirectoryFixedHeaderBytes' => $documentSpan['centralDirectoryFixedHeaderBytes'],
+                'centralDirectoryVariableFieldOffset' => $documentSpan['centralDirectoryVariableFieldOffset'],
+                'centralDirectoryVariableFieldBytes' => $documentSpan['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryVariableFieldSha256' => $documentSpan['centralDirectoryVariableFieldSha256'],
+                'centralDirectoryRawNameOffset' => $documentSpan['centralDirectoryRawNameOffset'],
+                'centralDirectoryRawNameBytes' => $documentSpan['centralDirectoryRawNameBytes'],
+                'centralDirectoryRawNameSha256' => $documentSpan['centralDirectoryRawNameSha256'],
+                'centralDirectoryExtraFieldOffset' => $documentSpan['centralDirectoryExtraFieldOffset'],
+                'centralDirectoryExtraFieldBytes' => $documentSpan['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryExtraFieldSha256' => $documentSpan['centralDirectoryExtraFieldSha256'],
+                'centralDirectoryRawCommentOffset' => $documentSpan['centralDirectoryRawCommentOffset'],
+                'centralDirectoryRawCommentBytes' => $documentSpan['centralDirectoryRawCommentBytes'],
+                'centralDirectoryRawCommentSha256' => $documentSpan['centralDirectoryRawCommentSha256'],
+                'centralDirectoryReviewFieldBytes' => $documentSpan['centralDirectoryReviewFieldBytes'],
                 'sourceRecordBytes' => $documentSpan['sourceRecordBytes'],
                 'sourceByteSpanIssues' => [],
             ],
@@ -12585,6 +12611,18 @@ return [
                 'localRecordOffset' => $commentsSpan['localRecordOffset'],
                 'localRecordBytes' => $commentsSpan['localRecordBytes'],
                 'localRecordSha256' => hash('sha256', substr($zip, $commentsSpan['localRecordOffset'], $commentsSpan['localRecordBytes'])),
+                'localHeaderBytes' => $commentsSpan['localHeaderBytes'],
+                'localHeaderSha256' => $commentsSpan['localHeaderSha256'],
+                'localHeaderVariableFieldOffset' => $commentsSpan['localHeaderVariableFieldOffset'],
+                'localHeaderVariableFieldBytes' => $commentsSpan['localHeaderVariableFieldBytes'],
+                'localHeaderVariableFieldSha256' => $commentsSpan['localHeaderVariableFieldSha256'],
+                'localRawNameOffset' => $commentsSpan['localRawNameOffset'],
+                'localRawNameBytes' => $commentsSpan['localRawNameBytes'],
+                'localRawNameSha256' => $commentsSpan['localRawNameSha256'],
+                'localExtraFieldOffset' => $commentsSpan['localExtraFieldOffset'],
+                'localExtraFieldBytes' => $commentsSpan['localExtraFieldBytes'],
+                'localExtraFieldSha256' => $commentsSpan['localExtraFieldSha256'],
+                'localHeaderReviewFieldBytes' => $commentsSpan['localHeaderReviewFieldBytes'],
                 'compressedDataOffset' => $commentsSpan['compressedDataOffset'],
                 'compressedDataBytes' => strlen($commentsCompressed),
                 'compressedDataSha256' => hash('sha256', $commentsCompressed),
@@ -12594,24 +12632,71 @@ return [
                 'centralDirectoryRecordOffset' => $commentsSpan['centralDirectoryRecordOffset'],
                 'centralDirectoryRecordBytes' => $commentsSpan['centralDirectoryRecordBytes'],
                 'centralDirectoryRecordSha256' => hash('sha256', substr($zip, $commentsSpan['centralDirectoryRecordOffset'], $commentsSpan['centralDirectoryRecordBytes'])),
+                'centralDirectoryFixedHeaderBytes' => $commentsSpan['centralDirectoryFixedHeaderBytes'],
+                'centralDirectoryVariableFieldOffset' => $commentsSpan['centralDirectoryVariableFieldOffset'],
+                'centralDirectoryVariableFieldBytes' => $commentsSpan['centralDirectoryVariableFieldBytes'],
+                'centralDirectoryVariableFieldSha256' => $commentsSpan['centralDirectoryVariableFieldSha256'],
+                'centralDirectoryRawNameOffset' => $commentsSpan['centralDirectoryRawNameOffset'],
+                'centralDirectoryRawNameBytes' => $commentsSpan['centralDirectoryRawNameBytes'],
+                'centralDirectoryRawNameSha256' => $commentsSpan['centralDirectoryRawNameSha256'],
+                'centralDirectoryExtraFieldOffset' => $commentsSpan['centralDirectoryExtraFieldOffset'],
+                'centralDirectoryExtraFieldBytes' => $commentsSpan['centralDirectoryExtraFieldBytes'],
+                'centralDirectoryExtraFieldSha256' => $commentsSpan['centralDirectoryExtraFieldSha256'],
+                'centralDirectoryRawCommentOffset' => $commentsSpan['centralDirectoryRawCommentOffset'],
+                'centralDirectoryRawCommentBytes' => $commentsSpan['centralDirectoryRawCommentBytes'],
+                'centralDirectoryRawCommentSha256' => $commentsSpan['centralDirectoryRawCommentSha256'],
+                'centralDirectoryReviewFieldBytes' => $commentsSpan['centralDirectoryReviewFieldBytes'],
                 'sourceRecordBytes' => $commentsSpan['sourceRecordBytes'],
                 'sourceByteSpanIssues' => [],
             ],
         ];
         $expectedManifestHash = hash('sha256', json_encode([
-            'manifestVersion' => 'zip-selected-source-manifest-v1',
+            'manifestVersion' => 'zip-selected-source-manifest-v2',
+            'entryCount' => 2,
+            'localRecordBytes' => $summary['selectedSourceLocalRecordBytes'],
+            'localHeaderBytes' => $summary['selectedSourceLocalHeaderBytes'],
+            'localHeaderVariableFieldBytes' => $summary['selectedSourceLocalHeaderVariableFieldBytes'],
+            'localRawNameBytes' => $summary['selectedSourceLocalRawNameBytes'],
+            'localExtraFieldBytes' => $summary['selectedSourceLocalExtraFieldBytes'],
+            'localHeaderReviewFieldBytes' => $summary['selectedSourceLocalReviewFieldBytes'],
+            'compressedDataBytes' => $summary['selectedSourceCompressedDataBytes'],
+            'dataDescriptorBytes' => $summary['selectedSourceDataDescriptorBytes'],
+            'centralDirectoryRecordBytes' => $summary['selectedSourceCentralDirectoryRecordBytes'],
+            'centralDirectoryFixedHeaderBytes' => $summary['selectedSourceCentralDirectoryFixedHeaderBytes'],
+            'centralDirectoryVariableFieldBytes' => $summary['selectedSourceCentralDirectoryVariableFieldBytes'],
+            'centralDirectoryRawNameBytes' => $summary['selectedSourceCentralDirectoryRawNameBytes'],
+            'centralDirectoryExtraFieldBytes' => $summary['selectedSourceCentralDirectoryExtraFieldBytes'],
+            'centralDirectoryRawCommentBytes' => $summary['selectedSourceCentralDirectoryRawCommentBytes'],
+            'centralDirectoryReviewFieldBytes' => $summary['selectedSourceCentralDirectoryReviewFieldBytes'],
+            'reviewFieldBytes' => $summary['selectedSourceLocalReviewFieldBytes'] + $summary['selectedSourceCentralDirectoryReviewFieldBytes'],
+            'sourceRecordBytes' => $summary['selectedSourceTotalRecordBytes'],
             'entries' => $expectedManifestEntries,
         ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
 
-        $t->same('zip-selected-source-manifest-v1', $summary['selectedSourceManifestVersion']);
+        $t->same('zip-selected-source-manifest-v2', $summary['selectedSourceManifestVersion']);
         $t->same($expectedManifestHash, $summary['selectedSourceManifestSha256']);
-        $t->same('zip-selected-source-manifest-v1', $summary['selectedSourceManifest']['manifestVersion']);
+        $t->same('zip-selected-source-manifest-v2', $summary['selectedSourceManifest']['manifestVersion']);
         $t->same($expectedManifestHash, $summary['selectedSourceManifest']['manifestSha256']);
         $t->same(2, $summary['selectedSourceManifest']['entryCount']);
         $t->same($summary['selectedSourceLocalRecordBytes'], $summary['selectedSourceManifest']['localRecordBytes']);
+        $t->same($summary['selectedSourceLocalHeaderBytes'], $summary['selectedSourceManifest']['localHeaderBytes']);
+        $t->same($summary['selectedSourceLocalHeaderVariableFieldBytes'], $summary['selectedSourceManifest']['localHeaderVariableFieldBytes']);
+        $t->same($summary['selectedSourceLocalRawNameBytes'], $summary['selectedSourceManifest']['localRawNameBytes']);
+        $t->same($summary['selectedSourceLocalExtraFieldBytes'], $summary['selectedSourceManifest']['localExtraFieldBytes']);
+        $t->same($summary['selectedSourceLocalReviewFieldBytes'], $summary['selectedSourceManifest']['localHeaderReviewFieldBytes']);
         $t->same($summary['selectedSourceCompressedDataBytes'], $summary['selectedSourceManifest']['compressedDataBytes']);
         $t->same($summary['selectedSourceDataDescriptorBytes'], $summary['selectedSourceManifest']['dataDescriptorBytes']);
         $t->same($summary['selectedSourceCentralDirectoryRecordBytes'], $summary['selectedSourceManifest']['centralDirectoryRecordBytes']);
+        $t->same($summary['selectedSourceCentralDirectoryFixedHeaderBytes'], $summary['selectedSourceManifest']['centralDirectoryFixedHeaderBytes']);
+        $t->same($summary['selectedSourceCentralDirectoryVariableFieldBytes'], $summary['selectedSourceManifest']['centralDirectoryVariableFieldBytes']);
+        $t->same($summary['selectedSourceCentralDirectoryRawNameBytes'], $summary['selectedSourceManifest']['centralDirectoryRawNameBytes']);
+        $t->same($summary['selectedSourceCentralDirectoryExtraFieldBytes'], $summary['selectedSourceManifest']['centralDirectoryExtraFieldBytes']);
+        $t->same($summary['selectedSourceCentralDirectoryRawCommentBytes'], $summary['selectedSourceManifest']['centralDirectoryRawCommentBytes']);
+        $t->same($summary['selectedSourceCentralDirectoryReviewFieldBytes'], $summary['selectedSourceManifest']['centralDirectoryReviewFieldBytes']);
+        $t->same(
+            $summary['selectedSourceLocalReviewFieldBytes'] + $summary['selectedSourceCentralDirectoryReviewFieldBytes'],
+            $summary['selectedSourceManifest']['reviewFieldBytes']
+        );
         $t->same($summary['selectedSourceTotalRecordBytes'], $summary['selectedSourceManifest']['sourceRecordBytes']);
         $t->same($expectedManifestEntries, $summary['selectedSourceManifest']['entries']);
         $t->same([$documentEntry, $commentsEntry], $summary['handoffEntries']);
