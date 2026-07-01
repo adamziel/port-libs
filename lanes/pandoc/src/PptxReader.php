@@ -105,7 +105,7 @@ final class PptxReader
                         'test/pptx-reader/basic.pptx',
                         'test/pptx-reader/basic.native',
                     ],
-                    'fixtureCommit' => 'd8ea25c10e980105d4d023d656990a56e295ccb4',
+                    'fixtureCommit' => '4f5226df4faa0d66dd2c089465b13886360ab3c2',
                     'source' => 'Pandoc test/Tests/Readers/Pptx.hs plus src/Text/Pandoc/Readers/Pptx.hs and src/Text/Pandoc/Readers/Pptx/{Parse,Slides,Shapes,SmartArt}.hs',
                 ],
             ],
@@ -2210,15 +2210,21 @@ final class PptxReader
         $mediaPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
         $partName = ltrim($mediaPart, '/');
         if (!$package->has($mediaPart)) {
-            $imageIssues[] = [
-                'issue' => 'missing-image-part',
-                'relationshipId' => $relationshipId,
-                'relationshipAttribute' => $relationshipAttribute,
-                'target' => $relationship->target,
-                'partName' => $partName,
-            ];
+            $upstreamMediaPart = $this->upstreamPictureMediaPart($relationship->target);
+            if ($upstreamMediaPart !== null && $package->has($upstreamMediaPart)) {
+                $mediaPart = $upstreamMediaPart;
+                $partName = ltrim($mediaPart, '/');
+            } else {
+                $imageIssues[] = [
+                    'issue' => 'missing-image-part',
+                    'relationshipId' => $relationshipId,
+                    'relationshipAttribute' => $relationshipAttribute,
+                    'target' => $relationship->target,
+                    'partName' => $partName,
+                ];
 
-            return null;
+                return null;
+            }
         }
 
         $image = new AstNode('image', [
@@ -2232,6 +2238,19 @@ final class PptxReader
         $hyperlinkAttrs = $properties instanceof \DOMElement ? $this->drawingHyperlinkAttrsFromContainer($properties, $slideRelationships) : null;
 
         return $hyperlinkAttrs !== null ? new AstNode('link', $hyperlinkAttrs, [$image]) : $image;
+    }
+
+    private function upstreamPictureMediaPart(string $target): ?string
+    {
+        $path = OpcPackagePath::stripQueryAndFragment($target);
+        if (str_starts_with($path, '../media/')) {
+            return '/ppt/media/' . substr($path, strlen('../media/'));
+        }
+        if (str_starts_with($path, 'media/')) {
+            return '/ppt/' . $path;
+        }
+
+        return null;
     }
 
     private function graphicDataElement(\DOMElement $graphicFrame): ?\DOMElement

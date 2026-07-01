@@ -5,7 +5,7 @@ Scope: native PHP `PortLibs\Pandoc\PptxReader` coverage for the upstream Pandoc 
 ## Upstream Basis
 
 - Upstream repository: `jgm/pandoc`.
-- Fixture/source commit: `d8ea25c10e980105d4d023d656990a56e295ccb4` (`main`, checked 2026-07-01). The PPTX reader source files and `test/pptx-reader/basic.*` fixture bytes match the previously pinned `612e143fbe6d735b612c4800d21e61b7d44e4dca` evidence.
+- Fixture/source commit: `4f5226df4faa0d66dd2c089465b13886360ab3c2` (`main`, checked 2026-07-01). The PPTX reader source files and `test/pptx-reader/basic.*` fixture bytes are unchanged from the previously pinned `d8ea25c10e980105d4d023d656990a56e295ccb4` / `612e143fbe6d735b612c4800d21e61b7d44e4dca` evidence.
 - Reader test source: `test/Tests/Readers/Pptx.hs`.
 - Fixture pair:
   - `test/pptx-reader/basic.pptx`
@@ -24,6 +24,8 @@ Scope: native PHP `PortLibs\Pandoc\PptxReader` coverage for the upstream Pandoc 
 The focused reader suite also locks a missing-image relationship case against the upstream visible-content behavior: an image relationship whose internal package part is absent no longer emits a visible `image` node. The reader records `missing-image-part` with relationship id, target, and package part name in slide review metadata so the omission remains auditable.
 
 Linked image relationships using `a:blip r:link` are now distinguished from embedded image relationships. External linked images remain out of visible content and produce `external-image-target` review metadata with the `link` relationship attribute and external-target preflight result instead of a generic missing-image diagnostic.
+
+Embedded image relationships whose internal target is `media/...` now fall back to upstream Pandoc's PPTX media resolver and load `ppt/media/...` when the strict OPC slide-relative path is absent. Missing-image diagnostics still report the strict resolved package part when neither path exists.
 
 Malformed `p:pic` elements without the upstream-required `p:nvPicPr/p:cNvPr` non-visual properties now stay out of visible reader content even when an embedded media relationship and package part exist. The reader records `missing-picture-nonvisual-properties` in slide image diagnostics.
 
@@ -64,8 +66,8 @@ Latest focused verification:
 - `php -l lanes/pandoc/src/PptxReader.php`
 - `php -l lanes/pandoc/tests/PptxReaderTest.php`
 - `php -l lanes/pandoc/src/PandocFormatRegistry.php`
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `317` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1174` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1607` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `325` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1182` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1615` assertions, `0` failures.
 
 This closes the current upstream PPTX reader golden fixture content gate. It does not claim full PPTX writer parity or full PowerPoint package round-trip parity.
