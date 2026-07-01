@@ -20197,6 +20197,7 @@ final class XmlHtmlDom
             $summary['popoverRaw'] = $attributes['popover'];
             $summary['popoverState'] = $popover;
             $summary['popoverValid'] = $popover !== null;
+            $summary += self::popoverAttributeReviewSummary($element, $attributes['popover'], $popover);
         }
 
         if (array_key_exists('popovertarget', $attributes)) {
@@ -22705,6 +22706,44 @@ final class XmlHtmlDom
             'manual' => 'manual',
             default => null,
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function popoverAttributeReviewSummary(\DOMElement $element, string $raw, ?string $state): array
+    {
+        $issues = [];
+        if ($state === null) {
+            $issues[] = [
+                'code' => 'invalid-html-popover-token',
+                'popoverRaw' => $raw,
+            ];
+        }
+
+        $summary = [
+            'popoverReviewPolicy' => 'html-popover-state-review',
+            'popoverReviewStatus' => $issues === [] ? 'ok' : 'review',
+            'popoverElement' => self::htmlElementName($element),
+            'popoverKeyword' => $state,
+            'popoverAuto' => $state === 'auto',
+            'popoverManual' => $state === 'manual',
+            'popoverInvalidValueDefaulted' => $state === null,
+            'popoverIssueCodes' => array_values(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            )),
+            'popoverIssueCount' => count($issues),
+            'popoverIssues' => $issues,
+            'popoverReviewOnlyNoPopoverEngine' => true,
+        ];
+
+        $elementId = self::attributeOrNull($element, 'id');
+        if ($elementId !== null && $elementId !== '') {
+            $summary['popoverElementId'] = $elementId;
+        }
+
+        return $summary;
     }
 
     private static function popoverTarget(string $value): ?string
