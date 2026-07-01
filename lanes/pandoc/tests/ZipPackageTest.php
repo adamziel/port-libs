@@ -986,6 +986,116 @@ return [
         $t->same($manifest, $raw['strictImport']['packageManifest']);
     },
 
+    'rolls up zip package manifest entry name length buckets before shared package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $shortName = 'mimetype';
+        $shortDirectoryName = 'word/media/';
+        $mediumName = 'word/document.xml';
+        $longName = 'word/media/' . str_repeat('l', 54) . '.bin';
+        $veryLongName = 'word/media/' . str_repeat('v', 118) . '.bin';
+        $mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+        $documentXml = '<w:document><w:body><w:p>name buckets</w:p></w:body></w:document>';
+        $longBytes = 'long package name payload';
+        $veryLongBytes = 'very long package name payload';
+
+        $zip = $buildZipPackage([
+            [
+                'name' => $shortName,
+                'data' => $mimetype,
+                'method' => 0,
+            ],
+            [
+                'name' => $shortDirectoryName,
+                'data' => '',
+                'method' => 0,
+            ],
+            [
+                'name' => $mediumName,
+                'data' => $documentXml,
+                'method' => 0,
+            ],
+            [
+                'name' => $longName,
+                'data' => $longBytes,
+                'method' => 0,
+            ],
+            [
+                'name' => $veryLongName,
+                'data' => $veryLongBytes,
+                'method' => 0,
+            ],
+        ]);
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+
+        $entriesByName = array_column($manifest['entries'], null, 'name');
+        $sumEntryField = static function (array $names, string $field) use ($entriesByName): int {
+            $total = 0;
+            foreach ($names as $name) {
+                $total += (int) $entriesByName[$name][$field];
+            }
+
+            return $total;
+        };
+        $buckets = array_column($manifest['nameLengthBucketSummaries'], null, 'nameLengthBucket');
+
+        $t->same(strlen($shortName), $entriesByName[$shortName]['entryNameBytes']);
+        $t->same('up-to-15-bytes', $entriesByName[$shortName]['entryNameLengthBucket']);
+        $t->same(strlen($shortDirectoryName), $entriesByName[$shortDirectoryName]['entryNameBytes']);
+        $t->same('up-to-15-bytes', $entriesByName[$shortDirectoryName]['entryNameLengthBucket']);
+        $t->same(strlen($mediumName), $entriesByName[$mediumName]['entryNameBytes']);
+        $t->same('16-to-63-bytes', $entriesByName[$mediumName]['entryNameLengthBucket']);
+        $t->same(strlen($longName), $entriesByName[$longName]['entryNameBytes']);
+        $t->same('64-to-127-bytes', $entriesByName[$longName]['entryNameLengthBucket']);
+        $t->same(strlen($veryLongName), $entriesByName[$veryLongName]['entryNameBytes']);
+        $t->same('128-plus-bytes', $entriesByName[$veryLongName]['entryNameLengthBucket']);
+
+        $t->same(4, $manifest['nameLengthBucketSummaryCount']);
+        $t->same(
+            ['up-to-15-bytes', '16-to-63-bytes', '64-to-127-bytes', '128-plus-bytes'],
+            $manifest['nameLengthBuckets']
+        );
+
+        $shortBucketNames = [$shortName, $shortDirectoryName];
+        $t->same([
+            'nameLengthBucket' => 'up-to-15-bytes',
+            'minNameBytes' => 0,
+            'maxNameBytes' => 15,
+            'entryCount' => 2,
+            'fileEntryCount' => 1,
+            'directoryEntryCount' => 1,
+            'entryNameBytes' => strlen($shortName) + strlen($shortDirectoryName),
+            'localHeaderRawNameBytes' => $sumEntryField($shortBucketNames, 'localRawNameBytes'),
+            'centralDirectoryRawNameBytes' => $sumEntryField($shortBucketNames, 'centralDirectoryRawNameBytes'),
+            'compressedBytes' => strlen($mimetype),
+            'uncompressedBytes' => strlen($mimetype),
+            'localRecordBytes' => $sumEntryField($shortBucketNames, 'localRecordBytes'),
+            'sourceRecordBytes' => $sumEntryField($shortBucketNames, 'sourceRecordBytes'),
+            'directoryRoots' => ['/', 'word/'],
+            'packagePartExtensionKeys' => ['(directory)', '(none)'],
+            'entryNames' => $shortBucketNames,
+            'minEntryNameBytes' => strlen($shortName),
+            'maxEntryNameBytes' => strlen($shortDirectoryName),
+            'longestEntryNames' => [$shortDirectoryName],
+        ], $buckets['up-to-15-bytes']);
+
+        $t->same(1, $buckets['16-to-63-bytes']['entryCount']);
+        $t->same(strlen($mediumName), $buckets['16-to-63-bytes']['entryNameBytes']);
+        $t->same(['xml'], $buckets['16-to-63-bytes']['packagePartExtensionKeys']);
+        $t->same([$mediumName], $buckets['16-to-63-bytes']['longestEntryNames']);
+        $t->same(1, $buckets['64-to-127-bytes']['entryCount']);
+        $t->same(strlen($longName), $buckets['64-to-127-bytes']['entryNameBytes']);
+        $t->same([$longName], $buckets['64-to-127-bytes']['entryNames']);
+        $t->same(1, $buckets['128-plus-bytes']['entryCount']);
+        $t->same(strlen($veryLongName), $buckets['128-plus-bytes']['entryNameBytes']);
+        $t->same([$veryLongName], $buckets['128-plus-bytes']['entryNames']);
+
+        $t->same($manifest['nameLengthBucketSummaries'], $strict['packageManifest']['nameLengthBucketSummaries']);
+        $t->same($manifest['nameLengthBucketSummaries'], $raw['packageManifest']['nameLengthBucketSummaries']);
+        $t->same($manifest['nameLengthBucketSummaries'], $raw['strictImport']['packageManifest']['nameLengthBucketSummaries']);
+    },
+
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
         $documentXml = '<w:document><w:body><w:p>manifest payload hash</w:p></w:body></w:document>';
         $mediaBytes = "stored image bytes\n";
