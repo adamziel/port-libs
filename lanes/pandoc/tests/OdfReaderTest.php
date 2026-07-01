@@ -10005,6 +10005,15 @@ XML;
         }
         $localOrder = $provenance['localHeaderOrder'];
         $compression = $provenance['compressionMethods'];
+        $handoff = $provenance['packageByteHandoff'];
+        $reviewEntriesByName = [];
+        foreach ($handoff['reviewEntries'] as $entry) {
+            $reviewEntriesByName[$entry['name']] = $entry;
+        }
+        $reviewHandoffEntriesByName = [];
+        foreach ($handoff['reviewHandoffEntries'] as $entry) {
+            $reviewHandoffEntriesByName[$entry['name']] = $entry;
+        }
 
         $t->same([
             '/',
@@ -10069,6 +10078,68 @@ XML;
         $t->same(['Pictures/unsupported.bin'], array_column($compression['unsupportedEntries'], 'name'));
         $t->same(1, $result['rdfMetadata']['partCount']);
         $t->same(1, $result['scriptMetadata']['count']);
+
+        $t->same(5, $handoff['requestCount']);
+        $t->same([
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'settings.xml',
+            'Pictures/hero.png',
+        ], array_column($handoff['handoffEntries'], 'name'));
+        $t->same(9, $handoff['reviewRequestCount']);
+        $t->same(9, $handoff['reviewRequestedEntryCount']);
+        $t->same(8, $handoff['reviewSelectedUniqueEntryCount']);
+        $t->same(7, $handoff['reviewHandoffEntryCount']);
+        $t->same(1, $handoff['reviewMissingEntryCount']);
+        $t->same(1, $handoff['reviewFailedEntryCount']);
+        $t->same(1, $handoff['reviewUnreadableEntryCount']);
+        $t->same(1, $handoff['reviewSelectedUnsupportedCompressionMethodCount']);
+        $t->same(false, $handoff['reviewIsSupportedByBoundedReader']);
+        $t->same(['unreadable-entry'], $handoff['reviewIssues']);
+        $t->same([
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'settings.xml',
+            'Pictures/hero.png',
+            'Pictures/missing.png',
+            'Pictures/unsupported.bin',
+        ], $handoff['reviewRequestNames']);
+        $t->same([
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'settings.xml',
+            'Pictures/hero.png',
+            'Pictures/unsupported.bin',
+        ], array_column($handoff['reviewSelectedSourceManifest']['entries'], 'name'));
+        $t->same([
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'styles.xml',
+            'meta.xml',
+            'settings.xml',
+            'Pictures/hero.png',
+        ], array_column($handoff['reviewHandoffEntries'], 'name'));
+        $t->same('missing-optional', $reviewEntriesByName['Pictures/missing.png']['status']);
+        $t->same(false, $reviewEntriesByName['Pictures/missing.png']['exists']);
+        $t->same(null, $reviewEntriesByName['Pictures/missing.png']['contentSha256']);
+        $t->same('blocked', $reviewEntriesByName['Pictures/unsupported.bin']['status']);
+        $t->same(['unreadable-entry'], $reviewEntriesByName['Pictures/unsupported.bin']['issues']);
+        $t->same(12, $reviewEntriesByName['Pictures/unsupported.bin']['compressionMethod']);
+        $t->same(null, $reviewEntriesByName['Pictures/unsupported.bin']['contentSha256']);
+        $t->same(hash('sha256', OdfReader::MIMETYPE), $reviewHandoffEntriesByName['mimetype']['contentSha256']);
+        $t->same(hash('sha256', $manifestWithPackageHandoff), $reviewHandoffEntriesByName['META-INF/manifest.xml']['contentSha256']);
+        $t->same(false, isset($reviewEntriesByName['Basic/Standard/Module1.xml']));
+        $t->same(false, isset($reviewEntriesByName['manifest.rdf']));
+        $t->same('odf-selected-package-byte-handoff-review-metadata-only', $handoff['reviewByteExposurePolicy']);
+        $t->same(false, $handoff['reviewCanExposeBytes']);
     },
     'reports ODT manifest declared size mismatches for package review' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml, $contentXml): void {
         $manifestWithDeclaredSizes = str_replace(
