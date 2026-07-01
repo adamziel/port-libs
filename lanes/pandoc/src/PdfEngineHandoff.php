@@ -9,6 +9,7 @@ final class PdfEngineHandoff
     private const MAX_SOURCE_MAP_BYTES = 1048576;
     private const MAX_DEPENDENCY_FILE_BYTES = 1048576;
     private const MAX_PDF_OUTPUT_INSPECTION_BYTES = 1048576;
+    private const MAX_PDF_HEADER_POLICY_BYTES = 4096;
     private const MAX_PDF_EOF_MARKER_OFFSETS = 64;
     private const MAX_XMP_METADATA_BYTES = 262144;
     private const MAX_OUTPUT_INTENT_PROFILE_BYTES = 262144;
@@ -849,11 +850,12 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceInput:array<string, mixed>, handoffInputProvenance:array<string, mixed>, sourceSha256:string|null, pdfSha256:string|null, pdfEofMarkerPolicy:array<string, mixed>, pdfStartXrefPolicy:array<string, mixed>, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstPackageDependencyPolicy:array<string, mixed>, typstImportPathPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, typstDependencyEdgePackageProvenance:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>, packageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceInput:array<string, mixed>, handoffInputProvenance:array<string, mixed>, sourceSha256:string|null, pdfSha256:string|null, pdfHeaderPolicy:array<string, mixed>, pdfEofMarkerPolicy:array<string, mixed>, pdfStartXrefPolicy:array<string, mixed>, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstPackageDependencyPolicy:array<string, mixed>, typstImportPathPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, typstDependencyEdgePackageProvenance:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>, packageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
      *     pdfHeaderVersion: string|null,
+     *     pdfHeaderPolicy: array{reviewStatus:string, headerOffset:int, headerLineBytes:int, headerLineTruncated:bool, headerVersion:string|null, knownVersion:bool|null, lineEnding:string, binaryCommentPresent:bool, binaryCommentOffset:int|null, binaryCommentBytes:int|null, firstBodyOffset:int|null, issues:list<string>}|array{},
      *     pdfCatalogVersion: string|null,
      *     pdfEffectiveVersion: string|null,
      *     pdfLinearization: array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
@@ -1643,6 +1645,24 @@ final class PdfEngineHandoff
 
         $pdfBytes = array_key_exists($outputFile, $files) ? $files[$outputFile] : null;
         $pdfTrailerComplete = is_string($pdfBytes) && $this->hasCompletePdfTrailer($pdfBytes);
+        $pdfHeaderPolicy = is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-')
+            ? $this->pdfHeaderPolicy($pdfBytes)
+            : [];
+        if ($pdfHeaderPolicy !== []) {
+            $diagnostics[] = 'pdf-byte-header-policy:' . $pdfHeaderPolicy['reviewStatus'];
+            if (is_string($pdfHeaderPolicy['headerVersion'] ?? null) && $pdfHeaderPolicy['headerVersion'] !== '') {
+                $diagnostics[] = 'pdf-byte-header-policy-version:' . $pdfHeaderPolicy['headerVersion'];
+            }
+            $diagnostics[] = 'pdf-byte-header-line-ending:' . $pdfHeaderPolicy['lineEnding'];
+            if (($pdfHeaderPolicy['binaryCommentPresent'] ?? false) === true) {
+                $diagnostics[] = 'pdf-byte-header-binary-comment';
+            }
+            foreach (($pdfHeaderPolicy['issues'] ?? []) as $issue) {
+                if (is_string($issue) && $issue !== '') {
+                    $diagnostics[] = 'pdf-byte-header-policy-issue:' . $issue;
+                }
+            }
+        }
         $pdfEofMarkerPolicy = is_string($pdfBytes) && str_starts_with($pdfBytes, '%PDF-')
             ? $this->pdfEofMarkerPolicy($pdfBytes)
             : [];
@@ -1662,6 +1682,9 @@ final class PdfEngineHandoff
             }
         }
         $pdfHeaderVersion = null;
+        if (is_string($pdfHeaderPolicy['headerVersion'] ?? null) && $pdfHeaderPolicy['headerVersion'] !== '') {
+            $pdfHeaderVersion = $pdfHeaderPolicy['headerVersion'];
+        }
         $pdfCatalogVersion = null;
         $pdfEffectiveVersion = null;
         $pdfLinearization = [];
@@ -5428,6 +5451,9 @@ final class PdfEngineHandoff
         if (($pdfEofMarkerPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'pdf-eof-marker-policy:' . $pdfEofMarkerPolicy['reviewStatus'];
         }
+        if (($pdfHeaderPolicy['reviewStatus'] ?? 'ok') !== 'ok') {
+            $artifactProvenanceIssues[] = 'pdf-header-policy:' . $pdfHeaderPolicy['reviewStatus'];
+        }
         if (($sourceInput['reviewStatus'] ?? 'ok') !== 'ok') {
             $artifactProvenanceIssues[] = 'typst-source-input:' . $sourceInput['reviewStatus'];
         }
@@ -5461,6 +5487,7 @@ final class PdfEngineHandoff
             'handoffInputProvenance' => $handoffInputProvenance,
             'sourceSha256' => $sourceSha256,
             'pdfSha256' => is_string($pdfBytes) ? hash('sha256', $pdfBytes) : null,
+            'pdfHeaderPolicy' => $pdfHeaderPolicy,
             'pdfEofMarkerPolicy' => $pdfEofMarkerPolicy,
             'pdfStartXrefPolicy' => $pdfStartXrefPolicy,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
@@ -5558,6 +5585,7 @@ final class PdfEngineHandoff
             'declaredOutputPages' => $declaredOutput['pages'],
             'declaredOutputBytes' => $declaredOutput['bytes'],
             'pdfHeaderVersion' => $pdfHeaderVersion,
+            'pdfHeaderPolicy' => $pdfHeaderPolicy,
             'pdfCatalogVersion' => $pdfCatalogVersion,
             'pdfEffectiveVersion' => $pdfEffectiveVersion,
             'pdfLinearization' => $pdfLinearization,
@@ -5739,6 +5767,7 @@ final class PdfEngineHandoff
      *     finalDeclaredOutputPages: int|null,
      *     finalDeclaredOutputBytes: int|null,
      *     finalPdfHeaderVersion: string|null,
+     *     finalPdfHeaderPolicy: array{reviewStatus:string, headerOffset:int, headerLineBytes:int, headerLineTruncated:bool, headerVersion:string|null, knownVersion:bool|null, lineEnding:string, binaryCommentPresent:bool, binaryCommentOffset:int|null, binaryCommentBytes:int|null, firstBodyOffset:int|null, issues:list<string>}|array{},
      *     finalPdfCatalogVersion: string|null,
      *     finalPdfEffectiveVersion: string|null,
      *     finalPdfLinearization: array{object:string|null, linearizedVersion:float|null, fileLength:int|null, primaryHintOffset:int|null, primaryHintLength:int|null, firstPageObject:int|null, firstPageEndOffset:int|null, pageCount:int|null, mainXrefOffset:int|null, hintTables:list<array{offset:int, length:int}>, lengthMatches:bool|null}|array{},
@@ -6076,6 +6105,7 @@ final class PdfEngineHandoff
             'finalDeclaredOutputPages' => is_array($finalRun) && is_int($finalRun['declaredOutputPages'] ?? null) ? $finalRun['declaredOutputPages'] : null,
             'finalDeclaredOutputBytes' => is_array($finalRun) && is_int($finalRun['declaredOutputBytes'] ?? null) ? $finalRun['declaredOutputBytes'] : null,
             'finalPdfHeaderVersion' => is_array($finalRun) && is_string($finalRun['pdfHeaderVersion'] ?? null) ? $finalRun['pdfHeaderVersion'] : null,
+            'finalPdfHeaderPolicy' => is_array($finalRun) && is_array($finalRun['pdfHeaderPolicy'] ?? null) ? $finalRun['pdfHeaderPolicy'] : [],
             'finalPdfCatalogVersion' => is_array($finalRun) && is_string($finalRun['pdfCatalogVersion'] ?? null) ? $finalRun['pdfCatalogVersion'] : null,
             'finalPdfEffectiveVersion' => is_array($finalRun) && is_string($finalRun['pdfEffectiveVersion'] ?? null) ? $finalRun['pdfEffectiveVersion'] : null,
             'finalPdfLinearization' => is_array($finalRun) && is_array($finalRun['pdfLinearization'] ?? null) ? $finalRun['pdfLinearization'] : [],
@@ -13959,6 +13989,131 @@ final class PdfEngineHandoff
     private function hasCompletePdfTrailer(string $pdfBytes): bool
     {
         return preg_match('/%%EOF\s*\z/s', $pdfBytes) === 1;
+    }
+
+    /**
+     * @return array{
+     *     reviewStatus:string,
+     *     headerOffset:int,
+     *     headerLineBytes:int,
+     *     headerLineTruncated:bool,
+     *     headerVersion:string|null,
+     *     knownVersion:bool|null,
+     *     lineEnding:string,
+     *     binaryCommentPresent:bool,
+     *     binaryCommentOffset:int|null,
+     *     binaryCommentBytes:int|null,
+     *     firstBodyOffset:int|null,
+     *     issues:list<string>
+     * }|array{}
+     */
+    private function pdfHeaderPolicy(string $pdfBytes): array
+    {
+        if (!str_starts_with($pdfBytes, '%PDF-')) {
+            return [];
+        }
+
+        $scanBytes = substr($pdfBytes, 0, self::MAX_PDF_HEADER_POLICY_BYTES);
+        $scanLength = strlen($scanBytes);
+        $lineBreak = strcspn($scanBytes, "\r\n");
+        $headerLineTruncated = $lineBreak === $scanLength && strlen($pdfBytes) > $scanLength;
+        $headerLine = substr($scanBytes, 0, $lineBreak);
+        $lineEnding = ['label' => 'none', 'bytes' => 0];
+        if (!$headerLineTruncated && $lineBreak < $scanLength) {
+            $lineEnding = $this->pdfLineEndingAt($scanBytes, $lineBreak);
+        } elseif ($headerLineTruncated) {
+            $lineEnding['label'] = 'truncated';
+        }
+
+        $headerVersion = null;
+        $knownVersion = null;
+        $issues = [];
+        if (preg_match('/\A%PDF-(\d+\.\d+)\z/', $headerLine, $matches) === 1) {
+            $headerVersion = $matches[1];
+        } elseif (preg_match('/\A%PDF-(\d+\.\d+)\b/', $headerLine, $matches) === 1) {
+            $headerVersion = $matches[1];
+            $issues[] = 'pdf-header-line-extra-bytes';
+        } else {
+            $issues[] = 'pdf-header-version-missing';
+        }
+
+        if ($headerVersion !== null) {
+            $knownVersions = [
+                '1.0' => true,
+                '1.1' => true,
+                '1.2' => true,
+                '1.3' => true,
+                '1.4' => true,
+                '1.5' => true,
+                '1.6' => true,
+                '1.7' => true,
+                '2.0' => true,
+            ];
+            $knownVersion = isset($knownVersions[$headerVersion]);
+            if (!$knownVersion) {
+                $issues[] = 'pdf-header-version-unusual';
+            }
+        }
+
+        if ($headerLineTruncated) {
+            $issues[] = 'pdf-header-line-too-long';
+        } elseif ($lineEnding['bytes'] === 0) {
+            $issues[] = 'pdf-header-line-unterminated';
+        }
+
+        $firstBodyOffset = $lineEnding['bytes'] === 0 ? null : $lineBreak + $lineEnding['bytes'];
+        $binaryCommentPresent = false;
+        $binaryCommentOffset = null;
+        $binaryCommentBytes = null;
+        if ($firstBodyOffset !== null && $firstBodyOffset < $scanLength) {
+            $remaining = substr($scanBytes, $firstBodyOffset);
+            $secondLineBreak = strcspn($remaining, "\r\n");
+            $secondLine = substr($remaining, 0, $secondLineBreak);
+            if ($secondLine !== '' && $secondLine[0] === '%' && preg_match('/[\x80-\xFF]/', $secondLine) === 1) {
+                $binaryCommentPresent = true;
+                $binaryCommentOffset = $firstBodyOffset;
+                $binaryCommentBytes = strlen($secondLine);
+                $secondLineEnding = $this->pdfLineEndingAt($remaining, $secondLineBreak);
+                $firstBodyOffset += $secondLineBreak + $secondLineEnding['bytes'];
+            }
+        }
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'headerOffset' => 0,
+            'headerLineBytes' => strlen($headerLine),
+            'headerLineTruncated' => $headerLineTruncated,
+            'headerVersion' => $headerVersion,
+            'knownVersion' => $knownVersion,
+            'lineEnding' => $lineEnding['label'],
+            'binaryCommentPresent' => $binaryCommentPresent,
+            'binaryCommentOffset' => $binaryCommentOffset,
+            'binaryCommentBytes' => $binaryCommentBytes,
+            'firstBodyOffset' => $firstBodyOffset,
+            'issues' => $issues,
+        ];
+    }
+
+    /**
+     * @return array{label:string, bytes:int}
+     */
+    private function pdfLineEndingAt(string $bytes, int $offset): array
+    {
+        if ($offset >= strlen($bytes)) {
+            return ['label' => 'none', 'bytes' => 0];
+        }
+
+        if ($bytes[$offset] === "\r" && ($bytes[$offset + 1] ?? '') === "\n") {
+            return ['label' => 'CRLF', 'bytes' => 2];
+        }
+        if ($bytes[$offset] === "\r") {
+            return ['label' => 'CR', 'bytes' => 1];
+        }
+        if ($bytes[$offset] === "\n") {
+            return ['label' => 'LF', 'bytes' => 1];
+        }
+
+        return ['label' => 'none', 'bytes' => 0];
     }
 
     /**
