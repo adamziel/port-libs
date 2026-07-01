@@ -925,6 +925,10 @@ return [
                     'localHeaderRawNameSha256' => hash('sha256', $entry['name']),
                     'localHeaderExtraFieldBytes' => 0,
                     'localHeaderExtraFieldSha256' => hash('sha256', ''),
+                    'localExtraFieldRecordCount' => 0,
+                    'localExtraFieldIds' => [],
+                    'localExtraFieldIdHexes' => [],
+                    'hasLocalExtraFields' => false,
                     'localHeaderReviewFieldBytes' => 0,
                     'localRecordBytes' => $manifestEntry['localRecordBytes'],
                     'localRecordSha256' => hash(
@@ -954,6 +958,12 @@ return [
                     'centralDirectoryRawNameSha256' => hash('sha256', $entry['name']),
                     'centralDirectoryExtraFieldBytes' => $manifestEntry['centralDirectoryExtraFieldBytes'],
                     'centralDirectoryExtraFieldSha256' => hash('sha256', ''),
+                    'centralExtraFieldRecordCount' => 0,
+                    'centralExtraFieldIds' => [],
+                    'centralExtraFieldIdHexes' => [],
+                    'hasCentralExtraFields' => false,
+                    'centralLocalExtraFieldIdsMatch' => true,
+                    'hasExtraFieldProvenance' => false,
                     'centralDirectoryRawCommentBytes' => $manifestEntry['centralDirectoryRawCommentBytes'],
                     'centralDirectoryRawCommentSha256' => hash('sha256', ''),
                     'centralDirectoryReviewFieldBytes' => $manifestEntry['centralDirectoryReviewFieldBytes'],
@@ -1306,6 +1316,7 @@ return [
             'localHeaderExtraFieldBytes' => 0,
             'localHeaderReviewFieldBytes' => 0,
             'localExtraFieldEntryCount' => 0,
+            'localExtraFieldRecordCount' => 0,
             'expansionRatio' => $expectedExpansionRatio,
             'largestEntry' => $expectedLargestEntry,
             'zeroByteEntryCount' => 1,
@@ -1333,6 +1344,25 @@ return [
             'centralDirectoryReviewFieldBytes' => 0,
             'sourceRecordBytes' => array_sum(array_column($expectedEntries, 'sourceRecordBytes')),
             'centralExtraFieldEntryCount' => 0,
+            'centralExtraFieldRecordCount' => 0,
+            'extraFieldEntryCount' => 0,
+            'extraFieldRecordCount' => 0,
+            'extraFieldProvenanceEntryCount' => 0,
+            'hasExtraFieldProvenance' => false,
+            'extraFieldIdCount' => 0,
+            'centralExtraFieldIdCount' => 0,
+            'localExtraFieldIdCount' => 0,
+            'sharedExtraFieldIdCount' => 0,
+            'centralOnlyExtraFieldIdCount' => 0,
+            'localOnlyExtraFieldIdCount' => 0,
+            'extraFieldIdHexes' => [],
+            'centralExtraFieldIdHexes' => [],
+            'localExtraFieldIdHexes' => [],
+            'sharedExtraFieldIdHexes' => [],
+            'centralOnlyExtraFieldIdHexes' => [],
+            'localOnlyExtraFieldIdHexes' => [],
+            'extraFieldIdUsage' => [],
+            'extraFieldProvenanceEntries' => [],
             'entryCommentCount' => 0,
             'hasEntryComments' => false,
             'commentedEntryNames' => [],
@@ -1446,6 +1476,7 @@ return [
         $t->same(0, $manifest['localHeaderExtraFieldBytes']);
         $t->same(0, $manifest['localHeaderReviewFieldBytes']);
         $t->same(0, $manifest['localExtraFieldEntryCount']);
+        $t->same(0, $manifest['localExtraFieldRecordCount']);
         $t->same(false, $manifest['hasLocalHeaderReviewFields']);
         $t->same($package->centralDirectoryOffset(), $manifest['centralDirectoryOffset']);
         $t->same($manifest['endOfCentralDirectoryOffset'] - $manifest['centralDirectoryOffset'], $manifest['centralDirectoryBytes']);
@@ -1485,6 +1516,25 @@ return [
         $t->same(0, $manifest['centralDirectoryReviewFieldBytes']);
         $t->same(array_sum(array_column($expectedEntries, 'sourceRecordBytes')), $manifest['sourceRecordBytes']);
         $t->same(0, $manifest['centralExtraFieldEntryCount']);
+        $t->same(0, $manifest['centralExtraFieldRecordCount']);
+        $t->same(0, $manifest['extraFieldEntryCount']);
+        $t->same(0, $manifest['extraFieldRecordCount']);
+        $t->same(0, $manifest['extraFieldProvenanceEntryCount']);
+        $t->same(false, $manifest['hasExtraFieldProvenance']);
+        $t->same(0, $manifest['extraFieldIdCount']);
+        $t->same(0, $manifest['centralExtraFieldIdCount']);
+        $t->same(0, $manifest['localExtraFieldIdCount']);
+        $t->same(0, $manifest['sharedExtraFieldIdCount']);
+        $t->same(0, $manifest['centralOnlyExtraFieldIdCount']);
+        $t->same(0, $manifest['localOnlyExtraFieldIdCount']);
+        $t->same([], $manifest['extraFieldIdHexes']);
+        $t->same([], $manifest['centralExtraFieldIdHexes']);
+        $t->same([], $manifest['localExtraFieldIdHexes']);
+        $t->same([], $manifest['sharedExtraFieldIdHexes']);
+        $t->same([], $manifest['centralOnlyExtraFieldIdHexes']);
+        $t->same([], $manifest['localOnlyExtraFieldIdHexes']);
+        $t->same([], $manifest['extraFieldIdUsage']);
+        $t->same([], $manifest['extraFieldProvenanceEntries']);
         $t->same(0, $manifest['entryCommentCount']);
         $t->same(false, $manifest['hasEntryComments']);
         $t->same([], $manifest['commentedEntryNames']);
@@ -1611,6 +1661,10 @@ return [
                 'localHeaderRawNameSha256' => $entry['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $entry['localHeaderExtraFieldBytes'],
                 'localHeaderExtraFieldSha256' => $entry['localHeaderExtraFieldSha256'],
+                'localExtraFieldRecordCount' => $entry['localExtraFieldRecordCount'],
+                'localExtraFieldIds' => $entry['localExtraFieldIds'],
+                'localExtraFieldIdHexes' => $entry['localExtraFieldIdHexes'],
+                'hasLocalExtraFields' => $entry['hasLocalExtraFields'],
                 'localHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $entry['localRecordBytes'],
                 'localRecordSha256' => $entry['localRecordSha256'],
@@ -1627,6 +1681,12 @@ return [
                 'centralDirectoryRawNameSha256' => $entry['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'],
                 'centralDirectoryExtraFieldSha256' => $entry['centralDirectoryExtraFieldSha256'],
+                'centralExtraFieldRecordCount' => $entry['centralExtraFieldRecordCount'],
+                'centralExtraFieldIds' => $entry['centralExtraFieldIds'],
+                'centralExtraFieldIdHexes' => $entry['centralExtraFieldIdHexes'],
+                'hasCentralExtraFields' => $entry['hasCentralExtraFields'],
+                'centralLocalExtraFieldIdsMatch' => $entry['centralLocalExtraFieldIdsMatch'],
+                'hasExtraFieldProvenance' => $entry['hasExtraFieldProvenance'],
                 'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
@@ -3048,6 +3108,10 @@ return [
                 'localHeaderRawNameSha256' => $documentEntry['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $documentEntry['localHeaderExtraFieldBytes'],
                 'localHeaderExtraFieldSha256' => $documentEntry['localHeaderExtraFieldSha256'],
+                'localExtraFieldRecordCount' => $documentEntry['localExtraFieldRecordCount'],
+                'localExtraFieldIds' => $documentEntry['localExtraFieldIds'],
+                'localExtraFieldIdHexes' => $documentEntry['localExtraFieldIdHexes'],
+                'hasLocalExtraFields' => $documentEntry['hasLocalExtraFields'],
                 'localHeaderReviewFieldBytes' => $documentEntry['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $documentEntry['localRecordBytes'],
                 'localRecordSha256' => $documentEntry['localRecordSha256'],
@@ -3064,6 +3128,12 @@ return [
                 'centralDirectoryRawNameSha256' => $documentEntry['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $documentEntry['centralDirectoryExtraFieldBytes'],
                 'centralDirectoryExtraFieldSha256' => $documentEntry['centralDirectoryExtraFieldSha256'],
+                'centralExtraFieldRecordCount' => $documentEntry['centralExtraFieldRecordCount'],
+                'centralExtraFieldIds' => $documentEntry['centralExtraFieldIds'],
+                'centralExtraFieldIdHexes' => $documentEntry['centralExtraFieldIdHexes'],
+                'hasCentralExtraFields' => $documentEntry['hasCentralExtraFields'],
+                'centralLocalExtraFieldIdsMatch' => $documentEntry['centralLocalExtraFieldIdsMatch'],
+                'hasExtraFieldProvenance' => $documentEntry['hasExtraFieldProvenance'],
                 'centralDirectoryRawCommentBytes' => $documentEntry['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $documentEntry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $documentEntry['centralDirectoryReviewFieldBytes'],
@@ -3129,6 +3199,10 @@ return [
                 'localHeaderRawNameSha256' => $commentsEntry['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $commentsEntry['localHeaderExtraFieldBytes'],
                 'localHeaderExtraFieldSha256' => $commentsEntry['localHeaderExtraFieldSha256'],
+                'localExtraFieldRecordCount' => $commentsEntry['localExtraFieldRecordCount'],
+                'localExtraFieldIds' => $commentsEntry['localExtraFieldIds'],
+                'localExtraFieldIdHexes' => $commentsEntry['localExtraFieldIdHexes'],
+                'hasLocalExtraFields' => $commentsEntry['hasLocalExtraFields'],
                 'localHeaderReviewFieldBytes' => $commentsEntry['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $commentsEntry['localRecordBytes'],
                 'localRecordSha256' => $commentsEntry['localRecordSha256'],
@@ -3145,6 +3219,12 @@ return [
                 'centralDirectoryRawNameSha256' => $commentsEntry['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $commentsEntry['centralDirectoryExtraFieldBytes'],
                 'centralDirectoryExtraFieldSha256' => $commentsEntry['centralDirectoryExtraFieldSha256'],
+                'centralExtraFieldRecordCount' => $commentsEntry['centralExtraFieldRecordCount'],
+                'centralExtraFieldIds' => $commentsEntry['centralExtraFieldIds'],
+                'centralExtraFieldIdHexes' => $commentsEntry['centralExtraFieldIdHexes'],
+                'hasCentralExtraFields' => $commentsEntry['hasCentralExtraFields'],
+                'centralLocalExtraFieldIdsMatch' => $commentsEntry['centralLocalExtraFieldIdsMatch'],
+                'hasExtraFieldProvenance' => $commentsEntry['hasExtraFieldProvenance'],
                 'centralDirectoryRawCommentBytes' => $commentsEntry['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $commentsEntry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $commentsEntry['centralDirectoryReviewFieldBytes'],
@@ -3361,6 +3441,7 @@ return [
             'localHeaderExtraFieldBytes' => $manifest['localHeaderExtraFieldBytes'],
             'localHeaderReviewFieldBytes' => $manifest['localHeaderReviewFieldBytes'],
             'localExtraFieldEntryCount' => $manifest['localExtraFieldEntryCount'],
+            'localExtraFieldRecordCount' => $manifest['localExtraFieldRecordCount'],
             'expansionRatio' => $manifest['expansionRatio'],
             'largestEntry' => $manifest['largestEntry'],
             'zeroByteEntryCount' => $manifest['zeroByteEntryCount'],
@@ -3384,6 +3465,25 @@ return [
             'centralDirectoryReviewFieldBytes' => $manifest['centralDirectoryReviewFieldBytes'],
             'sourceRecordBytes' => $manifest['sourceRecordBytes'],
             'centralExtraFieldEntryCount' => $manifest['centralExtraFieldEntryCount'],
+            'centralExtraFieldRecordCount' => $manifest['centralExtraFieldRecordCount'],
+            'extraFieldEntryCount' => $manifest['extraFieldEntryCount'],
+            'extraFieldRecordCount' => $manifest['extraFieldRecordCount'],
+            'extraFieldProvenanceEntryCount' => $manifest['extraFieldProvenanceEntryCount'],
+            'hasExtraFieldProvenance' => $manifest['hasExtraFieldProvenance'],
+            'extraFieldIdCount' => $manifest['extraFieldIdCount'],
+            'centralExtraFieldIdCount' => $manifest['centralExtraFieldIdCount'],
+            'localExtraFieldIdCount' => $manifest['localExtraFieldIdCount'],
+            'sharedExtraFieldIdCount' => $manifest['sharedExtraFieldIdCount'],
+            'centralOnlyExtraFieldIdCount' => $manifest['centralOnlyExtraFieldIdCount'],
+            'localOnlyExtraFieldIdCount' => $manifest['localOnlyExtraFieldIdCount'],
+            'extraFieldIdHexes' => $manifest['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $manifest['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $manifest['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $manifest['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $manifest['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $manifest['localOnlyExtraFieldIdHexes'],
+            'extraFieldIdUsage' => $manifest['extraFieldIdUsage'],
+            'extraFieldProvenanceEntries' => $manifest['extraFieldProvenanceEntries'],
             'entryCommentCount' => $manifest['entryCommentCount'],
             'hasEntryComments' => $manifest['hasEntryComments'],
             'commentedEntryNames' => $manifest['commentedEntryNames'],
@@ -3587,6 +3687,10 @@ return [
                 'localHeaderRawNameSha256' => $entry['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $entry['localHeaderExtraFieldBytes'],
                 'localHeaderExtraFieldSha256' => $entry['localHeaderExtraFieldSha256'],
+                'localExtraFieldRecordCount' => $entry['localExtraFieldRecordCount'],
+                'localExtraFieldIds' => $entry['localExtraFieldIds'],
+                'localExtraFieldIdHexes' => $entry['localExtraFieldIdHexes'],
+                'hasLocalExtraFields' => $entry['hasLocalExtraFields'],
                 'localHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $entry['localRecordBytes'],
                 'localRecordSha256' => $entry['localRecordSha256'],
@@ -3603,6 +3707,12 @@ return [
                 'centralDirectoryRawNameSha256' => $entry['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'],
                 'centralDirectoryExtraFieldSha256' => $entry['centralDirectoryExtraFieldSha256'],
+                'centralExtraFieldRecordCount' => $entry['centralExtraFieldRecordCount'],
+                'centralExtraFieldIds' => $entry['centralExtraFieldIds'],
+                'centralExtraFieldIdHexes' => $entry['centralExtraFieldIdHexes'],
+                'hasCentralExtraFields' => $entry['hasCentralExtraFields'],
+                'centralLocalExtraFieldIdsMatch' => $entry['centralLocalExtraFieldIdsMatch'],
+                'hasExtraFieldProvenance' => $entry['hasExtraFieldProvenance'],
                 'centralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $entry['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'],
@@ -11253,6 +11363,87 @@ return [
         $t->contains('central-local-extra-field-id-mismatch', implode(',', $strict['diagnostics']));
         $t->contains('central-local-extra-field-value-mismatch', implode(',', $rawStrict['diagnostics']));
         $t->same('central and local-only extra-field ids', $package->read('word/media/reviewer-note.txt'));
+    },
+
+    'rolls up zip package manifest extra field records across source headers' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $sharedExtra = pack('vva*', 0xd00d, strlen('shared-review'), 'shared-review');
+        $centralOnlyExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+        $localOnlyExtra = pack('vva*', 0xbeef, strlen('local-audit'), 'local-audit');
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:p>manifest extra field records</w:p></w:document>',
+                'method' => 0,
+                'centralExtra' => $timestampExtra . $sharedExtra,
+                'localExtra' => $timestampExtra . $sharedExtra,
+            ],
+            [
+                'name' => 'word/media/review.bin',
+                'data' => 'manifest central/local extra field split',
+                'method' => 0,
+                'centralExtra' => $centralOnlyExtra,
+                'localExtra' => $localOnlyExtra,
+            ],
+            [
+                'name' => 'docProps/core.xml',
+                'data' => '<cp:coreProperties/>',
+                'method' => 8,
+            ],
+        ]);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $extraFields = $package->extraFieldPreflight();
+        $strict = $package->strictImportPreflight(4096, 100.0, 4096);
+        $rawStrict = ZipPackage::rawStrictImportPreflight($zip, 4096, 100.0, 4096);
+        $entries = array_column($manifest['entries'], null, 'name');
+        $usageById = [];
+        foreach ($manifest['extraFieldIdUsage'] as $usage) {
+            $usageById[$usage['id']] = $usage;
+        }
+
+        $t->same(3, $manifest['entryCount']);
+        $t->same(2, $manifest['localExtraFieldEntryCount']);
+        $t->same(2, $manifest['centralExtraFieldEntryCount']);
+        $t->same(2, $manifest['extraFieldEntryCount']);
+        $t->same(3, $manifest['localExtraFieldRecordCount']);
+        $t->same(3, $manifest['centralExtraFieldRecordCount']);
+        $t->same(6, $manifest['extraFieldRecordCount']);
+        $t->same(2, $manifest['extraFieldProvenanceEntryCount']);
+        $t->same(true, $manifest['hasExtraFieldProvenance']);
+        $t->same(strlen($timestampExtra . $sharedExtra) + strlen($localOnlyExtra), $manifest['localHeaderExtraFieldBytes']);
+        $t->same(strlen($timestampExtra . $sharedExtra) + strlen($centralOnlyExtra), $manifest['centralDirectoryExtraFieldBytes']);
+        $t->same(['0x5455', '0xbeef', '0xcafe', '0xd00d'], $manifest['extraFieldIdHexes']);
+        $t->same(['0x5455', '0xcafe', '0xd00d'], $manifest['centralExtraFieldIdHexes']);
+        $t->same(['0x5455', '0xbeef', '0xd00d'], $manifest['localExtraFieldIdHexes']);
+        $t->same(['0x5455', '0xd00d'], $manifest['sharedExtraFieldIdHexes']);
+        $t->same(['0xcafe'], $manifest['centralOnlyExtraFieldIdHexes']);
+        $t->same(['0xbeef'], $manifest['localOnlyExtraFieldIdHexes']);
+
+        $t->same([0x5455, 0xd00d], $entries['word/document.xml']['centralExtraFieldIds']);
+        $t->same([0x5455, 0xd00d], $entries['word/document.xml']['localExtraFieldIds']);
+        $t->same(2, $entries['word/document.xml']['centralExtraFieldRecordCount']);
+        $t->same(2, $entries['word/document.xml']['localExtraFieldRecordCount']);
+        $t->same(true, $entries['word/document.xml']['centralLocalExtraFieldIdsMatch']);
+        $t->same(true, $entries['word/document.xml']['hasExtraFieldProvenance']);
+
+        $t->same([0xcafe], $entries['word/media/review.bin']['centralExtraFieldIds']);
+        $t->same([0xbeef], $entries['word/media/review.bin']['localExtraFieldIds']);
+        $t->same(false, $entries['word/media/review.bin']['centralLocalExtraFieldIdsMatch']);
+        $t->same(true, $entries['word/media/review.bin']['hasExtraFieldProvenance']);
+        $t->same(0, $entries['docProps/core.xml']['centralExtraFieldRecordCount']);
+        $t->same(0, $entries['docProps/core.xml']['localExtraFieldRecordCount']);
+        $t->same(false, $entries['docProps/core.xml']['hasExtraFieldProvenance']);
+
+        $t->same(true, $usageById[0xd00d]['appearsInBoth']);
+        $t->same(['word/document.xml'], $usageById[0xd00d]['centralEntryNames']);
+        $t->same(['word/document.xml'], $usageById[0xd00d]['localEntryNames']);
+        $t->same($extraFields['extraFieldIdUsage'], $manifest['extraFieldIdUsage']);
+        $t->same($extraFields['extraFieldEntryCount'], $manifest['extraFieldEntryCount']);
+        $t->same($manifest, $strict['packageManifest']);
+        $t->same($manifest, $rawStrict['packageManifest']);
+        $t->same($manifest, $rawStrict['strictImport']['packageManifest']);
     },
 
     'reads ntfs zip extra field timestamps for office package preflight' => static function (TestRunner $t) use ($buildZipPackage, $buildNtfsExtra): void {

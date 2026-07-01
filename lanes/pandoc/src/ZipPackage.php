@@ -14921,6 +14921,7 @@ final class ZipPackage
         $localHeaderExtraFieldBytes = 0;
         $localHeaderReviewFieldBytes = 0;
         $localExtraFieldEntryCount = 0;
+        $localExtraFieldRecordCount = 0;
         $localRecordBytes = 0;
         $dataDescriptorEntryCount = 0;
         $dataDescriptorBytes = 0;
@@ -14933,6 +14934,10 @@ final class ZipPackage
         $centralDirectoryReviewFieldBytes = 0;
         $sourceRecordBytes = 0;
         $centralExtraFieldEntryCount = 0;
+        $centralExtraFieldRecordCount = 0;
+        $extraFieldEntryCount = 0;
+        $extraFieldProvenanceEntries = [];
+        $extraFieldUsageEntries = [];
         $entryCommentCount = 0;
         $maxPathSegmentCount = 0;
         $maxDirectoryDepth = 0;
@@ -15197,6 +15202,23 @@ final class ZipPackage
             $localHeaderReviewFieldBytes += $entryLocalHeaderReviewFieldBytes;
             if ($entryLocalHeaderExtraFieldBytes > 0) {
                 ++$localExtraFieldEntryCount;
+            }
+            $extraFieldProvenance = self::entryExtraFieldHandoffProvenance($entry, $localHeader);
+            $entryCentralExtraFieldRecordCount = (int) $extraFieldProvenance['centralExtraFieldRecordCount'];
+            $entryLocalExtraFieldRecordCount = (int) $extraFieldProvenance['localExtraFieldRecordCount'];
+            $centralExtraFieldRecordCount += $entryCentralExtraFieldRecordCount;
+            $localExtraFieldRecordCount += $entryLocalExtraFieldRecordCount;
+            $extraFieldUsageEntries[] = [
+                'name' => $entry->name,
+                'centralExtraFieldIds' => $extraFieldProvenance['centralExtraFieldIds'],
+                'localExtraFieldIds' => $extraFieldProvenance['localExtraFieldIds'],
+            ];
+            if ($extraFieldProvenance['hasExtraFieldProvenance']) {
+                ++$extraFieldEntryCount;
+                $extraFieldProvenanceEntries[] = [
+                    'name' => $entry->name,
+                    'centralDirectoryIndex' => $centralDirectoryIndex,
+                ] + $extraFieldProvenance;
             }
             $localRecordBytes += $localRecordLength;
             $localRecordSha256 = hash(
@@ -15494,6 +15516,10 @@ final class ZipPackage
                 'localHeaderExtraFieldOffset' => $entryLocalHeaderExtraFieldOffset,
                 'localHeaderExtraFieldBytes' => $entryLocalHeaderExtraFieldBytes,
                 'localHeaderExtraFieldSha256' => $entryLocalHeaderExtraFieldSha256,
+                'localExtraFieldRecordCount' => $entryLocalExtraFieldRecordCount,
+                'localExtraFieldIds' => $extraFieldProvenance['localExtraFieldIds'],
+                'localExtraFieldIdHexes' => $extraFieldProvenance['localExtraFieldIdHexes'],
+                'hasLocalExtraFields' => $extraFieldProvenance['hasLocalExtraFields'],
                 'localHeaderReviewFieldBytes' => $entryLocalHeaderReviewFieldBytes,
                 'localRecordOffset' => $entry->localHeaderOffset,
                 'localRecordBytes' => $localRecordLength,
@@ -15521,6 +15547,12 @@ final class ZipPackage
                 'centralDirectoryExtraFieldOffset' => $entryCentralDirectoryExtraFieldOffset,
                 'centralDirectoryExtraFieldBytes' => $entryCentralDirectoryExtraFieldBytes,
                 'centralDirectoryExtraFieldSha256' => $entryCentralDirectoryExtraFieldSha256,
+                'centralExtraFieldRecordCount' => $entryCentralExtraFieldRecordCount,
+                'centralExtraFieldIds' => $extraFieldProvenance['centralExtraFieldIds'],
+                'centralExtraFieldIdHexes' => $extraFieldProvenance['centralExtraFieldIdHexes'],
+                'hasCentralExtraFields' => $extraFieldProvenance['hasCentralExtraFields'],
+                'centralLocalExtraFieldIdsMatch' => $extraFieldProvenance['centralLocalExtraFieldIdsMatch'],
+                'hasExtraFieldProvenance' => $extraFieldProvenance['hasExtraFieldProvenance'],
                 'centralDirectoryRawCommentOffset' => $entryCentralDirectoryRawCommentOffset,
                 'centralDirectoryRawCommentBytes' => $entryCentralDirectoryRawCommentBytes,
                 'centralDirectoryRawCommentSha256' => $entryCentralDirectoryRawCommentSha256,
@@ -15641,6 +15673,10 @@ final class ZipPackage
                 'localHeaderRawNameSha256' => $summary['localHeaderRawNameSha256'],
                 'localHeaderExtraFieldBytes' => $summary['localHeaderExtraFieldBytes'],
                 'localHeaderExtraFieldSha256' => $summary['localHeaderExtraFieldSha256'],
+                'localExtraFieldRecordCount' => $summary['localExtraFieldRecordCount'],
+                'localExtraFieldIds' => $summary['localExtraFieldIds'],
+                'localExtraFieldIdHexes' => $summary['localExtraFieldIdHexes'],
+                'hasLocalExtraFields' => $summary['hasLocalExtraFields'],
                 'localHeaderReviewFieldBytes' => $summary['localHeaderReviewFieldBytes'],
                 'localRecordBytes' => $summary['localRecordBytes'],
                 'localRecordSha256' => $summary['localRecordSha256'],
@@ -15657,6 +15693,12 @@ final class ZipPackage
                 'centralDirectoryRawNameSha256' => $summary['centralDirectoryRawNameSha256'],
                 'centralDirectoryExtraFieldBytes' => $summary['centralDirectoryExtraFieldBytes'],
                 'centralDirectoryExtraFieldSha256' => $summary['centralDirectoryExtraFieldSha256'],
+                'centralExtraFieldRecordCount' => $summary['centralExtraFieldRecordCount'],
+                'centralExtraFieldIds' => $summary['centralExtraFieldIds'],
+                'centralExtraFieldIdHexes' => $summary['centralExtraFieldIdHexes'],
+                'hasCentralExtraFields' => $summary['hasCentralExtraFields'],
+                'centralLocalExtraFieldIdsMatch' => $summary['centralLocalExtraFieldIdsMatch'],
+                'hasExtraFieldProvenance' => $summary['hasExtraFieldProvenance'],
                 'centralDirectoryRawCommentBytes' => $summary['centralDirectoryRawCommentBytes'],
                 'centralDirectoryRawCommentSha256' => $summary['centralDirectoryRawCommentSha256'],
                 'centralDirectoryReviewFieldBytes' => $summary['centralDirectoryReviewFieldBytes'],
@@ -15819,6 +15861,7 @@ final class ZipPackage
             static fn (array $summary): string => (string) $summary['nameLengthBucket'],
             $nameLengthBucketSummaries
         );
+        $extraFieldIdUsage = self::extraFieldIdUsageSummary($extraFieldUsageEntries);
         $expansionRatio = self::expansionRatio($uncompressedBytes, $compressedBytes);
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
@@ -15887,6 +15930,7 @@ final class ZipPackage
             'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
             'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
             'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'localExtraFieldRecordCount' => $localExtraFieldRecordCount,
             'expansionRatio' => $expansionRatio,
             'largestEntry' => $largestEntry,
             'zeroByteEntryCount' => $zeroByteEntryCount,
@@ -15910,6 +15954,25 @@ final class ZipPackage
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'centralExtraFieldRecordCount' => $centralExtraFieldRecordCount,
+            'extraFieldEntryCount' => $extraFieldEntryCount,
+            'extraFieldRecordCount' => $centralExtraFieldRecordCount + $localExtraFieldRecordCount,
+            'extraFieldProvenanceEntryCount' => count($extraFieldProvenanceEntries),
+            'hasExtraFieldProvenance' => $extraFieldProvenanceEntries !== [],
+            'extraFieldIdCount' => $extraFieldIdUsage['extraFieldIdCount'],
+            'centralExtraFieldIdCount' => $extraFieldIdUsage['centralExtraFieldIdCount'],
+            'localExtraFieldIdCount' => $extraFieldIdUsage['localExtraFieldIdCount'],
+            'sharedExtraFieldIdCount' => $extraFieldIdUsage['sharedExtraFieldIdCount'],
+            'centralOnlyExtraFieldIdCount' => $extraFieldIdUsage['centralOnlyExtraFieldIdCount'],
+            'localOnlyExtraFieldIdCount' => $extraFieldIdUsage['localOnlyExtraFieldIdCount'],
+            'extraFieldIdHexes' => $extraFieldIdUsage['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $extraFieldIdUsage['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $extraFieldIdUsage['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $extraFieldIdUsage['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $extraFieldIdUsage['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $extraFieldIdUsage['localOnlyExtraFieldIdHexes'],
+            'extraFieldIdUsage' => $extraFieldIdUsage['extraFieldIdUsage'],
+            'extraFieldProvenanceEntries' => $extraFieldProvenanceEntries,
             'entryCommentCount' => $entryCommentCount,
             'hasEntryComments' => $entryCommentSummaries !== [],
             'commentedEntryNames' => $commentedEntryNames,
@@ -16047,6 +16110,7 @@ final class ZipPackage
             'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
             'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
             'localExtraFieldEntryCount' => $localExtraFieldEntryCount,
+            'localExtraFieldRecordCount' => $localExtraFieldRecordCount,
             'hasLocalHeaderReviewFields' => $localHeaderReviewFieldBytes > 0,
             'localRecordBytes' => $localRecordBytes,
             'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
@@ -16100,6 +16164,25 @@ final class ZipPackage
             'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
             'sourceRecordBytes' => $sourceRecordBytes,
             'centralExtraFieldEntryCount' => $centralExtraFieldEntryCount,
+            'centralExtraFieldRecordCount' => $centralExtraFieldRecordCount,
+            'extraFieldEntryCount' => $extraFieldEntryCount,
+            'extraFieldRecordCount' => $centralExtraFieldRecordCount + $localExtraFieldRecordCount,
+            'extraFieldProvenanceEntryCount' => count($extraFieldProvenanceEntries),
+            'hasExtraFieldProvenance' => $extraFieldProvenanceEntries !== [],
+            'extraFieldIdCount' => $extraFieldIdUsage['extraFieldIdCount'],
+            'centralExtraFieldIdCount' => $extraFieldIdUsage['centralExtraFieldIdCount'],
+            'localExtraFieldIdCount' => $extraFieldIdUsage['localExtraFieldIdCount'],
+            'sharedExtraFieldIdCount' => $extraFieldIdUsage['sharedExtraFieldIdCount'],
+            'centralOnlyExtraFieldIdCount' => $extraFieldIdUsage['centralOnlyExtraFieldIdCount'],
+            'localOnlyExtraFieldIdCount' => $extraFieldIdUsage['localOnlyExtraFieldIdCount'],
+            'extraFieldIdHexes' => $extraFieldIdUsage['extraFieldIdHexes'],
+            'centralExtraFieldIdHexes' => $extraFieldIdUsage['centralExtraFieldIdHexes'],
+            'localExtraFieldIdHexes' => $extraFieldIdUsage['localExtraFieldIdHexes'],
+            'sharedExtraFieldIdHexes' => $extraFieldIdUsage['sharedExtraFieldIdHexes'],
+            'centralOnlyExtraFieldIdHexes' => $extraFieldIdUsage['centralOnlyExtraFieldIdHexes'],
+            'localOnlyExtraFieldIdHexes' => $extraFieldIdUsage['localOnlyExtraFieldIdHexes'],
+            'extraFieldIdUsage' => $extraFieldIdUsage['extraFieldIdUsage'],
+            'extraFieldProvenanceEntries' => $extraFieldProvenanceEntries,
             'entryCommentCount' => $entryCommentCount,
             'hasEntryComments' => $entryCommentSummaries !== [],
             'commentedEntryNames' => $commentedEntryNames,
