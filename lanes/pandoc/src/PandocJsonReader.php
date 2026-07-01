@@ -822,12 +822,12 @@ final class PandocJsonReader
             $attrs['listAttributesNative'] = $listAttributesNative;
         }
 
-        return new AstNode('ordered_list', $attrs, $this->readListItems($this->listContent($tuple[1], 'OrderedList items')));
+        return new AstNode('ordered_list', $attrs, $this->readListItems($this->listItemCollectionContent($tuple[1], 'OrderedList items')));
     }
 
     private function readBulletList(mixed $content): AstNode
     {
-        $items = $this->readListItems($this->listContent($content, 'BulletList'));
+        $items = $this->readListItems($this->listItemCollectionContent($content, 'BulletList'));
         $attrs = $this->allListItemsAreTasks($items) ? ['taskList' => true] : [];
 
         return new AstNode('bullet_list', $attrs, $items);
@@ -910,7 +910,7 @@ final class PandocJsonReader
     private function readDefinitionList(mixed $content): AstNode
     {
         $items = [];
-        foreach ($this->listContent($content, 'DefinitionList') as $item) {
+        foreach ($this->definitionItemCollectionContent($content, 'DefinitionList') as $item) {
             $tuple = $this->singleWrappedTuple($item, 2, 'DefinitionList item');
             $definitions = [];
             foreach ($this->listContent($tuple[1], 'DefinitionList definitions') as $definition) {
@@ -939,7 +939,7 @@ final class PandocJsonReader
     private function readLineBlock(mixed $content): AstNode
     {
         $lines = [];
-        foreach ($this->listContent($content, 'LineBlock') as $line) {
+        foreach ($this->inlineListCollectionContent($content, 'LineBlock') as $line) {
             $inlines = $this->readInlines($this->listContent($line, 'LineBlock line'));
             $lines[] = new AstNode('line', [
                 'text' => $this->plainText($inlines),
@@ -948,6 +948,96 @@ final class PandocJsonReader
         }
 
         return new AstNode('line_block', [], $lines);
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function listItemCollectionContent(mixed $value, string $context): array
+    {
+        $items = $this->listContent($value, $context);
+        if ($this->isSingleWrappedCollection($items, fn (mixed $item): bool => $this->looksLikeListPayload($item))) {
+            return $items[0];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function definitionItemCollectionContent(mixed $value, string $context): array
+    {
+        $items = $this->listContent($value, $context);
+        if ($this->isSingleWrappedCollection($items, fn (mixed $item): bool => $this->looksLikeDefinitionItemPayload($item))) {
+            return $items[0];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function inlineListCollectionContent(mixed $value, string $context): array
+    {
+        $items = $this->listContent($value, $context);
+        if ($this->isSingleWrappedCollection($items, fn (mixed $item): bool => $this->looksLikeListPayload($item))) {
+            return $items[0];
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param list<mixed> $items
+     */
+    private function isSingleWrappedCollection(array $items, callable $itemPredicate): bool
+    {
+        if (
+            count($items) !== 1
+            || !is_array($items[0])
+            || !array_is_list($items[0])
+            || count($items[0]) <= 1
+        ) {
+            return false;
+        }
+
+        foreach ($items[0] as $item) {
+            if (!$itemPredicate($item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function looksLikeListPayload(mixed $item): bool
+    {
+        return is_array($item) && array_is_list($item) && !$this->isTaggedObject($item);
+    }
+
+    private function looksLikeDefinitionItemPayload(mixed $item): bool
+    {
+        if (!$this->looksLikeListPayload($item)) {
+            return false;
+        }
+
+        if (
+            count($item) === 1
+            && is_array($item[0])
+            && array_is_list($item[0])
+            && !$this->isTaggedObject($item[0])
+        ) {
+            $item = $item[0];
+        }
+
+        return count($item) === 2
+            && is_array($item[0])
+            && array_is_list($item[0])
+            && is_array($item[1])
+            && array_is_list($item[1])
+            && !$this->isTaggedObject($item[0]);
     }
 
     private function readDivBlock(mixed $content): AstNode
