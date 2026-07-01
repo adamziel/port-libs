@@ -18,6 +18,7 @@ final class XmlHtmlDom
     private const XML_NAMESPACE_SCOPE_MAX_ELEMENTS = 64;
     private const XML_NAMESPACE_DECLARATION_MAX_RECORDS = 128;
     private const XML_NAMESPACE_REVIEW_MAX_ITEMS = 25;
+    private const HTML_BASE_REVIEW_MAX_HREF_CANDIDATES = 25;
 
     /** @var array<string, true> */
     private const JATS_FIGURE_MEDIA_ELEMENTS = [
@@ -15428,7 +15429,7 @@ final class XmlHtmlDom
                 'documentMetadata' => 'base',
                 'href' => self::attributeOrNull($element, 'href'),
                 'target' => self::attributeOrNull($element, 'target'),
-            ];
+            ] + self::baseElementReviewSummary($element);
         }
 
         if ($name === 'link') {
@@ -15497,6 +15498,219 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function baseElementReviewSummary(\DOMElement $base): array
+    {
+        $hrefRaw = self::attributeOrNull($base, 'href');
+        $hrefSummary = self::hyperlinkUrlReviewSummary($hrefRaw);
+        $targetRaw = self::attributeOrNull($base, 'target');
+        $targetSummary = self::baseTargetReviewSummary($targetRaw);
+        $baseElements = self::documentBaseElements($base);
+        $currentIndex = null;
+        $firstHrefIndex = null;
+        $firstTargetIndex = null;
+        $hrefBaseCount = 0;
+        $targetBaseCount = 0;
+        $effectiveHref = null;
+        $effectiveTarget = null;
+
+        foreach ($baseElements as $index => $candidate) {
+            if ($candidate->isSameNode($base)) {
+                $currentIndex = $index;
+            }
+            if ($candidate->hasAttribute('href')) {
+                ++$hrefBaseCount;
+                if ($firstHrefIndex === null) {
+                    $firstHrefIndex = $index;
+                    $effectiveHref = self::attributeOrNull($candidate, 'href');
+                }
+            }
+            if ($candidate->hasAttribute('target')) {
+                ++$targetBaseCount;
+                if ($firstTargetIndex === null) {
+                    $firstTargetIndex = $index;
+                    $effectiveTarget = self::attributeOrNull($candidate, 'target');
+                }
+            }
+        }
+
+        $hrefPresent = $base->hasAttribute('href');
+        $targetPresent = $base->hasAttribute('target');
+        $hrefEffective = $hrefPresent && $currentIndex !== null && $currentIndex === $firstHrefIndex;
+        $targetEffective = $targetPresent && $currentIndex !== null && $currentIndex === $firstTargetIndex;
+        $hrefCandidates = self::baseHrefAffectedCandidates($base);
+        $issues = [];
+
+        if (($hrefSummary['unsafe'] ?? false) === true) {
+            $issues[] = [
+                'code' => 'unsafe-base-href',
+                'href' => $hrefRaw,
+                'scheme' => $hrefSummary['scheme'],
+            ];
+        }
+        if ($hrefPresent && !$hrefEffective) {
+            $issues[] = [
+                'code' => 'duplicate-base-href-ignored',
+                'effectiveBaseIndex' => $firstHrefIndex,
+                'currentBaseIndex' => $currentIndex,
+            ];
+        }
+        if ($targetPresent && ($targetSummary['baseTargetValid'] ?? null) !== true) {
+            $issues[] = [
+                'code' => 'invalid-base-target',
+                'targetRaw' => $targetRaw,
+            ];
+        }
+        if ($targetPresent && !$targetEffective) {
+            $issues[] = [
+                'code' => 'duplicate-base-target-ignored',
+                'effectiveBaseIndex' => $firstTargetIndex,
+                'currentBaseIndex' => $currentIndex,
+            ];
+        }
+
+        return [
+            'baseReviewPolicy' => 'html-base-url-target-review',
+            'baseHrefRaw' => $hrefRaw,
+            'baseHrefPresent' => $hrefPresent,
+            'baseHrefKind' => $hrefSummary['kind'],
+            'baseHrefScheme' => $hrefSummary['scheme'],
+            'baseHrefUnsafe' => $hrefSummary['unsafe'],
+            'baseHrefEffective' => $hrefEffective,
+            'baseHrefIgnored' => $hrefPresent && !$hrefEffective,
+            'baseTargetRaw' => $targetRaw,
+            'baseTargetPresent' => $targetPresent,
+            'baseTargetEffective' => $targetEffective,
+            'baseTargetIgnored' => $targetPresent && !$targetEffective,
+            'baseDocumentBaseCount' => count($baseElements),
+            'baseDocumentBaseIndex' => $currentIndex,
+            'baseDocumentHrefBaseCount' => $hrefBaseCount,
+            'baseDocumentTargetBaseCount' => $targetBaseCount,
+            'baseDocumentEffectiveHrefIndex' => $firstHrefIndex,
+            'baseDocumentEffectiveTargetIndex' => $firstTargetIndex,
+            'baseDocumentEffectiveHref' => $effectiveHref,
+            'baseDocumentEffectiveTarget' => $effectiveTarget,
+            'baseHrefAffectsRelativeLinks' => $hrefEffective && $hrefRaw !== null && ($hrefSummary['unsafe'] ?? false) !== true,
+            'baseHrefAffectedCandidateCount' => $hrefCandidates['count'],
+            'baseHrefAffectedCandidates' => $hrefCandidates['items'],
+            'baseHrefAffectedCandidateOverflow' => $hrefCandidates['overflow'],
+            'baseHrefAffectedCandidateIds' => $hrefCandidates['ids'],
+            'baseIssues' => $issues,
+            'baseIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'baseValid' => $issues === [],
+            'baseReviewOnlyNoUrlResolution' => true,
+        ] + $targetSummary;
+    }
+
+    /**
+     * @return list<\DOMElement>
+     */
+    private static function documentBaseElements(\DOMElement $context): array
+    {
+        $document = $context->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return [];
+        }
+
+        $baseElements = [];
+        foreach ($document->getElementsByTagName('base') as $candidate) {
+            if ($candidate instanceof \DOMElement) {
+                $baseElements[] = $candidate;
+            }
+        }
+
+        return $baseElements;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function baseTargetReviewSummary(?string $targetRaw): array
+    {
+        $targetName = $targetRaw === null ? null : trim($targetRaw);
+        $targetLower = $targetName === null ? null : strtolower($targetName);
+        $targetValid = $targetRaw === null
+            ? null
+            : ($targetName !== '' && preg_match('/[\t\n\f\r<]/', $targetRaw) !== 1);
+
+        return [
+            'baseTargetName' => $targetName === '' ? null : $targetName,
+            'baseTargetReserved' => in_array($targetLower, ['_blank', '_parent', '_self', '_top'], true),
+            'baseTargetBlank' => $targetLower === '_blank',
+            'baseTargetValid' => $targetValid,
+            'baseTargetFallbackName' => $targetValid === false ? '_blank' : null,
+        ];
+    }
+
+    /**
+     * @return array{count:int, items:list<array<string, mixed>>, overflow:bool, ids:list<string>}
+     */
+    private static function baseHrefAffectedCandidates(\DOMElement $base): array
+    {
+        $document = $base->ownerDocument;
+        if (!$document instanceof \DOMDocument) {
+            return ['count' => 0, 'items' => [], 'overflow' => false, 'ids' => []];
+        }
+
+        $items = [];
+        $ids = [];
+        $count = 0;
+        foreach ($document->getElementsByTagName('*') as $candidate) {
+            if (!$candidate instanceof \DOMElement || $candidate->isSameNode($base)) {
+                continue;
+            }
+
+            $name = self::htmlElementName($candidate);
+            if (!in_array($name, ['a', 'area', 'link'], true) || !$candidate->hasAttribute('href')) {
+                continue;
+            }
+
+            $href = $candidate->getAttribute('href');
+            $hrefSummary = self::hyperlinkUrlReviewSummary($href);
+            if (!in_array($hrefSummary['kind'], ['relative', 'fragment', 'scheme-relative'], true)) {
+                continue;
+            }
+
+            ++$count;
+            $id = self::attributeOrNull($candidate, 'id');
+            if ($id !== null && $id !== '' && !in_array($id, $ids, true)) {
+                $ids[] = $id;
+            }
+            if (count($items) >= self::HTML_BASE_REVIEW_MAX_HREF_CANDIDATES) {
+                continue;
+            }
+
+            $record = [
+                'tag' => $name,
+                'id' => $id,
+                'href' => $href,
+                'hrefKind' => $hrefSummary['kind'],
+                'hrefScheme' => $hrefSummary['scheme'],
+            ];
+            if ($name === 'link') {
+                $relRaw = self::attributeOrNull($candidate, 'rel');
+                $record['relTokens'] = $relRaw === null ? [] : self::spaceSeparatedTokens($relRaw);
+            } elseif ($name === 'area') {
+                $record['alt'] = self::attributeOrNull($candidate, 'alt');
+            } else {
+                $record['text'] = self::normalizedText($candidate);
+            }
+            $items[] = $record;
+        }
+
+        return [
+            'count' => $count,
+            'items' => $items,
+            'overflow' => $count > count($items),
+            'ids' => $ids,
+        ];
     }
 
     /**
