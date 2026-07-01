@@ -589,8 +589,9 @@ final class MarkdownReader
             if ($reference !== null) {
                 [$targetSource, $nextIndex] = $this->collectReferenceDefinitionTarget($lines, $index, $reference['content']);
                 $target = $this->parseLinkDestinationAndTitle($targetSource);
-                if ($target !== null) {
-                    $references[$this->normalizeReferenceLabel($reference['label'])] = [
+                if ($target !== null && $this->isValidReferenceLabel($reference['label'])) {
+                    $normalizedLabel = $this->normalizeReferenceLabel($reference['label']);
+                    $references[$normalizedLabel] ??= [
                         'url' => $target['url'],
                         'title' => $target['title'],
                     ];
@@ -670,7 +671,19 @@ final class MarkdownReader
 
     private function normalizeReferenceLabel(string $label): string
     {
-        return strtolower(trim(preg_replace('/\s+/', ' ', $label) ?? $label));
+        $label = $this->decodeHtmlEntities($this->unescapeLinkComponent($label));
+        $label = trim(preg_replace('/\s+/u', ' ', $label) ?? $label);
+
+        return function_exists('mb_strtolower') ? mb_strtolower($label, 'UTF-8') : strtolower($label);
+    }
+
+    private function isValidReferenceLabel(string $label): bool
+    {
+        $normalized = $this->normalizeReferenceLabel($label);
+
+        $length = function_exists('mb_strlen') ? mb_strlen($normalized, 'UTF-8') : strlen($normalized);
+
+        return $normalized !== '' && $length <= 999;
     }
 
     /**
@@ -923,13 +936,23 @@ final class MarkdownReader
      */
     private function tryParseReferenceDefinitionStart(string $line): ?array
     {
-        if (preg_match('/^ {0,3}\[(?!\^)([^\]\r\n]+)\]:[ \t]*(.*)$/', $line, $m) !== 1) {
+        if (preg_match('/^ {0,3}/', $line, $indent) !== 1) {
+            return null;
+        }
+
+        $offset = strlen($indent[0]);
+        if (substr($line, $offset, 2) === '[^') {
+            return null;
+        }
+
+        $label = $this->parseBracketedLabel($line, $offset);
+        if ($label === null || !$this->isValidReferenceLabel($label['text']) || ($line[$label['next']] ?? '') !== ':') {
             return null;
         }
 
         return [
-            'label' => $m[1],
-            'content' => rtrim($m[2]),
+            'label' => $label['text'],
+            'content' => rtrim(ltrim(substr($line, $label['next'] + 1), " \t")),
         ];
     }
 
