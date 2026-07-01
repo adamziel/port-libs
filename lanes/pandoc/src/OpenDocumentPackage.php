@@ -1298,6 +1298,7 @@ final class OpenDocumentPackage
                 'zipLocalRecordEnd' => $part['zipLocalRecordEnd'] ?? null,
                 'zipLocalRecordSha256' => $part['zipLocalRecordSha256'] ?? null,
                 'zipCompressedDataOffset' => $part['zipCompressedDataOffset'] ?? null,
+                'zipCompressedDataBytes' => $part['zipCompressedDataBytes'] ?? null,
                 'zipCompressedDataEnd' => $part['zipCompressedDataEnd'] ?? null,
                 'zipCompressedDataSha256' => $part['zipCompressedDataSha256'] ?? null,
                 'zipUsesDataDescriptor' => ($part['zipUsesDataDescriptor'] ?? false) === true,
@@ -1315,6 +1316,8 @@ final class OpenDocumentPackage
                 'zipCentralDirectoryExtraFieldBytes' => $part['zipCentralDirectoryExtraFieldBytes'] ?? null,
                 'zipCentralDirectoryRawCommentBytes' => $part['zipCentralDirectoryRawCommentBytes'] ?? null,
                 'zipCentralDirectoryReviewFieldBytes' => $part['zipCentralDirectoryReviewFieldBytes'] ?? null,
+                'zipSourceRecordBytes' => $part['zipSourceRecordBytes'] ?? null,
+                'zipHasSourceRecordProvenance' => ($part['zipHasSourceRecordProvenance'] ?? false) === true,
                 'madeByHostSystem' => $part['madeByHostSystem'] ?? null,
                 'madeByHostSystemName' => $part['madeByHostSystemName'] ?? null,
                 'madeByVersion' => $part['madeByVersion'] ?? null,
@@ -1914,6 +1917,14 @@ final class OpenDocumentPackage
             return [];
         }
 
+        $localRecordBytes = is_int($entry['localRecordBytes'] ?? null) ? $entry['localRecordBytes'] : null;
+        $centralDirectoryRecordBytes = is_int($entry['centralDirectoryRecordBytes'] ?? null)
+            ? $entry['centralDirectoryRecordBytes']
+            : null;
+        $sourceRecordBytes = $localRecordBytes !== null || $centralDirectoryRecordBytes !== null
+            ? (int) ($localRecordBytes ?? 0) + (int) ($centralDirectoryRecordBytes ?? 0)
+            : null;
+
         return [
             'zipPackageManifestEntry' => $entry,
             'zipPackageManifestDirectoryRoot' => $entry['directoryRoot'] ?? null,
@@ -1933,10 +1944,11 @@ final class OpenDocumentPackage
             'zipLocalHeaderExtraFieldBytes' => $entry['localHeaderExtraFieldBytes'] ?? null,
             'zipLocalHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'] ?? null,
             'zipLocalRecordOffset' => $entry['localRecordOffset'] ?? null,
-            'zipLocalRecordBytes' => $entry['localRecordBytes'] ?? null,
+            'zipLocalRecordBytes' => $localRecordBytes,
             'zipLocalRecordEnd' => $entry['localRecordEnd'] ?? null,
             'zipLocalRecordSha256' => $entry['localRecordSha256'] ?? null,
             'zipCompressedDataOffset' => $entry['compressedDataOffset'] ?? null,
+            'zipCompressedDataBytes' => $entry['compressedSize'] ?? null,
             'zipCompressedDataEnd' => $entry['compressedDataEnd'] ?? null,
             'zipCompressedDataSha256' => $entry['compressedDataSha256'] ?? null,
             'zipUsesDataDescriptor' => ($entry['usesDataDescriptor'] ?? false) === true,
@@ -1946,7 +1958,7 @@ final class OpenDocumentPackage
             'zipDataDescriptorSha256' => $entry['dataDescriptorSha256'] ?? null,
             'zipCentralDirectoryRecordOffset' => $entry['centralDirectoryRecordOffset'] ?? null,
             'zipCentralDirectoryRecordEnd' => $entry['centralDirectoryRecordEnd'] ?? null,
-            'zipCentralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'] ?? null,
+            'zipCentralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'zipCentralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
             'zipCentralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'] ?? null,
             'zipCentralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'] ?? null,
@@ -1954,6 +1966,9 @@ final class OpenDocumentPackage
             'zipCentralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'] ?? null,
             'zipCentralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'] ?? null,
             'zipCentralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'] ?? null,
+            'zipSourceRecordBytes' => $sourceRecordBytes,
+            'zipHasSourceRecordProvenance' => is_string($entry['localRecordSha256'] ?? null)
+                && is_string($entry['centralDirectoryRecordSha256'] ?? null),
         ];
     }
 

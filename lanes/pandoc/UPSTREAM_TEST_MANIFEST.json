@@ -6,6 +6,8 @@
     "odfManifestMissingMediaTypeAssertions": 22,
     "mappedOdfReaderZipTimestampProvenanceCases": 1,
     "odfReaderZipTimestampProvenanceAssertions": 31,
+    "mappedOdfReaderZipSourceRecordProvenanceCases": 1,
+    "odfReaderZipSourceRecordProvenanceAssertions": 21,
     "upstream": {
         "name": "jgm/pandoc",
         "url": "https://github.com/jgm/pandoc",

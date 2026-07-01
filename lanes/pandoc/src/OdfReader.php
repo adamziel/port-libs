@@ -1438,6 +1438,7 @@ final class OdfReader
         $internalAttributes = $package->internalAttributePreflight();
         $extraFields = $package->extraFieldPreflight();
         $packageManifest = $package->packageManifestPreflight();
+        $packageManifestEntriesByName = self::zipPreflightEntriesByName($packageManifest);
         $manifestByPart = [];
         $undeclaredByPart = [];
         $mediaResourceSummary = $this->manifestMediaResourceRoleSummary($manifest);
@@ -2228,6 +2229,7 @@ final class OdfReader
                 'zipLocalRecordEnd' => $item['zipLocalRecordEnd'] ?? null,
                 'zipLocalRecordSha256' => $item['zipLocalRecordSha256'] ?? null,
                 'zipCompressedDataOffset' => $item['zipCompressedDataOffset'] ?? null,
+                'zipCompressedDataBytes' => $item['zipCompressedDataBytes'] ?? null,
                 'zipCompressedDataEnd' => $item['zipCompressedDataEnd'] ?? null,
                 'zipCompressedDataSha256' => $item['zipCompressedDataSha256'] ?? null,
                 'zipUsesDataDescriptor' => ($item['zipUsesDataDescriptor'] ?? false) === true,
@@ -2245,6 +2247,8 @@ final class OdfReader
                 'zipCentralDirectoryExtraFieldBytes' => $item['zipCentralDirectoryExtraFieldBytes'] ?? null,
                 'zipCentralDirectoryRawCommentBytes' => $item['zipCentralDirectoryRawCommentBytes'] ?? null,
                 'zipCentralDirectoryReviewFieldBytes' => $item['zipCentralDirectoryReviewFieldBytes'] ?? null,
+                'zipSourceRecordBytes' => $item['zipSourceRecordBytes'] ?? null,
+                'zipHasSourceRecordProvenance' => ($item['zipHasSourceRecordProvenance'] ?? false) === true,
                 'zipModifiedAt' => $item['zipModifiedAt'] ?? null,
                 'zipTimestampSource' => $item['zipTimestampSource'] ?? null,
                 'zipModifiedDosTime' => $item['zipModifiedDosTime'] ?? null,
@@ -3521,6 +3525,14 @@ final class OdfReader
             return [];
         }
 
+        $localRecordBytes = is_int($entry['localRecordBytes'] ?? null) ? $entry['localRecordBytes'] : null;
+        $centralDirectoryRecordBytes = is_int($entry['centralDirectoryRecordBytes'] ?? null)
+            ? $entry['centralDirectoryRecordBytes']
+            : null;
+        $sourceRecordBytes = $localRecordBytes !== null || $centralDirectoryRecordBytes !== null
+            ? (int) ($localRecordBytes ?? 0) + (int) ($centralDirectoryRecordBytes ?? 0)
+            : null;
+
         return [
             'zipPackageManifestEntry' => $entry,
             'zipPackageManifestDirectoryRoot' => $entry['directoryRoot'] ?? null,
@@ -3540,10 +3552,11 @@ final class OdfReader
             'zipLocalHeaderExtraFieldBytes' => $entry['localHeaderExtraFieldBytes'] ?? null,
             'zipLocalHeaderReviewFieldBytes' => $entry['localHeaderReviewFieldBytes'] ?? null,
             'zipLocalRecordOffset' => $entry['localRecordOffset'] ?? null,
-            'zipLocalRecordBytes' => $entry['localRecordBytes'] ?? null,
+            'zipLocalRecordBytes' => $localRecordBytes,
             'zipLocalRecordEnd' => $entry['localRecordEnd'] ?? null,
             'zipLocalRecordSha256' => $entry['localRecordSha256'] ?? null,
             'zipCompressedDataOffset' => $entry['compressedDataOffset'] ?? null,
+            'zipCompressedDataBytes' => $entry['compressedSize'] ?? null,
             'zipCompressedDataEnd' => $entry['compressedDataEnd'] ?? null,
             'zipCompressedDataSha256' => $entry['compressedDataSha256'] ?? null,
             'zipUsesDataDescriptor' => ($entry['usesDataDescriptor'] ?? false) === true,
@@ -3553,7 +3566,7 @@ final class OdfReader
             'zipDataDescriptorSha256' => $entry['dataDescriptorSha256'] ?? null,
             'zipCentralDirectoryRecordOffset' => $entry['centralDirectoryRecordOffset'] ?? null,
             'zipCentralDirectoryRecordEnd' => $entry['centralDirectoryRecordEnd'] ?? null,
-            'zipCentralDirectoryRecordBytes' => $entry['centralDirectoryRecordBytes'] ?? null,
+            'zipCentralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
             'zipCentralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'] ?? null,
             'zipCentralDirectoryFixedHeaderBytes' => $entry['centralDirectoryFixedHeaderBytes'] ?? null,
             'zipCentralDirectoryVariableFieldBytes' => $entry['centralDirectoryVariableFieldBytes'] ?? null,
@@ -3561,6 +3574,9 @@ final class OdfReader
             'zipCentralDirectoryExtraFieldBytes' => $entry['centralDirectoryExtraFieldBytes'] ?? null,
             'zipCentralDirectoryRawCommentBytes' => $entry['centralDirectoryRawCommentBytes'] ?? null,
             'zipCentralDirectoryReviewFieldBytes' => $entry['centralDirectoryReviewFieldBytes'] ?? null,
+            'zipSourceRecordBytes' => $sourceRecordBytes,
+            'zipHasSourceRecordProvenance' => is_string($entry['localRecordSha256'] ?? null)
+                && is_string($entry['centralDirectoryRecordSha256'] ?? null),
         ];
     }
 
