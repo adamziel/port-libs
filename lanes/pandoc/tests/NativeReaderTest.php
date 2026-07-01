@@ -581,6 +581,47 @@ NATIVE;
         $t->same('raw_inline', $roundTrip->children[1]->children[0]->type);
         $t->same('raw_html_inline', $roundTrip->children[1]->children[2]->type);
     },
+    'accepts textual native ShortCaption helper constructors' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ Figure ( "fig-short-caption" , [ "review" ] , [] )
+    (Caption (Just (ShortCaption [ Str "Short" , Space , Str "figure" ]))
+      [ Plain [ Str "Long" , Space , Str "figure" ] ])
+    [ Plain [ Image ( "" , [] , [] ) [ Str "Alt" ] ( "media/figure.png" , "Figure title" ) ] ]
+, Table ( "tbl-short-caption" , [ "review" ] , [] )
+    (Caption (Just (ShortCaption [ Str "Short" , Space , Str "table" ]))
+      [ Plain [ Str "Long" , Space , Str "table" ] ])
+    [ ( AlignDefault , ColWidthDefault ) ]
+    (TableHead ( "" , [] , [] ) [])
+    []
+    (TableFoot ( "" , [] , [] ) [])
+]
+NATIVE;
+
+        $document = (new NativeReader())->read($nativeText);
+        $figure = $document->children[0];
+        $table = $document->children[1];
+        $json = (new PandocJsonWriter())->toArray(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $document->children));
+        $blocksOnlyRoundTrip = (new NativeReader())->read((new NativeWriter(['blocksOnly' => true]))->write($document));
+
+        $t->same('figure', $figure->type);
+        $t->same('fig-short-caption', $figure->attr('id'));
+        $t->same('Short figure', $figure->attr('shortCaption'));
+        $t->same('Long figure', $figure->attr('caption'));
+        $t->same('image', $figure->children[0]->type);
+        $t->same('table', $table->type);
+        $t->same('tbl-short-caption', $table->attr('id'));
+        $t->same('Short table', $table->attr('shortCaption'));
+        $t->same('Long table', $table->attr('caption'));
+        $t->same('Just', $json['blocks'][0]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $json['blocks'][0]['c'][1]['c'][0]['c']['t']);
+        $t->same('Just', $json['blocks'][1]['c'][1]['c'][0]['t']);
+        $t->same('ShortCaption', $json['blocks'][1]['c'][1]['c'][0]['c']['t']);
+        $t->same('Short figure', $blocksOnlyRoundTrip->children[0]->attr('shortCaption'));
+        $t->same('Short table', $blocksOnlyRoundTrip->children[1]->attr('shortCaption'));
+    },
     'hands textual native metadata constructors to pandoc json writer without loss' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 Pandoc
