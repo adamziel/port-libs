@@ -2083,7 +2083,7 @@
                 "resultArtifactGateStatus": "blocked-missing-targeted-runner-result-artifacts",
                 "resultArtifactGateAdmissionReady": false,
                 "selectedInventoryWriteStatus": "written-blocked-missing-docx-upstream-source",
-                "writerCoreTestStatus": "passed-1-file-432-assertions-0-failures",
+                "writerCoreTestStatus": "passed-1-file-433-assertions-0-failures",
                 "writerGoldenAuditStatus": "skipped_missing_writer_golden_directory",
                 "writerGoldenComparisonStatus": "not-run-golden-directory-missing",
                 "recordedWriterGoldenEvidenceKind": "writer-golden-package-generated-stable-comparison",

@@ -558,12 +558,12 @@ return [
                 $overrides = $contentTypes->overrides();
 
                 $t->same($imageBytes, $parts['word/media/rId9.jpg'] ?? null);
-                $t->same('image/jpeg', $contentTypes->defaults()['jpg'] ?? null);
-                $t->same('image/jpeg', $contentTypes->contentTypeForPart('/word/media/rId9.jpg'));
+                $t->true(!array_key_exists('jpg', $contentTypes->defaults()), 'Generated content types must not add a media extension Default');
+                $t->same('image/jpeg', $overrides['/word/media/rId9.jpg'] ?? null);
                 $t->true(!str_contains($contentTypesXml, 'PartName="/word/media/"'), 'Generated content types must not copy a directory Override from reference.docx');
                 $t->true(!array_key_exists('/word/media/', $overrides), 'Generated content types must not contain a media directory Override');
                 foreach (array_keys($overrides) as $partName) {
-                    $t->true(!str_starts_with($partName, '/word/media/'), 'Generated media content types should be extension defaults, not media part Overrides');
+                    $t->true($partName === '/word/media/rId9.jpg' || !str_starts_with($partName, '/word/media/'), 'Generated media content type Overrides must target concrete media parts');
                 }
             });
         } finally {

@@ -268,7 +268,7 @@ return [
         $t->same('php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php', $focusedCi['commands']['writerCoreTest'] ?? null);
         $t->same('php tools/run-tests.php lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php', $focusedCi['commands']['haskellInventoryStatusTest'] ?? null);
         $t->same('php tools/pandoc-docx-writer-golden-audit.php --json --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated --require-generated-stable-matches 38', $focusedCi['commands']['writerGoldenAudit'] ?? null);
-        $t->same('passed-1-file-432-assertions-0-failures', $focusedCi['localValidation']['writerCoreTestStatus'] ?? null);
+        $t->same('passed-1-file-433-assertions-0-failures', $focusedCi['localValidation']['writerCoreTestStatus'] ?? null);
         $t->same('skipped_missing_writer_golden_directory', $focusedCi['localValidation']['writerGoldenAuditStatus'] ?? null);
         $t->same('not-run-golden-directory-missing', $focusedCi['localValidation']['writerGoldenComparisonStatus'] ?? null);
         $t->same('writer-golden-package-generated-stable-comparison', $focusedCi['localValidation']['recordedWriterGoldenEvidenceKind'] ?? null);

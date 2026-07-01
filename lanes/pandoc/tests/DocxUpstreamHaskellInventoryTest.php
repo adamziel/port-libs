@@ -208,7 +208,7 @@ return [
             static fn (array $row): bool => ($row['label'] ?? null) === 'no media directory override in content types'
         ));
         $t->same(1, count($mediaRows));
-        $t->same('generated [Content_Types].xml uses media extension defaults without media directory or media part overrides', $mediaRows[0]['assertionFocus'] ?? null);
+        $t->same('generated [Content_Types].xml uses concrete media part overrides without a media directory override', $mediaRows[0]['assertionFocus'] ?? null);
         $firstParagraphRows = array_values(array_filter(
             $directWriterRows,
             static fn (array $row): bool => ($row['label'] ?? null) === 'FirstParagraph after heading with footnote (#11573)'

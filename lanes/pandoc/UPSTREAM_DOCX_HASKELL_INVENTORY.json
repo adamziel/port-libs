@@ -148,7 +148,7 @@
           "label": "no media directory override in content types",
           "localTestName": "upstream direct HUnit: no media directory override in content types",
           "localTestFile": "lanes/pandoc/tests/DocxWriterTest.php",
-          "assertionFocus": "generated [Content_Types].xml uses media extension defaults without media directory or media part overrides"
+          "assertionFocus": "generated [Content_Types].xml uses concrete media part overrides without a media directory override"
         },
         {
           "label": "language from reference docx is preserved",
