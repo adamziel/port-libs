@@ -28,6 +28,7 @@ use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PlainWriter;
 use PortLibs\Pandoc\PptxReader;
+use PortLibs\Pandoc\RichPackageUnsupportedFormatRegistry;
 use PortLibs\Pandoc\RtfReader;
 use PortLibs\Pandoc\XmlReader;
 use PortLibs\Pandoc\XlsxReader;
@@ -307,5 +308,76 @@ return [
         $t->same('not-applicable', $packet['formats']['xwiki']['inputStatus']);
         $t->same('unsupported', $packet['formats']['xwiki']['outputStatus']);
         $t->same([], $packet['formats']['vimwiki']['extensionInferences']);
+    },
+    'summarizes rich package unsupported format buckets without converter claims' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::richPackageUnsupportedFormatSummary();
+
+        $t->same(RichPackageUnsupportedFormatRegistry::richPackageFormats(), $summary['uniqueFormats']);
+        $t->same(['docx', 'odt', 'epub', 'ipynb', 'pptx', 'xlsx'], $summary['inputFormats']);
+        $t->same([
+            'docx',
+            'odt',
+            'opendocument',
+            'epub',
+            'epub2',
+            'epub3',
+            'ipynb',
+            'pptx',
+            'chunkedhtml',
+            'icml',
+            'pdf',
+        ], $summary['outputFormats']);
+        $t->same(['docx', 'odt', 'epub', 'ipynb', 'pptx', 'xlsx'], $summary['directInputFormats']);
+        $t->same(['epub', 'epub3'], $summary['directOutputFormats']);
+        $t->same([], $summary['unsupportedInputFormats']);
+        $t->same([
+            'docx',
+            'odt',
+            'opendocument',
+            'epub2',
+            'ipynb',
+            'pptx',
+            'chunkedhtml',
+            'icml',
+            'pdf',
+        ], $summary['unsupportedOutputFormats']);
+        $t->same([], $summary['unsupportedBothFormats']);
+        $t->same(['docx', 'odt', 'ipynb', 'pptx'], $summary['partialInputUnsupportedOutputFormats']);
+        $t->same([], $summary['inputOnlyUnsupportedFormats']);
+        $t->same(['opendocument', 'epub2', 'chunkedhtml', 'icml', 'pdf'], $summary['outputOnlyUnsupportedFormats']);
+        $t->same(['opendocument', 'epub2', 'chunkedhtml', 'icml', 'pdf'], $summary['noNativeReaderWriterFormats']);
+        $t->same(['doc', 'ods', 'odp', 'zip'], $summary['sourceAliasUnsupportedExtensions']);
+        $t->same(['output'], $summary['extensionUnsupportedDirections']['.docx']);
+        $t->same(['output'], $summary['extensionUnsupportedDirections']['.epub']);
+        $t->same(['output'], $summary['extensionUnsupportedDirections']['.pdf']);
+        $t->same(false, array_key_exists('.xlsx', $summary['extensionUnsupportedDirections']));
+        $t->same(false, $summary['directReaderParityClaimed']);
+        $t->same(false, $summary['directWriterParityClaimed']);
+        $t->same(true, $summary['externalToolFree']);
+    },
+    'builds rich package review packet from direct format support maps' => static function (TestRunner $t): void {
+        $packet = PandocFormatRegistry::richPackageFormatReviewPacket();
+
+        $t->same(RichPackageUnsupportedFormatRegistry::UPSTREAM_COMMIT, $packet['upstreamCommit']);
+        $t->same(PandocFormatRegistry::UPSTREAM_MANUAL_DATE, $packet['upstreamManualDate']);
+        $t->same(PandocFormatRegistry::UPSTREAM_SOURCE_COMMIT, $packet['upstreamSourceCommit']);
+        $t->same($packet['summary'], PandocFormatRegistry::richPackageUnsupportedFormatSummary());
+        $t->same(12, $packet['registryReport']['denominators']['richPackageFormats']);
+        $t->same(['supported' => 6, 'unsupported' => 0, 'total' => 6], $packet['registryReport']['directSupport']['input']);
+        $t->same(['supported' => 2, 'unsupported' => 9, 'total' => 11], $packet['registryReport']['directSupport']['output']);
+        $t->same(['docx', 'odt', 'epub', 'ipynb', 'pptx', 'xlsx'], array_keys($packet['phpInputSupport']));
+        $t->same(DocxReader::class, $packet['phpInputSupport']['docx']['implementation']);
+        $t->same(IpynbReader::class, $packet['phpInputSupport']['ipynb']['implementation']);
+        $t->same(XlsxReader::class, $packet['phpInputSupport']['xlsx']['implementation']);
+        $t->same('unsupported', $packet['phpOutputSupport']['docx']['status']);
+        $t->same('partial', $packet['phpOutputSupport']['epub3']['status']);
+        $t->same(EpubWriter::class, $packet['phpOutputSupport']['epub3']['implementation']);
+        $t->same('unsupported', $packet['phpOutputSupport']['pdf']['status']);
+        $t->contains('No native PHP reader or writer is registered', $packet['phpOutputSupport']['pdf']['notes']);
+        $t->same(['doc', 'ods', 'odp', 'zip'], array_column($packet['sourceAliasDiagnostics'], 'extension'));
+        $t->contains('container-preflight-only', implode(',', $packet['sourceAliasDiagnostics'][3]['diagnostics']));
+        $t->same(['.docx', '.epub', '.fodt', '.icml', '.ipynb', '.odt', '.pdf', '.pptx'], array_column($packet['extensionDiagnostics'], 'extension'));
+        $t->same(['output'], $packet['extensionDiagnostics'][6]['unsupportedDirections']);
+        $t->same(true, $packet['externalToolFree']);
     },
 ];
