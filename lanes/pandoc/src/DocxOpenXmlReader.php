@@ -12093,6 +12093,26 @@ final class DocxOpenXmlReader
         $summary['zipDeflatedUncompressedByteLength'] = (int) ($compressionMethods['deflatedUncompressedBytes'] ?? 0);
         $summary['zipUnsupportedCompressedByteLength'] = (int) ($compressionMethods['unsupportedCompressedBytes'] ?? 0);
         $summary['zipUnsupportedUncompressedByteLength'] = (int) ($compressionMethods['unsupportedUncompressedBytes'] ?? 0);
+        $zipGeneralPurposeFlags = is_array($zipPackage['generalPurposeFlags'] ?? null)
+            ? $zipPackage['generalPurposeFlags']
+            : $this->emptyZipGeneralPurposeFlagProvenance();
+        $summary['zipGeneralPurposeFlagEntryCount'] = (int) ($zipGeneralPurposeFlags['entryCount'] ?? 0);
+        $summary['zipGeneralPurposeSupportedEntryCount'] = (int) ($zipGeneralPurposeFlags['supportedEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeUnsupportedFlagEntryCount'] = (int) ($zipGeneralPurposeFlags['unsupportedFlagEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeUtf8NameEntryCount'] = (int) ($zipGeneralPurposeFlags['utf8NameEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeDataDescriptorEntryCount'] = (int) ($zipGeneralPurposeFlags['dataDescriptorEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeDeflateOptionEntryCount'] = (int) ($zipGeneralPurposeFlags['deflateOptionEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeStrictReviewEntryCount'] = (int) ($zipGeneralPurposeFlags['strictReviewEntryCount'] ?? 0);
+        $summary['zipGeneralPurposeFlagIssueCount'] = (int) ($zipGeneralPurposeFlags['issueCount'] ?? 0);
+        $summary['zipGeneralPurposeFlagIssueCodes'] = is_array($zipGeneralPurposeFlags['issueCodes'] ?? null)
+            ? $zipGeneralPurposeFlags['issueCodes']
+            : [];
+        $summary['zipGeneralPurposeUnsupportedEntries'] = is_array($zipGeneralPurposeFlags['unsupportedEntries'] ?? null)
+            ? $zipGeneralPurposeFlags['unsupportedEntries']
+            : [];
+        $summary['zipGeneralPurposeStrictReviewEntries'] = is_array($zipGeneralPurposeFlags['strictReviewEntries'] ?? null)
+            ? $zipGeneralPurposeFlags['strictReviewEntries']
+            : [];
         $zipPackageManifest = is_array($zipPackage['packageManifest'] ?? null)
             ? $zipPackage['packageManifest']
             : $this->emptyZipPackageManifestProvenance();
@@ -12449,6 +12469,7 @@ final class DocxOpenXmlReader
                     'mismatchedEntries' => [],
                     'entries' => [],
                 ],
+                'generalPurposeFlags' => $this->emptyZipGeneralPurposeFlagProvenance(),
                 'dataDescriptors' => $this->emptyZipDataDescriptorProvenance(),
                 'modificationTimes' => $this->emptyZipModificationTimeProvenance(),
                 'sourceRecords' => $this->emptyZipSourceRecordProvenance(),
@@ -12475,6 +12496,7 @@ final class DocxOpenXmlReader
             is_array($compressionMethods['entries'] ?? null) ? $compressionMethods['entries'] : [],
         );
         $sizePreflight = $sourcePackage->sizePreflight();
+        $generalPurposeFlags = $this->zipGeneralPurposeFlagProvenance($sourcePackage->generalPurposeFlagPreflight());
         $dataDescriptors = $this->zipDataDescriptorProvenance($sourcePackage->dataDescriptorPreflight());
         $modificationTimes = $this->zipModificationTimeProvenance($sourcePackage->modificationTimePreflight());
         $sourceRecords = $this->zipSourceRecordProvenance($sourcePackage, $parts);
@@ -12503,6 +12525,12 @@ final class DocxOpenXmlReader
         foreach (($comments['entries'] ?? []) as $commentEntry) {
             if (is_array($commentEntry) && is_string($commentEntry['name'] ?? null)) {
                 $commentEntriesByName[$commentEntry['name']] = $commentEntry;
+            }
+        }
+        $generalPurposeFlagsByName = [];
+        foreach ($generalPurposeFlags['entries'] as $flagEntry) {
+            if (is_array($flagEntry) && is_string($flagEntry['name'] ?? null)) {
+                $generalPurposeFlagsByName[$flagEntry['name']] = $flagEntry;
             }
         }
         $dataDescriptorByName = [];
@@ -12645,6 +12673,7 @@ final class DocxOpenXmlReader
                 'canExposeBytes' => false,
                 'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
             ]
+                + $this->zipGeneralPurposeFlagEntryProvenance($generalPurposeFlagsByName[$entry->name] ?? null)
                 + $this->zipDataDescriptorEntryProvenance($dataDescriptorByName[$entry->name] ?? null)
                 + $this->zipModificationTimeEntryProvenance($modificationTimeByName[$entry->name] ?? null)
                 + $this->zipSourceRecordEntryProvenance($sourceRecordEntriesByName[$entry->name] ?? null);
@@ -12679,6 +12708,7 @@ final class DocxOpenXmlReader
             'directoryPackagePaths' => $directoryPackagePaths,
             'loadedPartNames' => $loadedPartNames,
             'compressionMethods' => $compressionMethods,
+            'generalPurposeFlags' => $generalPurposeFlags,
             'dataDescriptors' => $dataDescriptors,
             'modificationTimes' => $modificationTimes,
             'sourceRecords' => $sourceRecords,
@@ -12699,6 +12729,95 @@ final class DocxOpenXmlReader
             'entries' => $entries,
             'byPackagePath' => $byPackagePath,
         ] + $this->zipPackageManifestPackageProvenance($packageManifest);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function emptyZipGeneralPurposeFlagProvenance(): array
+    {
+        return [
+            'present' => false,
+            'entryCount' => 0,
+            'supportedEntryCount' => 0,
+            'unsupportedFlagEntryCount' => 0,
+            'utf8NameEntryCount' => 0,
+            'dataDescriptorEntryCount' => 0,
+            'deflateOptionEntryCount' => 0,
+            'strictReviewEntryCount' => 0,
+            'issueCount' => 0,
+            'issueCodes' => [],
+            'unsupportedEntries' => [],
+            'strictReviewEntries' => [],
+            'entries' => [],
+            'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $flags
+     * @return array<string, mixed>
+     */
+    private function zipGeneralPurposeFlagProvenance(array $flags): array
+    {
+        $issueCodes = [];
+        foreach (($flags['entries'] ?? []) as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
+                if (is_string($issue) && $issue !== '' && !in_array($issue, $issueCodes, true)) {
+                    $issueCodes[] = $issue;
+                }
+            }
+        }
+        sort($issueCodes, SORT_STRING);
+
+        return [
+            'present' => true,
+            'entryCount' => (int) ($flags['entryCount'] ?? 0),
+            'supportedEntryCount' => (int) ($flags['supportedEntryCount'] ?? 0),
+            'unsupportedFlagEntryCount' => (int) ($flags['unsupportedFlagEntryCount'] ?? 0),
+            'utf8NameEntryCount' => (int) ($flags['utf8NameEntryCount'] ?? 0),
+            'dataDescriptorEntryCount' => (int) ($flags['dataDescriptorEntryCount'] ?? 0),
+            'deflateOptionEntryCount' => (int) ($flags['deflateOptionEntryCount'] ?? 0),
+            'strictReviewEntryCount' => (int) ($flags['strictReviewEntryCount'] ?? 0),
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+            'unsupportedEntries' => is_array($flags['unsupportedEntries'] ?? null) ? $flags['unsupportedEntries'] : [],
+            'strictReviewEntries' => is_array($flags['strictReviewEntries'] ?? null) ? $flags['strictReviewEntries'] : [],
+            'entries' => is_array($flags['entries'] ?? null) ? $flags['entries'] : [],
+            'byteExposurePolicy' => 'docx-zip-entry-metadata-only',
+            'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private function zipGeneralPurposeFlagEntryProvenance(?array $entry): array
+    {
+        $issues = is_array($entry['issues'] ?? null) ? array_values(array_filter(
+            $entry['issues'],
+            static fn (mixed $issue): bool => is_string($issue)
+        )) : [];
+
+        return [
+            'generalPurposeFlags' => $entry['generalPurposeFlags'] ?? null,
+            'generalPurposeFlagNames' => is_array($entry['flagNames'] ?? null) ? $entry['flagNames'] : [],
+            'generalPurposeUnsupportedFlagBits' => $entry['unsupportedFlagBits'] ?? 0,
+            'generalPurposeFlagsSupportedByReader' => ($entry['isSupportedByReader'] ?? false) === true,
+            'zipUsesUtf8Names' => ($entry['usesUtf8Names'] ?? false) === true,
+            'zipUsesDataDescriptorFlag' => ($entry['usesDataDescriptor'] ?? false) === true,
+            'zipDeflateOptionFlags' => $entry['deflateOptionFlags'] ?? 0,
+            'zipDeflateOptionName' => $entry['deflateOptionName'] ?? null,
+            'zipRequiresGeneralPurposeFlagReview' => ($entry['requiresStrictReview'] ?? false) === true,
+            'generalPurposeFlagIssueCount' => count($issues),
+            'generalPurposeFlagIssues' => $issues,
+        ];
     }
 
     /**
@@ -13779,6 +13898,17 @@ final class DocxOpenXmlReader
             $partInventory[$partName]['hasDuplicateExtraFieldIds'] = $entry['hasDuplicateExtraFieldIds'] ?? false;
             $partInventory[$partName]['hasMismatchedExtraFieldIds'] = $entry['hasMismatchedExtraFieldIds'] ?? false;
             $partInventory[$partName]['hasMismatchedExtraFieldValues'] = $entry['hasMismatchedExtraFieldValues'] ?? false;
+            $partInventory[$partName]['generalPurposeFlags'] = $entry['generalPurposeFlags'] ?? null;
+            $partInventory[$partName]['generalPurposeFlagNames'] = $entry['generalPurposeFlagNames'] ?? [];
+            $partInventory[$partName]['generalPurposeUnsupportedFlagBits'] = $entry['generalPurposeUnsupportedFlagBits'] ?? 0;
+            $partInventory[$partName]['generalPurposeFlagsSupportedByReader'] = $entry['generalPurposeFlagsSupportedByReader'] ?? false;
+            $partInventory[$partName]['zipUsesUtf8Names'] = $entry['zipUsesUtf8Names'] ?? false;
+            $partInventory[$partName]['zipUsesDataDescriptorFlag'] = $entry['zipUsesDataDescriptorFlag'] ?? false;
+            $partInventory[$partName]['zipDeflateOptionFlags'] = $entry['zipDeflateOptionFlags'] ?? 0;
+            $partInventory[$partName]['zipDeflateOptionName'] = $entry['zipDeflateOptionName'] ?? null;
+            $partInventory[$partName]['zipRequiresGeneralPurposeFlagReview'] = $entry['zipRequiresGeneralPurposeFlagReview'] ?? false;
+            $partInventory[$partName]['generalPurposeFlagIssueCount'] = $entry['generalPurposeFlagIssueCount'] ?? 0;
+            $partInventory[$partName]['generalPurposeFlagIssues'] = $entry['generalPurposeFlagIssues'] ?? [];
             $partInventory[$partName]['usesDataDescriptor'] = $entry['usesDataDescriptor'] ?? false;
             $partInventory[$partName]['dataDescriptorHasSignature'] = $entry['dataDescriptorHasSignature'] ?? null;
             $partInventory[$partName]['dataDescriptorOffset'] = $entry['dataDescriptorOffset'] ?? null;

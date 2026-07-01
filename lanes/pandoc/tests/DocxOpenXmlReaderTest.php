@@ -1939,6 +1939,104 @@ XML,
         $t->same($sourceRecords['centralDirectoryRecordBytes'], $summary['zipSourceCentralDirectoryRecordBytes']);
         $t->same($sourceRecords['totalRecordBytes'], $summary['zipSourceTotalRecordBytes']);
     },
+    'preserves docx source zip general purpose flag provenance for package review' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $zipParts = docx_openxml_reader_zip_parts($parts);
+        foreach ($zipParts as &$zipPart) {
+            if ($zipPart['name'] === 'word/document.xml') {
+                $zipPart['compressionMethod'] = 8;
+                $zipPart['extraGeneralPurposeFlags'] = 0x0002;
+            }
+            if ($zipPart['name'] === 'word/media/review.png') {
+                $zipPart['compressionMethod'] = 0;
+                $zipPart['descriptor'] = true;
+                $zipPart['descriptorSignature'] = false;
+            }
+        }
+        unset($zipPart);
+
+        $document = (new DocxOpenXmlReader())->readZipPackage(
+            ZipPackage::fromString(docx_openxml_reader_data_descriptor_zip($zipParts))
+        );
+        $package = $document->attr('docx')['packageProvenance'];
+        $zipPackage = $package['zipPackage'];
+        $flags = $zipPackage['generalPurposeFlags'];
+        $summary = $package['summary'];
+        $inventory = $package['parts'];
+        $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
+        $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
+        $contentTypesEntry = $zipPackage['byPackagePath']['[Content_Types].xml'];
+
+        $t->same('Imported DOCX Heading', $document->children[0]->attr('text'));
+        $t->same(true, $flags['present']);
+        $t->same(count($zipParts), $flags['entryCount']);
+        $t->same(count($zipParts), $flags['supportedEntryCount']);
+        $t->same(0, $flags['unsupportedFlagEntryCount']);
+        $t->same(count($zipParts), $flags['utf8NameEntryCount']);
+        $t->same(1, $flags['dataDescriptorEntryCount']);
+        $t->same(1, $flags['deflateOptionEntryCount']);
+        $t->same(2, $flags['strictReviewEntryCount']);
+        $t->same(2, $flags['issueCount']);
+        $t->same(['data-descriptor-entry', 'deflate-option-flags'], $flags['issueCodes']);
+        $t->same('docx-zip-entry-metadata-only', $flags['byteExposurePolicy']);
+        $t->same(false, $flags['canExposeBytes']);
+        $t->same([], $flags['unsupportedEntries']);
+        $t->same(['word/document.xml', 'word/media/review.png'], array_column($flags['strictReviewEntries'], 'name'));
+
+        $t->same(0x0802, $documentEntry['generalPurposeFlags']);
+        $t->same(['deflate-maximum-compression', 'utf-8-names'], $documentEntry['generalPurposeFlagNames']);
+        $t->same(0, $documentEntry['generalPurposeUnsupportedFlagBits']);
+        $t->same(true, $documentEntry['generalPurposeFlagsSupportedByReader']);
+        $t->same(true, $documentEntry['zipUsesUtf8Names']);
+        $t->same(false, $documentEntry['zipUsesDataDescriptorFlag']);
+        $t->same(0x0002, $documentEntry['zipDeflateOptionFlags']);
+        $t->same('deflate-maximum-compression', $documentEntry['zipDeflateOptionName']);
+        $t->same(true, $documentEntry['zipRequiresGeneralPurposeFlagReview']);
+        $t->same(1, $documentEntry['generalPurposeFlagIssueCount']);
+        $t->same(['deflate-option-flags'], $documentEntry['generalPurposeFlagIssues']);
+
+        $t->same(0x0808, $mediaEntry['generalPurposeFlags']);
+        $t->same(['data-descriptor', 'utf-8-names'], $mediaEntry['generalPurposeFlagNames']);
+        $t->same(0, $mediaEntry['generalPurposeUnsupportedFlagBits']);
+        $t->same(true, $mediaEntry['generalPurposeFlagsSupportedByReader']);
+        $t->same(true, $mediaEntry['zipUsesUtf8Names']);
+        $t->same(true, $mediaEntry['zipUsesDataDescriptorFlag']);
+        $t->same(0, $mediaEntry['zipDeflateOptionFlags']);
+        $t->same(null, $mediaEntry['zipDeflateOptionName']);
+        $t->same(true, $mediaEntry['zipRequiresGeneralPurposeFlagReview']);
+        $t->same(1, $mediaEntry['generalPurposeFlagIssueCount']);
+        $t->same(['data-descriptor-entry'], $mediaEntry['generalPurposeFlagIssues']);
+
+        $t->same(0x0800, $contentTypesEntry['generalPurposeFlags']);
+        $t->same(['utf-8-names'], $contentTypesEntry['generalPurposeFlagNames']);
+        $t->same(false, $contentTypesEntry['zipUsesDataDescriptorFlag']);
+        $t->same(0, $contentTypesEntry['zipDeflateOptionFlags']);
+        $t->same(false, $contentTypesEntry['zipRequiresGeneralPurposeFlagReview']);
+        $t->same(0, $contentTypesEntry['generalPurposeFlagIssueCount']);
+        $t->same([], $contentTypesEntry['generalPurposeFlagIssues']);
+
+        $t->same($flags['entryCount'], $summary['zipGeneralPurposeFlagEntryCount']);
+        $t->same($flags['supportedEntryCount'], $summary['zipGeneralPurposeSupportedEntryCount']);
+        $t->same($flags['unsupportedFlagEntryCount'], $summary['zipGeneralPurposeUnsupportedFlagEntryCount']);
+        $t->same($flags['utf8NameEntryCount'], $summary['zipGeneralPurposeUtf8NameEntryCount']);
+        $t->same($flags['dataDescriptorEntryCount'], $summary['zipGeneralPurposeDataDescriptorEntryCount']);
+        $t->same($flags['deflateOptionEntryCount'], $summary['zipGeneralPurposeDeflateOptionEntryCount']);
+        $t->same($flags['strictReviewEntryCount'], $summary['zipGeneralPurposeStrictReviewEntryCount']);
+        $t->same($flags['issueCount'], $summary['zipGeneralPurposeFlagIssueCount']);
+        $t->same($flags['issueCodes'], $summary['zipGeneralPurposeFlagIssueCodes']);
+        $t->same($flags['unsupportedEntries'], $summary['zipGeneralPurposeUnsupportedEntries']);
+        $t->same($flags['strictReviewEntries'], $summary['zipGeneralPurposeStrictReviewEntries']);
+
+        $t->same($documentEntry['generalPurposeFlags'], $inventory['word/document.xml']['generalPurposeFlags']);
+        $t->same($documentEntry['generalPurposeFlagNames'], $inventory['word/document.xml']['generalPurposeFlagNames']);
+        $t->same($documentEntry['generalPurposeFlagsSupportedByReader'], $inventory['word/document.xml']['generalPurposeFlagsSupportedByReader']);
+        $t->same($documentEntry['zipDeflateOptionName'], $inventory['word/document.xml']['zipDeflateOptionName']);
+        $t->same($documentEntry['generalPurposeFlagIssues'], $inventory['word/document.xml']['generalPurposeFlagIssues']);
+        $t->same($mediaEntry['generalPurposeFlags'], $inventory['word/media/review.png']['generalPurposeFlags']);
+        $t->same($mediaEntry['zipUsesDataDescriptorFlag'], $inventory['word/media/review.png']['zipUsesDataDescriptorFlag']);
+        $t->same($mediaEntry['zipRequiresGeneralPurposeFlagReview'], $inventory['word/media/review.png']['zipRequiresGeneralPurposeFlagReview']);
+        $t->same($mediaEntry['generalPurposeFlagIssues'], $inventory['word/media/review.png']['generalPurposeFlagIssues']);
+    },
     'preserves docx zip entry name policy provenance for package review' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $zipParts = docx_openxml_reader_zip_parts($parts);
@@ -24794,7 +24892,7 @@ function docx_openxml_reader_zip_package(array $parts): ZipPackage
 }
 
 /**
- * @param list<array{name:string, data?:string, compressionMethod?:int, descriptor?:bool, descriptorSignature?:bool}> $parts
+ * @param list<array{name:string, data?:string, compressionMethod?:int, descriptor?:bool, descriptorSignature?:bool, extraGeneralPurposeFlags?:int}> $parts
  */
 function docx_openxml_reader_data_descriptor_zip(array $parts): string
 {
@@ -24815,7 +24913,12 @@ function docx_openxml_reader_data_descriptor_zip(array $parts): string
         }
 
         $usesDescriptor = ($part['descriptor'] ?? false) === true;
-        $flags = 0x0800 | ($usesDescriptor ? 0x0008 : 0);
+        $extraGeneralPurposeFlags = $part['extraGeneralPurposeFlags'] ?? 0;
+        if (!is_int($extraGeneralPurposeFlags)) {
+            throw new RuntimeException("Fixture ZIP entry {$name} extra general purpose flags must be an integer");
+        }
+
+        $flags = 0x0800 | $extraGeneralPurposeFlags | ($usesDescriptor ? 0x0008 : 0);
         $crc32 = (int) sprintf('%u', crc32($data));
         $compressedSize = strlen($compressed);
         $uncompressedSize = strlen($data);
