@@ -123,6 +123,9 @@ $aggregateFields = [
     'expansionRatioBucketSummaryCount' => 'zipPackageManifestExpansionRatioBucketSummaryCount',
     'expansionRatioBuckets' => 'zipPackageManifestExpansionRatioBuckets',
     'expansionRatioBucketSummaries' => 'zipPackageManifestExpansionRatioBucketSummaries',
+    'nameLengthBucketSummaryCount' => 'zipPackageManifestNameLengthBucketSummaryCount',
+    'nameLengthBuckets' => 'zipPackageManifestNameLengthBuckets',
+    'nameLengthBucketSummaries' => 'zipPackageManifestNameLengthBucketSummaries',
     'localHeaderBytes' => 'zipPackageManifestLocalHeaderBytes',
     'localHeaderFixedHeaderBytes' => 'zipPackageManifestLocalHeaderFixedHeaderBytes',
     'localHeaderVariableFieldBytes' => 'zipPackageManifestLocalHeaderVariableFieldBytes',
@@ -279,6 +282,8 @@ $packageManifestEntryScalarSubset = static function (array $item): array {
         'zipPackageManifestCreatorVersionDelta',
         'zipPackageManifestCreatorHostSystemIsKnown',
         'zipPackageManifestCreatorHostSystemIssues',
+        'zipPackageManifestEntryNameBytes',
+        'zipPackageManifestEntryNameLengthBucket',
         'zipPackageManifestPathSegmentPositionReviews',
         'zipPackageManifestPackagePartBaseName',
         'zipPackageManifestPackagePartCaseFoldBaseName',
@@ -333,6 +338,15 @@ return [
         $t->same(['/', 'META-INF/', 'Pictures/'], $bucketSummaries['up-to-1x']['directoryRoots']);
         $t->same(['stored'], $bucketSummaries['up-to-1x']['compressionMethodNames']);
         $t->same(['deflated'], $bucketSummaries['1x-to-10x']['compressionMethodNames']);
+        $t->same(['up-to-15-bytes', '16-to-63-bytes'], $richIdentity['zipPackageManifestNameLengthBuckets']);
+        $t->same(2, $richIdentity['zipPackageManifestNameLengthBucketSummaryCount']);
+        $nameLengthSummaries = $indexBy($richIdentity['zipPackageManifestNameLengthBucketSummaries'], 'nameLengthBucket');
+        $t->same(['mimetype', 'content.xml', 'styles.xml', 'meta.xml'], $nameLengthSummaries['up-to-15-bytes']['entryNames']);
+        $t->same(['META-INF/manifest.xml', 'Pictures/review.png'], $nameLengthSummaries['16-to-63-bytes']['entryNames']);
+        $t->same(['(none)', 'xml'], $nameLengthSummaries['up-to-15-bytes']['packagePartExtensionKeys']);
+        $t->same(['png', 'xml'], $nameLengthSummaries['16-to-63-bytes']['packagePartExtensionKeys']);
+        $t->same(['content.xml'], $nameLengthSummaries['up-to-15-bytes']['longestEntryNames']);
+        $t->same(['META-INF/manifest.xml'], $nameLengthSummaries['16-to-63-bytes']['longestEntryNames']);
         $t->same(count($zipManifest['deepestEntryNames']), $compactInventory['zipPackageManifestDeepestEntryNameCount']);
         $t->same(count($zipManifest['deepestEntryNames']), $compactIdentity['zipPackageManifestDeepestEntryNameCount']);
         $t->same(count($zipManifest['deepestEntryNames']), $richProvenance['zipPackageManifestDeepestEntryNameCount']);
@@ -372,6 +386,8 @@ return [
                 'zipPackageManifestCreatorVersionDelta' => $zipEntry['creatorVersionDelta'],
                 'zipPackageManifestCreatorHostSystemIsKnown' => $zipEntry['creatorHostSystemIsKnown'],
                 'zipPackageManifestCreatorHostSystemIssues' => $zipEntry['creatorHostSystemIssues'],
+                'zipPackageManifestEntryNameBytes' => $zipEntry['entryNameBytes'],
+                'zipPackageManifestEntryNameLengthBucket' => $zipEntry['entryNameLengthBucket'],
                 'zipPackageManifestPathSegmentPositionReviews' => $zipEntry['pathSegmentPositionReviews'],
                 'zipPackageManifestPackagePartBaseName' => $zipEntry['packagePartBaseName'],
                 'zipPackageManifestPackagePartCaseFoldBaseName' => $zipEntry['packagePartCaseFoldBaseName'],
