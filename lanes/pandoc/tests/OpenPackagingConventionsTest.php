@@ -494,15 +494,22 @@ XML;
                 'name' => 'word/document.xml',
                 'data' => '<w:document><w:body><w:p>source record</w:p></w:body></w:document>',
                 'compressionMethod' => 0,
+                'creatorHostSystem' => 10,
                 'extraFieldData' => $documentExtra,
                 'comment' => $documentComment,
             ],
             ['name' => 'word/media/review.png', 'data' => 'PNG', 'compressionMethod' => 0],
         ];
         $zip = ZipPackage::build($parts);
+        $package = ZipPackage::fromString($zip);
+        $packageManifest = $package->packageManifestPreflight();
 
-        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
         $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $manifestEntries = [];
+        foreach ($packageManifest['entries'] as $entry) {
+            $manifestEntries[$entry['name']] = $entry;
+        }
         $entries = [];
         foreach ($summary['entries'] as $entry) {
             $entries[$entry['entryName']] = $entry;
@@ -514,10 +521,39 @@ XML;
 
         $documentEntry = $entries['word/document.xml'];
         $rawDocumentEntry = $rawEntries['word/document.xml'];
+        $manifestDocumentEntry = $manifestEntries['word/document.xml'];
         $expectedCentralRecordBytes = 46
             + strlen('word/document.xml')
             + strlen($documentExtra)
             + strlen($documentComment);
+        $creatorFields = [
+            'versionMadeBy',
+            'madeByHostSystem',
+            'madeByHostSystemName',
+            'madeByVersion',
+            'versionNeededToExtract',
+            'creatorVersionMeetsNeeded',
+            'creatorVersionComparison',
+            'creatorVersionDelta',
+            'creatorHostSystemIsKnown',
+            'creatorHostSystemIssues',
+        ];
+        $centralFieldBytes = [
+            'centralDirectoryFixedHeaderBytes',
+            'centralDirectoryVariableFieldOffset',
+            'centralDirectoryVariableFieldBytes',
+            'centralDirectoryVariableFieldSha256',
+            'centralDirectoryRawNameOffset',
+            'centralDirectoryRawNameBytes',
+            'centralDirectoryRawNameSha256',
+            'centralDirectoryExtraFieldOffset',
+            'centralDirectoryExtraFieldBytes',
+            'centralDirectoryExtraFieldSha256',
+            'centralDirectoryRawCommentOffset',
+            'centralDirectoryRawCommentBytes',
+            'centralDirectoryRawCommentSha256',
+            'centralDirectoryReviewFieldBytes',
+        ];
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
@@ -544,6 +580,41 @@ XML;
             $documentEntry['centralDirectoryRecordSha256']
         );
         $t->same($documentEntry['centralDirectoryRecordSha256'], $rawDocumentEntry['centralDirectoryRecordSha256']);
+        foreach (array_merge($creatorFields, $centralFieldBytes) as $field) {
+            $t->same($manifestDocumentEntry[$field], $documentEntry[$field], "{$field} package manifest handoff");
+            $t->same($documentEntry[$field], $rawDocumentEntry[$field], "{$field} raw manifest handoff");
+        }
+        $t->same(0x0a14, $documentEntry['versionMadeBy']);
+        $t->same(10, $documentEntry['madeByHostSystem']);
+        $t->same(20, $documentEntry['madeByVersion']);
+        $t->same(20, $documentEntry['versionNeededToExtract']);
+        $t->same(46, $documentEntry['centralDirectoryFixedHeaderBytes']);
+        $t->same(
+            $documentEntry['centralDirectoryRecordOffset'] + 46,
+            $documentEntry['centralDirectoryVariableFieldOffset']
+        );
+        $t->same(
+            strlen('word/document.xml') + strlen($documentExtra) + strlen($documentComment),
+            $documentEntry['centralDirectoryVariableFieldBytes']
+        );
+        $t->same(
+            hash('sha256', substr(
+                $zip,
+                $documentEntry['centralDirectoryVariableFieldOffset'],
+                $documentEntry['centralDirectoryVariableFieldBytes']
+            )),
+            $documentEntry['centralDirectoryVariableFieldSha256']
+        );
+        $t->same(strlen('word/document.xml'), $documentEntry['centralDirectoryRawNameBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentEntry['centralDirectoryRawNameSha256']);
+        $t->same(strlen($documentExtra), $documentEntry['centralDirectoryExtraFieldBytes']);
+        $t->same(hash('sha256', $documentExtra), $documentEntry['centralDirectoryExtraFieldSha256']);
+        $t->same(strlen($documentComment), $documentEntry['centralDirectoryRawCommentBytes']);
+        $t->same(hash('sha256', $documentComment), $documentEntry['centralDirectoryRawCommentSha256']);
+        $t->same(
+            strlen($documentExtra) + strlen($documentComment),
+            $documentEntry['centralDirectoryReviewFieldBytes']
+        );
     },
     'carries OPC ZIP local header and compressed payload source hashes through manifest preflights' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
@@ -569,8 +640,14 @@ XML;
             ['name' => 'word/media/review.png', 'data' => $imageBytes, 'compressionMethod' => 0],
         ]);
 
-        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $package = ZipPackage::fromString($zip);
+        $packageManifest = $package->packageManifestPreflight();
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest($package);
         $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $manifestEntries = [];
+        foreach ($packageManifest['entries'] as $entry) {
+            $manifestEntries[$entry['name']] = $entry;
+        }
         $entries = [];
         foreach ($summary['entries'] as $entry) {
             $entries[$entry['entryName']] = $entry;
@@ -582,8 +659,23 @@ XML;
 
         $documentEntry = $entries['word/document.xml'];
         $rawDocumentEntry = $rawEntries['word/document.xml'];
+        $manifestDocumentEntry = $manifestEntries['word/document.xml'];
         $contentTypesEntry = $entries['[Content_Types].xml'];
         $rawContentTypesEntry = $rawEntries['[Content_Types].xml'];
+        $manifestContentTypesEntry = $manifestEntries['[Content_Types].xml'];
+        $localFieldBytes = [
+            'localHeaderFixedHeaderBytes',
+            'localHeaderVariableFieldOffset',
+            'localHeaderVariableFieldBytes',
+            'localHeaderVariableFieldSha256',
+            'localHeaderRawNameOffset',
+            'localHeaderRawNameBytes',
+            'localHeaderRawNameSha256',
+            'localHeaderExtraFieldOffset',
+            'localHeaderExtraFieldBytes',
+            'localHeaderExtraFieldSha256',
+            'localHeaderReviewFieldBytes',
+        ];
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
@@ -599,6 +691,26 @@ XML;
         $t->same(hash('sha256', $documentCompressed), $documentEntry['compressedDataSha256']);
         $t->same(hash('sha256', substr($zip, $documentEntry['compressedDataOffset'], $documentEntry['compressedSize'])), $documentEntry['compressedDataSha256']);
 
+        foreach ($localFieldBytes as $field) {
+            $t->same($manifestDocumentEntry[$field], $documentEntry[$field], "{$field} document package manifest handoff");
+            $t->same($documentEntry[$field], $rawDocumentEntry[$field], "{$field} document raw manifest handoff");
+        }
+        $t->same(30, $documentEntry['localHeaderFixedHeaderBytes']);
+        $t->same($documentEntry['localHeaderOffset'] + 30, $documentEntry['localHeaderVariableFieldOffset']);
+        $t->same(strlen('word/document.xml') + strlen($documentExtra), $documentEntry['localHeaderVariableFieldBytes']);
+        $t->same(
+            hash('sha256', substr(
+                $zip,
+                $documentEntry['localHeaderVariableFieldOffset'],
+                $documentEntry['localHeaderVariableFieldBytes']
+            )),
+            $documentEntry['localHeaderVariableFieldSha256']
+        );
+        $t->same(strlen('word/document.xml'), $documentEntry['localHeaderRawNameBytes']);
+        $t->same(hash('sha256', 'word/document.xml'), $documentEntry['localHeaderRawNameSha256']);
+        $t->same(strlen($documentExtra), $documentEntry['localHeaderExtraFieldBytes']);
+        $t->same(hash('sha256', $documentExtra), $documentEntry['localHeaderExtraFieldSha256']);
+        $t->same(strlen($documentExtra), $documentEntry['localHeaderReviewFieldBytes']);
         $t->same($documentEntry['localHeaderLength'], $rawDocumentEntry['localHeaderLength']);
         $t->same($documentEntry['localHeaderSha256'], $rawDocumentEntry['localHeaderSha256']);
         $t->same($documentEntry['compressedDataOffset'], $rawDocumentEntry['compressedDataOffset']);
@@ -607,6 +719,14 @@ XML;
 
         $t->same(30 + strlen('[Content_Types].xml'), $contentTypesEntry['localHeaderLength']);
         $t->same(hash('sha256', $contentTypesXml), $contentTypesEntry['compressedDataSha256']);
+        foreach ($localFieldBytes as $field) {
+            $t->same($manifestContentTypesEntry[$field], $contentTypesEntry[$field], "{$field} content types package manifest handoff");
+            $t->same($contentTypesEntry[$field], $rawContentTypesEntry[$field], "{$field} content types raw manifest handoff");
+        }
+        $t->same(strlen('[Content_Types].xml'), $contentTypesEntry['localHeaderRawNameBytes']);
+        $t->same(0, $contentTypesEntry['localHeaderExtraFieldBytes']);
+        $t->same(hash('sha256', ''), $contentTypesEntry['localHeaderExtraFieldSha256']);
+        $t->same(0, $contentTypesEntry['localHeaderReviewFieldBytes']);
         $t->same($contentTypesEntry['localHeaderLength'], $rawContentTypesEntry['localHeaderLength']);
         $t->same($contentTypesEntry['localHeaderSha256'], $rawContentTypesEntry['localHeaderSha256']);
         $t->same($contentTypesEntry['compressedDataSha256'], $rawContentTypesEntry['compressedDataSha256']);

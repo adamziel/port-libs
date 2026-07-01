@@ -611,6 +611,16 @@ final class OpcRelationshipGraph
                 'pathSegments' => $manifestEntry['pathSegments'] ?? [],
                 'pathSegmentCount' => $manifestEntry['pathSegmentCount'] ?? 0,
                 'directoryDepth' => $manifestEntry['directoryDepth'] ?? 0,
+                'versionMadeBy' => $manifestEntry['versionMadeBy'] ?? null,
+                'madeByHostSystem' => $manifestEntry['madeByHostSystem'] ?? null,
+                'madeByHostSystemName' => $manifestEntry['madeByHostSystemName'] ?? null,
+                'madeByVersion' => $manifestEntry['madeByVersion'] ?? null,
+                'versionNeededToExtract' => $manifestEntry['versionNeededToExtract'] ?? null,
+                'creatorVersionMeetsNeeded' => $manifestEntry['creatorVersionMeetsNeeded'] ?? null,
+                'creatorVersionComparison' => $manifestEntry['creatorVersionComparison'] ?? null,
+                'creatorVersionDelta' => $manifestEntry['creatorVersionDelta'] ?? null,
+                'creatorHostSystemIsKnown' => $manifestEntry['creatorHostSystemIsKnown'] ?? null,
+                'creatorHostSystemIssues' => $manifestEntry['creatorHostSystemIssues'] ?? [],
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
@@ -619,10 +629,35 @@ final class OpcRelationshipGraph
                 'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
                 'centralDirectoryRecordEnd' => $centralDirectoryRecordEnd,
                 'centralDirectoryRecordSha256' => $manifestEntry['centralDirectoryRecordSha256'] ?? null,
+                'centralDirectoryFixedHeaderBytes' => $manifestEntry['centralDirectoryFixedHeaderBytes'] ?? null,
+                'centralDirectoryVariableFieldOffset' => $manifestEntry['centralDirectoryVariableFieldOffset'] ?? null,
+                'centralDirectoryVariableFieldBytes' => $manifestEntry['centralDirectoryVariableFieldBytes'] ?? null,
+                'centralDirectoryVariableFieldSha256' => $manifestEntry['centralDirectoryVariableFieldSha256'] ?? null,
+                'centralDirectoryRawNameOffset' => $manifestEntry['centralDirectoryRawNameOffset'] ?? null,
+                'centralDirectoryRawNameBytes' => $manifestEntry['centralDirectoryRawNameBytes'] ?? null,
+                'centralDirectoryRawNameSha256' => $manifestEntry['centralDirectoryRawNameSha256'] ?? null,
+                'centralDirectoryExtraFieldOffset' => $manifestEntry['centralDirectoryExtraFieldOffset'] ?? null,
+                'centralDirectoryExtraFieldBytes' => $manifestEntry['centralDirectoryExtraFieldBytes'] ?? null,
+                'centralDirectoryExtraFieldSha256' => $manifestEntry['centralDirectoryExtraFieldSha256'] ?? null,
+                'centralDirectoryRawCommentOffset' => $manifestEntry['centralDirectoryRawCommentOffset'] ?? null,
+                'centralDirectoryRawCommentBytes' => $manifestEntry['centralDirectoryRawCommentBytes'] ?? null,
+                'centralDirectoryRawCommentSha256' => $manifestEntry['centralDirectoryRawCommentSha256'] ?? null,
+                'centralDirectoryReviewFieldBytes' => $manifestEntry['centralDirectoryReviewFieldBytes'] ?? null,
                 'localHeaderOrder' => $orderEntry['localHeaderOrder'] ?? $entryIndex,
                 'localHeaderOffset' => $localHeaderOffset,
                 'localHeaderLength' => $manifestEntry['localHeaderLength'] ?? null,
                 'localHeaderSha256' => $manifestEntry['localHeaderSha256'] ?? null,
+                'localHeaderFixedHeaderBytes' => $manifestEntry['localHeaderFixedHeaderBytes'] ?? null,
+                'localHeaderVariableFieldOffset' => $manifestEntry['localHeaderVariableFieldOffset'] ?? null,
+                'localHeaderVariableFieldBytes' => $manifestEntry['localHeaderVariableFieldBytes'] ?? null,
+                'localHeaderVariableFieldSha256' => $manifestEntry['localHeaderVariableFieldSha256'] ?? null,
+                'localHeaderRawNameOffset' => $manifestEntry['localHeaderRawNameOffset'] ?? null,
+                'localHeaderRawNameBytes' => $manifestEntry['localHeaderRawNameBytes'] ?? null,
+                'localHeaderRawNameSha256' => $manifestEntry['localHeaderRawNameSha256'] ?? null,
+                'localHeaderExtraFieldOffset' => $manifestEntry['localHeaderExtraFieldOffset'] ?? null,
+                'localHeaderExtraFieldBytes' => $manifestEntry['localHeaderExtraFieldBytes'] ?? null,
+                'localHeaderExtraFieldSha256' => $manifestEntry['localHeaderExtraFieldSha256'] ?? null,
+                'localHeaderReviewFieldBytes' => $manifestEntry['localHeaderReviewFieldBytes'] ?? null,
                 'localRecordOffset' => $manifestEntry['localRecordOffset'] ?? null,
                 'localRecordBytes' => $manifestEntry['localRecordBytes'] ?? null,
                 'localRecordEnd' => $manifestEntry['localRecordEnd'] ?? null,
@@ -1636,6 +1671,55 @@ final class OpcRelationshipGraph
         } catch (\Throwable $exception) {
             $localHeaderSpanPreflightError = $exception->getMessage();
         }
+        $centralDirectoryFixedHeaderByCentralDirectoryIndex = [];
+        try {
+            $centralDirectoryFixedHeaders = ZipPackage::centralDirectoryFixedHeaderPreflight($bytes);
+            foreach ($centralDirectoryFixedHeaders['entries'] as $fixedHeaderEntry) {
+                $centralDirectoryFixedHeaderByCentralDirectoryIndex[$fixedHeaderEntry['centralDirectoryIndex']] = $fixedHeaderEntry;
+            }
+        } catch (\Throwable) {
+            $centralDirectoryFixedHeaderByCentralDirectoryIndex = [];
+        }
+        $centralDirectoryVariableFieldByCentralDirectoryIndex = [];
+        try {
+            $centralDirectoryVariableFields = ZipPackage::centralDirectoryVariableFieldsPreflight($bytes);
+            foreach ($centralDirectoryVariableFields['entries'] as $variableFieldEntry) {
+                $centralDirectoryVariableFieldByCentralDirectoryIndex[$variableFieldEntry['centralDirectoryIndex']] = $variableFieldEntry;
+            }
+        } catch (\Throwable) {
+            $centralDirectoryVariableFieldByCentralDirectoryIndex = [];
+        }
+        $localHeaderVariableFieldByCentralDirectoryIndex = [];
+        try {
+            $localHeaderVariableFields = ZipPackage::localHeaderVariableFieldsPreflight($bytes);
+            foreach ($localHeaderVariableFields['entries'] as $variableFieldEntry) {
+                $localHeaderVariableFieldByCentralDirectoryIndex[$variableFieldEntry['centralDirectoryIndex']] = $variableFieldEntry;
+            }
+        } catch (\Throwable) {
+            $localHeaderVariableFieldByCentralDirectoryIndex = [];
+        }
+        $creatorHostSystemByCentralDirectoryIndex = [];
+        try {
+            $creatorHostSystems = ZipPackage::creatorHostSystemPolicyPreflight($bytes);
+            foreach ($creatorHostSystems['entries'] as $creatorHostEntry) {
+                $creatorHostSystemByCentralDirectoryIndex[$creatorHostEntry['centralDirectoryIndex']] = $creatorHostEntry;
+            }
+        } catch (\Throwable) {
+            $creatorHostSystemByCentralDirectoryIndex = [];
+        }
+        $hashByteSlice = static function (?int $offset, ?int $bytesToHash) use ($bytes): ?string {
+            if (
+                !is_int($offset)
+                || !is_int($bytesToHash)
+                || $offset < 0
+                || $bytesToHash < 0
+                || $offset + $bytesToHash > strlen($bytes)
+            ) {
+                return null;
+            }
+
+            return hash('sha256', substr($bytes, $offset, $bytesToHash));
+        };
         $entries = [];
         $contentTypesItems = [];
         $contentTypesEntryIndexes = [];
@@ -1656,6 +1740,10 @@ final class OpcRelationshipGraph
             $localHeaderNameEntry = $localHeaderNameByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderMetadataEntry = $localHeaderMetadataByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderSpanEntry = $localHeaderSpanByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $centralDirectoryFixedHeaderEntry = $centralDirectoryFixedHeaderByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $centralDirectoryVariableFieldEntry = $centralDirectoryVariableFieldByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $localHeaderVariableFieldEntry = $localHeaderVariableFieldByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $creatorHostEntry = $creatorHostSystemByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderMetadataIssues = $localHeaderMetadataEntry['issues'] ?? [];
             if (($centralEntry['hasZip64SizeSentinel'] ?? false) === true) {
                 $localHeaderMetadataIssues = array_values(array_diff(
@@ -1702,6 +1790,44 @@ final class OpcRelationshipGraph
             $centralDirectoryRecordBytes = max(0, $centralEntry['recordEnd'] - $centralEntry['centralDirectoryOffset']);
             $localHeaderOffset = $localHeaderSpanEntry['localHeaderOffset'] ?? $centralEntry['localHeaderOffset'];
             $localHeaderLength = $localHeaderSpanEntry['localHeaderLength'] ?? null;
+            $centralDirectoryFixedHeaderBytes = $centralDirectoryFixedHeaderEntry['fixedHeaderLength'] ?? 46;
+            $centralDirectoryVariableFieldOffset = $centralDirectoryVariableFieldEntry['variableFieldsOffset']
+                ?? ($centralEntry['centralDirectoryOffset'] + $centralDirectoryFixedHeaderBytes);
+            $centralDirectoryVariableFieldBytes = $centralDirectoryVariableFieldEntry['variableFieldsLength']
+                ?? max(0, $centralDirectoryRecordBytes - $centralDirectoryFixedHeaderBytes);
+            $centralDirectoryRawNameOffset = $centralDirectoryVariableFieldEntry['rawNameOffset']
+                ?? $centralDirectoryVariableFieldOffset;
+            $centralDirectoryRawNameBytes = $centralDirectoryVariableFieldEntry['rawNameLength']
+                ?? strlen($centralEntry['rawName'] ?? '');
+            $centralDirectoryExtraFieldOffset = $centralDirectoryVariableFieldEntry['centralExtraFieldOffset']
+                ?? (is_int($centralDirectoryRawNameOffset) && is_int($centralDirectoryRawNameBytes)
+                    ? $centralDirectoryRawNameOffset + $centralDirectoryRawNameBytes
+                    : null);
+            $centralDirectoryExtraFieldBytes = $centralDirectoryVariableFieldEntry['centralExtraFieldLength'] ?? null;
+            $centralDirectoryRawCommentOffset = $centralDirectoryVariableFieldEntry['rawCommentOffset'] ?? null;
+            $centralDirectoryRawCommentBytes = $centralDirectoryVariableFieldEntry['rawCommentLength'] ?? null;
+            $centralDirectoryReviewFieldBytes = is_int($centralDirectoryExtraFieldBytes)
+                && is_int($centralDirectoryRawCommentBytes)
+                    ? $centralDirectoryExtraFieldBytes + $centralDirectoryRawCommentBytes
+                    : null;
+            $localHeaderFixedHeaderBytes = $localHeaderVariableFieldEntry['fixedHeaderLength'] ?? (
+                is_int($localHeaderLength) ? 30 : null
+            );
+            $localHeaderVariableFieldOffset = $localHeaderVariableFieldEntry['variableFieldsOffset'] ?? (
+                is_int($localHeaderOffset) ? $localHeaderOffset + 30 : null
+            );
+            $localHeaderVariableFieldBytes = $localHeaderVariableFieldEntry['variableFieldsLength'] ?? (
+                is_int($localHeaderLength) ? max(0, $localHeaderLength - 30) : null
+            );
+            $localHeaderRawNameOffset = $localHeaderVariableFieldEntry['rawNameOffset'] ?? $localHeaderVariableFieldOffset;
+            $localHeaderRawNameBytes = $localHeaderVariableFieldEntry['rawNameLength'] ?? null;
+            $localHeaderExtraFieldOffset = $localHeaderVariableFieldEntry['localExtraFieldOffset'] ?? (
+                is_int($localHeaderRawNameOffset) && is_int($localHeaderRawNameBytes)
+                    ? $localHeaderRawNameOffset + $localHeaderRawNameBytes
+                    : null
+            );
+            $localHeaderExtraFieldBytes = $localHeaderVariableFieldEntry['localExtraFieldLength'] ?? null;
+            $localHeaderReviewFieldBytes = $localHeaderExtraFieldBytes;
             $localHeaderSha256 = null;
             if (
                 is_int($localHeaderOffset)
@@ -1762,6 +1888,16 @@ final class OpcRelationshipGraph
                 'entryIndex' => $entryIndex,
                 'entryName' => $centralEntry['name'],
                 'directoryRoot' => self::zipEntryManifestDirectoryRoot($centralEntry['name']),
+                'versionMadeBy' => $creatorHostEntry['versionMadeBy'] ?? $centralDirectoryFixedHeaderEntry['versionMadeBy'] ?? null,
+                'madeByHostSystem' => $creatorHostEntry['madeByHostSystem'] ?? $centralDirectoryFixedHeaderEntry['creatorHostSystem'] ?? null,
+                'madeByHostSystemName' => $creatorHostEntry['madeByHostSystemName'] ?? null,
+                'madeByVersion' => $creatorHostEntry['madeByVersion'] ?? $centralDirectoryFixedHeaderEntry['creatorVersion'] ?? null,
+                'versionNeededToExtract' => $creatorHostEntry['versionNeededToExtract'] ?? $centralDirectoryFixedHeaderEntry['versionNeededToExtract'] ?? null,
+                'creatorVersionMeetsNeeded' => $creatorHostEntry['creatorVersionMeetsNeeded'] ?? null,
+                'creatorVersionComparison' => $creatorHostEntry['creatorVersionComparison'] ?? null,
+                'creatorVersionDelta' => $creatorHostEntry['creatorVersionDelta'] ?? null,
+                'creatorHostSystemIsKnown' => $creatorHostEntry['isKnown'] ?? null,
+                'creatorHostSystemIssues' => $creatorHostEntry['issues'] ?? [],
                 'partName' => $partName,
                 'equivalenceKey' => $equivalenceKey,
                 'equivalentPartNames' => [],
@@ -1824,9 +1960,55 @@ final class OpcRelationshipGraph
                     'sha256',
                     substr($bytes, $centralEntry['centralDirectoryOffset'], $centralDirectoryRecordBytes)
                 ),
+                'centralDirectoryFixedHeaderBytes' => $centralDirectoryFixedHeaderBytes,
+                'centralDirectoryVariableFieldOffset' => $centralDirectoryVariableFieldOffset,
+                'centralDirectoryVariableFieldBytes' => $centralDirectoryVariableFieldBytes,
+                'centralDirectoryVariableFieldSha256' => $hashByteSlice(
+                    $centralDirectoryVariableFieldOffset,
+                    $centralDirectoryVariableFieldBytes
+                ),
+                'centralDirectoryRawNameOffset' => $centralDirectoryRawNameOffset,
+                'centralDirectoryRawNameBytes' => $centralDirectoryRawNameBytes,
+                'centralDirectoryRawNameSha256' => $hashByteSlice(
+                    $centralDirectoryRawNameOffset,
+                    $centralDirectoryRawNameBytes
+                ),
+                'centralDirectoryExtraFieldOffset' => $centralDirectoryExtraFieldOffset,
+                'centralDirectoryExtraFieldBytes' => $centralDirectoryExtraFieldBytes,
+                'centralDirectoryExtraFieldSha256' => $hashByteSlice(
+                    $centralDirectoryExtraFieldOffset,
+                    $centralDirectoryExtraFieldBytes
+                ),
+                'centralDirectoryRawCommentOffset' => $centralDirectoryRawCommentOffset,
+                'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
+                'centralDirectoryRawCommentSha256' => $hashByteSlice(
+                    $centralDirectoryRawCommentOffset,
+                    $centralDirectoryRawCommentBytes
+                ),
+                'centralDirectoryReviewFieldBytes' => $centralDirectoryReviewFieldBytes,
                 'localHeaderOffset' => $localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
+                'localHeaderFixedHeaderBytes' => $localHeaderFixedHeaderBytes,
+                'localHeaderVariableFieldOffset' => $localHeaderVariableFieldOffset,
+                'localHeaderVariableFieldBytes' => $localHeaderVariableFieldBytes,
+                'localHeaderVariableFieldSha256' => $hashByteSlice(
+                    $localHeaderVariableFieldOffset,
+                    $localHeaderVariableFieldBytes
+                ),
+                'localHeaderRawNameOffset' => $localHeaderRawNameOffset,
+                'localHeaderRawNameBytes' => $localHeaderRawNameBytes,
+                'localHeaderRawNameSha256' => $hashByteSlice(
+                    $localHeaderRawNameOffset,
+                    $localHeaderRawNameBytes
+                ),
+                'localHeaderExtraFieldOffset' => $localHeaderExtraFieldOffset,
+                'localHeaderExtraFieldBytes' => $localHeaderExtraFieldBytes,
+                'localHeaderExtraFieldSha256' => $hashByteSlice(
+                    $localHeaderExtraFieldOffset,
+                    $localHeaderExtraFieldBytes
+                ),
+                'localHeaderReviewFieldBytes' => $localHeaderReviewFieldBytes,
                 'localRecordOffset' => $localRecordOffset,
                 'localRecordBytes' => $localRecordBytes,
                 'localRecordEnd' => $localRecordEnd,
