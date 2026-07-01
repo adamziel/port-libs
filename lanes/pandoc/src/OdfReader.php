@@ -1455,6 +1455,7 @@ final class OdfReader
         $dosAttributes = $package->dosAttributePreflight();
         $internalAttributes = $package->internalAttributePreflight();
         $extraFields = $package->extraFieldPreflight();
+        $unixOwners = $package->unixOwnerPreflight();
         $namePolicy = $this->zipNamePolicyProvenance($package);
         $packageManifest = $package->packageManifestPreflight();
         $zipPackageManifestSummary = self::zipPackageManifestAggregateProvenance($packageManifest);
@@ -1774,6 +1775,7 @@ final class OdfReader
         $dosAttributesByName = self::zipPreflightEntriesByName($dosAttributes);
         $internalAttributesByName = self::zipPreflightEntriesByName($internalAttributes);
         $extraFieldsByName = self::zipPreflightEntriesByName($extraFields);
+        $unixOwnersByName = self::zipPreflightEntriesByName($unixOwners);
         $generalPurposeFlagsByName = self::zipPreflightEntriesByName($generalPurposeFlags);
         $packageManifestByName = self::zipPreflightEntriesByName($packageManifest);
         $localHeaderMetadataByName = self::zipLocalHeaderMetadataEntriesByName($localHeaderMetadata);
@@ -1798,6 +1800,7 @@ final class OdfReader
             $rawPackagePartExtension = self::packagePartRawExtension($entry->name);
             $timestampProvenance = self::zipTimestampProvenance($modificationTimeByName[$entry->name] ?? null);
             $extraFieldProvenance = self::zipExtraFieldProvenance($extraFieldsByName[$entry->name] ?? null);
+            $unixOwnerProvenance = self::zipUnixOwnerMetadataProvenance($unixOwnersByName[$entry->name] ?? null);
             $generalPurposeFlagProvenance = self::zipGeneralPurposeFlagProvenance($generalPurposeFlagsByName[$entry->name] ?? null);
             $packageManifestEntrySource = self::zipPackageManifestEntrySourceProvenance($packageManifestByName[$entry->name] ?? null);
             $localHeaderMetadataProvenance = self::zipLocalHeaderMetadataProvenance($localHeaderMetadataByName[$entry->name] ?? null);
@@ -1955,7 +1958,7 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $extraFieldProvenance + $generalPurposeFlagProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
+            ] + $rawNameProvenance + $extraFieldProvenance + $unixOwnerProvenance + $generalPurposeFlagProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
 
             self::recordZipPackageManifestPathSegmentPositionInventory(
                 $zipPackageManifestPathSegmentPositionRoleCounts,
@@ -2463,6 +2466,21 @@ final class OdfReader
             'centralOnlyExtraFieldIdCount' => $extraFields['centralOnlyExtraFieldIdCount'],
             'localOnlyExtraFieldIdCount' => $extraFields['localOnlyExtraFieldIdCount'],
             'extraFieldIdUsage' => $extraFields['extraFieldIdUsage'],
+            'unixOwners' => $unixOwners,
+            'hasUnixOwnerMetadata' => $unixOwners['ownerMetadataEntryCount'] > 0,
+            'hasMismatchedUnixOwnerMetadata' => $unixOwners['mismatchedOwnerMetadataEntryCount'] > 0,
+            'unixOwnerMetadataEntryCount' => $unixOwners['ownerMetadataEntryCount'],
+            'centralUnixOwnerMetadataEntryCount' => $unixOwners['centralOwnerMetadataEntryCount'],
+            'localUnixOwnerMetadataEntryCount' => $unixOwners['localOwnerMetadataEntryCount'],
+            'mismatchedUnixOwnerMetadataEntryCount' => $unixOwners['mismatchedOwnerMetadataEntryCount'],
+            'unixOwnerMetadataIssueCodes' => array_values(array_filter([
+                $unixOwners['ownerMetadataEntryCount'] > 0 ? 'unix-owner-extra-fields' : null,
+                $unixOwners['mismatchedOwnerMetadataEntryCount'] > 0 ? 'unix-uid-gid-mismatch' : null,
+            ])),
+            'unixOwnerMetadataEntries' => $unixOwners['ownerMetadataEntries'],
+            'mismatchedUnixOwnerMetadataEntries' => $unixOwners['mismatchedOwnerMetadataEntries'],
+            'unixOwnerMetadataByteExposurePolicy' => 'zip-unix-owner-metadata-only',
+            'unixOwnerMetadataCanExposeBytes' => false,
             'comments' => $comments,
             'hasPackageComment' => ($comments['hasPackageComment'] ?? false) === true,
             'hasEntryComments' => ($comments['hasEntryComments'] ?? false) === true,
@@ -3263,6 +3281,15 @@ final class OdfReader
                 'hasDuplicateExtraFieldIds' => ($item['hasDuplicateExtraFieldIds'] ?? false) === true,
                 'hasMismatchedExtraFieldIds' => ($item['hasMismatchedExtraFieldIds'] ?? false) === true,
                 'hasMismatchedExtraFieldValues' => ($item['hasMismatchedExtraFieldValues'] ?? false) === true,
+                'centralUnixOwner' => $item['centralUnixOwner'] ?? null,
+                'localUnixOwner' => $item['localUnixOwner'] ?? null,
+                'hasCentralUnixOwnerMetadata' => ($item['hasCentralUnixOwnerMetadata'] ?? false) === true,
+                'hasLocalUnixOwnerMetadata' => ($item['hasLocalUnixOwnerMetadata'] ?? false) === true,
+                'hasUnixOwnerMetadata' => ($item['hasUnixOwnerMetadata'] ?? false) === true,
+                'unixOwnerMetadataMatches' => ($item['unixOwnerMetadataMatches'] ?? true) === true,
+                'unixOwnerMetadataIssues' => $item['unixOwnerMetadataIssues'] ?? [],
+                'unixOwnerMetadataByteExposurePolicy' => $item['unixOwnerMetadataByteExposurePolicy'] ?? 'zip-unix-owner-metadata-only',
+                'unixOwnerMetadataCanExposeBytes' => ($item['unixOwnerMetadataCanExposeBytes'] ?? false) === true,
                 'declaredInManifest' => ($item['declaredInManifest'] ?? false) === true,
                 'manifestIndex' => $item['manifestIndex'] ?? null,
                 'manifestFullPath' => $item['manifestFullPath'] ?? null,
@@ -3481,6 +3508,17 @@ final class OdfReader
             'centralOnlyExtraFieldIdCount' => $provenance['centralOnlyExtraFieldIdCount'] ?? 0,
             'localOnlyExtraFieldIdCount' => $provenance['localOnlyExtraFieldIdCount'] ?? 0,
             'extraFieldIdUsage' => $provenance['extraFieldIdUsage'] ?? [],
+            'hasUnixOwnerMetadata' => ($provenance['hasUnixOwnerMetadata'] ?? false) === true,
+            'hasMismatchedUnixOwnerMetadata' => ($provenance['hasMismatchedUnixOwnerMetadata'] ?? false) === true,
+            'unixOwnerMetadataEntryCount' => $provenance['unixOwnerMetadataEntryCount'] ?? 0,
+            'centralUnixOwnerMetadataEntryCount' => $provenance['centralUnixOwnerMetadataEntryCount'] ?? 0,
+            'localUnixOwnerMetadataEntryCount' => $provenance['localUnixOwnerMetadataEntryCount'] ?? 0,
+            'mismatchedUnixOwnerMetadataEntryCount' => $provenance['mismatchedUnixOwnerMetadataEntryCount'] ?? 0,
+            'unixOwnerMetadataIssueCodes' => $provenance['unixOwnerMetadataIssueCodes'] ?? [],
+            'unixOwnerMetadataEntries' => $provenance['unixOwnerMetadataEntries'] ?? [],
+            'mismatchedUnixOwnerMetadataEntries' => $provenance['mismatchedUnixOwnerMetadataEntries'] ?? [],
+            'unixOwnerMetadataByteExposurePolicy' => $provenance['unixOwnerMetadataByteExposurePolicy'] ?? 'zip-unix-owner-metadata-only',
+            'unixOwnerMetadataCanExposeBytes' => ($provenance['unixOwnerMetadataCanExposeBytes'] ?? false) === true,
             'zipTimestampEntryCount' => $provenance['zipTimestampEntryCount'] ?? 0,
             'zipDosTimestampEntryCount' => $provenance['zipDosTimestampEntryCount'] ?? 0,
             'zipExtendedTimestampEntryCount' => $provenance['zipExtendedTimestampEntryCount'] ?? 0,
@@ -3745,6 +3783,17 @@ final class OdfReader
             'centralOnlyExtraFieldIdCount' => $provenance['centralOnlyExtraFieldIdCount'] ?? 0,
             'localOnlyExtraFieldIdCount' => $provenance['localOnlyExtraFieldIdCount'] ?? 0,
             'extraFieldIdUsage' => $provenance['extraFieldIdUsage'] ?? [],
+            'hasUnixOwnerMetadata' => ($provenance['hasUnixOwnerMetadata'] ?? false) === true,
+            'hasMismatchedUnixOwnerMetadata' => ($provenance['hasMismatchedUnixOwnerMetadata'] ?? false) === true,
+            'unixOwnerMetadataEntryCount' => $provenance['unixOwnerMetadataEntryCount'] ?? 0,
+            'centralUnixOwnerMetadataEntryCount' => $provenance['centralUnixOwnerMetadataEntryCount'] ?? 0,
+            'localUnixOwnerMetadataEntryCount' => $provenance['localUnixOwnerMetadataEntryCount'] ?? 0,
+            'mismatchedUnixOwnerMetadataEntryCount' => $provenance['mismatchedUnixOwnerMetadataEntryCount'] ?? 0,
+            'unixOwnerMetadataIssueCodes' => $provenance['unixOwnerMetadataIssueCodes'] ?? [],
+            'unixOwnerMetadataEntries' => $provenance['unixOwnerMetadataEntries'] ?? [],
+            'mismatchedUnixOwnerMetadataEntries' => $provenance['mismatchedUnixOwnerMetadataEntries'] ?? [],
+            'unixOwnerMetadataByteExposurePolicy' => $provenance['unixOwnerMetadataByteExposurePolicy'] ?? 'zip-unix-owner-metadata-only',
+            'unixOwnerMetadataCanExposeBytes' => ($provenance['unixOwnerMetadataCanExposeBytes'] ?? false) === true,
             'zipTimestampEntryCount' => $provenance['zipTimestampEntryCount'] ?? 0,
             'zipDosTimestampEntryCount' => $provenance['zipDosTimestampEntryCount'] ?? 0,
             'zipExtendedTimestampEntryCount' => $provenance['zipExtendedTimestampEntryCount'] ?? 0,
@@ -6980,6 +7029,29 @@ final class OdfReader
             'hasDuplicateExtraFieldIds' => ($entry['hasDuplicateExtraFieldIds'] ?? false) === true,
             'hasMismatchedExtraFieldIds' => ($entry['hasMismatchedExtraFieldIds'] ?? false) === true,
             'hasMismatchedExtraFieldValues' => ($entry['hasMismatchedExtraFieldValues'] ?? false) === true,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipUnixOwnerMetadataProvenance(?array $entry): array
+    {
+        $centralOwner = is_array($entry['centralOwner'] ?? null) ? $entry['centralOwner'] : null;
+        $localOwner = is_array($entry['localOwner'] ?? null) ? $entry['localOwner'] : null;
+        $issues = is_array($entry['issues'] ?? null) ? $entry['issues'] : [];
+
+        return [
+            'centralUnixOwner' => $centralOwner,
+            'localUnixOwner' => $localOwner,
+            'hasCentralUnixOwnerMetadata' => ($entry['hasCentralOwnerMetadata'] ?? false) === true,
+            'hasLocalUnixOwnerMetadata' => ($entry['hasLocalOwnerMetadata'] ?? false) === true,
+            'hasUnixOwnerMetadata' => $centralOwner !== null || $localOwner !== null,
+            'unixOwnerMetadataMatches' => ($entry['ownerMetadataMatches'] ?? true) === true,
+            'unixOwnerMetadataIssues' => $issues,
+            'unixOwnerMetadataByteExposurePolicy' => 'zip-unix-owner-metadata-only',
+            'unixOwnerMetadataCanExposeBytes' => false,
         ];
     }
 
