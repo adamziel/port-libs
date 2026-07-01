@@ -11017,7 +11017,7 @@ final class ZipPackage
      *     recoverableGapEntries:list<array<string, mixed>>,
      *     skippedArchiveExtraDataRecordCount:int,
      *     skippedArchiveExtraDataRecordBytes:int,
-     *     skippedArchiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
+     *     skippedArchiveExtraDataRecords:list<array{offset:int, fixedHeaderLength:int, recordLength:int, dataOffset:int, dataLength:int, endOffset:int, recordSha256:string, dataSha256:string, dataPreviewHex:string, dataPreviewByteCount:int, byteExposurePolicy:string, canExposeBytes:bool, location:string, issues:list<string>}>,
      *     hasEntryCountMismatch:bool,
      *     entryCountDelta:int,
      *     extraScannedEntryCount:int,
@@ -12024,7 +12024,7 @@ final class ZipPackage
      *     largestLocalExtraFieldEntry:?array<string, mixed>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
-     *     skippedArchiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
+     *     skippedArchiveExtraDataRecords:list<array{offset:int, fixedHeaderLength:int, recordLength:int, dataOffset:int, dataLength:int, endOffset:int, recordSha256:string, dataSha256:string, dataPreviewHex:string, dataPreviewByteCount:int, byteExposurePolicy:string, canExposeBytes:bool, location:string, issues:list<string>}>,
      *     entries:list<array{
      *         name:string,
      *         rawName:string,
@@ -12512,7 +12512,7 @@ final class ZipPackage
      *     archiveExtraDataRecordCount:int,
      *     hasArchiveExtraDataRecord:bool,
      *     isSupportedByBoundedReader:bool,
-     *     archiveExtraDataRecords:list<array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}>,
+     *     archiveExtraDataRecords:list<array{offset:int, fixedHeaderLength:int, recordLength:int, dataOffset:int, dataLength:int, endOffset:int, recordSha256:string, dataSha256:string, dataPreviewHex:string, dataPreviewByteCount:int, byteExposurePolicy:string, canExposeBytes:bool, location:string, issues:list<string>}>,
      *     entries:list<array{name:string, rawName:string, centralDirectoryIndex:int, offset:int}>
      * }
      */
@@ -17456,7 +17456,7 @@ final class ZipPackage
     }
 
     /**
-     * @return array{offset:int, dataOffset:int, dataLength:int, endOffset:int}|null
+     * @return array{offset:int, fixedHeaderLength:int, recordLength:int, dataOffset:int, dataLength:int, endOffset:int, recordSha256:string, dataSha256:string, dataPreviewHex:string, dataPreviewByteCount:int}|null
      */
     private static function archiveExtraDataRecordAt(string $bytes, int $offset): ?array
     {
@@ -17468,18 +17468,27 @@ final class ZipPackage
         $dataLength = self::readUInt32($bytes, $offset + 4);
         $dataOffset = $offset + 8;
         self::assertRange($bytes, $dataOffset, $dataLength, 'ZIP archive extra data');
+        $endOffset = $dataOffset + $dataLength;
+        $data = substr($bytes, $dataOffset, $dataLength);
+        $previewByteCount = min(16, $dataLength);
 
         return [
             'offset' => $offset,
+            'fixedHeaderLength' => 8,
+            'recordLength' => 8 + $dataLength,
             'dataOffset' => $dataOffset,
             'dataLength' => $dataLength,
-            'endOffset' => $dataOffset + $dataLength,
+            'endOffset' => $endOffset,
+            'recordSha256' => hash('sha256', substr($bytes, $offset, $endOffset - $offset)),
+            'dataSha256' => hash('sha256', $data),
+            'dataPreviewHex' => bin2hex(substr($data, 0, $previewByteCount)),
+            'dataPreviewByteCount' => $previewByteCount,
         ];
     }
 
     /**
-     * @param array{offset:int, dataOffset:int, dataLength:int, endOffset:int} $record
-     * @return array{offset:int, dataOffset:int, dataLength:int, endOffset:int, location:string, issues:list<string>}
+     * @param array{offset:int, fixedHeaderLength:int, recordLength:int, dataOffset:int, dataLength:int, endOffset:int, recordSha256:string, dataSha256:string, dataPreviewHex:string, dataPreviewByteCount:int} $record
+     * @return array{offset:int, fixedHeaderLength:int, recordLength:int, dataOffset:int, dataLength:int, endOffset:int, recordSha256:string, dataSha256:string, dataPreviewHex:string, dataPreviewByteCount:int, byteExposurePolicy:string, canExposeBytes:bool, location:string, issues:list<string>}
      */
     private static function archiveExtraDataRecordSummary(array $record, string $location, int $eocdOffset, int $centralDirectoryEnd): array
     {
@@ -17493,9 +17502,17 @@ final class ZipPackage
 
         return [
             'offset' => $record['offset'],
+            'fixedHeaderLength' => $record['fixedHeaderLength'],
+            'recordLength' => $record['recordLength'],
             'dataOffset' => $record['dataOffset'],
             'dataLength' => $record['dataLength'],
             'endOffset' => $record['endOffset'],
+            'recordSha256' => $record['recordSha256'],
+            'dataSha256' => $record['dataSha256'],
+            'dataPreviewHex' => $record['dataPreviewHex'],
+            'dataPreviewByteCount' => $record['dataPreviewByteCount'],
+            'byteExposurePolicy' => 'zip-archive-extra-data-record-metadata-only',
+            'canExposeBytes' => false,
             'location' => $location,
             'issues' => $issues,
         ];
