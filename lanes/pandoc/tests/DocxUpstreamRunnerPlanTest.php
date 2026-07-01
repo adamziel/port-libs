@@ -137,6 +137,17 @@ return [
             $t->same(false, $report['willExecute']);
             $t->same(DocxUpstreamRunnerPlan::requiredFiles(), $report['sourcePreflight']['missingFiles']);
             $t->same(DocxUpstreamRunnerPlan::requiredDirectories(), $report['sourcePreflight']['missingDirectories']);
+            $t->true(
+                in_array('data/docx/[Content_Types].xml', $report['sourcePreflight']['missingFiles'], true),
+                'DOCX runner preflight must require the upstream data/docx content types template file'
+            );
+            $t->true(
+                in_array('data/docx', $report['sourcePreflight']['missingDirectories'], true),
+                'DOCX runner preflight must require the upstream data/docx template directory'
+            );
+            $hydrationCommands = implode("\n", $report['sourcePreflight']['hydrationPlan']['commands']);
+            $t->contains('test/docx data/docx', $hydrationCommands);
+            $t->true(!str_contains($hydrationCommands, 'data/default.docx'), 'DOCX runner hydration plan must require data/docx, not legacy data/default.docx');
             $t->same(DocxUpstreamRunnerPlan::PINNED_SOURCE_STATUS_ROOT_MISSING, $report['sourcePreflight']['pinnedSource']['status']);
             $t->same(false, $report['sourcePreflight']['pinnedSource']['matchesPinnedCommit']);
             $t->same(count(DocxUpstreamRunnerPlan::requiredFiles()) + count(DocxUpstreamRunnerPlan::requiredDirectories()), count($report['sourcePreflight']['sourceBlockers']));

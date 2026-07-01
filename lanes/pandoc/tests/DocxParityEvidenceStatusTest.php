@@ -185,7 +185,7 @@ return [
             'src/Text/Pandoc/Writers/Docx.hs',
             'test/Tests/Writers/Docx.hs',
             'test/docx/golden/*.docx',
-            'data/default.docx',
+            'data/docx',
         ], $manifestAudit['writerGoldenPackageInventory']['expectedUpstreamWriterSourceReferences'] ?? null);
         $t->same('PortLibs\\Pandoc\\DocxWriter', $manifestAudit['docxWriterImplementation']['expectedClass'] ?? null);
         $t->same('lanes/pandoc/src/DocxWriter.php', $manifestAudit['docxWriterImplementation']['expectedPath'] ?? null);
@@ -314,7 +314,9 @@ return [
         $t->contains('test -f "$target/data/docx/word/document.xml"', $generalCacheBlock);
         $t->contains('if [ "$(git -C "$target" config --bool core.sparseCheckout || true)" = "true" ]; then', $targetedRunnerBlock);
         $t->contains('git -C "$target" sparse-checkout disable', $targetedRunnerBlock);
-        $t->contains('test -f "$target/data/default.docx"', $targetedRunnerBlock);
+        $t->contains('test -d "$target/data/docx"', $targetedRunnerBlock);
+        $t->contains('test -f "$target/data/docx/[Content_Types].xml"', $targetedRunnerBlock);
+        $t->true(!str_contains($targetedRunnerBlock, 'data/default.docx'), 'DOCX targeted runner checkout must require the current data/docx template directory, not legacy data/default.docx');
         $t->contains('--generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated', $workflow);
         $t->contains('--require-generated-stable-matches 38', $workflow);
         $t->contains('lanes/pandoc/UPSTREAM_DOCX_HASKELL_INVENTORY.json', $workflow);

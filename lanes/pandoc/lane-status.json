@@ -70,7 +70,7 @@
                 "src/Text/Pandoc/Writers/Docx.hs",
                 "test/Tests/Writers/Docx.hs",
                 "test/docx/golden/*.docx",
-                "data/default.docx"
+                "data/docx"
             ]
         },
         "docxWriterImplementation": {

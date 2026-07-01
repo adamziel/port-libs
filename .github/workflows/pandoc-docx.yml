@@ -186,7 +186,8 @@ jobs:
           test -f "$target/test/Tests/Writers/Docx.hs"
           test -d "$target/test/docx"
           test -d "$target/test/docx/golden"
-          test -f "$target/data/default.docx"
+          test -d "$target/data/docx"
+          test -f "$target/data/docx/[Content_Types].xml"
 
       - name: Set up Haskell for targeted DOCX runner
         if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'

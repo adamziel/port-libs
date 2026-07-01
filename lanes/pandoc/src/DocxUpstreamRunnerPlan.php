@@ -51,13 +51,14 @@ final class DocxUpstreamRunnerPlan
         'test/test-pandoc.hs',
         'test/Tests/Readers/Docx.hs',
         'test/Tests/Writers/Docx.hs',
-        'data/default.docx',
+        'data/docx/[Content_Types].xml',
     ];
 
     /** @var list<string> */
     private const REQUIRED_DIRECTORIES = [
         'test/docx',
         'test/docx/golden',
+        'data/docx',
     ];
 
     /** @var array<string, string> */
@@ -1582,7 +1583,7 @@ final class DocxUpstreamRunnerPlan
             'commands' => [
                 'git clone --filter=blob:none https://github.com/jgm/pandoc.git ' . self::shellArgument($target),
                 'git -C ' . self::shellArgument($target) . ' checkout ' . self::PINNED_UPSTREAM_COMMIT,
-                'git -C ' . self::shellArgument($target) . ' sparse-checkout set cabal.project pandoc.cabal test/test-pandoc.hs test/Tests/Readers/Docx.hs test/Tests/Writers/Docx.hs test/docx data/default.docx',
+                'git -C ' . self::shellArgument($target) . ' sparse-checkout set cabal.project pandoc.cabal test/test-pandoc.hs test/Tests/Readers/Docx.hs test/Tests/Writers/Docx.hs test/docx data/docx',
                 'php tools/pandoc-docx-upstream-runner-plan.php --json --write-selected-inventory .port-libs/pandoc-runner/artifacts/docx-targeted-run/selected-test-inventory.json',
             ],
             'note' => 'Hydration commands are descriptors only; this preflight does not clone, fetch, run Cabal, or execute Tasty.',

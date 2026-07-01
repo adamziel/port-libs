@@ -14,7 +14,7 @@ Local runner status:
 
 - `php tools/pandoc-docx-upstream-runner-plan.php --validate-result-artifacts` reports `blocked-missing-docx-upstream-source`.
 - `runnerExecuted=false`, `resultRecorded=false`, and no DOCX parity claim is asserted.
-- Required pinned upstream source root `.upstream-cache/pandoc-current` is absent, so required files `cabal.project`, `pandoc.cabal`, `test/test-pandoc.hs`, `test/Tests/Readers/Docx.hs`, `test/Tests/Writers/Docx.hs`, and `data/default.docx` are missing, as are `test/docx` and `test/docx/golden`.
+- Required pinned upstream source root `.upstream-cache/pandoc-current` is absent, so required files `cabal.project`, `pandoc.cabal`, `test/test-pandoc.hs`, `test/Tests/Readers/Docx.hs`, `test/Tests/Writers/Docx.hs`, and `data/docx/[Content_Types].xml` are missing, as are `test/docx`, `test/docx/golden`, and `data/docx`.
 - Pinned source evidence is `not-checked-upstream-root-missing`; no observed upstream commit is available.
 - `cabal` and `ghc` are not on PATH in this worktree.
 - Local free space is `250298368` bytes, below the targeted-runner workspace floor of `1073741824` bytes.

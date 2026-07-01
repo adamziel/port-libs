@@ -461,9 +461,9 @@ final class DocxWriterGoldenManifest
                 'role' => 'expected upstream DOCX writer package outputs',
             ],
             [
-                'kind' => 'reference-docx',
-                'path' => 'data/default.docx',
-                'role' => 'upstream reference DOCX template used by writer behavior',
+                'kind' => 'reference-docx-template-directory',
+                'path' => 'data/docx',
+                'role' => 'upstream reference DOCX template directory used by writer behavior',
             ],
         ];
     }
