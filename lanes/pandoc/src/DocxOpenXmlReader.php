@@ -13384,6 +13384,12 @@ final class DocxOpenXmlReader
                 'matchesCentralDirectoryOrder' => is_array($localOrder)
                     ? $localOrder['matchesCentralDirectoryOrder']
                     : null,
+                'madeByHostSystem' => $entry->madeByHostSystem(),
+                'madeByHostSystemName' => self::zipCreatorHostSystemName($entry->madeByHostSystem()),
+                'madeByVersion' => $entry->madeByVersion(),
+                'versionMadeBy' => $entry->versionMadeBy,
+                'versionNeededToExtract' => $entry->neededToExtractVersion(),
+                'creatorVersionMeetsNeeded' => $entry->madeByVersion() >= $entry->neededToExtractVersion(),
                 'compressionMethod' => $entry->compressionMethod,
                 'compressionMethodName' => self::zipCompressionMethodName($entry->compressionMethod),
                 'compressionSupported' => $entry->compressionMethod === 0 || $entry->compressionMethod === 8,
@@ -15361,6 +15367,33 @@ final class DocxOpenXmlReader
         };
     }
 
+    private static function zipCreatorHostSystemName(int $hostSystem): string
+    {
+        return match ($hostSystem) {
+            0 => 'ms-dos-fat',
+            1 => 'amiga',
+            2 => 'openvms',
+            3 => 'unix',
+            4 => 'vm-cms',
+            5 => 'atari-st',
+            6 => 'os2-hpfs',
+            7 => 'macintosh',
+            8 => 'z-system',
+            9 => 'cp-m',
+            10 => 'windows-ntfs',
+            11 => 'mvs',
+            12 => 'vse',
+            13 => 'acorn-risc',
+            14 => 'vfat',
+            15 => 'alternate-mvs',
+            16 => 'beos',
+            17 => 'tandem',
+            18 => 'os400',
+            19 => 'os-x',
+            default => 'unknown',
+        };
+    }
+
     private static function zipExpansionRatio(int $uncompressedBytes, int $compressedBytes): ?float
     {
         if ($uncompressedBytes === 0) {
@@ -16079,6 +16112,50 @@ final class DocxOpenXmlReader
         }
         ksort($partZipSourceRecordDirectoryRootCounts, SORT_STRING);
         ksort($partZipSourceRecordDirectoryRootBytes, SORT_STRING);
+        $partZipSourceRecordCreatorHostSystems =
+            $this->packagePartZipSourceRecordCreatorHostSystemSummary($partInventory);
+        $partZipSourceRecordCreatorHostSystemCounts = [];
+        $partZipSourceRecordCreatorHostSystemBytes = [];
+        $partZipSourceRecordKnownCreatorHostSystemPartCount = 0;
+        $partZipSourceRecordUnknownCreatorHostSystemPartCount = 0;
+        $partZipSourceRecordCreatorVersionMeetsNeededPartCount = 0;
+        $partZipSourceRecordCreatorVersionBelowNeededPartCount = 0;
+        $partZipSourceRecordCreatorVersionEqualNeededPartCount = 0;
+        $partZipSourceRecordCreatorVersionAboveNeededPartCount = 0;
+        $partZipSourceRecordCreatorVersionComparisonCounts = [
+            'below-needed' => 0,
+            'equals-needed' => 0,
+            'above-needed' => 0,
+        ];
+        foreach ($partZipSourceRecordCreatorHostSystems as $creatorHostSystemSummary) {
+            $creatorHostSystemKey = (string) ($creatorHostSystemSummary['madeByHostSystemKey'] ?? '(missing)');
+            $partCount = (int) ($creatorHostSystemSummary['partCount'] ?? 0);
+            $partZipSourceRecordCreatorHostSystemCounts[$creatorHostSystemKey] = $partCount;
+            $partZipSourceRecordCreatorHostSystemBytes[$creatorHostSystemKey] =
+                (int) ($creatorHostSystemSummary['sourceRecordBytes'] ?? 0);
+            if (($creatorHostSystemSummary['isKnown'] ?? false) === true) {
+                $partZipSourceRecordKnownCreatorHostSystemPartCount += $partCount;
+            } else {
+                $partZipSourceRecordUnknownCreatorHostSystemPartCount += $partCount;
+            }
+            $partZipSourceRecordCreatorVersionMeetsNeededPartCount +=
+                (int) ($creatorHostSystemSummary['creatorVersionMeetsNeededPartCount'] ?? 0);
+            $partZipSourceRecordCreatorVersionBelowNeededPartCount +=
+                (int) ($creatorHostSystemSummary['creatorVersionBelowNeededPartCount'] ?? 0);
+            $partZipSourceRecordCreatorVersionEqualNeededPartCount +=
+                (int) ($creatorHostSystemSummary['creatorVersionEqualNeededPartCount'] ?? 0);
+            $partZipSourceRecordCreatorVersionAboveNeededPartCount +=
+                (int) ($creatorHostSystemSummary['creatorVersionAboveNeededPartCount'] ?? 0);
+            foreach (($creatorHostSystemSummary['creatorVersionComparisonCounts'] ?? []) as $comparison => $count) {
+                if (!is_string($comparison) || !isset($partZipSourceRecordCreatorVersionComparisonCounts[$comparison])) {
+                    continue;
+                }
+                $partZipSourceRecordCreatorVersionComparisonCounts[$comparison] += (int) $count;
+            }
+        }
+        ksort($partZipSourceRecordCreatorHostSystemCounts, SORT_STRING);
+        ksort($partZipSourceRecordCreatorHostSystemBytes, SORT_STRING);
+        ksort($partZipSourceRecordCreatorVersionComparisonCounts, SORT_STRING);
         $partZipSourceRecordCompressionMethods = $this->packagePartZipSourceRecordCompressionMethodSummary($partInventory);
         $partZipSourceRecordCompressionMethodCounts = [];
         $partZipSourceRecordCompressionMethodBytes = [];
@@ -20559,6 +20636,17 @@ final class DocxOpenXmlReader
             'partZipCompressionMethods' => $partZipCompressionMethods,
             'partZipTimestampSources' => $partZipTimestampSources,
             'partZipSourceRecordDirectoryRoots' => $partZipSourceRecordDirectoryRoots,
+            'partZipSourceRecordCreatorHostSystemCount' => count($partZipSourceRecordCreatorHostSystems),
+            'partZipSourceRecordCreatorHostSystemCounts' => $partZipSourceRecordCreatorHostSystemCounts,
+            'partZipSourceRecordCreatorHostSystemBytes' => $partZipSourceRecordCreatorHostSystemBytes,
+            'partZipSourceRecordKnownCreatorHostSystemPartCount' => $partZipSourceRecordKnownCreatorHostSystemPartCount,
+            'partZipSourceRecordUnknownCreatorHostSystemPartCount' => $partZipSourceRecordUnknownCreatorHostSystemPartCount,
+            'partZipSourceRecordCreatorVersionMeetsNeededPartCount' => $partZipSourceRecordCreatorVersionMeetsNeededPartCount,
+            'partZipSourceRecordCreatorVersionBelowNeededPartCount' => $partZipSourceRecordCreatorVersionBelowNeededPartCount,
+            'partZipSourceRecordCreatorVersionEqualNeededPartCount' => $partZipSourceRecordCreatorVersionEqualNeededPartCount,
+            'partZipSourceRecordCreatorVersionAboveNeededPartCount' => $partZipSourceRecordCreatorVersionAboveNeededPartCount,
+            'partZipSourceRecordCreatorVersionComparisonCounts' => $partZipSourceRecordCreatorVersionComparisonCounts,
+            'partZipSourceRecordCreatorHostSystems' => $partZipSourceRecordCreatorHostSystems,
             'partZipSourceRecordCompressionMethods' => $partZipSourceRecordCompressionMethods,
             'partZipSourceRecordRoles' => $partZipSourceRecordRoles,
             'partZipSourceRecordContentTypes' => $partZipSourceRecordContentTypes,
@@ -22248,6 +22336,209 @@ final class DocxOpenXmlReader
         }
 
         return array_values($roots);
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $partInventory
+     * @return list<array<string, mixed>>
+     */
+    private function packagePartZipSourceRecordCreatorHostSystemSummary(array $partInventory): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+
+        $hostSystems = [];
+        foreach ($partInventory as $partName => $part) {
+            if (($part['zipEntryPresent'] ?? false) !== true) {
+                continue;
+            }
+
+            $partName = (string) ($part['partName'] ?? $partName);
+            $madeByHostSystem = is_int($part['madeByHostSystem'] ?? null)
+                ? (int) $part['madeByHostSystem']
+                : null;
+            $madeByHostSystemKey = $madeByHostSystem === null ? '(missing)' : (string) $madeByHostSystem;
+            $madeByHostSystemName = is_string($part['madeByHostSystemName'] ?? null)
+                ? $part['madeByHostSystemName']
+                : ($madeByHostSystem === null ? 'missing' : 'unknown');
+            $isKnown = $madeByHostSystem !== null && $madeByHostSystemName !== 'unknown';
+
+            if (!isset($hostSystems[$madeByHostSystemKey])) {
+                $hostSystems[$madeByHostSystemKey] = [
+                    'madeByHostSystemKey' => $madeByHostSystemKey,
+                    'madeByHostSystem' => $madeByHostSystem,
+                    'madeByHostSystemName' => $madeByHostSystemName,
+                    'isKnown' => $isKnown,
+                    'partCount' => 0,
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'creatorVersionMeetsNeededPartCount' => 0,
+                    'creatorVersionBelowNeededPartCount' => 0,
+                    'creatorVersionEqualNeededPartCount' => 0,
+                    'creatorVersionAboveNeededPartCount' => 0,
+                    'creatorVersionComparisonCounts' => [
+                        'below-needed' => 0,
+                        'equals-needed' => 0,
+                        'above-needed' => 0,
+                    ],
+                    'directoryRootCounts' => [],
+                    'compressionMethodCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'partNames' => [],
+                    'unknownCreatorHostSystemParts' => [],
+                    'creatorVersionBelowNeededParts' => [],
+                    'largestSourceRecordPart' => null,
+                ];
+            }
+
+            $directoryRoot = is_string($part['zipDirectoryRoot'] ?? null)
+                ? $part['zipDirectoryRoot']
+                : $this->packagePartTopLevelSegment($partName);
+            if ($directoryRoot === '') {
+                $directoryRoot = '/';
+            }
+            $compressionMethod = is_int($part['compressionMethod'] ?? null) ? (string) $part['compressionMethod'] : '(missing)';
+            $sourceRecordBytes = $intField($part, 'sourceRecordBytes');
+            $localRecordBytes = $intField($part, 'localRecordBytes');
+            $centralDirectoryRecordBytes = $intField($part, 'centralDirectoryRecordBytes');
+            $madeByVersion = is_int($part['madeByVersion'] ?? null) ? (int) $part['madeByVersion'] : null;
+            $versionNeededToExtract = is_int($part['versionNeededToExtract'] ?? null)
+                ? (int) $part['versionNeededToExtract']
+                : null;
+            $creatorVersionDelta = $madeByVersion !== null && $versionNeededToExtract !== null
+                ? $madeByVersion - $versionNeededToExtract
+                : 0;
+            $creatorVersionComparison = $creatorVersionDelta < 0
+                ? 'below-needed'
+                : ($creatorVersionDelta === 0 ? 'equals-needed' : 'above-needed');
+            $creatorVersionMeetsNeeded = $creatorVersionDelta >= 0;
+            $issues = [];
+            if (!$isKnown) {
+                $issues[] = 'unknown-creator-host-system';
+            }
+            if (!$creatorVersionMeetsNeeded) {
+                $issues[] = 'creator-version-below-version-needed';
+            }
+
+            $contentTypeSource = is_string($part['contentTypeSource'] ?? null) ? $part['contentTypeSource'] : 'missing';
+            if ($contentTypeSource === '') {
+                $contentTypeSource = 'missing';
+            }
+            $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
+            $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
+            $partRoles = array_values(array_unique(array_filter(
+                array_map('strval', $part['roles'] ?? []),
+                static fn (string $role): bool => $role !== '',
+            )));
+            if ($partRoles === []) {
+                $partRoles = ['package-part'];
+            }
+
+            $partSummary = [
+                'partName' => $partName,
+                'madeByHostSystem' => $madeByHostSystem,
+                'madeByHostSystemName' => $madeByHostSystemName,
+                'madeByVersion' => $madeByVersion,
+                'versionMadeBy' => is_int($part['versionMadeBy'] ?? null) ? (int) $part['versionMadeBy'] : null,
+                'versionNeededToExtract' => $versionNeededToExtract,
+                'creatorVersionMeetsNeeded' => $creatorVersionMeetsNeeded,
+                'creatorVersionComparison' => $creatorVersionComparison,
+                'creatorVersionDelta' => $creatorVersionDelta,
+                'isKnown' => $isKnown,
+                'issues' => $issues,
+                'directoryRoot' => $directoryRoot,
+                'directory' => is_string($part['directory'] ?? null) ? $part['directory'] : $this->packagePartDirectory($partName),
+                'baseName' => is_string($part['baseName'] ?? null) ? $part['baseName'] : $this->packagePartBaseName($partName),
+                'bytes' => (int) ($part['bytes'] ?? 0),
+                'compressedByteLength' => $intField($part, 'compressedByteLength'),
+                'compressionMethod' => is_int($part['compressionMethod'] ?? null) ? (int) $part['compressionMethod'] : null,
+                'compressionMethodName' => is_string($part['compressionMethodName'] ?? null) ? $part['compressionMethodName'] : null,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'contentType' => is_string($part['contentType'] ?? null) ? $part['contentType'] : '',
+                'contentTypeBase' => $contentTypeBase,
+                'contentTypeSource' => $contentTypeSource,
+                'roles' => $partRoles,
+            ];
+
+            ++$hostSystems[$madeByHostSystemKey]['partCount'];
+            $hostSystems[$madeByHostSystemKey]['sourceRecordBytes'] += $sourceRecordBytes;
+            $hostSystems[$madeByHostSystemKey]['localRecordBytes'] += $localRecordBytes;
+            $hostSystems[$madeByHostSystemKey]['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes;
+            $hostSystems[$madeByHostSystemKey]['partNames'][] = $partName;
+            $hostSystems[$madeByHostSystemKey]['directoryRootCounts'][$directoryRoot] =
+                ($hostSystems[$madeByHostSystemKey]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $hostSystems[$madeByHostSystemKey]['compressionMethodCounts'][$compressionMethod] =
+                ($hostSystems[$madeByHostSystemKey]['compressionMethodCounts'][$compressionMethod] ?? 0) + 1;
+            $hostSystems[$madeByHostSystemKey]['contentTypeSourceCounts'][$contentTypeSource] =
+                ($hostSystems[$madeByHostSystemKey]['contentTypeSourceCounts'][$contentTypeSource] ?? 0) + 1;
+            $hostSystems[$madeByHostSystemKey]['contentTypeBaseCounts'][$contentTypeBaseKey] =
+                ($hostSystems[$madeByHostSystemKey]['contentTypeBaseCounts'][$contentTypeBaseKey] ?? 0) + 1;
+            foreach ($partRoles as $role) {
+                $hostSystems[$madeByHostSystemKey]['roleCounts'][$role] =
+                    ($hostSystems[$madeByHostSystemKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            if ($creatorVersionMeetsNeeded) {
+                ++$hostSystems[$madeByHostSystemKey]['creatorVersionMeetsNeededPartCount'];
+            } else {
+                ++$hostSystems[$madeByHostSystemKey]['creatorVersionBelowNeededPartCount'];
+                $hostSystems[$madeByHostSystemKey]['creatorVersionBelowNeededParts'][] = $partSummary;
+            }
+            if ($creatorVersionComparison === 'equals-needed') {
+                ++$hostSystems[$madeByHostSystemKey]['creatorVersionEqualNeededPartCount'];
+            } elseif ($creatorVersionComparison === 'above-needed') {
+                ++$hostSystems[$madeByHostSystemKey]['creatorVersionAboveNeededPartCount'];
+            }
+            ++$hostSystems[$madeByHostSystemKey]['creatorVersionComparisonCounts'][$creatorVersionComparison];
+            if (!$isKnown) {
+                $hostSystems[$madeByHostSystemKey]['unknownCreatorHostSystemParts'][] = $partSummary;
+            }
+
+            $largestPart = $hostSystems[$madeByHostSystemKey]['largestSourceRecordPart'];
+            if (
+                !is_array($largestPart)
+                || $partSummary['sourceRecordBytes'] > (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                || (
+                    $partSummary['sourceRecordBytes'] === (int) ($largestPart['sourceRecordBytes'] ?? 0)
+                    && strcmp($partSummary['partName'], (string) ($largestPart['partName'] ?? '')) < 0
+                )
+            ) {
+                $hostSystems[$madeByHostSystemKey]['largestSourceRecordPart'] = $partSummary;
+            }
+        }
+
+        uksort(
+            $hostSystems,
+            static function (string $left, string $right): int {
+                if ($left === '(missing)') {
+                    return $right === '(missing)' ? 0 : 1;
+                }
+                if ($right === '(missing)') {
+                    return -1;
+                }
+
+                return ((int) $left <=> (int) $right) ?: strcmp($left, $right);
+            }
+        );
+        foreach ($hostSystems as $hostSystemKey => $summary) {
+            sort($summary['partNames'], SORT_STRING);
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['compressionMethodCounts'], SORT_STRING);
+            ksort($summary['contentTypeSourceCounts'], SORT_STRING);
+            ksort($summary['contentTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $hostSystems[$hostSystemKey] = $summary;
+        }
+
+        return array_values($hostSystems);
     }
 
     /**
@@ -44662,6 +44953,41 @@ final class DocxOpenXmlReader
             'partZipSourceRecordIssuePartCount' => (int) ($summary['partZipSourceRecordIssuePartCount'] ?? 0),
             'partZipSourceRecordDirectoryRoots' => is_array($summary['partZipSourceRecordDirectoryRoots'] ?? null)
                 ? array_values($summary['partZipSourceRecordDirectoryRoots'])
+                : [],
+            'partZipSourceRecordCreatorHostSystemCount' => (int) (
+                $summary['partZipSourceRecordCreatorHostSystemCount'] ?? 0
+            ),
+            'partZipSourceRecordCreatorHostSystemCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordCreatorHostSystemCounts'] ?? []
+            ),
+            'partZipSourceRecordCreatorHostSystemBytes' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordCreatorHostSystemBytes'] ?? []
+            ),
+            'partZipSourceRecordKnownCreatorHostSystemPartCount' => (int) (
+                $summary['partZipSourceRecordKnownCreatorHostSystemPartCount'] ?? 0
+            ),
+            'partZipSourceRecordUnknownCreatorHostSystemPartCount' => (int) (
+                $summary['partZipSourceRecordUnknownCreatorHostSystemPartCount'] ?? 0
+            ),
+            'partZipSourceRecordCreatorVersionMeetsNeededPartCount' => (int) (
+                $summary['partZipSourceRecordCreatorVersionMeetsNeededPartCount'] ?? 0
+            ),
+            'partZipSourceRecordCreatorVersionBelowNeededPartCount' => (int) (
+                $summary['partZipSourceRecordCreatorVersionBelowNeededPartCount'] ?? 0
+            ),
+            'partZipSourceRecordCreatorVersionEqualNeededPartCount' => (int) (
+                $summary['partZipSourceRecordCreatorVersionEqualNeededPartCount'] ?? 0
+            ),
+            'partZipSourceRecordCreatorVersionAboveNeededPartCount' => (int) (
+                $summary['partZipSourceRecordCreatorVersionAboveNeededPartCount'] ?? 0
+            ),
+            'partZipSourceRecordCreatorVersionComparisonCounts' => $this->packageIdentityCountMap(
+                $summary['partZipSourceRecordCreatorVersionComparisonCounts'] ?? []
+            ),
+            'partZipSourceRecordCreatorHostSystems' => is_array(
+                $summary['partZipSourceRecordCreatorHostSystems'] ?? null
+            )
+                ? array_values($summary['partZipSourceRecordCreatorHostSystems'])
                 : [],
             'partZipSourceRecordCompressionMethodCount' => (int) ($summary['partZipSourceRecordCompressionMethodCount'] ?? 0),
             'partZipSourceRecordCompressionMethodCounts' => $this->packageIdentityCountMap(
