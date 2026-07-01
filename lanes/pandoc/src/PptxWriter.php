@@ -2992,7 +2992,7 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, fontSize?:int} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, baseline?:int, fontSize?:int} $style
      * @return list<string>
      */
     private function noteInlineRuns(array $inlines, array $style): array
@@ -3045,8 +3045,6 @@ final class PptxWriter
                     break;
                 case 'link':
                 case 'span':
-                case 'superscript':
-                case 'subscript':
                 case 'citation':
                 case 'citation_group':
                     $flushText();
@@ -3056,6 +3054,14 @@ final class PptxWriter
                             : $inline->children,
                         $style
                     ));
+                    break;
+                case 'superscript':
+                    $flushText();
+                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['baseline' => 30000]));
+                    break;
+                case 'subscript':
+                    $flushText();
+                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style + ['baseline' => -25000]));
                     break;
                 case 'quoted':
                     $flushText();

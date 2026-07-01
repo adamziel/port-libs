@@ -212,6 +212,12 @@ $upstreamLineBlocksNative = <<<'NATIVE'
  [LineBlock [[Str "Note",Space,Str "one"],[Str "Note",Space,Str "two"]]]]
 NATIVE;
 
+$upstreamSpeakerNoteScriptsNative = <<<'NATIVE'
+[Para [Str "Slide",Space,Str "body"]
+,Div ("",["notes"],[])
+ [Para [Str "Water",Space,Str "H",Subscript [Str "2"],Str "O",Space,Str "rank",Space,Superscript [Strong [Str "2"]],Str "nd"]]]
+NATIVE;
+
 $upstreamQuotedInlineNative = <<<'NATIVE'
 [Para [Str "He",Space,Str "said",Space,Quoted DoubleQuote [Str "hello",Space,Emph [Str "there"]],Str ".",Space,Quoted SingleQuote [Strong [Str "yes"]]]
 ,Div ("",["notes"],[])
@@ -862,6 +868,23 @@ return [
         $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
         $t->contains('<a:t>Note one</a:t></a:r><a:br/><a:r><a:rPr lang="en-US"/><a:t>Note two</a:t>', $notes);
         $t->same(1, substr_count($notes, '<a:br/>'));
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream speaker note scripts to baseline runs' => static function (TestRunner $t) use ($upstreamSpeakerNoteScriptsNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamSpeakerNoteScriptsNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $notesText = trim(preg_replace('/\s+/u', ' ', strip_tags($notes)) ?? '');
+
+        $t->contains('Slide body', trim(preg_replace('/\s+/u', ' ', strip_tags($slide)) ?? ''));
+        $t->contains('Water H2O rank 2nd', $notesText);
+        $t->contains('baseline="-25000"', $notes);
+        $t->contains('b="1" baseline="30000"', $notes);
+        $t->same(1, substr_count($notes, 'baseline="-25000"'));
+        $t->same(1, substr_count($notes, 'baseline="30000"'));
+        $t->true(!str_contains($slide, 'baseline="30000"'), 'Speaker note script styling must not leak into slide XML');
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 
