@@ -545,6 +545,9 @@ final class BibtexCslProcessor
         if ($authority !== '' && $authority !== $authors) {
             $parts[] = 'Authority: ' . $authority;
         }
+        if (($item['jurisdiction'] ?? '') !== '') {
+            $parts[] = 'Jurisdiction: ' . (string) $item['jurisdiction'];
+        }
         if (($item['annotation'] ?? '') !== '') {
             $parts[] = 'Annotation: ' . rtrim((string) $item['annotation'], '.');
         }
@@ -1003,6 +1006,13 @@ final class BibtexCslProcessor
         $this->applyLiteralListField($item, $fields, 'original-publisher', ['origpublisher', 'originalpublisher', 'original-publisher'], 'original-publisher-list');
         $this->applyLiteralListField($item, $fields, 'original-publisher-place', ['origlocation', 'origaddress', 'originalpublisherplace', 'original-publisher-place'], 'original-publisher-place-list');
         $this->applyLiteralListField($item, $fields, 'original-language', ['origlanguage', 'originallanguage', 'original-language'], 'original-language-list');
+        $jurisdiction = $this->firstField($fields, ['jurisdiction']);
+        if (($jurisdiction === null || $jurisdiction === '') && $this->itemTypeCarriesLegalJurisdiction((string) $item['type'])) {
+            $jurisdiction = $this->firstField($fields, ['location', 'address']);
+        }
+        if ($jurisdiction !== null && $jurisdiction !== '') {
+            $item['jurisdiction'] = $jurisdiction;
+        }
         $number = $this->firstField($fields, ['number']);
         if (($item['issue'] ?? '') === '' && $number !== null && $number !== '' && $this->entryNumberActsAsIssue($type)) {
             $item['issue'] = $number;
@@ -2052,6 +2062,11 @@ final class BibtexCslProcessor
     private function authorityActsAsAuthor(array $item): bool
     {
         return (string) ($item['type'] ?? '') === 'report';
+    }
+
+    private function itemTypeCarriesLegalJurisdiction(string $type): bool
+    {
+        return in_array($type, ['patent', 'legislation', 'legal_case'], true);
     }
 
     /**
