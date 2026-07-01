@@ -14947,7 +14947,7 @@ final class XmlHtmlDom
         if (in_array($name, ['ruby', 'rb', 'rt', 'rp', 'rtc'], true)) {
             $summary += self::rubySummary($node, $name);
         }
-        if (in_array($name, ['abbr', 'b', 'bdi', 'bdo', 'code', 'dfn', 'em', 'i', 'kbd', 'mark', 's', 'samp', 'small', 'strong', 'sub', 'sup', 'u', 'var'], true)) {
+        if (in_array($name, ['abbr', 'b', 'bdi', 'bdo', 'cite', 'code', 'dfn', 'em', 'i', 'kbd', 'mark', 'q', 's', 'samp', 'small', 'strong', 'sub', 'sup', 'u', 'var'], true)) {
             $summary += self::textSemanticSummary($node, $name);
         }
         if (in_array($name, ['br', 'hr', 'wbr'], true)) {
@@ -17609,12 +17609,14 @@ final class XmlHtmlDom
                 'b' => 'bring-attention',
                 'bdi' => 'bidirectional-isolate',
                 'bdo' => 'bidirectional-override',
+                'cite' => 'cited-work',
                 'code' => 'code',
                 'dfn' => 'definition',
                 'em' => 'stress-emphasis',
                 'i' => 'idiomatic-offset',
                 'kbd' => 'keyboard-input',
                 'mark' => 'mark',
+                'q' => 'inline-quotation',
                 's' => 'struck-text',
                 'samp' => 'sample-output',
                 'small' => 'side-comment',
