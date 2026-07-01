@@ -175,6 +175,9 @@ jobs:
           fi
           git -C "$target" fetch --depth=1 origin "$PANDOC_DOCX_RUNNER_PINNED_COMMIT"
           git -C "$target" switch --detach FETCH_HEAD
+          if [ "$(git -C "$target" config --bool core.sparseCheckout || true)" = "true" ]; then
+            git -C "$target" sparse-checkout disable
+          fi
           test "$(git -C "$target" rev-parse HEAD)" = "$PANDOC_DOCX_RUNNER_PINNED_COMMIT"
           test -f "$target/cabal.project"
           test -f "$target/pandoc.cabal"
@@ -183,6 +186,7 @@ jobs:
           test -f "$target/test/Tests/Writers/Docx.hs"
           test -d "$target/test/docx"
           test -d "$target/test/docx/golden"
+          test -f "$target/data/default.docx"
 
       - name: Set up Haskell for targeted DOCX runner
         if: github.event_name == 'workflow_dispatch' && inputs.run_upstream_docx_tasty == 'true'
