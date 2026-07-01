@@ -1655,9 +1655,12 @@ final class PptxReader
             return 0;
         }
 
-        $level = $properties->getAttribute('lvl');
+        $level = trim($properties->getAttribute('lvl'));
+        if (preg_match('/^[+-]?\d+$/', $level) !== 1) {
+            return 0;
+        }
 
-        return preg_match('/^\d+$/', $level) === 1 ? (int) $level : 0;
+        return (int) $level;
     }
 
     /**
