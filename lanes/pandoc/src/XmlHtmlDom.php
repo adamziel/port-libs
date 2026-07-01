@@ -28542,8 +28542,18 @@ final class XmlHtmlDom
             }
         }
 
+        $issueCodes = [];
+        foreach ($issues as $issue) {
+            $code = $issue['code'] ?? null;
+            if (is_string($code) && $code !== '') {
+                $issueCodes[] = $code;
+            }
+        }
+        $issueCodes = array_values(array_unique($issueCodes));
+
         return [
             'docBookMediaObject' => $name,
+            'docBookMediaReviewPolicy' => 'docbook-media-object-issue-review',
             'docBookMediaInline' => $name === 'inlinemediaobject',
             'docBookMediaId' => self::docBookElementId($media),
             'docBookAltTexts' => $altTexts,
@@ -28564,7 +28574,10 @@ final class XmlHtmlDom
             'docBookLinkendAssociations' => $linkendAssociations,
             'docBookMissingAlt' => !$hasAccessibleText && $imageData !== [],
             'docBookMediaIssues' => $issues,
+            'docBookMediaIssueCodes' => $issueCodes,
             'docBookMediaIssueCount' => count($issues),
+            'docBookMediaIssueCodeCount' => count($issueCodes),
+            'docBookMediaValid' => $issues === [],
         ];
     }
 
