@@ -29630,6 +29630,7 @@ final class XmlHtmlDom
 
         if ($name === 'video') {
             $summary['poster'] = self::attributeOrNull($element, 'poster');
+            $summary += self::videoPosterResourceReviewSummary($element);
         }
 
         $fallbackText = self::normalizedTextWithoutMediaResourceChildren($element);
@@ -29638,6 +29639,47 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function videoPosterResourceReviewSummary(\DOMElement $video): array
+    {
+        $posterRaw = self::attributeOrNull($video, 'poster');
+        $posterUrl = self::normalizedHtmlResourceUrl($posterRaw);
+        $review = self::hyperlinkUrlReviewSummary($posterUrl);
+        $issues = [];
+
+        if ($review['kind'] === 'empty') {
+            $issues[] = ['code' => 'empty-video-poster-url'];
+        } elseif ($review['kind'] === 'invalid') {
+            $issues[] = ['code' => 'invalid-video-poster-url'];
+        }
+        if ($review['unsafe'] === true) {
+            $issues[] = [
+                'code' => 'unsafe-video-poster-url',
+                'scheme' => $review['scheme'],
+            ];
+        }
+
+        return [
+            'videoPosterReviewPolicy' => 'video-poster-resource-metadata-review',
+            'videoPosterRaw' => $posterRaw,
+            'videoPosterUrl' => $posterUrl,
+            'videoPosterUrlKind' => $review['kind'],
+            'videoPosterUrlScheme' => $review['scheme'],
+            'videoPosterUrlUnsafe' => $review['unsafe'],
+            'videoPosterResourceRole' => 'video-poster',
+            'videoPosterRemoteUrl' => $review['kind'] === 'scheme-relative'
+                || ($review['kind'] === 'absolute' && in_array($review['scheme'], ['http', 'https'], true)),
+            'videoPosterIssues' => $issues,
+            'videoPosterIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'videoPosterValid' => $posterRaw === null ? null : $issues === [],
+        ];
     }
 
     /**
