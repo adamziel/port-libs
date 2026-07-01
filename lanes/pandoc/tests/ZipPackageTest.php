@@ -1354,6 +1354,11 @@ return [
             'maxVersionNeededToExtract' => 20,
             'maxMinimumVersionNeededToExtract' => 20,
             'versionNeededToExtractSummaries' => $expectedVersionNeededToExtractSummaries,
+            'versionMadeBySummaryCount' => $manifest['versionMadeBySummaryCount'],
+            'versionMadeByValues' => $manifest['versionMadeByValues'],
+            'versionMadeByHexes' => $manifest['versionMadeByHexes'],
+            'hasMultipleVersionMadeByValues' => $manifest['hasMultipleVersionMadeByValues'],
+            'versionMadeBySummaries' => $manifest['versionMadeBySummaries'],
             'creatorHostSystemSummaryCount' => 1,
             'knownCreatorHostSystemEntryCount' => 3,
             'unknownCreatorHostSystemEntryCount' => 0,
@@ -2579,8 +2584,83 @@ return [
                 'entryNames' => ['word/media/unknown.bin'],
             ],
         ];
+        $expectedVersionMadeBySummaries = [
+            [
+                'versionMadeBy' => 0x030a,
+                'versionMadeByHex' => '030a',
+                'madeByHostSystem' => 3,
+                'madeByHostSystemName' => 'unix',
+                'madeByVersion' => 10,
+                'creatorHostSystemIsKnown' => true,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => $manifestEntriesByName['word/media/unix-legacy.bin']['compressedSize'],
+                'uncompressedBytes' => $manifestEntriesByName['word/media/unix-legacy.bin']['uncompressedSize'],
+                'compressionMethodNames' => ['deflated'],
+                'entryNames' => ['word/media/unix-legacy.bin'],
+                'localRecordBytes' => $manifestEntriesByName['word/media/unix-legacy.bin']['localRecordBytes'],
+                'sourceRecordBytes' => $manifestEntriesByName['word/media/unix-legacy.bin']['sourceRecordBytes'],
+            ],
+            [
+                'versionMadeBy' => 0x0314,
+                'versionMadeByHex' => '0314',
+                'madeByHostSystem' => 3,
+                'madeByHostSystemName' => 'unix',
+                'madeByVersion' => 20,
+                'creatorHostSystemIsKnown' => true,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => $manifestEntriesByName['word/document.xml']['compressedSize'],
+                'uncompressedBytes' => $manifestEntriesByName['word/document.xml']['uncompressedSize'],
+                'compressionMethodNames' => ['deflated'],
+                'entryNames' => ['word/document.xml'],
+                'localRecordBytes' => $manifestEntriesByName['word/document.xml']['localRecordBytes'],
+                'sourceRecordBytes' => $manifestEntriesByName['word/document.xml']['sourceRecordBytes'],
+            ],
+            [
+                'versionMadeBy' => 0x0a14,
+                'versionMadeByHex' => '0a14',
+                'madeByHostSystem' => 10,
+                'madeByHostSystemName' => 'windows-ntfs',
+                'madeByVersion' => 20,
+                'creatorHostSystemIsKnown' => true,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => $manifestEntriesByName['word/media/windows-newer.txt']['compressedSize'],
+                'uncompressedBytes' => $manifestEntriesByName['word/media/windows-newer.txt']['uncompressedSize'],
+                'compressionMethodNames' => ['stored'],
+                'entryNames' => ['word/media/windows-newer.txt'],
+                'localRecordBytes' => $manifestEntriesByName['word/media/windows-newer.txt']['localRecordBytes'],
+                'sourceRecordBytes' => $manifestEntriesByName['word/media/windows-newer.txt']['sourceRecordBytes'],
+            ],
+            [
+                'versionMadeBy' => 0x3f14,
+                'versionMadeByHex' => '3f14',
+                'madeByHostSystem' => 63,
+                'madeByHostSystemName' => 'unknown',
+                'madeByVersion' => 20,
+                'creatorHostSystemIsKnown' => false,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => $manifestEntriesByName['word/media/unknown.bin']['compressedSize'],
+                'uncompressedBytes' => $manifestEntriesByName['word/media/unknown.bin']['uncompressedSize'],
+                'compressionMethodNames' => ['stored'],
+                'entryNames' => ['word/media/unknown.bin'],
+                'localRecordBytes' => $manifestEntriesByName['word/media/unknown.bin']['localRecordBytes'],
+                'sourceRecordBytes' => $manifestEntriesByName['word/media/unknown.bin']['sourceRecordBytes'],
+            ],
+        ];
 
         $t->same(4, $manifest['entryCount']);
+        $t->same(4, $manifest['versionMadeBySummaryCount']);
+        $t->same([0x030a, 0x0314, 0x0a14, 0x3f14], $manifest['versionMadeByValues']);
+        $t->same(['030a', '0314', '0a14', '3f14'], $manifest['versionMadeByHexes']);
+        $t->same(true, $manifest['hasMultipleVersionMadeByValues']);
+        $t->same($expectedVersionMadeBySummaries, $manifest['versionMadeBySummaries']);
         $t->same(3, $manifest['creatorHostSystemSummaryCount']);
         $t->same(3, $manifest['knownCreatorHostSystemEntryCount']);
         $t->same(1, $manifest['unknownCreatorHostSystemEntryCount']);
@@ -3405,6 +3485,11 @@ return [
             'maxVersionNeededToExtract' => 20,
             'maxMinimumVersionNeededToExtract' => 20,
             'versionNeededToExtractSummaries' => $expectedVersionNeededToExtractSummaries,
+            'versionMadeBySummaryCount' => $manifest['versionMadeBySummaryCount'],
+            'versionMadeByValues' => $manifest['versionMadeByValues'],
+            'versionMadeByHexes' => $manifest['versionMadeByHexes'],
+            'hasMultipleVersionMadeByValues' => $manifest['hasMultipleVersionMadeByValues'],
+            'versionMadeBySummaries' => $manifest['versionMadeBySummaries'],
             'creatorHostSystemSummaryCount' => 1,
             'knownCreatorHostSystemEntryCount' => 2,
             'unknownCreatorHostSystemEntryCount' => 0,
@@ -13028,6 +13113,7 @@ return [
                 'name' => 'word/document.xml',
                 'data' => $documentXml,
                 'method' => 8,
+                'versionMadeBy' => 0x0a14,
                 'modifiedTime' => 0x4a22,
                 'modifiedDate' => 0x579c,
                 'externalAttributes' => 0x20,
@@ -13048,6 +13134,42 @@ return [
         $t->same(false, $summary['hasUnexpectedCentralDirectoryTail']);
         $t->same(null, $summary['unexpectedRecordOffset']);
         $t->same(null, $summary['unexpectedRecordSignatureHex']);
+        $t->same(2, $summary['versionMadeBySummaryCount']);
+        $t->same([0x0314, 0x0a14], $summary['versionMadeByValues']);
+        $t->same(['0314', '0a14'], $summary['versionMadeByHexes']);
+        $t->same(true, $summary['hasMultipleVersionMadeByValues']);
+        $t->same([
+            [
+                'versionMadeBy' => 0x0314,
+                'versionMadeByHex' => '0314',
+                'madeByHostSystem' => 3,
+                'madeByHostSystemName' => 'unix',
+                'madeByVersion' => 20,
+                'creatorHostSystemIsKnown' => true,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($contentTypes),
+                'uncompressedBytes' => strlen($contentTypes),
+                'compressionMethodNames' => ['stored'],
+                'entryNames' => ['[Content_Types].xml'],
+            ],
+            [
+                'versionMadeBy' => 0x0a14,
+                'versionMadeByHex' => '0a14',
+                'madeByHostSystem' => 10,
+                'madeByHostSystemName' => 'windows-ntfs',
+                'madeByVersion' => 20,
+                'creatorHostSystemIsKnown' => true,
+                'entryCount' => 1,
+                'fileEntryCount' => 1,
+                'directoryEntryCount' => 0,
+                'compressedBytes' => strlen($deflatedDocumentXml),
+                'uncompressedBytes' => strlen($documentXml),
+                'compressionMethodNames' => ['deflated'],
+                'entryNames' => ['word/document.xml'],
+            ],
+        ], $summary['versionMadeBySummaries']);
 
         $first = $summary['entries'][0];
         $t->same('[Content_Types].xml', $first['name']);
@@ -13098,6 +13220,9 @@ return [
 
         $second = $summary['entries'][1];
         $t->same('word/document.xml', $second['name']);
+        $t->same(0x0a14, $second['versionMadeBy']);
+        $t->same(10, $second['creatorHostSystem']);
+        $t->same(20, $second['creatorVersion']);
         $t->same(8, $second['compressionMethod']);
         $t->same('deflated', $second['compressionMethodName']);
         $t->same($crc32($documentXml), $second['crc32']);
