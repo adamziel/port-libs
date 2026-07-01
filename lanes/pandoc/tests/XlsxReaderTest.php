@@ -305,10 +305,16 @@ XML,
     <font><u val="double"/><color rgb="FF336699" tint="-0.25"/><sz val="11"/><name val="Aptos"/><family val="2"/><charset val="1"/><scheme val="minor"/><vertAlign val="superscript"/></font>
     <font><b/><strike/><name val="Aptos"/></font>
   </fonts>
-  <fills count="3">
+  <fills count="4">
     <fill><patternFill patternType="none"/></fill>
     <fill><patternFill patternType="gray125"/></fill>
     <fill><patternFill patternType="solid"><fgColor rgb="FFFFCC00" tint="0.4"/><bgColor indexed="64"/></patternFill></fill>
+    <fill>
+      <gradientFill type="path" degree="45" left="0.1" right="0.2" top="0.3" bottom="0.4">
+        <stop position="0"><color rgb="FF0000FF"/></stop>
+        <stop position="1"><color theme="5" tint="0.5"/></stop>
+      </gradientFill>
+    </fill>
   </fills>
   <borders count="2">
     <border><left/><right/><top/><bottom/><diagonal/></border>
@@ -327,7 +333,7 @@ XML,
       <protection locked="0" hidden="1"/>
     </xf>
   </cellStyleXfs>
-  <cellXfs count="8">
+  <cellXfs count="9">
     <xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>
     <xf numFmtId="164" fontId="0" fillId="2" borderId="1" applyFont="1" applyFill="1" applyNumberFormat="1">
       <alignment horizontal="right" vertical="center" wrapText="1" textRotation="45"/>
@@ -339,6 +345,7 @@ XML,
     <xf xfId="1" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1" applyProtection="1"/>
     <xf numFmtId="11" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
     <xf numFmtId="12" fontId="0" fillId="0" borderId="0" applyNumberFormat="1"/>
+    <xf numFmtId="0" fontId="0" fillId="3" borderId="0" applyFill="1"/>
   </cellXfs>
   <cellStyles count="2">
     <cellStyle name="Normal" xfId="0" builtinId="0"/>
@@ -351,7 +358,7 @@ XML,
             'name' => 'xl/sharedStrings.xml',
             'data' => <<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
-<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="9" uniqueCount="9">
+<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="10" uniqueCount="10">
   <si><t>Metric</t></si>
   <si><t>Revenue</t></si>
   <si><t>Date</t></si>
@@ -361,6 +368,7 @@ XML,
   <si><t>Meeting</t></si>
   <si><t>Scientific</t></si>
   <si><t>Fraction</t></si>
+  <si><t>Gradient</t></si>
 </sst>
 XML,
         ],
@@ -381,6 +389,7 @@ XML,
       <c r="G1" t="s"><v>6</v></c>
       <c r="H1" t="s"><v>7</v></c>
       <c r="I1" t="s"><v>8</v></c>
+      <c r="J1" t="s"><v>9</v></c>
     </row>
     <row r="2">
       <c r="A2" t="s"><v>1</v></c>
@@ -392,6 +401,7 @@ XML,
       <c r="G2" s="5"><v>0.645833333333333</v></c>
       <c r="H2" s="6"><v>12345.678</v></c>
       <c r="I2" s="7"><v>2.25</v></c>
+      <c r="J2" s="8"><v>42</v></c>
     </row>
   </sheetData>
   <drawing r:id="rDrawing"/>
@@ -951,6 +961,7 @@ return [
         $timeCell = $bodyCells[6];
         $scientificCell = $bodyCells[7];
         $fractionCell = $bodyCells[8];
+        $gradientCell = $bodyCells[9];
         $findPart = static function (array $items, string $partName): array {
             foreach ($items as $item) {
                 if (($item['partName'] ?? null) === $partName) {
@@ -964,6 +975,8 @@ return [
         $t->same(2, $review['styleCustomNumberFormatCount'] ?? null);
         $t->same(2, $review['styleCellStyleFormatCount'] ?? null);
         $t->same(2, $review['styleNamedCellStyleCount'] ?? null);
+        $t->same(4, $review['styleFillCount'] ?? null);
+        $t->same(1, $review['styleGradientFillCount'] ?? null);
         $t->same('Attention Time', $review['cellStyles'][1]['name'] ?? null);
         $t->same(1, $review['cellStyles'][1]['xfId'] ?? null);
         $t->same(40, $review['cellStyles'][1]['builtinId'] ?? null);
@@ -1109,6 +1122,38 @@ return [
         $t->same('fraction', $fractionCell->attr('xlsxNumberFormatKind'));
         $t->same(12, $fractionCell->attr('xlsxNumberFormatId'));
         $t->same(2.25, $fractionCell->attr('xlsxNumericValue'));
+        $t->same('42.0', $gradientCell->attr('text'));
+        $t->same(3, $gradientCell->attr('xlsxFillId'));
+        $t->same(true, $gradientCell->attr('xlsxApplyFill'));
+        $t->same('path', $gradientCell->attr('xlsxFillGradientType'));
+        $t->same(45, $gradientCell->attr('xlsxFillGradientDegree'));
+        $t->same(['left' => 0.1, 'right' => 0.2, 'top' => 0.3, 'bottom' => 0.4], $gradientCell->attr('xlsxFillGradientEdges'));
+        $t->same(2, $gradientCell->attr('xlsxFillGradientStopCount'));
+        $t->same([
+            [
+                'position' => 0,
+                'color' => 'rgb:FF0000FF',
+                'colorMetadata' => [
+                    'source' => 'rgb',
+                    'value' => 'FF0000FF',
+                    'token' => 'rgb:FF0000FF',
+                    'argb' => 'FF0000FF',
+                    'alpha' => 'FF',
+                    'rgb' => '0000FF',
+                ],
+            ],
+            [
+                'position' => 1,
+                'color' => 'theme:5',
+                'colorMetadata' => [
+                    'source' => 'theme',
+                    'value' => '5',
+                    'token' => 'theme:5',
+                    'theme' => 5,
+                    'tint' => 0.5,
+                ],
+            ],
+        ], $gradientCell->attr('xlsxFillGradientStops'));
 
         $t->contains('<td style="text-align:right"><u>($1,234.50)</u></td>', $html);
         $t->contains('<td><del><strong>2024-01-15</strong></del></td>', $html);

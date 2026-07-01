@@ -259,6 +259,11 @@ final class XlsxReader
                 'styleCellStyleFormatCount' => count($styles['cellStyleFormats']),
                 'styleCellFormatCount' => count($styles['cellFormats']),
                 'styleNamedCellStyleCount' => count($styles['cellStyles']),
+                'styleFillCount' => count($styles['fills']),
+                'styleGradientFillCount' => count(array_filter(
+                    $styles['fills'],
+                    static fn (array $fill): bool => ($fill['gradientFill'] ?? false) === true
+                )),
                 'styleBorderCount' => count($styles['borders']),
                 'styleCustomNumberFormatCount' => count($styles['customNumberFormats']),
                 'cellStyles' => $styles['cellStyles'],
@@ -1804,6 +1809,11 @@ final class XlsxReader
             $style['fillBackgroundColor'] = $fill['backgroundColor'];
             $style['fillForegroundColorMetadata'] = $fill['foregroundColorMetadata'];
             $style['fillBackgroundColorMetadata'] = $fill['backgroundColorMetadata'];
+            $style['fillGradientType'] = $fill['gradientType'];
+            $style['fillGradientDegree'] = $fill['gradientDegree'];
+            $style['fillGradientEdges'] = $fill['gradientEdges'];
+            $style['fillGradientStops'] = $fill['gradientStops'];
+            $style['fillGradientStopCount'] = $fill['gradientStopCount'];
         }
 
         $borderId = $this->integerAttribute($xfElement, 'borderId');
@@ -1977,21 +1987,60 @@ final class XlsxReader
     private function parseStyleFill(\DOMElement $fillElement): array
     {
         $patternFill = $this->firstChildElement($fillElement, 'patternFill');
-        if (!$patternFill instanceof \DOMElement) {
-            return $this->defaultStyleFill();
+        if ($patternFill instanceof \DOMElement) {
+            $foreground = $this->firstChildElement($patternFill, 'fgColor');
+            $background = $this->firstChildElement($patternFill, 'bgColor');
+            $foregroundMetadata = $foreground instanceof \DOMElement ? $this->styleColorMetadata($foreground) : [];
+            $backgroundMetadata = $background instanceof \DOMElement ? $this->styleColorMetadata($background) : [];
+
+            return array_replace($this->defaultStyleFill(), [
+                'patternType' => trim($patternFill->getAttribute('patternType')) !== '' ? trim($patternFill->getAttribute('patternType')) : null,
+                'foregroundColor' => $foregroundMetadata['token'] ?? null,
+                'backgroundColor' => $backgroundMetadata['token'] ?? null,
+                'foregroundColorMetadata' => $foregroundMetadata,
+                'backgroundColorMetadata' => $backgroundMetadata,
+            ]);
         }
 
-        $foreground = $this->firstChildElement($patternFill, 'fgColor');
-        $background = $this->firstChildElement($patternFill, 'bgColor');
-        $foregroundMetadata = $foreground instanceof \DOMElement ? $this->styleColorMetadata($foreground) : [];
-        $backgroundMetadata = $background instanceof \DOMElement ? $this->styleColorMetadata($background) : [];
+        $gradientFill = $this->firstChildElement($fillElement, 'gradientFill');
+        if ($gradientFill instanceof \DOMElement) {
+            return array_replace($this->defaultStyleFill(), $this->parseStyleGradientFill($gradientFill));
+        }
+
+        return $this->defaultStyleFill();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function parseStyleGradientFill(\DOMElement $gradientFill): array
+    {
+        $edges = [];
+        foreach (['left', 'right', 'top', 'bottom'] as $edge) {
+            $value = $this->numericAttribute($gradientFill, $edge);
+            if ($value !== null) {
+                $edges[$edge] = $value;
+            }
+        }
+
+        $stops = [];
+        foreach ($this->childElements($gradientFill, 'stop') as $stop) {
+            $color = $this->firstChildElement($stop, 'color');
+            $colorMetadata = $color instanceof \DOMElement ? $this->styleColorMetadata($color) : [];
+            $stops[] = [
+                'position' => $this->numericAttribute($stop, 'position'),
+                'color' => $colorMetadata['token'] ?? null,
+                'colorMetadata' => $colorMetadata,
+            ];
+        }
 
         return [
-            'patternType' => trim($patternFill->getAttribute('patternType')) !== '' ? trim($patternFill->getAttribute('patternType')) : null,
-            'foregroundColor' => $foregroundMetadata['token'] ?? null,
-            'backgroundColor' => $backgroundMetadata['token'] ?? null,
-            'foregroundColorMetadata' => $foregroundMetadata,
-            'backgroundColorMetadata' => $backgroundMetadata,
+            'gradientFill' => true,
+            'gradientType' => $this->nonEmptyAttribute($gradientFill, 'type'),
+            'gradientDegree' => $this->numericAttribute($gradientFill, 'degree'),
+            'gradientEdges' => $edges,
+            'gradientStops' => $stops,
+            'gradientStopCount' => count($stops),
         ];
     }
 
@@ -2006,6 +2055,12 @@ final class XlsxReader
             'backgroundColor' => null,
             'foregroundColorMetadata' => [],
             'backgroundColorMetadata' => [],
+            'gradientFill' => false,
+            'gradientType' => null,
+            'gradientDegree' => null,
+            'gradientEdges' => null,
+            'gradientStops' => null,
+            'gradientStopCount' => null,
         ];
     }
 
@@ -2170,6 +2225,11 @@ final class XlsxReader
             'fillBackgroundColor' => null,
             'fillForegroundColorMetadata' => [],
             'fillBackgroundColorMetadata' => [],
+            'fillGradientType' => null,
+            'fillGradientDegree' => null,
+            'fillGradientEdges' => null,
+            'fillGradientStops' => null,
+            'fillGradientStopCount' => null,
             'numFmtId' => null,
             'formatCode' => null,
             'horizontalAlign' => null,
@@ -3366,6 +3426,11 @@ final class XlsxReader
             'fillBackgroundColor' => 'xlsxFillBackgroundColor',
             'fillForegroundColorMetadata' => 'xlsxFillForegroundColorMetadata',
             'fillBackgroundColorMetadata' => 'xlsxFillBackgroundColorMetadata',
+            'fillGradientType' => 'xlsxFillGradientType',
+            'fillGradientDegree' => 'xlsxFillGradientDegree',
+            'fillGradientEdges' => 'xlsxFillGradientEdges',
+            'fillGradientStops' => 'xlsxFillGradientStops',
+            'fillGradientStopCount' => 'xlsxFillGradientStopCount',
             'borderId' => 'xlsxBorderId',
             'borderLeftStyle' => 'xlsxBorderLeftStyle',
             'borderLeftColor' => 'xlsxBorderLeftColor',
