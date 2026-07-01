@@ -3251,7 +3251,7 @@ final class PptxReader
             $modelId = $pointElement->getAttribute('modelId');
             $textElement = $this->firstDiagramChildElement($pointElement, 't', $diagramNamespace);
             $text = $textElement instanceof \DOMElement ? $this->allDescendantText($textElement) : '';
-            if (trim($text) !== '') {
+            if ($this->hasNonWhitespaceText($text)) {
                 $nodeText[$modelId] = $text;
             }
         }
@@ -3293,6 +3293,11 @@ final class PptxReader
         }
 
         return $nodes;
+    }
+
+    private function hasNonWhitespaceText(string $text): bool
+    {
+        return preg_match('/\S/u', $text) === 1;
     }
 
     private function firstDiagramChildElement(\DOMElement $parent, string $localName, ?string $diagramNamespace): ?\DOMElement

@@ -3088,6 +3088,96 @@ XML);
     }
 };
 
+$buildWhitespaceOnlySmartArtTextPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-whitespace-smartart-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld><p:spTree>
+    <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+    <p:grpSpPr/>
+    <p:sp>
+      <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+      <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Whitespace SmartArt</a:t></a:r></a:p></p:txBody>
+    </p:sp>
+    <p:graphicFrame>
+      <p:nvGraphicFramePr><p:cNvPr id="20" name="Whitespace SmartArt Frame"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+      <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:relIds r:dm="rIdData" r:lo="rIdLayout"/></a:graphicData></a:graphic>
+    </p:graphicFrame>
+  </p:spTree></p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdData" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData" Target="../diagrams/data1.xml"/>
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout" Target="../diagrams/layout1.xml"/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/diagrams/layout1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:layoutDef xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" uniqueId="urn:microsoft.com/office/officeart/2005/8/layout/basicBlockList"/>
+XML);
+    $zip->addFromString('ppt/diagrams/data1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <dgm:ptLst>
+    <dgm:pt modelId="parent"><dgm:t><a:p><a:r><a:t>&#160;</a:t></a:r></a:p></dgm:t></dgm:pt>
+    <dgm:pt modelId="child"><dgm:t><a:p><a:r><a:t>Hidden child</a:t></a:r></a:p></dgm:t></dgm:pt>
+  </dgm:ptLst>
+  <dgm:cxnLst>
+    <dgm:cxn srcId="parent" destId="child"/>
+  </dgm:cxnLst>
+</dgm:dataModel>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildRootRelativeSmartArtTargetPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-root-smartart-target-');
     if ($path === false) {
@@ -6024,6 +6114,21 @@ return [
         $t->same(1, count($parseErrors));
         $t->true(!str_contains($native, 'File not found in archive: ppt/diagrams/data1.xml'), 'Existing invalid SmartArt XML should not be mislabeled as a missing package part');
         $t->same('Invalid SmartArt Frame', $diagnostics[0]->attr('pptxShape')['name'] ?? null);
+    },
+
+    'treats Unicode-whitespace-only pptx SmartArt text as empty like upstream' => static function (TestRunner $t) use ($buildWhitespaceOnlySmartArtTextPptxPackage, $nodesOfType, $nodesWithClass): void {
+        $document = (new PptxReader())->read($buildWhitespaceOnlySmartArtTextPptxPackage());
+        $review = $document->attr('pptx');
+        $divs = $nodesOfType($document, 'div');
+        $smartArtDivs = $nodesWithClass($divs, 'smartart');
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, count($smartArtDivs));
+        $t->same(['smartart', 'basicBlockList'], $smartArtDivs[0]->attr('classes'));
+        $t->same([], $smartArtDivs[0]->children);
+        $t->same(0, $review['slides'][0]['shapeIssueCount'] ?? null);
+        $t->true(!str_contains($native, 'Hidden child'), 'Children of a Unicode-whitespace-only SmartArt parent should stay hidden like upstream');
+        $t->true(!str_contains($native, 'BulletList'), 'Whitespace-only SmartArt parent should not emit a child list');
     },
 
     'uses upstream literal pptx SmartArt targets without root-relative normalization' => static function (TestRunner $t) use ($buildRootRelativeSmartArtTargetPptxPackage, $nodesOfType, $nodesWithClass): void {
