@@ -1632,7 +1632,7 @@ BIB;
         $t->same('2.1.0', $item['version']);
         $t->same('revised', $item['status']);
         $t->same('print-on-demand packet', $item['medium']);
-        $t->same('Gia Garcia. Migration Manual. Review Press. 2026. Collection: Review Sources. Collection abbreviation: RS. Collection number: 7. Edition: 2. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
+        $t->same('Gia Garcia. Migration Manual. Original title: Manual de Migracion: Archivo Appendix. Original title addendum: facsimile source. Original work published 2020-05. Original publisher: Archivo Press, Madrid. Original language: spanish. Review Press. 2026. Collection: Review Sources. Collection abbreviation: RS. Collection number: 7. Edition: 2. Version: 2.1.0. Status: revised. Medium: print-on-demand packet.', $bibliography);
 
         $styled = CitationCslProcessor::fromItems([$item])->withCslStyle(<<<'XML'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -4430,7 +4430,7 @@ BIB;
         $t->same([2025, 5, 1], $event['event-date']['date-parts'][0]);
         $t->same('hybrid review window', $event['rawBibtex']['fields']['eventdateaddon']);
         $t->same(
-            'Nia Ng. Date Addendum Legacy Packet. Review Press. 2026. Date addendum: first source capture. Original date addendum: legacy packet date. Reprint date addendum: review facsimile release. Accessed date addendum: reviewer accessed archive. https://example.test/date-addendum-legacy.',
+            'Nia Ng. Date Addendum Legacy Packet. Original work published 2020. Review Press. 2026. Date addendum: first source capture. Original date addendum: legacy packet date. Reprint date addendum: review facsimile release. Accessed date addendum: reviewer accessed archive. https://example.test/date-addendum-legacy.',
             $processor->renderBibliographyText($date)
         );
 
