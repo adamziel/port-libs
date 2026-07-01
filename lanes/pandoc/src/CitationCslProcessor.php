@@ -1501,12 +1501,14 @@ final class CitationCslProcessor
                 ['volume-title', 'volumeTitle', 'volumetitle', 'volume-title-text', 'volumeTitleText', 'volumetitletext'],
                 ['volume-subtitle', 'volumeSubtitle', 'volumesubtitle']
             ),
+            'volumeTitleAddon' => self::firstStringField($item, ['volume-title-addon', 'volumeTitleAddon', 'volumetitleaddon']),
             'volumeTitleShort' => self::firstStringField($item, ['volume-title-short', 'volumeTitleShort', 'volumetitleshort']),
             'partTitle' => self::composedStringField(
                 $item,
                 ['part-title', 'partTitle', 'parttitle', 'part-title-text', 'partTitleText', 'parttitletext'],
                 ['part-subtitle', 'partSubtitle', 'partsubtitle']
             ),
+            'partTitleAddon' => self::firstStringField($item, ['part-title-addon', 'partTitleAddon', 'parttitleaddon']),
             'eventTitle' => self::firstStringField($item, ['event', 'event-title', 'eventTitle', 'eventtitle']),
             'eventTitleAddon' => self::firstStringField($item, ['event-title-addon', 'eventTitleAddon', 'eventtitleaddon']),
             'eventPlace' => $eventPlace,
@@ -6922,8 +6924,10 @@ final class CitationCslProcessor
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => $this->normalizeSortText((string) ($item['mainTitle'] ?? '')),
             'main-title-addon', 'maintitleaddon' => $this->normalizeSortText((string) ($item['mainTitleAddon'] ?? '')),
             'volume-title', 'volumetitle', 'volume-title-text', 'volumetitletext' => $this->normalizeSortText((string) ($item['volumeTitle'] ?? '')),
+            'volume-title-addon', 'volumetitleaddon' => $this->normalizeSortText((string) ($item['volumeTitleAddon'] ?? '')),
             'volume-title-short', 'volumetitleshort', 'shortvolumetitle', 'short-volume-title' => $this->normalizeSortText((string) ($item['volumeTitleShort'] ?? '')),
             'part-title', 'parttitle', 'part-title-text', 'parttitletext' => $this->normalizeSortText((string) ($item['partTitle'] ?? '')),
+            'part-title-addon', 'parttitleaddon' => $this->normalizeSortText((string) ($item['partTitleAddon'] ?? '')),
             'issue-title', 'issuetitle', 'issue-title-text', 'issuetitletext' => $this->normalizeSortText((string) ($item['issueTitle'] ?? '')),
             'event', 'event-title' => $this->normalizeSortText((string) $item['eventTitle']),
             'event-place' => $this->normalizeSortText((string) $item['eventPlace']),
@@ -8717,6 +8721,11 @@ final class CitationCslProcessor
             $parts[] = 'Volume title: ' . rtrim($volumeTitle, '.') . '.';
         }
 
+        $volumeTitleAddon = (string) ($item['volumeTitleAddon'] ?? '');
+        if ($volumeTitleAddon !== '') {
+            $parts[] = 'Volume title addendum: ' . rtrim($volumeTitleAddon, '.') . '.';
+        }
+
         $volumeTitleShort = (string) ($item['volumeTitleShort'] ?? '');
         if ($volumeTitleShort !== '') {
             $parts[] = 'Volume title abbreviation: ' . rtrim($volumeTitleShort, '.') . '.';
@@ -8725,6 +8734,11 @@ final class CitationCslProcessor
         $partTitle = (string) ($item['partTitle'] ?? '');
         if ($partTitle !== '') {
             $parts[] = 'Part title: ' . rtrim($partTitle, '.') . '.';
+        }
+
+        $partTitleAddon = (string) ($item['partTitleAddon'] ?? '');
+        if ($partTitleAddon !== '') {
+            $parts[] = 'Part title addendum: ' . rtrim($partTitleAddon, '.') . '.';
         }
 
         $containerTitleShort = (string) ($item['containerTitleShort'] ?? '');
@@ -11226,6 +11240,7 @@ final class CitationCslProcessor
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => (string) $item['mainTitle'],
             'main-title-addon', 'maintitleaddon' => (string) $item['mainTitleAddon'],
             'volume-title-short', 'volumetitleshort', 'shortvolumetitle', 'short-volume-title' => (string) ($item['volumeTitleShort'] ?? ''),
+            'volume-title-addon', 'volumetitleaddon' => (string) ($item['volumeTitleAddon'] ?? ''),
             'event', 'event-title', 'eventtitle' => (string) $item['eventTitle'],
             'event-title-addon', 'eventtitleaddon' => (string) $item['eventTitleAddon'],
             'event-place', 'eventplace', 'event-location', 'eventlocation', 'event-venue', 'eventvenue', 'venue' => (string) $item['eventPlace'],
@@ -11260,6 +11275,7 @@ final class CitationCslProcessor
             'division', 'subdivision', 'sub-division', 'sub_division' => (string) ($item['division'] ?? ''),
             'section' => (string) $item['section'],
             'part-title', 'parttitle', 'part-title-text', 'parttitletext' => (string) ($item['partTitle'] ?? ''),
+            'part-title-addon', 'parttitleaddon' => (string) ($item['partTitleAddon'] ?? ''),
             'part', 'part-number' => (string) $item['part'],
             'printing', 'printing-number' => (string) ($item['printingNumber'] ?? ''),
             'supplement' => (string) ($item['supplement'] ?? ''),
