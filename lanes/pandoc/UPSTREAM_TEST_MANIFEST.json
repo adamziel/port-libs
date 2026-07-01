@@ -22,6 +22,8 @@
     "docxRelationshipTargetCaseFoldPathSegmentPositionAssertions": 98,
     "mappedDocxRelationshipSourceCaseFoldDirectoryCases": 1,
     "docxRelationshipSourceCaseFoldDirectoryAssertions": 60,
+    "mappedDocxRelationshipTargetCaseFoldDirectoryCases": 1,
+    "docxRelationshipTargetCaseFoldDirectoryAssertions": 63,
     "mappedDocxRelationshipSourceCaseFoldDirectoryBaseNameCases": 1,
     "docxRelationshipSourceCaseFoldDirectoryBaseNameAssertions": 62,
     "mappedDocxRelationshipTargetDirectoryBaseNameStemCases": 1,
