@@ -15090,6 +15090,7 @@ final class XmlHtmlDom
             $summary['readonly'] = $node->hasAttribute('readonly');
             $summary['required'] = $node->hasAttribute('required');
             $summary += self::formControlConstraintSummary($node, $name);
+            $summary += self::textareaLayoutReviewSummary($node);
             if ($node->hasAttribute('placeholder')) {
                 $summary['placeholder'] = $node->getAttribute('placeholder');
             }
@@ -25525,6 +25526,63 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function textareaLayoutReviewSummary(\DOMElement $textarea): array
+    {
+        $rowsRaw = self::attributeOrNull($textarea, 'rows');
+        $rows = $rowsRaw === null ? null : self::positiveIntegerToken($rowsRaw, 1000000);
+        $rowsValid = $rowsRaw === null || $rows !== null;
+        $colsRaw = self::attributeOrNull($textarea, 'cols');
+        $cols = $colsRaw === null ? null : self::positiveIntegerToken($colsRaw, 1000000);
+        $colsValid = $colsRaw === null || $cols !== null;
+        $wrapRaw = self::attributeOrNull($textarea, 'wrap');
+        $wrap = $wrapRaw === null ? null : strtolower(trim($wrapRaw));
+        $wrapValid = $wrapRaw === null || in_array($wrap, ['soft', 'hard'], true);
+        $effectiveWrap = $wrapValid && is_string($wrap) && $wrap !== '' ? $wrap : 'soft';
+        $value = $textarea->textContent;
+        $issueCodes = [];
+
+        if (!$rowsValid) {
+            $issueCodes[] = 'invalid-textarea-rows';
+        }
+        if (!$colsValid) {
+            $issueCodes[] = 'invalid-textarea-cols';
+        }
+        if (!$wrapValid) {
+            $issueCodes[] = 'invalid-textarea-wrap';
+        }
+        if ($effectiveWrap === 'hard' && $cols === null) {
+            $issueCodes[] = 'hard-textarea-wrap-without-valid-cols';
+        }
+
+        return [
+            'textareaReviewPolicy' => 'html-textarea-layout-review',
+            'textareaRowsRaw' => $rowsRaw,
+            'textareaRows' => $rows,
+            'textareaRowsValid' => $rowsValid,
+            'textareaEffectiveRows' => $rows ?? 2,
+            'textareaRowsDefaulted' => $rows === null,
+            'textareaColsRaw' => $colsRaw,
+            'textareaCols' => $cols,
+            'textareaColsValid' => $colsValid,
+            'textareaEffectiveCols' => $cols ?? 20,
+            'textareaColsDefaulted' => $cols === null,
+            'textareaWrapRaw' => $wrapRaw,
+            'textareaWrap' => $wrapValid && is_string($wrap) && $wrap !== '' ? $wrap : null,
+            'textareaWrapValid' => $wrapValid,
+            'textareaEffectiveWrap' => $effectiveWrap,
+            'textareaWrapDefaulted' => $wrapRaw === null || !$wrapValid,
+            'textareaHardWrapRequiresCols' => $effectiveWrap === 'hard',
+            'textareaHardWrapHasValidCols' => $effectiveWrap !== 'hard' || $cols !== null,
+            'textareaValueByteLength' => strlen($value),
+            'textareaValueLineCount' => $value === '' ? 0 : substr_count($value, "\n") + 1,
+            'textareaIssueCodes' => $issueCodes,
+            'textareaLayoutValid' => $issueCodes === [],
+        ];
     }
 
     private static function nonNegativeIntegerToken(string $value, int $max): ?int
