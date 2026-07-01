@@ -14796,7 +14796,7 @@ final class XmlHtmlDom
             if ($inputType['inputType'] === 'file' || $node->hasAttribute('accept') || $node->hasAttribute('capture')) {
                 $summary += self::fileInputReviewSummary($node, $inputType['inputType']);
             }
-            if ($inputType === 'color') {
+            if ($inputType['inputType'] === 'color') {
                 $summary += self::colorInputReviewSummary($node);
             }
             if ($node->hasAttribute('placeholder')) {
