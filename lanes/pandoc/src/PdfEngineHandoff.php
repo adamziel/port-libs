@@ -8228,7 +8228,9 @@ final class PdfEngineHandoff
         if ($openOutputViewerPolicy !== []) {
             $provenance['openOutputViewerPolicy'] = $openOutputViewerPolicy;
         }
-        if ($pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0 || $prettyOutputCount > 0) {
+        $hasPdfExportControl = $pageSelection !== null || $ppi !== null || $noPdfTagsCount > 0 || $prettyOutputCount > 0;
+        $standardsOnlyPdfExport = !$hasPdfExportControl && $pdfStandard !== null;
+        if ($hasPdfExportControl || $standardsOnlyPdfExport) {
             $pdfExportIssues = $pdfTagIssues;
             foreach ($pageSelectionHistory as $entry) {
                 foreach ($entry['issues'] as $issue) {
@@ -8248,10 +8250,31 @@ final class PdfEngineHandoff
                     $pdfExportIssues[] = $override['issue'];
                 }
             }
+            if ($standardsOnlyPdfExport) {
+                foreach ($pdfStandardHistory as $entry) {
+                    foreach ($entry['issues'] as $issue) {
+                        $pdfExportIssues[] = $issue;
+                    }
+                }
+                foreach (($pdfStandardPolicy['issues'] ?? []) as $issue) {
+                    $pdfExportIssues[] = $issue;
+                }
+                foreach ($overrides as $override) {
+                    if ($override['option'] === 'pdfStandard') {
+                        $pdfExportIssues[] = $override['issue'];
+                    }
+                }
+            }
             $pdfExport = [
                 'pageSelection' => $pageSelection,
                 'issues' => array_values(array_unique($pdfExportIssues)),
             ];
+            if ($standardsOnlyPdfExport) {
+                $pdfExport['pdfStandard'] = $pdfStandard;
+                if ($pdfStandardPolicy !== []) {
+                    $pdfExport['pdfStandardPolicy'] = $pdfStandardPolicy;
+                }
+            }
             if ($ppi !== null) {
                 $pdfExport['ppi'] = $ppi;
             }

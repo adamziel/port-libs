@@ -2677,6 +2677,34 @@ return [
                 'pdfuaStandards' => ['ua-1'],
                 'issues' => ['pdf-standard-pdfa-pdfua-conflict-boundary'],
             ],
+            'pdfExport' => [
+                'pageSelection' => null,
+                'issues' => [
+                    'pdf-standard-invalid-boundary',
+                    'pdf-standard-pdfa-pdfua-conflict-boundary',
+                    'pdf-standard-boundary-overridden',
+                ],
+                'pdfStandard' => [
+                    'raw' => 'a-2b,UA-1',
+                    'value' => 'a-2b,ua-1',
+                    'standards' => ['a-2b', 'ua-1'],
+                    'standardCount' => 2,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'pdfStandardPolicy' => [
+                    'reviewStatus' => 'review',
+                    'standardCount' => 2,
+                    'pdfVersionCount' => 0,
+                    'pdfaCount' => 1,
+                    'pdfuaCount' => 1,
+                    'otherStandardCount' => 0,
+                    'pdfVersions' => [],
+                    'pdfaStandards' => ['a-2b'],
+                    'pdfuaStandards' => ['ua-1'],
+                    'issues' => ['pdf-standard-pdfa-pdfua-conflict-boundary'],
+                ],
+            ],
             'overrides' => [
                 [
                     'option' => 'pdfStandard',
@@ -2724,6 +2752,7 @@ return [
         $t->contains('typst-pdf-standard-policy-pdfa:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-standard-policy-pdfua:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-standard-policy-issues:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-export-issues:3', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:3', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
@@ -2783,6 +2812,40 @@ return [
                     'pdf-standard-pdfua-version-conflict-boundary',
                 ],
             ],
+            'pdfExport' => [
+                'pageSelection' => null,
+                'issues' => [
+                    'pdf-standard-multiple-pdf-versions-boundary',
+                    'pdf-standard-multiple-pdfa-boundary',
+                    'pdf-standard-pdfa-pdfua-conflict-boundary',
+                    'pdf-standard-pdfua-version-conflict-boundary',
+                ],
+                'pdfStandard' => [
+                    'raw' => '1.4,2.0,a-1b,a-2u,ua-1',
+                    'value' => '1.4,2.0,a-1b,a-2u,ua-1',
+                    'standards' => ['1.4', '2.0', 'a-1b', 'a-2u', 'ua-1'],
+                    'standardCount' => 5,
+                    'safe' => true,
+                    'issues' => [],
+                ],
+                'pdfStandardPolicy' => [
+                    'reviewStatus' => 'review',
+                    'standardCount' => 5,
+                    'pdfVersionCount' => 2,
+                    'pdfaCount' => 2,
+                    'pdfuaCount' => 1,
+                    'otherStandardCount' => 0,
+                    'pdfVersions' => ['1.4', '2.0'],
+                    'pdfaStandards' => ['a-1b', 'a-2u'],
+                    'pdfuaStandards' => ['ua-1'],
+                    'issues' => [
+                        'pdf-standard-multiple-pdf-versions-boundary',
+                        'pdf-standard-multiple-pdfa-boundary',
+                        'pdf-standard-pdfa-pdfua-conflict-boundary',
+                        'pdf-standard-pdfua-version-conflict-boundary',
+                    ],
+                ],
+            ],
         ];
 
         $result = $handoff->fakeRun($plan, [
@@ -2804,6 +2867,7 @@ return [
         $t->contains('typst-pdf-standard-policy-pdfa:2', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-standard-policy-pdfua:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-pdf-standard-policy-issues:4', implode(',', $plan['diagnostics']));
+        $t->contains('typst-pdf-export-issues:4', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:4', implode(',', $plan['diagnostics']));
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
