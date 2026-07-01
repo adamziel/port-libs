@@ -16521,6 +16521,7 @@ final class XmlHtmlDom
             $renderBlockingTokenPresent => 'declared-render-blocking-non-resource',
             default => 'declared-non-render-token',
         };
+        $hrefLangReview = self::linkHrefLangReviewSummary(self::attributeOrNull($link, 'hreflang'));
         $issues = [];
         $loadingIssues = [];
         $fetchPolicyIssues = [];
@@ -16557,6 +16558,7 @@ final class XmlHtmlDom
                 'relTokens' => $resourceRelTokens,
             ];
         }
+        array_push($issues, ...$hrefLangReview['linkHrefLangIssues']);
         array_push($issues, ...$fetchPolicyIssues);
         foreach ($invalidBlockingTokens as $token) {
             $issues[] = [
@@ -16647,13 +16649,69 @@ final class XmlHtmlDom
                 $fetchPolicyIssues
             ))),
             'linkFetchPolicyValid' => $fetchPolicyIssues === [],
-        ];
+        ] + $hrefLangReview;
     }
 
     private static function isSafeHtmlRelToken(string $token): bool
     {
         return $token !== ''
             && preg_match('/^[A-Za-z][A-Za-z0-9_.:-]*$/', $token) === 1;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function linkHrefLangReviewSummary(?string $raw): array
+    {
+        $base = [
+            'linkHrefLangReviewPolicy' => 'link-hreflang-language-tag-review',
+            'linkHrefLangRaw' => $raw,
+            'linkHrefLang' => null,
+            'linkHrefLangCanonical' => null,
+            'linkHrefLangValid' => null,
+            'linkHrefLangEmpty' => null,
+            'linkHrefLangIssues' => [],
+            'linkHrefLangIssueCodes' => [],
+        ];
+
+        if ($raw === null) {
+            return $base;
+        }
+
+        $tag = self::languageTagReviewSummary($raw, 'linkHrefLang');
+        $trimmed = trim($raw);
+        $canonical = $tag['linkHrefLangTagCanonical'];
+        $valid = (bool) $tag['linkHrefLangTagValid'];
+        $issues = [];
+
+        if ($trimmed === '') {
+            $issues[] = ['code' => 'empty-link-hreflang'];
+        } elseif (!$valid) {
+            $issues[] = [
+                'code' => 'invalid-link-hreflang',
+                'raw' => $raw,
+                'languageIssueCodes' => $tag['linkHrefLangTagIssueCodes'],
+            ];
+        }
+
+        return [
+            'linkHrefLangReviewPolicy' => 'link-hreflang-language-tag-review',
+            'linkHrefLangRaw' => $raw,
+            'linkHrefLang' => is_string($canonical) ? $canonical : ($trimmed === '' ? null : $trimmed),
+            'linkHrefLangCanonical' => $canonical,
+            'linkHrefLangValid' => $valid,
+            'linkHrefLangEmpty' => $trimmed === '',
+            'linkHrefLangSubtags' => $tag['linkHrefLangTagSubtags'],
+            'linkHrefLangPrimarySubtag' => $tag['linkHrefLangTagPrimarySubtag'],
+            'linkHrefLangScriptSubtag' => $tag['linkHrefLangTagScriptSubtag'],
+            'linkHrefLangRegionSubtag' => $tag['linkHrefLangTagRegionSubtag'],
+            'linkHrefLangPrivateUseSubtags' => $tag['linkHrefLangTagPrivateUseSubtags'],
+            'linkHrefLangIssues' => $issues,
+            'linkHrefLangIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+        ] + $tag;
     }
 
     /**
