@@ -443,6 +443,10 @@ final class BibtexCslProcessor
                 $parts[] = $label . ': ' . (string) $item[$field];
             }
         }
+        $addendum = (string) ($item['addendum'] ?? '');
+        if ($addendum !== '' && $addendum !== (string) ($item['note'] ?? '')) {
+            $parts[] = 'Addendum: ' . $addendum;
+        }
         if (($item['thesis-type'] ?? '') !== '') {
             $parts[] = 'Thesis type: ' . (string) $item['thesis-type'];
         }
@@ -1047,6 +1051,7 @@ final class BibtexCslProcessor
             'reprint-title' => ['reprinttitle', 'reprint-title'],
             'abstract' => ['abstract', 'annotation', 'annote'],
             'annotation' => ['annotation', 'annote'],
+            'addendum' => ['addendum'],
             'note' => ['note', 'addendum'],
             'name-addon' => ['nameaddon', 'name-addon'],
             'genre' => ['type', 'entrysubtype'],

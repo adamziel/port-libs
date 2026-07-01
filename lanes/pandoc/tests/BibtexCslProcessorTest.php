@@ -4401,6 +4401,72 @@ XML);
         $t->contains('Date addendum: first source capture', $blocks);
         $t->contains('Event date addendum: hybrid review window', $blocks);
     },
+    'carries biblatex addendum separately from note in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{legacy-addendum-source,
+  author       = {Ng, Nia},
+  title        = {Legacy Addendum Packet},
+  date         = {2026},
+  howpublished = {Archived review packet},
+  note         = {Needs source-check before import},
+  addendum     = {Queue imported by handoff},
+  url          = {https://example.test/legacy-addendum}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['legacy-addendum-source'];
+
+        $t->same('Archived review packet', $item['medium']);
+        $t->same('Needs source-check before import', $item['note']);
+        $t->same('Queue imported by handoff', $item['addendum']);
+        $t->same('Queue imported by handoff', $item['rawBibtex']['fields']['addendum']);
+        $t->same(
+            'Nia Ng. Legacy Addendum Packet. 2026. Medium: Archived review packet. Addendum: Queue imported by handoff. https://example.test/legacy-addendum.',
+            $processor->renderBibliographyText($item)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <text variable="note"/>
+        <text variable="addendum"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="note"/>
+      <text variable="addendum"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('legacy-addendum-source');
+        $t->same('Needs source-check before import', $styledItem['note'] ?? null);
+        $t->same('Queue imported by handoff', $styledItem['addendum'] ?? null);
+        $t->same('[Legacy Addendum Packet | Needs source-check before import | Queue imported by handoff]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-addendum-source', 'text' => '[@legacy-addendum-source]']),
+        ]));
+        $t->same('Legacy Addendum Packet :: Needs source-check before import :: Queue imported by handoff', $styled->renderBibliographyEntry('legacy-addendum-source'));
+
+        $document = (new MarkdownReader())->read('Legacy addendum source [@legacy-addendum-source] keeps note metadata separate.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+
+        $t->same(['legacy-addendum-source'], $handoff['citedKeys']);
+        $t->same('Queue imported by handoff', $handoff['items'][0]['addendum'] ?? null);
+        $t->same('Queue imported by handoff', $handoff['bibliography']->children[0]->attr('cslItem')['addendum'] ?? null);
+        $t->contains('<p>Legacy addendum source [Legacy Addendum Packet | Needs source-check before import | Queue imported by handoff] keeps note metadata separate.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Legacy Addendum Packet :: Needs source-check before import :: Queue imported by handoff</dd>', $blocks);
+    },
     'carries biblatex url label aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @online{described-url,
