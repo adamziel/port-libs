@@ -54,19 +54,77 @@ NATIVE;
         $paragraph = $document->children[0];
         $cluster = $paragraph->children[2];
         $singleCitation = $paragraph->children[4];
+        $clusterRecordsNative = [
+            [
+                'citationId' => 'smith1899',
+                'citationPrefix' => [['t' => 'Str', 'c' => 'see']],
+                'citationSuffix' => [
+                    ['t' => 'Str', 'c' => 'p.'],
+                    ['t' => 'Space'],
+                    ['t' => 'Str', 'c' => '7'],
+                ],
+                'citationMode' => ['t' => 'NormalCitation'],
+                'citationNoteNum' => 3,
+                'citationHash' => 1899,
+            ],
+            [
+                'citationId' => 'doe1901',
+                'citationPrefix' => [],
+                'citationSuffix' => [],
+                'citationMode' => ['t' => 'AuthorInText'],
+                'citationNoteNum' => 4,
+                'citationHash' => 1901,
+            ],
+        ];
+        $clusterDisplayNative = [
+            ['t' => 'Str', 'c' => '[see'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@smith1899,'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'p.'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '7;'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => '@doe1901]'],
+        ];
+        $singleRecordsNative = [[
+            'citationId' => 'anonymous2026',
+            'citationPrefix' => [],
+            'citationSuffix' => [['t' => 'Str', 'c' => 'appendix']],
+            'citationMode' => ['t' => 'SuppressAuthor'],
+            'citationNoteNum' => 5,
+            'citationHash' => 2026,
+        ]];
+        $singleDisplayNative = [
+            ['t' => 'Str', 'c' => '-@anonymous2026,'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'appendix'],
+        ];
         $jsonPacket = (new PandocJsonWriter())->toArray($document);
         $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
         $roundTrip = (new PandocJsonReader())->readPacket($jsonPacket);
 
         $t->same('citation_group', $cluster->type);
+        $t->same('Cite', $cluster->attr('constructor'));
+        $t->same(['t' => 'Cite', 'c' => [$clusterRecordsNative, $clusterDisplayNative]], $cluster->attr('native'));
+        $t->same($clusterRecordsNative, $cluster->attr('citationRecordsNative'));
         $t->same('[see @smith1899, p. 7; @doe1901]', $cluster->attr('text'));
         $t->same(['smith1899', 'doe1901'], array_map(static fn (AstNode $node): string => $node->attr('id'), $cluster->children));
+        $t->same('Citation', $cluster->children[0]->attr('citationConstructor'));
+        $t->same($clusterRecordsNative[0], $cluster->children[0]->attr('citationNative'));
+        $t->same('Citation', $cluster->children[1]->attr('citationConstructor'));
+        $t->same($clusterRecordsNative[1], $cluster->children[1]->attr('citationNative'));
         $t->same('see', $cluster->children[0]->attr('prefix')[0]->attr('text'));
         $t->same('p. 7', $cluster->children[0]->attr('suffix')[0]->attr('text') . ' ' . $cluster->children[0]->attr('suffix')[2]->attr('text'));
         $t->same('author_in_text', $cluster->children[1]->attr('mode'));
         $t->same(3, $cluster->children[0]->attr('citationNoteNum'));
         $t->same(1901, $cluster->children[1]->attr('citationHash'));
         $t->same('citation', $singleCitation->type);
+        $t->same('Cite', $singleCitation->attr('constructor'));
+        $t->same(['t' => 'Cite', 'c' => [$singleRecordsNative, $singleDisplayNative]], $singleCitation->attr('native'));
+        $t->same($singleRecordsNative, $singleCitation->attr('citationRecordsNative'));
+        $t->same('Citation', $singleCitation->attr('citationConstructor'));
+        $t->same($singleRecordsNative[0], $singleCitation->attr('citationNative'));
         $t->same('anonymous2026', $singleCitation->attr('id'));
         $t->same('suppress_author', $singleCitation->attr('mode'));
         $t->same('-@anonymous2026, appendix', $singleCitation->attr('text'));
