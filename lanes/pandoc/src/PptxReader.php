@@ -20,6 +20,12 @@ final class PptxReader
     private const EMUS_PER_INCH = 914_400;
     private const DEFAULT_SLIDE_WIDTH_EMU = 9_144_000;
     private const DEFAULT_SLIDE_HEIGHT_EMU = 6_858_000;
+    private const HASKELL_INT_MAX_DECIMAL = '9223372036854775807';
+    private const HASKELL_INT_MIN_ABS_DECIMAL = '9223372036854775808';
+    private const HASKELL_INT_MAX_HEX = '7fffffffffffffff';
+    private const HASKELL_INT_MIN_ABS_HEX = '8000000000000000';
+    private const HASKELL_INT_MAX_OCTAL = '777777777777777777777';
+    private const HASKELL_INT_MIN_ABS_OCTAL = '1000000000000000000000';
 
     public function read(string $bytes): AstNode
     {
@@ -1813,6 +1819,19 @@ final class PptxReader
 
     private function integerText(string $value): ?int
     {
+        $literal = $this->integerLiteralParts($value);
+        if ($literal === null) {
+            return null;
+        }
+
+        return $this->integerLiteralToInt($literal);
+    }
+
+    /**
+     * @return array{sign:int, base:int, digits:string}|null
+     */
+    private function integerLiteralParts(string $value): ?array
+    {
         $value = $this->trimUnicodeWhitespace($value);
         while (str_starts_with($value, '(') && str_ends_with($value, ')')) {
             $inner = $this->trimUnicodeWhitespace(substr($value, 1, -1));
@@ -1833,13 +1852,100 @@ final class PptxReader
         }
 
         if (preg_match('/^0[xX]([0-9A-Fa-f]+)$/', $digits, $matches) === 1) {
-            return $sign * (int) hexdec($matches[1]);
+            return ['sign' => $sign, 'base' => 16, 'digits' => strtolower($matches[1])];
         }
         if (preg_match('/^0[oO]([0-7]+)$/', $digits, $matches) === 1) {
-            return $sign * intval($matches[1], 8);
+            return ['sign' => $sign, 'base' => 8, 'digits' => $matches[1]];
         }
 
-        return preg_match('/^[0-9]+$/', $digits) === 1 ? $sign * (int) $digits : null;
+        return preg_match('/^[0-9]+$/', $digits) === 1 ? ['sign' => $sign, 'base' => 10, 'digits' => $digits] : null;
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     */
+    private function integerLiteralToInt(array $literal): int
+    {
+        if ($this->integerLiteralIsHaskellIntMin($literal)) {
+            return PHP_INT_MIN;
+        }
+
+        $magnitude = match ($literal['base']) {
+            16 => (int) hexdec($literal['digits']),
+            8 => intval($literal['digits'], 8),
+            default => (int) $literal['digits'],
+        };
+
+        return $literal['sign'] < 0 ? -$magnitude : $magnitude;
+    }
+
+    private function readMaybeIntText(string $value): ?int
+    {
+        $literal = $this->integerLiteralParts($value);
+        if ($literal === null || !$this->integerLiteralFitsHaskellInt($literal)) {
+            return null;
+        }
+
+        return $this->integerLiteralToInt($literal);
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     */
+    private function integerLiteralFitsHaskellInt(array $literal): bool
+    {
+        $limit = $literal['sign'] < 0
+            ? $this->haskellIntMinAbsLimit($literal['base'])
+            : $this->haskellIntMaxLimit($literal['base']);
+
+        return $this->compareIntegerLiteralDigits($this->normalizedIntegerLiteralDigits($literal), $limit) <= 0;
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     */
+    private function integerLiteralIsHaskellIntMin(array $literal): bool
+    {
+        return $literal['sign'] < 0
+            && $this->normalizedIntegerLiteralDigits($literal) === $this->haskellIntMinAbsLimit($literal['base']);
+    }
+
+    private function haskellIntMaxLimit(int $base): string
+    {
+        return match ($base) {
+            16 => self::HASKELL_INT_MAX_HEX,
+            8 => self::HASKELL_INT_MAX_OCTAL,
+            default => self::HASKELL_INT_MAX_DECIMAL,
+        };
+    }
+
+    private function haskellIntMinAbsLimit(int $base): string
+    {
+        return match ($base) {
+            16 => self::HASKELL_INT_MIN_ABS_HEX,
+            8 => self::HASKELL_INT_MIN_ABS_OCTAL,
+            default => self::HASKELL_INT_MIN_ABS_DECIMAL,
+        };
+    }
+
+    /**
+     * @param array{sign:int, base:int, digits:string} $literal
+     */
+    private function normalizedIntegerLiteralDigits(array $literal): string
+    {
+        $digits = ltrim(strtolower($literal['digits']), '0');
+
+        return $digits === '' ? '0' : $digits;
+    }
+
+    private function compareIntegerLiteralDigits(string $left, string $right): int
+    {
+        $length = strlen($left) <=> strlen($right);
+        if ($length !== 0) {
+            return $length;
+        }
+
+        return $left <=> $right;
     }
 
     private function trimUnicodeWhitespace(string $value): string
@@ -2173,7 +2279,7 @@ final class PptxReader
             return 0;
         }
 
-        return $this->integerText($properties->getAttribute('lvl')) ?? 0;
+        return $this->readMaybeIntText($properties->getAttribute('lvl')) ?? 0;
     }
 
     /**
