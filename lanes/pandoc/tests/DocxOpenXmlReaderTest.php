@@ -15973,6 +15973,84 @@ XML;
         $t->same('Reviewer: Ada', $document->children[1]->attr('text'));
         $t->contains('unmatched inline', $document->children[2]->attr('text'));
     },
+    'promotes docx content control missing store item ids into package summary' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['word/document.xml'] = str_replace(
+            '    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Imported DOCX Heading</w:t></w:r></w:p>',
+            '    <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Imported DOCX Heading</w:t></w:r></w:p>' . "\n" .
+            '    <w:sdt>' . "\n" .
+            '      <w:sdtPr>' . "\n" .
+            '        <w:alias w:val="Unbound review field"/>' . "\n" .
+            '        <w:tag w:val="unbound-review-field"/>' . "\n" .
+            '        <w:text/>' . "\n" .
+            '        <w:dataBinding w:xpath="/review/unbound[1]" w:prefixMappings="xmlns:review=&quot;urn:example:review&quot;"/>' . "\n" .
+            '      </w:sdtPr>' . "\n" .
+            '      <w:sdtContent><w:p><w:r><w:t>Unbound field fallback</w:t></w:r></w:p></w:sdtContent>' . "\n" .
+            '    </w:sdt>',
+            $parts['word/document.xml']
+        );
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $docx = $document->attr('docx');
+        $contentControls = $docx['contentControls'];
+        $summary = $docx['packageProvenance']['summary'];
+        $item = $contentControls['items'][0];
+
+        $t->same($contentControls, $docx['packageProvenance']['contentControls']);
+        $t->same(1, $contentControls['count']);
+        $t->same(1, $contentControls['dataBindingCount']);
+        $t->same(0, $contentControls['matchedDataBindingCount']);
+        $t->same(0, $contentControls['unmatchedDataBindingCount']);
+        $t->same(1, $contentControls['missingStoreItemIdCount']);
+        $t->same(['block' => 1], $contentControls['scopeCounts']);
+        $t->same(['document' => 1], $contentControls['sourceTypeCounts']);
+        $t->same(1, $contentControls['storyPartCount']);
+        $t->same(['word/document.xml'], $contentControls['partNames']);
+        $t->same([], $contentControls['storeItemIds']);
+        $t->same([], $contentControls['matchedStoreItemIds']);
+        $t->same(1, $contentControls['aliasCount']);
+        $t->same(['Unbound review field'], $contentControls['aliases']);
+        $t->same(['unbound-review-field'], $contentControls['tags']);
+        $t->same(['text' => 1], $contentControls['controlTypeCounts']);
+        $t->same(['p' => 1], $contentControls['contentKindCounts']);
+        $t->same(1, $contentControls['issueCount']);
+        $t->same(['missing-store-item-id'], $contentControls['issueCodes']);
+
+        $t->same(1, $summary['contentControlCount']);
+        $t->same(1, $summary['contentControlDataBindingCount']);
+        $t->same(0, $summary['contentControlMatchedDataBindingCount']);
+        $t->same(0, $summary['contentControlUnmatchedDataBindingCount']);
+        $t->same(1, $summary['contentControlMissingStoreItemIdCount']);
+        $t->same(0, $summary['contentControlDuplicateStoreItemBindingCount']);
+        $t->same(['block' => 1], $summary['contentControlScopeCounts']);
+        $t->same(['document' => 1], $summary['contentControlSourceTypeCounts']);
+        $t->same(1, $summary['contentControlStoryPartCount']);
+        $t->same(['word/document.xml'], $summary['contentControlPartNames']);
+        $t->same([], $summary['contentControlStoreItemIds']);
+        $t->same([], $summary['contentControlMatchedStoreItemIds']);
+        $t->same(1, $summary['contentControlAliasCount']);
+        $t->same(['Unbound review field'], $summary['contentControlAliases']);
+        $t->same(['unbound-review-field'], $summary['contentControlTags']);
+        $t->same(['text' => 1], $summary['contentControlTypeCounts']);
+        $t->same(['p' => 1], $summary['contentControlContentKindCounts']);
+        $t->same(1, $summary['contentControlIssueCount']);
+        $t->same(['missing-store-item-id'], $summary['contentControlIssueCodes']);
+
+        $t->same('document', $item['sourceType']);
+        $t->same('word/document.xml', $item['partName']);
+        $t->same('Unbound review field', $item['alias']);
+        $t->same('unbound-review-field', $item['tag']);
+        $t->same('block', $item['scope']);
+        $t->same(true, $item['dataBindingPresent']);
+        $t->same(null, $item['storeItemId']);
+        $t->same('/review/unbound[1]', $item['xpath']);
+        $t->same('xmlns:review="urn:example:review"', $item['prefixMappings']);
+        $t->same(1, $item['prefixMappingCount']);
+        $t->same(false, $item['matchedStoreItem']);
+        $t->same(0, $item['storeItemReferenceCount']);
+        $t->same(['missing-store-item-id'], $item['issues']);
+        $t->same('Unbound field fallback', $document->children[1]->attr('text'));
+    },
     'summarizes docx story part content control custom xml data bindings' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $customXmlRel = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';

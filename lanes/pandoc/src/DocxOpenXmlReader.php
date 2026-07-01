@@ -979,6 +979,7 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['contentControlDataBindingCount'] = $contentControls['dataBindingCount'];
         $packageProvenance['summary']['contentControlMatchedDataBindingCount'] = $contentControls['matchedDataBindingCount'];
         $packageProvenance['summary']['contentControlUnmatchedDataBindingCount'] = $contentControls['unmatchedDataBindingCount'];
+        $packageProvenance['summary']['contentControlMissingStoreItemIdCount'] = $contentControls['missingStoreItemIdCount'];
         $packageProvenance['summary']['contentControlDuplicateStoreItemBindingCount'] = $contentControls['duplicateStoreItemBindingCount'];
         $packageProvenance['summary']['contentControlStoryPartCount'] = $contentControls['storyPartCount'];
         $packageProvenance['summary']['contentControlPartNames'] = $contentControls['partNames'];
