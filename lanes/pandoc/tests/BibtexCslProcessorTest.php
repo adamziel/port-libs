@@ -779,6 +779,83 @@ BIB;
         $t->same('11-13', $item['page']);
         $t->same('Sam Speaker. Conference Packet. Proceedings of Migration Review. 2026. 11-13.', $bibliography);
     },
+    'carries biblatex ISO date ranges in legacy csl handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@online{date-range-packet,
+  author      = {Ng, Nia},
+  title       = {Date Range Packet},
+  date        = {2026-06-01/2026-06-03},
+  urldate     = {2026-06-04/2026-06-05},
+  eventdate   = {2026-05/2026-06},
+  origdate    = {2020/2021},
+  reprintdate = {2025-11/},
+  url         = {https://example.test/date-range}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['date-range-packet'];
+
+        $t->same([[2026, 6, 1], [2026, 6, 3]], $item['issued']['date-parts']);
+        $t->same('2026-06-01/2026-06-03', $item['issued']['raw']);
+        $t->same([[2026, 6, 4], [2026, 6, 5]], $item['accessed']['date-parts']);
+        $t->same([[2026, 5], [2026, 6]], $item['event-date']['date-parts']);
+        $t->same([[2020], [2021]], $item['original-date']['date-parts']);
+        $t->same([[2025, 11]], $item['reprint-date']['date-parts']);
+        $t->same('end', $item['reprint-date']['open-ended']);
+        $t->same('2025-11/', $item['reprint-date']['raw']);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text" default-locale="en-US">
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <text variable="title"/>
+        <date variable="issued"/>
+        <date variable="accessed"/>
+        <date variable="event-date"/>
+        <date variable="original-date"/>
+        <date variable="reprint-date"/>
+        <text variable="issued-raw"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <date variable="issued"/>
+      <date variable="accessed"/>
+      <date variable="event-date"/>
+      <date variable="original-date"/>
+      <date variable="reprint-date"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $styledItem = $styled->item('date-range-packet');
+        $t->same('2026-06-01/2026-06-03', $styledItem['issuedDate']['display'] ?? null);
+        $t->same([[2026, 6, 1], [2026, 6, 3]], $styledItem['issuedDate']['rangeParts'] ?? null);
+        $t->same('2025-11/', $styledItem['reprintDate']['display'] ?? null);
+        $t->same('end', $styledItem['reprintDate']['openEnded'] ?? null);
+        $t->same(
+            '[Date Range Packet | 2026-06-01/2026-06-03 | 2026-06-04/2026-06-05 | 2026-05/2026-06 | 2020/2021 | 2025-11/ | 2026-06-01/2026-06-03]',
+            $styled->renderCitationCluster([
+                new AstNode('citation', ['id' => 'date-range-packet', 'text' => '[@date-range-packet]']),
+            ])
+        );
+        $t->same(
+            'Date Range Packet :: 2026-06-01/2026-06-03 :: 2026-06-04/2026-06-05 :: 2026-05/2026-06 :: 2020/2021 :: 2025-11/',
+            $styled->renderBibliographyEntry('date-range-packet')
+        );
+
+        $document = (new MarkdownReader())->read('Date range review [@date-range-packet] remains style-visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Date range review [Date Range Packet | 2026-06-01/2026-06-03 | 2026-06-04/2026-06-05 | 2026-05/2026-06 | 2020/2021 | 2025-11/ | 2026-06-01/2026-06-03] remains style-visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Date Range Packet :: 2026-06-01/2026-06-03 :: 2026-06-04/2026-06-05 :: 2026-05/2026-06 :: 2020/2021 :: 2025-11/</dd>', $blocks);
+    },
     'maps biblatex speech entry aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @talk{legacy-talk,

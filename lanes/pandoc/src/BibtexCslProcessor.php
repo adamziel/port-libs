@@ -1040,29 +1040,29 @@ final class BibtexCslProcessor
             $item['citation-aliases'] = $citationAliases;
         }
 
-        $date = $this->dateParts($fields);
+        $date = $this->dateVariable($fields);
         if ($date !== null) {
-            $item['issued'] = ['date-parts' => [$date]];
+            $item['issued'] = $date;
         }
 
-        $accessed = $this->datePartsFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
+        $accessed = $this->dateVariableFromFields($fields, ['urldate', 'accessed', 'accessdate'], []);
         if ($accessed !== null) {
-            $item['accessed'] = ['date-parts' => [$accessed]];
+            $item['accessed'] = $accessed;
         }
 
-        $originalDate = $this->datePartsFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
+        $originalDate = $this->dateVariableFromFields($fields, ['origdate', 'original-date'], ['origyear', 'origmonth', 'origday']);
         if ($originalDate !== null) {
-            $item['original-date'] = ['date-parts' => [$originalDate]];
+            $item['original-date'] = $originalDate;
         }
 
-        $reprintDate = $this->datePartsFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday']);
+        $reprintDate = $this->dateVariableFromFields($fields, ['reprintdate', 'reprint-date'], ['reprintyear', 'reprintmonth', 'reprintday']);
         if ($reprintDate !== null) {
-            $item['reprint-date'] = ['date-parts' => [$reprintDate]];
+            $item['reprint-date'] = $reprintDate;
         }
 
-        $eventDate = $this->datePartsFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);
+        $eventDate = $this->dateVariableFromFields($fields, ['eventdate', 'event-date'], ['eventyear', 'eventmonth', 'eventday']);
         if ($eventDate !== null) {
-            $item['event-date'] = ['date-parts' => [$eventDate]];
+            $item['event-date'] = $eventDate;
         }
 
         $keywords = $this->keywordList($this->firstField($fields, ['keywords', 'keyword', 'keyword-list', 'keywordlist']));
@@ -2149,20 +2149,20 @@ final class BibtexCslProcessor
 
     /**
      * @param array<string, string> $fields
-     * @return list<int>|null
+     * @return array{date-parts:list<list<int>>, raw?:string, open-ended?:string}|null
      */
-    private function dateParts(array $fields): ?array
+    private function dateVariable(array $fields): ?array
     {
-        return $this->datePartsFromFields($fields, ['date'], ['year', 'month', 'day']);
+        return $this->dateVariableFromFields($fields, ['date'], ['year', 'month', 'day']);
     }
 
     /**
      * @param array<string, string> $fields
      * @param list<string> $dateFields
      * @param list<string> $ymdFields
-     * @return list<int>|null
+     * @return array{date-parts:list<list<int>>, raw?:string, open-ended?:string}|null
      */
-    private function datePartsFromFields(array $fields, array $dateFields, array $ymdFields): ?array
+    private function dateVariableFromFields(array $fields, array $dateFields, array $ymdFields): ?array
     {
         $date = '';
         foreach ($dateFields as $field) {
@@ -2172,16 +2172,11 @@ final class BibtexCslProcessor
             }
         }
 
-        if ($date !== '' && preg_match('/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/', $date, $m) === 1) {
-            $parts = [(int) $m[1]];
-            if (($m[2] ?? '') !== '') {
-                $parts[] = (int) $m[2];
+        if ($date !== '') {
+            $fromDateField = $this->dateVariableFromRawValue($date);
+            if ($fromDateField !== null) {
+                return $fromDateField;
             }
-            if (($m[3] ?? '') !== '') {
-                $parts[] = (int) $m[3];
-            }
-
-            return $parts;
         }
 
         if ($ymdFields === []) {
@@ -2205,6 +2200,89 @@ final class BibtexCslProcessor
                 $parts[] = 1;
             }
             $parts[] = (int) $day;
+        }
+
+        return ['date-parts' => [$parts]];
+    }
+
+    /**
+     * @return array{date-parts:list<list<int>>, raw?:string, open-ended?:string}|null
+     */
+    private function dateVariableFromRawValue(string $value): ?array
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return null;
+        }
+
+        if (!str_contains($value, '/')) {
+            $parts = $this->datePartListFromRawValue($value, false);
+
+            return $parts === null ? null : ['date-parts' => [$parts]];
+        }
+
+        $rangeParts = explode('/', $value, 2);
+        $start = trim($rangeParts[0] ?? '');
+        $end = trim($rangeParts[1] ?? '');
+        if ($start === '' && $end === '') {
+            return null;
+        }
+
+        $parts = [];
+        $openEnded = '';
+        if ($start !== '') {
+            $startParts = $this->datePartListFromRawValue($start, true);
+            if ($startParts === null) {
+                return null;
+            }
+            $parts[] = $startParts;
+        } else {
+            $openEnded = 'start';
+        }
+
+        if ($end !== '') {
+            $endParts = $this->datePartListFromRawValue($end, true);
+            if ($endParts === null) {
+                return null;
+            }
+            $parts[] = $endParts;
+        } else {
+            $openEnded = 'end';
+        }
+
+        if ($parts === []) {
+            return null;
+        }
+
+        $date = [
+            'date-parts' => $parts,
+            'raw' => $value,
+        ];
+        if ($openEnded !== '') {
+            $date['open-ended'] = $openEnded;
+        }
+
+        return $date;
+    }
+
+    /**
+     * @return list<int>|null
+     */
+    private function datePartListFromRawValue(string $value, bool $requireFullMatch): ?array
+    {
+        $pattern = $requireFullMatch
+            ? '/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?$/'
+            : '/^(-?\d{1,4})(?:-(\d{1,2})(?:-(\d{1,2}))?)?/';
+        if (preg_match($pattern, $value, $m) !== 1) {
+            return null;
+        }
+
+        $parts = [(int) $m[1]];
+        if (($m[2] ?? '') !== '') {
+            $parts[] = (int) $m[2];
+        }
+        if (($m[3] ?? '') !== '') {
+            $parts[] = (int) $m[3];
         }
 
         return $parts;
