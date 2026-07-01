@@ -26463,6 +26463,7 @@ final class XmlHtmlDom
             ),
             'tracks' => self::mediaTrackSummaries($element),
         ];
+        $summary += self::mediaLoadingPolicyReviewSummary($element);
         $summary += self::mediaTextTrackReviewSummary($element);
         $summary += self::mediaPolicyReviewSummary($element);
         $summary += self::mediaPreloadReviewSummary($element);
@@ -26477,6 +26478,60 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function mediaLoadingPolicyReviewSummary(\DOMElement $element): array
+    {
+        $preloadRaw = self::attributeOrNull($element, 'preload');
+        $preload = $preloadRaw === null ? null : self::mediaPreloadState($preloadRaw);
+        $crossoriginRaw = self::attributeOrNull($element, 'crossorigin');
+        $crossorigin = $crossoriginRaw === null
+            ? null
+            : self::htmlCorsSettingsAttributeState(self::htmlMetadataAttributeValue($crossoriginRaw));
+        $widthRaw = self::attributeOrNull($element, 'width');
+        $width = $widthRaw === null ? null : self::mediaDimensionState($widthRaw);
+        $heightRaw = self::attributeOrNull($element, 'height');
+        $height = $heightRaw === null ? null : self::mediaDimensionState($heightRaw);
+        $issues = [];
+
+        if ($preloadRaw !== null && $preload === null) {
+            $issues[] = ['code' => 'invalid-media-preload', 'value' => $preloadRaw];
+        }
+        if ($crossoriginRaw !== null && $crossorigin === null) {
+            $issues[] = ['code' => 'invalid-media-crossorigin', 'value' => $crossoriginRaw];
+        }
+        if ($widthRaw !== null && $width === null) {
+            $issues[] = ['code' => 'invalid-media-width', 'value' => $widthRaw];
+        }
+        if ($heightRaw !== null && $height === null) {
+            $issues[] = ['code' => 'invalid-media-height', 'value' => $heightRaw];
+        }
+
+        return [
+            'mediaLoadingPolicyReview' => 'media-loading-policy-metadata-review',
+            'mediaPreloadRaw' => $preloadRaw,
+            'mediaPreloadState' => $preload,
+            'mediaPreloadValid' => $preloadRaw === null ? null : $preload !== null,
+            'mediaCrossoriginRaw' => $crossoriginRaw,
+            'mediaCrossoriginState' => $crossorigin,
+            'mediaCrossoriginValid' => $crossoriginRaw === null ? null : $crossorigin !== null,
+            'mediaWidthRaw' => $widthRaw,
+            'mediaWidth' => $width,
+            'mediaWidthValid' => $widthRaw === null ? null : $width !== null,
+            'mediaHeightRaw' => $heightRaw,
+            'mediaHeight' => $height,
+            'mediaHeightValid' => $heightRaw === null ? null : $height !== null,
+            'mediaLoadingIssues' => $issues,
+            'mediaLoadingIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'mediaLoadingIssueCount' => count($issues),
+            'mediaLoadingPolicyValid' => $issues === [],
+        ];
     }
 
     /**
@@ -27631,11 +27686,41 @@ final class XmlHtmlDom
         return $normalized === '' ? null : $normalized;
     }
 
+    private static function htmlMetadataAttributeValue(string $value): string
+    {
+        $value = str_replace("\0", '', $value);
+        $value = preg_replace('/[\t\r\n\f ]+/u', ' ', $value) ?? $value;
+
+        return trim($value);
+    }
+
     private static function mediaPreload(\DOMElement $media): string
     {
-        $preload = strtolower(trim($media->getAttribute('preload')));
+        $preload = self::mediaPreloadState($media->getAttribute('preload'));
 
-        return in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : 'auto';
+        return $preload ?? 'auto';
+    }
+
+    private static function mediaPreloadState(string $value): ?string
+    {
+        $preload = strtolower(self::htmlMetadataAttributeValue($value));
+        if ($preload === '') {
+            return 'auto';
+        }
+
+        return in_array($preload, ['none', 'metadata', 'auto'], true) ? $preload : null;
+    }
+
+    private static function mediaDimensionState(string $value): ?string
+    {
+        $dimension = self::htmlMetadataAttributeValue($value);
+        if ($dimension === '' || preg_match('/^[0-9]+$/', $dimension) !== 1) {
+            return null;
+        }
+
+        $dimension = ltrim($dimension, '0');
+
+        return $dimension === '' ? '0' : $dimension;
     }
 
     /**
