@@ -5180,6 +5180,8 @@ final class ZipPackage
      *     selectedCentralDirectoryFixedFieldIssueEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorProvenanceEntries:list<array<string, mixed>>,
      *     selectedDataDescriptorIssueEntries:list<array<string, mixed>>,
+     *     selectedSourceByteSpanBucketCount:int,
+     *     selectedSourceByteSpanBuckets:list<array<string, mixed>>,
      *     selectedSourceManifestVersion:string,
      *     selectedSourceManifestSha256:string,
      *     selectedSourceManifest:array<string, mixed>,
@@ -5994,6 +5996,7 @@ final class ZipPackage
         $selectedDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($selectedDirectoryRootSummaryEntries);
         $handoffDirectoryRootSummaries = self::entryHandoffDirectoryRootSummaries($handoffEntries);
         $roleSummaries = self::entryHandoffRoleSummaries($entries);
+        $selectedSourceByteSpanBuckets = self::entryHandoffSourceByteSpanBuckets($selectedSourceByteSpanEntries);
         $selectedSourceManifest = self::selectedSourceByteSpanManifest($selectedSourceByteSpanEntries);
 
         return [
@@ -6092,6 +6095,7 @@ final class ZipPackage
             'selectedSourceTotalRecordBytes' => $selectedSourceTotalRecordBytes,
             'selectedSourceByteSpanIssueCount' => count($selectedSourceByteSpanIssues),
             'selectedSourceByteSpanIssues' => $selectedSourceByteSpanIssues,
+            'selectedSourceByteSpanBucketCount' => count($selectedSourceByteSpanBuckets),
             'selectedSourceManifestVersion' => $selectedSourceManifest['manifestVersion'],
             'selectedSourceManifestSha256' => $selectedSourceManifest['manifestSha256'],
             'maxEntryUncompressedBytes' => $maxEntryUncompressedBytes,
@@ -6119,6 +6123,7 @@ final class ZipPackage
             'selectedCentralDirectoryFixedFieldIssueEntries' => $selectedCentralDirectoryFixedFieldIssueEntries,
             'selectedDataDescriptorProvenanceEntries' => $selectedDataDescriptorProvenanceEntries,
             'selectedDataDescriptorIssueEntries' => $selectedDataDescriptorIssueEntries,
+            'selectedSourceByteSpanBuckets' => $selectedSourceByteSpanBuckets,
             'selectedSourceByteSpanEntries' => $selectedSourceByteSpanEntries,
             'selectedSourceManifest' => $selectedSourceManifest,
             'missingEntries' => $missingEntries,
@@ -6126,6 +6131,68 @@ final class ZipPackage
             'handoffEntries' => $handoffEntries,
             'entries' => $entries,
         ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function entryHandoffSourceByteSpanBuckets(array $entries): array
+    {
+        $bucketFields = [
+            'source-record' => 'sourceRecordBytes',
+            'local-record' => 'localRecordBytes',
+            'local-header' => 'localHeaderBytes',
+            'local-fixed-header' => 'localFixedHeaderBytes',
+            'local-header-variable-fields' => 'localHeaderVariableFieldBytes',
+            'local-review-fields' => 'localHeaderReviewFieldBytes',
+            'compressed-data' => 'compressedDataBytes',
+            'data-descriptor' => 'dataDescriptorBytes',
+            'central-directory-record' => 'centralDirectoryRecordBytes',
+            'central-directory-fixed-header' => 'centralDirectoryFixedHeaderBytes',
+            'central-directory-variable-fields' => 'centralDirectoryVariableFieldBytes',
+            'central-directory-review-fields' => 'centralDirectoryReviewFieldBytes',
+        ];
+        $summaries = [];
+        foreach ($bucketFields as $bucket => $field) {
+            $summaries[$bucket] = [
+                'bucket' => $bucket,
+                'field' => $field,
+                'entryCount' => 0,
+                'nonZeroEntryCount' => 0,
+                'zeroByteEntryCount' => 0,
+                'bytes' => 0,
+                'entryNames' => [],
+                'nonZeroEntryNames' => [],
+            ];
+        }
+
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            foreach ($bucketFields as $bucket => $field) {
+                if (!array_key_exists($field, $entry) || !is_int($entry[$field])) {
+                    continue;
+                }
+
+                $bytes = $entry[$field];
+                ++$summaries[$bucket]['entryCount'];
+                $summaries[$bucket]['bytes'] += $bytes;
+                if ($name !== '') {
+                    $summaries[$bucket]['entryNames'][] = $name;
+                }
+                if ($bytes === 0) {
+                    ++$summaries[$bucket]['zeroByteEntryCount'];
+                    continue;
+                }
+
+                ++$summaries[$bucket]['nonZeroEntryCount'];
+                if ($name !== '') {
+                    $summaries[$bucket]['nonZeroEntryNames'][] = $name;
+                }
+            }
+        }
+
+        return array_values($summaries);
     }
 
     /**

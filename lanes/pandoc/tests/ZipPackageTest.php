@@ -12014,6 +12014,10 @@ return [
         foreach ($summary['selectedSourceByteSpanEntries'] as $sourceSpanEntry) {
             $sourceSpansByName[$sourceSpanEntry['name']] = $sourceSpanEntry;
         }
+        $sourceBucketsByName = [];
+        foreach ($summary['selectedSourceByteSpanBuckets'] as $sourceBucket) {
+            $sourceBucketsByName[$sourceBucket['bucket']] = $sourceBucket;
+        }
 
         $documentSpan = $sourceSpansByName['word/document.xml'];
         $commentsSpan = $sourceSpansByName['word/comments.xml'];
@@ -12023,6 +12027,21 @@ return [
         $t->same(2, $summary['selectedSourceByteSpanEntryCount']);
         $t->same(0, $summary['selectedSourceByteSpanIssueCount']);
         $t->same([], $summary['selectedSourceByteSpanIssues']);
+        $t->same(12, $summary['selectedSourceByteSpanBucketCount']);
+        $t->same([
+            'source-record',
+            'local-record',
+            'local-header',
+            'local-fixed-header',
+            'local-header-variable-fields',
+            'local-review-fields',
+            'compressed-data',
+            'data-descriptor',
+            'central-directory-record',
+            'central-directory-fixed-header',
+            'central-directory-variable-fields',
+            'central-directory-review-fields',
+        ], array_column($summary['selectedSourceByteSpanBuckets'], 'bucket'));
         $t->same(
             $documentSpan['localRecordBytes'] + $commentsSpan['localRecordBytes'],
             $summary['selectedSourceLocalRecordBytes']
@@ -12056,6 +12075,31 @@ return [
             $documentSpan['sourceRecordBytes'] + $commentsSpan['sourceRecordBytes'],
             $summary['selectedSourceTotalRecordBytes']
         );
+        $t->same($summary['selectedSourceTotalRecordBytes'], $sourceBucketsByName['source-record']['bytes']);
+        $t->same($summary['selectedSourceLocalRecordBytes'], $sourceBucketsByName['local-record']['bytes']);
+        $t->same($summary['selectedSourceLocalHeaderBytes'], $sourceBucketsByName['local-header']['bytes']);
+        $t->same($summary['selectedSourceLocalFixedHeaderBytes'], $sourceBucketsByName['local-fixed-header']['bytes']);
+        $t->same($summary['selectedSourceLocalHeaderVariableFieldBytes'], $sourceBucketsByName['local-header-variable-fields']['bytes']);
+        $t->same($summary['selectedSourceLocalReviewFieldBytes'], $sourceBucketsByName['local-review-fields']['bytes']);
+        $t->same($summary['selectedSourceCompressedDataBytes'], $sourceBucketsByName['compressed-data']['bytes']);
+        $t->same($summary['selectedSourceDataDescriptorBytes'], $sourceBucketsByName['data-descriptor']['bytes']);
+        $t->same($summary['selectedSourceCentralDirectoryRecordBytes'], $sourceBucketsByName['central-directory-record']['bytes']);
+        $t->same($summary['selectedSourceCentralDirectoryFixedHeaderBytes'], $sourceBucketsByName['central-directory-fixed-header']['bytes']);
+        $t->same($summary['selectedSourceCentralDirectoryVariableFieldBytes'], $sourceBucketsByName['central-directory-variable-fields']['bytes']);
+        $t->same($summary['selectedSourceCentralDirectoryReviewFieldBytes'], $sourceBucketsByName['central-directory-review-fields']['bytes']);
+        $t->same(2, $sourceBucketsByName['source-record']['entryCount']);
+        $t->same(2, $sourceBucketsByName['source-record']['nonZeroEntryCount']);
+        $t->same(0, $sourceBucketsByName['source-record']['zeroByteEntryCount']);
+        $t->same(['word/document.xml', 'word/comments.xml'], $sourceBucketsByName['source-record']['entryNames']);
+        $t->same(2, $sourceBucketsByName['data-descriptor']['entryCount']);
+        $t->same(1, $sourceBucketsByName['data-descriptor']['nonZeroEntryCount']);
+        $t->same(1, $sourceBucketsByName['data-descriptor']['zeroByteEntryCount']);
+        $t->same(['word/comments.xml'], $sourceBucketsByName['data-descriptor']['nonZeroEntryNames']);
+        $t->same(1, $sourceBucketsByName['local-review-fields']['nonZeroEntryCount']);
+        $t->same(1, $sourceBucketsByName['local-review-fields']['zeroByteEntryCount']);
+        $t->same(['word/comments.xml'], $sourceBucketsByName['local-review-fields']['nonZeroEntryNames']);
+        $t->same(2, $sourceBucketsByName['central-directory-review-fields']['nonZeroEntryCount']);
+        $t->same(['word/document.xml', 'word/comments.xml'], $sourceBucketsByName['central-directory-review-fields']['nonZeroEntryNames']);
 
         $t->same(true, $documentSpan['hasSourceByteSpanProvenance']);
         $t->same(0, $documentSpan['localRecordOffset']);
