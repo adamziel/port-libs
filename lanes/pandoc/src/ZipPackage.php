@@ -11923,6 +11923,9 @@ final class ZipPackage
      *     deflatedEntryCount:int,
      *     unsupportedCompressionMethodCount:int,
      *     expansionRatio:?float,
+     *     expansionRatioBucketSummaryCount:int,
+     *     expansionRatioBuckets:list<string>,
+     *     expansionRatioBucketSummaries:list<array<string, mixed>>,
      *     maxTotalUncompressedBytes:?int,
      *     maxExpansionRatio:?float,
      *     largestEntry:?array<string, mixed>,
@@ -12039,6 +12042,7 @@ final class ZipPackage
             $entryExpansionRatio = $hasZip64SizeSentinel
                 ? null
                 : self::expansionRatio($uncompressedSize, $compressedSize);
+            $entryExpansionRatioBucket = self::packageManifestExpansionRatioBucket($entryExpansionRatio);
 
             $entry = [
                 'name' => $name,
@@ -12048,6 +12052,7 @@ final class ZipPackage
                 'centralDirectoryOffset' => $cursor,
                 'recordEnd' => $cursor + 46 + $variableLength,
                 'localHeaderOffset' => $localHeaderOffset,
+                'directoryRoot' => self::entryHandoffDirectoryRoot($name),
                 'compressionMethod' => $method,
                 'compressionMethodName' => self::compressionMethodName($method),
                 'isDirectory' => $isDirectory,
@@ -12055,6 +12060,9 @@ final class ZipPackage
                 'uncompressedSize' => $uncompressedSize,
                 'hasZip64SizeSentinel' => $hasZip64SizeSentinel,
                 'expansionRatio' => $entryExpansionRatio,
+                'expansionRatioBucket' => $entryExpansionRatioBucket['expansionRatioBucket'],
+                'expansionRatioBucketMin' => $entryExpansionRatioBucket['minExpansionRatio'],
+                'expansionRatioBucketMax' => $entryExpansionRatioBucket['maxExpansionRatio'],
                 'issues' => $entryIssues,
             ];
             $entries[] = $entry;
@@ -12132,6 +12140,26 @@ final class ZipPackage
                 $issues[] = 'expansion-ratio-exceeds-limit';
             }
         }
+        $expansionRatioBucketEntries = array_map(
+            static function (array $entry): array {
+                if (($entry['hasZip64SizeSentinel'] ?? false) !== true) {
+                    return $entry;
+                }
+
+                $entry['compressedSize'] = 0;
+                $entry['uncompressedSize'] = 0;
+
+                return $entry;
+            },
+            $entries
+        );
+        $expansionRatioBucketSummaries = self::packageManifestExpansionRatioBucketSummaries(
+            $expansionRatioBucketEntries
+        );
+        $expansionRatioBuckets = array_map(
+            static fn (array $summary): string => (string) $summary['expansionRatioBucket'],
+            $expansionRatioBucketSummaries
+        );
 
         return [
             'declaredEntryCount' => $declaredEntryCount,
@@ -12153,6 +12181,9 @@ final class ZipPackage
             'deflatedEntryCount' => $deflatedEntryCount,
             'unsupportedCompressionMethodCount' => $unsupportedCompressionMethodCount,
             'expansionRatio' => $expansionRatio,
+            'expansionRatioBucketSummaryCount' => count($expansionRatioBucketSummaries),
+            'expansionRatioBuckets' => $expansionRatioBuckets,
+            'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
             'maxTotalUncompressedBytes' => $maxTotalUncompressedBytes,
             'maxExpansionRatio' => $maxExpansionRatio,
             'largestEntry' => $largestEntry,
