@@ -20785,14 +20785,23 @@ final class XmlHtmlDom
 
         $summary += self::effectiveInertSummary($element, $attributes);
 
+        $effectiveTranslateSummary = self::effectiveTranslateSummary($element, $attributes);
+
         if (array_key_exists('translate', $attributes)) {
             $translate = self::htmlTranslateState($attributes['translate']);
+            $translateValid = $translate !== null;
             $summary['translateRaw'] = $attributes['translate'];
+            $summary['translateReviewPolicy'] = 'html-translate-inheritance-review';
             $summary['translate'] = $translate;
-            $summary['translateValid'] = $translate !== null;
+            $summary['translateKeyword'] = $translate === null ? null : ($translate ? 'yes' : 'no');
+            $summary['translateValid'] = $translateValid;
+            $summary['translateEmptyValueDefaulted'] = $attributes['translate'] === '';
+            $summary['translateInvalidValueInherited'] = !$translateValid
+                && ($effectiveTranslateSummary['translateInherited'] ?? false) === true;
+            $summary['translateIssueCodes'] = $translateValid ? [] : ['invalid-html-translate-token'];
         }
 
-        $summary += self::effectiveTranslateSummary($element, $attributes);
+        $summary += $effectiveTranslateSummary;
 
         if (array_key_exists('contenteditable', $attributes)) {
             $contentEditable = self::contentEditableState($attributes['contenteditable']);
@@ -21512,6 +21521,7 @@ final class XmlHtmlDom
         $summary = [
             'effectiveTranslateRaw' => $raw,
             'effectiveTranslate' => $translate,
+            'effectiveTranslateKeyword' => $translate ? 'yes' : 'no',
             'translateInherited' => $inherited,
             'translateSource' => $inherited ? 'ancestor-translate' : 'self-translate',
             'translateSourceElement' => self::htmlElementName($source),
