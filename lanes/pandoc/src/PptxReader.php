@@ -2661,12 +2661,20 @@ final class PptxReader
 
         $dataPart = $this->upstreamDiagramPart($dataRelationship->target);
         $layoutPart = $this->upstreamDiagramPart($layoutRelationship->target);
-        $dataDocument = $this->optionalPackageXml($package, '/' . ltrim($dataPart, '/'), 'PPTX SmartArt data');
+        if (!in_array($dataPart, $package->names(), true)) {
+            return $this->paragraph('[Diagram parse error: File not found in archive: ' . $dataPart . ']');
+        }
+
+        $dataDocument = $this->optionalPackageXml($package, $dataPart, 'PPTX SmartArt data');
         if (!$dataDocument instanceof \DOMDocument) {
             return $this->paragraph('[Diagram parse error: File not found in archive: ' . $dataPart . ']');
         }
 
-        $layoutDocument = $this->optionalPackageXml($package, '/' . ltrim($layoutPart, '/'), 'PPTX SmartArt layout');
+        if (!in_array($layoutPart, $package->names(), true)) {
+            return $this->paragraph('[Diagram parse error: File not found in archive: ' . $layoutPart . ']');
+        }
+
+        $layoutDocument = $this->optionalPackageXml($package, $layoutPart, 'PPTX SmartArt layout');
         if (!$layoutDocument instanceof \DOMDocument) {
             return $this->paragraph('[Diagram parse error: File not found in archive: ' . $layoutPart . ']');
         }
