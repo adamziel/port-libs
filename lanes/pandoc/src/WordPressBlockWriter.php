@@ -2857,7 +2857,7 @@ final class WordPressBlockWriter
     private function renderBlockQuote(AstNode $node): string
     {
         return '<!-- wp:quote -->'
-            . "\n" . '<blockquote' . $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-quote']) . '>' . $this->renderBlocksAsHtml($node->children) . '</blockquote>'
+            . "\n" . '<blockquote' . $this->renderBlockHtmlAttrsWithClasses($node, ['wp-block-quote']) . '>' . $this->renderBlocksAsHtml($node->children, true) . '</blockquote>'
             . "\n" . '<!-- /wp:quote -->';
     }
 
@@ -2885,7 +2885,7 @@ final class WordPressBlockWriter
     private function renderDivBlock(AstNode $node): string
     {
         return '<!-- wp:html -->'
-            . "\n" . '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children) . '</div>'
+            . "\n" . '<div' . $this->renderDivAttrs($node) . '>' . $this->renderBlocksAsHtml($node->children, true) . '</div>'
             . "\n" . '<!-- /wp:html -->';
     }
 
@@ -2948,7 +2948,7 @@ final class WordPressBlockWriter
     /**
      * @param list<AstNode> $blocks
      */
-    private function renderBlocksAsHtml(array $blocks): string
+    private function renderBlocksAsHtml(array $blocks, bool $wrapPlainBlocks = false): string
     {
         $html = '';
         foreach ($blocks as $block) {
@@ -2961,7 +2961,10 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'plain') {
-                $html .= $this->renderInlines($block);
+                $rendered = $this->renderInlines($block);
+                $html .= $wrapPlainBlocks
+                    ? '<p' . $this->renderBlockHtmlAttrs($block) . '>' . $rendered . '</p>'
+                    : $rendered;
                 continue;
             }
             if ($block->type === 'heading') {
@@ -3000,7 +3003,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'blockquote') {
-                $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children) . '</blockquote>';
+                $html .= '<blockquote>' . $this->renderBlocksAsHtml($block->children, $wrapPlainBlocks) . '</blockquote>';
                 continue;
             }
             if ($block->type === 'line_block') {
@@ -3024,7 +3027,7 @@ final class WordPressBlockWriter
                 continue;
             }
             if ($block->type === 'div') {
-                $html .= '<div' . $this->renderDivAttrs($block) . '>' . $this->renderBlocksAsHtml($block->children) . '</div>';
+                $html .= '<div' . $this->renderDivAttrs($block) . '>' . $this->renderBlocksAsHtml($block->children, true) . '</div>';
             }
         }
 
