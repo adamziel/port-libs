@@ -10674,6 +10674,7 @@ final class OpenDocumentPackage
         $rootParts = [];
         $objectTypes = [];
         $issueCodes = [];
+        $allContainedParts = [];
         foreach ($objectPackageRootParts as $rootPart => $rootEntry) {
             $objectPath = rtrim($rootPart, '/');
             $declaredContainedParts = [];
@@ -10714,25 +10715,45 @@ final class OpenDocumentPackage
                     continue;
                 }
 
+                $manifestEntry = $manifestEntriesByPath[$entry->name] ?? null;
                 $containedClassification = self::embeddedObjectContainedPartClassification(
                     $entry->name,
-                    $manifestEntriesByPath[$entry->name] ?? null
+                    $manifestEntry
                 );
                 $containedRole = $containedClassification['containedRole'];
                 $containedMediaFamily = $containedClassification['containedMediaFamily'];
+                $declaredInManifest = is_array($manifestEntry);
+                $mediaType = $declaredInManifest ? (string) ($manifestEntry['mediaType'] ?? '') : '';
+                $mediaTypeBase = $declaredInManifest ? (string) ($manifestEntry['mediaTypeBase'] ?? '') : '';
+                if ($declaredInManifest && $mediaTypeBase === '' && $mediaType !== '') {
+                    $mediaTypeBase = self::mediaTypeReport($mediaType)['mediaTypeBase'];
+                }
                 $partSummary = [
                     'path' => $entry->name,
                     'part' => $entry->name,
+                    'fullPath' => $declaredInManifest ? ($manifestEntry['path'] ?? null) : null,
+                    'manifestIndex' => $declaredInManifest ? ($manifestEntry['manifestIndex'] ?? null) : null,
+                    'mediaType' => $mediaType,
+                    'mediaTypeBase' => $mediaTypeBase,
+                    'mediaTypeHasParameters' => $declaredInManifest && ($manifestEntry['mediaTypeHasParameters'] ?? false) === true,
+                    'mediaTypeParameterCount' => $declaredInManifest ? (int) ($manifestEntry['mediaTypeParameterCount'] ?? 0) : 0,
+                    'mediaTypeParameters' => $declaredInManifest && is_array($manifestEntry['mediaTypeParameters'] ?? null) ? $manifestEntry['mediaTypeParameters'] : [],
+                    'mediaTypeParameterMap' => $declaredInManifest && is_array($manifestEntry['mediaTypeParameterMap'] ?? null) ? $manifestEntry['mediaTypeParameterMap'] : [],
+                    'missingMediaType' => $declaredInManifest && ($manifestEntry['missingMediaType'] ?? false) === true,
+                    'encrypted' => $declaredInManifest && ($manifestEntry['encrypted'] ?? false) === true,
+                    'byteExposurePolicy' => $declaredInManifest ? ($manifestEntry['byteExposurePolicy'] ?? null) : null,
+                    'diagnostics' => $declaredInManifest && is_array($manifestEntry['diagnostics'] ?? null) ? $manifestEntry['diagnostics'] : [],
                     'byteLength' => $entry->uncompressedSize,
                     'compressedByteLength' => $entry->compressedSize,
                     'compressionMethod' => $entry->compressionMethod,
                     'compressionMethodName' => self::compressionMethodName($entry->compressionMethod),
                     'crc32' => $entry->crc32Hex(),
-                    'declaredInManifest' => isset($declaredContainedParts[$entry->name]),
+                    'declaredInManifest' => $declaredInManifest,
                     'containedRole' => $containedRole,
                     'containedMediaFamily' => $containedMediaFamily,
                 ];
                 $containedParts[] = $partSummary;
+                $allContainedParts[] = $partSummary;
                 $containedByteLength += $entry->uncompressedSize;
                 $containedRoleCounts[$containedRole] = ($containedRoleCounts[$containedRole] ?? 0) + 1;
                 $containedRoleByteLengths[$containedRole] = ($containedRoleByteLengths[$containedRole] ?? 0) + $entry->uncompressedSize;
@@ -10797,6 +10818,7 @@ final class OpenDocumentPackage
                 'containedMediaFamilyCounts' => $containedMediaFamilyCounts,
                 'containedMediaFamilyByteLengths' => $containedMediaFamilyByteLengths,
                 'containedMediaFamilyCompressedByteLengths' => $containedMediaFamilyCompressedByteLengths,
+                'containedMediaTypeSummary' => self::embeddedObjectContainedMediaTypeSummary($containedParts),
                 'containedParts' => $containedParts,
                 'declaredContainedPartCount' => count($declaredContainedPartItems),
                 'declaredContainedParts' => $declaredContainedPartItems,
@@ -10830,6 +10852,7 @@ final class OpenDocumentPackage
             'containedMediaFamilyCounts' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyCounts'),
             'containedMediaFamilyByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyByteLengths'),
             'containedMediaFamilyCompressedByteLengths' => self::sumEmbeddedObjectPackageBuckets($items, 'containedMediaFamilyCompressedByteLengths'),
+            'containedMediaTypeSummary' => self::embeddedObjectContainedMediaTypeSummary($allContainedParts),
             'declaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['declaredContainedPartCount'], $items)),
             'existingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['existingDeclaredContainedPartCount'], $items)),
             'missingDeclaredContainedPartCount' => array_sum(array_map(static fn (array $item): int => (int) $item['missingDeclaredContainedPartCount'], $items)),
@@ -10967,6 +10990,79 @@ final class OpenDocumentPackage
         ksort($summary, SORT_STRING);
 
         return $summary;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $containedParts
+     * @return array<string, mixed>
+     */
+    private static function embeddedObjectContainedMediaTypeSummary(array $containedParts): array
+    {
+        $bucketsByBase = [];
+        $byteLength = 0;
+        $compressedByteLength = 0;
+        $declaredPartCount = 0;
+        $undeclaredPartCount = 0;
+        $missingMediaTypePartCount = 0;
+
+        foreach ($containedParts as $part) {
+            $mediaTypeBase = (string) ($part['mediaTypeBase'] ?? '');
+            $mediaType = (string) ($part['mediaType'] ?? '');
+            $bucketsByBase[$mediaTypeBase] ??= [
+                'mediaTypeBase' => $mediaTypeBase,
+                'mediaTypes' => [],
+                'partCount' => 0,
+                'declaredPartCount' => 0,
+                'undeclaredPartCount' => 0,
+                'missingMediaTypePartCount' => 0,
+                'byteLength' => 0,
+                'compressedByteLength' => 0,
+                'parts' => [],
+            ];
+
+            ++$bucketsByBase[$mediaTypeBase]['partCount'];
+            $bucketsByBase[$mediaTypeBase]['parts'][] = (string) ($part['part'] ?? '');
+            $partByteLength = is_int($part['byteLength'] ?? null) ? (int) $part['byteLength'] : 0;
+            $partCompressedByteLength = is_int($part['compressedByteLength'] ?? null) ? (int) $part['compressedByteLength'] : 0;
+            $bucketsByBase[$mediaTypeBase]['byteLength'] += $partByteLength;
+            $bucketsByBase[$mediaTypeBase]['compressedByteLength'] += $partCompressedByteLength;
+            $byteLength += $partByteLength;
+            $compressedByteLength += $partCompressedByteLength;
+
+            if ($mediaType !== '' && !in_array($mediaType, $bucketsByBase[$mediaTypeBase]['mediaTypes'], true)) {
+                $bucketsByBase[$mediaTypeBase]['mediaTypes'][] = $mediaType;
+            }
+            if (($part['declaredInManifest'] ?? false) === true) {
+                ++$declaredPartCount;
+                ++$bucketsByBase[$mediaTypeBase]['declaredPartCount'];
+            } else {
+                ++$undeclaredPartCount;
+                ++$bucketsByBase[$mediaTypeBase]['undeclaredPartCount'];
+            }
+            if ($mediaTypeBase === '' || ($part['missingMediaType'] ?? false) === true) {
+                ++$missingMediaTypePartCount;
+                ++$bucketsByBase[$mediaTypeBase]['missingMediaTypePartCount'];
+            }
+        }
+
+        ksort($bucketsByBase, SORT_STRING);
+        foreach ($bucketsByBase as &$bucket) {
+            sort($bucket['mediaTypes'], SORT_STRING);
+            sort($bucket['parts'], SORT_STRING);
+        }
+        unset($bucket);
+
+        return [
+            'bucketCount' => count($bucketsByBase),
+            'partCount' => count($containedParts),
+            'declaredPartCount' => $declaredPartCount,
+            'undeclaredPartCount' => $undeclaredPartCount,
+            'missingMediaTypePartCount' => $missingMediaTypePartCount,
+            'byteLength' => $byteLength,
+            'compressedByteLength' => $compressedByteLength,
+            'byMediaTypeBase' => $bucketsByBase,
+            'buckets' => array_values($bucketsByBase),
+        ];
     }
 
     /**
