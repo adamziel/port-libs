@@ -7070,23 +7070,20 @@ final class MarkdownWriter
 
     private function renderSpan(AstNode $node): string
     {
-        $classes = $node->attr('classes', []);
-        $attributes = $node->attr('attributes', []);
+        $attrTuple = $this->linkAttrTuple($node);
+        $classes = $attrTuple['classes'];
+        $attributes = $attrTuple['attributes'];
         if (
-            $node->attr('id', '') === ''
-            && is_array($classes)
-            && $classes === ['mark']
-            && is_array($attributes)
+            $attrTuple['id'] === ''
+            && in_array($classes, [['mark'], ['marked'], ['highlighted']], true)
             && $attributes === []
         ) {
             return $this->renderMark($node);
         }
 
         if (
-            $node->attr('id', '') === ''
-            && is_array($classes)
+            $attrTuple['id'] === ''
             && $classes === ['emoji']
-            && is_array($attributes)
             && isset($attributes['data-emoji'])
             && count($node->children) === 1
             && $node->children[0]->type === 'text'
@@ -7094,10 +7091,8 @@ final class MarkdownWriter
             return ':' . (string) $attributes['data-emoji'] . ':';
         }
         if (
-            $node->attr('id', '') === ''
-            && is_array($classes)
+            $attrTuple['id'] === ''
             && $classes === ['gemoji']
-            && is_array($attributes)
             && isset($attributes['shortcode'])
             && is_string($attributes['shortcode'])
             && preg_match('/^:[A-Za-z0-9_+-]+:$/D', $attributes['shortcode']) === 1
@@ -7108,7 +7103,6 @@ final class MarkdownWriter
             return $attributes['shortcode'];
         }
 
-        $attrTuple = $this->linkAttrTuple($node);
         $attrs = $this->renderAttributesTuple($attrTuple);
         $content = $this->renderInlines($node->children);
 
@@ -7149,11 +7143,12 @@ final class MarkdownWriter
             return $this->renderRawHtmlLink($node);
         }
 
-        $title = (string) $node->attr('title', '');
+        $title = $this->linkTitle($node);
         $titleMarkdown = $title === '' ? '' : ' "' . $this->escapeLinkTitle($title) . '"';
-        $destination = in_array('wikilink', $this->linkAttrTuple($node)['classes'], true)
-            ? (string) $node->attr('url', '')
-            : $this->renderLinkDestination((string) $node->attr('url', ''));
+        $attrTuple = $this->linkAttrTuple($node);
+        $destination = in_array('wikilink', $attrTuple['classes'], true)
+            ? $this->linkUrl($node)
+            : $this->renderLinkDestination($this->linkUrl($node));
 
         return '[' . $this->renderInlines($node->children) . ']('
             . $destination
@@ -7169,7 +7164,7 @@ final class MarkdownWriter
             return null;
         }
 
-        $target = (string) $node->attr('url', '');
+        $target = $this->linkUrl($node);
         $label = $this->plainInlineText($node->children);
         if ($target === '' || $label === '') {
             return null;
@@ -7263,6 +7258,150 @@ final class MarkdownWriter
         );
     }
 
+    private function linkUrl(AstNode $node): string
+    {
+        return $this->targetUrlFromAttrs($node->attrs, [
+            'url',
+            'href',
+            'uri',
+            'src',
+            'targetUrl',
+            'destinationUrl',
+            'sourceUrl',
+            'linkUrl',
+        ]);
+    }
+
+    private function linkTitle(AstNode $node): string
+    {
+        return $this->targetTitleFromAttrs($node->attrs, [
+            'title',
+            'targetTitle',
+            'destinationTitle',
+            'sourceTitle',
+            'linkTitle',
+            'titleText',
+            'tooltip',
+        ]);
+    }
+
+    private function imageUrl(AstNode $node): string
+    {
+        return $this->targetUrlFromAttrs($node->attrs, [
+            'url',
+            'src',
+            'href',
+            'uri',
+            'imageUrl',
+            'sourceUrl',
+            'targetUrl',
+            'destinationUrl',
+        ]);
+    }
+
+    private function imageTitle(AstNode $node): string
+    {
+        return $this->targetTitleFromAttrs($node->attrs, [
+            'title',
+            'imageTitle',
+            'sourceTitle',
+            'targetTitle',
+            'destinationTitle',
+            'titleText',
+            'tooltip',
+        ]);
+    }
+
+    private function imageAltText(AstNode $node): string
+    {
+        return $this->firstStringAttr($node->attrs, ['alt', 'altText', 'alternateText', 'description']);
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<string> $names
+     */
+    private function targetUrlFromAttrs(array $attrs, array $names): string
+    {
+        $direct = $this->firstStringAttr($attrs, $names);
+        if ($direct !== '') {
+            return $direct;
+        }
+
+        foreach (['target', 'destination'] as $name) {
+            if (!array_key_exists($name, $attrs)) {
+                continue;
+            }
+
+            $target = $attrs[$name];
+            if (is_string($target) || is_numeric($target)) {
+                return (string) $target;
+            }
+
+            if (is_array($target)) {
+                if (array_key_exists(0, $target) && (is_string($target[0]) || is_numeric($target[0]))) {
+                    return (string) $target[0];
+                }
+
+                $nested = $this->firstStringAttr($target, $names);
+                if ($nested !== '') {
+                    return $nested;
+                }
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<string> $names
+     */
+    private function targetTitleFromAttrs(array $attrs, array $names): string
+    {
+        $direct = $this->firstStringAttr($attrs, $names);
+        if ($direct !== '') {
+            return $direct;
+        }
+
+        foreach (['target', 'destination'] as $name) {
+            $target = $attrs[$name] ?? null;
+            if (!is_array($target)) {
+                continue;
+            }
+
+            if (array_key_exists(1, $target) && (is_string($target[1]) || is_numeric($target[1]))) {
+                return (string) $target[1];
+            }
+
+            $nested = $this->firstStringAttr($target, $names);
+            if ($nested !== '') {
+                return $nested;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @param list<string> $names
+     */
+    private function firstStringAttr(array $attrs, array $names): string
+    {
+        foreach ($names as $name) {
+            $value = $attrs[$name] ?? null;
+            if (is_string($value) || is_numeric($value)) {
+                $value = (string) $value;
+                if ($value !== '') {
+                    return $value;
+                }
+            }
+        }
+
+        return '';
+    }
+
     /**
      * @param list<AstNode> $following
      */
@@ -7272,8 +7411,8 @@ final class MarkdownWriter
         $plainLabel = $this->normalizeReferenceLabelText($this->plainInlineText($node->children));
         $referenceLabel = $this->registerReference(
             $plainLabel,
-            (string) $node->attr('url', ''),
-            (string) $node->attr('title', ''),
+            $this->linkUrl($node),
+            $this->linkTitle($node),
             $this->linkAttrTuple($node)
         );
 
@@ -7403,7 +7542,7 @@ final class MarkdownWriter
         $withoutLeadingSpace = ltrim($text, " \t\r\n");
         if ($withoutLeadingSpace !== $text) {
             if ($withoutLeadingSpace !== '') {
-                return !str_starts_with($withoutLeadingSpace, '[');
+                return !$this->startsWithReferenceSuffixConflict($withoutLeadingSpace);
             }
 
             return $this->canUseShortcutReferenceAfterWhitespace(array_slice($following, 1));
@@ -7429,13 +7568,13 @@ final class MarkdownWriter
         if ($next->type === 'text') {
             $text = (string) $next->attr('text', '');
 
-            return $text === '' || !str_starts_with(ltrim($text, " \t\r\n"), '[');
+            return $text === '' || !$this->startsWithReferenceSuffixConflict($text);
         }
 
         if ($next->type === 'raw_inline' || $next->type === 'raw_markdown' || $next->type === 'raw_html_inline') {
             $raw = (string) $next->attr('text', $next->attr('markdown', $next->attr('html', '')));
 
-            return !str_starts_with(ltrim($raw, " \t\r\n"), '[');
+            return !$this->startsWithReferenceSuffixConflict($raw);
         }
 
         return true;
@@ -7443,10 +7582,12 @@ final class MarkdownWriter
 
     private function startsWithReferenceSuffixConflict(string $text): bool
     {
-        return str_starts_with($text, '[')
-            || str_starts_with($text, '(')
-            || str_starts_with($text, ':')
-            || str_starts_with($text, ' [');
+        $trimmed = ltrim($text, " \t\r\n");
+
+        return str_starts_with($trimmed, '[')
+            || str_starts_with($trimmed, '{')
+            || str_starts_with($trimmed, '(')
+            || str_starts_with($trimmed, ':');
     }
 
     private function delimitInlineContent(string $opener, string $closer, string $content): string
@@ -8202,8 +8343,12 @@ final class MarkdownWriter
 
     private function canRenderAutolink(AstNode $node): bool
     {
-        $url = (string) $node->attr('url', '');
+        $url = $this->linkUrl($node);
         if (!$this->isUriLike($url)) {
+            return false;
+        }
+
+        if ($this->linkTitle($node) !== '' || preg_match('/[\s<>]/u', $this->autolinkText($node)) === 1) {
             return false;
         }
 
@@ -8229,7 +8374,7 @@ final class MarkdownWriter
 
     private function autolinkText(AstNode $node): string
     {
-        $url = (string) $node->attr('url', '');
+        $url = $this->linkUrl($node);
 
         return str_starts_with($url, 'mailto:') ? substr($url, 7) : $url;
     }
@@ -8241,13 +8386,13 @@ final class MarkdownWriter
     {
         $labelNodes = $node->children;
         if ($labelNodes === []) {
-            $alt = (string) $node->attr('alt', '');
+            $alt = $this->imageAltText($node);
             if ($alt !== '') {
                 $labelNodes = [new AstNode('text', ['text' => $alt])];
             }
         }
 
-        $url = (string) $node->attr('url', '');
+        $url = $this->imageUrl($node);
         if ($labelNodes === [] || (count($labelNodes) === 1 && $labelNodes[0]->type === 'text' && $labelNodes[0]->attr('text', '') === $url)) {
             return [new AstNode('text', ['text' => ''])];
         }
@@ -8260,18 +8405,11 @@ final class MarkdownWriter
      */
     private function imageLinkAttrs(AstNode $node): array
     {
-        $attrs = [
-            'url' => (string) $node->attr('url', ''),
-            'title' => (string) $node->attr('title', ''),
-        ];
+        $attrs = $node->attrs;
+        $attrs['url'] = $this->imageUrl($node);
+        $attrs['title'] = $this->imageTitle($node);
 
-        foreach (['id', 'classes', 'attributes'] as $name) {
-            if (array_key_exists($name, $node->attrs)) {
-                $attrs[$name] = $node->attrs[$name];
-            }
-        }
-
-        $alt = (string) $node->attr('alt', '');
+        $alt = $this->imageAltText($node);
         if ($alt !== '') {
             $labelText = $this->plainInlineText($this->imageLabelNodesForLink($node));
             $attributes = $attrs['attributes'] ?? [];
@@ -8545,22 +8683,31 @@ final class MarkdownWriter
 
     private function renderLinkDestination(string $url): string
     {
-        $url = str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $url);
         if ($url === '' && $this->opmlNoteMarkdownEnabled()) {
             return '';
         }
 
-        if (!$this->linkDestinationNeedsAngles($url)) {
-            return $url;
+        $url = $this->escapeLinkDestinationControlCharacters($url);
+        if ($this->linkDestinationNeedsAngles($url)) {
+            return '<' . str_replace(['<', '>'], ['\\<', '\\>'], $url) . '>';
         }
 
-        return '<' . str_replace(['<', '>'], ['\\<', '\\>'], $url) . '>';
+        return str_replace(['\\', '(', ')', '|'], ['\\\\', '\\(', '\\)', '\\|'], $url);
+    }
+
+    private function escapeLinkDestinationControlCharacters(string $url): string
+    {
+        return preg_replace_callback(
+            '/[\x00-\x1F\x7F]/',
+            static fn (array $match): string => sprintf('%%%02X', ord($match[0])),
+            $url
+        ) ?? $url;
     }
 
     private function linkDestinationNeedsAngles(string $url): bool
     {
         return $url === ''
-            || preg_match('/[\x00-\x1F\x7F<>]/u', $url) === 1;
+            || preg_match('/[ <>()]/u', $url) === 1;
     }
 
     /**
@@ -8568,30 +8715,107 @@ final class MarkdownWriter
      */
     private function linkAttrTuple(AstNode $node): array
     {
-        $id = (string) $node->attr('id', '');
-        $classes = $node->attr('classes', []);
-        if (!is_array($classes)) {
-            $classes = [];
-        }
-        $classes = array_values(array_filter(
-            array_map(static fn (mixed $class): string => (string) $class, $classes),
-            static fn (string $class): bool => $class !== ''
-        ));
-
-        $attributes = $node->attr('attributes', []);
-        if (!is_array($attributes)) {
-            $attributes = [];
-        }
-        $attributes = array_filter(
-            array_map(static fn (mixed $value): string => (string) $value, $attributes),
-            static fn (string $value): bool => $value !== ''
-        );
+        $id = $this->normalizeAttributeTokenValue($this->firstStringAttr($node->attrs, ['id', 'identifier']));
+        $classes = $this->attributeClasses($node->attrs);
+        $attributes = $this->attributeKeyValues($node->attrs);
 
         return [
             'id' => $id,
             'classes' => $classes,
             'attributes' => $attributes,
         ];
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return list<string>
+     */
+    private function attributeClasses(array $attrs): array
+    {
+        $classes = [];
+        foreach (['classes', 'class', 'className'] as $name) {
+            if (!array_key_exists($name, $attrs)) {
+                continue;
+            }
+
+            $value = $attrs[$name];
+            $items = is_array($value)
+                ? $value
+                : (preg_split('/\s+/u', (string) $value, -1, PREG_SPLIT_NO_EMPTY) ?: []);
+            foreach ($items as $item) {
+                if (!is_string($item) && !is_numeric($item)) {
+                    continue;
+                }
+
+                $class = $this->normalizeAttributeTokenValue((string) $item);
+                if ($class !== '') {
+                    $classes[] = $class;
+                }
+            }
+        }
+
+        return array_values(array_unique($classes));
+    }
+
+    /**
+     * @param array<string, mixed> $attrs
+     * @return array<string, string>
+     */
+    private function attributeKeyValues(array $attrs): array
+    {
+        $attributes = [];
+        foreach (['attributes', 'keyvals', 'keyValues'] as $name) {
+            $this->appendAttributeKeyValues($attributes, $attrs[$name] ?? []);
+        }
+
+        return $attributes;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     */
+    private function appendAttributeKeyValues(array &$attributes, mixed $source): void
+    {
+        if (!is_array($source)) {
+            return;
+        }
+
+        foreach ($source as $key => $value) {
+            if (is_array($value)) {
+                $name = $value['key'] ?? $value['name'] ?? $value[0] ?? null;
+                $attributeValue = $value['value'] ?? $value[1] ?? '';
+            } else {
+                $name = is_string($key) ? $key : null;
+                $attributeValue = $value;
+            }
+
+            if (!is_string($name) && !is_numeric($name)) {
+                continue;
+            }
+
+            if (!is_string($attributeValue) && !is_numeric($attributeValue) && !is_bool($attributeValue)) {
+                continue;
+            }
+
+            $name = $this->normalizeAttributeTokenValue((string) $name);
+            if ($name === '') {
+                continue;
+            }
+
+            $attributes[$name] = $this->normalizeAttributeValue((string) $attributeValue);
+        }
+    }
+
+    private function normalizeAttributeTokenValue(string $value): string
+    {
+        $value = preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value;
+
+        return trim($value);
+    }
+
+    private function normalizeAttributeValue(string $value): string
+    {
+        return preg_replace('/[\x00-\x1F\x7F]+/', ' ', $value) ?? $value;
     }
 
     private function renderLinkAttributes(AstNode $node): string
@@ -8941,9 +9165,9 @@ final class MarkdownWriter
     private function renderRawHtmlLink(AstNode $node): string
     {
         $attributes = [
-            ['href', (string) $node->attr('url', '')],
+            ['href', $this->linkUrl($node)],
         ];
-        $title = (string) $node->attr('title', '');
+        $title = $this->linkTitle($node);
         if ($title !== '') {
             $attributes[] = ['title', $title];
         }
@@ -8960,9 +9184,9 @@ final class MarkdownWriter
     private function renderRawHtmlImage(AstNode $node): string
     {
         $attributes = [
-            ['src', (string) $node->attr('url', '')],
+            ['src', $this->imageUrl($node)],
         ];
-        $title = (string) $node->attr('title', '');
+        $title = $this->imageTitle($node);
         if ($title !== '') {
             $attributes[] = ['title', $title];
         }
@@ -9356,7 +9580,7 @@ final class MarkdownWriter
         foreach ($attrs['attributes'] as $name => $value) {
             $parts[] = $this->escapeAttributeToken((string) $name)
                 . '="'
-                . $this->escapeAttributeToken($value)
+                . $this->escapeAttributeValue($value)
                 . '"';
         }
 
@@ -9373,7 +9597,18 @@ final class MarkdownWriter
 
     private function escapeAttributeToken(string $value): string
     {
-        return str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
+        $value = $this->normalizeAttributeTokenValue($value);
+
+        return str_replace(
+            ['\\', '"', ' ', '{', '}', '(', ')', '='],
+            ['\\\\', '\\"', '\\ ', '\\{', '\\}', '\\(', '\\)', '\\='],
+            $value
+        );
+    }
+
+    private function escapeAttributeValue(string $value): string
+    {
+        return str_replace(['\\', '"'], ['\\\\', '\\"'], $this->normalizeAttributeValue($value));
     }
 
     private function escapeLinkTitle(string $title): string
