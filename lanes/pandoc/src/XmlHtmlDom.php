@@ -20415,7 +20415,7 @@ final class XmlHtmlDom
                 'startRaw' => $startRaw,
                 'start' => self::integerAttribute($element, 'start', 1),
                 'markerType' => self::attributeOrNull($element, 'type'),
-            ];
+            ] + self::orderedListMarkerReviewSummary($element);
         }
 
         $summary = [
@@ -20426,6 +20426,184 @@ final class XmlHtmlDom
         return $name === 'menu'
             ? $summary + self::menuCommandListSummary($element)
             : $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function orderedListMarkerReviewSummary(\DOMElement $list): array
+    {
+        $items = self::childHtmlElements($list, 'li');
+        $startRaw = self::attributeOrNull($list, 'start');
+        $startValue = self::integerAttribute($list, 'start', null);
+        $typeRaw = self::attributeOrNull($list, 'type');
+        $markerType = $typeRaw === null ? null : self::orderedListMarkerType($typeRaw);
+        $reversed = $list->hasAttribute('reversed');
+        $itemRecords = self::orderedListItemOrdinalRecords($items, $reversed, $startValue);
+        $ordinalValues = array_values(array_map(
+            static fn (array $record): int => (int) $record['ordinal'],
+            $itemRecords
+        ));
+        $ordinalSources = array_values(array_map(
+            static fn (array $record): string => (string) $record['ordinalSource'],
+            $itemRecords
+        ));
+        $duplicateOrdinals = self::duplicateIntegerValues($ordinalValues);
+        $ordinalGaps = self::orderedListOrdinalGaps($itemRecords, $reversed);
+        $issues = [];
+
+        if ($startRaw !== null && $startValue === null) {
+            $issues[] = [
+                'code' => 'invalid-ordered-list-start',
+                'startRaw' => $startRaw,
+            ];
+        }
+        if ($typeRaw !== null && $markerType === null) {
+            $issues[] = [
+                'code' => 'invalid-ordered-list-marker-type',
+                'typeRaw' => $typeRaw,
+            ];
+        }
+        if ($items === []) {
+            $issues[] = ['code' => 'empty-ordered-list'];
+        }
+        foreach ($itemRecords as $record) {
+            if (($record['valueValid'] ?? null) === false) {
+                $issues[] = [
+                    'code' => 'invalid-list-item-value',
+                    'index' => $record['index'],
+                    'valueRaw' => $record['valueRaw'],
+                ];
+            }
+        }
+        foreach ($duplicateOrdinals as $ordinal) {
+            $issues[] = [
+                'code' => 'duplicate-ordered-list-ordinal',
+                'ordinal' => $ordinal,
+            ];
+        }
+        foreach ($ordinalGaps as $gap) {
+            $issues[] = ['code' => 'ordered-list-ordinal-gap'] + $gap;
+        }
+
+        return [
+            'orderedListReviewPolicy' => 'html-ordered-list-marker-ordinal-review',
+            'orderedListReversed' => $reversed,
+            'orderedListStartRaw' => $startRaw,
+            'orderedListStart' => self::integerAttribute($list, 'start', 1),
+            'orderedListStartValid' => $startRaw === null ? null : $startValue !== null,
+            'orderedListTypeRaw' => $typeRaw,
+            'orderedListMarkerType' => $markerType,
+            'orderedListMarkerTypeValid' => $typeRaw === null ? null : $markerType !== null,
+            'orderedListItemCount' => count($itemRecords),
+            'orderedListExplicitValueCount' => count(array_filter(
+                $itemRecords,
+                static fn (array $record): bool => ($record['valueRaw'] ?? null) !== null
+            )),
+            'orderedListInvalidValueCount' => count(array_filter(
+                $itemRecords,
+                static fn (array $record): bool => ($record['valueValid'] ?? null) === false
+            )),
+            'orderedListOrdinalValues' => $ordinalValues,
+            'orderedListOrdinalSources' => $ordinalSources,
+            'orderedListDuplicateOrdinals' => $duplicateOrdinals,
+            'orderedListOrdinalGapCount' => count($ordinalGaps),
+            'orderedListOrdinalGaps' => $ordinalGaps,
+            'orderedListOrdinalContiguous' => $ordinalGaps === [],
+            'orderedListItems' => $itemRecords,
+            'orderedListIssues' => $issues,
+            'orderedListIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'orderedListIssueCount' => count($issues),
+            'orderedListValid' => $issues === [],
+        ];
+    }
+
+    private static function orderedListMarkerType(string $type): ?string
+    {
+        $type = trim($type);
+
+        return in_array($type, ['1', 'a', 'A', 'i', 'I'], true) ? $type : null;
+    }
+
+    /**
+     * @param list<\DOMElement> $items
+     * @return list<array<string, mixed>>
+     */
+    private static function orderedListItemOrdinalRecords(array $items, bool $reversed, ?int $start): array
+    {
+        $records = [];
+        $current = $start ?? ($reversed ? count($items) : 1);
+        $implicitSource = $start !== null ? 'start-attribute' : ($reversed ? 'reversed-count' : 'default-start');
+
+        foreach ($items as $index => $item) {
+            $valueRaw = self::attributeOrNull($item, 'value');
+            $value = self::integerAttribute($item, 'value', null);
+            $ordinal = $value ?? $current;
+            $records[] = [
+                'index' => $index,
+                'id' => self::attributeOrNull($item, 'id'),
+                'text' => self::normalizedText($item),
+                'valueRaw' => $valueRaw,
+                'value' => $value,
+                'valueValid' => $valueRaw === null ? null : $value !== null,
+                'ordinal' => $ordinal,
+                'ordinalSource' => $value !== null ? 'value-attribute' : $implicitSource,
+            ];
+
+            $current = $ordinal + ($reversed ? -1 : 1);
+            $implicitSource = $value !== null ? 'previous-value' : $implicitSource;
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $records
+     * @return list<array<string, mixed>>
+     */
+    private static function orderedListOrdinalGaps(array $records, bool $reversed): array
+    {
+        $gaps = [];
+        $step = $reversed ? -1 : 1;
+        for ($index = 1, $count = count($records); $index < $count; ++$index) {
+            $previous = (int) $records[$index - 1]['ordinal'];
+            $expected = $previous + $step;
+            $actual = (int) $records[$index]['ordinal'];
+            if ($actual === $expected) {
+                continue;
+            }
+
+            $gaps[] = [
+                'index' => $index,
+                'previousOrdinal' => $previous,
+                'expectedOrdinal' => $expected,
+                'actualOrdinal' => $actual,
+            ];
+        }
+
+        return $gaps;
+    }
+
+    /**
+     * @param list<int> $values
+     * @return list<int>
+     */
+    private static function duplicateIntegerValues(array $values): array
+    {
+        $counts = [];
+        $duplicates = [];
+        foreach ($values as $value) {
+            $key = (string) $value;
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+            if ($counts[$key] === 2) {
+                $duplicates[] = $value;
+            }
+        }
+
+        return $duplicates;
     }
 
     /**
