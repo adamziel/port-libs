@@ -1272,6 +1272,12 @@ final class BibtexCslProcessor
                 $item[$target] = $fieldNames;
             }
         }
+        if (!is_array($item['event-organizer'] ?? null) || $item['event-organizer'] === []) {
+            $eventOrganizer = $this->conferenceOrganizationEventOrganizerNames($type, $fields);
+            if ($eventOrganizer !== []) {
+                $item['event-organizer'] = $eventOrganizer;
+            }
+        }
 
         $editorialRoles = $this->editorialRolesFromFields($fields);
         foreach ($editorialRoles as $role) {
@@ -3951,6 +3957,19 @@ final class BibtexCslProcessor
         }
 
         return [];
+    }
+
+    /**
+     * @param array<string, string> $fields
+     * @return list<array<string, mixed>>
+     */
+    private function conferenceOrganizationEventOrganizerNames(string $type, array $fields): array
+    {
+        if (!in_array(strtolower($type), ['conference', 'inproceedings', 'proceedings'], true)) {
+            return [];
+        }
+
+        return $this->parseNamesFromFirstField($fields, ['organization']);
     }
 
     /**
