@@ -1876,6 +1876,7 @@ XML;
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $package = $document->attr('docx')['packageProvenance'];
         $summary = $package['summary'];
+        $identity = $package['packageIdentity'];
         $inventory = $package['parts'];
         $bucketRows = [];
         foreach ($summary['partByteLengthBuckets'] as $bucketRow) {
@@ -1888,6 +1889,31 @@ XML;
         $t->same('large', $inventory['customXml/large.bin']['byteLengthBucket']);
         $t->same('huge', $inventory['customXml/huge.bin']['byteLengthBucket']);
         $t->same(5, $summary['partByteLengthBucketCount']);
+        $t->same($summary['partByteLengthBucketCount'], $identity['partByteLengthBucketCount']);
+        $t->same($summary['partByteLengthBucketCounts'], $identity['partByteLengthBucketCounts']);
+        $t->same($summary['partByteLengthBucketByteLengths'], $identity['partByteLengthBucketByteLengths']);
+        $t->same(
+            $summary['partByteLengthBucketRelationshipPartCounts'],
+            $identity['partByteLengthBucketRelationshipPartCounts']
+        );
+        $t->same(
+            $summary['partByteLengthBucketMissingContentTypeCounts'],
+            $identity['partByteLengthBucketMissingContentTypeCounts']
+        );
+        $t->same($identity['partByteLengthBucketCount'], $summary['packageIdentityPartByteLengthBucketCount']);
+        $t->same($identity['partByteLengthBucketCounts'], $summary['packageIdentityPartByteLengthBucketCounts']);
+        $t->same(
+            $identity['partByteLengthBucketByteLengths'],
+            $summary['packageIdentityPartByteLengthBucketByteLengths']
+        );
+        $t->same(
+            $identity['partByteLengthBucketRelationshipPartCounts'],
+            $summary['packageIdentityPartByteLengthBucketRelationshipPartCounts']
+        );
+        $t->same(
+            $identity['partByteLengthBucketMissingContentTypeCounts'],
+            $summary['packageIdentityPartByteLengthBucketMissingContentTypeCounts']
+        );
         $t->same(1, $summary['partByteLengthBucketCounts']['empty']);
         $t->true(($summary['partByteLengthBucketCounts']['small'] ?? 0) >= 2, 'small bucket should include the review image and explicit small fixture');
         $t->true(($summary['partByteLengthBucketCounts']['medium'] ?? 0) >= 1, 'medium bucket should include XML package parts');
@@ -33583,6 +33609,11 @@ XML;
         $t->same($identity['partCaseFoldBaseNameCount'], $package['summary']['packageIdentityPartCaseFoldBaseNameCount']);
         $t->same($identity['duplicatePartCaseFoldBaseNameCount'], $package['summary']['packageIdentityDuplicatePartCaseFoldBaseNameCount']);
         $t->same($identity['duplicatePartCaseFoldBaseNames'], $package['summary']['packageIdentityDuplicatePartCaseFoldBaseNames']);
+        $t->same($identity['partByteLengthBucketCount'], $package['summary']['packageIdentityPartByteLengthBucketCount']);
+        $t->same($identity['partByteLengthBucketCounts'], $package['summary']['packageIdentityPartByteLengthBucketCounts']);
+        $t->same($identity['partByteLengthBucketByteLengths'], $package['summary']['packageIdentityPartByteLengthBucketByteLengths']);
+        $t->same($identity['partByteLengthBucketRelationshipPartCounts'], $package['summary']['packageIdentityPartByteLengthBucketRelationshipPartCounts']);
+        $t->same($identity['partByteLengthBucketMissingContentTypeCounts'], $package['summary']['packageIdentityPartByteLengthBucketMissingContentTypeCounts']);
         $t->same($package['summary']['partDirectoryDepthCounts'], $identity['partDirectoryDepthCounts']);
         $t->same($package['summary']['partPathShapeFlagCounts'], $identity['partPathShapeFlagCounts']);
         $t->same($package['summary']['partPathSegmentPositionCounts'], $identity['partPathSegmentPositionCounts']);
@@ -33590,6 +33621,7 @@ XML;
         $t->same($package['summary']['partBaseNameCount'], $identity['partBaseNameCount']);
         $t->same($package['summary']['duplicatePartBaseNameCount'], $identity['duplicatePartBaseNameCount']);
         $t->same($package['summary']['duplicatePartCaseFoldBaseNameCount'], $identity['duplicatePartCaseFoldBaseNameCount']);
+        $t->same($package['summary']['partByteLengthBucketCounts'], $identity['partByteLengthBucketCounts']);
 
         $t->same([
             '[Content_Types].xml',

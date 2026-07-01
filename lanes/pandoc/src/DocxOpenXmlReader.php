@@ -13670,6 +13670,13 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPartCaseFoldBaseNameCount'] = $packageIdentity['partCaseFoldBaseNameCount'];
         $summary['packageIdentityDuplicatePartCaseFoldBaseNameCount'] = $packageIdentity['duplicatePartCaseFoldBaseNameCount'];
         $summary['packageIdentityDuplicatePartCaseFoldBaseNames'] = $packageIdentity['duplicatePartCaseFoldBaseNames'];
+        $summary['packageIdentityPartByteLengthBucketCount'] = $packageIdentity['partByteLengthBucketCount'];
+        $summary['packageIdentityPartByteLengthBucketCounts'] = $packageIdentity['partByteLengthBucketCounts'];
+        $summary['packageIdentityPartByteLengthBucketByteLengths'] = $packageIdentity['partByteLengthBucketByteLengths'];
+        $summary['packageIdentityPartByteLengthBucketRelationshipPartCounts'] =
+            $packageIdentity['partByteLengthBucketRelationshipPartCounts'];
+        $summary['packageIdentityPartByteLengthBucketMissingContentTypeCounts'] =
+            $packageIdentity['partByteLengthBucketMissingContentTypeCounts'];
         $summary['packageIdentityByteExposurePolicy'] = $packageIdentity['byteExposurePolicy'];
 
         return [
@@ -13908,6 +13915,21 @@ final class DocxOpenXmlReader
             'duplicatePartCaseFoldBaseNames' => is_array($summary['duplicatePartCaseFoldBaseNames'] ?? null)
                 ? $summary['duplicatePartCaseFoldBaseNames']
                 : [],
+            'partByteLengthBucketCount' => (int) ($summary['partByteLengthBucketCount'] ?? 0),
+            'partByteLengthBucketCounts' => is_array($summary['partByteLengthBucketCounts'] ?? null)
+                ? $summary['partByteLengthBucketCounts']
+                : [],
+            'partByteLengthBucketByteLengths' => is_array($summary['partByteLengthBucketByteLengths'] ?? null)
+                ? $summary['partByteLengthBucketByteLengths']
+                : [],
+            'partByteLengthBucketRelationshipPartCounts' =>
+                is_array($summary['partByteLengthBucketRelationshipPartCounts'] ?? null)
+                    ? $summary['partByteLengthBucketRelationshipPartCounts']
+                    : [],
+            'partByteLengthBucketMissingContentTypeCounts' =>
+                is_array($summary['partByteLengthBucketMissingContentTypeCounts'] ?? null)
+                    ? $summary['partByteLengthBucketMissingContentTypeCounts']
+                    : [],
             'relationshipPartCount' => count($relationshipPartEntries),
             'relationshipCount' => (int) ($summary['relationshipCount'] ?? 0),
             'internalRelationshipCount' => (int) ($summary['internalRelationshipCount'] ?? 0),
