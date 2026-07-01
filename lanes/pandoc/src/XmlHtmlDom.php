@@ -22232,6 +22232,8 @@ final class XmlHtmlDom
      */
     private static function inputHintReviewSummary(\DOMElement $element, array $attributes): array
     {
+        $hasInputMode = array_key_exists('inputmode', $attributes);
+        $hasEnterKeyHint = array_key_exists('enterkeyhint', $attributes);
         $inputMode = array_key_exists('inputmode', $attributes)
             ? self::inputModeState($attributes['inputmode'])
             : null;
@@ -22240,27 +22242,61 @@ final class XmlHtmlDom
             : null;
         $issueCodes = [];
 
-        if (array_key_exists('inputmode', $attributes) && $inputMode === null) {
+        if ($hasInputMode && $inputMode === null) {
             $issueCodes[] = 'invalid-html-inputmode-token';
         }
 
-        if (array_key_exists('enterkeyhint', $attributes) && $enterKeyHint === null) {
+        if ($hasEnterKeyHint && $enterKeyHint === null) {
             $issueCodes[] = 'invalid-html-enterkeyhint-token';
+        }
+
+        $presentAttributes = [];
+        $tokenRecords = [];
+
+        if ($hasInputMode) {
+            $presentAttributes[] = 'inputmode';
+            $tokenRecords[] = [
+                'attribute' => 'inputmode',
+                'raw' => $attributes['inputmode'],
+                'token' => $inputMode,
+                'valid' => $inputMode !== null,
+                'keyboardKind' => $inputMode === null ? null : self::inputModeKeyboardKind($inputMode),
+            ];
+        }
+
+        if ($hasEnterKeyHint) {
+            $presentAttributes[] = 'enterkeyhint';
+            $tokenRecords[] = [
+                'attribute' => 'enterkeyhint',
+                'raw' => $attributes['enterkeyhint'],
+                'token' => $enterKeyHint,
+                'valid' => $enterKeyHint !== null,
+                'actionKind' => $enterKeyHint === null ? null : self::enterKeyHintActionKind($enterKeyHint),
+            ];
         }
 
         $summary = [
             'inputHintReviewPolicy' => 'html-input-hint-keyboard-review',
+            'inputHintReviewStatus' => $issueCodes === [] ? 'ok' : 'review',
             'inputHintElement' => self::htmlElementName($element),
             'inputHintHostKind' => self::inputHintHostKind($element, $attributes),
+            'inputHintAttributes' => $presentAttributes,
+            'inputHintAttributeCount' => count($presentAttributes),
+            'inputHintTokenRecords' => $tokenRecords,
+            'inputHintTokenCount' => count($tokenRecords),
             'inputHintIssueCodes' => $issueCodes,
+            'inputHintIssueCount' => count($issueCodes),
             'inputHintValid' => $issueCodes === [],
+            'inputHintReviewOnlyNoVirtualKeyboard' => true,
+            'inputHintReviewOnlyNoImeEngine' => true,
+            'inputHintReviewHandoffPolicy' => 'metadata-only-no-virtual-keyboard-ime',
         ];
 
-        if (array_key_exists('inputmode', $attributes)) {
+        if ($hasInputMode) {
             $summary['inputModeKeyboardKind'] = $inputMode === null ? null : self::inputModeKeyboardKind($inputMode);
         }
 
-        if (array_key_exists('enterkeyhint', $attributes)) {
+        if ($hasEnterKeyHint) {
             $summary['enterKeyHintActionKind'] = $enterKeyHint === null ? null : self::enterKeyHintActionKind($enterKeyHint);
         }
 
