@@ -1432,6 +1432,7 @@ final class OdfReader
         $comments = $package->commentPreflight();
         $modificationTimes = $package->modificationTimePreflight();
         $platformMetadata = $package->platformMetadataPreflight();
+        $nameHygiene = $package->nameHygienePreflight();
         $permissions = $package->permissionPreflight();
         $creatorHostSystems = $package->creatorHostSystemPreflight();
         $dosAttributes = $package->dosAttributePreflight();
@@ -1710,6 +1711,7 @@ final class OdfReader
         }
         $modificationTimeByName = self::zipPreflightEntriesByName($modificationTimes);
         $platformMetadataByName = self::zipPreflightEntriesByName($platformMetadata);
+        $nameHygieneByName = self::zipPreflightEntriesByName($nameHygiene);
         $permissionsByName = self::zipPreflightEntriesByName($permissions);
         $creatorHostSystemsByName = self::zipPreflightEntriesByName($creatorHostSystems);
         $dosAttributesByName = self::zipPreflightEntriesByName($dosAttributes);
@@ -1748,6 +1750,7 @@ final class OdfReader
                 $dosAttributesByName[$entry->name] ?? null,
                 $internalAttributesByName[$entry->name] ?? null
             );
+            $nameHygieneProvenance = self::zipNameHygieneProvenance($nameHygieneByName[$entry->name] ?? null);
             $byteExposurePolicy = is_array($manifestItem)
                 ? ($manifestItem['byteExposurePolicy'] ?? null)
                 : (is_array($undeclaredItem) ? ($undeclaredItem['byteExposurePolicy'] ?? null) : null);
@@ -1858,7 +1861,7 @@ final class OdfReader
                 'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $extraFieldProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $extraFieldProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
 
             self::recordPackageTopologySummary(
                 $packageAreaCounts,
@@ -2185,6 +2188,14 @@ final class OdfReader
             'zipInvalidDosTimestampEntries' => $modificationTimes['invalidDosTimestampEntries'],
             'platformMetadata' => $platformMetadata,
             'platformMetadataEntryCount' => $platformMetadata['platformMetadataEntryCount'],
+            'nameHygiene' => $nameHygiene,
+            'nameHygieneReviewEntryCount' => $nameHygiene['reviewEntryCount'],
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => $nameHygiene['leadingOrTrailingWhitespaceEntryCount'],
+            'nameHygieneTrailingDotSegmentEntryCount' => $nameHygiene['trailingDotSegmentEntryCount'],
+            'nameHygieneWindowsReservedNameEntryCount' => $nameHygiene['windowsReservedNameEntryCount'],
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => $nameHygiene['windowsAlternateDataStreamEntryCount'],
+            'nameHygieneUnicodeFormatControlEntryCount' => $nameHygiene['unicodeFormatControlEntryCount'],
+            'nameHygieneUnicodeBidiControlEntryCount' => $nameHygiene['unicodeBidiControlEntryCount'],
             'creatorHostSystems' => $creatorHostSystems,
             'knownCreatorHostSystemEntryCount' => $creatorHostSystems['knownHostSystemEntryCount'],
             'unknownCreatorHostSystemEntryCount' => $creatorHostSystems['unknownHostSystemEntryCount'],
@@ -2466,6 +2477,11 @@ final class OdfReader
                 'platformMetadataIssues' => $item['platformMetadataIssues'] ?? [],
                 'platformAttributeIssues' => $item['platformAttributeIssues'] ?? [],
                 'hasPlatformAttributeProvenance' => ($item['hasPlatformAttributeProvenance'] ?? false) === true,
+                'zipNameHygieneSegments' => $item['zipNameHygieneSegments'] ?? [],
+                'zipNameHygieneFlaggedSegmentCount' => $item['zipNameHygieneFlaggedSegmentCount'] ?? 0,
+                'zipNameHygieneFlaggedSegments' => $item['zipNameHygieneFlaggedSegments'] ?? [],
+                'zipNameHygieneIssueCodes' => $item['zipNameHygieneIssueCodes'] ?? [],
+                'hasZipNameHygieneIssue' => ($item['hasZipNameHygieneIssue'] ?? false) === true,
                 'zipEntryComment' => $item['zipEntryComment'] ?? null,
                 'zipEntryCommentLength' => $item['zipEntryCommentLength'] ?? null,
                 'zipEntryCommentEncoding' => $item['zipEntryCommentEncoding'] ?? null,
@@ -2590,6 +2606,13 @@ final class OdfReader
             'zipNtfsTimestampEntryCount' => $provenance['zipNtfsTimestampEntryCount'] ?? 0,
             'zipInvalidDosTimestampEntryCount' => $provenance['zipInvalidDosTimestampEntryCount'] ?? 0,
             'platformMetadataEntryCount' => $provenance['platformMetadataEntryCount'] ?? 0,
+            'nameHygieneReviewEntryCount' => $provenance['nameHygieneReviewEntryCount'] ?? 0,
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => $provenance['nameHygieneLeadingOrTrailingWhitespaceEntryCount'] ?? 0,
+            'nameHygieneTrailingDotSegmentEntryCount' => $provenance['nameHygieneTrailingDotSegmentEntryCount'] ?? 0,
+            'nameHygieneWindowsReservedNameEntryCount' => $provenance['nameHygieneWindowsReservedNameEntryCount'] ?? 0,
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => $provenance['nameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
+            'nameHygieneUnicodeFormatControlEntryCount' => $provenance['nameHygieneUnicodeFormatControlEntryCount'] ?? 0,
+            'nameHygieneUnicodeBidiControlEntryCount' => $provenance['nameHygieneUnicodeBidiControlEntryCount'] ?? 0,
             'knownCreatorHostSystemEntryCount' => $provenance['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $provenance['unknownCreatorHostSystemEntryCount'] ?? 0,
             'creatorVersionBelowNeededEntryCount' => $provenance['creatorVersionBelowNeededEntryCount'] ?? 0,
@@ -2716,6 +2739,13 @@ final class OdfReader
             'zipNtfsTimestampEntryCount' => $provenance['zipNtfsTimestampEntryCount'] ?? 0,
             'zipInvalidDosTimestampEntryCount' => $provenance['zipInvalidDosTimestampEntryCount'] ?? 0,
             'platformMetadataEntryCount' => $provenance['platformMetadataEntryCount'] ?? 0,
+            'nameHygieneReviewEntryCount' => $provenance['nameHygieneReviewEntryCount'] ?? 0,
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => $provenance['nameHygieneLeadingOrTrailingWhitespaceEntryCount'] ?? 0,
+            'nameHygieneTrailingDotSegmentEntryCount' => $provenance['nameHygieneTrailingDotSegmentEntryCount'] ?? 0,
+            'nameHygieneWindowsReservedNameEntryCount' => $provenance['nameHygieneWindowsReservedNameEntryCount'] ?? 0,
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => $provenance['nameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
+            'nameHygieneUnicodeFormatControlEntryCount' => $provenance['nameHygieneUnicodeFormatControlEntryCount'] ?? 0,
+            'nameHygieneUnicodeBidiControlEntryCount' => $provenance['nameHygieneUnicodeBidiControlEntryCount'] ?? 0,
             'knownCreatorHostSystemEntryCount' => $provenance['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $provenance['unknownCreatorHostSystemEntryCount'] ?? 0,
             'creatorVersionBelowNeededEntryCount' => $provenance['creatorVersionBelowNeededEntryCount'] ?? 0,
@@ -4128,6 +4158,33 @@ final class OdfReader
                 || $entry->internalFileAttributes !== 0
                 || $entry->madeByHostSystem() !== 3
                 || $entry->madeByVersion() !== $entry->neededToExtractVersion(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipNameHygieneProvenance(?array $entry): array
+    {
+        if ($entry === null) {
+            return [
+                'zipNameHygieneSegments' => [],
+                'zipNameHygieneFlaggedSegmentCount' => 0,
+                'zipNameHygieneFlaggedSegments' => [],
+                'zipNameHygieneIssueCodes' => [],
+                'hasZipNameHygieneIssue' => false,
+            ];
+        }
+
+        $flaggedSegments = is_array($entry['flaggedSegments'] ?? null) ? $entry['flaggedSegments'] : [];
+
+        return [
+            'zipNameHygieneSegments' => is_array($entry['segments'] ?? null) ? $entry['segments'] : [],
+            'zipNameHygieneFlaggedSegmentCount' => count($flaggedSegments),
+            'zipNameHygieneFlaggedSegments' => $flaggedSegments,
+            'zipNameHygieneIssueCodes' => is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+            'hasZipNameHygieneIssue' => ($entry['hasNameHygieneIssue'] ?? false) === true,
         ];
     }
 

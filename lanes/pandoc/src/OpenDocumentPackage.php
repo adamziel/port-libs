@@ -694,6 +694,8 @@ final class OpenDocumentPackage
         $modificationTimeByName = self::zipModificationTimeEntriesByName($modificationTimes);
         $platformMetadata = $this->package->platformMetadataPreflight();
         $platformMetadataByName = self::zipPreflightEntriesByName($platformMetadata);
+        $nameHygiene = $this->package->nameHygienePreflight();
+        $nameHygieneByName = self::zipPreflightEntriesByName($nameHygiene);
         $permissions = $this->package->permissionPreflight();
         $permissionsByName = self::zipPreflightEntriesByName($permissions);
         $creatorHostSystems = $this->package->creatorHostSystemPreflight();
@@ -799,6 +801,7 @@ final class OpenDocumentPackage
                 $dosAttributesByName[$entry->name] ?? null,
                 $internalAttributesByName[$entry->name] ?? null
             );
+            $nameHygieneProvenance = self::zipNameHygieneProvenance($nameHygieneByName[$entry->name] ?? null);
             if ($entry->isDirectory()) {
                 ++$packageDirectoryCount;
             }
@@ -911,7 +914,7 @@ final class OpenDocumentPackage
                 'canExposeBytes' => is_array($manifestEntry) && ($manifestEntry['canExposeBytes'] ?? false) === true,
                 'byteExposurePolicy' => $byteExposurePolicy,
                 'undeclared' => $isUndeclared,
-            ] + $rawNameProvenance + $extraFieldProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance;
+            ] + $rawNameProvenance + $extraFieldProvenance + $packageManifestEntrySource + $localHeaderMetadataProvenance + $timestampProvenance + $platformAttributeProvenance + $nameHygieneProvenance;
 
             foreach ($roles as $role) {
                 $roleCounts[$role] = ($roleCounts[$role] ?? 0) + 1;
@@ -1220,6 +1223,14 @@ final class OpenDocumentPackage
             'zipInvalidDosTimestampEntries' => $modificationTimes['invalidDosTimestampEntries'],
             'platformMetadata' => $platformMetadata,
             'platformMetadataEntryCount' => $platformMetadata['platformMetadataEntryCount'],
+            'nameHygiene' => $nameHygiene,
+            'nameHygieneReviewEntryCount' => $nameHygiene['reviewEntryCount'],
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => $nameHygiene['leadingOrTrailingWhitespaceEntryCount'],
+            'nameHygieneTrailingDotSegmentEntryCount' => $nameHygiene['trailingDotSegmentEntryCount'],
+            'nameHygieneWindowsReservedNameEntryCount' => $nameHygiene['windowsReservedNameEntryCount'],
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => $nameHygiene['windowsAlternateDataStreamEntryCount'],
+            'nameHygieneUnicodeFormatControlEntryCount' => $nameHygiene['unicodeFormatControlEntryCount'],
+            'nameHygieneUnicodeBidiControlEntryCount' => $nameHygiene['unicodeBidiControlEntryCount'],
             'creatorHostSystems' => $creatorHostSystems,
             'knownCreatorHostSystemEntryCount' => $creatorHostSystems['knownHostSystemEntryCount'],
             'unknownCreatorHostSystemEntryCount' => $creatorHostSystems['unknownHostSystemEntryCount'],
@@ -1471,6 +1482,11 @@ final class OpenDocumentPackage
                 'platformMetadataIssues' => $part['platformMetadataIssues'] ?? [],
                 'platformAttributeIssues' => $part['platformAttributeIssues'] ?? [],
                 'hasPlatformAttributeProvenance' => ($part['hasPlatformAttributeProvenance'] ?? false) === true,
+                'zipNameHygieneSegments' => $part['zipNameHygieneSegments'] ?? [],
+                'zipNameHygieneFlaggedSegmentCount' => $part['zipNameHygieneFlaggedSegmentCount'] ?? 0,
+                'zipNameHygieneFlaggedSegments' => $part['zipNameHygieneFlaggedSegments'] ?? [],
+                'zipNameHygieneIssueCodes' => $part['zipNameHygieneIssueCodes'] ?? [],
+                'hasZipNameHygieneIssue' => ($part['hasZipNameHygieneIssue'] ?? false) === true,
                 'rawNameHex' => $part['rawNameHex'] ?? null,
                 'nameEncoding' => $part['nameEncoding'] ?? null,
                 'rawNameMatchesDecodedName' => ($part['rawNameMatchesDecodedName'] ?? false) === true,
@@ -1589,6 +1605,13 @@ final class OpenDocumentPackage
             'localOnlyExtraFieldIdCount' => $packageInventory['localOnlyExtraFieldIdCount'] ?? 0,
             'extraFieldIdUsage' => $packageInventory['extraFieldIdUsage'] ?? [],
             'platformMetadataEntryCount' => $packageInventory['platformMetadataEntryCount'] ?? 0,
+            'nameHygieneReviewEntryCount' => $packageInventory['nameHygieneReviewEntryCount'] ?? 0,
+            'nameHygieneLeadingOrTrailingWhitespaceEntryCount' => $packageInventory['nameHygieneLeadingOrTrailingWhitespaceEntryCount'] ?? 0,
+            'nameHygieneTrailingDotSegmentEntryCount' => $packageInventory['nameHygieneTrailingDotSegmentEntryCount'] ?? 0,
+            'nameHygieneWindowsReservedNameEntryCount' => $packageInventory['nameHygieneWindowsReservedNameEntryCount'] ?? 0,
+            'nameHygieneWindowsAlternateDataStreamEntryCount' => $packageInventory['nameHygieneWindowsAlternateDataStreamEntryCount'] ?? 0,
+            'nameHygieneUnicodeFormatControlEntryCount' => $packageInventory['nameHygieneUnicodeFormatControlEntryCount'] ?? 0,
+            'nameHygieneUnicodeBidiControlEntryCount' => $packageInventory['nameHygieneUnicodeBidiControlEntryCount'] ?? 0,
             'knownCreatorHostSystemEntryCount' => $packageInventory['knownCreatorHostSystemEntryCount'] ?? 0,
             'unknownCreatorHostSystemEntryCount' => $packageInventory['unknownCreatorHostSystemEntryCount'] ?? 0,
             'creatorVersionBelowNeededEntryCount' => $packageInventory['creatorVersionBelowNeededEntryCount'] ?? 0,
@@ -2417,6 +2440,33 @@ final class OpenDocumentPackage
                 || $entry->internalFileAttributes !== 0
                 || $entry->madeByHostSystem() !== 3
                 || $entry->madeByVersion() !== $entry->neededToExtractVersion(),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed>|null $entry
+     * @return array<string, mixed>
+     */
+    private static function zipNameHygieneProvenance(?array $entry): array
+    {
+        if ($entry === null) {
+            return [
+                'zipNameHygieneSegments' => [],
+                'zipNameHygieneFlaggedSegmentCount' => 0,
+                'zipNameHygieneFlaggedSegments' => [],
+                'zipNameHygieneIssueCodes' => [],
+                'hasZipNameHygieneIssue' => false,
+            ];
+        }
+
+        $flaggedSegments = is_array($entry['flaggedSegments'] ?? null) ? $entry['flaggedSegments'] : [];
+
+        return [
+            'zipNameHygieneSegments' => is_array($entry['segments'] ?? null) ? $entry['segments'] : [],
+            'zipNameHygieneFlaggedSegmentCount' => count($flaggedSegments),
+            'zipNameHygieneFlaggedSegments' => $flaggedSegments,
+            'zipNameHygieneIssueCodes' => is_array($entry['issues'] ?? null) ? $entry['issues'] : [],
+            'hasZipNameHygieneIssue' => ($entry['hasNameHygieneIssue'] ?? false) === true,
         ];
     }
 
