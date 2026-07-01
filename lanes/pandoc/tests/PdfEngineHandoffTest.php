@@ -4574,11 +4574,27 @@ return [
                 ],
             ],
             'sourceFileCount' => 5,
+            'locatedSourceCount' => 5,
+            'distinctSourceFileCount' => 5,
+            'distinctSourceFiles' => [
+                'shared/theme.typ',
+                'theme.typ',
+                'typst-package:@preview/cetz:0.3.2',
+                'workspace/assets/chart.svg',
+                'workspace/main.typ',
+            ],
+            'sourceKindCounts' => ['external' => 1, 'local' => 3, 'typst-package' => 1],
+            'sourceClassCounts' => ['external-resource' => 1, 'local-file' => 3, 'preview-registry' => 1],
+            'boundaryStatusCounts' => ['external-source' => 2, 'inside-root' => 2, 'outside-root' => 1],
+            'packageReferenceCount' => 1,
+            'packageReferences' => ['@preview/cetz:0.3.2'],
             'insideRootCount' => 2,
             'outsideRootCount' => 1,
             'unboundedCount' => 0,
             'externalSourceCount' => 2,
             'unknownSourceCount' => 0,
+            'sourceIssueCount' => 3,
+            'distinctSourceIssueCount' => 2,
             'issues' => ['timing-source-external', 'timing-source-outside-root'],
         ];
 
@@ -4626,6 +4642,12 @@ return [
             'unboundedCount' => 0,
             'externalSourceCount' => 2,
             'unknownSourceCount' => 0,
+            'sourceIssueCount' => 3,
+            'sourceKindCounts' => ['external' => 1, 'local' => 3, 'typst-package' => 1],
+            'sourceClassCounts' => ['external-resource' => 1, 'local-file' => 3, 'preview-registry' => 1],
+            'boundaryStatusCounts' => ['external-source' => 2, 'inside-root' => 2, 'outside-root' => 1],
+            'packageReferenceCount' => 1,
+            'packageReferences' => ['@preview/cetz:0.3.2'],
         ], $cases['timing-provenance']['details']);
         $t->same(['timing-source-external', 'timing-source-outside-root'], $cases['timing-provenance']['issues']);
         $t->contains('timing-provenance:timing-source-external', implode(',', $result['typstBoundaryMatrix']['issues']));
@@ -4650,11 +4672,21 @@ return [
             'timingsFile' => 'build/missing-timing-sidecar.json',
             'sourceFiles' => [],
             'sourceFileCount' => 0,
+            'locatedSourceCount' => 0,
+            'distinctSourceFileCount' => 0,
+            'distinctSourceFiles' => [],
+            'sourceKindCounts' => [],
+            'sourceClassCounts' => [],
+            'boundaryStatusCounts' => [],
+            'packageReferenceCount' => 0,
+            'packageReferences' => [],
             'insideRootCount' => 0,
             'outsideRootCount' => 0,
             'unboundedCount' => 0,
             'externalSourceCount' => 0,
             'unknownSourceCount' => 0,
+            'sourceIssueCount' => 1,
+            'distinctSourceIssueCount' => 1,
             'issues' => ['timing-source-sidecar-missing'],
         ];
 
@@ -4696,6 +4728,12 @@ return [
             'unboundedCount' => 0,
             'externalSourceCount' => 0,
             'unknownSourceCount' => 0,
+            'sourceIssueCount' => 1,
+            'sourceKindCounts' => [],
+            'sourceClassCounts' => [],
+            'boundaryStatusCounts' => [],
+            'packageReferenceCount' => 0,
+            'packageReferences' => [],
         ], $cases['timing-provenance']['details']);
         $t->same(['timing-source-sidecar-missing'], $cases['timing-provenance']['issues']);
         $t->contains('timing-provenance:timing-source-sidecar-missing', implode(',', $result['typstBoundaryMatrix']['issues']));

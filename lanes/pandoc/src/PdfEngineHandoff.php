@@ -1513,8 +1513,17 @@ final class PdfEngineHandoff
             if (($typstTimingSourcePolicy['externalSourceCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-timing-source-external:' . $typstTimingSourcePolicy['externalSourceCount'];
             }
+            foreach (is_array($typstTimingSourcePolicy['sourceKindCounts'] ?? null) ? $typstTimingSourcePolicy['sourceKindCounts'] : [] as $sourceKind => $count) {
+                $diagnostics[] = 'typst-timing-source-kind:' . $sourceKind . ':' . $count;
+            }
+            foreach (is_array($typstTimingSourcePolicy['sourceClassCounts'] ?? null) ? $typstTimingSourcePolicy['sourceClassCounts'] : [] as $sourceClass => $count) {
+                $diagnostics[] = 'typst-timing-source-class:' . $sourceClass . ':' . $count;
+            }
+            if (($typstTimingSourcePolicy['packageReferenceCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-timing-source-packages:' . $typstTimingSourcePolicy['packageReferenceCount'];
+            }
             if (($typstTimingSourcePolicy['issues'] ?? []) !== []) {
-                $diagnostics[] = 'typst-timing-source-issues:' . count($typstTimingSourcePolicy['issues']);
+                $diagnostics[] = 'typst-timing-source-issues:' . ($typstTimingSourcePolicy['sourceIssueCount'] ?? count($typstTimingSourcePolicy['issues']));
             }
         }
         if ($sourceMapFiles !== [] && $sourceMapInputs === [] && $reason === null) {
@@ -9398,6 +9407,12 @@ final class PdfEngineHandoff
                 'unboundedCount' => is_int($timingSourcePolicy['unboundedCount'] ?? null) ? $timingSourcePolicy['unboundedCount'] : 0,
                 'externalSourceCount' => is_int($timingSourcePolicy['externalSourceCount'] ?? null) ? $timingSourcePolicy['externalSourceCount'] : 0,
                 'unknownSourceCount' => is_int($timingSourcePolicy['unknownSourceCount'] ?? null) ? $timingSourcePolicy['unknownSourceCount'] : 0,
+                'sourceIssueCount' => is_int($timingSourcePolicy['sourceIssueCount'] ?? null) ? $timingSourcePolicy['sourceIssueCount'] : count($timingIssues),
+                'sourceKindCounts' => $countMap($timingSourcePolicy['sourceKindCounts'] ?? null),
+                'sourceClassCounts' => $countMap($timingSourcePolicy['sourceClassCounts'] ?? null),
+                'boundaryStatusCounts' => $countMap($timingSourcePolicy['boundaryStatusCounts'] ?? null),
+                'packageReferenceCount' => is_int($timingSourcePolicy['packageReferenceCount'] ?? null) ? $timingSourcePolicy['packageReferenceCount'] : 0,
+                'packageReferences' => $stringList($timingSourcePolicy['packageReferences'] ?? null),
             ], $timingIssues);
         }
 
@@ -13216,8 +13231,47 @@ final class PdfEngineHandoff
         $unboundedCount = 0;
         $externalSourceCount = 0;
         $unknownSourceCount = 0;
-        $issues = $extraIssues;
+        $sourceKindCounts = [];
+        $sourceClassCounts = [];
+        $boundaryStatusCounts = [];
+        $sourceFiles = [];
+        $locatedSourceCount = 0;
+        $packageReferences = [];
+        $issues = [];
+        $sourceIssueCount = 0;
+        foreach ($extraIssues as $issue) {
+            if (!is_string($issue) || $issue === '') {
+                continue;
+            }
+
+            ++$sourceIssueCount;
+            $issues[] = $issue;
+        }
+
         foreach ($entries as $entry) {
+            $sourceFile = is_string($entry['sourceFile'] ?? null) ? $entry['sourceFile'] : null;
+            if ($sourceFile !== null && $sourceFile !== '') {
+                ++$locatedSourceCount;
+                $sourceFiles[$sourceFile] = true;
+            }
+
+            $sourceKind = $this->typstWarningSourceKindFor($entry);
+            $sourceClass = $this->typstWarningSourceClassFor($entry, $sourceKind);
+            $sourceKindCounts[$sourceKind] = ($sourceKindCounts[$sourceKind] ?? 0) + 1;
+            $sourceClassCounts[$sourceClass] = ($sourceClassCounts[$sourceClass] ?? 0) + 1;
+
+            $boundaryStatus = is_string($entry['boundaryStatus'] ?? null) && $entry['boundaryStatus'] !== ''
+                ? $entry['boundaryStatus']
+                : 'unknown-source';
+            $boundaryStatusCounts[$boundaryStatus] = ($boundaryStatusCounts[$boundaryStatus] ?? 0) + 1;
+
+            $dependency = $sourceKind === 'typst-package'
+                ? $this->typstWarningPackageDependencyFor($entry)
+                : null;
+            if ($dependency !== null) {
+                $packageReferences[$dependency['reference']] = true;
+            }
+
             match ($entry['boundaryStatus'] ?? null) {
                 'inside-root' => ++$insideRootCount,
                 'outside-root' => ++$outsideRootCount,
@@ -13228,23 +13282,41 @@ final class PdfEngineHandoff
             };
             foreach (is_array($entry['issues'] ?? null) ? $entry['issues'] : [] as $issue) {
                 if (is_string($issue) && $issue !== '') {
+                    ++$sourceIssueCount;
                     $issues[] = $issue;
                 }
             }
         }
+        ksort($sourceKindCounts);
+        ksort($sourceClassCounts);
+        ksort($boundaryStatusCounts);
+        $sourceFileList = array_keys($sourceFiles);
+        sort($sourceFileList);
+        $packageReferenceList = array_keys($packageReferences);
+        sort($packageReferenceList);
         $issues = array_values(array_unique($issues));
         sort($issues);
 
         return [
-            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'reviewStatus' => $sourceIssueCount === 0 ? 'ok' : 'review',
             'timingsFile' => $timingsFile,
             'sourceFiles' => $entries,
             'sourceFileCount' => count($entries),
+            'locatedSourceCount' => $locatedSourceCount,
+            'distinctSourceFileCount' => count($sourceFileList),
+            'distinctSourceFiles' => $sourceFileList,
+            'sourceKindCounts' => $sourceKindCounts,
+            'sourceClassCounts' => $sourceClassCounts,
+            'boundaryStatusCounts' => $boundaryStatusCounts,
+            'packageReferenceCount' => count($packageReferenceList),
+            'packageReferences' => $packageReferenceList,
             'insideRootCount' => $insideRootCount,
             'outsideRootCount' => $outsideRootCount,
             'unboundedCount' => $unboundedCount,
             'externalSourceCount' => $externalSourceCount,
             'unknownSourceCount' => $unknownSourceCount,
+            'sourceIssueCount' => $sourceIssueCount,
+            'distinctSourceIssueCount' => count($issues),
             'issues' => $issues,
         ];
     }
