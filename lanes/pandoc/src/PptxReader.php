@@ -3150,18 +3150,18 @@ final class PptxReader
             return $this->paragraph('[Diagram parse error: File not found in archive: ' . $dataPart . ']');
         }
 
-        $dataDocument = $this->optionalPackageXml($package, $dataPart, 'PPTX SmartArt data');
+        $dataDocument = $this->diagramPackageXml($package, $dataPart, 'PPTX SmartArt data', $dataError);
         if (!$dataDocument instanceof \DOMDocument) {
-            return $this->paragraph('[Diagram parse error: File not found in archive: ' . $dataPart . ']');
+            return $this->paragraph('[Diagram parse error: ' . $dataError . ']');
         }
 
         if (!in_array($layoutPart, $package->names(), true)) {
             return $this->paragraph('[Diagram parse error: File not found in archive: ' . $layoutPart . ']');
         }
 
-        $layoutDocument = $this->optionalPackageXml($package, $layoutPart, 'PPTX SmartArt layout');
+        $layoutDocument = $this->diagramPackageXml($package, $layoutPart, 'PPTX SmartArt layout', $layoutError);
         if (!$layoutDocument instanceof \DOMDocument) {
-            return $this->paragraph('[Diagram parse error: File not found in archive: ' . $layoutPart . ']');
+            return $this->paragraph('[Diagram parse error: ' . $layoutError . ']');
         }
 
         $dataRoot = XmlHtmlDom::rootElement($dataDocument);
@@ -3195,6 +3195,19 @@ final class PptxReader
             'classes' => ['smartart', $layoutType],
             'attributes' => ['layout' => $layoutType],
         ], $children);
+    }
+
+    private function diagramPackageXml(ZipPackage $package, string $partName, string $label, ?string &$error): ?\DOMDocument
+    {
+        try {
+            $error = null;
+
+            return $this->loadPackageXml($package, $partName, $label);
+        } catch (\InvalidArgumentException | \RuntimeException $exception) {
+            $error = $exception->getMessage();
+
+            return null;
+        }
     }
 
     private function upstreamDiagramPart(string $target): string
