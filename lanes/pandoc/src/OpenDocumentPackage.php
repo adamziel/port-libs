@@ -792,6 +792,14 @@ final class OpenDocumentPackage
         $unicodePathExtraEntryCount = 0;
         $decodedNameDiffersFromRawNameEntryCount = 0;
         $rawNameProvenanceEntries = [];
+        $packagePartXmlCdataSections = [
+            'partCount' => 0,
+            'sectionCount' => 0,
+            'byteLength' => 0,
+            'partNames' => [],
+            'sections' => [],
+            'truncated' => false,
+        ];
         foreach ($this->package->entries() as $centralDirectoryIndex => $entry) {
             $manifestEntry = $this->manifestEntriesByPath[$entry->name] ?? null;
             $isUndeclared = !$entry->isDirectory() && !isset($declaredPackagePaths[$entry->name]);
@@ -829,6 +837,11 @@ final class OpenDocumentPackage
             } elseif ($isUndeclared || is_array($embeddedObjectPackage)) {
                 $byteExposurePolicy = self::undeclaredPackageEntryByteExposurePolicy($entry->name, $embeddedObjectPackage);
             }
+            $xmlCdataSections = self::packagePartXmlCdataSectionMetadata(
+                $this->package,
+                $entry,
+                is_array($manifestEntry) ? (string) ($manifestEntry['mediaTypeBase'] ?? '') : ''
+            );
             $item = [
                 'path' => $entry->name,
                 'pathShape' => $pathShape,
@@ -855,6 +868,10 @@ final class OpenDocumentPackage
                 'compressedByteLength' => $entry->compressedSize,
                 'crc32' => $entry->crc32Hex(),
                 'byteSha256' => is_array($manifestEntry) ? ($manifestEntry['byteSha256'] ?? null) : null,
+                'xmlCdataSectionCount' => $xmlCdataSections['count'],
+                'xmlCdataSectionByteLength' => $xmlCdataSections['byteLength'],
+                'xmlCdataSections' => $xmlCdataSections['sections'],
+                'xmlCdataSectionsTruncated' => $xmlCdataSections['truncated'],
                 'zipEntryComment' => $entry->comment,
                 'zipEntryCommentLength' => strlen($entry->rawComment),
                 'zipEntryCommentEncoding' => $entry->commentEncoding,
@@ -1068,6 +1085,7 @@ final class OpenDocumentPackage
             if (!$rawNameProvenance['rawNameMatchesDecodedName']) {
                 ++$decodedNameDiffersFromRawNameEntryCount;
             }
+            self::recordPackagePartXmlCdataSectionSummary($packagePartXmlCdataSections, $entry->name, $xmlCdataSections);
 
             $parts[$entry->name] = $item;
             if ($isUndeclared) {
@@ -1212,6 +1230,12 @@ final class OpenDocumentPackage
             'unicodePathExtraEntryCount' => $unicodePathExtraEntryCount,
             'decodedNameDiffersFromRawNameEntryCount' => $decodedNameDiffersFromRawNameEntryCount,
             'rawNameProvenanceEntries' => $rawNameProvenanceEntries,
+            'packagePartXmlCdataSectionPartCount' => $packagePartXmlCdataSections['partCount'],
+            'packagePartXmlCdataSectionCount' => $packagePartXmlCdataSections['sectionCount'],
+            'packagePartXmlCdataSectionByteLength' => $packagePartXmlCdataSections['byteLength'],
+            'packagePartXmlCdataSectionPartNames' => $packagePartXmlCdataSections['partNames'],
+            'packagePartXmlCdataSections' => $packagePartXmlCdataSections['sections'],
+            'packagePartXmlCdataSectionsTruncated' => $packagePartXmlCdataSections['truncated'],
             'namePolicy' => $namePolicy,
             'zipNamePolicyValid' => ($namePolicy['valid'] ?? false) === true,
             'zipNamePolicyIssueCount' => $namePolicy['issueCount'] ?? 0,
@@ -1408,6 +1432,165 @@ final class OpenDocumentPackage
             'byteExposurePolicy' => 'odf-zip-name-policy-metadata-only',
             'canExposeBytes' => false,
         ];
+    }
+
+    /**
+     * @param array{partCount:int, sectionCount:int, byteLength:int, partNames:list<string>, sections:list<array<string, mixed>>, truncated:bool} $summary
+     * @param array{count:int, byteLength:int, sections:list<array<string, mixed>>, truncated:bool} $metadata
+     */
+    private static function recordPackagePartXmlCdataSectionSummary(array &$summary, string $partName, array $metadata): void
+    {
+        $sectionCount = (int) ($metadata['count'] ?? 0);
+        if ($sectionCount <= 0) {
+            return;
+        }
+
+        ++$summary['partCount'];
+        $summary['sectionCount'] += $sectionCount;
+        $summary['byteLength'] += (int) ($metadata['byteLength'] ?? 0);
+        $summary['partNames'][] = $partName;
+        if (($metadata['truncated'] ?? false) === true) {
+            $summary['truncated'] = true;
+        }
+
+        $summaryLimit = 64;
+        foreach (($metadata['sections'] ?? []) as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+            if (count($summary['sections']) >= $summaryLimit) {
+                $summary['truncated'] = true;
+                continue;
+            }
+
+            $summary['sections'][] = ['partName' => $partName] + $section;
+        }
+
+        sort($summary['partNames'], SORT_STRING);
+    }
+
+    /**
+     * @return array{count:int, byteLength:int, sections:list<array<string, mixed>>, truncated:bool}
+     */
+    private static function packagePartXmlCdataSectionMetadata(
+        ZipPackage $package,
+        ZipPackageEntry $entry,
+        string $mediaTypeBase
+    ): array {
+        $empty = [
+            'count' => 0,
+            'byteLength' => 0,
+            'sections' => [],
+            'truncated' => false,
+        ];
+        if (
+            $entry->isDirectory()
+            || !in_array($entry->compressionMethod, [0, 8], true)
+            || !self::isXmlPackagePart($entry->name, $mediaTypeBase, self::packagePartExtension($entry->name))
+        ) {
+            return $empty;
+        }
+
+        try {
+            $dom = self::loadXmlForPackageProvenance($package->read($entry->name), $entry->name);
+        } catch (\Throwable) {
+            return $empty;
+        }
+        if (!$dom instanceof \DOMDocument) {
+            return $empty;
+        }
+
+        $xpath = new \DOMXPath($dom);
+        $nodes = $xpath->query('//text()');
+        if (!$nodes instanceof \DOMNodeList) {
+            return $empty;
+        }
+
+        $sections = [];
+        $count = 0;
+        $byteLength = 0;
+        $truncated = false;
+        $itemLimit = 32;
+        foreach ($nodes as $node) {
+            if (!$node instanceof \DOMNode || $node->nodeType !== XML_CDATA_SECTION_NODE) {
+                continue;
+            }
+
+            ++$count;
+            $value = (string) $node->nodeValue;
+            $valueByteLength = strlen($value);
+            $byteLength += $valueByteLength;
+            if (count($sections) >= $itemLimit) {
+                $truncated = true;
+                continue;
+            }
+
+            $parent = $node->parentNode instanceof \DOMElement ? $node->parentNode : null;
+            $parentPath = self::domElementPath($parent);
+            $sections[] = [
+                'index' => $count - 1,
+                'parentPath' => $parentPath,
+                'parentDepth' => self::domElementPathDepth($parentPath),
+                'byteLength' => $valueByteLength,
+                'crc32' => sprintf('%08x', crc32($value)),
+                'sha256' => hash('sha256', $value),
+            ];
+        }
+
+        return [
+            'count' => $count,
+            'byteLength' => $byteLength,
+            'sections' => $sections,
+            'truncated' => $truncated,
+        ];
+    }
+
+    private static function isXmlPackagePart(string $partName, string $mediaTypeBase, ?string $partExtension): bool
+    {
+        return $partName === 'META-INF/manifest.xml'
+            || $partExtension === 'xml'
+            || self::isXmlMediaTypeBase($mediaTypeBase);
+    }
+
+    private static function loadXmlForPackageProvenance(string $xml, string $label): ?\DOMDocument
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $dom->resolveExternals = false;
+        $dom->substituteEntities = false;
+        $loaded = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        return $loaded ? $dom : null;
+    }
+
+    private static function domElementPath(?\DOMElement $element): string
+    {
+        if (!$element instanceof \DOMElement) {
+            return '/';
+        }
+
+        $segments = [];
+        $node = $element;
+        while ($node instanceof \DOMElement) {
+            array_unshift($segments, self::qualifiedDomName($node));
+            $node = $node->parentNode;
+        }
+
+        return '/' . implode('/', $segments);
+    }
+
+    private static function qualifiedDomName(\DOMElement $element): string
+    {
+        return $element->prefix !== null && $element->prefix !== ''
+            ? $element->prefix . ':' . $element->localName
+            : $element->localName;
+    }
+
+    private static function domElementPathDepth(string $path): int
+    {
+        return $path === '/' ? 0 : substr_count($path, '/');
     }
 
     /**

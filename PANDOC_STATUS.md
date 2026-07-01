@@ -6,7 +6,7 @@ Current registry audit: 51 upstream input formats tracked; 33 have partial nativ
 
 Rule: a format is complete only when repo passing tests equals upstream tests.
 
-ODF/ODT is marked ship-ready: 91 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
+ODF/ODT is marked ship-ready: 93 local mapped ODF/ODT cases / 20 upstream ODF/ODT cases, with 0 critical ODF/ODT gaps.
 
 | Format / path | Repo passing tests | Upstream tests |
 | --- | ---: | --- |
@@ -30,7 +30,7 @@ ODF/ODT is marked ship-ready: 91 local mapped ODF/ODT cases / 20 upstream ODF/OD
 | PDF import (adjacent; not upstream Pandoc input) | 52 | N/A - Pandoc output/engine boundary only |
 | Legacy DOC / CFB (adjacent; not a current upstream Pandoc input token) | 7 | N/A - not a current upstream Pandoc input token |
 
-Latest package/core-format evidence: DOCX/OpenXML digital-signature package summaries now expose XML signature algorithm rollups for reference transforms, digest methods, signature methods, and canonicalization methods without cryptographic validation or package byte exposure. DOCX/OpenXML content-control package summaries now expose missing store-item IDs for unbound custom XML data bindings without fetching resources or exposing bound custom XML bytes. DOCX/OpenXML aFChunk alternative-format imports preserve safe versus unsafe external-target policy without fetching targets or exposing chunk bytes. Bundled ZIP/OPC and ODF/ODT package coverage preserves ODF manifest control-byte path preflight, ZIP package comment layout, ZIP manifest preflight, selected ZIP zero-byte handoff buckets, ODF package comment provenance, ODT encrypted image manifest provenance, ODT ZIP timestamp provenance, ODF package identity preflight, rich ODT reader package identity provenance, ODT layout-cache sidecar metadata-only review policy, and ODF package inventory role/byte-exposure byte buckets.
+Latest package/core-format evidence: DOCX/OpenXML digital-signature package summaries now expose XML signature algorithm rollups for reference transforms, digest methods, signature methods, and canonicalization methods without cryptographic validation or package byte exposure. DOCX/OpenXML content-control package summaries now expose missing store-item IDs for unbound custom XML data bindings without fetching resources or exposing bound custom XML bytes. DOCX/OpenXML aFChunk alternative-format imports preserve safe versus unsafe external-target policy without fetching targets or exposing chunk bytes. ODF/ODT package XML CDATA sidecar provenance is preserved as metadata-only package review data. Bundled ZIP/OPC and ODF/ODT package coverage preserves ODF manifest control-byte path preflight, ZIP package comment layout, ZIP manifest preflight, selected ZIP zero-byte handoff buckets, ODF package comment provenance, ODT encrypted image manifest provenance, ODT ZIP timestamp provenance, ODF package identity preflight, rich ODT reader package identity provenance, ODT layout-cache sidecar metadata-only review policy, and ODF package inventory role/byte-exposure byte buckets.
 
 Latest JSON/native evidence: table column-spec collection parsing now accepts single-wrapped multi-item `colSpecs` collections, preserves the collection wrapper sidecar through rebuilt JSON/native writers, and regenerates edited `ColWidth` payloads without reusing stale source sidecars. Focused JSON/native constructor validation passed with `6` files, `198` assertions, and `0` failures.
 
