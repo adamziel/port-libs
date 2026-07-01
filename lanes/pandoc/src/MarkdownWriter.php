@@ -6759,6 +6759,7 @@ final class MarkdownWriter
 
         $first = $citations[0];
         if ($this->citationMode($first) === 'author_in_text') {
+            $locator = $this->renderCitationAffix($first['locator'] ?? []);
             $suffix = $this->renderCitationAffix($first['suffix'] ?? []);
             $rest = $this->renderCitationEntries(array_slice($citations, 1));
             $inside = $suffix;
@@ -6770,6 +6771,7 @@ final class MarkdownWriter
             }
 
             return '@' . $this->renderCitationKey((string) ($first['id'] ?? ''))
+                . ($locator === '' ? '' : $this->renderCitationLocatorSuffix($locator))
                 . ($inside === '' ? '' : ' [' . $inside . ']');
         }
 
@@ -6806,12 +6808,13 @@ final class MarkdownWriter
             return $entries;
         }
 
-        $id = (string) $node->attr('id', '');
-        if ($id === '') {
-            return [];
+        if (array_key_exists('id', $node->attrs)) {
+            return [$this->citationEntryFromNode($node)];
         }
 
-        return [$this->citationEntryFromNode($node)];
+        $id = (string) $node->attr('id', '');
+
+        return $id === '' ? [] : [$this->citationEntryFromNode($node)];
     }
 
     /**
@@ -6823,6 +6826,7 @@ final class MarkdownWriter
             'id' => (string) $node->attr('id', ''),
             'mode' => (string) $node->attr('mode', 'normal'),
             'prefix' => $node->attr('prefix', []),
+            'locator' => $node->attr('locator', []),
             'suffix' => $node->attr('suffix', []),
         ];
     }
@@ -6848,17 +6852,16 @@ final class MarkdownWriter
      */
     private function renderCitationEntry(array $citation): string
     {
-        $id = (string) ($citation['id'] ?? '');
-        if ($id === '') {
-            return '';
-        }
-
         $prefix = $this->renderCitationAffix($citation['prefix'] ?? []);
+        $locator = $this->renderCitationAffix($citation['locator'] ?? []);
         $suffix = $this->renderCitationAffix($citation['suffix'] ?? []);
         $key = ($this->citationMode($citation) === 'suppress_author' ? '-' : '')
             . '@'
-            . $this->renderCitationKey($id);
+            . $this->renderCitationKey((string) ($citation['id'] ?? ''));
 
+        if ($locator !== '') {
+            $key .= $this->renderCitationLocatorSuffix($locator);
+        }
         if ($suffix !== '') {
             $first = mb_substr($suffix, 0, 1, 'UTF-8');
             $key .= ($first === ' ' || in_array($first, [',', ';', ']', '@'], true))
@@ -6909,7 +6912,24 @@ final class MarkdownWriter
     {
         return preg_match('/^[A-Za-z0-9_:.#\/$%&+?<>~|-]*[A-Za-z0-9_#\/$%&+?<>~|-]$/u', $id) === 1
             ? $id
-            : '{' . $id . '}';
+            : '{' . $this->escapeBracedCitationKey($id) . '}';
+    }
+
+    private function renderCitationLocatorSuffix(string $locator): string
+    {
+        $first = mb_substr($locator, 0, 1, 'UTF-8');
+
+        return in_array($first, [',', ';'], true) ? $locator : ', ' . $locator;
+    }
+
+    private function escapeBracedCitationKey(string $id): string
+    {
+        return strtr($id, [
+            '\\' => '\\\\',
+            '[' => '\\[',
+            ']' => '\\]',
+            '}' => '\\}',
+        ]);
     }
 
     private function joinInlinePartsWithSpace(string $left, string $right): string
