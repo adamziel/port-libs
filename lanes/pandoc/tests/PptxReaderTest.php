@@ -4799,6 +4799,101 @@ XML);
     }
 };
 
+$buildInvalidReviewSidecarTargetsPptxPackage = static function (): string {
+    $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-invalid-review-targets-');
+    if ($path === false) {
+        throw new RuntimeException('Unable to create temporary PPTX path');
+    }
+
+    $zip = new ZipArchive();
+    if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+        @unlink($path);
+        throw new RuntimeException('Unable to create temporary PPTX package');
+    }
+
+    $zip->addFromString('_rels/.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdPresentation" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="ppt/presentation.xml"/>
+  <Relationship Id="rIdCore" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target=""/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/presentation.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+                xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:sldIdLst>
+    <p:sldId id="461" r:id="rIdSlide"/>
+  </p:sldIdLst>
+</p:presentation>
+XML);
+    $zip->addFromString('ppt/_rels/presentation.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdSlide" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide" Target="slides/slide1.xml"/>
+  <Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles" Target=""/>
+</Relationships>
+XML);
+    $zip->addFromString('ppt/slides/slide1.xml', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"
+       xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+       xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <p:cSld>
+    <p:bg><p:bgPr><a:blipFill><a:blip r:link="rIdBg"/></a:blipFill></p:bgPr></p:bg>
+    <p:spTree>
+      <p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>
+      <p:grpSpPr/>
+      <p:sp>
+        <p:nvSpPr><p:cNvPr id="2" name="Title 1"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr>
+        <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Review targets</a:t></a:r></a:p></p:txBody>
+      </p:sp>
+      <p:sp>
+        <p:nvSpPr><p:cNvPr id="3" name="Body"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>
+        <p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Review sidecars stay optional</a:t></a:r></a:p></p:txBody>
+      </p:sp>
+      <p:graphicFrame>
+        <p:nvGraphicFramePr><p:cNvPr id="4" name="Broken chart metadata"/><p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>
+        <a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart"><c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" r:id="rIdChart"/></a:graphicData></a:graphic>
+      </p:graphicFrame>
+      <p:pic>
+        <p:nvPicPr>
+          <p:cNvPr id="5" name="Linked Picture" descr="Linked alt"/>
+          <p:cNvPicPr/>
+          <p:nvPr><a:videoFile r:link="rIdVideo"/></p:nvPr>
+        </p:nvPicPr>
+        <p:blipFill><a:blip r:link="rIdLinkedImage"/></p:blipFill>
+      </p:pic>
+    </p:spTree>
+  </p:cSld>
+</p:sld>
+XML);
+    $zip->addFromString('ppt/slides/_rels/slide1.xml.rels', <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rIdLayout" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout" Target=""/>
+  <Relationship Id="rIdComments" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments" Target=""/>
+  <Relationship Id="rIdNotes" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide" Target=""/>
+  <Relationship Id="rIdBg" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target=""/>
+  <Relationship Id="rIdChart" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart" Target=""/>
+  <Relationship Id="rIdLinkedImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target=""/>
+  <Relationship Id="rIdVideo" Type="http://schemas.microsoft.com/office/2007/relationships/media" Target=""/>
+</Relationships>
+XML);
+    $zip->close();
+
+    try {
+        $bytes = file_get_contents($path);
+        if (!is_string($bytes)) {
+            throw new RuntimeException('Unable to read temporary PPTX package');
+        }
+
+        return $bytes;
+    } finally {
+        @unlink($path);
+    }
+};
+
 $buildRootRelativeSlideTargetPptxPackage = static function (): string {
     $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-root-relative-slide-');
     if ($path === false) {
@@ -6120,6 +6215,30 @@ return [
         $t->same(true, in_array('TargetMode is ignored', $paragraphTexts, true));
         $t->contains('Header 2 ( "slide-1" , [  ] , [  ] ) [ Str "External" , Space , Str "mode" , Space , Str "slide" ]', $native);
         $t->contains('Para [ Str "TargetMode" , Space , Str "is" , Space , Str "ignored" ]', $native);
+    },
+
+    'keeps invalid pptx review sidecar targets non-fatal like upstream' => static function (TestRunner $t) use ($buildInvalidReviewSidecarTargetsPptxPackage, $nodesOfType): void {
+        $document = (new PptxReader())->read($buildInvalidReviewSidecarTargetsPptxPackage());
+        $review = $document->attr('pptx');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
+        $native = PandocConverter::write($document, 'native');
+
+        $t->same(1, $review['slideCount'] ?? null);
+        $t->same('Review targets', $document->children[0]->attr('text'));
+        $t->same(true, in_array('Review sidecars stay optional', $paragraphTexts, true));
+        $t->contains('Para [ Str "Review" , Space , Str "sidecars" , Space , Str "stay" , Space , Str "optional" ]', $native);
+        $t->contains('Para [ Str "[Graphic:" , Space , Str "other:" , Space , Str "http://schemas.openxmlformats.org/drawingml/2006/chart]" ]', $native);
+        $t->same(['invalid-document-properties-target'], $review['documentProperties']['core']['issues'] ?? null);
+        $t->same(['invalid-table-styles-target'], $review['tableStyles']['issues'] ?? null);
+        $t->same(0, $review['slides'][0]['commentCount'] ?? null);
+        $t->same(0, $review['slides'][0]['speakerNoteCount'] ?? null);
+        $t->same(1, $review['slides'][0]['backgroundCount'] ?? null);
+        $t->same(['invalid-background-target'], $review['slides'][0]['backgrounds'][0]['issues'] ?? null);
+        $t->same(1, $review['slides'][0]['imageIssueCount'] ?? null);
+        $t->same('invalid-linked-image-target', $review['slides'][0]['imageIssues'][0]['issue'] ?? null);
+        $t->same(0, $review['slides'][0]['richMediaCount'] ?? null);
+        $t->same(1, $review['slides'][0]['chartCount'] ?? null);
+        $t->same(['invalid-chart-part-target'], $review['slides'][0]['charts'][0]['issues'] ?? null);
     },
 
     'uses upstream literal root officeDocument targets instead of normalizing dot segments' => static function (TestRunner $t) use ($buildDotSegmentPresentationTargetPptxPackage): void {

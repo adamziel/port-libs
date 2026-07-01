@@ -397,7 +397,10 @@ final class PptxReader
             return $context;
         }
 
-        $layoutPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($layoutRelationship));
+        $layoutPart = $this->reviewRelationshipPart($slideRelationships, $layoutRelationship);
+        if ($layoutPart === null) {
+            return $context;
+        }
         $context['layoutPart'] = ltrim($layoutPart, '/');
         $layoutDocument = $this->optionalPackageXml($package, $layoutPart, 'PPTX slide layout');
         if (!$layoutDocument instanceof \DOMDocument) {
@@ -416,7 +419,10 @@ final class PptxReader
             return $context;
         }
 
-        $masterPart = OpcPackagePath::stripQueryAndFragment($layoutRelationships->resolveTarget($masterRelationship));
+        $masterPart = $this->reviewRelationshipPart($layoutRelationships, $masterRelationship);
+        if ($masterPart === null) {
+            return $context;
+        }
         $context['masterPart'] = ltrim($masterPart, '/');
         $masterDocument = $this->optionalPackageXml($package, $masterPart, 'PPTX slide master');
         if (!$masterDocument instanceof \DOMDocument) {
@@ -435,7 +441,10 @@ final class PptxReader
             return $context;
         }
 
-        $themePart = OpcPackagePath::stripQueryAndFragment($masterRelationships->resolveTarget($themeRelationship));
+        $themePart = $this->reviewRelationshipPart($masterRelationships, $themeRelationship);
+        if ($themePart === null) {
+            return $context;
+        }
         $context['themePart'] = ltrim($themePart, '/');
         $themeDocument = $this->optionalPackageXml($package, $themePart, 'PPTX theme');
         if (!$themeDocument instanceof \DOMDocument) {
@@ -513,7 +522,12 @@ final class PptxReader
             return $summary;
         }
 
-        $partName = OpcPackagePath::stripQueryAndFragment($presentationRelationships->resolveTarget($relationship));
+        $partName = $this->reviewRelationshipPart($presentationRelationships, $relationship);
+        if ($partName === null) {
+            $summary['issues'][] = 'invalid-table-styles-target';
+
+            return $summary;
+        }
         $summary['partName'] = ltrim($partName, '/');
         $document = $this->optionalPackageXml($package, $partName, 'PPTX table styles');
         if (!$document instanceof \DOMDocument) {
@@ -632,7 +646,14 @@ final class PptxReader
                 return $review;
             }
 
-            $partName = ltrim(OpcPackagePath::stripQueryAndFragment($rootRelationships->resolveTarget($relationship)), '/');
+            $resolvedPartName = $this->reviewRelationshipPart($rootRelationships, $relationship);
+            if ($resolvedPartName === null) {
+                $review['issues'][] = 'invalid-document-properties-target';
+
+                return $review;
+            }
+
+            $partName = ltrim($resolvedPartName, '/');
             $review['partName'] = $partName;
         }
 
@@ -1089,7 +1110,10 @@ final class PptxReader
                 continue;
             }
 
-            $partName = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+            $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+            if ($partName === null) {
+                continue;
+            }
             $document = $this->optionalPackageXml($package, $partName, 'PPTX slide comments');
             if (!$document instanceof \DOMDocument) {
                 continue;
@@ -1225,7 +1249,13 @@ final class PptxReader
         }
 
         if ($relationshipAttribute === 'link') {
-            $partName = ltrim(OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship)), '/');
+            $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+            if ($partName === null) {
+                $review['issues'][] = 'invalid-background-target';
+
+                return $review;
+            }
+            $partName = ltrim($partName, '/');
             $review['partName'] = $partName;
             if (in_array($partName, $package->names(), true)) {
                 $review['exists'] = true;
@@ -1261,7 +1291,10 @@ final class PptxReader
                 continue;
             }
 
-            $partName = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+            $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+            if ($partName === null) {
+                continue;
+            }
             $document = $this->optionalPackageXml($package, $partName, 'PPTX notes slide');
             if (!$document instanceof \DOMDocument) {
                 continue;
@@ -1462,6 +1495,15 @@ final class PptxReader
         }
 
         return null;
+    }
+
+    private function reviewRelationshipPart(OpcRelationships $relationships, OpcRelationship $relationship): ?string
+    {
+        try {
+            return OpcPackagePath::stripQueryAndFragment($relationships->resolveTarget($relationship));
+        } catch (\InvalidArgumentException | \RuntimeException) {
+            return null;
+        }
     }
 
     /**
@@ -1873,7 +1915,11 @@ final class PptxReader
                 $seen[$relationshipId] = true;
                 $partName = '';
                 if (!$relationship->isExternal()) {
-                    $partName = ltrim(OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship)), '/');
+                    $resolvedPartName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+                    if ($resolvedPartName === null) {
+                        continue;
+                    }
+                    $partName = ltrim($resolvedPartName, '/');
                 }
 
                 $media[] = [
@@ -2205,7 +2251,12 @@ final class PptxReader
             if ($relationship->isExternal()) {
                 $issue['externalTargetPolicy'] = $relationship->externalTargetPreflight();
             } else {
-                $issue['partName'] = ltrim(OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship)), '/');
+                $partName = $this->reviewRelationshipPart($slideRelationships, $relationship);
+                if ($partName === null) {
+                    $issue['issue'] = 'invalid-linked-image-target';
+                } else {
+                    $issue['partName'] = ltrim($partName, '/');
+                }
             }
             $imageIssues[] = $issue;
 
@@ -2304,7 +2355,12 @@ final class PptxReader
             return $this->chartReviewNode($chart);
         }
 
-        $chartPart = OpcPackagePath::stripQueryAndFragment($slideRelationships->resolveTarget($relationship));
+        $chartPart = $this->reviewRelationshipPart($slideRelationships, $relationship);
+        if ($chartPart === null) {
+            $chart['issues'][] = 'invalid-chart-part-target';
+
+            return $this->chartReviewNode($chart);
+        }
         $chart['partName'] = ltrim($chartPart, '/');
         $document = $this->optionalPackageXml($package, $chartPart, 'PPTX chart');
         if (!$document instanceof \DOMDocument) {
@@ -2559,9 +2615,11 @@ final class PptxReader
             return $metadata;
         }
 
-        $partName = OpcPackagePath::stripQueryAndFragment($chartRelationships->resolveTarget($relationship));
-        if ($partName !== '') {
+        $partName = $this->reviewRelationshipPart($chartRelationships, $relationship);
+        if ($partName !== null && $partName !== '') {
             $metadata['partName'] = ltrim($partName, '/');
+        } elseif ($partName === null) {
+            $metadata['targetIssue'] = 'invalid-chart-relationship-target';
         }
 
         return $metadata;
