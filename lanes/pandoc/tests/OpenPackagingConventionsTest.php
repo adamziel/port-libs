@@ -588,6 +588,72 @@ XML;
         $t->same($contentTypesEntry['localHeaderSha256'], $rawContentTypesEntry['localHeaderSha256']);
         $t->same($contentTypesEntry['compressedDataSha256'], $rawContentTypesEntry['compressedDataSha256']);
     },
+    'carries OPC ZIP local record and data descriptor source spans through manifest preflights' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+</Types>
+XML;
+        $documentXml = '<w:document><w:body><w:p>descriptor source spans</w:p></w:body></w:document>';
+        $documentCompressed = gzdeflate($documentXml);
+        $descriptorBytes = "PK\x07\x08" . pack(
+            'VVV',
+            (int) sprintf('%u', crc32($documentXml)),
+            strlen($documentCompressed),
+            strlen($documentXml)
+        );
+        $zip = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'method' => 0],
+            ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'method' => 0],
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+                'descriptor' => true,
+            ],
+        ]);
+
+        $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        $entries = [];
+        foreach ($summary['entries'] as $entry) {
+            $entries[$entry['entryName']] = $entry;
+        }
+        $rawEntries = [];
+        foreach ($rawSummary['entries'] as $entry) {
+            $rawEntries[$entry['entryName']] = $entry;
+        }
+
+        $documentEntry = $entries['word/document.xml'];
+        $rawDocumentEntry = $rawEntries['word/document.xml'];
+        foreach ([$documentEntry, $rawDocumentEntry] as $entry) {
+            $t->same(30 + strlen('word/document.xml'), $entry['localHeaderLength']);
+            $t->same($entry['localHeaderOffset'], $entry['localRecordOffset']);
+            $t->same($entry['compressedDataOffset'], $entry['localHeaderOffset'] + $entry['localHeaderLength']);
+            $t->same($entry['compressedDataEnd'], $entry['compressedDataOffset'] + strlen($documentCompressed));
+            $t->same($entry['compressedDataEnd'], $entry['dataDescriptorOffset']);
+            $t->same(strlen($descriptorBytes), $entry['dataDescriptorBytes']);
+            $t->same($entry['dataDescriptorOffset'] + strlen($descriptorBytes), $entry['dataDescriptorEnd']);
+            $t->same($entry['dataDescriptorEnd'], $entry['localRecordEnd']);
+            $t->same(
+                $entry['localHeaderLength'] + strlen($documentCompressed) + strlen($descriptorBytes),
+                $entry['localRecordBytes']
+            );
+            $t->same(
+                hash('sha256', substr($zip, $entry['localRecordOffset'], $entry['localRecordBytes'])),
+                $entry['localRecordSha256']
+            );
+            $t->same(hash('sha256', $descriptorBytes), $entry['dataDescriptorSha256']);
+            $t->same($entry['localRecordBytes'] + $entry['centralDirectoryRecordBytes'], $entry['sourceRecordBytes']);
+        }
+
+        $t->same($documentEntry['localRecordBytes'], $rawDocumentEntry['localRecordBytes']);
+        $t->same($documentEntry['localRecordSha256'], $rawDocumentEntry['localRecordSha256']);
+        $t->same($documentEntry['dataDescriptorBytes'], $rawDocumentEntry['dataDescriptorBytes']);
+        $t->same($documentEntry['dataDescriptorSha256'], $rawDocumentEntry['dataDescriptorSha256']);
+        $t->same($documentEntry['sourceRecordBytes'], $rawDocumentEntry['sourceRecordBytes']);
+    },
     'carries OPC ZIP package source records through manifest preflights' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">

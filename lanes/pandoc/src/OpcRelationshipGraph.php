@@ -623,9 +623,18 @@ final class OpcRelationshipGraph
                 'localHeaderOffset' => $localHeaderOffset,
                 'localHeaderLength' => $manifestEntry['localHeaderLength'] ?? null,
                 'localHeaderSha256' => $manifestEntry['localHeaderSha256'] ?? null,
+                'localRecordOffset' => $manifestEntry['localRecordOffset'] ?? null,
+                'localRecordBytes' => $manifestEntry['localRecordBytes'] ?? null,
+                'localRecordEnd' => $manifestEntry['localRecordEnd'] ?? null,
+                'localRecordSha256' => $manifestEntry['localRecordSha256'] ?? null,
                 'compressedDataOffset' => $manifestEntry['compressedDataOffset'] ?? null,
                 'compressedDataEnd' => $manifestEntry['compressedDataEnd'] ?? null,
                 'compressedDataSha256' => $manifestEntry['compressedDataSha256'] ?? null,
+                'dataDescriptorOffset' => $manifestEntry['dataDescriptorOffset'] ?? null,
+                'dataDescriptorBytes' => $manifestEntry['dataDescriptorBytes'] ?? 0,
+                'dataDescriptorEnd' => $manifestEntry['dataDescriptorEnd'] ?? null,
+                'dataDescriptorSha256' => $manifestEntry['dataDescriptorSha256'] ?? null,
+                'sourceRecordBytes' => $manifestEntry['sourceRecordBytes'] ?? null,
                 'localHeaderNameAtCentralDirectoryIndex' => $orderEntry['localHeaderNameAtCentralDirectoryIndex'] ?? $entry->name,
                 'centralDirectoryNameAtLocalHeaderOrder' => $orderEntry['centralDirectoryNameAtLocalHeaderOrder'] ?? $entry->name,
                 'matchesCentralDirectoryOrder' => $orderEntry['matchesCentralDirectoryOrder'] ?? true,
@@ -1677,6 +1686,20 @@ final class OpcRelationshipGraph
             $compressedDataOffset = $byteCountsAreExact ? ($localHeaderSpanEntry['dataStart'] ?? null) : null;
             $compressedDataEnd = $byteCountsAreExact ? ($localHeaderSpanEntry['compressedDataEnd'] ?? null) : null;
             $compressedDataSha256 = null;
+            $localRecordOffset = is_int($localHeaderOffset) ? $localHeaderOffset : null;
+            $localRecordEnd = $byteCountsAreExact ? ($localHeaderSpanEntry['recordEnd'] ?? null) : null;
+            $localRecordBytes = null;
+            $localRecordSha256 = null;
+            if (
+                is_int($localRecordOffset)
+                && is_int($localRecordEnd)
+                && $localRecordOffset >= 0
+                && $localRecordEnd >= $localRecordOffset
+                && $localRecordEnd <= strlen($bytes)
+            ) {
+                $localRecordBytes = $localRecordEnd - $localRecordOffset;
+                $localRecordSha256 = hash('sha256', substr($bytes, $localRecordOffset, $localRecordBytes));
+            }
             if (
                 is_int($compressedDataOffset)
                 && is_int($compressedDataEnd)
@@ -1689,6 +1712,22 @@ final class OpcRelationshipGraph
                     substr($bytes, $compressedDataOffset, $compressedDataEnd - $compressedDataOffset)
                 );
             }
+            $dataDescriptorOffset = $byteCountsAreExact ? ($localHeaderSpanEntry['descriptorOffset'] ?? null) : null;
+            $dataDescriptorBytes = $byteCountsAreExact ? ($localHeaderSpanEntry['descriptorLength'] ?? 0) : null;
+            $dataDescriptorEnd = is_int($dataDescriptorOffset) && is_int($dataDescriptorBytes)
+                ? $dataDescriptorOffset + $dataDescriptorBytes
+                : null;
+            $dataDescriptorSha256 = null;
+            if (
+                is_int($dataDescriptorOffset)
+                && is_int($dataDescriptorBytes)
+                && $dataDescriptorBytes > 0
+                && $dataDescriptorOffset >= 0
+                && $dataDescriptorOffset + $dataDescriptorBytes <= strlen($bytes)
+            ) {
+                $dataDescriptorSha256 = hash('sha256', substr($bytes, $dataDescriptorOffset, $dataDescriptorBytes));
+            }
+            $sourceRecordBytes = $localRecordBytes === null ? null : $localRecordBytes + $centralDirectoryRecordBytes;
 
             $entries[] = [
                 'entryIndex' => $entryIndex,
@@ -1759,9 +1798,18 @@ final class OpcRelationshipGraph
                 'localHeaderOffset' => $localHeaderOffset,
                 'localHeaderLength' => $localHeaderLength,
                 'localHeaderSha256' => $localHeaderSha256,
+                'localRecordOffset' => $localRecordOffset,
+                'localRecordBytes' => $localRecordBytes,
+                'localRecordEnd' => $localRecordEnd,
+                'localRecordSha256' => $localRecordSha256,
                 'compressedDataOffset' => $compressedDataOffset,
                 'compressedDataEnd' => $compressedDataEnd,
                 'compressedDataSha256' => $compressedDataSha256,
+                'dataDescriptorOffset' => $dataDescriptorOffset,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'dataDescriptorEnd' => $dataDescriptorEnd,
+                'dataDescriptorSha256' => $dataDescriptorSha256,
+                'sourceRecordBytes' => $sourceRecordBytes,
                 'compressionMethod' => $centralEntry['compressionMethod'],
                 'compressionMethodName' => $centralEntry['compressionMethodName'],
                 'compressedSize' => $centralEntry['compressedSize'],
