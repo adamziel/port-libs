@@ -422,6 +422,8 @@ final class BibtexCslProcessor
             'sort-key' => 'Sort key',
             'sort-name' => 'Sort name',
             'sort-title' => 'Sort title',
+            'index-title' => 'Index title',
+            'index-sort-title' => 'Index sort title',
             'sort-year' => 'Sort year',
             'sort-initial' => 'Sort initial',
             'sort-initial-hash' => 'Sort initial hash',
@@ -828,6 +830,8 @@ final class BibtexCslProcessor
             'sort-key' => ['sortkey', 'sort-key'],
             'sort-name' => ['sortname', 'sort-name'],
             'sort-title' => ['sorttitle', 'sort-title'],
+            'index-title' => ['indextitle', 'index-title'],
+            'index-sort-title' => ['indexsorttitle', 'index-sort-title'],
             'sort-year' => ['sortyear', 'sort-year'],
             'sort-initial' => ['sortinit', 'sort-initial', 'sortinitial', 'sort-initials'],
             'sort-initial-hash' => ['sortinithash', 'sort-initial-hash'],
@@ -976,6 +980,9 @@ final class BibtexCslProcessor
                 continue;
             }
             $item[$target] = $target === 'page' ? str_replace('--', '-', $value) : $value;
+        }
+        if (($item['index-title'] ?? '') !== '' && ($item['index-sort-title'] ?? '') === '') {
+            $item['index-sort-title'] = (string) $item['index-title'];
         }
         $this->applyLiteralListField($item, $fields, 'publisher', ['publisher', 'institution', 'school', 'organization'], 'publisher-list');
         $this->applyLiteralListField($item, $fields, 'publisher-place', ['address', 'location', 'publisher-place'], 'publisher-place-list');
