@@ -9648,14 +9648,29 @@ XML;
         $summary = $result['importReport']['manifest']['mediaTypeSummary'];
         $provenance = $result['importReport']['manifest']['packageProvenance'];
         $mediaParts = array_column($result['media'], 'part');
+        $manifestOrderByPath = [];
+        foreach ($provenance['manifestFileEntryOrder'] as $item) {
+            $manifestOrderByPath[$item['fullPath']] = $item;
+        }
+        $manifestPolicyByPath = [];
+        foreach ($provenance['manifestByteExposurePolicyItems'] as $item) {
+            $manifestPolicyByPath[$item['fullPath']] = $item;
+        }
+        $packagePolicyByPart = [];
+        foreach ($provenance['packagePartByteExposurePolicyItems'] as $item) {
+            $packagePolicyByPart[$item['part']] = $item;
+        }
 
         $nameless = $manifestByPath['Pictures/nameless.bin'];
+        $directory = $manifestByPath['Configurations2/'];
         $t->same('', $nameless['mediaType']);
+        $t->same(true, $nameless['missingMediaType']);
         $t->same(true, $nameless['exists']);
         $t->same(strlen($sidecarBytes), $nameless['storedByteLength']);
         $t->same(null, $nameless['byteLength']);
         $t->same(false, $nameless['canExposeBytes']);
         $t->same(['odf-manifest-file-entry-missing-media-type'], $nameless['diagnostics']);
+        $t->same(false, $directory['missingMediaType']);
 
         $t->same($summary, $result['document']->attr('manifest')['mediaTypeSummary']);
         $t->same(2, $summary['emptyMediaTypeCount']);
@@ -9671,8 +9686,13 @@ XML;
         $t->same('Pictures/nameless.bin', $summary['diagnostics'][0]['part']);
         $t->same(false, $summary['diagnostics'][0]['canExposeBytes']);
 
+        $t->same(true, $manifestOrderByPath['Pictures/nameless.bin']['missingMediaType']);
+        $t->same(false, $manifestOrderByPath['Configurations2/']['missingMediaType']);
+        $t->same(true, $manifestPolicyByPath['Pictures/nameless.bin']['missingMediaType']);
         $t->same(['odf-manifest-file-entry-missing-media-type'], $provenance['parts']['Pictures/nameless.bin']['manifestDiagnostics']);
+        $t->same(true, $provenance['parts']['Pictures/nameless.bin']['manifestMissingMediaType']);
         $t->same(false, $provenance['parts']['Pictures/nameless.bin']['canExposeBytes']);
+        $t->same(true, $packagePolicyByPart['Pictures/nameless.bin']['manifestMissingMediaType']);
         $t->same(false, in_array('Pictures/nameless.bin', $mediaParts, true));
     },
     'preserves ODT manifest media-type parameter provenance for review handoff' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {

@@ -712,6 +712,7 @@ final class OdfReader
                 'layoutCachePackagePart' => $layoutCachePackagePart,
                 'canExposeBytes' => $canExposeBytes,
                 'byteExposurePolicy' => $byteExposurePolicy,
+                'missingMediaType' => $missingFileMediaType,
             ];
             if ($diagnostics !== []) {
                 $item['diagnostics'] = $diagnostics;
@@ -1497,6 +1498,7 @@ final class OdfReader
                 'mediaTypeParameterCount' => $item['mediaTypeParameterCount'] ?? 0,
                 'mediaTypeParameters' => $item['mediaTypeParameters'] ?? [],
                 'mediaTypeParameterMap' => $item['mediaTypeParameterMap'] ?? [],
+                'missingMediaType' => ($item['missingMediaType'] ?? false) === true,
                 'version' => $item['version'] ?? null,
                 'preferredViewMode' => $item['preferredViewMode'] ?? null,
                 'declaredSize' => $item['declaredSize'] ?? null,
@@ -1541,6 +1543,7 @@ final class OdfReader
                     'fullPath' => $item['fullPath'] ?? null,
                     'part' => $part,
                     'mediaType' => $item['mediaType'] ?? null,
+                    'missingMediaType' => ($item['missingMediaType'] ?? false) === true,
                     'byteExposurePolicy' => $manifestByteExposurePolicy,
                     'exists' => ($item['exists'] ?? false) === true,
                     'isDirectory' => ($item['isDirectory'] ?? false) === true,
@@ -1716,6 +1719,7 @@ final class OdfReader
                 'manifestMediaTypeParameterCount' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterCount'] : 0,
                 'manifestMediaTypeParameters' => is_array($manifestItem) ? $manifestItem['mediaTypeParameters'] : [],
                 'manifestMediaTypeParameterMap' => is_array($manifestItem) ? $manifestItem['mediaTypeParameterMap'] : [],
+                'manifestMissingMediaType' => is_array($manifestItem) && ($manifestItem['missingMediaType'] ?? false) === true,
                 'manifestVersion' => is_array($manifestItem) ? $manifestItem['version'] : null,
                 'manifestPreferredViewMode' => is_array($manifestItem) ? $manifestItem['preferredViewMode'] : null,
                 'manifestDeclaredSize' => is_array($manifestItem) ? ($manifestItem['declaredSize'] ?? null) : null,
@@ -1775,6 +1779,7 @@ final class OdfReader
                     'byteExposurePolicy' => $byteExposurePolicy,
                     'declaredInManifest' => is_array($manifestItem),
                     'undeclared' => $isUndeclared,
+                    'manifestMissingMediaType' => is_array($manifestItem) && ($manifestItem['missingMediaType'] ?? false) === true,
                     'canExposeBytes' => is_array($manifestItem) && ($manifestItem['canExposeBytes'] ?? false) === true,
                 ]);
             }
