@@ -1116,6 +1116,7 @@ final class OpenDocumentPackage
         $packagePartBasenames = self::packagePartBasenameInventory($parts);
         $packageDirectoryBaseNames = self::packageDirectoryBaseNameInventory($parts);
         $packageZipSourceRecordDirectoryRoots = self::packageZipSourceRecordDirectoryRootInventory($parts);
+        $packageZipSourceRecordCompressionMethods = self::packageZipSourceRecordCompressionMethodInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($this->manifestEntries, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($this->package, $parts, 'path');
         $centralDirectoryOrderMismatchRoles = self::centralDirectoryOrderMismatchRoleInventory($parts);
@@ -1178,6 +1179,15 @@ final class OpenDocumentPackage
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordCentralDirectoryRecordByteLength'],
             'packageZipSourceRecordDataDescriptorEntryCount' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDataDescriptorEntryCount'],
             'packageZipSourceRecordDirectoryRoots' => $packageZipSourceRecordDirectoryRoots['packageZipSourceRecordDirectoryRoots'],
+            'packageZipSourceRecordCompressionMethodCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCount'],
+            'packageZipSourceRecordCompressionMethodCounts' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCounts'],
+            'packageZipSourceRecordCompressionMethodBytes' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodBytes'],
+            'packageZipSourceRecordCompressionMethodCompressedByteLengths' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodCompressedByteLengths'],
+            'packageZipSourceRecordCompressionMethodUncompressedByteLengths' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodUncompressedByteLengths'],
+            'packageZipSourceRecordCompressionMethodExpansionRatios' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodExpansionRatios'],
+            'packageZipSourceRecordCompressionMethodDataDescriptorEntryCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodDataDescriptorEntryCount'],
+            'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethodUnsupportedEntryCount'],
+            'packageZipSourceRecordCompressionMethods' => $packageZipSourceRecordCompressionMethods['packageZipSourceRecordCompressionMethods'],
             'roleCounts' => $roleCounts,
             'undeclaredRoleCounts' => $undeclaredRoleCounts,
             'corePackagePartCount' => $corePackagePartCount,
@@ -1972,6 +1982,15 @@ final class OpenDocumentPackage
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $packageInventory['packageZipSourceRecordCentralDirectoryRecordByteLength'] ?? 0,
             'packageZipSourceRecordDataDescriptorEntryCount' => $packageInventory['packageZipSourceRecordDataDescriptorEntryCount'] ?? 0,
             'packageZipSourceRecordDirectoryRoots' => $packageInventory['packageZipSourceRecordDirectoryRoots'] ?? [],
+            'packageZipSourceRecordCompressionMethodCount' => $packageInventory['packageZipSourceRecordCompressionMethodCount'] ?? 0,
+            'packageZipSourceRecordCompressionMethodCounts' => $packageInventory['packageZipSourceRecordCompressionMethodCounts'] ?? [],
+            'packageZipSourceRecordCompressionMethodBytes' => $packageInventory['packageZipSourceRecordCompressionMethodBytes'] ?? [],
+            'packageZipSourceRecordCompressionMethodCompressedByteLengths' => $packageInventory['packageZipSourceRecordCompressionMethodCompressedByteLengths'] ?? [],
+            'packageZipSourceRecordCompressionMethodUncompressedByteLengths' => $packageInventory['packageZipSourceRecordCompressionMethodUncompressedByteLengths'] ?? [],
+            'packageZipSourceRecordCompressionMethodExpansionRatios' => $packageInventory['packageZipSourceRecordCompressionMethodExpansionRatios'] ?? [],
+            'packageZipSourceRecordCompressionMethodDataDescriptorEntryCount' => $packageInventory['packageZipSourceRecordCompressionMethodDataDescriptorEntryCount'] ?? 0,
+            'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $packageInventory['packageZipSourceRecordCompressionMethodUnsupportedEntryCount'] ?? 0,
+            'packageZipSourceRecordCompressionMethods' => $packageInventory['packageZipSourceRecordCompressionMethods'] ?? [],
             'packagePathKindCounts' => $packageInventory['packagePathKindCounts'] ?? [],
             'packageTopLevelSegmentCounts' => $packageInventory['packageTopLevelSegmentCounts'] ?? [],
             'packagePathExtensionCounts' => $packageInventory['packagePathExtensionCounts'] ?? [],
@@ -3059,6 +3078,190 @@ final class OpenDocumentPackage
             'packageZipSourceRecordCentralDirectoryRecordByteLength' => $centralDirectoryRecordByteLength,
             'packageZipSourceRecordDataDescriptorEntryCount' => $dataDescriptorEntryCount,
             'packageZipSourceRecordDirectoryRoots' => array_values($roots),
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array<string, mixed>
+     */
+    private static function packageZipSourceRecordCompressionMethodInventory(array $parts): array
+    {
+        $intField = static function (array $part, string $field): int {
+            $value = $part[$field] ?? null;
+
+            return is_int($value) ? $value : 0;
+        };
+        $methods = [];
+
+        foreach ($parts as $name => $part) {
+            if (($part['zipHasSourceRecordProvenance'] ?? false) !== true) {
+                continue;
+            }
+
+            $compressionMethod = is_int($part['compressionMethod'] ?? null) ? $part['compressionMethod'] : null;
+            $compressionMethodKey = $compressionMethod !== null ? (string) $compressionMethod : '(missing)';
+            if (!isset($methods[$compressionMethodKey])) {
+                $methods[$compressionMethodKey] = [
+                    'compressionMethodKey' => $compressionMethodKey,
+                    'compressionMethod' => $compressionMethod,
+                    'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
+                    'entryCount' => 0,
+                    'entryNames' => [],
+                    'sourceRecordBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'localHeaderBytes' => 0,
+                    'compressedDataBytes' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'compressedByteLength' => 0,
+                    'uncompressedByteLength' => 0,
+                    'expansionRatio' => 0.0,
+                    'unsupportedEntryCount' => 0,
+                    'exposableEntryCount' => 0,
+                    'blockedEntryCount' => 0,
+                    'byteExposurePolicyCounts' => [],
+                    'manifestMediaFamilyCounts' => [],
+                    'manifestMediaTypeBaseCounts' => [],
+                    'roleCounts' => [],
+                    'largestSourceRecordEntry' => null,
+                ];
+            }
+
+            $entryName = is_string($part['path'] ?? null)
+                ? $part['path']
+                : (is_string($part['part'] ?? null) ? $part['part'] : (string) $name);
+            $sourceRecordBytes = $intField($part, 'zipSourceRecordBytes');
+            $localRecordBytes = $intField($part, 'zipLocalRecordBytes');
+            $localHeaderBytes = $intField($part, 'zipLocalHeaderBytes');
+            $compressedDataBytes = $intField($part, 'zipCompressedDataBytes');
+            $dataDescriptorBytes = $intField($part, 'zipDataDescriptorBytes');
+            $centralDirectoryRecordBytes = $intField($part, 'zipCentralDirectoryRecordBytes');
+            $compressedByteLength = $intField($part, 'compressedByteLength');
+            $uncompressedByteLength = $intField($part, 'byteLength');
+            $byteExposurePolicy = is_string($part['byteExposurePolicy'] ?? null) && $part['byteExposurePolicy'] !== ''
+                ? $part['byteExposurePolicy']
+                : '(missing)';
+            $manifestMediaFamily = is_string($part['manifestMediaFamily'] ?? null) && $part['manifestMediaFamily'] !== ''
+                ? $part['manifestMediaFamily']
+                : '(missing)';
+            $manifestMediaTypeBase = is_string($part['manifestMediaTypeBase'] ?? null) && $part['manifestMediaTypeBase'] !== ''
+                ? $part['manifestMediaTypeBase']
+                : '(missing)';
+            $roles = array_values(array_map('strval', is_array($part['roles'] ?? null) ? $part['roles'] : []));
+
+            ++$methods[$compressionMethodKey]['entryCount'];
+            $methods[$compressionMethodKey]['entryNames'][] = $entryName;
+            $methods[$compressionMethodKey]['sourceRecordBytes'] += $sourceRecordBytes;
+            $methods[$compressionMethodKey]['localRecordBytes'] += $localRecordBytes;
+            $methods[$compressionMethodKey]['localHeaderBytes'] += $localHeaderBytes;
+            $methods[$compressionMethodKey]['compressedDataBytes'] += $compressedDataBytes;
+            $methods[$compressionMethodKey]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            $methods[$compressionMethodKey]['centralDirectoryRecordBytes'] += $centralDirectoryRecordBytes;
+            $methods[$compressionMethodKey]['compressedByteLength'] += $compressedByteLength;
+            $methods[$compressionMethodKey]['uncompressedByteLength'] += $uncompressedByteLength;
+            if ($dataDescriptorBytes > 0 || ($part['zipUsesDataDescriptor'] ?? false) === true) {
+                ++$methods[$compressionMethodKey]['dataDescriptorEntryCount'];
+            }
+            if ($compressionMethod !== null && $compressionMethod !== 0 && $compressionMethod !== 8) {
+                ++$methods[$compressionMethodKey]['unsupportedEntryCount'];
+            }
+            if (($part['canExposeBytes'] ?? false) === true) {
+                ++$methods[$compressionMethodKey]['exposableEntryCount'];
+            } else {
+                ++$methods[$compressionMethodKey]['blockedEntryCount'];
+            }
+            $methods[$compressionMethodKey]['byteExposurePolicyCounts'][$byteExposurePolicy] =
+                ($methods[$compressionMethodKey]['byteExposurePolicyCounts'][$byteExposurePolicy] ?? 0) + 1;
+            $methods[$compressionMethodKey]['manifestMediaFamilyCounts'][$manifestMediaFamily] =
+                ($methods[$compressionMethodKey]['manifestMediaFamilyCounts'][$manifestMediaFamily] ?? 0) + 1;
+            $methods[$compressionMethodKey]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] =
+                ($methods[$compressionMethodKey]['manifestMediaTypeBaseCounts'][$manifestMediaTypeBase] ?? 0) + 1;
+            foreach ($roles as $role) {
+                if ($role === '') {
+                    continue;
+                }
+                $methods[$compressionMethodKey]['roleCounts'][$role] =
+                    ($methods[$compressionMethodKey]['roleCounts'][$role] ?? 0) + 1;
+            }
+
+            $pathShape = is_array($part['pathShape'] ?? null) ? $part['pathShape'] : [];
+            $entrySummary = [
+                'entryName' => $entryName,
+                'compressionMethodKey' => $compressionMethodKey,
+                'compressionMethod' => $compressionMethod,
+                'compressionMethodName' => $compressionMethod !== null ? self::compressionMethodName($compressionMethod) : null,
+                'packageDirectory' => is_string($part['packageDirectory'] ?? null)
+                    ? $part['packageDirectory']
+                    : (is_string($pathShape['directory'] ?? null) ? $pathShape['directory'] : null),
+                'packageBasename' => is_string($part['packageBasename'] ?? null)
+                    ? $part['packageBasename']
+                    : (is_string($pathShape['basename'] ?? null) ? $pathShape['basename'] : null),
+                'packagePathDepth' => is_int($part['packagePathDepth'] ?? null) ? $part['packagePathDepth'] : null,
+                'byteLength' => $uncompressedByteLength,
+                'compressedByteLength' => $compressedByteLength,
+                'sourceRecordBytes' => $sourceRecordBytes,
+                'localRecordBytes' => $localRecordBytes,
+                'localHeaderBytes' => $localHeaderBytes,
+                'compressedDataBytes' => $compressedDataBytes,
+                'dataDescriptorBytes' => $dataDescriptorBytes,
+                'centralDirectoryRecordBytes' => $centralDirectoryRecordBytes,
+                'roles' => $roles,
+                'byteExposurePolicy' => $byteExposurePolicy === '(missing)' ? null : $byteExposurePolicy,
+                'manifestMediaFamily' => $manifestMediaFamily === '(missing)' ? null : $manifestMediaFamily,
+                'manifestMediaTypeBase' => $manifestMediaTypeBase === '(missing)' ? null : $manifestMediaTypeBase,
+                'declaredInManifest' => ($part['declaredInManifest'] ?? false) === true,
+                'undeclared' => ($part['undeclared'] ?? false) === true,
+                'canExposeBytes' => ($part['canExposeBytes'] ?? false) === true,
+            ];
+            $largestEntry = $methods[$compressionMethodKey]['largestSourceRecordEntry'];
+            if (
+                !is_array($largestEntry)
+                || $sourceRecordBytes > (int) ($largestEntry['sourceRecordBytes'] ?? 0)
+                || ($sourceRecordBytes === (int) ($largestEntry['sourceRecordBytes'] ?? 0) && strcmp($entryName, (string) ($largestEntry['entryName'] ?? '')) < 0)
+            ) {
+                $methods[$compressionMethodKey]['largestSourceRecordEntry'] = $entrySummary;
+            }
+        }
+
+        $methodCounts = [];
+        $methodBytes = [];
+        $methodCompressedByteLengths = [];
+        $methodUncompressedByteLengths = [];
+        $methodExpansionRatios = [];
+        $dataDescriptorEntryCount = 0;
+        $unsupportedEntryCount = 0;
+        ksort($methods, SORT_STRING);
+        foreach ($methods as $methodKey => $summary) {
+            sort($summary['entryNames'], SORT_STRING);
+            ksort($summary['byteExposurePolicyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaFamilyCounts'], SORT_STRING);
+            ksort($summary['manifestMediaTypeBaseCounts'], SORT_STRING);
+            ksort($summary['roleCounts'], SORT_STRING);
+            $summary['expansionRatio'] = $summary['uncompressedByteLength'] === 0
+                ? 0.0
+                : ($summary['compressedByteLength'] === 0 ? null : (float) ($summary['uncompressedByteLength'] / $summary['compressedByteLength']));
+            $methods[$methodKey] = $summary;
+            $methodCounts[$methodKey] = $summary['entryCount'];
+            $methodBytes[$methodKey] = $summary['sourceRecordBytes'];
+            $methodCompressedByteLengths[$methodKey] = $summary['compressedByteLength'];
+            $methodUncompressedByteLengths[$methodKey] = $summary['uncompressedByteLength'];
+            $methodExpansionRatios[$methodKey] = $summary['expansionRatio'];
+            $dataDescriptorEntryCount += $summary['dataDescriptorEntryCount'];
+            $unsupportedEntryCount += $summary['unsupportedEntryCount'];
+        }
+
+        return [
+            'packageZipSourceRecordCompressionMethodCount' => count($methods),
+            'packageZipSourceRecordCompressionMethodCounts' => $methodCounts,
+            'packageZipSourceRecordCompressionMethodBytes' => $methodBytes,
+            'packageZipSourceRecordCompressionMethodCompressedByteLengths' => $methodCompressedByteLengths,
+            'packageZipSourceRecordCompressionMethodUncompressedByteLengths' => $methodUncompressedByteLengths,
+            'packageZipSourceRecordCompressionMethodExpansionRatios' => $methodExpansionRatios,
+            'packageZipSourceRecordCompressionMethodDataDescriptorEntryCount' => $dataDescriptorEntryCount,
+            'packageZipSourceRecordCompressionMethodUnsupportedEntryCount' => $unsupportedEntryCount,
+            'packageZipSourceRecordCompressionMethods' => array_values($methods),
         ];
     }
 
