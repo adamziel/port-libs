@@ -14,11 +14,14 @@ final class OdtReader
     private const XLINK_NS = 'http://www.w3.org/1999/xlink';
     private const MANIFEST_NS = 'urn:oasis:names:tc:opendocument:xmlns:manifest:1.0';
 
-    /** @var array<string, array{strong?: bool, emph?: bool}> */
+    /** @var array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, sourcePart?: string, element?: string}> */
     private array $textStyles = [];
 
     /** @var array<string, array<int, array{ordered: bool, style?: string, delimiter?: string, start?: int}>> */
     private array $listStyles = [];
+
+    /** @var list<array<string, mixed>> */
+    private array $styleDiagnostics = [];
 
     /** @var list<string> */
     private array $referencedResources = [];
@@ -107,14 +110,16 @@ final class OdtReader
     ): AstNode
     {
         $content = $this->loadXml($content_xml, 'ODT content.xml');
+        $styles = $styles_xml !== '' ? $this->loadXml($styles_xml, 'ODT styles.xml') : null;
         $this->textStyles = array_replace(
-            $styles_xml !== '' ? $this->collectTextStyles($this->loadXml($styles_xml, 'ODT styles.xml')) : [],
-            $this->collectTextStyles($content),
+            $styles instanceof \DOMDocument ? $this->collectTextStyles($styles, 'styles.xml') : [],
+            $this->collectTextStyles($content, 'content.xml'),
         );
         $this->listStyles = array_replace_recursive(
-            $styles_xml !== '' ? $this->collectListStyles($this->loadXml($styles_xml, 'ODT styles.xml')) : [],
+            $styles instanceof \DOMDocument ? $this->collectListStyles($styles) : [],
             $this->collectListStyles($content),
         );
+        $this->styleDiagnostics = $this->styleParentCycleDiagnostics($this->textStyles);
 
         $metadata = $meta_xml !== '' ? $this->metadata($this->loadXml($meta_xml, 'ODT meta.xml')) : [];
         $body = $this->firstElementByLocalName($content, 'body');
@@ -134,6 +139,9 @@ final class OdtReader
         $referenced_resources = array_values(array_unique($this->referencedResources));
         $metadata['odtTextStyleCount'] = count($this->textStyles);
         $metadata['odtListStyleCount'] = count($this->listStyles);
+        $metadata['odtStyleDiagnosticCount'] = count($this->styleDiagnostics);
+        $metadata['odtStyleDiagnosticCodeCounts'] = $this->diagnosticCodeCounts($this->styleDiagnostics);
+        $metadata['odtStyleDiagnostics'] = $this->styleDiagnostics;
         $metadata['odtPackageEntries'] = count($entries);
         $metadata['odtReferencedResources'] = $referenced_resources;
         $metadata['odtImageResources'] = $image_resources !== []
@@ -589,9 +597,9 @@ final class OdtReader
     }
 
     /**
-     * @return array<string, array{strong?: bool, emph?: bool}>
+     * @return array<string, array{strong?: bool, emph?: bool, family?: string, parentName?: string, sourcePart?: string, element?: string}>
      */
-    private function collectTextStyles(\DOMDocument $dom): array
+    private function collectTextStyles(\DOMDocument $dom, string $sourcePart = ''): array
     {
         $styles = [];
         foreach ($dom->getElementsByTagName('*') as $style) {
@@ -606,7 +614,15 @@ final class OdtReader
             if ($name === '') {
                 continue;
             }
-            $entry = [];
+            $entry = [
+                'family' => $family === '' ? 'text' : $family,
+                'sourcePart' => $sourcePart,
+                'element' => $this->qualifiedElementName($style),
+            ];
+            $parentName = $this->attr($style, self::STYLE_NS, 'parent-style-name');
+            if ($parentName !== '') {
+                $entry['parentName'] = $parentName;
+            }
             foreach ($style->childNodes as $props) {
                 if (!$props instanceof \DOMElement || $props->localName !== 'text-properties') {
                     continue;
@@ -620,12 +636,90 @@ final class OdtReader
                     $entry['emph'] = true;
                 }
             }
-            if ($entry !== []) {
-                $styles[$name] = $entry;
-            }
+            $styles[$name] = $entry;
         }
 
         return $styles;
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $styles
+     * @return list<array<string, mixed>>
+     */
+    private function styleParentCycleDiagnostics(array $styles): array
+    {
+        $diagnostics = [];
+        $reported = [];
+
+        foreach (array_keys($styles) as $styleName) {
+            $path = [];
+            $positions = [];
+            $current = $styleName;
+
+            while ($current !== '' && isset($styles[$current])) {
+                if (isset($positions[$current])) {
+                    $cycle = array_slice($path, $positions[$current]);
+                    $cycle[] = $current;
+                    $members = array_slice($cycle, 0, -1);
+                    $keyParts = $members;
+                    sort($keyParts);
+                    $key = implode("\0", $keyParts);
+                    if (isset($reported[$key])) {
+                        break;
+                    }
+
+                    $reported[$key] = true;
+                    $firstStyleName = (string) ($members[0] ?? $styleName);
+                    $firstStyle = $styles[$firstStyleName] ?? [];
+                    $diagnostic = [
+                        'code' => 'odt-style-parent-cycle',
+                        'styleName' => $firstStyleName,
+                        'styleNames' => $members,
+                        'cyclePath' => $cycle,
+                    ];
+                    foreach (['sourcePart', 'element', 'family'] as $field) {
+                        $value = $firstStyle[$field] ?? '';
+                        if (is_string($value) && $value !== '') {
+                            $diagnostic[$field] = $value;
+                        }
+                    }
+                    $parentStyleName = $firstStyle['parentName'] ?? '';
+                    if (is_string($parentStyleName) && $parentStyleName !== '') {
+                        $diagnostic['parentStyleName'] = $parentStyleName;
+                    }
+                    $diagnostics[] = $diagnostic;
+
+                    break;
+                }
+
+                $positions[$current] = count($path);
+                $path[] = $current;
+                $parentName = $styles[$current]['parentName'] ?? '';
+                $current = is_string($parentName) ? $parentName : '';
+            }
+        }
+
+        return $diagnostics;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $diagnostics
+     * @return array<string, int>
+     */
+    private function diagnosticCodeCounts(array $diagnostics): array
+    {
+        $counts = [];
+        foreach ($diagnostics as $diagnostic) {
+            $code = $diagnostic['code'] ?? null;
+            if (!is_string($code) || $code === '') {
+                continue;
+            }
+
+            $counts[$code] = ($counts[$code] ?? 0) + 1;
+        }
+        ksort($counts, SORT_STRING);
+
+        return $counts;
     }
 
     /**
@@ -709,6 +803,11 @@ final class OdtReader
         }
 
         return 'default';
+    }
+
+    private function qualifiedElementName(\DOMElement $element): string
+    {
+        return $element->prefix === '' ? $element->localName : $element->prefix . ':' . $element->localName;
     }
 
     /**
