@@ -14582,12 +14582,27 @@ final class DocxOpenXmlReader
             $partContentTypeSourceCounts[$sourceKey] = (int) ($sourceSummary['partCount'] ?? 0);
         }
         ksort($partContentTypeSourceCounts, SORT_STRING);
+        $partBaseNameCounts = [];
+        $partNamesByPartBaseName = [];
         $duplicatePartBaseNames = [];
+        $duplicatePartBaseNameEntryCount = 0;
+        $duplicatePartBaseNameSummaries = [];
         foreach ($partBaseNames as $baseNameSummary) {
+            $baseName = (string) ($baseNameSummary['baseName'] ?? '');
+            $partCount = (int) ($baseNameSummary['partCount'] ?? 0);
+            $partBaseNameCounts[$baseName] = $partCount;
+            $partNames = array_values(array_map('strval', $baseNameSummary['partNames'] ?? []));
+            sort($partNames, SORT_STRING);
+            $partNamesByPartBaseName[$baseName] = $partNames;
+
             if ((int) ($baseNameSummary['partCount'] ?? 0) > 1) {
-                $duplicatePartBaseNames[] = (string) ($baseNameSummary['baseName'] ?? '');
+                $duplicatePartBaseNames[] = $baseName;
+                $duplicatePartBaseNameEntryCount += $partCount;
+                $duplicatePartBaseNameSummaries[] = $baseNameSummary;
             }
         }
+        ksort($partBaseNameCounts, SORT_STRING);
+        ksort($partNamesByPartBaseName, SORT_STRING);
         $duplicatePartBaseNameStems = [];
         foreach ($partBaseNameStems as $baseNameStemSummary) {
             if ((int) ($baseNameStemSummary['partCount'] ?? 0) > 1) {
@@ -14602,12 +14617,27 @@ final class DocxOpenXmlReader
                 $duplicatePartCaseFoldPathPartCount += (int) ($caseFoldPathSummary['partCount'] ?? 0);
             }
         }
+        $partCaseFoldBaseNameCounts = [];
+        $partNamesByCaseFoldBaseName = [];
         $duplicatePartCaseFoldBaseNames = [];
+        $duplicatePartCaseFoldBaseNamePartCount = 0;
+        $duplicatePartCaseFoldBaseNameSummaries = [];
         foreach ($partCaseFoldBaseNames as $caseFoldBaseNameSummary) {
+            $caseFoldBaseName = (string) ($caseFoldBaseNameSummary['caseFoldBaseName'] ?? '');
+            $partCount = (int) ($caseFoldBaseNameSummary['partCount'] ?? 0);
+            $partCaseFoldBaseNameCounts[$caseFoldBaseName] = $partCount;
+            $partNames = array_values(array_map('strval', $caseFoldBaseNameSummary['partNames'] ?? []));
+            sort($partNames, SORT_STRING);
+            $partNamesByCaseFoldBaseName[$caseFoldBaseName] = $partNames;
+
             if ((int) ($caseFoldBaseNameSummary['caseVariantCount'] ?? 0) > 1) {
-                $duplicatePartCaseFoldBaseNames[] = (string) ($caseFoldBaseNameSummary['caseFoldBaseName'] ?? '');
+                $duplicatePartCaseFoldBaseNames[] = $caseFoldBaseName;
+                $duplicatePartCaseFoldBaseNamePartCount += $partCount;
+                $duplicatePartCaseFoldBaseNameSummaries[] = $caseFoldBaseNameSummary;
             }
         }
+        ksort($partCaseFoldBaseNameCounts, SORT_STRING);
+        ksort($partNamesByCaseFoldBaseName, SORT_STRING);
         $duplicatePartCaseFoldBaseNameStems = [];
         foreach ($partCaseFoldBaseNameStems as $caseFoldBaseNameStemSummary) {
             if ((int) ($caseFoldBaseNameStemSummary['stemVariantCount'] ?? 0) > 1) {
@@ -17220,8 +17250,12 @@ final class DocxOpenXmlReader
             'partExtensionParameterizedPartCount' => $parameterizedPartExtensionCount,
             'partExtensionMissingContentTypeBucketCount' => $missingContentTypePartExtensionCount,
             'partBaseNameCount' => count($partBaseNames),
+            'partBaseNameCounts' => $partBaseNameCounts,
+            'partNamesByPartBaseName' => $partNamesByPartBaseName,
             'duplicatePartBaseNameCount' => count($duplicatePartBaseNames),
+            'duplicatePartBaseNameEntryCount' => $duplicatePartBaseNameEntryCount,
             'duplicatePartBaseNames' => $duplicatePartBaseNames,
+            'duplicatePartBaseNameSummaries' => $duplicatePartBaseNameSummaries,
             'partBaseNameStemCount' => count($partBaseNameStems),
             'duplicatePartBaseNameStemCount' => count($duplicatePartBaseNameStems),
             'duplicatePartBaseNameStems' => $duplicatePartBaseNameStems,
@@ -17230,8 +17264,12 @@ final class DocxOpenXmlReader
             'duplicatePartCaseFoldPathPartCount' => $duplicatePartCaseFoldPathPartCount,
             'duplicatePartCaseFoldPaths' => $duplicatePartCaseFoldPaths,
             'partCaseFoldBaseNameCount' => count($partCaseFoldBaseNames),
+            'partCaseFoldBaseNameCounts' => $partCaseFoldBaseNameCounts,
+            'partNamesByCaseFoldBaseName' => $partNamesByCaseFoldBaseName,
             'duplicatePartCaseFoldBaseNameCount' => count($duplicatePartCaseFoldBaseNames),
+            'duplicatePartCaseFoldBaseNamePartCount' => $duplicatePartCaseFoldBaseNamePartCount,
             'duplicatePartCaseFoldBaseNames' => $duplicatePartCaseFoldBaseNames,
+            'duplicatePartCaseFoldBaseNameSummaries' => $duplicatePartCaseFoldBaseNameSummaries,
             'partCaseFoldBaseNameStemCount' => count($partCaseFoldBaseNameStems),
             'duplicatePartCaseFoldBaseNameStemCount' => count($duplicatePartCaseFoldBaseNameStems),
             'duplicatePartCaseFoldBaseNameStems' => $duplicatePartCaseFoldBaseNameStems,
