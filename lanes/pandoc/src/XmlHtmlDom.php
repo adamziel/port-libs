@@ -24958,7 +24958,7 @@ final class XmlHtmlDom
         $acceptCharsetRaw = self::attributeOrNull($form, 'accept-charset');
         $controls = self::formOwnedControlSummaries($form);
 
-        return [
+        $summary = [
             'formSubmission' => 'form',
             'action' => self::attributeOrNull($form, 'action'),
             'method' => self::formMethod($form, 'method', 'get'),
@@ -24976,6 +24976,12 @@ final class XmlHtmlDom
             'controls' => $controls,
             'controlNames' => self::formOwnedControlNames($controls),
         ];
+
+        if ($acceptCharsetRaw !== null) {
+            $summary += self::formAcceptCharsetReviewSummary($acceptCharsetRaw);
+        }
+
+        return $summary;
     }
 
     /**
@@ -25820,6 +25826,95 @@ final class XmlHtmlDom
         $autocomplete = strtolower(trim($form->getAttribute('autocomplete')));
 
         return $autocomplete === 'off' ? 'off' : 'on';
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function formAcceptCharsetReviewSummary(string $value): array
+    {
+        $tokens = self::spaceSeparatedTokens($value);
+        $normalized = [];
+        $invalid = [];
+        $duplicates = [];
+        $legacy = [];
+        $counts = [];
+        $issues = [];
+
+        if ($tokens === []) {
+            $issues[] = ['code' => 'empty-form-accept-charset'];
+        }
+
+        foreach ($tokens as $index => $token) {
+            $normalizedToken = strtolower($token);
+            $normalized[] = $normalizedToken;
+            $counts[$normalizedToken] = ($counts[$normalizedToken] ?? 0) + 1;
+
+            if ($counts[$normalizedToken] > 1) {
+                if (!in_array($normalizedToken, $duplicates, true)) {
+                    $duplicates[] = $normalizedToken;
+                }
+                $issues[] = [
+                    'code' => 'duplicate-form-accept-charset-token',
+                    'token' => $token,
+                    'normalizedToken' => $normalizedToken,
+                    'index' => $index,
+                    'count' => $counts[$normalizedToken],
+                ];
+            }
+
+            if (!self::isFormAcceptCharsetToken($token)) {
+                if (!in_array($token, $invalid, true)) {
+                    $invalid[] = $token;
+                }
+                $issues[] = [
+                    'code' => 'invalid-form-accept-charset-token',
+                    'token' => $token,
+                    'index' => $index,
+                ];
+                continue;
+            }
+
+            if ($normalizedToken !== 'utf-8') {
+                $legacy[] = $token;
+                $issues[] = [
+                    'code' => 'legacy-form-accept-charset-token',
+                    'token' => $token,
+                    'normalizedToken' => $normalizedToken,
+                    'index' => $index,
+                ];
+            }
+        }
+
+        $utf8Present = in_array('utf-8', $normalized, true);
+        if ($tokens !== [] && !$utf8Present) {
+            $issues[] = ['code' => 'missing-utf8-form-accept-charset'];
+        }
+
+        return [
+            'formAcceptCharsetReviewPolicy' => 'html-form-accept-charset-review',
+            'acceptCharsetTokens' => $tokens,
+            'acceptCharsetNormalizedTokens' => $normalized,
+            'acceptCharsetTokenCounts' => $counts,
+            'acceptCharsetTokenCount' => count($tokens),
+            'acceptCharsetUniqueTokenCount' => count($counts),
+            'acceptCharsetUtf8Present' => $utf8Present,
+            'acceptCharsetLegacyTokens' => $legacy,
+            'invalidAcceptCharsetTokens' => $invalid,
+            'duplicateAcceptCharsetTokens' => $duplicates,
+            'acceptCharsetIssues' => $issues,
+            'acceptCharsetIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'acceptCharsetConforming' => $issues === [],
+            'acceptCharsetReviewOnlyNoTranscoding' => true,
+        ];
+    }
+
+    private static function isFormAcceptCharsetToken(string $value): bool
+    {
+        return preg_match('/^[A-Za-z0-9._:-]+$/', $value) === 1;
     }
 
     /**
