@@ -665,7 +665,9 @@
             "mappedMarkdownWriterWikilinkInlineSurgeCases": 56,
             "markdownWriterWikilinkInlineSurgeAssertions": 283,
             "mappedMarkdownWriterWikilinkInlineComponentCompletionCases": 6,
-            "markdownWriterWikilinkInlineComponentCompletionAssertions": 32
+            "markdownWriterWikilinkInlineComponentCompletionAssertions": 32,
+            "mappedDocxZipSourceRecordExpansionRatioBucketCases": 1,
+            "docxZipSourceRecordExpansionRatioBucketAssertions": 53
         },
         "mapped": 2868,
         "source": ".upstream-cache/pandoc at 0640c4c9859aa5a3ede082c190fcd5883c24ac83 using git ls-tree path inventory for test/, pandoc-lua-engine/test/, data/, and benchmark/ plus targeted reads of pandoc.cabal, pandoc-lua-engine/pandoc-lua-engine.cabal, COPYRIGHT, test/test-pandoc.hs, Tests.Command, Tests.Readers.Markdown, Tests.Writers.Native, Tests.Writers.Markdown, Tests.Writers.Plain, Tests.Writers.HTML, Tests.Writers.LaTeX, src/Text/Pandoc/Writers/Markdown.hs, src/Text/Pandoc/Writers/Markdown/Table.hs, src/Text/Pandoc/Writers/Markdown/Inline.hs, src/Text/Pandoc/Writers/LaTeX.hs, src/Text/Pandoc/Options.hs, src/Text/Pandoc/Extensions.hs, src/Text/Pandoc/Shared.hs, src/Text/Pandoc/Writers/HTML.hs, src/Text/Pandoc/Writers/GridTable.hs, src/Text/Pandoc/Writers/Shared.hs, src/Text/Pandoc/Readers/HTML.hs, data/abbreviations, test/command/indented-fences.md, test/command/short-caption.md, test/command/table-with-cell-align.md, test/command/table-with-column-span.md, test/command/rst-writer-gridtable-if-rowspans.md, test/command/nested-table-to-asciidoc-6942.md, test/command/tasklist.md, test/command/nested-spanlike.md, test/command/empty_paragraphs.md, test/command/toc.md, test/command/9792.md, test/command/parse-raw.md, test/command/md-abbrevs.md, test/command/html-read-figure.md, test/command/4162.md, test/command/10825.md, test/command/figures-html.md, test/command/wikilinks_title_after_pipe.md, test/command/wikilinks_title_before_pipe.md, git ls-tree counts for 26 test/command/*.csl files, 70 citeproc/citation Markdown command fixtures, 2 math-targeted Markdown command fixtures, legacy BibLaTeX file/pdf source-file attachment metadata checks, legacy BibLaTeX registry identifier metadata checks, legacy BibLaTeX authority identifier metadata checks, and legacy BibLaTeX auxiliary editorial role metadata checks, test/markdown-reader-more.txt, test/markdown-reader-more.native, test/markdown-citations.native, test/docx/notes.native, test/docx/link_in_notes.native, test/docx/task_list.native, test/docx/table_gridbefore.native, test/docx/track_changes_move_all.native, test/docx/track_changes_move_accept.native, test/docx/track_changes_move_reject.native, test/docx/track_changes_insertion_accept.native, test/docx/track_changes_insertion_reject.native, test/docx/track_changes_deletion_accept.native, test/docx/track_changes_deletion_reject.native, test/docx/paragraph_insertion_deletion_accept.native, test/docx/paragraph_insertion_deletion_reject.native, test/docx/track_changes_scrubbed_metadata.native, test/docx/overlapping_targets.native, test/docx/image_vml_as_object.native, test/docx/image_with_textbox_caption.native, test/docx/diagram.native, test/jats-reader.native, test/odt/native/listContinueNumbering2.native, test/odt/native/tableWithSpans.native, test/odt/native/simpleTableWithMultipleHeaderRows.native, test/odt/native/imageWithCaption.native, test/odt/native/orderedListMixed.native, test/epub/wasteland.native, test/epub/features.native, test/epub/formatting.native, test/html-reader.html, test/html-reader.native, test/tables/nordics.html5, test/testsuite.txt, test/testsuite.native, test/lhs-test.markdown+lhs, test/lhs-test-markdown.native, test/pipe-tables.txt, test/pipe-tables.native, test/tables.markdown, and test/tables.native including focused Markdown/HTML/Native/WordPress behavior slices recorded in notes/upstream-inventory.md, raw_tex_inline NativeReader text JSON writer smoke, and legacy BibLaTeX literal list metadata checks, and shared OPC ZIP central-directory source-record provenance checks.; NativeReader text raw markdown-family constructor smoke, and textual native raw Markdown/TeX format alias combination checks, and legacy BibLaTeX publication-state date metadata checks, and legacy BibLaTeX split date range metadata checks, and legacy BibLaTeX series creator metadata checks., and DOCX ZIP package-manifest expansion-ratio bucket checks",
@@ -763,7 +765,9 @@
             "mappedMarkdownWriterWikilinkInlineSurgeCases": 56,
             "markdownWriterWikilinkInlineSurgeAssertions": 283,
             "mappedMarkdownWriterWikilinkInlineComponentCompletionCases": 6,
-            "markdownWriterWikilinkInlineComponentCompletionAssertions": 32
+            "markdownWriterWikilinkInlineComponentCompletionAssertions": 32,
+            "mappedDocxZipSourceRecordExpansionRatioBucketCases": 1,
+            "docxZipSourceRecordExpansionRatioBucketAssertions": 53
         }
     },
     "benchmarkDenominatorLatestNote": "2026-07-01 plib-m0g2h: BibtexCslProcessor now carries legacy BibLaTeX seriescreator/series-creator names into the CSL series-creator variable, fallback bibliography text, CitationCslProcessor style rendering, and WordPress bibliography handoff without external citeproc, BibTeX, Biber, Pandoc, or validators. 2026-07-01 plib-0v0uy: ODF/ODT package ingestion now carries ZIP package-manifest expansion-ratio bucket rollups through compact OpenDocumentPackage inventory/identity and rich OdfReader packageProvenance/packageIdentity metadata, exposing bucket counts, ordered bucket names, bucket summaries, entry names, directory roots, compression methods, byte/source-record totals, unknown-entry counts, and largest-ratio metadata without exposing package bytes or invoking external tools. Direct-format parity remains active in blocker notes.",
@@ -2000,7 +2004,9 @@
         "mappedLegacyBiblatexSeriesCreatorCases": 1,
         "legacyBiblatexSeriesCreatorAssertions": 22,
         "mappedDocxZipPackageManifestExpansionRatioBucketCases": 1,
-        "docxZipPackageManifestExpansionRatioBucketAssertions": 20
+        "docxZipPackageManifestExpansionRatioBucketAssertions": 20,
+        "mappedDocxZipSourceRecordExpansionRatioBucketCases": 1,
+        "docxZipSourceRecordExpansionRatioBucketAssertions": 53
     },
     "nativeImplementation": {
         "language": "PHP",
@@ -2098,5 +2104,7 @@
     "mappedMarkdownWriterWikilinkInlineSurgeCases": 56,
     "markdownWriterWikilinkInlineSurgeAssertions": 283,
     "mappedMarkdownWriterWikilinkInlineComponentCompletionCases": 6,
-    "markdownWriterWikilinkInlineComponentCompletionAssertions": 32
+    "markdownWriterWikilinkInlineComponentCompletionAssertions": 32,
+    "mappedDocxZipSourceRecordExpansionRatioBucketCases": 1,
+    "docxZipSourceRecordExpansionRatioBucketAssertions": 53
 }
