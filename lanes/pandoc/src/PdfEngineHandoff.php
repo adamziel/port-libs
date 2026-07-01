@@ -463,6 +463,9 @@ final class PdfEngineHandoff
                 if (is_array($featureGates) && is_int($featureGates['featureCount'] ?? null)) {
                     $diagnostics[] = 'typst-feature-gates:' . $featureGates['featureCount'];
                 }
+                if (is_array($typstBoundaryProvenance['featureGateHistory'] ?? null)) {
+                    $diagnostics[] = 'typst-feature-gate-history:' . count($typstBoundaryProvenance['featureGateHistory']);
+                }
             }
             if (($typstBoundaryProvenance['featureGateEnvironment'] ?? null) !== null) {
                 $featureGateEnvironment = $typstBoundaryProvenance['featureGateEnvironment'];
@@ -7685,7 +7688,7 @@ final class PdfEngineHandoff
         if (count($pdfStandardHistory) > 1 || $this->typstBoundaryHistoryHasIssues($pdfStandardHistory)) {
             $provenance['pdfStandardHistory'] = $pdfStandardHistory;
         }
-        if ($this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
+        if (count($featureGateHistory) > 1 || $this->typstBoundaryHistoryHasIssues($featureGateHistory)) {
             $provenance['featureGateHistory'] = $featureGateHistory;
         }
         if ($this->typstBoundaryHistoryHasIssues($jobsHistory)) {
