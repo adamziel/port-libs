@@ -352,7 +352,7 @@ final class PandocFormatRegistry
         'pptx' => [
             'status' => 'partial',
             'implementation' => PptxReader::class,
-            'notes' => 'Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, and internal rich-media references into the shared AST with pinned upstream pptx-reader/basic fixture parity. PPTX writing remains unsupported.',
+            'notes' => 'Bounded PPTX OpenXML package reader maps presentation slide order, title placeholders, text boxes, Wingdings/explicit bullet groups, simple tables, image references, SmartArt hierarchy with placeholder/layout sidecars, slide comments, shape z-order/layout metadata, and internal rich-media references into the shared AST with pinned upstream pptx-reader/basic fixture parity.',
         ],
         'ris' => [
             'status' => 'partial',
@@ -488,6 +488,11 @@ final class PandocFormatRegistry
             'status' => 'partial',
             'implementation' => PlainWriter::class,
             'notes' => 'Plain text writer covers bounded wrapping, table, inline, unicode width, and diagnostic slices. Full Pandoc plain writer parity remains open.',
+        ],
+        'pptx' => [
+            'status' => 'partial',
+            'implementation' => PptxWriter::class,
+            'notes' => 'Bounded PPTX output emits a deterministic PresentationML OPC ZIP package with content types, root/presentation/slide relationships, core and extended properties, a slide master/layout/theme, table styles, title/content slides, bullet and ordered list paragraphs, DrawingML tables, hyperlink relationships, and local image media parts. Full upstream PowerPoint writer template/layout/media parity remains open.',
         ],
     ];
 

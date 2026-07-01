@@ -29,6 +29,7 @@ use PortLibs\Pandoc\PandocFormatRegistry;
 use PortLibs\Pandoc\PdfReader;
 use PortLibs\Pandoc\PlainWriter;
 use PortLibs\Pandoc\PptxReader;
+use PortLibs\Pandoc\PptxWriter;
 use PortLibs\Pandoc\RtfReader;
 use PortLibs\Pandoc\XmlReader;
 use PortLibs\Pandoc\XlsxReader;
@@ -206,10 +207,12 @@ return [
         $t->same(PlainWriter::class, $support['plain']['implementation']);
         $t->same('partial', $support['docx']['status']);
         $t->same(DocxWriter::class, $support['docx']['implementation']);
+        $t->same('partial', $support['pptx']['status']);
+        $t->same(PptxWriter::class, $support['pptx']['implementation']);
         $t->same('unsupported', $support['epub2']['status']);
         $t->same('unsupported', $support['odt']['status']);
         $t->same('unsupported', $support['pdf']['status']);
-        $t->same(57, count(PandocFormatRegistry::unsupportedOutputFormats()));
+        $t->same(56, count(PandocFormatRegistry::unsupportedOutputFormats()));
     },
     'tracks wiki format registry status without claiming direct parity' => static function (TestRunner $t): void {
         $registry = PandocFormatRegistry::wikiFormatRegistry();
