@@ -39,6 +39,7 @@ final class DocxOpenXmlReader
     private const NUMBERING_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering';
     private const SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings';
     private const ATTACHED_TEMPLATE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate';
+    private const PRINTER_SETTINGS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings';
     private const MAIL_MERGE_SOURCE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource';
     private const MAIL_MERGE_HEADER_SOURCE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeHeaderSource';
     private const MAIL_MERGE_RECIPIENT_DATA_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/recipientData';
@@ -99,6 +100,7 @@ final class DocxOpenXmlReader
     private const CT_WORD_STYLES_WITH_EFFECTS = 'application/vnd.ms-word.styleswitheffects+xml';
     private const CT_WORD_NUMBERING = 'application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml';
     private const CT_WORD_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml';
+    private const CT_WORD_PRINTER_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.printersettings';
     private const CT_WORD_WEB_SETTINGS = 'application/vnd.openxmlformats-officedocument.wordprocessingml.websettings+xml';
     private const CT_WORD_FONT_TABLE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.fonttable+xml';
     private const CT_OBFUSCATED_FONT = 'application/vnd.openxmlformats-officedocument.obfuscatedfont';
@@ -281,6 +283,14 @@ final class DocxOpenXmlReader
             $parts,
             $settingsPart['xml'],
             $settingsPart['partName'],
+            $settingsRelationshipsPart,
+            $settingsRelationships,
+            $contentTypes,
+        );
+        $printerSettings = $this->readPrinterSettings(
+            $parts,
+            $settingsPart['partName'],
+            $settingsPart['exists'],
             $settingsRelationshipsPart,
             $settingsRelationships,
             $contentTypes,
@@ -898,6 +908,22 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['attachedTemplateMissingContentTypeCount'] = $attachedTemplates['missingContentTypeCount'];
         $packageProvenance['summary']['attachedTemplateIssueCount'] = $attachedTemplates['issueCount'];
         $packageProvenance['summary']['attachedTemplateIssueCodes'] = $attachedTemplates['issueCodes'];
+        $packageProvenance['printerSettings'] = $printerSettings;
+        $packageProvenance['summary']['printerSettingsCount'] = $printerSettings['count'];
+        $packageProvenance['summary']['printerSettingsRelationshipCount'] = $printerSettings['relationshipCount'];
+        $packageProvenance['summary']['printerSettingsInternalCount'] = $printerSettings['internalCount'];
+        $packageProvenance['summary']['printerSettingsExternalCount'] = $printerSettings['externalCount'];
+        $packageProvenance['summary']['printerSettingsAllowedExternalTargetCount'] = $printerSettings['allowedExternalTargetCount'];
+        $packageProvenance['summary']['printerSettingsUnsafeExternalTargetCount'] = $printerSettings['unsafeExternalTargetCount'];
+        $packageProvenance['summary']['printerSettingsExternalTargetKindCounts'] = $printerSettings['externalTargetKindCounts'];
+        $packageProvenance['summary']['printerSettingsExternalTargetSchemeCounts'] = $printerSettings['externalTargetSchemeCounts'];
+        $packageProvenance['summary']['printerSettingsExternalTargetIssueCodes'] = $printerSettings['externalTargetIssueCodes'];
+        $packageProvenance['summary']['printerSettingsExistingCount'] = $printerSettings['existingCount'];
+        $packageProvenance['summary']['printerSettingsMissingCount'] = $printerSettings['missingCount'];
+        $packageProvenance['summary']['printerSettingsMissingContentTypeCount'] = $printerSettings['missingContentTypeCount'];
+        $packageProvenance['summary']['printerSettingsUnexpectedContentTypeCount'] = $printerSettings['unexpectedContentTypeCount'];
+        $packageProvenance['summary']['printerSettingsIssueCount'] = $printerSettings['issueCount'];
+        $packageProvenance['summary']['printerSettingsIssueCodes'] = $printerSettings['issueCodes'];
         $packageProvenance['summary']['fontTableEmbeddedFontCount'] = (int) ($fontTable['embeddedFontRelationshipCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontExistingCount'] = (int) ($fontTable['embeddedFontExistingCount'] ?? 0);
         $packageProvenance['summary']['fontTableEmbeddedFontMissingCount'] = (int) ($fontTable['embeddedFontMissingCount'] ?? 0);
@@ -1187,6 +1213,7 @@ final class DocxOpenXmlReader
                 'settingsRelationships' => $settingsRelationships,
                 'settingsRelationshipInventory' => $settingsRelationshipInventory,
                 'attachedTemplates' => $attachedTemplates,
+                'printerSettings' => $printerSettings,
                 'webSettingsPart' => $webSettingsPart['partName'],
                 'webSettings' => $webSettings,
                 'fontTablePart' => $fontTablePart['partName'],
@@ -8819,6 +8846,210 @@ final class DocxOpenXmlReader
         }
 
         return $item;
+    }
+
+    /**
+     * @param array<string, string> $parts
+     * @param array<string, array{id:string, type:string, target:string, targetMode:string, resolvedTarget:string}> $settingsRelationships
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function readPrinterSettings(
+        array $parts,
+        string $settingsPart,
+        bool $settingsExists,
+        string $settingsRelationshipsPart,
+        array $settingsRelationships,
+        array $contentTypes
+    ): array {
+        $items = [];
+        $byRelationshipId = [];
+        $byPartName = [];
+        $relationshipIds = [];
+        $partNames = [];
+        $existingPartNames = [];
+        $missingPartNames = [];
+        $externalTargets = [];
+        $unsafeExternalTargets = [];
+        $targetReferenceSuffixes = [];
+        $contentTypesSeen = [];
+        $contentTypeBaseCounts = [];
+        $externalTargetKindCounts = [];
+        $externalTargetSchemeCounts = [];
+        $externalTargetIssueCodes = [];
+        $issueCodes = [];
+        $issueCount = 0;
+
+        foreach ($settingsRelationships as $relationship) {
+            if ($relationship['type'] !== self::PRINTER_SETTINGS_REL) {
+                continue;
+            }
+
+            $summary = $this->relationshipInventorySummary(
+                $parts,
+                $relationship,
+                $settingsPart,
+                $settingsRelationshipsPart,
+                $contentTypes,
+            );
+            $relationshipId = is_string($summary['id'] ?? null) ? $summary['id'] : '';
+            $external = (bool) ($summary['external'] ?? false);
+            $targetPart = is_string($summary['targetPart'] ?? null) ? $summary['targetPart'] : null;
+            $exists = (bool) ($summary['exists'] ?? false);
+            $contentType = is_string($summary['contentType'] ?? null) ? $summary['contentType'] : '';
+            $contentTypeBase = is_string($summary['contentTypeBase'] ?? null) ? $summary['contentTypeBase'] : '';
+            $targetReferenceSuffix = is_string($summary['targetReferenceSuffix'] ?? null) ? $summary['targetReferenceSuffix'] : '';
+            $issues = [];
+
+            if ($external) {
+                $issues[] = 'external-printer-settings';
+                foreach (($summary['externalTargetIssues'] ?? []) as $issue) {
+                    if (is_string($issue) && $issue !== '') {
+                        $issues[] = $issue;
+                        $externalTargetIssueCodes[$issue] = true;
+                    }
+                }
+            } else {
+                if (!$exists) {
+                    $issues[] = 'missing-printer-settings';
+                }
+                if (($summary['contentTypeSource'] ?? 'missing') === 'missing') {
+                    $issues[] = 'missing-printer-settings-content-type';
+                } elseif ($contentTypeBase !== self::CT_WORD_PRINTER_SETTINGS) {
+                    $issues[] = 'unexpected-printer-settings-content-type';
+                }
+            }
+
+            $issues = array_values(array_unique($issues));
+            sort($issues, SORT_STRING);
+
+            $item = [
+                'index' => count($items),
+                'relationshipId' => $relationshipId,
+                'relationshipKey' => $settingsRelationshipsPart . '#' . $relationshipId,
+                'sourcePart' => $settingsPart,
+                'sourcePartExists' => $settingsExists,
+                'relationshipsPart' => $settingsRelationshipsPart,
+                'relationshipsPartExists' => isset($parts[$settingsRelationshipsPart]),
+                'relationshipType' => $summary['type'],
+                'target' => $summary['target'],
+                'targetMode' => $summary['targetMode'],
+                'external' => $external,
+                'resolvedTarget' => $summary['resolvedTarget'],
+                'partName' => $targetPart,
+                'targetPart' => $targetPart,
+                'targetQuery' => $summary['targetQuery'],
+                'targetFragment' => $summary['targetFragment'],
+                'targetReferenceSuffix' => $targetReferenceSuffix,
+                'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
+                'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
+                'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
+                'sameSourcePart' => $summary['sameSourcePart'],
+                'externalTargetKind' => $summary['externalTargetKind'],
+                'externalTargetScheme' => $summary['externalTargetScheme'],
+                'externalTargetAllowed' => $summary['externalTargetAllowed'],
+                'externalTargetIssues' => $summary['externalTargetIssues'],
+                'exists' => $exists,
+                'byteLength' => !$external && $targetPart !== null && $exists ? strlen($parts[$targetPart]) : null,
+                'crc32' => !$external && $targetPart !== null && $exists ? sprintf('%08x', crc32($parts[$targetPart])) : null,
+                'sha256' => !$external && $targetPart !== null && $exists ? hash('sha256', $parts[$targetPart]) : null,
+                'contentType' => $contentType,
+                'contentTypeBase' => $contentTypeBase,
+                'expectedContentTypeBase' => self::CT_WORD_PRINTER_SETTINGS,
+                'contentTypeMatchesExpected' => $contentTypeBase === self::CT_WORD_PRINTER_SETTINGS,
+                'contentTypeHasParameters' => $summary['contentTypeHasParameters'],
+                'contentTypeParameterCount' => $summary['contentTypeParameterCount'],
+                'contentTypeParameters' => $summary['contentTypeParameters'],
+                'contentTypeParameterMap' => $summary['contentTypeParameterMap'],
+                'contentTypeSource' => $summary['contentTypeSource'],
+                'defaultExtension' => $summary['defaultExtension'],
+                'overridePartName' => $summary['overridePartName'],
+                'byteExposurePolicy' => 'printer-settings-bytes-blocked',
+                'reviewPolicy' => 'printer-settings-metadata-only',
+                'valid' => $issues === [],
+                'issues' => $issues,
+                'relationship' => $summary,
+            ];
+
+            $items[] = $item;
+            if ($relationshipId !== '' && !isset($byRelationshipId[$relationshipId])) {
+                $byRelationshipId[$relationshipId] = $item;
+            }
+            if ($targetPart !== null && !isset($byPartName[$targetPart])) {
+                $byPartName[$targetPart] = $item;
+            }
+
+            $this->appendUniqueString($relationshipIds, $relationshipId);
+            $this->appendUniqueString($partNames, $targetPart);
+            $this->appendUniqueString($targetReferenceSuffixes, $targetReferenceSuffix);
+            if ($contentType !== '') {
+                $this->appendUniqueString($contentTypesSeen, $contentType);
+            }
+            if ($contentTypeBase !== '') {
+                $contentTypeBaseCounts[$contentTypeBase] = ($contentTypeBaseCounts[$contentTypeBase] ?? 0) + 1;
+            }
+            if ($external) {
+                $this->appendUniqueString($externalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                if (($summary['externalTargetAllowed'] ?? null) !== true) {
+                    $this->appendUniqueString($unsafeExternalTargets, is_string($summary['target'] ?? null) ? $summary['target'] : null);
+                }
+                $kind = is_string($summary['externalTargetKind'] ?? null) ? $summary['externalTargetKind'] : '(unknown)';
+                $scheme = is_string($summary['externalTargetScheme'] ?? null) ? $summary['externalTargetScheme'] : '(none)';
+                $externalTargetKindCounts[$kind] = ($externalTargetKindCounts[$kind] ?? 0) + 1;
+                $externalTargetSchemeCounts[$scheme] = ($externalTargetSchemeCounts[$scheme] ?? 0) + 1;
+            } elseif ($exists) {
+                $this->appendUniqueString($existingPartNames, $targetPart);
+            } else {
+                $this->appendUniqueString($missingPartNames, $targetPart);
+            }
+            foreach ($issues as $issue) {
+                $issueCodes[$issue] = true;
+            }
+            $issueCount += count($issues);
+        }
+
+        ksort($contentTypeBaseCounts, SORT_STRING);
+        ksort($externalTargetKindCounts, SORT_STRING);
+        ksort($externalTargetSchemeCounts, SORT_STRING);
+        ksort($externalTargetIssueCodes, SORT_STRING);
+        ksort($issueCodes, SORT_STRING);
+
+        return [
+            'sourcePart' => $settingsPart,
+            'sourcePartExists' => $settingsExists,
+            'relationshipsPart' => $settingsRelationshipsPart,
+            'relationshipsPartExists' => isset($parts[$settingsRelationshipsPart]),
+            'count' => count($items),
+            'relationshipCount' => count($items),
+            'internalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false)),
+            'externalCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true)),
+            'allowedExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) === true)),
+            'unsafeExternalTargetCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === true && ($item['externalTargetAllowed'] ?? null) !== true)),
+            'existingCount' => count(array_filter($items, static fn (array $item): bool => $item['external'] === false && $item['exists'] === true)),
+            'missingCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-printer-settings', $item['issues'], true))),
+            'missingContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('missing-printer-settings-content-type', $item['issues'], true))),
+            'unexpectedContentTypeCount' => count(array_filter($items, static fn (array $item): bool => in_array('unexpected-printer-settings-content-type', $item['issues'], true))),
+            'issueCount' => $issueCount,
+            'relationshipIds' => $relationshipIds,
+            'partNames' => $partNames,
+            'existingPartNames' => $existingPartNames,
+            'missingPartNames' => $missingPartNames,
+            'externalTargets' => $externalTargets,
+            'unsafeExternalTargets' => $unsafeExternalTargets,
+            'externalTargetKindCounts' => $externalTargetKindCounts,
+            'externalTargetSchemeCounts' => $externalTargetSchemeCounts,
+            'externalTargetIssueCodes' => array_keys($externalTargetIssueCodes),
+            'targetReferenceSuffixes' => $targetReferenceSuffixes,
+            'contentTypes' => $contentTypesSeen,
+            'contentTypeBaseCounts' => $contentTypeBaseCounts,
+            'expectedContentTypeBase' => self::CT_WORD_PRINTER_SETTINGS,
+            'issueCodes' => array_keys($issueCodes),
+            'byRelationshipId' => $byRelationshipId,
+            'byPartName' => $byPartName,
+            'items' => $items,
+            'byteExposurePolicy' => 'printer-settings-bytes-blocked',
+            'reviewPolicy' => 'printer-settings-metadata-only',
+        ];
     }
 
     /**
@@ -22642,6 +22873,7 @@ final class DocxOpenXmlReader
             self::PEOPLE_REL => 'people',
             self::SETTINGS_REL => 'settings',
             self::ATTACHED_TEMPLATE_REL => 'attached-template',
+            self::PRINTER_SETTINGS_REL => 'printer-settings',
             self::MAIL_MERGE_SOURCE_REL => 'mail-merge-source',
             self::MAIL_MERGE_HEADER_SOURCE_REL => 'mail-merge-header-source',
             self::MAIL_MERGE_RECIPIENT_DATA_REL, self::MAIL_MERGE_RECIPIENT_DATA_COMPAT_REL => 'mail-merge-recipient-data',
