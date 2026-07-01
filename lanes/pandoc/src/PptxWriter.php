@@ -1492,6 +1492,11 @@ final class PptxWriter
                     $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($inline->children, $style, $relationships));
                     break;
+                case 'citation':
+                case 'citation_group':
+                    $flushText();
+                    $runs = array_merge($runs, $this->inlineRuns($this->citationInlines($inline), $style, $relationships));
+                    break;
                 case 'quoted':
                     $flushText();
                     $runs = array_merge($runs, $this->inlineRuns($this->quotedInlines($inline), $style, $relationships));
@@ -2611,8 +2616,15 @@ final class PptxWriter
                 case 'span':
                 case 'superscript':
                 case 'subscript':
+                case 'citation':
+                case 'citation_group':
                     $flushText();
-                    $runs = array_merge($runs, $this->noteInlineRuns($inline->children, $style));
+                    $runs = array_merge($runs, $this->noteInlineRuns(
+                        $inline->type === 'citation' || $inline->type === 'citation_group'
+                            ? $this->citationInlines($inline)
+                            : $inline->children,
+                        $style
+                    ));
                     break;
                 case 'quoted':
                     $flushText();
@@ -2957,6 +2969,26 @@ final class PptxWriter
     /**
      * @return list<AstNode>
      */
+    private function citationInlines(AstNode $citation): array
+    {
+        if ($citation->children !== []) {
+            return $citation->children;
+        }
+
+        $text = (string) $citation->attr('rendered', $citation->attr('text', ''));
+        if ($text === '' && $citation->type === 'citation') {
+            $id = (string) $citation->attr('id', $citation->attr('citationId', ''));
+            if ($id !== '') {
+                $text = '[@' . $id . ']';
+            }
+        }
+
+        return $this->textInlines($text);
+    }
+
+    /**
+     * @return list<AstNode>
+     */
     private function quotedInlines(AstNode $quoted): array
     {
         [$open, $close] = $this->quoteMarks($quoted);
@@ -3013,6 +3045,9 @@ final class PptxWriter
         }
         if ($node->type === 'quoted') {
             return $this->inlineText($this->quotedInlines($node));
+        }
+        if ($node->type === 'citation' || $node->type === 'citation_group') {
+            return $this->inlineText($this->citationInlines($node));
         }
         if ($node->type === 'image') {
             return $this->imageFallbackText($node);

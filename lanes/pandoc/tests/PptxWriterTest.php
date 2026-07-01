@@ -218,6 +218,12 @@ $upstreamQuotedInlineNative = <<<'NATIVE'
  [Para [Str "Speaker",Space,Quoted SingleQuote [Str "aside"]]]]
 NATIVE;
 
+$upstreamCitationInlineNative = <<<'NATIVE'
+[Para [Str "Cited",Space,Cite [Citation {citationId = "doe2026", citationPrefix = [], citationSuffix = [], citationMode = NormalCitation, citationNoteNum = 0, citationHash = 123}] [Str "(",Emph [Str "Doe"],Space,Link ("",[],[]) [Str "2026"] ("https://example.test/ref",""),Str ")"]]
+,Div ("",["notes"],[])
+ [Para [Str "Note",Space,Cite [Citation {citationId = "note2026", citationPrefix = [], citationSuffix = [], citationMode = NormalCitation, citationNoteNum = 0, citationHash = 456}] [Strong [Str "note"],Space,Str "cite"]]]]
+NATIVE;
+
 $upstreamStartNumberingAtNative = <<<'NATIVE'
 [Header 2 ("example-numbering-mwe",[],[]) [Str "Example",Space,Str "numbering",Space,Str "MWE"]
 ,Para [Str "This",Space,Str "is",Space,Str "a",Space,Str "slide",Space,Str "with",Space,Str "examples",Space,Str "in",Space,Str "(1)",Space,Str "and",Space,Str "(2)"]
@@ -845,6 +851,31 @@ return [
         $t->true(!str_contains($slide, 'SingleQuote'), 'Quoted constructor names must not leak into slide XML');
 
         $t->contains("Speaker \u{2018}aside\u{2019}", $notesText);
+        $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream citation display inlines without citation metadata leakage' => static function (TestRunner $t) use ($upstreamCitationInlineNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamCitationInlineNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $slideRelationships = $package->read('ppt/slides/_rels/slide1.xml.rels');
+        $notes = $package->read('ppt/notesSlides/notesSlide1.xml');
+        $slideText = trim(preg_replace('/\s+/u', ' ', strip_tags($slide)) ?? '');
+        $notesText = trim(preg_replace('/\s+/u', ' ', strip_tags($notes)) ?? '');
+
+        $t->contains('Cited (Doe 2026)', $slideText);
+        $t->contains('i="1"', $slide);
+        $t->contains('<a:hlinkClick r:id="rIdHyperlink1"/>', $slide);
+        $t->contains('relationships/hyperlink', $slideRelationships);
+        $t->contains('Target="https://example.test/ref"', $slideRelationships);
+        $t->contains('TargetMode="External"', $slideRelationships);
+        $t->true(!str_contains($slide, 'doe2026'), 'Citation IDs must not leak into slide text or XML');
+        $t->true(!str_contains($slide, 'Citation'), 'Citation constructor names must not leak into slide XML');
+
+        $t->contains('Note note cite', $notesText);
+        $t->contains('b="1"', $notes);
+        $t->true(!str_contains($notes, 'note2026'), 'Speaker-note citation IDs must not leak into notes XML');
+        $t->true(!str_contains($notes, 'Citation'), 'Speaker-note citation constructors must not leak into notes XML');
         $t->contains('<Notes>1</Notes>', $package->read('docProps/app.xml'));
     },
 
