@@ -76,7 +76,7 @@ $footnotesRelationshipsXml = <<<'XML'
 XML;
 
 /**
- * @param list<array{name:string, data:string, centralIndex?:int, method?:int, flags?:int, descriptor?:bool, descriptorSignature?:bool}> $entries
+ * @param list<array{name:string, data:string, centralIndex?:int, method?:int, flags?:int, descriptor?:bool, descriptorSignature?:bool, centralExtra?:string, localExtra?:string, extraFieldData?:string}> $entries
  */
 $buildOpcZipPackage = static function (array $entries): string {
     $body = '';
@@ -99,6 +99,8 @@ $buildOpcZipPackage = static function (array $entries): string {
         if ($usesDescriptor) {
             $flags |= 0x0008;
         }
+        $localExtra = $entry['localExtra'] ?? ($entry['extraFieldData'] ?? '');
+        $centralExtra = $entry['centralExtra'] ?? ($entry['extraFieldData'] ?? $localExtra);
         $crc32 = (int) sprintf('%u', crc32($data));
         $compressedSize = strlen($compressed);
         $uncompressedSize = strlen($data);
@@ -119,9 +121,9 @@ $buildOpcZipPackage = static function (array $entries): string {
             $localCompressedSize,
             $localUncompressedSize,
             strlen($name),
-            0
+            strlen($localExtra)
         );
-        $body .= $name . $compressed;
+        $body .= $name . $localExtra . $compressed;
         if ($usesDescriptor) {
             if (($entry['descriptorSignature'] ?? true) === true) {
                 $body .= "PK\x07\x08";
@@ -142,14 +144,14 @@ $buildOpcZipPackage = static function (array $entries): string {
             $compressedSize,
             $uncompressedSize,
             strlen($name),
-            0,
+            strlen($centralExtra),
             0,
             0,
             0,
             0,
             $offset
         );
-        $centralRecord .= $name;
+        $centralRecord .= $name . $centralExtra;
         $centralRecords[] = [
             'order' => $entry['centralIndex'] ?? $entryIndex,
             'index' => $entryIndex,
@@ -1653,6 +1655,91 @@ XML;
         }
 
         $t->same($packageSummary['localHeaderOrder'], $rawSummary['localHeaderOrder']);
+    },
+    'carries OPC ZIP extra field id usage through manifest preflights' => static function (TestRunner $t) use ($buildOpcZipPackage): void {
+        $contentTypesXml = <<<'XML'
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="bin" ContentType="application/octet-stream"/>
+</Types>
+XML;
+        $timestampExtra = pack('vvCV', 0x5455, 5, 0x01, 1780479017);
+        $centralReviewExtra = pack('vva*', 0xcafe, strlen('central-review'), 'central-review');
+        $localReviewExtra = pack('vva*', 0xbeef, strlen('local-review'), 'local-review');
+        $localAuditExtra = pack('vva*', 0x3333, strlen('local-audit'), 'local-audit');
+        $zip = $buildOpcZipPackage([
+            ['name' => '[Content_Types].xml', 'data' => $contentTypesXml],
+            ['name' => '_rels/.rels', 'data' => '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>'],
+            [
+                'name' => 'word/document.xml',
+                'data' => '<w:document><w:body><w:p>extra field usage</w:p></w:body></w:document>',
+                'centralExtra' => $timestampExtra . $centralReviewExtra,
+                'localExtra' => $timestampExtra . $localReviewExtra,
+            ],
+            [
+                'name' => 'word/media/audit.bin',
+                'data' => 'local-only extra-field id',
+                'centralExtra' => '',
+                'localExtra' => $localAuditExtra,
+            ],
+        ]);
+
+        $packageSummary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
+        $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
+        foreach ([$packageSummary, $rawSummary] as $summary) {
+            $entries = [];
+            foreach ($summary['entries'] as $entry) {
+                $entries[$entry['entryName']] = $entry;
+            }
+            $usageByHex = [];
+            foreach ($summary['zipExtraFieldIdUsage'] as $usage) {
+                $usageByHex[$usage['idHex']] = $usage;
+            }
+
+            $t->same(false, $summary['valid']);
+            $t->same(false, $summary['isSupportedByBoundedReader']);
+            $t->same(false, $summary['zipExtraFieldsValid']);
+            $t->same(['central-local-extra-field-id-mismatch'], $summary['zipExtraFieldIssues']);
+            $t->same(null, $summary['zipExtraFieldPreflightError']);
+            $t->same(2, $summary['zipExtraFieldEntryCount']);
+            $t->same(4, $summary['zipExtraFieldIdCount']);
+            $t->same(2, $summary['zipCentralExtraFieldIdCount']);
+            $t->same(3, $summary['zipLocalExtraFieldIdCount']);
+            $t->same(1, $summary['zipSharedExtraFieldIdCount']);
+            $t->same(1, $summary['zipCentralOnlyExtraFieldIdCount']);
+            $t->same(2, $summary['zipLocalOnlyExtraFieldIdCount']);
+            $t->same(['0x3333', '0x5455', '0xbeef', '0xcafe'], $summary['zipExtraFieldIdHexes']);
+            $t->same(['0x5455', '0xcafe'], $summary['zipCentralExtraFieldIdHexes']);
+            $t->same(['0x3333', '0x5455', '0xbeef'], $summary['zipLocalExtraFieldIdHexes']);
+            $t->same(['0x5455'], $summary['zipSharedExtraFieldIdHexes']);
+            $t->same(['0xcafe'], $summary['zipCentralOnlyExtraFieldIdHexes']);
+            $t->same(['0x3333', '0xbeef'], $summary['zipLocalOnlyExtraFieldIdHexes']);
+            $t->same(2, $summary['issueCounts']['local-only-extra-field-ids']);
+            $t->same(1, $summary['issueCounts']['central-only-extra-field-ids']);
+
+            $documentEntry = $entries['word/document.xml'];
+            $mediaEntry = $entries['word/media/audit.bin'];
+            $t->same(['0x5455', '0xcafe'], $documentEntry['centralExtraFieldIdHexes']);
+            $t->same(['0x5455', '0xbeef'], $documentEntry['localExtraFieldIdHexes']);
+            $t->same(['0xcafe'], $documentEntry['centralOnlyExtraFieldIdHexes']);
+            $t->same(['0xbeef'], $documentEntry['localOnlyExtraFieldIdHexes']);
+            $t->same(['central-only-extra-field-ids', 'local-only-extra-field-ids'], $documentEntry['zipExtraFieldIssues']);
+            $t->same(true, $documentEntry['hasMismatchedExtraFieldIds']);
+            $t->same(false, $documentEntry['hasMismatchedExtraFieldValues']);
+            $t->same([], $mediaEntry['centralExtraFieldIdHexes']);
+            $t->same(['0x3333'], $mediaEntry['localExtraFieldIdHexes']);
+            $t->same(['local-only-extra-field-ids'], $mediaEntry['zipExtraFieldIssues']);
+            $t->same(true, $usageByHex['0xcafe']['appearsOnlyInCentral']);
+            $t->same(['word/document.xml'], $usageByHex['0xcafe']['centralEntryNames']);
+            $t->same(true, $usageByHex['0x3333']['appearsOnlyInLocal']);
+            $t->same(['word/media/audit.bin'], $usageByHex['0x3333']['localEntryNames']);
+        }
+
+        $t->same($packageSummary['zipExtraFieldIdUsage'], $rawSummary['zipExtraFieldIdUsage']);
+        $t->same($packageSummary['zipExtraFieldIdHexes'], $rawSummary['zipExtraFieldIdHexes']);
+        $t->same($packageSummary['zipCentralOnlyExtraFieldIdHexes'], $rawSummary['zipCentralOnlyExtraFieldIdHexes']);
+        $t->same($packageSummary['zipLocalOnlyExtraFieldIdHexes'], $rawSummary['zipLocalOnlyExtraFieldIdHexes']);
     },
     'preflights OPC ZIP entry manifest equivalent package part name collisions before XML handoff' => static function (TestRunner $t): void {
         $contentTypesXml = <<<'XML'

@@ -560,6 +560,13 @@ final class OpcRelationshipGraph
         $contentTypesParseError = null;
         $localHeaderOrder = $package->localHeaderOrderPreflight();
         $packageManifest = $package->packageManifestPreflight();
+        $zipExtraFields = null;
+        $zipExtraFieldPreflightError = null;
+        try {
+            $zipExtraFields = $package->extraFieldPreflight();
+        } catch (\Throwable $exception) {
+            $zipExtraFieldPreflightError = $exception->getMessage();
+        }
         $localHeaderOrderByCentralDirectoryIndex = [];
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
             $localHeaderOrderByCentralDirectoryIndex[$orderEntry['centralDirectoryIndex']] = $orderEntry;
@@ -567,6 +574,12 @@ final class OpcRelationshipGraph
         $packageManifestEntriesByCentralDirectoryIndex = [];
         foreach ($packageManifest['entries'] as $manifestEntry) {
             $packageManifestEntriesByCentralDirectoryIndex[$manifestEntry['centralDirectoryIndex']] = $manifestEntry;
+        }
+        $zipExtraFieldsByCentralDirectoryIndex = [];
+        if (is_array($zipExtraFields)) {
+            foreach ($zipExtraFields['entries'] as $extraFieldIndex => $extraFieldEntry) {
+                $zipExtraFieldsByCentralDirectoryIndex[$extraFieldIndex] = $extraFieldEntry;
+            }
         }
 
         foreach ($package->entries() as $entryIndex => $entry) {
@@ -578,6 +591,12 @@ final class OpcRelationshipGraph
             $contentTypesItem = false;
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$entryIndex] ?? null;
             $manifestEntry = $packageManifestEntriesByCentralDirectoryIndex[$entryIndex] ?? [];
+            $zipExtraFieldEntry = $zipExtraFieldsByCentralDirectoryIndex[$entryIndex] ?? null;
+            $zipExtraFieldEntryFields = self::zipExtraFieldManifestEntryFields($zipExtraFieldEntry);
+            $issues = array_values(array_unique(array_merge(
+                $issues,
+                $zipExtraFieldEntryFields['zipExtraFieldIssues']
+            )));
             $centralDirectoryRecordOffset = $manifestEntry['centralDirectoryRecordOffset']
                 ?? $entry->centralDirectoryRecordOffset;
             $centralDirectoryRecordEnd = $manifestEntry['centralDirectoryRecordEnd']
@@ -640,6 +659,7 @@ final class OpcRelationshipGraph
                 'centralDirectoryExtraFieldOffset' => $manifestEntry['centralDirectoryExtraFieldOffset'] ?? null,
                 'centralDirectoryExtraFieldBytes' => $manifestEntry['centralDirectoryExtraFieldBytes'] ?? null,
                 'centralDirectoryExtraFieldSha256' => $manifestEntry['centralDirectoryExtraFieldSha256'] ?? null,
+                ...$zipExtraFieldEntryFields,
                 'centralDirectoryRawCommentOffset' => $manifestEntry['centralDirectoryRawCommentOffset'] ?? null,
                 'centralDirectoryRawCommentBytes' => $manifestEntry['centralDirectoryRawCommentBytes'] ?? null,
                 'centralDirectoryRawCommentSha256' => $manifestEntry['centralDirectoryRawCommentSha256'] ?? null,
@@ -946,6 +966,10 @@ final class OpcRelationshipGraph
         $issueCounts = [];
         $entryNamesByIssue = [];
         $partNamesByIssue = [];
+        if ($zipExtraFieldPreflightError !== null) {
+            $issueCounts['extra-field-policy-preflight-error'] = 1;
+            self::appendUniqueString($issues, 'extra-field-policy-preflight-error');
+        }
         $roleCounts = [];
         $byteCountsByRole = [];
         $byteCountsByHandoffKind = [];
@@ -1467,6 +1491,7 @@ final class OpcRelationshipGraph
             'zipSourceRecordHandoffKindSummaryCount' => $zipSourceRecordManifest['handoffKindSummaryCount'],
             'zipSourceRecordHandoffKindSummaries' => $zipSourceRecordManifest['handoffKindSummaries'],
             'zipSourceRecordManifest' => $zipSourceRecordManifest,
+            ...self::zipExtraFieldManifestSummaryFields($zipExtraFields, $zipExtraFieldPreflightError),
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
             'entryNamesByDirectoryRoot' => $entryNamesByDirectoryRoot,
@@ -1735,9 +1760,22 @@ final class OpcRelationshipGraph
         $centralDirectory = ZipPackage::centralDirectorySizePreflight($bytes);
         $packageSource = self::zipPackageSourcePreflightFromBytes($bytes);
         $localHeaderOrder = ZipPackage::centralDirectoryLocalHeaderOrderPreflight($bytes);
+        $zipExtraFields = null;
+        $zipExtraFieldPreflightError = null;
+        try {
+            $zipExtraFields = ZipPackage::extraFieldPolicyPreflight($bytes);
+        } catch (\Throwable $exception) {
+            $zipExtraFieldPreflightError = $exception->getMessage();
+        }
         $localHeaderOrderByCentralDirectoryIndex = [];
         foreach ($localHeaderOrder['entries'] as $orderEntry) {
             $localHeaderOrderByCentralDirectoryIndex[$orderEntry['centralDirectoryIndex']] = $orderEntry;
+        }
+        $zipExtraFieldsByCentralDirectoryIndex = [];
+        if (is_array($zipExtraFields)) {
+            foreach ($zipExtraFields['entries'] as $extraFieldEntry) {
+                $zipExtraFieldsByCentralDirectoryIndex[$extraFieldEntry['centralDirectoryIndex']] = $extraFieldEntry;
+            }
         }
         $localHeaderNames = null;
         $localHeaderNamePreflightError = null;
@@ -1838,6 +1876,12 @@ final class OpcRelationshipGraph
             $contentTypesItem = false;
             $byteCountsAreExact = !$centralEntry['hasZip64SizeSentinel'];
             $orderEntry = $localHeaderOrderByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $zipExtraFieldEntry = $zipExtraFieldsByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
+            $zipExtraFieldEntryFields = self::zipExtraFieldManifestEntryFields($zipExtraFieldEntry);
+            $issues = array_values(array_unique(array_merge(
+                $issues,
+                $zipExtraFieldEntryFields['zipExtraFieldIssues']
+            )));
             $localHeaderNameEntry = $localHeaderNameByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderMetadataEntry = $localHeaderMetadataByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
             $localHeaderSpanEntry = $localHeaderSpanByCentralDirectoryIndex[$centralEntry['centralDirectoryIndex']] ?? null;
@@ -2090,6 +2134,7 @@ final class OpcRelationshipGraph
                     $centralDirectoryExtraFieldOffset,
                     $centralDirectoryExtraFieldBytes
                 ),
+                ...$zipExtraFieldEntryFields,
                 'centralDirectoryRawCommentOffset' => $centralDirectoryRawCommentOffset,
                 'centralDirectoryRawCommentBytes' => $centralDirectoryRawCommentBytes,
                 'centralDirectoryRawCommentSha256' => $hashByteSlice(
@@ -2264,6 +2309,10 @@ final class OpcRelationshipGraph
         $partNamesByIssue = [];
         foreach ($issues as $issue) {
             $issueCounts[$issue] = 1;
+        }
+        if ($zipExtraFieldPreflightError !== null) {
+            $issueCounts['extra-field-policy-preflight-error'] = 1;
+            self::appendUniqueString($issues, 'extra-field-policy-preflight-error');
         }
         if ($localHeaderNamePreflightError !== null) {
             $issueCounts['local-header-name-preflight-error'] = 1;
@@ -2714,6 +2763,7 @@ final class OpcRelationshipGraph
             'zipSourceRecordHandoffKindSummaryCount' => $zipSourceRecordManifest['handoffKindSummaryCount'],
             'zipSourceRecordHandoffKindSummaries' => $zipSourceRecordManifest['handoffKindSummaries'],
             'zipSourceRecordManifest' => $zipSourceRecordManifest,
+            ...self::zipExtraFieldManifestSummaryFields($zipExtraFields, $zipExtraFieldPreflightError),
             'directoryRootCount' => count($directoryRootCounts),
             'directoryRootCounts' => $directoryRootCounts,
             'entryNamesByDirectoryRoot' => $entryNamesByDirectoryRoot,
@@ -9457,6 +9507,133 @@ final class OpcRelationshipGraph
     private static function isContentTypesItemName(string $partName): bool
     {
         return self::partNameEquivalenceKey(OpcPackagePath::canonicalPartName($partName)) === '/[content_types].xml';
+    }
+
+    /**
+     * @param ?array<string, mixed> $entry
+     * @return array<string, mixed>
+     */
+    private static function zipExtraFieldManifestEntryFields(?array $entry): array
+    {
+        $issues = $entry === null ? [] : self::zipExtraFieldEntryIssues($entry);
+
+        return [
+            'zipExtraFieldIssues' => $issues,
+            'centralExtraFieldIds' => $entry['centralExtraFieldIds'] ?? [],
+            'centralExtraFieldIdHexes' => $entry['centralExtraFieldIdHexes'] ?? [],
+            'localExtraFieldIds' => $entry['localExtraFieldIds'] ?? [],
+            'localExtraFieldIdHexes' => $entry['localExtraFieldIdHexes'] ?? [],
+            'duplicateCentralExtraFieldIds' => $entry['duplicateCentralExtraFieldIds'] ?? [],
+            'duplicateCentralExtraFieldIdHexes' => $entry['duplicateCentralExtraFieldIdHexes'] ?? [],
+            'duplicateLocalExtraFieldIds' => $entry['duplicateLocalExtraFieldIds'] ?? [],
+            'duplicateLocalExtraFieldIdHexes' => $entry['duplicateLocalExtraFieldIdHexes'] ?? [],
+            'centralOnlyExtraFieldIds' => $entry['centralOnlyExtraFieldIds'] ?? [],
+            'centralOnlyExtraFieldIdHexes' => $entry['centralOnlyExtraFieldIdHexes'] ?? [],
+            'localOnlyExtraFieldIds' => $entry['localOnlyExtraFieldIds'] ?? [],
+            'localOnlyExtraFieldIdHexes' => $entry['localOnlyExtraFieldIdHexes'] ?? [],
+            'mismatchedExtraFieldValueIds' => $entry['mismatchedExtraFieldValueIds'] ?? [],
+            'mismatchedExtraFieldValueIdHexes' => $entry['mismatchedExtraFieldValueIdHexes'] ?? [],
+            'hasDuplicateExtraFieldIds' => (bool) ($entry['hasDuplicateExtraFieldIds'] ?? false),
+            'hasMismatchedExtraFieldIds' => (bool) ($entry['hasMismatchedExtraFieldIds'] ?? false),
+            'hasMismatchedExtraFieldValues' => (bool) ($entry['hasMismatchedExtraFieldValues'] ?? false),
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $entry
+     * @return list<string>
+     */
+    private static function zipExtraFieldEntryIssues(array $entry): array
+    {
+        $issues = [];
+        foreach ($entry['issues'] ?? [] as $issue) {
+            if (is_string($issue)) {
+                self::appendUniqueString($issues, $issue);
+            }
+        }
+        if (($entry['duplicateCentralExtraFieldIds'] ?? []) !== []) {
+            self::appendUniqueString($issues, 'duplicate-central-extra-field-ids');
+        }
+        if (($entry['duplicateLocalExtraFieldIds'] ?? []) !== []) {
+            self::appendUniqueString($issues, 'duplicate-local-extra-field-ids');
+        }
+        if (($entry['centralOnlyExtraFieldIds'] ?? []) !== []) {
+            self::appendUniqueString($issues, 'central-only-extra-field-ids');
+        }
+        if (($entry['localOnlyExtraFieldIds'] ?? []) !== []) {
+            self::appendUniqueString($issues, 'local-only-extra-field-ids');
+        }
+        if (($entry['mismatchedExtraFieldValueIds'] ?? []) !== []) {
+            self::appendUniqueString($issues, 'central-local-extra-field-value-mismatch');
+        }
+        if (($entry['localHeaderAvailable'] ?? true) === false) {
+            self::appendUniqueString($issues, 'extra-field-local-header-unavailable');
+        }
+
+        return $issues;
+    }
+
+    /**
+     * @param ?array<string, mixed> $extraFields
+     * @return array<string, mixed>
+     */
+    private static function zipExtraFieldManifestSummaryFields(?array $extraFields, ?string $preflightError): array
+    {
+        $issues = self::zipExtraFieldSummaryIssues($extraFields, $preflightError);
+
+        return [
+            'zipExtraFieldsValid' => $extraFields !== null && $issues === [],
+            'zipExtraFieldIssues' => $issues,
+            'zipExtraFieldPreflightError' => $preflightError,
+            'zipExtraFieldEntryCount' => (int) ($extraFields['extraFieldEntryCount'] ?? 0),
+            'zipDuplicateExtraFieldEntryCount' => (int) ($extraFields['duplicateExtraFieldEntryCount'] ?? 0),
+            'zipDuplicateCentralExtraFieldEntryCount' => (int) ($extraFields['duplicateCentralExtraFieldEntryCount'] ?? 0),
+            'zipDuplicateLocalExtraFieldEntryCount' => (int) ($extraFields['duplicateLocalExtraFieldEntryCount'] ?? 0),
+            'zipMismatchedExtraFieldEntryCount' => (int) ($extraFields['mismatchedExtraFieldEntryCount'] ?? 0),
+            'zipMismatchedExtraFieldValueEntryCount' => (int) ($extraFields['mismatchedExtraFieldValueEntryCount'] ?? 0),
+            'zipCentralOnlyExtraFieldEntryCount' => (int) ($extraFields['centralOnlyExtraFieldEntryCount'] ?? 0),
+            'zipLocalOnlyExtraFieldEntryCount' => (int) ($extraFields['localOnlyExtraFieldEntryCount'] ?? 0),
+            'zipExtraFieldIdCount' => (int) ($extraFields['extraFieldIdCount'] ?? 0),
+            'zipCentralExtraFieldIdCount' => (int) ($extraFields['centralExtraFieldIdCount'] ?? 0),
+            'zipLocalExtraFieldIdCount' => (int) ($extraFields['localExtraFieldIdCount'] ?? 0),
+            'zipSharedExtraFieldIdCount' => (int) ($extraFields['sharedExtraFieldIdCount'] ?? 0),
+            'zipCentralOnlyExtraFieldIdCount' => (int) ($extraFields['centralOnlyExtraFieldIdCount'] ?? 0),
+            'zipLocalOnlyExtraFieldIdCount' => (int) ($extraFields['localOnlyExtraFieldIdCount'] ?? 0),
+            'zipExtraFieldIdHexes' => $extraFields['extraFieldIdHexes'] ?? [],
+            'zipCentralExtraFieldIdHexes' => $extraFields['centralExtraFieldIdHexes'] ?? [],
+            'zipLocalExtraFieldIdHexes' => $extraFields['localExtraFieldIdHexes'] ?? [],
+            'zipSharedExtraFieldIdHexes' => $extraFields['sharedExtraFieldIdHexes'] ?? [],
+            'zipCentralOnlyExtraFieldIdHexes' => $extraFields['centralOnlyExtraFieldIdHexes'] ?? [],
+            'zipLocalOnlyExtraFieldIdHexes' => $extraFields['localOnlyExtraFieldIdHexes'] ?? [],
+            'zipExtraFieldIdUsage' => $extraFields['extraFieldIdUsage'] ?? [],
+            'zipExtraFields' => $extraFields,
+        ];
+    }
+
+    /**
+     * @param ?array<string, mixed> $extraFields
+     * @return list<string>
+     */
+    private static function zipExtraFieldSummaryIssues(?array $extraFields, ?string $preflightError): array
+    {
+        $issues = [];
+        if ($preflightError !== null) {
+            $issues[] = 'extra-field-policy-preflight-error';
+        }
+        if ($extraFields === null) {
+            return $issues;
+        }
+        if ((int) ($extraFields['duplicateExtraFieldEntryCount'] ?? 0) > 0) {
+            self::appendUniqueString($issues, 'duplicate-extra-field-ids');
+        }
+        if ((int) ($extraFields['mismatchedExtraFieldEntryCount'] ?? 0) > 0) {
+            self::appendUniqueString($issues, 'central-local-extra-field-id-mismatch');
+        }
+        if ((int) ($extraFields['mismatchedExtraFieldValueEntryCount'] ?? 0) > 0) {
+            self::appendUniqueString($issues, 'central-local-extra-field-value-mismatch');
+        }
+
+        return $issues;
     }
 
     private static function zipEntryManifestRole(
