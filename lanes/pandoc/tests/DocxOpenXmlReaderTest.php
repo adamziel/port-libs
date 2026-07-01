@@ -10007,7 +10007,9 @@ XML;
 <?xml version="1.0" encoding="UTF-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rSidecarPreview" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="sidecar-preview.png"/>
+  <Relationship Id="rSidecarMissing" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="missing-preview.png"/>
   <Relationship Id="rSidecarExternal" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/sidecar-resource?review=1#external" TargetMode="External"/>
+  <Relationship Id="rSidecarUnsafe" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>
 </Relationships>
 XML;
         $parts['docProps/sidecar-preview.png'] = 'sidecar preview bytes';
@@ -10035,13 +10037,27 @@ XML;
         $t->same([$resourceType], $resources['relationshipTypes']);
         $t->same(['docProps/review-audit.xml', 'docProps/sidecar-audit.xml', 'docProps/missing-audit.xml'], $resources['targetParts']);
         $t->same(['file:///C:/review/root-audit.xml?remote=1#payload'], $resources['externalTargets']);
-        $t->same(2, $resources['targetRelationshipRecordCount']);
+        $t->same(4, $resources['targetRelationshipRecordCount']);
+        $t->same(1, $resources['targetRelationshipExistingTargetCount']);
+        $t->same(1, $resources['targetRelationshipMissingTargetCount']);
+        $t->same(2, $resources['targetRelationshipExternalTargetCount']);
+        $t->same(1, $resources['targetRelationshipAllowedExternalTargetCount']);
+        $t->same(1, $resources['targetRelationshipUnsafeExternalTargetCount']);
+        $t->same(0, $resources['targetRelationshipMissingContentTypeTargetCount']);
+        $t->same(2, $resources['targetRelationshipIssueCount']);
+        $t->same(['external-target-unsafe-scheme', 'missing-package-root-target-relationship-target'], $resources['targetRelationshipIssueCodes']);
         $t->same([
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
         ], $resources['targetRelationshipTypes']);
-        $t->same(['docProps/sidecar-preview.png'], $resources['targetRelationshipTargetParts']);
-        $t->same(['https://example.test/sidecar-resource?review=1#external'], $resources['targetRelationshipExternalTargets']);
+        $t->same(['docProps/sidecar-preview.png', 'docProps/missing-preview.png'], $resources['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external', 'javascript:alert(1)'], $resources['targetRelationshipExternalTargets']);
+        $t->same(['docProps/sidecar-preview.png'], $resources['targetRelationshipExistingTargetParts']);
+        $t->same(['docProps/missing-preview.png'], $resources['targetRelationshipMissingTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external'], $resources['targetRelationshipAllowedExternalTargets']);
+        $t->same(['javascript:alert(1)'], $resources['targetRelationshipUnsafeExternalTargets']);
+        $t->same(['image/png'], $resources['targetRelationshipContentTypes']);
+        $t->same(['image/png'], $resources['targetRelationshipContentTypeBases']);
         $t->same('package-root-relationship-bytes-blocked', $resources['byteExposurePolicy']);
         $t->same('package-root-relationship-metadata-only', $resources['reviewPolicy']);
         $t->same(false, $resources['canExposeBytes']);
@@ -10063,14 +10079,50 @@ XML;
 
         $t->same('docProps/_rels/sidecar-audit.xml.rels', $sidecar['targetRelationshipsPart']);
         $t->same(true, $sidecar['targetHasRelationships']);
-        $t->same(2, $sidecar['targetRelationshipRecordCount']);
-        $t->same(['rSidecarPreview', 'rSidecarExternal'], $sidecar['targetRelationshipIds']);
+        $t->same(4, $sidecar['targetRelationshipRecordCount']);
+        $t->same(['rSidecarPreview', 'rSidecarMissing', 'rSidecarExternal', 'rSidecarUnsafe'], $sidecar['targetRelationshipIds']);
         $t->same([
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
             'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
         ], $sidecar['targetRelationshipTypes']);
-        $t->same(['docProps/sidecar-preview.png'], $sidecar['targetRelationshipTargetParts']);
-        $t->same(['https://example.test/sidecar-resource?review=1#external'], $sidecar['targetRelationshipExternalTargets']);
+        $t->same(['docProps/sidecar-preview.png', 'docProps/missing-preview.png'], $sidecar['targetRelationshipTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external', 'javascript:alert(1)'], $sidecar['targetRelationshipExternalTargets']);
+        $t->same(1, $sidecar['targetRelationshipExistingTargetCount']);
+        $t->same(1, $sidecar['targetRelationshipMissingTargetCount']);
+        $t->same(2, $sidecar['targetRelationshipExternalTargetCount']);
+        $t->same(1, $sidecar['targetRelationshipAllowedExternalTargetCount']);
+        $t->same(1, $sidecar['targetRelationshipUnsafeExternalTargetCount']);
+        $t->same(0, $sidecar['targetRelationshipMissingContentTypeTargetCount']);
+        $t->same(2, $sidecar['targetRelationshipIssueCount']);
+        $t->same(['external-target-unsafe-scheme', 'missing-package-root-target-relationship-target'], $sidecar['targetRelationshipIssueCodes']);
+        $t->same(['docProps/sidecar-preview.png'], $sidecar['targetRelationshipExistingTargetParts']);
+        $t->same(['docProps/missing-preview.png'], $sidecar['targetRelationshipMissingTargetParts']);
+        $t->same(['https://example.test/sidecar-resource?review=1#external'], $sidecar['targetRelationshipAllowedExternalTargets']);
+        $t->same(['javascript:alert(1)'], $sidecar['targetRelationshipUnsafeExternalTargets']);
+        $sidecarRelationships = [];
+        foreach ($sidecar['targetRelationships'] as $sidecarRelationship) {
+            $sidecarRelationships[$sidecarRelationship['id']] = $sidecarRelationship;
+        }
+        $t->same('docProps/sidecar-preview.png', $sidecarRelationships['rSidecarPreview']['targetPart']);
+        $t->same(true, $sidecarRelationships['rSidecarPreview']['exists']);
+        $t->same('image/png', $sidecarRelationships['rSidecarPreview']['contentType']);
+        $t->same(false, $sidecarRelationships['rSidecarPreview']['canExposeBytes']);
+        $t->same('package-root-target-relationship-bytes-blocked', $sidecarRelationships['rSidecarPreview']['byteExposurePolicy']);
+        $t->same([], $sidecarRelationships['rSidecarPreview']['issues']);
+        $t->same(true, $sidecarRelationships['rSidecarPreview']['valid']);
+        $t->same('docProps/missing-preview.png', $sidecarRelationships['rSidecarMissing']['targetPart']);
+        $t->same(false, $sidecarRelationships['rSidecarMissing']['exists']);
+        $t->same('image/png', $sidecarRelationships['rSidecarMissing']['contentType']);
+        $t->same(['missing-package-root-target-relationship-target'], $sidecarRelationships['rSidecarMissing']['issues']);
+        $t->same(false, $sidecarRelationships['rSidecarMissing']['valid']);
+        $t->same(true, $sidecarRelationships['rSidecarExternal']['external']);
+        $t->same(true, $sidecarRelationships['rSidecarExternal']['externalTargetAllowed']);
+        $t->same([], $sidecarRelationships['rSidecarExternal']['issues']);
+        $t->same(true, $sidecarRelationships['rSidecarExternal']['valid']);
+        $t->same('javascript', $sidecarRelationships['rSidecarUnsafe']['externalTargetScheme']);
+        $t->same(false, $sidecarRelationships['rSidecarUnsafe']['externalTargetAllowed']);
+        $t->same(['external-target-unsafe-scheme'], $sidecarRelationships['rSidecarUnsafe']['issues']);
+        $t->same(false, $sidecarRelationships['rSidecarUnsafe']['valid']);
         $t->same(strlen($sidecarXml), $sidecar['byteLength']);
         $t->same('application/vnd.example.review+xml; profile=sidecar', $sidecar['contentType']);
         $t->same([], $sidecar['issues']);
@@ -10100,7 +10152,15 @@ XML;
         $t->same(1, $summary['packageRootRelationshipResourceMissingCount']);
         $t->same(1, $summary['packageRootRelationshipResourceExternalCount']);
         $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipCount']);
-        $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
+        $t->same(4, $summary['packageRootRelationshipResourceTargetRelationshipRecordCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipExistingTargetCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipMissingTargetCount']);
+        $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipExternalTargetCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipAllowedExternalTargetCount']);
+        $t->same(1, $summary['packageRootRelationshipResourceTargetRelationshipUnsafeExternalTargetCount']);
+        $t->same(0, $summary['packageRootRelationshipResourceTargetRelationshipMissingContentTypeTargetCount']);
+        $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipIssueCount']);
+        $t->same($resources['targetRelationshipIssueCodes'], $summary['packageRootRelationshipResourceTargetRelationshipIssueCodes']);
         $t->same(2, $summary['packageRootRelationshipResourceIssueCount']);
         $t->same($resources['issueCodes'], $summary['packageRootRelationshipResourceIssueCodes']);
         $t->same(4, $relationshipType['count']);
