@@ -123,6 +123,104 @@ XML;
         $t->same(['endnote-source'], $endnoteDocument->attr('cslItemIds'));
         $t->contains('<dt>Curator 2024</dt><dd>Curator, Eli. EndNote Packet. 2024.</dd>', $endnoteBlocks);
     },
+    'records metadata only csl json reader review provenance' => static function (TestRunner $t): void {
+        $cslJson = json_encode([
+            [
+                'id' => 'packet-one',
+                'type' => 'article-journal',
+                'title' => 'Secret CSL JSON Packet Title',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                    ['literal' => 'Archive Desk'],
+                ],
+                'editor' => [['family' => 'Roe', 'given' => 'Pat']],
+                'issued' => ['date-parts' => [[2026, 6, 30]]],
+                'accessed' => ['date-parts' => [[2026, 7, 1]]],
+                'DOI' => '10.5555/private-doi',
+                'URL' => 'https://example.test/private-url',
+                'keywordList' => ['private-keyword', 'source-audit'],
+                'category-list' => 'private-category, csl',
+                'references' => 'private reference payload',
+            ],
+            [
+                'id' => 'packet-two',
+                'type' => 'book',
+                'container-title' => 'Private Container Title',
+                'translator' => [['family' => 'Ito', 'given' => 'Ira']],
+                'original-date' => ['date-parts' => [[1999]]],
+                'ISBN' => '978-private-isbn',
+                'citationAliases' => ['packet-two-alt'],
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $document = (new BibliographyReader('csljson'))->read($cslJson);
+        $review = $document->attr('cslJsonReview');
+        $items = $review['items'];
+
+        $t->same($review, $document->attr('bibliography')['cslJsonReview'] ?? null);
+        $t->same($items, $document->attr('cslJsonItemReviews'));
+        $t->same('csl-json-bibliography', $review['scope']);
+        $t->same('metadata-only', $review['byteExposurePolicy']);
+        $t->same(false, $review['externalTooling']);
+        $t->same(2, $review['itemCount']);
+        $t->same(['packet-one', 'packet-two'], $review['itemIds']);
+        $t->same(17, $review['fieldNameCount']);
+        $t->same([
+            'DOI',
+            'ISBN',
+            'URL',
+            'accessed',
+            'author',
+            'category-list',
+            'citationAliases',
+            'container-title',
+            'editor',
+            'id',
+            'issued',
+            'keywordList',
+            'original-date',
+            'references',
+            'title',
+            'translator',
+            'type',
+        ], $review['fieldNames']);
+        $t->same(['article-journal' => 1, 'book' => 1], $review['typeCounts']);
+        $t->same(2, $review['titleBearingItemCount']);
+        $t->same(1, $review['linkBearingItemCount']);
+        $t->same(['author' => 2, 'editor' => 1, 'translator' => 1], $review['nameVariableCounts']);
+        $t->same(['accessed' => 3, 'issued' => 3, 'original-date' => 1], $review['dateVariableCounts']);
+        $t->same(['DOI' => 1, 'ISBN' => 1], $review['identifierFieldCounts']);
+
+        $first = $items[0];
+        $t->same(0, $first['index']);
+        $t->same('packet-one', $first['id']);
+        $t->same('article-journal', $first['type']);
+        $t->same(['title'], $first['titleFields']);
+        $t->same(['author' => 2, 'editor' => 1], $first['nameVariableCounts']);
+        $t->same(3, $first['nameCount']);
+        $t->same(['accessed' => 3, 'issued' => 3], $first['datePartCounts']);
+        $t->same(['DOI'], $first['identifierFields']);
+        $t->same(['DOI', 'URL'], $first['linkFields']);
+        $t->same(['references'], $first['relationFields']);
+        $t->same('source-values-omitted', $first['payloadExposurePolicy']);
+
+        $second = $items[1];
+        $t->same(['container-title'], $second['titleFields']);
+        $t->same(['translator' => 1], $second['nameVariableCounts']);
+        $t->same(['original-date' => 1], $second['datePartCounts']);
+        $t->same(['ISBN'], $second['identifierFields']);
+        $t->same([], $second['linkFields']);
+
+        $reviewJson = json_encode($review, JSON_THROW_ON_ERROR);
+        $t->same(false, str_contains($reviewJson, 'Secret CSL JSON Packet Title'));
+        $t->same(false, str_contains($reviewJson, 'Private Container Title'));
+        $t->same(false, str_contains($reviewJson, '10.5555/private-doi'));
+        $t->same(false, str_contains($reviewJson, 'https://example.test/private-url'));
+        $t->same(false, str_contains($reviewJson, 'private-keyword'));
+        $t->same(false, str_contains($reviewJson, 'private-category'));
+        $t->same(false, str_contains($reviewJson, 'private reference payload'));
+        $t->same(false, str_contains($reviewJson, '978-private-isbn'));
+    },
     'rejects malformed bibliography inputs through converter dispatch' => static function (TestRunner $t): void {
         $t->throws(\InvalidArgumentException::class, static function (): void {
             PandocConverter::read('@book{missing,title={Bad}', 'bibtex');
