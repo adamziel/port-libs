@@ -712,12 +712,33 @@ final class BibtexCslProcessor
             $item['title'] = $title;
         }
 
-        $containerTitle = $this->composedTitle($fields, ['journaltitle', 'journal', 'booktitle'], ['journalsubtitle', 'booksubtitle']);
+        $containerTitle = $this->composedTitle($fields, [
+            'journaltitle',
+            'journal-title',
+            'journal',
+            'booktitle',
+            'book-title',
+            'container-title',
+            'container-title-text',
+            'containertitle',
+            'containertitletext',
+            'publication-title',
+            'publicationtitle',
+        ], [
+            'journalsubtitle',
+            'journal-subtitle',
+            'booksubtitle',
+            'book-subtitle',
+            'container-subtitle',
+            'containersubtitle',
+            'publication-subtitle',
+            'publicationsubtitle',
+        ]);
         if ($containerTitle !== null && $containerTitle !== '') {
             $item['container-title'] = $containerTitle;
         }
 
-        $reviewedTitle = $this->composedTitle($fields, ['reviewedtitle', 'reviewed-title'], ['reviewedsubtitle', 'reviewed-subtitle']);
+        $reviewedTitle = $this->composedTitle($fields, ['reviewtitle', 'reviewedtitle', 'reviewed-title'], ['reviewsubtitle', 'reviewedsubtitle', 'reviewed-subtitle']);
         if ($reviewedTitle !== null && $reviewedTitle !== '') {
             $item['reviewed-title'] = $reviewedTitle;
         }
@@ -742,7 +763,7 @@ final class BibtexCslProcessor
             $item['issue-title'] = $issueTitle;
         }
 
-        $originalTitle = $this->composedTitle($fields, ['origtitle', 'original-title'], ['origsubtitle', 'original-subtitle']);
+        $originalTitle = $this->composedTitle($fields, ['origtitle', 'originaltitle', 'original-title'], ['origsubtitle', 'originalsubtitle', 'original-subtitle']);
         if ($originalTitle !== null && $originalTitle !== '') {
             $item['original-title'] = $originalTitle;
         }
@@ -788,18 +809,31 @@ final class BibtexCslProcessor
             'reprint-date-addon' => ['reprintdateaddon', 'reprintdate-addon', 'reprint-date-addon', 'reprintdateaddendum', 'reprint-date-addendum'],
             'event-date-addon' => ['eventdateaddon', 'eventdate-addon', 'event-date-addon'],
             'accessed-date-addon' => ['urldateaddon', 'urldate-addon', 'url-date-addon', 'accesseddateaddon', 'accessed-date-addon'],
-            'short-title' => ['shorttitle'],
-            'title-addon' => ['titleaddon'],
-            'container-title-addon' => ['journaltitleaddon', 'booktitleaddon'],
+            'short-title' => ['shorttitle', 'short-title', 'title-short'],
+            'title-addon' => ['titleaddon', 'title-addon'],
+            'container-title-addon' => [
+                'journaltitleaddon',
+                'booktitleaddon',
+                'journal-title-addon',
+                'book-title-addon',
+                'container-title-addon',
+                'containertitleaddon',
+                'publication-title-addon',
+                'publicationtitleaddon',
+            ],
             'main-title-addon' => ['maintitleaddon', 'main-title-addon'],
             'reviewed-genre' => ['reviewedgenre', 'reviewed-genre', 'reviewgenre', 'review-genre'],
             'volume-title-short' => ['shortvolumetitle', 'short-volume-title', 'volumetitleshort', 'volume-title-short'],
             'issue-title-addon' => ['issuetitleaddon', 'issue-title-addon', 'issuetitle-addon'],
             'container-title-short' => [
                 'shortjournal',
+                'short-journal',
                 'shortjournaltitle',
+                'short-journal-title',
                 'shortjournal-title',
                 'journaltitle-short',
+                'journaltitleshort',
+                'journal-title-short',
                 'journalabbreviation',
                 'journal-abbreviation',
                 'container-title-short',
@@ -807,9 +841,13 @@ final class BibtexCslProcessor
             ],
             'journal-abbreviation' => [
                 'shortjournal',
+                'short-journal',
                 'shortjournaltitle',
+                'short-journal-title',
                 'shortjournal-title',
                 'journaltitle-short',
+                'journaltitleshort',
+                'journal-title-short',
                 'journalabbreviation',
                 'journal-abbreviation',
                 'container-title-short',

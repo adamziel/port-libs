@@ -1389,6 +1389,94 @@ XML);
         $t->contains('<p>Legacy title family [Ng | Migration Source Corpus: Archive Desk | source addendum | RV | Part Ledger: Field Notes | Special Issue: Source Reports | editorial packet; Roe | Compact Main Text | Alpha Compact Part | Compact Issue] keeps imported title metadata visible.</p>', $blocks);
         $t->contains('<dt>Ng 2026</dt><dd>Source Chapter :: Migration Handbook :: Migration Source Corpus: Archive Desk :: source addendum :: Review Volume: Appendix :: RV :: Part Ledger: Field Notes :: Special Issue: Source Reports :: editorial packet</dd>', $blocks);
     },
+    'carries direct csl title aliases in legacy biblatex handoff' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@article{direct-csl-title-aliases,
+  author                 = {Alias, Avery},
+  title                  = {Direct Alias Packet},
+  title-short            = {DAP},
+  title-addon            = {proof note},
+  container-title        = {Journal of Direct Aliases},
+  container-subtitle     = {Review Edition},
+  container-title-addon  = {container addendum},
+  journal-title-short    = {J. Direct Alias.},
+  originaltitle          = {Paquete Directo},
+  originalsubtitle       = {Archivo},
+  original-title-addon   = {facsimile},
+  date                   = {2026}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $item = $items['direct-csl-title-aliases'];
+
+        $t->same('Direct Alias Packet', $item['title']);
+        $t->same('DAP', $item['short-title']);
+        $t->same('proof note', $item['title-addon']);
+        $t->same('Journal of Direct Aliases: Review Edition', $item['container-title']);
+        $t->same('container addendum', $item['container-title-addon']);
+        $t->same('J. Direct Alias.', $item['container-title-short']);
+        $t->same('J. Direct Alias.', $item['journal-abbreviation']);
+        $t->same('Paquete Directo: Archivo', $item['original-title']);
+        $t->same('facsimile', $item['original-title-addon']);
+        $t->same('Journal of Direct Aliases', $item['rawBibtex']['fields']['container-title']);
+        $t->same('DAP', $item['rawBibtex']['fields']['title-short']);
+        $t->contains('Journal abbreviation: J. Direct Alias', $processor->renderBibliographyText($item));
+
+        $document = (new MarkdownReader())->read('Direct CSL title aliases [@direct-csl-title-aliases] remain visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $t->same(['direct-csl-title-aliases'], $handoff['citedKeys']);
+        $t->same('DAP', $handoff['bibliography']->children[0]->attr('cslItem')['short-title'] ?? null);
+        $t->same('container addendum', $handoff['items'][0]['container-title-addon'] ?? null);
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Direct CSL Title Alias Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-direct-csl-title-alias-review</id>
+    <updated>2026-07-01T13:45:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="title-short"/>
+        <text variable="title-addon"/>
+        <text variable="container-title"/>
+        <text variable="container-title-addon"/>
+        <text variable="original-title"/>
+        <text variable="container-title-short"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="short-title"/>
+      <text variable="title-addon"/>
+      <text variable="container-title"/>
+      <text variable="container-title-addon"/>
+      <text variable="original-title"/>
+      <text variable="journal-title-short"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $t->same('Bounded Legacy BibLaTeX Direct CSL Title Alias Review', $summary['title'] ?? null);
+        $t->same('title-short', $summary['citationRendering'][0]['children'][1]['variable'] ?? null);
+        $t->same('[Alias | DAP | proof note | Journal of Direct Aliases: Review Edition | container addendum | Paquete Directo: Archivo | J. Direct Alias.]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'direct-csl-title-aliases', 'text' => '[@direct-csl-title-aliases]']),
+        ]));
+        $t->same('Direct Alias Packet :: DAP :: proof note :: Journal of Direct Aliases: Review Edition :: container addendum :: Paquete Directo: Archivo :: J. Direct Alias.', $styled->renderBibliographyEntry('direct-csl-title-aliases'));
+
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Direct CSL title aliases [Alias | DAP | proof note | Journal of Direct Aliases: Review Edition | container addendum | Paquete Directo: Archivo | J. Direct Alias.] remain visible.</p>', $blocks);
+        $t->contains('<dt>Alias 2026</dt><dd>Direct Alias Packet :: DAP :: proof note :: Journal of Direct Aliases: Review Edition :: container addendum :: Paquete Directo: Archivo :: J. Direct Alias.</dd>', $blocks);
+    },
     'carries biblatex status taxonomy aliases in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @article{legacy-status-hyphen,
