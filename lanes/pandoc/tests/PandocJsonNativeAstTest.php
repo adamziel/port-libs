@@ -15681,6 +15681,54 @@ NATIVE;
         $t->same('raw_markdown', $roundTrip->children[2]->children[0]->type);
         $t->same('raw_tex', $roundTrip->children[2]->children[2]->type);
     },
+    'preserves textual native str and space constructors through writers' => static function (TestRunner $t): void {
+        $nativeText = <<<'NATIVE'
+[ Para [ Str "Alpha Beta", Space, Str "Gamma" ] ]
+NATIVE;
+        $expectedInlines = [
+            ['t' => 'Str', 'c' => 'Alpha Beta'],
+            ['t' => 'Space'],
+            ['t' => 'Str', 'c' => 'Gamma'],
+        ];
+
+        $nativeDocument = (new NativeReader())->read($nativeText);
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $textChildren = $nativeDocument->children[0]->children;
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+        $nativeRoundTripText = (new NativeWriter())->write($nativeDocument);
+        $nativeRoundTripPacket = (new PandocJsonWriter())->toArray(new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], (new NativeReader())->read($nativeRoundTripText)->children));
+
+        $t->same('pandoc-native-text', $nativeDocument->attr('nativeFormat'));
+        $t->same(['text', 'text', 'text'], array_map(static fn (AstNode $node): string => $node->type, $textChildren));
+        $t->same([['t' => 'Str', 'c' => 'Alpha Beta']], $textChildren[0]->attr('nativeInlineParts'));
+        $t->same([['t' => 'Space']], $textChildren[1]->attr('nativeInlineParts'));
+        $t->same($expectedInlines, $jsonPacket['blocks'][0]['c']);
+        $t->same($expectedInlines, $nativePacket['blocks'][0]['c']);
+        $t->contains('Str "Alpha Beta"', $nativeRoundTripText);
+        $t->contains('Space', $nativeRoundTripText);
+        $t->same($expectedInlines, $nativeRoundTripPacket['blocks'][0]['c']);
+
+        $edited = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [
+            new AstNode('paragraph', [], [
+                new AstNode('text', array_replace($textChildren[0]->attrs, ['text' => 'Edited text'])),
+            ]),
+        ]);
+        $editedJson = (new PandocJsonWriter())->toArray($edited);
+        $editedNative = json_decode((new NativeWriter())->write($edited), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same([['t' => 'Str', 'c' => 'Edited text']], $editedJson['blocks'][0]['c']);
+        $t->same([['t' => 'Str', 'c' => 'Edited text']], $editedNative['blocks'][0]['c']);
+    },
     'serializes native text raw tex inline nodes through pandoc json writers' => static function (TestRunner $t): void {
         $nativeText = <<<'NATIVE'
 Pandoc Meta {unMeta = fromList []} [ Para [ Str "Before", Space, RawInline (Format "tex") "\\alpha", Space, Str "after" ] ]

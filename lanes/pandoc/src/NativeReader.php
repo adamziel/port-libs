@@ -79,13 +79,18 @@ final class NativeReader
             $blocks = $this->parseBlockList();
             $this->expectEnd();
 
-            return new AstNode('document', $meta === [] ? [] : ['meta' => $meta], $blocks);
+            $attrs = ['nativeFormat' => 'pandoc-native-text'];
+            if ($meta !== []) {
+                $attrs['meta'] = $meta;
+            }
+
+            return new AstNode('document', $attrs, $blocks);
         }
 
         $blocks = $this->parseBlockList();
         $this->expectEnd();
 
-        return new AstNode('document', [], $blocks);
+        return new AstNode('document', ['nativeFormat' => 'pandoc-native-text'], $blocks);
     }
 
     private function readJsonNativeAst(string $native): ?AstNode
@@ -919,8 +924,8 @@ final class NativeReader
         $type = $this->expectAnyIdentifier();
 
         return match ($type) {
-            'Str' => new AstNode('text', ['text' => $this->expectString()]),
-            'Space' => new AstNode('text', ['text' => ' ']),
+            'Str' => $this->parseStrInline(),
+            'Space' => $this->parseSpaceInline(),
             'SoftBreak' => new AstNode('softbreak'),
             'LineBreak' => new AstNode('linebreak'),
             'Emph' => new AstNode('emph', [], $this->parseInlineList()),
@@ -941,6 +946,31 @@ final class NativeReader
             'Span' => new AstNode('span', $this->parseAttrTuple(), $this->parseInlineList()),
             default => throw new \InvalidArgumentException("Unsupported Native inline '{$type}'"),
         };
+    }
+
+    private function parseStrInline(): AstNode
+    {
+        $text = $this->expectString();
+        $native = ['t' => 'Str', 'c' => $text];
+
+        return new AstNode('text', [
+            'text' => $text,
+            'constructor' => 'Str',
+            'native' => $native,
+            'nativeInlineConstructors' => ['Str'],
+            'nativeInlineParts' => [$native],
+        ]);
+    }
+
+    private function parseSpaceInline(): AstNode
+    {
+        $native = ['t' => 'Space'];
+
+        return new AstNode('text', [
+            'text' => ' ',
+            'nativeInlineConstructors' => ['Space'],
+            'nativeInlineParts' => [$native],
+        ]);
     }
 
     private function parseCodeInline(): AstNode

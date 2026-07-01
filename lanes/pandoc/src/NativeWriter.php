@@ -114,6 +114,10 @@ final class NativeWriter
             return true;
         }
 
+        if ($document->attr('nativeFormat') === 'pandoc-native-text') {
+            return false;
+        }
+
         return is_array($document->attr('documentNative')) || $this->hasJsonNativeProvenance($document);
     }
 
