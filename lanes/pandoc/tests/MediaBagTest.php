@@ -420,6 +420,51 @@ return [
         ], $extracted['diagnostics']);
     },
 
+    'normalizes parameterized declared media types during resource mapping' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $bytes = "<svg><text>parameterized type</text></svg>\n";
+        $source = 'https://cdn.example.test/render?id=cover#svg';
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => $source,
+                    'title' => 'Parameterized SVG',
+                ], [new AstNode('text', ['text' => 'Parameterized SVG'])]),
+            ]),
+        ]);
+
+        $filled = $bag->fillDocument($document, [
+            'https://cdn.example.test/render' => [
+                'contents' => $bytes,
+                'mimeType' => 'IMAGE/SVG+XML; CHARSET=UTF-8',
+            ],
+        ]);
+        $directory = $bag->directory();
+        $path = sha1($bytes) . '.svg';
+
+        $t->same(['media-resource-loaded:' . $source], $filled['diagnostics']);
+        $t->same(1, count($directory));
+        $t->same($source, $directory[0]['source']);
+        $t->same($path, $directory[0]['path']);
+        $t->same('image/svg+xml', $directory[0]['mimeType']);
+        $t->same('declared', $directory[0]['mimeTypeSource']);
+        $t->same('application/octet-stream', $directory[0]['inferredMimeType']);
+        $t->same('declared-mime-matches-path', $directory[0]['mimeRepairSummary']);
+        $t->true(!str_contains($directory[0]['mimeType'], ';'), 'Media bag MIME type should not retain parameters');
+
+        $extracted = $bag->extractMedia($filled['document'], 'media');
+        $mappedImage = $extracted['document']->children[0]->children[0];
+        $attributes = $mappedImage->attr('attributes');
+
+        $t->same('media/' . $path, $mappedImage->attr('url'));
+        $t->same('media/' . $path, $extracted['entries'][0]['path']);
+        $t->same('image/svg+xml', $extracted['entries'][0]['mimeType']);
+        $t->same('image/svg+xml', $attributes['data-pandoc-media-type']);
+        $t->same('declared', $attributes['data-pandoc-media-mime-source']);
+        $t->same('declared-mime-matches-path', $attributes['data-pandoc-media-mime-repair']);
+        $t->same(['media-resource-mapped:' . $source], $extracted['diagnostics']);
+    },
+
     'disambiguates decoded media extraction path collisions' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $encodedSource = 'assets/%6Co%67o.png';

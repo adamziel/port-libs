@@ -58,10 +58,11 @@ final class MediaBag
             ? 'data-uri'
             : self::uriPathOrSource($source, $decodedSource);
         $inferredMimeType = self::mimeTypeFromPath($sourcePath);
-        $mimeTypeSource = $mimeType === null || trim($mimeType) === '' ? 'path' : 'declared';
+        $declaredMimeType = $mimeType === null ? '' : self::normalizeMimeType($mimeType);
+        $mimeTypeSource = $declaredMimeType === '' ? 'path' : 'declared';
         $normalizedMimeType = $mimeTypeSource === 'path'
             ? $inferredMimeType
-            : strtolower(trim($mimeType));
+            : $declaredMimeType;
         $hashPath = sha1($contents) . self::extensionFor($normalizedMimeType, $sourcePath);
         $path = str_starts_with($source, 'data:')
             ? $hashPath
