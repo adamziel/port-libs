@@ -13687,6 +13687,14 @@ final class DocxOpenXmlReader
         $summary['packageIdentityPartPathSegmentLengthBucketCount'] = $packageIdentity['partPathSegmentLengthBucketCount'];
         $summary['packageIdentityPartPathSegmentMaxByteLength'] = $packageIdentity['partPathSegmentMaxByteLength'];
         $summary['packageIdentityPartExtensionCount'] = $packageIdentity['partExtensionCount'];
+        $summary['packageIdentityPartExtensionCaseVariantCount'] =
+            $packageIdentity['partExtensionCaseVariantCount'];
+        $summary['packageIdentityPartExtensionCaseVariantExtensions'] =
+            $packageIdentity['partExtensionCaseVariantExtensions'];
+        $summary['packageIdentityPartExtensionUppercasePartCount'] =
+            $packageIdentity['partExtensionUppercasePartCount'];
+        $summary['packageIdentityPartExtensionDefaultDeclaredCount'] =
+            $packageIdentity['partExtensionDefaultDeclaredCount'];
         $summary['packageIdentityPartBaseNameCount'] = $packageIdentity['partBaseNameCount'];
         $summary['packageIdentityDuplicatePartBaseNameCount'] = $packageIdentity['duplicatePartBaseNameCount'];
         $summary['packageIdentityDuplicatePartBaseNames'] = $packageIdentity['duplicatePartBaseNames'];
@@ -13945,6 +13953,11 @@ final class DocxOpenXmlReader
             'partPathSegmentMaxByteLength' => (int) ($summary['partPathSegmentMaxByteLength'] ?? 0),
             'partExtensionCount' => (int) ($summary['partExtensionCount'] ?? 0),
             'partExtensionCaseVariantCount' => (int) ($summary['partExtensionCaseVariantCount'] ?? 0),
+            'partExtensionCaseVariantExtensions' =>
+                is_array($summary['partExtensionCaseVariantExtensions'] ?? null)
+                    ? array_values(array_map('strval', $summary['partExtensionCaseVariantExtensions']))
+                    : [],
+            'partExtensionUppercasePartCount' => (int) ($summary['partExtensionUppercasePartCount'] ?? 0),
             'partExtensionDefaultDeclaredCount' => (int) ($summary['partExtensionDefaultDeclaredCount'] ?? 0),
             'partBaseNameCount' => (int) ($summary['partBaseNameCount'] ?? 0),
             'duplicatePartBaseNameCount' => (int) ($summary['duplicatePartBaseNameCount'] ?? 0),
