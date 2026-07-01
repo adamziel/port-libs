@@ -701,6 +701,11 @@ XML,
         $t->same(count($parts), $summary['zipLoadedPartCount']);
         $t->same(0, $summary['zipUnsupportedCompressionMethodCount']);
         $t->same(true, $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder']);
+        $t->same($orderNames, $summary['zipCentralDirectoryOrderNames']);
+        $t->same($orderNames, $summary['zipLocalHeaderOrderNames']);
+        $t->same($zipPackage['localHeaderOrder']['entryCount'], $summary['zipLocalHeaderOrderEntryCount']);
+        $t->same(0, $summary['zipLocalHeaderOrderMismatchCount']);
+        $t->same([], $summary['zipLocalHeaderOrderMismatches']);
         $t->same(2, $methodBuckets[0]['entryCount']);
         $t->same(count($parts) - 1, $methodBuckets[8]['entryCount']);
     },

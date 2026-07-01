@@ -12439,6 +12439,20 @@ final class DocxOpenXmlReader
         $summary['zipUnsupportedCompressionPartNames'] = $unsupportedCompressionPartNames;
         $summary['zipUnsupportedCompressionEntries'] = $unsupportedCompressionEntries;
         $summary['zipCentralDirectoryOrderMatchesLocalHeaderOrder'] = $zipPackage['centralDirectoryOrderMatchesLocalHeaderOrder'];
+        $summary['zipCentralDirectoryOrderNames'] = is_array($zipPackage['centralDirectoryOrderNames'] ?? null)
+            ? $zipPackage['centralDirectoryOrderNames']
+            : [];
+        $summary['zipLocalHeaderOrderNames'] = is_array($zipPackage['localHeaderOrderNames'] ?? null)
+            ? $zipPackage['localHeaderOrderNames']
+            : [];
+        $zipLocalHeaderOrder = is_array($zipPackage['localHeaderOrder'] ?? null)
+            ? $zipPackage['localHeaderOrder']
+            : [];
+        $summary['zipLocalHeaderOrderEntryCount'] = (int) ($zipLocalHeaderOrder['entryCount'] ?? 0);
+        $summary['zipLocalHeaderOrderMismatchCount'] = (int) ($zipLocalHeaderOrder['mismatchedEntryCount'] ?? 0);
+        $summary['zipLocalHeaderOrderMismatches'] = is_array($zipLocalHeaderOrder['mismatchedEntries'] ?? null)
+            ? $zipLocalHeaderOrder['mismatchedEntries']
+            : [];
         $summary['zipCompressionMethods'] = $compressionMethods['methodBuckets'] ?? [];
         $summary['zipCompressionEntryCount'] = (int) ($compressionMethods['entryCount'] ?? 0);
         $summary['zipStoredEntryCount'] = (int) ($compressionMethods['storedEntryCount'] ?? 0);
