@@ -18596,6 +18596,9 @@ final class XmlHtmlDom
             $summary['definitionTitle'] = self::attributeOrNull($element, 'title');
             $summary += self::definitionTermReviewSummary($element);
         }
+        if ($name === 'code') {
+            $summary += self::codeElementReviewSummary($element);
+        }
         if ($name === 'bdi' || $name === 'bdo') {
             if ($name === 'bdi' && !$element->hasAttribute('dir')) {
                 $summary['textDirection'] = 'auto';
@@ -18686,6 +18689,29 @@ final class XmlHtmlDom
                 $issueCodes
             ),
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function codeElementReviewSummary(\DOMElement $code): array
+    {
+        $text = $code->textContent;
+        $parent = $code->parentNode;
+        $inPreformattedBlock = $parent instanceof \DOMElement && self::htmlElementName($parent) === 'pre';
+
+        return [
+            'codeElementReviewPolicy' => 'html-code-language-provenance-review',
+            'codeElement' => 'code',
+            'codeContext' => $inPreformattedBlock ? 'preformatted-code' : 'inline-code',
+            'codeInPreformattedBlock' => $inPreformattedBlock,
+            'codeTextRaw' => $text,
+            'codeText' => self::normalizedText($code),
+            'codeTextLength' => strlen($text),
+            'codeTextSha256' => hash('sha256', $text),
+            'codeLineCount' => self::sourceLineCount($text),
+            'codeContainsNewline' => str_contains($text, "\n") || str_contains($text, "\r"),
+        ] + self::codeLanguageSummary($code);
     }
 
     /**
