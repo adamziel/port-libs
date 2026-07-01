@@ -168,7 +168,7 @@ final class DocxWriter
             ['name' => 'word/comments.xml', 'data' => $commentsXml],
             ['name' => 'word/footnotes.xml', 'data' => $footnotesXml],
             ['name' => 'word/fontTable.xml', 'data' => $this->referencePackagePart('word/fontTable.xml') ?? $this->fontTableXml()],
-            ['name' => 'word/styles.xml', 'data' => $this->stylesXml()],
+            ['name' => 'word/styles.xml', 'data' => $this->stylesXml($document)],
             ['name' => 'word/numbering.xml', 'data' => $this->numberingXml()],
             ['name' => 'word/settings.xml', 'data' => $this->settingsXml()],
             ['name' => 'word/theme/theme1.xml', 'data' => $this->referencePackagePart('word/theme/theme1.xml') ?? $this->themeXml()],
@@ -268,6 +268,19 @@ final class DocxWriter
         }
 
         return null;
+    }
+
+    private function usesChapterTopLevelDivision(): bool
+    {
+        $value = $this->options['topLevelDivision'] ?? $this->options['writerTopLevelDivision'] ?? null;
+        if (!is_string($value)) {
+            return false;
+        }
+
+        return in_array(strtolower(str_replace(['_', '-'], '', $value)), [
+            'chapter',
+            'toplevelchapter',
+        ], true);
     }
 
     private function referencePackage(): ?ZipPackage
@@ -1172,6 +1185,8 @@ XML;
         $previousTopLevelTable = false;
         $bodyParagraphStyle = 'FirstParagraph';
         $openHeadingBookmarks = [];
+        $chapterTopLevelDivision = $this->usesChapterTopLevelDivision();
+        $seenTopLevelChapter = false;
         foreach ($document->children as $child) {
             if (!$child instanceof AstNode) {
                 continue;
@@ -1184,6 +1199,13 @@ XML;
                 $level = max(1, min(9, (int) $child->attr('level', 1)));
                 while ($openHeadingBookmarks !== [] && $openHeadingBookmarks[count($openHeadingBookmarks) - 1]['level'] >= $level) {
                     $this->closePendingHeadingBookmark($blocks, $openHeadingBookmarks);
+                }
+
+                if ($chapterTopLevelDivision && $level === 1) {
+                    if ($seenTopLevelChapter) {
+                        $blocks[] = $this->sectionBreakParagraphXml();
+                    }
+                    $seenTopLevelChapter = true;
                 }
 
                 $bookmarkName = $this->headingBookmarkName($child);
@@ -1236,6 +1258,11 @@ XML;
             . $this->sectionPropertiesXml()
             . '</w:body></w:document>'
             . "\n";
+    }
+
+    private function sectionBreakParagraphXml(): string
+    {
+        return '<w:p><w:pPr>' . $this->sectionPropertiesXml() . '</w:pPr></w:p>';
     }
 
     /**
@@ -3460,9 +3487,60 @@ XML;
             return null;
         }
 
-        $xml = $dom->saveXML($last);
+        $xml = $last->prefix === 'w'
+            ? $dom->saveXML($last)
+            : $this->wordPrefixedElementXml($last);
 
         return is_string($xml) && $xml !== '' ? $xml : null;
+    }
+
+    private function wordPrefixedElementXml(\DOMElement $element): ?string
+    {
+        $dom = new \DOMDocument('1.0', 'UTF-8');
+        $dom->appendChild($this->cloneElementWithWordPrefix($dom, $element));
+        $xml = $dom->saveXML($dom->documentElement);
+
+        return is_string($xml) && $xml !== '' ? $xml : null;
+    }
+
+    private function cloneElementWithWordPrefix(\DOMDocument $dom, \DOMElement $element): \DOMElement
+    {
+        $namespace = (string) ($element->namespaceURI ?? '');
+        $prefix = (string) $element->prefix;
+        $qualifiedName = $namespace === self::NS_W
+            ? 'w:' . $element->localName
+            : ($prefix === '' ? $element->localName : $prefix . ':' . $element->localName);
+        $copy = $namespace === ''
+            ? $dom->createElement($qualifiedName)
+            : $dom->createElementNS($namespace, $qualifiedName);
+
+        foreach ($element->attributes as $attribute) {
+            if (!$attribute instanceof \DOMAttr) {
+                continue;
+            }
+
+            $attributeNamespace = (string) ($attribute->namespaceURI ?? '');
+            if ($attributeNamespace === '') {
+                $copy->setAttribute($attribute->name, $attribute->value);
+                continue;
+            }
+
+            $attributeName = $attributeNamespace === self::NS_W
+                ? 'w:' . $attribute->localName
+                : $attribute->name;
+            $copy->setAttributeNS($attributeNamespace, $attributeName, $attribute->value);
+        }
+
+        foreach ($element->childNodes as $child) {
+            if ($child instanceof \DOMElement) {
+                $copy->appendChild($this->cloneElementWithWordPrefix($dom, $child));
+                continue;
+            }
+
+            $copy->appendChild($dom->importNode($child, true));
+        }
+
+        return $copy;
     }
 
     private function customStylesXml(string $baseStylesXml): string
@@ -3511,9 +3589,14 @@ XML;
             . '</w:style>';
     }
 
-    private function stylesXml(): string
+    private function stylesXml(AstNode $document): string
     {
         $stylesXml = rtrim($this->referencePackagePart('word/styles.xml') ?? self::defaultStylesXml(), "\r\n");
+        $language = $this->documentLanguage($document);
+        if ($language !== '') {
+            $stylesXml = $this->stylesXmlWithLanguage($stylesXml, $language);
+        }
+
         $customStyles = $this->customStylesXml($stylesXml);
 
         if ($customStyles !== '') {
@@ -3521,6 +3604,48 @@ XML;
         }
 
         return $stylesXml . "\n";
+    }
+
+    private function documentLanguage(AstNode $document): string
+    {
+        $meta = $this->documentMetadata($document);
+
+        return $this->metadataText($this->documentMetadataValue(
+            $document,
+            $meta,
+            'language',
+            $this->options['language'] ?? $this->options['lang'] ?? '',
+            'lang'
+        ));
+    }
+
+    private function stylesXmlWithLanguage(string $stylesXml, string $language): string
+    {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new \DOMDocument();
+        $loaded = $dom->loadXML($stylesXml, LIBXML_NONET);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        if (!$loaded || !$dom->documentElement instanceof \DOMElement) {
+            return $stylesXml;
+        }
+
+        $updated = false;
+        foreach ($dom->getElementsByTagNameNS(self::NS_W, 'lang') as $lang) {
+            if (!$lang instanceof \DOMElement) {
+                continue;
+            }
+            $lang->setAttributeNS(self::NS_W, 'w:val', $language);
+            $updated = true;
+        }
+
+        if (!$updated) {
+            return $stylesXml;
+        }
+
+        $xml = $dom->saveXML($dom->documentElement);
+
+        return is_string($xml) && $xml !== '' ? self::xmlDeclaration() . $xml : $stylesXml;
     }
 
     private static function insertCustomStylesXml(string $stylesXml, string $customStyles): string

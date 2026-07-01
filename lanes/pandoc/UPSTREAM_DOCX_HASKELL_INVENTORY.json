@@ -16,18 +16,19 @@
     ]
   },
   "evidenceKind": "static-upstream-haskell-docx-inventory-to-local-gate-map",
-  "claim": "Maps pinned upstream DOCX Haskell reader/writer test definitions and fixtures to the local reader/native parser-acceptance and writer-golden package gates. This is an inventory and coverage-boundary artifact only.",
+  "claim": "Maps pinned upstream DOCX Haskell reader/writer test definitions and fixtures to the local reader/native parser-acceptance, writer-golden package, and direct writer HUnit mirror gates. This is an inventory and coverage-boundary artifact only.",
   "claimBoundaries": {
     "doesAssert": [
       "static DOCX Haskell reader and writer test-case counts from the pinned upstream source",
       "which Haskell DOCX cases are not covered by the local 74/74 reader/native parser-acceptance gate or the local 38/38 writer-golden stable package gate",
-      "the exact local gate evidence currently checked into this lane"
+      "the exact local gate evidence currently checked into this lane",
+      "local PHP DocxWriter mirror assertions cover the seven direct upstream writer HUnit cases not exercised by the writer-golden gate"
     ],
     "doesNotAssert": [
       "that upstream Haskell/Cabal/Tasty tests were executed",
       "that local DOCX reader output equals upstream native expectations",
       "that non-default Haskell ReaderOptions, warning checks, or media-bag assertions pass locally",
-      "that direct Haskell writer assertions without golden packages pass locally",
+      "that the upstream Haskell direct writer assertions themselves were executed",
       "full DOCX/OpenXML parity"
     ]
   },
@@ -69,6 +70,34 @@
       "doesNotProve": [
         "Haskell writer direct testCase assertions that do not use test/docx/golden/*.docx",
         "upstream Tasty runner success",
+        "full DOCX/OpenXML parity"
+      ]
+    },
+    "writerDirectHunitMirrorGate": {
+      "status": "passed-local-direct-writer-hunit-mirrors",
+      "evidenceKind": "php-docx-writer-direct-hunit-mirror-tests",
+      "tool": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
+      "testFile": "lanes/pandoc/tests/DocxWriterTest.php",
+      "upstreamDenominator": "haskellWriterInventory.notCoveredCases",
+      "expectedDirectHunitCaseCount": 7,
+      "mirroredDirectHunitCaseCount": 7,
+      "passedMirrorCaseCount": 7,
+      "failedMirrorCaseCount": 0,
+      "mirroredLabels": [
+        "no section break before first chapter (#10578)",
+        "section breaks between chapters (#11482)",
+        "no media directory override in content types",
+        "language from reference docx is preserved",
+        "section properties from non-w-prefix reference docx",
+        "language from metadata overrides reference docx",
+        "FirstParagraph after heading with footnote (#11573)"
+      ],
+      "proves": [
+        "local PHP DocxWriter has focused XML-level mirror assertions for each direct upstream writer HUnit case outside the 38/38 writer-golden gate"
+      ],
+      "doesNotProve": [
+        "upstream Haskell/Cabal/Tasty runner success",
+        "byte-for-byte DOCX package equality for the direct HUnit cases",
         "full DOCX/OpenXML parity"
       ]
     }

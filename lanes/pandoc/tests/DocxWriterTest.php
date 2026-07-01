@@ -30,6 +30,18 @@ $packageParts = static function (string $bytes): array {
 
     return [$package, $parts];
 };
+$wordElementCount = static function (string $xml, string $localName): int {
+    $previous = libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $loaded = $dom->loadXML($xml, LIBXML_NONET);
+    libxml_clear_errors();
+    libxml_use_internal_errors($previous);
+    if (!$loaded) {
+        throw new RuntimeException('Unable to parse generated DOCX XML');
+    }
+
+    return $dom->getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', $localName)->length;
+};
 $removeTree = static function (string $path) use (&$removeTree): void {
     if (!is_dir($path)) {
         return;
@@ -57,6 +69,23 @@ $writeFile = static function (string $root, string $relativePath, string $conten
 
     if (file_put_contents($path, $contents) === false) {
         throw new RuntimeException('Unable to write DOCX writer audit fixture');
+    }
+};
+$withReferenceDocx = static function (array $parts, callable $callback) use ($removeTree): mixed {
+    $root = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'docx-writer-reference-' . bin2hex(random_bytes(6));
+    if (!mkdir($root, 0777, true) && !is_dir($root)) {
+        throw new RuntimeException('Unable to create DOCX writer reference fixture directory');
+    }
+
+    $path = $root . DIRECTORY_SEPARATOR . 'reference.docx';
+    try {
+        if (file_put_contents($path, ZipPackage::build($parts)) === false) {
+            throw new RuntimeException('Unable to write DOCX writer reference fixture');
+        }
+
+        return $callback($path);
+    } finally {
+        $removeTree($root);
     }
 };
 $corePropertiesDocx = static function (string $title, string $created, string $modified): string {
@@ -424,6 +453,131 @@ return [
         $t->contains('<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="3" name="abstract"><vt:lpwstr>Quite a long description spanning several lines</vt:lpwstr></property>', $customXml);
         $t->contains('<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="4" name="Company"><vt:lpwstr>My Company</vt:lpwstr></property>', $customXml);
         $t->contains('<property fmtid="{D5CDD505-2E9C-101B-9397-08002B2CF9AE}" pid="5" name="nested-custom"><vt:lpwstr/></property>', $customXml);
+    },
+
+    'upstream direct HUnit: no section break before first chapter (#10578)' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $wordElementCount): void {
+        $document = $doc([
+            new AstNode('heading', ['level' => 1, 'id' => 'ch1'], [$text('Chapter'), new AstNode('space'), $text('1')]),
+            $paragraph([$text('First'), new AstNode('space'), $text('chapter.')]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter(['topLevelDivision' => 'chapter']))->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->same(1, $wordElementCount($documentXml, 'sectPr'));
+        $t->true(!str_contains($documentXml, '<w:p><w:pPr><w:sectPr>'), 'First chapter must not be preceded by a section-break paragraph');
+    },
+
+    'upstream direct HUnit: section breaks between chapters (#11482)' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $wordElementCount): void {
+        $document = $doc([
+            new AstNode('heading', ['level' => 1, 'id' => 'ch1'], [$text('Chapter'), new AstNode('space'), $text('1')]),
+            $paragraph([$text('First'), new AstNode('space'), $text('chapter.')]),
+            new AstNode('heading', ['level' => 1, 'id' => 'ch2'], [$text('Chapter'), new AstNode('space'), $text('2')]),
+            $paragraph([$text('Second'), new AstNode('space'), $text('chapter.')]),
+            new AstNode('heading', ['level' => 1, 'id' => 'ch3'], [$text('Chapter'), new AstNode('space'), $text('3')]),
+            $paragraph([$text('Third'), new AstNode('space'), $text('chapter.')]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter(['topLevelDivision' => 'chapter']))->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->same(3, $wordElementCount($documentXml, 'sectPr'));
+        $t->same(2, substr_count($documentXml, '<w:p><w:pPr><w:sectPr>'));
+    },
+
+    'upstream direct HUnit: no media directory override in content types' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx): void {
+        $referenceContentTypes = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            . '<Default Extension="xml" ContentType="application/xml"/>'
+            . '<Override PartName="/word/media/" ContentType="image/png"/>'
+            . '</Types>';
+
+        $withReferenceDocx([
+            ['name' => '[Content_Types].xml', 'data' => $referenceContentTypes],
+            ['name' => 'word/styles.xml', 'data' => '<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:lang w:val="en-US"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>'],
+        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts): void {
+            [, $parts] = $packageParts((new DocxWriter(['referenceDocxPath' => $referencePath]))->write(
+                $doc([$paragraph([$text('Inline'), new AstNode('space'), new AstNode('emph', [], [$text('formatting')])])])
+            ));
+
+            $t->true(!str_contains($parts['[Content_Types].xml'], 'PartName="/word/media/"'), 'Generated content types must not copy a directory Override from reference.docx');
+        });
+    },
+
+    'upstream direct HUnit: language from reference docx is preserved' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx): void {
+        $referenceStyles = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            . '<w:docDefaults><w:rPrDefault><w:rPr><w:lang w:bidi="ar-SA" w:eastAsia="zh-CN" w:val="de-DE"/></w:rPr></w:rPrDefault></w:docDefaults>'
+            . '</w:styles>';
+
+        $withReferenceDocx([
+            ['name' => 'word/styles.xml', 'data' => $referenceStyles],
+        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts): void {
+            [, $parts] = $packageParts((new DocxWriter(['referenceDocxPath' => $referencePath]))->write(
+                $doc([$paragraph([$text('Reference language')])])
+            ));
+
+            $t->contains('w:val="de-DE"', $parts['word/styles.xml']);
+        });
+    },
+
+    'upstream direct HUnit: section properties from non-w-prefix reference docx' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx, $wordElementCount): void {
+        $referenceDocument = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<ns0:document xmlns:ns0="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            . '<ns0:body><ns0:p><ns0:r><ns0:t>ref</ns0:t></ns0:r></ns0:p>'
+            . '<ns0:sectPr ns0:type="continuous"><ns0:pgSz ns0:w="12240" ns0:h="15840"/><ns0:pgMar ns0:top="567" ns0:right="567" ns0:bottom="567" ns0:left="567"/></ns0:sectPr>'
+            . '</ns0:body></ns0:document>';
+
+        $withReferenceDocx([
+            ['name' => 'word/document.xml', 'data' => $referenceDocument],
+        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts, $wordElementCount): void {
+            [, $parts] = $packageParts((new DocxWriter(['referenceDocxPath' => $referencePath]))->write(
+                $doc([$paragraph([$text('Reference section')])])
+            ));
+            $documentXml = $parts['word/document.xml'];
+
+            $t->same(1, $wordElementCount($documentXml, 'sectPr'));
+            $t->same(1, $wordElementCount($documentXml, 'pgSz'));
+            $t->contains('type="continuous"', $documentXml);
+        });
+    },
+
+    'upstream direct HUnit: language from metadata overrides reference docx' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts, $withReferenceDocx): void {
+        $referenceStyles = '<?xml version="1.0" encoding="UTF-8"?>'
+            . '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+            . '<w:docDefaults><w:rPrDefault><w:rPr><w:lang w:bidi="ar-SA" w:eastAsia="zh-CN" w:val="de-DE"/></w:rPr></w:rPrDefault></w:docDefaults>'
+            . '</w:styles>';
+
+        $withReferenceDocx([
+            ['name' => 'word/styles.xml', 'data' => $referenceStyles],
+        ], static function (string $referencePath) use ($t, $doc, $text, $paragraph, $packageParts): void {
+            [, $parts] = $packageParts((new DocxWriter(['referenceDocxPath' => $referencePath]))->write(
+                $doc(
+                    [$paragraph([$text('Metadata language')])],
+                    ['meta' => ['lang' => 'fr-FR']]
+                )
+            ));
+
+            $t->contains('w:val="fr-FR"', $parts['word/styles.xml']);
+            $t->true(!str_contains($parts['word/styles.xml'], 'w:val="de-DE"'), 'Metadata language should override the reference styles language');
+        });
+    },
+
+    'upstream direct HUnit: FirstParagraph after heading with footnote (#11573)' => static function (TestRunner $t) use ($doc, $text, $paragraph, $packageParts): void {
+        $document = $doc([
+            new AstNode('heading', ['level' => 3, 'id' => 'heading-with-note'], [
+                new AstNode('note', [], [$paragraph([$text('note')])]),
+                $text('Heading'),
+            ]),
+            $paragraph([$text('Para'), new AstNode('space'), $text('after.')]),
+        ]);
+
+        [, $parts] = $packageParts((new DocxWriter())->write($document));
+        $documentXml = $parts['word/document.xml'];
+
+        $t->contains('<w:pStyle w:val="Heading3"/>', $documentXml);
+        $t->contains('<w:footnoteReference w:id="9"/>', $documentXml);
+        $t->contains('<w:p><w:pPr><w:pStyle w:val="FirstParagraph"/></w:pPr><w:r><w:t xml:space="preserve">Para after.</w:t></w:r></w:p>', $documentXml);
     },
 
     'writer golden inline formatting case uses native fixture with underline semantics' => static function (TestRunner $t) use ($removeTree, $writeFile, $corePropertiesDocx, $packageParts): void {

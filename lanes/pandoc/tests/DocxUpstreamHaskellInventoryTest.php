@@ -55,7 +55,9 @@ return [
         $t->same('612e143fbe6d735b612c4800d21e61b7d44e4dca', $inventory['upstream']['commit']);
         $t->same('static-upstream-haskell-docx-inventory-to-local-gate-map', $inventory['evidenceKind']);
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $inventory['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that the upstream Haskell direct writer assertions themselves were executed', $inventory['claimBoundaries']['doesNotAssert'], true));
         $t->true(in_array('full DOCX/OpenXML parity', $inventory['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('local PHP DocxWriter mirror assertions cover the seven direct upstream writer HUnit cases not exercised by the writer-golden gate', $inventory['claimBoundaries']['doesAssert'], true));
 
         $readerGate = $inventory['localGates']['readerNativeParserAcceptance'];
         $t->same('parser-acceptance-only', $readerGate['evidenceKind']);
@@ -161,6 +163,20 @@ return [
         $t->true(in_array('stable package comparison matched each pinned upstream writer golden .docx', $writerGate['proves'], true));
         $t->true(in_array('upstream Tasty runner success', $writerGate['doesNotProve'], true));
 
+        $directWriterGate = $inventory['localGates']['writerDirectHunitMirrorGate'];
+        $t->same('passed-local-direct-writer-hunit-mirrors', $directWriterGate['status']);
+        $t->same('php-docx-writer-direct-hunit-mirror-tests', $directWriterGate['evidenceKind']);
+        $t->same('php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php', $directWriterGate['tool']);
+        $t->same('lanes/pandoc/tests/DocxWriterTest.php', $directWriterGate['testFile']);
+        $t->same('haskellWriterInventory.notCoveredCases', $directWriterGate['upstreamDenominator']);
+        $t->same(7, $directWriterGate['expectedDirectHunitCaseCount']);
+        $t->same(7, $directWriterGate['mirroredDirectHunitCaseCount']);
+        $t->same(7, $directWriterGate['passedMirrorCaseCount']);
+        $t->same(0, $directWriterGate['failedMirrorCaseCount']);
+        $t->true(in_array('local PHP DocxWriter has focused XML-level mirror assertions for each direct upstream writer HUnit case outside the 38/38 writer-golden gate', $directWriterGate['proves'], true));
+        $t->true(in_array('upstream Haskell/Cabal/Tasty runner success', $directWriterGate['doesNotProve'], true));
+        $t->true(in_array('byte-for-byte DOCX package equality for the direct HUnit cases', $directWriterGate['doesNotProve'], true));
+
         $writer = $inventory['haskellWriterInventory'];
         $writerRows = $writer['notCoveredCases'];
         $t->same('test/Tests/Writers/Docx.hs', $writer['sourceFile']);
@@ -197,5 +213,6 @@ return [
         $t->true(in_array('no section break before first chapter (#10578)', $writerLabels, true));
         $t->true(in_array('language from reference docx is preserved', $writerLabels, true));
         $t->true(in_array('FirstParagraph after heading with footnote (#11573)', $writerLabels, true));
+        $t->same($writerLabels, $directWriterGate['mirroredLabels']);
     },
 ];
