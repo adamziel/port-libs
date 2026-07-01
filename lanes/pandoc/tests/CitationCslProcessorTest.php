@@ -31499,6 +31499,97 @@ XML);
         $t->contains('<dt>Ng 2026</dt><dd>Direct Original Subtitle Camel Packet :: Manual Fuente: Archive Appendix :: Archive Appendix</dd>', $blocks);
         $t->contains('<dt>Roe 2025</dt><dd>Direct Original Subtitle Compact Packet :: Review Log: Source Annex :: Source Annex</dd>', $blocks);
     },
+    'normalizes bounded direct csl json review title aliases' => static function (TestRunner $t) use ($citation): void {
+        $json = json_encode([
+            [
+                'id' => 'direct-review-camel',
+                'type' => 'review-book',
+                'title' => 'Direct Review Camel Packet',
+                'author' => [
+                    ['family' => 'Ng', 'given' => 'Nia'],
+                ],
+                'issued' => ['date-parts' => [[2026]]],
+                'reviewTitle' => 'Source Manual',
+                'reviewSubtitle' => 'Archive Appendix',
+                'reviewGenre' => 'facsimile',
+            ],
+            [
+                'id' => 'direct-review-hyphen',
+                'type' => 'review-book',
+                'title' => 'Direct Review Hyphen Packet',
+                'author' => [
+                    ['family' => 'Roe', 'given' => 'Rae'],
+                ],
+                'issued' => ['date-parts' => [[2025]]],
+                'review-title' => 'Archive Atlas',
+                'review-subtitle' => 'Field Sheets',
+                'review-genre' => 'map set',
+            ],
+        ], JSON_THROW_ON_ERROR);
+
+        $processor = CitationCslProcessor::fromJson($json);
+        $camel = $processor->item('direct-review-camel');
+        $hyphen = $processor->item('direct-review-hyphen');
+        $t->same('Source Manual: Archive Appendix', $camel['reviewedTitle'] ?? null);
+        $t->same('Archive Appendix', $camel['reviewedSubtitle'] ?? null);
+        $t->same('facsimile', $camel['reviewedGenre'] ?? null);
+        $t->same('Source Manual', $camel['raw']['reviewTitle'] ?? null);
+        $t->same('Archive Appendix', $camel['raw']['reviewSubtitle'] ?? null);
+        $t->same('Archive Atlas: Field Sheets', $hyphen['reviewedTitle'] ?? null);
+        $t->same('Field Sheets', $hyphen['reviewedSubtitle'] ?? null);
+        $t->same('map set', $hyphen['reviewedGenre'] ?? null);
+        $t->same('Archive Atlas', $hyphen['raw']['review-title'] ?? null);
+        $t->same('Field Sheets', $hyphen['raw']['review-subtitle'] ?? null);
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Direct CSL Review Title Alias Review</title>
+    <id>https://example.test/styles/bounded-direct-csl-review-title-alias-review</id>
+    <updated>2026-07-01T19:07:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="reviewtitle"/>
+        <text variable="review-subtitle"/>
+        <text variable="review-genre"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="reviewed-title"/>
+      <text variable="reviewed-subtitle"/>
+      <text variable="reviewed-genre"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded Direct CSL Review Title Alias Review', $summary['title'] ?? null);
+        $t->same('reviewtitle', $citationChildren[1]['variable'] ?? null);
+        $t->same('review-subtitle', $citationChildren[2]['variable'] ?? null);
+        $t->same('review-genre', $citationChildren[3]['variable'] ?? null);
+        $t->same('[Ng | Source Manual: Archive Appendix | Archive Appendix | facsimile; Roe | Archive Atlas: Field Sheets | Field Sheets | map set]', $styled->renderCitationCluster([
+            $citation('direct-review-camel', '[@direct-review-camel]'),
+            $citation('direct-review-hyphen', '[@direct-review-hyphen]'),
+        ]));
+        $t->same('Direct Review Camel Packet :: Source Manual: Archive Appendix :: Archive Appendix :: facsimile', $styled->renderBibliographyEntry('direct-review-camel'));
+        $t->same('Direct Review Hyphen Packet :: Archive Atlas: Field Sheets :: Field Sheets :: map set', $styled->renderBibliographyEntry('direct-review-hyphen'));
+        $t->same('Ng, Nia. Direct Review Camel Packet. 2026. Reviewed title: Source Manual: Archive Appendix. Reviewed genre: facsimile.', $processor->renderBibliographyEntry('direct-review-camel'));
+
+        $document = (new MarkdownReader())->read('Review title aliases [@direct-review-camel; @direct-review-hyphen] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Review Sources'));
+        $t->contains('<p>Review title aliases [Ng | Source Manual: Archive Appendix | Archive Appendix | facsimile; Roe | Archive Atlas: Field Sheets | Field Sheets | map set] stay visible.</p>', $blocks);
+        $t->contains('<dt>Ng 2026</dt><dd>Direct Review Camel Packet :: Source Manual: Archive Appendix :: Archive Appendix :: facsimile</dd>', $blocks);
+        $t->contains('<dt>Roe 2025</dt><dd>Direct Review Hyphen Packet :: Archive Atlas: Field Sheets :: Field Sheets :: map set</dd>', $blocks);
+    },
     'normalizes bounded direct csl json title subtitle family aliases' => static function (TestRunner $t) use ($citation): void {
         $json = json_encode([
             [
