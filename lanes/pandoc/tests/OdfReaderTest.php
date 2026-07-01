@@ -9237,6 +9237,17 @@ XML;
             'odf-thumbnail-missing-package-part',
             'odf-thumbnail-undeclared-package-part',
         ], $report['issueCodes']);
+        $t->same([
+            'image/jpeg' => 2,
+            'image/png' => 1,
+        ], $report['mediaTypeBaseCounts']);
+        $t->same([
+            'jpg' => 2,
+            'png' => 1,
+        ], $report['thumbnailFileExtensionCounts']);
+        $t->same(['package-thumbnail-bytes-blocked' => 3], $report['byteExposurePolicyCounts']);
+        $t->same(strlen($thumbnailBytes) + strlen($orphanThumbnailBytes), $report['readableByteLength']);
+        $t->same(strlen($thumbnailBytes) + strlen($orphanThumbnailBytes), $report['storedByteLength']);
 
         $t->same('Thumbnails/thumbnail.png', $itemsByPart['Thumbnails/thumbnail.png']['part']);
         $t->same('image/png', $itemsByPart['Thumbnails/thumbnail.png']['mediaType']);
