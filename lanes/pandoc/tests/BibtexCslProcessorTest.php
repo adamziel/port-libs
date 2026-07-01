@@ -1353,6 +1353,92 @@ BIB;
         $t->same('Director, Edna', $item['rawBibtex']['fields']['editorialdirector']);
         $t->same('Willa Writer. Secondary Credit Packet. 2026.', $bibliography);
     },
+    'carries legacy biblatex author role qualifiers and name addendum' => static function (TestRunner $t): void {
+        $source = <<<'BIB'
+@book{legacy-author-type,
+  author     = {Roe, Pat},
+  authortype = {compiler},
+  title      = {Legacy Author Type Packet},
+  nameaddon  = {Imported source names verified by review desk},
+  date       = {2026},
+  publisher  = {Review Press}
+}
+
+@incollection{legacy-container-type,
+  author         = {Ng, Nia},
+  bookauthor     = {Smith, Ada and Curator, Eli},
+  bookauthortype = {source volume author},
+  title          = {Legacy Container Type Chapter},
+  booktitle      = {Migration Sourcebook},
+  date           = {2025},
+  pages          = {44--49}
+}
+BIB;
+
+        $processor = new BibtexCslProcessor();
+        $items = $processor->cslItems($source);
+        $authorType = $items['legacy-author-type'];
+        $containerType = $items['legacy-container-type'];
+
+        $t->same('compiler', $authorType['author-type']);
+        $t->same('Imported source names verified by review desk', $authorType['name-addon']);
+        $t->same('source volume author', $containerType['container-author-type']);
+        $t->same('Smith', $containerType['container-author'][0]['family']);
+        $t->same('Curator', $containerType['container-author'][1]['family']);
+        $t->same('compiler', $authorType['rawBibtex']['fields']['authortype']);
+        $t->same('source volume author', $containerType['rawBibtex']['fields']['bookauthortype']);
+        $t->same(
+            'Pat Roe. Legacy Author Type Packet. Review Press. 2026. Name addendum: Imported source names verified by review desk. Author type: compiler.',
+            $processor->renderBibliographyText($authorType)
+        );
+
+        $styled = CitationCslProcessor::fromItems(array_values($items))->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded Legacy BibLaTeX Author Role Qualifier Review</title>
+    <id>https://example.test/styles/bounded-legacy-biblatex-author-role-qualifier-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="name-addon"/>
+        <text variable="authortype"/>
+        <text variable="container-author-type"/>
+        <text variable="bookauthortype"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="name-addon"/>
+      <text variable="author-type"/>
+      <text variable="container-author-type"/>
+      <names variable="container-author"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $normalizedAuthor = $styled->item('legacy-author-type');
+        $normalizedContainer = $styled->item('legacy-container-type');
+        $t->same('compiler', $normalizedAuthor['authorType'] ?? null);
+        $t->same('Imported source names verified by review desk', $normalizedAuthor['nameAddon'] ?? null);
+        $t->same('source volume author', $normalizedContainer['containerAuthorType'] ?? null);
+        $t->same('[Roe | Imported source names verified by review desk | compiler; Ng | source volume author | source volume author]', $styled->renderCitationCluster([
+            new AstNode('citation', ['id' => 'legacy-author-type', 'text' => '[@legacy-author-type]']),
+            new AstNode('citation', ['id' => 'legacy-container-type', 'text' => '[@legacy-container-type]']),
+        ]));
+        $t->same('Legacy Container Type Chapter :: source volume author :: Smith, Ada; Curator, Eli', $styled->renderBibliographyEntry('legacy-container-type'));
+
+        $document = (new MarkdownReader())->read('Legacy role qualifiers [@legacy-author-type; @legacy-container-type] stay style-visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Legacy role qualifiers [Roe | Imported source names verified by review desk | compiler; Ng | source volume author | source volume author] stay style-visible.</p>', $blocks);
+        $t->contains('<dt>Roe 2026</dt><dd>Legacy Author Type Packet :: Imported source names verified by review desk :: compiler</dd>', $blocks);
+    },
     'carries biblatex media and participant creator roles in legacy csl handoff' => static function (TestRunner $t): void {
         $source = <<<'BIB'
 @video{legacy-production,
