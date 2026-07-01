@@ -19152,6 +19152,10 @@ final class XmlHtmlDom
             $summary['dataAttributes'] = $dataAttributes;
             $summary['dataset'] = self::datasetSummary($dataAttributes);
         }
+        $dataAttributeReview = self::dataAttributeReviewSummary($attributes);
+        if ($dataAttributeReview !== []) {
+            $summary += $dataAttributeReview;
+        }
 
         $ariaAttributes = self::ariaAttributeSummary($attributes);
         if ($ariaAttributes !== []) {
@@ -22869,6 +22873,98 @@ final class XmlHtmlDom
         }
 
         return $property;
+    }
+
+    /**
+     * @param array<string, string> $attributes
+     * @return array<string, mixed>
+     */
+    private static function dataAttributeReviewSummary(array $attributes): array
+    {
+        $records = [];
+        $names = [];
+        $customNames = [];
+        $datasetNames = [];
+        $datasetNameCounts = [];
+        $datasetNameAttributes = [];
+        $emptyNames = [];
+
+        foreach ($attributes as $name => $value) {
+            if (!str_starts_with($name, 'data-')) {
+                continue;
+            }
+
+            $suffix = substr($name, 5);
+            $datasetName = $suffix === '' ? null : self::datasetPropertyName($name);
+            $issueCodes = [];
+            if ($suffix === '') {
+                $issueCodes[] = 'empty-data-attribute-name';
+                $emptyNames[] = $name;
+            } else {
+                $customNames[] = $name;
+            }
+
+            if ($datasetName !== null && $datasetName !== '') {
+                $datasetNames[] = $datasetName;
+                $datasetNameCounts[$datasetName] = ($datasetNameCounts[$datasetName] ?? 0) + 1;
+                $datasetNameAttributes[$datasetName][] = $name;
+            }
+
+            $names[] = $name;
+            $records[] = [
+                'attribute' => $name,
+                'name' => $name,
+                'suffix' => $suffix,
+                'datasetName' => $datasetName,
+                'value' => $value,
+                'valueByteLength' => strlen($value),
+                'valueSha256' => hash('sha256', $value),
+                'valueEmpty' => $value === '',
+                'customDataAttribute' => $suffix !== '',
+                'validCustomDataAttribute' => $suffix !== '',
+                'issueCodes' => $issueCodes,
+            ];
+        }
+
+        if ($records === []) {
+            return [];
+        }
+
+        $duplicateDatasetNames = array_values(array_filter(
+            array_keys($datasetNameCounts),
+            static fn (string $datasetName): bool => $datasetNameCounts[$datasetName] > 1
+        ));
+        $datasetCollisions = [];
+        foreach ($duplicateDatasetNames as $datasetName) {
+            $datasetCollisions[] = [
+                'datasetName' => $datasetName,
+                'attributes' => $datasetNameAttributes[$datasetName],
+            ];
+        }
+
+        $issueCodes = [];
+        if ($emptyNames !== []) {
+            $issueCodes[] = 'empty-data-attribute-name';
+        }
+        if ($duplicateDatasetNames !== []) {
+            $issueCodes[] = 'duplicate-dataset-property';
+        }
+
+        return [
+            'dataAttributeReviewPolicy' => 'html-data-attribute-dataset-review',
+            'dataAttributeNames' => $names,
+            'dataAttributeCount' => count($records),
+            'dataAttributeCustomNames' => $customNames,
+            'dataAttributeCustomCount' => count($customNames),
+            'dataAttributeDatasetNames' => $datasetNames,
+            'dataAttributeDatasetNameCounts' => $datasetNameCounts,
+            'duplicateDataAttributeDatasetNames' => $duplicateDatasetNames,
+            'dataAttributeDatasetCollisions' => $datasetCollisions,
+            'dataAttributeEmptyNames' => $emptyNames,
+            'dataAttributeRecords' => $records,
+            'dataAttributeIssueCodes' => $issueCodes,
+            'dataAttributeValid' => $issueCodes === [],
+        ];
     }
 
     /**
