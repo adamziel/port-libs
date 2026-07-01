@@ -153,6 +153,11 @@ $aggregateFields = [
     'maxPathSegmentCount' => 'zipPackageManifestMaxPathSegmentCount',
     'maxDirectoryDepth' => 'zipPackageManifestMaxDirectoryDepth',
     'deepestEntryNames' => 'zipPackageManifestDeepestEntryNames',
+    'pathSegmentPositionSummaryCount' => 'zipPackageManifestPathSegmentPositionSummaryCount',
+    'pathSegmentPositionOccurrenceCount' => 'zipPackageManifestPathSegmentPositionOccurrenceCount',
+    'pathSegmentPositionCounts' => 'zipPackageManifestPathSegmentPositionCounts',
+    'pathSegmentPositionEntryCounts' => 'zipPackageManifestPathSegmentPositionEntryCounts',
+    'pathSegmentPositionSummaries' => 'zipPackageManifestPathSegmentPositionSummaries',
     'compressionMethodSummaryCount' => 'zipPackageManifestCompressionMethodSummaryCount',
     'compressionMethodSummaries' => 'zipPackageManifestCompressionMethodSummaries',
     'generalPurposeFlagSummaryCount' => 'zipPackageManifestGeneralPurposeFlagSummaryCount',
@@ -214,6 +219,7 @@ $packageManifestEntryScalarSubset = static function (array $item): array {
         'zipPackageManifestCreatorVersionDelta',
         'zipPackageManifestCreatorHostSystemIsKnown',
         'zipPackageManifestCreatorHostSystemIssues',
+        'zipPackageManifestPathSegmentPositionReviews',
         'zipPackageManifestPackagePartExtension',
         'zipPackageManifestPackagePartExtensionKey',
         'zipPackageManifestExtensionlessPackagePart',
@@ -294,6 +300,7 @@ return [
                 'zipPackageManifestCreatorVersionDelta' => $zipEntry['creatorVersionDelta'],
                 'zipPackageManifestCreatorHostSystemIsKnown' => $zipEntry['creatorHostSystemIsKnown'],
                 'zipPackageManifestCreatorHostSystemIssues' => $zipEntry['creatorHostSystemIssues'],
+                'zipPackageManifestPathSegmentPositionReviews' => $zipEntry['pathSegmentPositionReviews'],
                 'zipPackageManifestPackagePartExtension' => $zipEntry['packagePartExtension'],
                 'zipPackageManifestPackagePartExtensionKey' => $zipEntry['packagePartExtensionKey'],
                 'zipPackageManifestExtensionlessPackagePart' => $zipEntry['extensionlessPackagePart'],
@@ -304,6 +311,32 @@ return [
             $t->same($expectedEntryScalarProvenance, $packageManifestEntryScalarSubset($richProvenance['parts'][$name]), "{$name} rich provenance package-manifest scalar provenance");
             $t->same($expectedEntryScalarProvenance, $packageManifestEntryScalarSubset($richIdentityEntries[$name]), "{$name} rich identity package-manifest scalar provenance");
         }
+        $t->same(3, $richIdentity['zipPackageManifestPathSegmentPositionSummaryCount']);
+        $t->same(8, $richIdentity['zipPackageManifestPathSegmentPositionOccurrenceCount']);
+        $t->same(['first' => 2, 'last' => 2, 'only' => 4], $richIdentity['zipPackageManifestPathSegmentPositionCounts']);
+        $t->same(['first' => 2, 'last' => 2, 'only' => 4], $richIdentity['zipPackageManifestPathSegmentPositionEntryCounts']);
+        $positionSummaries = $indexBy($richIdentity['zipPackageManifestPathSegmentPositionSummaries'], 'position');
+        $t->same(['META-INF', 'Pictures'], $positionSummaries['first']['segments']);
+        $t->same(['manifest.xml', 'review.png'], $positionSummaries['last']['segments']);
+        $t->same(['Pictures', 'review.png'], $richIdentityEntries['Pictures/review.png']['zipPackageManifestPathSegments']);
+        $t->same([
+            [
+                'pathSegmentIndex' => 0,
+                'segment' => 'Pictures',
+                'position' => 'first',
+                'isFirst' => true,
+                'isLast' => false,
+                'isOnly' => false,
+            ],
+            [
+                'pathSegmentIndex' => 1,
+                'segment' => 'review.png',
+                'position' => 'last',
+                'isFirst' => false,
+                'isLast' => true,
+                'isOnly' => false,
+            ],
+        ], $richIdentityEntries['Pictures/review.png']['zipPackageManifestPathSegmentPositionReviews']);
         $t->same(false, array_key_exists('centralDirectorySignatureData', $richIdentity));
         $t->same(false, array_key_exists('zipPackageManifestCentralDirectorySignatureData', $richIdentity));
         $t->same(false, $richIdentity['canExposeBytes']);
