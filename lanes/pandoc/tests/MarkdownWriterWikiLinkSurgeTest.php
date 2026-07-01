@@ -75,6 +75,12 @@ $cases = [
 ];
 
 $tests = [];
+
+$tests['records markdown writer wikilink inline surge mapped case count'] =
+    static function (TestRunner $t) use ($cases): void {
+        $t->same(56, count($cases));
+    };
+
 foreach ($cases as $name => [$label, $url, $expected]) {
     $tests['maps upstream markdown writer wikilink inline surge ' . $name] =
         static function (TestRunner $t) use ($document, $wikiLink, $label, $url, $expected): void {
