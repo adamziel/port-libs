@@ -19167,6 +19167,10 @@ final class XmlHtmlDom
                 $summary['ariaReferenceCount'] = count($ariaReferences);
                 $summary += self::ariaReferenceAggregateSummary($ariaReferences);
             }
+            $ariaStateReview = self::ariaStateReviewSummary($ariaAttributes);
+            if ($ariaStateReview !== []) {
+                $summary += $ariaStateReview;
+            }
         }
 
         if (array_key_exists('role', $attributes)) {
@@ -23205,6 +23209,252 @@ final class XmlHtmlDom
             ))),
             'ariaReferencesResolved' => $issues === [],
         ];
+    }
+
+    /**
+     * @param array<string, string> $ariaAttributes
+     * @return array<string, mixed>
+     */
+    private static function ariaStateReviewSummary(array $ariaAttributes): array
+    {
+        $records = [];
+        $stateValues = [];
+        $issueCodes = [];
+
+        foreach ($ariaAttributes as $attribute => $raw) {
+            $record = self::ariaStateAttributeReviewRecord($attribute, $raw);
+            if ($record === null) {
+                continue;
+            }
+
+            $records[] = $record;
+            if ($record['state'] !== null) {
+                $stateValues[$attribute] = $record['state'];
+            }
+            foreach ($record['issueCodes'] as $issueCode) {
+                self::appendUniqueString($issueCodes, (string) $issueCode);
+            }
+        }
+
+        if ($records === []) {
+            return [];
+        }
+
+        return [
+            'ariaStateReviewPolicy' => 'html-aria-state-token-review',
+            'ariaStateAttributes' => array_values(array_map(
+                static fn (array $record): string => (string) $record['attribute'],
+                $records
+            )),
+            'ariaStateValues' => $stateValues,
+            'ariaStateRecords' => $records,
+            'ariaStateIssueCodes' => $issueCodes,
+            'ariaStateValid' => $issueCodes === [],
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private static function ariaStateAttributeReviewRecord(string $attribute, string $raw): ?array
+    {
+        $allowedStates = self::htmlAriaTokenStates($attribute);
+        if ($allowedStates !== null) {
+            return self::ariaTokenStateReviewRecord($attribute, $raw, $allowedStates);
+        }
+
+        if (self::isHtmlAriaIntegerAttribute($attribute)) {
+            return self::ariaIntegerStateReviewRecord($attribute, $raw);
+        }
+
+        if (self::isHtmlAriaNumberAttribute($attribute)) {
+            return self::ariaNumberStateReviewRecord($attribute, $raw);
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $allowedStates
+     * @return array<string, mixed>
+     */
+    private static function ariaTokenStateReviewRecord(string $attribute, string $raw, array $allowedStates): array
+    {
+        $multiToken = in_array($attribute, ['aria-dropeffect', 'aria-relevant'], true);
+        $tokens = self::spaceSeparatedTokens($raw);
+        $states = [];
+        $invalid = [];
+        $duplicates = [];
+        $counts = [];
+
+        foreach ($tokens as $token) {
+            $state = strtolower($token);
+            if (!in_array($state, $allowedStates, true)) {
+                $invalid[] = $token;
+                continue;
+            }
+
+            $counts[$state] = ($counts[$state] ?? 0) + 1;
+            if ($counts[$state] === 1) {
+                $states[] = $state;
+            } elseif ($counts[$state] === 2) {
+                $duplicates[] = $state;
+            }
+        }
+
+        $issueCodes = [];
+        if ($tokens === []) {
+            $issueCodes[] = 'empty-aria-state-token-list';
+        }
+        if ($invalid !== []) {
+            $issueCodes[] = 'invalid-aria-state-token';
+        }
+        if ($duplicates !== []) {
+            $issueCodes[] = 'duplicate-aria-state-token';
+        }
+        if (!$multiToken && count($tokens) > 1) {
+            $issueCodes[] = 'multiple-aria-state-tokens';
+        }
+
+        $state = $states === []
+            ? null
+            : ($multiToken ? implode(' ', $states) : $states[0]);
+
+        return [
+            'attribute' => $attribute,
+            'raw' => $raw,
+            'kind' => $multiToken ? 'token-list' : 'token',
+            'allowedStates' => $allowedStates,
+            'tokens' => $tokens,
+            'states' => $states,
+            'state' => $state,
+            'invalidTokens' => $invalid,
+            'duplicateTokens' => $duplicates,
+            'issueCodes' => $issueCodes,
+            'valid' => $tokens !== [] && $invalid === [] && ($multiToken || count($tokens) === 1),
+        ];
+    }
+
+    /**
+     * @return list<string>|null
+     */
+    private static function htmlAriaTokenStates(string $attribute): ?array
+    {
+        return match ($attribute) {
+            'aria-autocomplete' => ['inline', 'list', 'both', 'none'],
+            'aria-busy',
+            'aria-disabled',
+            'aria-expanded',
+            'aria-grabbed',
+            'aria-hidden',
+            'aria-modal',
+            'aria-multiline',
+            'aria-multiselectable',
+            'aria-readonly',
+            'aria-required',
+            'aria-selected' => ['true', 'false'],
+            'aria-checked',
+            'aria-pressed' => ['true', 'false', 'mixed'],
+            'aria-current' => ['false', 'true', 'page', 'step', 'location', 'date', 'time'],
+            'aria-dropeffect' => ['copy', 'execute', 'link', 'move', 'none', 'popup'],
+            'aria-haspopup' => ['false', 'true', 'menu', 'listbox', 'tree', 'grid', 'dialog'],
+            'aria-invalid' => ['false', 'true', 'grammar', 'spelling'],
+            'aria-live' => ['off', 'polite', 'assertive'],
+            'aria-orientation' => ['horizontal', 'vertical'],
+            'aria-relevant' => ['additions', 'removals', 'text', 'all'],
+            'aria-sort' => ['none', 'ascending', 'descending', 'other'],
+            default => null,
+        };
+    }
+
+    private static function isHtmlAriaIntegerAttribute(string $attribute): bool
+    {
+        return in_array($attribute, [
+            'aria-colcount',
+            'aria-colindex',
+            'aria-colspan',
+            'aria-level',
+            'aria-posinset',
+            'aria-rowcount',
+            'aria-rowindex',
+            'aria-rowspan',
+            'aria-setsize',
+        ], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ariaIntegerStateReviewRecord(string $attribute, string $raw): array
+    {
+        $trimmed = trim($raw);
+        $valid = $trimmed !== '' && preg_match('/^-?[0-9]+$/', $trimmed) === 1;
+        $integer = $valid ? (int) $trimmed : null;
+        $allowsMinusOne = in_array($attribute, ['aria-colcount', 'aria-rowcount', 'aria-setsize'], true);
+        $minimum = $allowsMinusOne ? -1 : 1;
+        if ($integer !== null && ($integer < $minimum || $integer === 0)) {
+            $valid = false;
+        }
+
+        $issueCodes = [];
+        if ($trimmed === '' || preg_match('/^-?[0-9]+$/', $trimmed) !== 1) {
+            $issueCodes[] = 'invalid-aria-integer';
+        } elseif (!$valid) {
+            $issueCodes[] = 'out-of-range-aria-integer';
+        }
+
+        return [
+            'attribute' => $attribute,
+            'raw' => $raw,
+            'kind' => 'integer',
+            'state' => $valid && $integer !== null ? (string) $integer : null,
+            'integer' => $valid ? $integer : null,
+            'minimum' => $minimum,
+            'allowsMinusOne' => $allowsMinusOne,
+            'issueCodes' => $issueCodes,
+            'valid' => $valid,
+        ];
+    }
+
+    private static function isHtmlAriaNumberAttribute(string $attribute): bool
+    {
+        return in_array($attribute, ['aria-valuemax', 'aria-valuemin', 'aria-valuenow'], true);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ariaNumberStateReviewRecord(string $attribute, string $raw): array
+    {
+        $trimmed = trim($raw);
+        $valid = $trimmed !== '' && preg_match('/^-?(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)$/', $trimmed) === 1;
+        $normalized = $valid ? self::normalizedAriaNumber($trimmed) : null;
+
+        return [
+            'attribute' => $attribute,
+            'raw' => $raw,
+            'kind' => 'number',
+            'state' => $normalized,
+            'number' => $normalized === null ? null : (float) $normalized,
+            'issueCodes' => $valid ? [] : ['invalid-aria-number'],
+            'valid' => $valid,
+        ];
+    }
+
+    private static function normalizedAriaNumber(string $number): string
+    {
+        $normalized = rtrim(rtrim($number, '0'), '.');
+        if ($normalized === '' || $normalized === '-') {
+            $normalized = '0';
+        }
+        if (str_starts_with($normalized, '.')) {
+            $normalized = '0' . $normalized;
+        }
+        if (str_starts_with($normalized, '-.')) {
+            $normalized = '-0' . substr($normalized, 1);
+        }
+
+        return $normalized;
     }
 
     /**
