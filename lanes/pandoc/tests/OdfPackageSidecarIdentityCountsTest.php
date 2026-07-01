@@ -43,6 +43,7 @@ $thumbnailBytes = 'THUMBNAILPNG';
 $fontBytes = 'WOFF2-FONT-BYTES';
 $replacementBytes = 'REPLACEMENTPNG';
 $layoutCacheBytes = 'LAYOUT-CACHE-BYTES';
+$templateBytes = 'OPENXML-TEMPLATE-DOTX';
 $chartContentXml = '<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"><office:body/></office:document-content>';
 $chartPreviewBytes = 'CHARTPNG';
 
@@ -59,6 +60,7 @@ $manifestXml .= '  <manifest:file-entry manifest:full-path="Thumbnails/thumbnail
     . '  <manifest:file-entry manifest:full-path="manifest.rdf" manifest:media-type="application/rdf+xml" manifest:size="' . strlen($rdfXml) . '"/>' . "\n"
     . '  <manifest:file-entry manifest:full-path="ObjectReplacements/preview.png" manifest:media-type="image/png" manifest:size="' . strlen($replacementBytes) . '"/>' . "\n"
     . '  <manifest:file-entry manifest:full-path="layout-cache" manifest:media-type="application/binary" manifest:size="' . strlen($layoutCacheBytes) . '"/>' . "\n"
+    . '  <manifest:file-entry manifest:full-path="Templates/Review/letter.dotx" manifest:media-type="application/vnd.openxmlformats-officedocument.wordprocessingml.template" manifest:size="' . strlen($templateBytes) . '"/>' . "\n"
     . '  <manifest:file-entry manifest:full-path="Object%20Chart/" manifest:media-type="application/vnd.oasis.opendocument.chart"/>' . "\n"
     . '  <manifest:file-entry manifest:full-path="Object%20Chart/content.xml" manifest:media-type="text/xml" manifest:size="' . strlen($chartContentXml) . '"/>' . "\n"
     . '  <manifest:file-entry manifest:full-path="Object%20Chart/Pictures/preview.png" manifest:media-type="image/png" manifest:size="' . strlen($chartPreviewBytes) . '"/>' . "\n"
@@ -76,6 +78,7 @@ $package = ZipPackage::fromParts([
     ['name' => 'manifest.rdf', 'data' => $rdfXml, 'compressionMethod' => 0],
     ['name' => 'ObjectReplacements/preview.png', 'data' => $replacementBytes, 'compressionMethod' => 0],
     ['name' => 'layout-cache', 'data' => $layoutCacheBytes, 'compressionMethod' => 0],
+    ['name' => 'Templates/Review/letter.dotx', 'data' => $templateBytes, 'compressionMethod' => 0],
     ['name' => 'Object Chart/', 'data' => '', 'compressionMethod' => 0],
     ['name' => 'Object Chart/content.xml', 'data' => $chartContentXml, 'compressionMethod' => 0],
     ['name' => 'Object Chart/Pictures/preview.png', 'data' => $chartPreviewBytes, 'compressionMethod' => 0],
@@ -102,6 +105,7 @@ return [
         $t->same(1, $compactIdentity['fontPackagePartCount']);
         $t->same(1, $compactIdentity['rdfMetadataPartCount']);
         $t->same(1, $compactIdentity['layoutCachePartCount']);
+        $t->same(1, $compactIdentity['templatePackagePartCount']);
 
         $t->same($richProvenance['corePackagePartCount'], $richIdentity['corePackagePartCount']);
         $t->same($richProvenance['mediaResourcePartCount'], $richIdentity['mediaResourcePartCount']);
@@ -115,6 +119,7 @@ return [
         $t->same(1, $richIdentity['packageFontPartCount']);
         $t->same(1, $richIdentity['rdfMetadataPartCount']);
         $t->same(1, $richIdentity['layoutCachePartCount']);
+        $t->same(1, $richIdentity['templatePackagePartCount']);
 
         $t->same($richProvenance, $richResult['document']->attr('manifest')['packageProvenance']);
         $t->same(false, $compactIdentity['canExposeBytes']);
