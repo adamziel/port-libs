@@ -886,6 +886,8 @@ final class BibtexCslParser
             'original-title' => self::composedTitle($fields, ['origtitle', 'originaltitle', 'original-title'], ['origsubtitle', 'originalsubtitle', 'original-subtitle']),
             'original-title-addon' => self::firstField($fields, ['origtitleaddon', 'origtitle-addon', 'originaltitleaddon', 'original-title-addon']),
             'original-genre' => self::firstField($fields, ['origtype', 'origgenre', 'originaltype', 'original-type', 'originalgenre', 'original-genre']),
+            'original-collection-title' => self::firstField($fields, ['origseries', 'orig-series', 'originalseries', 'original-series', 'original-collection-title', 'originalcollectiontitle']),
+            'original-collection-number' => self::firstField($fields, ['origseriesnumber', 'orig-series-number', 'originalseriesnumber', 'original-series-number', 'original-collection-number', 'originalcollectionnumber']),
             'original-date-addon' => self::firstField($fields, ['origdateaddon', 'origdate-addon', 'orig-date-addon', 'originaldateaddon', 'original-date-addon']),
             'original-publisher' => self::literalListDisplay($originalPublisherList),
             'original-publisher-place' => self::literalListDisplay($originalPublisherPlaceList),

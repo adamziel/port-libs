@@ -8301,6 +8301,111 @@ XML);
         $t->contains('<p>Collection aliases Curator (2026) and (Ng 2025) keep source series visible.</p>', $blocks);
         $t->contains('<dt>Curator 2026</dt><dd>Curator, Eli. Alias Series Manual. Package Review Studies, no. 14. Series abbreviation: Pkg. Rev. Stud. Review Press, 2026.</dd>', $blocks);
     },
+    'maps bounded biblatex original series aliases into csl metadata' => static function (TestRunner $t) use ($citation): void {
+        $bibtex = <<<'BIB'
+@book{hyphen-original-series,
+  author           = {Curator, Eli},
+  title            = {Original Series Manual},
+  date             = {2026},
+  origseries       = {Source Facsimile Library},
+  origseriesnumber = {3},
+  publisher        = {Review Press}
+}
+
+@book{direct-original-collection,
+  author                     = {Ng, Nia},
+  title                      = {Direct Original Collection Manual},
+  date                       = {2025},
+  original-collection-title  = {Archive Reprint Series},
+  original-collection-number = {14}
+}
+BIB;
+
+        $items = CitationCslProcessor::bibtexItems($bibtex);
+        $t->same(2, count($items));
+        $t->same('Source Facsimile Library', $items[0]['original-collection-title'] ?? null);
+        $t->same('3', $items[0]['original-collection-number'] ?? null);
+        $t->same('Archive Reprint Series', $items[1]['original-collection-title'] ?? null);
+        $t->same('14', $items[1]['original-collection-number'] ?? null);
+        $t->same('Source Facsimile Library', $items[0]['rawBibtex']['fields']['origseries'] ?? null);
+        $t->same('14', $items[1]['rawBibtex']['fields']['original-collection-number'] ?? null);
+
+        $legacyProcessor = new \PortLibs\Pandoc\BibtexCslProcessor();
+        $legacyItems = $legacyProcessor->cslItems($bibtex);
+        $t->same('Source Facsimile Library', $legacyItems['hyphen-original-series']['original-collection-title'] ?? null);
+        $t->same('3', $legacyItems['hyphen-original-series']['original-collection-number'] ?? null);
+        $t->contains(
+            'Original collection title: Source Facsimile Library. Original collection number: 3.',
+            $legacyProcessor->renderBibliographyText($legacyItems['hyphen-original-series'])
+        );
+
+        $processor = CitationCslProcessor::fromBibtex($bibtex);
+        $hyphen = $processor->item('hyphen-original-series');
+        $direct = $processor->item('direct-original-collection');
+        $t->same('Source Facsimile Library', $hyphen['originalCollectionTitle'] ?? null);
+        $t->same('3', $hyphen['originalCollectionNumber'] ?? null);
+        $t->same('Archive Reprint Series', $direct['originalCollectionTitle'] ?? null);
+        $t->same('14', $direct['originalCollectionNumber'] ?? null);
+        $t->same(
+            'Curator, Eli. Original Series Manual. Review Press, 2026. Original series: Source Facsimile Library, no. 3.',
+            $processor->renderBibliographyEntry('hyphen-original-series')
+        );
+
+        $styled = $processor->withCslStyle(<<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<style xmlns="http://purl.org/net/xbiblio/csl" version="1.0" class="in-text">
+  <info>
+    <title>Bounded BibLaTeX Original Series Alias Review</title>
+    <id>https://example.test/styles/bounded-biblatex-original-series-alias-review</id>
+    <updated>2026-07-01T00:00:00+00:00</updated>
+  </info>
+  <citation>
+    <layout prefix="[" suffix="]" delimiter="; ">
+      <group delimiter=" | ">
+        <names variable="author"/>
+        <text variable="origseries"/>
+        <number variable="origseriesnumber" form="roman"/>
+      </group>
+    </layout>
+  </citation>
+  <bibliography>
+    <layout delimiter=" :: ">
+      <text variable="title"/>
+      <text variable="original-collection-title"/>
+      <label variable="original-collection-number" form="short"/>
+      <number variable="original-collection-number" form="ordinal"/>
+    </layout>
+  </bibliography>
+</style>
+XML);
+
+        $summary = $styled->cslStyleSummary();
+        $citationChildren = $summary['citationRendering'][0]['children'] ?? [];
+        $t->same('Bounded BibLaTeX Original Series Alias Review', $summary['title'] ?? null);
+        $t->same('origseries', $citationChildren[1]['variable'] ?? null);
+        $t->same('origseriesnumber', $citationChildren[2]['variable'] ?? null);
+        $t->same('[Curator | Source Facsimile Library | iii; Ng | Archive Reprint Series | xiv]', $styled->renderCitationCluster([
+            $citation('hyphen-original-series', '[@hyphen-original-series]'),
+            $citation('direct-original-collection', '[@direct-original-collection]'),
+        ]));
+        $t->same('Original Series Manual :: Source Facsimile Library :: no. :: 3rd', $styled->renderBibliographyEntry('hyphen-original-series'));
+        $t->same('Direct Original Collection Manual :: Archive Reprint Series :: no. :: 14th', $styled->renderBibliographyEntry('direct-original-collection'));
+
+        $manual = CitationCslProcessor::fromItems([[
+            'id' => 'manual-original-series',
+            'title' => 'Manual Original Series',
+            'origSeries' => 'Direct Facsimile Library',
+            'origSeriesNumber' => '22',
+        ]])->item('manual-original-series');
+        $t->same('Direct Facsimile Library', $manual['originalCollectionTitle'] ?? null);
+        $t->same('22', $manual['originalCollectionNumber'] ?? null);
+
+        $document = (new MarkdownReader())->read('Original series aliases [@hyphen-original-series; @direct-original-collection] stay visible.');
+        $blocks = (new WordPressBlockWriter())->write($styled->appendBibliography($document, 'Works Cited'));
+        $t->contains('<p>Original series aliases [Curator | Source Facsimile Library | iii; Ng | Archive Reprint Series | xiv] stay visible.</p>', $blocks);
+        $t->contains('<dt>Curator 2026</dt><dd>Original Series Manual :: Source Facsimile Library :: no. :: 3rd</dd>', $blocks);
+        $t->contains('<dt>Ng 2025</dt><dd>Direct Original Collection Manual :: Archive Reprint Series :: no. :: 14th</dd>', $blocks);
+    },
     'maps bounded biblatex series title aliases into csl collection metadata' => static function (TestRunner $t) use ($citation): void {
         $bibtex = <<<'BIB'
 @book{hyphen-series-title,

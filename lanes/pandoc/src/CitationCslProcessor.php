@@ -853,6 +853,16 @@ final class CitationCslProcessor
             $parts[] = 'Original genre: ' . $originalGenre . '.';
         }
 
+        $originalCollectionTitle = (string) ($item['originalCollectionTitle'] ?? '');
+        $originalCollectionNumber = (string) ($item['originalCollectionNumber'] ?? '');
+        if ($originalCollectionTitle !== '' && $originalCollectionNumber !== '') {
+            $parts[] = 'Original series: ' . $originalCollectionTitle . ', ' . $this->style->term('number', 'short') . ' ' . $originalCollectionNumber . '.';
+        } elseif ($originalCollectionTitle !== '') {
+            $parts[] = 'Original series: ' . rtrim($originalCollectionTitle, '.') . '.';
+        } elseif ($originalCollectionNumber !== '') {
+            $parts[] = 'Original series ' . $this->style->term('number', 'short') . ' ' . $originalCollectionNumber . '.';
+        }
+
         $originalDate = $item['originalDate'] ?? null;
         if (is_array($originalDate) && (string) ($originalDate['display'] ?? '') !== '') {
             $parts[] = 'Original work published ' . (string) $originalDate['display'] . '.';
@@ -1140,6 +1150,8 @@ final class CitationCslProcessor
         ]);
         $originalPublisher = self::firstStringField($item, ['original-publisher', 'originalPublisher', 'originalpublisher', 'origpublisher', 'origPublisher']);
         $originalPublisherPlace = self::firstStringField($item, ['original-publisher-place', 'originalPublisherPlace', 'originalpublisherplace', 'origlocation', 'origLocation', 'origaddress', 'origAddress']);
+        $originalCollectionTitle = self::firstStringField($item, ['original-collection-title', 'originalCollectionTitle', 'originalcollectiontitle', 'origseries', 'origSeries', 'orig-series', 'original-series', 'originalSeries', 'originalseries']);
+        $originalCollectionNumber = self::firstStringField($item, ['original-collection-number', 'originalCollectionNumber', 'originalcollectionnumber', 'origseriesnumber', 'origSeriesNumber', 'orig-series-number', 'original-series-number', 'originalSeriesNumber', 'originalseriesnumber']);
         $archive = self::firstStringField($item, ['archive', 'archiveprefix', 'archive-prefix', 'archivePrefix', 'eprinttype', 'eprint-type', 'eprintType']);
         $archiveCollection = self::firstStringField($item, ['archive_collection', 'archive-collection', 'archiveCollection', 'archivecollection']);
         $archivePlace = self::firstStringField($item, ['archive-place', 'archivePlace', 'archiveplace', 'eprintclass', 'eprint-class', 'eprintClass']);
@@ -1642,6 +1654,8 @@ final class CitationCslProcessor
             'originalLanguage' => $originalLanguage,
             'originalLanguageList' => $originalLanguageList !== [] ? $originalLanguageList : ($originalLanguage !== '' ? [$originalLanguage] : []),
             'originalGenre' => $originalGenre,
+            'originalCollectionTitle' => $originalCollectionTitle,
+            'originalCollectionNumber' => $originalCollectionNumber,
             'originalDate' => $originalDate,
             'originalDateAddon' => self::firstStringField($item, ['original-date-addon', 'originalDateAddon', 'origdateaddon', 'origDateAddon', 'orig-date-addon']),
             'reprintDate' => $reprintDate,
@@ -6858,6 +6872,7 @@ final class CitationCslProcessor
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext' => $this->normalizeSortText((string) $item['containerTitle']),
             'collection-title', 'collectiontitle', 'collection', 'collection-title-text', 'collectiontitletext', 'series', 'series-title', 'seriestitle', 'series-title-text', 'seriestitletext' => $this->normalizeSortText((string) ($item['collectionTitle'] ?? '')),
             'collection-title-short', 'collectiontitleshort', 'series-short', 'seriesshort', 'series-title-short', 'seriestitleshort' => $this->normalizeSortText((string) ($item['collectionTitleShort'] ?? '')),
+            'original-collection-title', 'originalcollectiontitle', 'origseries', 'orig-series', 'original-series', 'originalseries' => $this->normalizeSortText((string) ($item['originalCollectionTitle'] ?? '')),
             'main-title', 'maintitle', 'main-title-text', 'maintitletext' => $this->normalizeSortText((string) ($item['mainTitle'] ?? '')),
             'volume-title', 'volumetitle', 'volume-title-text', 'volumetitletext' => $this->normalizeSortText((string) ($item['volumeTitle'] ?? '')),
             'part-title', 'parttitle', 'part-title-text', 'parttitletext' => $this->normalizeSortText((string) ($item['partTitle'] ?? '')),
@@ -6877,7 +6892,8 @@ final class CitationCslProcessor
             'citation-number' => sprintf('%08d', (int) $this->primaryCitationNumberForId((string) ($item['id'] ?? ''))),
             'first-reference-note-number' => $this->numberVariableSortValue($item, $variable, $scope),
             'page', 'page-first', 'number', 'article-number', 'edition', 'volume', 'issue', 'issue-number', 'issuenumber', 'chapter-number', 'number-of-pages',
-            'number-of-volumes', 'collection-number', 'series-number', 'seriesnumber', 'section', 'part-number', 'part', 'printing-number',
+            'number-of-volumes', 'collection-number', 'series-number', 'seriesnumber', 'original-collection-number', 'originalcollectionnumber',
+            'origseriesnumber', 'orig-series-number', 'original-series-number', 'originalseriesnumber', 'section', 'part-number', 'part', 'printing-number',
             'supplement', 'supplement-number', 'version' => $this->numberVariableSortValue($item, $variable, $scope),
             'id' => $this->normalizeSortText((string) $item['id']),
             default => $this->normalizeSortText($fallback),
@@ -10697,6 +10713,7 @@ final class CitationCslProcessor
             'chapter-number' => 'chapter',
             'article-number' => 'article-locator',
             'collection-number', 'series-number', 'seriesnumber' => 'number',
+            'original-collection-number', 'originalcollectionnumber', 'origseriesnumber', 'orig-series-number', 'original-series-number', 'originalseriesnumber' => 'number',
             'issue-number', 'issuenumber' => 'issue',
             'part-number' => 'part',
             default => $variable,
@@ -11135,6 +11152,8 @@ final class CitationCslProcessor
             'original-subtitle-raw', 'originalsubtitleraw', 'orig-subtitle-raw', 'origsubtitleraw' => $this->rawAliasedVariableValue($item, $variable, ['original-subtitle', 'originalSubtitle', 'originalsubtitle', 'origsubtitle', 'origSubtitle']),
             'original-title-addon', 'originaltitleaddon', 'origtitleaddon' => (string) ($item['originalTitleAddon'] ?? ''),
             'original-genre', 'origtype', 'origgenre' => (string) ($item['originalGenre'] ?? ''),
+            'original-collection-title', 'originalcollectiontitle', 'origseries', 'orig-series', 'original-series', 'originalseries' => (string) ($item['originalCollectionTitle'] ?? ''),
+            'original-collection-number', 'originalcollectionnumber', 'origseriesnumber', 'orig-series-number', 'original-series-number', 'originalseriesnumber' => (string) ($item['originalCollectionNumber'] ?? ''),
             'container-title', 'containertitle', 'container', 'container-title-text', 'containertitletext', 'book-title', 'booktitle', 'journal-title', 'journaltitle', 'journal', 'publication-title', 'publicationtitle' => (string) $item['containerTitle'],
             'container-title-short', 'containertitleshort', 'book-title-short', 'booktitleshort', 'container-title-abbreviation', 'containertitleabbreviation' => (string) $item['containerTitleShort'],
             'journalabbreviation', 'journal-abbreviation', 'shortjournal', 'short-journal', 'shortjournaltitle', 'short-journal-title', 'journaltitleshort', 'journal-title-short' => (string) $item['journalAbbreviation'],
@@ -11416,6 +11435,12 @@ final class CitationCslProcessor
             'collection-number',
             'series-number',
             'seriesnumber',
+            'original-collection-number',
+            'originalcollectionnumber',
+            'origseriesnumber',
+            'orig-series-number',
+            'original-series-number',
+            'originalseriesnumber',
             'section',
             'part-number',
             'part',
