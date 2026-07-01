@@ -2025,6 +2025,7 @@ final class OdfReader
         $stylePackageProvenance = $this->stylePackageProvenance($styleCatalog, $manifestByPart, $parts);
         $packagePartExtensions = self::packagePartExtensionInventory($parts);
         $packagePartBasenames = self::packagePartBasenameInventory($parts);
+        $packagePathSegments = self::packagePathSegmentInventory($parts);
         $manifestPackageCoverage = self::manifestPackageCoverageProvenance($manifestFileEntryOrder, $parts, $undeclaredEntries);
         $packageByteHandoff = OpenDocumentPackageByteHandoff::summarize($package, $parts, 'part');
         sort($manifestCustomAttributeNames, SORT_STRING);
@@ -2102,6 +2103,16 @@ final class OdfReader
             'caseFoldedPackageBasenameDuplicateCount' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateCount'],
             'caseFoldedPackageBasenameDuplicateEntryCount' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateEntryCount'],
             'caseFoldedPackageBasenameDuplicateSummaries' => $packagePartBasenames['caseFoldedPackageBasenameDuplicateSummaries'],
+            'packagePathSegmentCounts' => $packagePathSegments['packagePathSegmentCounts'],
+            'entryNamesByPackagePathSegment' => $packagePathSegments['entryNamesByPackagePathSegment'],
+            'packageCaseFoldedPathSegmentCounts' => $packagePathSegments['packageCaseFoldedPathSegmentCounts'],
+            'entryNamesByPackageCaseFoldedPathSegment' => $packagePathSegments['entryNamesByPackageCaseFoldedPathSegment'],
+            'repeatedPackagePathSegmentCount' => $packagePathSegments['repeatedPackagePathSegmentCount'],
+            'repeatedPackagePathSegmentEntryCount' => $packagePathSegments['repeatedPackagePathSegmentEntryCount'],
+            'repeatedPackagePathSegmentSummaries' => $packagePathSegments['repeatedPackagePathSegmentSummaries'],
+            'caseFoldedPackagePathSegmentDuplicateCount' => $packagePathSegments['caseFoldedPackagePathSegmentDuplicateCount'],
+            'caseFoldedPackagePathSegmentDuplicateEntryCount' => $packagePathSegments['caseFoldedPackagePathSegmentDuplicateEntryCount'],
+            'caseFoldedPackagePathSegmentDuplicateSummaries' => $packagePathSegments['caseFoldedPackagePathSegmentDuplicateSummaries'],
             'mediaResources' => $mediaResourceSummary,
             'preferredViewModes' => $preferredViewModeSummary,
             'manifestEncryption' => $manifestEncryptionSummary,
@@ -2666,6 +2677,14 @@ final class OdfReader
             'caseFoldedPackageBasenameDuplicateCount' => $provenance['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateSummaries' => $provenance['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
+            'packagePathSegmentCounts' => $provenance['packagePathSegmentCounts'] ?? [],
+            'packageCaseFoldedPathSegmentCounts' => $provenance['packageCaseFoldedPathSegmentCounts'] ?? [],
+            'repeatedPackagePathSegmentCount' => $provenance['repeatedPackagePathSegmentCount'] ?? 0,
+            'repeatedPackagePathSegmentEntryCount' => $provenance['repeatedPackagePathSegmentEntryCount'] ?? 0,
+            'repeatedPackagePathSegmentSummaries' => $provenance['repeatedPackagePathSegmentSummaries'] ?? [],
+            'caseFoldedPackagePathSegmentDuplicateCount' => $provenance['caseFoldedPackagePathSegmentDuplicateCount'] ?? 0,
+            'caseFoldedPackagePathSegmentDuplicateEntryCount' => $provenance['caseFoldedPackagePathSegmentDuplicateEntryCount'] ?? 0,
+            'caseFoldedPackagePathSegmentDuplicateSummaries' => $provenance['caseFoldedPackagePathSegmentDuplicateSummaries'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'manifestByteExposurePolicyCounts' => $provenance['manifestByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
@@ -2837,6 +2856,14 @@ final class OdfReader
             'caseFoldedPackageBasenameDuplicateCount' => $provenance['caseFoldedPackageBasenameDuplicateCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateEntryCount' => $provenance['caseFoldedPackageBasenameDuplicateEntryCount'] ?? 0,
             'caseFoldedPackageBasenameDuplicateSummaries' => $provenance['caseFoldedPackageBasenameDuplicateSummaries'] ?? [],
+            'packagePathSegmentCounts' => $provenance['packagePathSegmentCounts'] ?? [],
+            'packageCaseFoldedPathSegmentCounts' => $provenance['packageCaseFoldedPathSegmentCounts'] ?? [],
+            'repeatedPackagePathSegmentCount' => $provenance['repeatedPackagePathSegmentCount'] ?? 0,
+            'repeatedPackagePathSegmentEntryCount' => $provenance['repeatedPackagePathSegmentEntryCount'] ?? 0,
+            'repeatedPackagePathSegmentSummaries' => $provenance['repeatedPackagePathSegmentSummaries'] ?? [],
+            'caseFoldedPackagePathSegmentDuplicateCount' => $provenance['caseFoldedPackagePathSegmentDuplicateCount'] ?? 0,
+            'caseFoldedPackagePathSegmentDuplicateEntryCount' => $provenance['caseFoldedPackagePathSegmentDuplicateEntryCount'] ?? 0,
+            'caseFoldedPackagePathSegmentDuplicateSummaries' => $provenance['caseFoldedPackagePathSegmentDuplicateSummaries'] ?? [],
             'packagePartByteExposurePolicyCounts' => $provenance['packagePartByteExposurePolicyCounts'] ?? [],
             'packageAreaCounts' => $provenance['packageAreaCounts'] ?? [],
             'packagePathKindCounts' => $provenance['packagePathKindCounts'] ?? [],
@@ -3236,6 +3263,102 @@ final class OdfReader
             'caseFoldedPackageBasenameDuplicateCount' => count($caseFoldedDuplicateSummaries),
             'caseFoldedPackageBasenameDuplicateEntryCount' => $caseFoldedDuplicateEntryCount,
             'caseFoldedPackageBasenameDuplicateSummaries' => $caseFoldedDuplicateSummaries,
+        ];
+    }
+
+    /**
+     * @param array<string, array<string, mixed>> $parts
+     * @return array{
+     *     packagePathSegmentCounts:array<string, int>,
+     *     entryNamesByPackagePathSegment:array<string, list<string>>,
+     *     packageCaseFoldedPathSegmentCounts:array<string, int>,
+     *     entryNamesByPackageCaseFoldedPathSegment:array<string, list<string>>,
+     *     repeatedPackagePathSegmentCount:int,
+     *     repeatedPackagePathSegmentEntryCount:int,
+     *     repeatedPackagePathSegmentSummaries:list<array<string, mixed>>,
+     *     caseFoldedPackagePathSegmentDuplicateCount:int,
+     *     caseFoldedPackagePathSegmentDuplicateEntryCount:int,
+     *     caseFoldedPackagePathSegmentDuplicateSummaries:list<array<string, mixed>>
+     * }
+     */
+    private static function packagePathSegmentInventory(array $parts): array
+    {
+        $segmentCounts = [];
+        $entryNamesBySegment = [];
+        $caseFoldedSegmentCounts = [];
+        $entryNamesByCaseFoldedSegment = [];
+        $segmentsByCaseFoldedSegment = [];
+
+        foreach ($parts as $name => $part) {
+            $path = is_string($part['part'] ?? null) ? $part['part'] : (string) $name;
+            $pathShape = is_array($part['packagePathShape'] ?? null) ? $part['packagePathShape'] : [];
+            $segments = is_array($pathShape['segments'] ?? null) ? $pathShape['segments'] : [];
+            foreach ($segments as $segment) {
+                if (!is_string($segment) || $segment === '') {
+                    continue;
+                }
+
+                $caseFoldKey = strtolower($segment);
+                $segmentCounts[$segment] = ($segmentCounts[$segment] ?? 0) + 1;
+                $entryNamesBySegment[$segment][$path] = true;
+                $caseFoldedSegmentCounts[$caseFoldKey] = ($caseFoldedSegmentCounts[$caseFoldKey] ?? 0) + 1;
+                $entryNamesByCaseFoldedSegment[$caseFoldKey][$path] = true;
+                $segmentsByCaseFoldedSegment[$caseFoldKey][$segment] = true;
+            }
+        }
+
+        ksort($segmentCounts, SORT_STRING);
+        self::sortPackageStringListMap($entryNamesBySegment, SORT_STRING);
+        ksort($caseFoldedSegmentCounts, SORT_STRING);
+        self::sortPackageStringListMap($entryNamesByCaseFoldedSegment, SORT_STRING);
+        ksort($segmentsByCaseFoldedSegment, SORT_STRING);
+
+        $repeatedSegmentSummaries = [];
+        $repeatedSegmentEntryCount = 0;
+        foreach ($entryNamesBySegment as $segment => $names) {
+            if (($segmentCounts[$segment] ?? 0) < 2) {
+                continue;
+            }
+
+            $repeatedSegmentEntryCount += count($names);
+            $repeatedSegmentSummaries[] = [
+                'packagePathSegment' => $segment,
+                'occurrenceCount' => $segmentCounts[$segment],
+                'entryCount' => count($names),
+                'entryNames' => $names,
+            ];
+        }
+
+        $caseFoldedDuplicateSummaries = [];
+        $caseFoldedDuplicateEntryCount = 0;
+        foreach ($entryNamesByCaseFoldedSegment as $caseFoldKey => $names) {
+            if (($caseFoldedSegmentCounts[$caseFoldKey] ?? 0) < 2) {
+                continue;
+            }
+
+            $segments = array_keys($segmentsByCaseFoldedSegment[$caseFoldKey] ?? []);
+            sort($segments, SORT_STRING);
+            $caseFoldedDuplicateEntryCount += count($names);
+            $caseFoldedDuplicateSummaries[] = [
+                'caseFoldKey' => $caseFoldKey,
+                'occurrenceCount' => $caseFoldedSegmentCounts[$caseFoldKey],
+                'entryCount' => count($names),
+                'packagePathSegments' => $segments,
+                'entryNames' => $names,
+            ];
+        }
+
+        return [
+            'packagePathSegmentCounts' => $segmentCounts,
+            'entryNamesByPackagePathSegment' => $entryNamesBySegment,
+            'packageCaseFoldedPathSegmentCounts' => $caseFoldedSegmentCounts,
+            'entryNamesByPackageCaseFoldedPathSegment' => $entryNamesByCaseFoldedSegment,
+            'repeatedPackagePathSegmentCount' => count($repeatedSegmentSummaries),
+            'repeatedPackagePathSegmentEntryCount' => $repeatedSegmentEntryCount,
+            'repeatedPackagePathSegmentSummaries' => $repeatedSegmentSummaries,
+            'caseFoldedPackagePathSegmentDuplicateCount' => count($caseFoldedDuplicateSummaries),
+            'caseFoldedPackagePathSegmentDuplicateEntryCount' => $caseFoldedDuplicateEntryCount,
+            'caseFoldedPackagePathSegmentDuplicateSummaries' => $caseFoldedDuplicateSummaries,
         ];
     }
 
