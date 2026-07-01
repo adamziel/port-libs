@@ -29,8 +29,8 @@ final class PptxReader
     {
         $rootRelationships = $this->relationshipsOrEmpty($package, '/');
         $presentationRelationship = $this->presentationRelationship($rootRelationships);
-        $presentationPart = OpcPackagePath::stripQueryAndFragment($rootRelationships->resolveTarget($presentationRelationship));
-        $presentation = $this->loadPackageXml($package, $presentationPart, 'PPTX presentation');
+        $presentationPart = $presentationRelationship->target;
+        $presentation = $this->loadPackageXmlFromUpstreamPath($package, $presentationPart, 'PPTX presentation');
         $slides = $this->parsePresentationSlides($presentation);
         $slideSize = $this->presentationSlideSize($presentation);
         $presentationRelationships = $this->relationshipsOrEmpty($package, $presentationPart);
@@ -176,6 +176,15 @@ final class PptxReader
     private function loadPackageXml(ZipPackage $package, string $partName, string $label): \DOMDocument
     {
         return XmlHtmlDom::loadXmlDocument($package->read($partName, self::MAX_XML_PART_BYTES), $label, false);
+    }
+
+    private function loadPackageXmlFromUpstreamPath(ZipPackage $package, string $path, string $label): \DOMDocument
+    {
+        if (!in_array($path, $package->names(), true)) {
+            throw new \RuntimeException('File not found in archive: ' . $path);
+        }
+
+        return $this->loadPackageXml($package, $path, $label);
     }
 
     /**
