@@ -14,6 +14,7 @@ final class PandocJsonWriter
         'alignmentNatives',
         'attrConstructor',
         'attrNative',
+        'blockQuoteBlocksNative',
         'captionConstructor',
         'captionNative',
         'citationConstructor',
@@ -34,6 +35,8 @@ final class PandocJsonWriter
         'definitionItemNative',
         'definitionNative',
         'definitionTermNative',
+        'divBlocksNative',
+        'figureBlocksNative',
         'formatConstructor',
         'formatNative',
         'legacyTableCellBlocksNative',
@@ -607,7 +610,7 @@ final class PandocJsonWriter
             'heading' => ['t' => 'Header', 'c' => [(int) $node->attr('level', 1), $this->attrTuple($node), $this->writeInlines($this->inlineChildrenOrText($node))]],
             'code_block' => ['t' => 'CodeBlock', 'c' => [$this->attrTuple($node), (string) $node->attr('text', '')]],
             'raw_html', 'raw_tex', 'raw_markdown', 'raw_block' => ['t' => 'RawBlock', 'c' => [$this->rawFormatPayload($node), $this->rawText($node)]],
-            'blockquote' => ['t' => 'BlockQuote', 'c' => $this->childrenAsBlocks($node)],
+            'blockquote' => ['t' => 'BlockQuote', 'c' => $this->writeBlockQuoteBlocks($node)],
             'ordered_list' => ['t' => 'OrderedList', 'c' => [
                 $this->listAttributesPayload($node),
                 $this->writeListItems($node->children),
@@ -617,7 +620,7 @@ final class PandocJsonWriter
             'line_block' => ['t' => 'LineBlock', 'c' => $this->writeLineBlockLines($node->children)],
             'horizontal_rule' => ['t' => 'HorizontalRule'],
             'null_block' => ['t' => 'Null'],
-            'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->childrenAsBlocks($node)]],
+            'div' => ['t' => 'Div', 'c' => [$this->attrTuple($node), $this->writeDivBlocks($node)]],
             'figure' => ['t' => 'Figure', 'c' => [$this->attrTuple($node), $this->writeTableCaption($node), $this->writeFigureBlocks($node)]],
             'table' => $this->writeTableBlock($node),
             'native_block' => $this->nativeTaggedConstructor($node, 'block'),
@@ -856,6 +859,26 @@ final class PandocJsonWriter
     }
 
     /**
+     * @return list<mixed>
+     */
+    private function writeBlockQuoteBlocks(AstNode $node): array
+    {
+        $blocks = $this->childrenAsBlocks($node);
+
+        return $this->reusableBlockListPayload($node->attr('blockQuoteBlocksNative'), $blocks) ?? $blocks;
+    }
+
+    /**
+     * @return list<mixed>
+     */
+    private function writeDivBlocks(AstNode $node): array
+    {
+        $blocks = $this->childrenAsBlocks($node);
+
+        return $this->reusableBlockListPayload($node->attr('divBlocksNative'), $blocks) ?? $blocks;
+    }
+
+    /**
      * @return list<array<string, mixed>>
      */
     private function childrenAsBlocks(AstNode $node): array
@@ -902,11 +925,13 @@ final class PandocJsonWriter
     }
 
     /**
-     * @return list<array<string, mixed>>
+     * @return list<mixed>
      */
     private function writeFigureBlocks(AstNode $node): array
     {
-        return $this->mixedChildrenAsBlocks($node->children);
+        $blocks = $this->mixedChildrenAsBlocks($node->children);
+
+        return $this->reusableBlockListPayload($node->attr('figureBlocksNative'), $blocks) ?? $blocks;
     }
 
     /**

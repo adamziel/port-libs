@@ -676,7 +676,7 @@ final class PandocJsonReader
             'Header' => $this->readHeaderBlock($content),
             'CodeBlock' => $this->readCodeBlock($content),
             'RawBlock' => $this->readRawBlock($content),
-            'BlockQuote' => new AstNode('blockquote', [], $this->readBlocks($this->listContent($content, 'BlockQuote'))),
+            'BlockQuote' => $this->readBlockQuoteBlock($content),
             'OrderedList' => $this->readOrderedList($content),
             'BulletList' => $this->readBulletList($content),
             'DefinitionList' => $this->readDefinitionList($content),
@@ -733,6 +733,15 @@ final class PandocJsonReader
         $imageAttrs['title'] = substr($title, 4);
 
         return new AstNode('figure', $attrs, [new AstNode('image', $imageAttrs, $captionInlines)]);
+    }
+
+    private function readBlockQuoteBlock(mixed $content): AstNode
+    {
+        $blocks = $this->listContent($content, 'BlockQuote');
+
+        return new AstNode('blockquote', [
+            'blockQuoteBlocksNative' => $blocks,
+        ], $this->readBlocks($blocks));
     }
 
     private function readHeaderBlock(mixed $content): AstNode
@@ -1043,8 +1052,11 @@ final class PandocJsonReader
     private function readDivBlock(mixed $content): AstNode
     {
         $tuple = $this->singleWrappedTuple($content, 2, 'Div');
+        $blocks = $this->listContent($tuple[1], 'Div blocks');
+        $attrs = $this->readAttrTuple($tuple[0]);
+        $attrs['divBlocksNative'] = $blocks;
 
-        return new AstNode('div', $this->readAttrTuple($tuple[0]), $this->readBlocks($this->listContent($tuple[1], 'Div blocks')));
+        return new AstNode('div', $attrs, $this->readBlocks($blocks));
     }
 
     private function readFigureBlock(mixed $content): AstNode
@@ -1054,8 +1066,10 @@ final class PandocJsonReader
             $this->readAttrTuple($tuple[0]),
             $this->readCaptionAttrs($tuple[1], 'Figure')
         );
+        $blocks = $this->listContent($tuple[2], 'Figure blocks');
+        $attrs['figureBlocksNative'] = $blocks;
 
-        return new AstNode('figure', $attrs, $this->figureChildren($this->readBlocks($this->listContent($tuple[2], 'Figure blocks'))));
+        return new AstNode('figure', $attrs, $this->figureChildren($this->readBlocks($blocks)));
     }
 
     /**
