@@ -15593,7 +15593,7 @@ final class XmlHtmlDom
                 'documentMetadata' => 'base',
                 'href' => self::attributeOrNull($element, 'href'),
                 'target' => self::attributeOrNull($element, 'target'),
-            ];
+            ] + self::baseMetadataReviewSummary($element);
         }
 
         if ($name === 'link') {
@@ -15655,6 +15655,160 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function baseMetadataReviewSummary(\DOMElement $base): array
+    {
+        $hrefRaw = self::attributeOrNull($base, 'href');
+        $targetRaw = self::attributeOrNull($base, 'target');
+        $href = self::normalizedHtmlResourceUrl($hrefRaw);
+        $hrefReview = self::hyperlinkUrlReviewSummary($href);
+        $hrefResolved = $href === null ? null : self::resolveHtmlBaseHrefUrl($href, null);
+        $hrefUsable = $hrefResolved !== null && self::isUsableHtmlResourceBaseUrl($hrefResolved);
+        $hrefIssues = [];
+
+        if ($hrefRaw !== null) {
+            if ($hrefReview['kind'] === 'empty') {
+                $hrefIssues[] = ['code' => 'empty-base-href'];
+            } elseif ($hrefReview['kind'] === 'invalid') {
+                $hrefIssues[] = [
+                    'code' => 'invalid-base-href',
+                    'href' => $hrefRaw,
+                ];
+            } elseif ($hrefReview['kind'] === 'fragment') {
+                $hrefIssues[] = [
+                    'code' => 'fragment-base-href',
+                    'href' => $href,
+                ];
+            } elseif ($hrefReview['kind'] === 'scheme-relative') {
+                $hrefIssues[] = [
+                    'code' => 'scheme-relative-base-href',
+                    'href' => $href,
+                ];
+            } elseif (!$hrefUsable) {
+                $hrefIssues[] = [
+                    'code' => 'unusable-base-href',
+                    'href' => $href,
+                    'kind' => $hrefReview['kind'],
+                    'scheme' => $hrefReview['scheme'],
+                ];
+            }
+
+            if ($hrefReview['unsafe'] === true) {
+                $hrefIssues[] = [
+                    'code' => 'unsafe-base-href',
+                    'href' => $hrefRaw,
+                    'scheme' => $hrefReview['scheme'],
+                ];
+            }
+        }
+
+        $targetSummary = self::baseTargetReviewSummary($targetRaw);
+        $issues = $hrefIssues;
+        foreach ($targetSummary['baseTargetIssues'] as $issue) {
+            $issues[] = $issue;
+        }
+        if ($hrefRaw === null && $targetRaw === null) {
+            array_unshift($issues, ['code' => 'missing-base-href-or-target']);
+        }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
+
+        return [
+            'baseReviewPolicy' => 'html-base-url-target-review',
+            'baseHrefRaw' => $hrefRaw,
+            'baseHref' => $href,
+            'baseHrefKind' => $hrefReview['kind'],
+            'baseHrefScheme' => $hrefReview['scheme'],
+            'baseHrefUnsafe' => $hrefReview['unsafe'],
+            'baseHrefResolvedUrl' => $hrefResolved,
+            'baseHrefUsable' => $hrefUsable,
+            'baseHrefValid' => $hrefRaw === null ? null : $hrefIssues === [],
+            'baseHrefIssues' => $hrefIssues,
+            'baseHrefIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $hrefIssues
+            ))),
+            'baseIssues' => $issues,
+            'baseIssueCodes' => $issueCodes,
+            'baseValid' => $issues === [],
+        ] + $targetSummary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function baseTargetReviewSummary(?string $targetRaw): array
+    {
+        $target = null;
+        $fallback = null;
+        $normalizedToBlank = false;
+        $unsafe = false;
+        $issues = [];
+
+        if ($targetRaw !== null) {
+            $withoutNull = str_replace("\0", '', $targetRaw);
+            if (preg_match('/[\t\r\n\f<]/', $withoutNull) === 1) {
+                $fallback = '_blank';
+                $normalizedToBlank = true;
+                $unsafe = true;
+                $issues[] = [
+                    'code' => 'base-target-normalized-to-blank',
+                    'target' => $fallback,
+                ];
+            } else {
+                $candidate = self::normalizedAttributeText($withoutNull);
+                if ($candidate === '') {
+                    $issues[] = ['code' => 'empty-base-target'];
+                } elseif (strlen($candidate) > 128) {
+                    $issues[] = [
+                        'code' => 'invalid-base-target',
+                        'reason' => 'target-too-long',
+                    ];
+                } elseif (preg_match('/[>"\'`{}]/', $candidate) === 1) {
+                    $unsafe = true;
+                    $issues[] = [
+                        'code' => 'unsafe-base-target',
+                        'target' => $candidate,
+                    ];
+                } elseif (preg_match('/^[A-Za-z0-9_.:-]+$/', $candidate) !== 1) {
+                    $issues[] = [
+                        'code' => 'invalid-base-target',
+                        'target' => $candidate,
+                    ];
+                } else {
+                    $target = $candidate;
+                }
+            }
+        }
+
+        $effectiveTarget = $fallback ?? $target;
+        $targetLower = $effectiveTarget === null ? null : strtolower($effectiveTarget);
+        $keyword = in_array($targetLower, ['_blank', '_parent', '_self', '_top', '_unfencedtop'], true)
+            ? $targetLower
+            : null;
+
+        return [
+            'baseTargetRaw' => $targetRaw,
+            'baseTargetName' => $target,
+            'baseTargetFallback' => $fallback,
+            'baseTargetEffectiveName' => $effectiveTarget,
+            'baseTargetKeyword' => $keyword,
+            'baseTargetCustom' => $effectiveTarget !== null && $keyword === null,
+            'baseTargetNormalizedToBlank' => $normalizedToBlank,
+            'baseTargetUnsafe' => $unsafe,
+            'baseTargetValid' => $targetRaw === null ? null : $target !== null && $issues === [],
+            'baseTargetIssues' => $issues,
+            'baseTargetIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+        ];
     }
 
     /**
