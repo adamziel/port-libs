@@ -2292,9 +2292,8 @@ return [
         $t->same(3, $mediaDivs[0]->attr('pptxShape')['zOrder'] ?? null);
         $t->same(['x' => 555, 'y' => 666, 'cx' => 777, 'cy' => 888], $mediaDivs[0]->attr('pptxShape')['layout'] ?? null);
 
-        $t->same(1, count($commentDivs));
-        $t->same('Ada Reviewer', $commentDivs[0]->attr('pptxComments')[0]['author'] ?? null);
-        $t->same('Review this clip', $commentDivs[0]->attr('pptxComments')[0]['text'] ?? null);
+        $t->same(0, count($commentDivs));
+        $t->true(!str_contains($native, 'Review this clip'), 'PPTX comments should remain out of upstream-compatible visible output');
         $t->same(1, count($backLayerParagraphs));
         $t->same(2, $backLayerParagraphs[0]->attr('pptxShape')['zOrder'] ?? null);
         $t->same(['x' => 111, 'y' => 222, 'cx' => 333, 'cy' => 444], $backLayerParagraphs[0]->attr('pptxShape')['layout'] ?? null);
@@ -2313,7 +2312,7 @@ return [
         $t->contains('<th>Col1</th>', $blocks);
         $t->contains('[Graphic: other: http://schemas.openxmlformats.org/drawingml/2006/chart]', $blocks);
         $t->contains('ppt/media/image1.png', $blocks);
-        $t->contains('data-pandoc-comment-author="Ada Reviewer"', $blocks);
+        $t->true(!str_contains($blocks, 'data-pandoc-comment-author="Ada Reviewer"'), 'PPTX comments should not render into visible WordPress comment markup');
         $t->contains('Inherited Layout Body', $blocks);
         $t->contains('Inherited Master Footer', $blocks);
     },
@@ -2774,30 +2773,25 @@ return [
         $t->contains('Para [ Str "Nested" , Space , Str "continuation" ]', $native);
     },
 
-    'preserves pptx speaker notes as notes divs' => static function (TestRunner $t) use ($buildSpeakerNotesPptxPackage, $nodesOfType, $nodesWithClass): void {
+    'keeps pptx speaker notes out of visible output like upstream' => static function (TestRunner $t) use ($buildSpeakerNotesPptxPackage, $nodesOfType, $nodesWithClass): void {
         $document = (new PptxReader())->read($buildSpeakerNotesPptxPackage());
         $review = $document->attr('pptx');
         $notesDivs = $nodesWithClass($nodesOfType($document, 'div'), 'notes');
         $native = PandocConverter::write($document, 'native');
+        $paragraphTexts = array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $nodesOfType($document, 'paragraph'));
 
-        $t->same(1, count($notesDivs));
-        $t->same('pptx', $notesDivs[0]->attr('attributes')['source'] ?? null);
-        $t->same('ppt/notesSlides/notesSlide1.xml', $notesDivs[0]->attr('attributes')['part'] ?? null);
-        $t->same('rIdNotes', $notesDivs[0]->attr('attributes')['relationship-id'] ?? null);
-        $t->same('ppt/notesSlides/notesSlide1.xml', $notesDivs[0]->attr('pptxSpeakerNote')['partName'] ?? null);
-        $t->same('Remember the launch date.' . "\n" . 'Ask about migration risks.', $notesDivs[0]->attr('pptxSpeakerNote')['text'] ?? null);
+        $t->same(0, count($notesDivs));
         $t->same(1, $review['slides'][0]['speakerNoteCount'] ?? null);
         $t->same('rIdNotes', $review['slides'][0]['speakerNotes'][0]['relationshipId'] ?? null);
         $t->same('ppt/notesSlides/notesSlide1.xml', $review['slides'][0]['speakerNotes'][0]['partName'] ?? null);
+        $t->same('Remember the launch date.' . "\n" . 'Ask about migration risks.', $review['slides'][0]['speakerNotes'][0]['text'] ?? null);
         $t->same(2, $review['slides'][0]['speakerNotes'][0]['blockCount'] ?? null);
         $t->true(!isset($review['slides'][0]['speakerNotes'][0]['blocks']), 'Review metadata must not embed AST note blocks');
-
-        $noteParagraphs = $nodesOfType($notesDivs[0], 'paragraph');
-        $t->same(['Remember the launch date.', 'Ask about migration risks.'], array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $noteParagraphs));
-        $t->same(false, in_array('1', array_map(static fn (AstNode $paragraph): string => (string) $paragraph->attr('text'), $noteParagraphs), true));
-        $t->contains('Div ( "" , [ "notes" ]', $native);
-        $t->contains('Para [ Str "Remember" , Space , Str "the" , Space , Str "launch" , Space , Str "date." ]', $native);
-        $t->contains('Para [ Str "Ask" , Space , Str "about" , Space , Str "migration" , Space , Str "risks." ]', $native);
+        $t->same(false, in_array('Remember the launch date.', $paragraphTexts, true));
+        $t->same(false, in_array('Ask about migration risks.', $paragraphTexts, true));
+        $t->true(!str_contains($native, 'Div ( "" , [ "notes" ]'), 'PPTX notesSlide content should not emit a native notes Div');
+        $t->true(!str_contains($native, 'Remember the launch date'), 'PPTX notesSlide text should stay out of visible native output');
+        $t->true(!str_contains($native, 'Ask about migration risks'), 'PPTX notesSlide text should stay out of visible native output');
     },
 
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {

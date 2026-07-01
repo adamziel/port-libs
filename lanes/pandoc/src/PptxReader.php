@@ -249,14 +249,6 @@ final class PptxReader
             }
         }
 
-        foreach ($this->speakerNotesToBlocks($slideSpeakerNotes) as $noteBlock) {
-            $blocks[] = $noteBlock;
-        }
-
-        foreach ($this->commentsToBlocks($slideComments) as $commentBlock) {
-            $blocks[] = $commentBlock;
-        }
-
         return $blocks;
     }
 
@@ -863,72 +855,6 @@ final class PptxReader
         unset($note['blocks']);
 
         return $note;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $notes
-     * @return list<AstNode>
-     */
-    private function speakerNotesToBlocks(array $notes): array
-    {
-        $blocks = [];
-        foreach ($notes as $note) {
-            $children = is_array($note['blocks'] ?? null) ? $note['blocks'] : [];
-            if ($children === []) {
-                continue;
-            }
-
-            $attributes = array_filter([
-                'source' => 'pptx',
-                'part' => (string) ($note['partName'] ?? ''),
-                'relationship-id' => (string) ($note['relationshipId'] ?? ''),
-            ], static fn (string $value): bool => $value !== '');
-
-            $blocks[] = new AstNode('div', [
-                'classes' => ['notes'],
-                'attributes' => $attributes,
-                'pptxSpeakerNote' => $this->speakerNoteReview($note),
-            ], $children);
-        }
-
-        return $blocks;
-    }
-
-    /**
-     * @param list<array<string, mixed>> $comments
-     * @return list<AstNode>
-     */
-    private function commentsToBlocks(array $comments): array
-    {
-        if ($comments === []) {
-            return [];
-        }
-
-        $children = [];
-        foreach ($comments as $comment) {
-            $id = (string) ($comment['id'] ?? '');
-            $author = (string) ($comment['author'] ?? '');
-            $date = (string) ($comment['date'] ?? '');
-            $text = (string) ($comment['text'] ?? '');
-            $label = $author !== '' ? 'Comment by ' . $author : 'Comment';
-            $children[] = new AstNode('paragraph', ['text' => $label . ': ' . $text], [
-                new AstNode('span', [
-                    'classes' => ['comment-start'],
-                    'attributes' => array_filter([
-                        'id' => $id,
-                        'author' => $author,
-                        'date' => $date,
-                    ], static fn (string $value): bool => $value !== ''),
-                ], $this->textInlines($label)),
-                new AstNode('text', ['text' => ': ' . $text]),
-            ]);
-        }
-
-        return [new AstNode('div', [
-            'classes' => ['pptx-comments'],
-            'attributes' => ['count' => (string) count($comments)],
-            'pptxComments' => $comments,
-        ], $children)];
     }
 
     /**
