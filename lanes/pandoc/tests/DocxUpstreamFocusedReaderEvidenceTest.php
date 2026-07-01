@@ -76,6 +76,47 @@ XML,
     ]);
 };
 
+$commentsWarningDocxBytes = static function (): string {
+    return ZipPackage::build([
+        [
+            'name' => '[Content_Types].xml',
+            'data' => '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/comments.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml"/></Types>',
+        ],
+        [
+            'name' => 'word/document.xml',
+            'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p>
+      <w:r><w:t xml:space="preserve">This is a </w:t></w:r>
+      <w:commentRangeStart w:id="1"/>
+      <w:r><w:t>comment</w:t></w:r>
+      <w:commentRangeEnd w:id="1"/>
+      <w:r><w:commentReference w:id="1"/></w:r>
+      <w:r><w:t>.</w:t></w:r>
+    </w:p>
+  </w:body>
+</w:document>
+XML,
+        ],
+        [
+            'name' => 'word/comments.xml',
+            'data' => <<<'XML'
+<?xml version="1.0"?>
+<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:comment w:id="1" w:author="Reviewer">
+    <w:p><w:r><w:t>Here is a table:</w:t></w:r></w:p>
+    <w:tbl>
+      <w:tr><w:tc><w:p><w:r><w:t>X</w:t></w:r></w:p></w:tc></w:tr>
+    </w:tbl>
+  </w:comment>
+</w:comments>
+XML,
+        ],
+    ]);
+};
+
 $mendeleyCitationDocxBytes = static function (): string {
     return ZipPackage::build([
         [
@@ -145,6 +186,7 @@ return [
         $t->same(4, $report['targetedFixtureChecks']['mappedOnlyCaseCount']);
         $t->same('valid-denominator-map', $report['mappingValidation']['status']);
         $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
+        $t->true(in_array('that every upstream DocxParserWarning expectation passes locally', $report['claimBoundaries']['doesNotAssert'], true));
     },
 
     'maps focused reader evidence against the 36 case upstream denominator' => static function (TestRunner $t) use ($repoRoot, $makeTempDir, $removeTree): void {
@@ -172,7 +214,9 @@ return [
             $t->same(12, $coverage['coverageKindCounts']['focused-revision-mode-native-php-check']);
             $t->same(2, $coverage['coverageKindCounts']['focused-comments-native-php-check']);
             $t->same(4, $coverage['coverageKindCounts']['mapped-upstream-native-expectation-evidence']);
+            $t->same(1, $coverage['coverageKindCounts']['focused-warning-native-php-check']);
             $t->true(in_array('comment warnings (all)', $coverage['remainingOpenLabels'], true));
+            $t->true(!in_array('comment warnings (accept -- no warnings)', $coverage['remainingOpenLabels'], true));
             $t->true(in_array('comments (accept -- no comments)', $coverage['remainingOpenLabels'], true));
             $t->true(!in_array('comments (reject -- comments)', $coverage['remainingOpenLabels'], true), 'reject no-comments case should be covered by focused evidence');
             $t->true(in_array('that upstream Haskell/Cabal/Tasty tests were executed', $report['claimBoundaries']['doesNotAssert'], true));
@@ -199,6 +243,29 @@ return [
             $t->true($targeted['skippedTargetedCaseCount'] > 0);
             $t->true(in_array('inline image', $passedLabels, true));
             $t->true(in_array('image extraction', $passedLabels, true));
+        } finally {
+            $removeTree($root);
+        }
+    },
+
+    'runs optional targeted comments warning accept check when the fixture is present' => static function (TestRunner $t) use ($makeTempDir, $removeTree, $writeFile, $commentsWarningDocxBytes, $repoRoot): void {
+        $root = $makeTempDir();
+        try {
+            $writeFile($root, 'comments_warning.docx', $commentsWarningDocxBytes());
+            $report = (new DocxUpstreamFocusedReaderEvidence($repoRoot, $root))->report();
+            $targeted = $report['targetedFixtureChecks'];
+            $passedRows = array_values(array_filter(
+                $targeted['caseCheckRows'],
+                static fn (array $row): bool => ($row['status'] ?? '') === 'passed'
+            ));
+            $row = $passedRows[0] ?? [];
+
+            $t->same(DocxUpstreamFocusedReaderEvidence::STATUS_COMPLETED, $targeted['status']);
+            $t->same(1, $targeted['passedTargetedCaseCount']);
+            $t->same(0, $targeted['failedTargetedCaseCount']);
+            $t->same('comment warnings (accept -- no warnings)', $row['label'] ?? null);
+            $t->same([], $row['details']['docxWarnings'] ?? null);
+            $t->same(1, $row['details']['docxComments'] ?? null);
         } finally {
             $removeTree($root);
         }

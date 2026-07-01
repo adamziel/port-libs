@@ -7,6 +7,8 @@ namespace PortLibs\Pandoc;
 final class DocxReader
 {
     private const INTERNAL_STYLE_ORIGIN_ATTR = '__docxStyleOrigin';
+    private const MAX_WARNING_COUNT = 32;
+    private const WARNING_OVERFLOW_MESSAGE = 'Additional DOCX parser warnings were suppressed.';
 
     private const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
     private const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -38,6 +40,9 @@ final class DocxReader
 
     /** @var array<string, true> */
     private array $commentRangeIds = [];
+
+    /** @var list<string> */
+    private array $warnings = [];
 
     /** @var array<string, mixed> */
     private array $bodyMetadata = [];
@@ -71,8 +76,17 @@ final class DocxReader
         return $this->readDocument(ZipPackage::fromString($bytes));
     }
 
+    /**
+     * @return list<string>
+     */
+    public function warnings(): array
+    {
+        return $this->warnings;
+    }
+
     public function readDocument(ZipPackage $package): AstNode
     {
+        $this->warnings = [];
         $entriesByName = [];
         $entries = [];
         $media = [];
@@ -5761,6 +5775,9 @@ final class DocxReader
                 if ($children === []) {
                     continue;
                 }
+                if ($this->revisionMode === 'preserve' && $this->commentMayLoseFormatting($children)) {
+                    $this->addWarning("Docx comment {$id} will not retain formatting");
+                }
                 $comments[$id] = [
                     'author' => $this->attr($comment, self::W_NS, 'author'),
                     'date' => $this->attr($comment, self::W_NS, 'date'),
@@ -5774,6 +5791,20 @@ final class DocxReader
         }
 
         return $comments;
+    }
+
+    /**
+     * @param list<AstNode> $children
+     */
+    private function commentMayLoseFormatting(array $children): bool
+    {
+        foreach ($children as $child) {
+            if ($child->type !== 'paragraph') {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -5856,13 +5887,39 @@ final class DocxReader
         $dom = new \DOMDocument('1.0', 'UTF-8');
         $previous = libxml_use_internal_errors(true);
         $ok = $dom->loadXML($xml, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        $errors = libxml_get_errors();
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
+        foreach ($errors as $error) {
+            if ($error->level === LIBXML_ERR_WARNING) {
+                $this->addWarning($label . ': ' . $error->message);
+            }
+        }
         if (!$ok) {
             throw new \InvalidArgumentException($label . ' is not valid XML.');
         }
 
         return $dom;
+    }
+
+    private function addWarning(string $message): void
+    {
+        $normalized = preg_replace('/\s+/', ' ', trim($message));
+        if (!is_string($normalized) || $normalized === '') {
+            return;
+        }
+        if (in_array($normalized, $this->warnings, true)) {
+            return;
+        }
+        if (count($this->warnings) >= self::MAX_WARNING_COUNT) {
+            if (!in_array(self::WARNING_OVERFLOW_MESSAGE, $this->warnings, true)) {
+                $this->warnings[self::MAX_WARNING_COUNT - 1] = self::WARNING_OVERFLOW_MESSAGE;
+            }
+
+            return;
+        }
+
+        $this->warnings[] = $normalized;
     }
 
     private function firstElementByLocalName(\DOMDocument $dom, string $localName): ?\DOMElement
