@@ -19942,6 +19942,7 @@ final class DocxOpenXmlReader
             'contentTypeParameterizedOverrideDeclarationCount' => (int) ($contentTypesPart['parameterizedOverrideDeclarationCount'] ?? 0),
             'contentTypeOverrideDeclarationContentTypeBaseCounts' => $contentTypesPart['overrideDeclarationContentTypeBaseCounts'] ?? [],
             'contentTypeOverrideDeclarationContentTypeParameterNameCounts' => $contentTypesPart['overrideDeclarationContentTypeParameterNameCounts'] ?? [],
+            'contentTypeOverrideDeclarationContentTypeParameterValueCounts' => $contentTypesPart['overrideDeclarationContentTypeParameterValueCounts'] ?? [],
             'contentTypeMissingOverrideCount' => (int) ($contentTypesPart['missingOverrideCount'] ?? 0),
             'contentTypeMissingOverrideParts' => $contentTypesPart['missingOverrideParts'] ?? [],
             'contentTypeMissingOverrides' => $contentTypesPart['missingOverrides'] ?? [],
@@ -40172,6 +40173,7 @@ final class DocxOpenXmlReader
             'parameterizedOverrideDeclarationCount' => $overrideDeclarationSummary['parameterizedDeclarationCount'],
             'overrideDeclarationContentTypeBaseCounts' => $overrideDeclarationSummary['contentTypeBaseCounts'],
             'overrideDeclarationContentTypeParameterNameCounts' => $overrideDeclarationSummary['contentTypeParameterNameCounts'],
+            'overrideDeclarationContentTypeParameterValueCounts' => $overrideDeclarationSummary['contentTypeParameterValueCounts'],
             'overrideDeclarationIssueCounts' => $overrideDeclarationSummary['issueCounts'],
             'overrideDeclarationIssues' => $overrideDeclarationSummary['issues'],
             'overrideDeclarations' => $overrideDeclarationSummary['declarations'],
@@ -40555,7 +40557,7 @@ final class DocxOpenXmlReader
     /**
      * @param array<string, string> $parts
      * @param array<string, array<string, mixed>> $overrides
-     * @return array{declarationCount:int, usedDeclarationCount:int, unusedDeclarationCount:int, invalidDeclarationCount:int, unusedPartNames:list<string>, parameterizedDeclarationCount:int, contentTypeBaseCounts:array<string, int>, contentTypeParameterNameCounts:array<string, int>, issueCounts:array<string, int>, issues:list<string>, declarations:list<array<string, mixed>>}
+     * @return array{declarationCount:int, usedDeclarationCount:int, unusedDeclarationCount:int, invalidDeclarationCount:int, unusedPartNames:list<string>, parameterizedDeclarationCount:int, contentTypeBaseCounts:array<string, int>, contentTypeParameterNameCounts:array<string, int>, contentTypeParameterValueCounts:array<string, array<string, int>>, issueCounts:array<string, int>, issues:list<string>, declarations:list<array<string, mixed>>}
      */
     private function contentTypeOverrideDeclarationSummary(array $parts, array $overrides): array
     {
@@ -40564,6 +40566,7 @@ final class DocxOpenXmlReader
         $issueCounts = [];
         $contentTypeBaseCounts = [];
         $contentTypeParameterNameCounts = [];
+        $contentTypeParameterValueCounts = [];
         $usedDeclarationCount = 0;
         $invalidDeclarationCount = 0;
         $parameterizedDeclarationCount = 0;
@@ -40597,6 +40600,16 @@ final class DocxOpenXmlReader
                 if (is_string($parameterName) && $parameterName !== '') {
                     $contentTypeParameterNameCounts[$parameterName] = ($contentTypeParameterNameCounts[$parameterName] ?? 0) + 1;
                 }
+            }
+            foreach ($parameterMap as $parameterName => $parameterValue) {
+                if (!is_string($parameterName) || $parameterName === '') {
+                    continue;
+                }
+
+                $parameterValue = is_scalar($parameterValue) ? (string) $parameterValue : '';
+                $parameterValueKey = $parameterValue === '' ? '(empty)' : $parameterValue;
+                $contentTypeParameterValueCounts[$parameterName][$parameterValueKey] =
+                    ($contentTypeParameterValueCounts[$parameterName][$parameterValueKey] ?? 0) + 1;
             }
 
             if ($partName === '[Content_Types].xml') {
@@ -40647,6 +40660,11 @@ final class DocxOpenXmlReader
         sort($unusedPartNames, SORT_STRING);
         ksort($contentTypeBaseCounts, SORT_STRING);
         ksort($contentTypeParameterNameCounts, SORT_STRING);
+        ksort($contentTypeParameterValueCounts, SORT_STRING);
+        foreach ($contentTypeParameterValueCounts as &$parameterValueCounts) {
+            ksort($parameterValueCounts, SORT_STRING);
+        }
+        unset($parameterValueCounts);
         ksort($issueCounts, SORT_STRING);
 
         return [
@@ -40658,6 +40676,7 @@ final class DocxOpenXmlReader
             'parameterizedDeclarationCount' => $parameterizedDeclarationCount,
             'contentTypeBaseCounts' => $contentTypeBaseCounts,
             'contentTypeParameterNameCounts' => $contentTypeParameterNameCounts,
+            'contentTypeParameterValueCounts' => $contentTypeParameterValueCounts,
             'issueCounts' => $issueCounts,
             'issues' => array_keys($issueCounts),
             'declarations' => $declarations,
