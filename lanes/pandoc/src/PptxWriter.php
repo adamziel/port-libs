@@ -193,7 +193,7 @@ final class PptxWriter
 
     /**
      * @param array<string, mixed> $metadata
-     * @return list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}>
+     * @return list<array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}>
      */
     private function slides(AstNode $document, array $metadata): array
     {
@@ -218,7 +218,8 @@ final class PptxWriter
                 $title = $this->blockText($block);
                 $current = $this->newSlide(
                     $title !== '' ? $title : 'Slide ' . (count($slides) + 1),
-                    $this->backgroundImageForBlock($block)
+                    $this->backgroundImageForBlock($block),
+                    $title !== '' ? $block->children : null
                 );
                 if ($pendingMetadataNotes !== []) {
                     array_push($current['notes'], ...$pendingMetadataNotes);
@@ -231,7 +232,8 @@ final class PptxWriter
                 $title = $this->blockText($block);
                 $current = $this->newSlide(
                     $title !== '' ? $title : 'Slide ' . (count($slides) + 1),
-                    $this->backgroundImageForBlock($block)
+                    $this->backgroundImageForBlock($block),
+                    $title !== '' ? $block->children : null
                 );
                 if ($pendingMetadataNotes !== []) {
                     array_push($current['notes'], ...$pendingMetadataNotes);
@@ -274,12 +276,14 @@ final class PptxWriter
     }
 
     /**
-     * @return array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}
+     * @param list<AstNode>|null $titleInlines
+     * @return array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}
      */
-    private function newSlide(string $title, ?string $backgroundImage = null): array
+    private function newSlide(string $title, ?string $backgroundImage = null, ?array $titleInlines = null): array
     {
         return [
             'title' => $title,
+            'titleInlines' => $titleInlines ?? $this->textInlines($title),
             'blocks' => [],
             'notes' => [],
             'backgroundImage' => $backgroundImage,
@@ -287,7 +291,7 @@ final class PptxWriter
     }
 
     /**
-     * @param list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}> $slides
+     * @param list<array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}> $slides
      */
     private function appendEndnotesSlide(array &$slides, AstNode $document): void
     {
@@ -303,7 +307,7 @@ final class PptxWriter
     }
 
     /**
-     * @param list<array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}> $slides
+     * @param list<array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string}> $slides
      */
     private function collectEndnotesFromSlides(array $slides): void
     {
@@ -410,7 +414,7 @@ final class PptxWriter
     }
 
     /**
-     * @param array{title:string, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string} $slide
+     * @param array{title:string, titleInlines:list<AstNode>, blocks:list<AstNode>, notes:list<AstNode>, backgroundImage:?string} $slide
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      */
     private function slideXml(array $slide, int $slideNumber, array &$relationships): string
@@ -422,7 +426,7 @@ final class PptxWriter
             $this->textShapeXml(
                 $shapeId++,
                 'Title ' . $slideNumber,
-                [$this->paragraphXml($this->textInlines($slide['title']), [], $relationships)],
+                [$this->paragraphXml($slide['titleInlines'], [], $relationships)],
                 685800,
                 381000,
                 10820400,
@@ -482,6 +486,19 @@ final class PptxWriter
             $slot++;
 
             return [$this->indentRawOpenXml($xml, 4)];
+        }
+
+        if ($block->type === 'code_block') {
+            $text = (string) $block->attr('text', '');
+
+            return $text === ''
+                ? []
+                : [$this->textShapeXml(
+                    $shapeId++,
+                    $this->shapeName($block, 'Code'),
+                    [$this->paragraphXml([$this->codeInline($text)], [], $relationships)],
+                    ...$this->bodyRect($slot++)
+                )];
         }
 
         if ($block->type === 'table') {
@@ -634,7 +651,7 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      * @return list<string>
      */
@@ -691,7 +708,7 @@ final class PptxWriter
                     $code = (string) $inline->attr('text', '');
                     if ($code !== '') {
                         $flushText();
-                        $runs[] = $this->runXml($code, $style);
+                        $runs[] = $this->runXml($code, $style + ['monospace' => true]);
                     }
                     break;
                 case 'note':
@@ -760,7 +777,7 @@ final class PptxWriter
     }
 
     /**
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool, baseline?:int, hyperlinkId?:string, hyperlinkAction?:string} $style
      */
     private function runXml(string $text, array $style): string
     {
@@ -783,17 +800,20 @@ final class PptxWriter
         if (isset($style['baseline'])) {
             $attrs[] = 'baseline="' . (int) $style['baseline'] . '"';
         }
-        $hyperlink = '';
+        $children = '';
+        if (($style['monospace'] ?? false) === true) {
+            $children .= '<a:latin typeface="Courier"/>';
+        }
         if (isset($style['hyperlinkId'])) {
             $hyperlinkAttrs = 'r:id="' . $this->xml((string) $style['hyperlinkId']) . '"';
             if (isset($style['hyperlinkAction']) && (string) $style['hyperlinkAction'] !== '') {
                 $hyperlinkAttrs .= ' action="' . $this->xml((string) $style['hyperlinkAction']) . '"';
             }
-            $hyperlink = '<a:hlinkClick ' . $hyperlinkAttrs . '/>';
+            $children .= '<a:hlinkClick ' . $hyperlinkAttrs . '/>';
         }
-        $runProperties = $hyperlink === ''
+        $runProperties = $children === ''
             ? '<a:rPr ' . implode(' ', $attrs) . '/>'
-            : '<a:rPr ' . implode(' ', $attrs) . '>' . $hyperlink . '</a:rPr>';
+            : '<a:rPr ' . implode(' ', $attrs) . '>' . $children . '</a:rPr>';
 
         return '<a:r>' . $runProperties . '<a:t>' . $this->xml($text) . '</a:t></a:r>';
     }
@@ -802,7 +822,7 @@ final class PptxWriter
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      * @return list<string>
      */
-    private function listParagraphXmls(AstNode $list, bool $ordered, array &$relationships): array
+    private function listParagraphXmls(AstNode $list, bool $ordered, array &$relationships, int $level = 0): array
     {
         $paragraphs = [];
         $start = max(1, (int) $list->attr('start', 1));
@@ -810,20 +830,91 @@ final class PptxWriter
             if ($item->type !== 'list_item') {
                 continue;
             }
-            $text = $this->blockListText($item->children);
-            if ($text === '') {
-                continue;
-            }
-            $paragraphs[] = $this->paragraphXml(
-                $this->textInlines($text),
-                $ordered
-                    ? ['ordered' => true, 'level' => 0, 'start' => $start + $index]
-                    : ['bullet' => true, 'level' => 0],
-                $relationships
+            array_push(
+                $paragraphs,
+                ...$this->listItemParagraphXmls($item->children, $ordered, $start + $index, $level, $relationships)
             );
         }
 
         return $paragraphs;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
+     * @return list<string>
+     */
+    private function listItemParagraphXmls(array $blocks, bool $ordered, int $start, int $level, array &$relationships): array
+    {
+        $paragraphs = [];
+        $first = true;
+        foreach ($blocks as $block) {
+            if ($block->type === 'plain' || $block->type === 'paragraph' || $block->type === 'heading') {
+                $paragraphs[] = $this->paragraphXml(
+                    $block->children,
+                    $this->listParagraphProperties($ordered, $start, $level, $first),
+                    $relationships
+                );
+                $first = false;
+                continue;
+            }
+            if ($block->type === 'code_block') {
+                $text = (string) $block->attr('text', '');
+                if ($text !== '') {
+                    $paragraphs[] = $this->paragraphXml(
+                        [$this->codeInline($text)],
+                        $this->listParagraphProperties($ordered, $start, $level, $first),
+                        $relationships
+                    );
+                    $first = false;
+                }
+                continue;
+            }
+            if ($block->type === 'bullet_list' || $block->type === 'ordered_list') {
+                $nestedOrdered = $block->type === 'ordered_list';
+                array_push($paragraphs, ...$this->listParagraphXmls($block, $nestedOrdered, $relationships, $level + 1));
+                continue;
+            }
+            if ($block->type === 'div' || $block->type === 'block_quote' || $block->type === 'blockquote') {
+                array_push(
+                    $paragraphs,
+                    ...$this->listItemParagraphXmls($block->children, $ordered, $start, $level, $relationships)
+                );
+                continue;
+            }
+
+            $text = $this->blockText($block);
+            if ($text !== '') {
+                $paragraphs[] = $this->paragraphXml(
+                    $this->textInlines($text),
+                    $this->listParagraphProperties($ordered, $start, $level, $first),
+                    $relationships
+                );
+                $first = false;
+            }
+        }
+
+        return $paragraphs;
+    }
+
+    /**
+     * @return array{bullet?:bool, ordered?:bool, level:int, start?:int}
+     */
+    private function listParagraphProperties(bool $ordered, int $start, int $level, bool $first): array
+    {
+        $properties = ['level' => max(0, min(8, $level))];
+        if (!$first) {
+            return $properties;
+        }
+
+        if ($ordered) {
+            $properties['ordered'] = true;
+            $properties['start'] = $start;
+        } else {
+            $properties['bullet'] = true;
+        }
+
+        return $properties;
     }
 
     private function pictureShapeXml(AstNode $image, int $shapeId, int $slot, array &$relationships): ?string
@@ -1569,7 +1660,7 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $inlines
-     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool} $style
+     * @param array{bold?:bool, italic?:bool, underline?:bool, strike?:bool, smallCaps?:bool, monospace?:bool} $style
      * @return list<string>
      */
     private function noteInlineRuns(array $inlines, array $style): array
@@ -1629,7 +1720,7 @@ final class PptxWriter
                     $code = (string) $inline->attr('text', '');
                     if ($code !== '') {
                         $flushText();
-                        $runs[] = $this->runXml($code, $style);
+                        $runs[] = $this->runXml($code, $style + ['monospace' => true]);
                     }
                     break;
                 case 'note':
@@ -1801,6 +1892,11 @@ final class PptxWriter
     private function textInlines(string $text): array
     {
         return $text === '' ? [] : [new AstNode('text', ['text' => $text])];
+    }
+
+    private function codeInline(string $text): AstNode
+    {
+        return new AstNode('code', ['text' => $text]);
     }
 
     /**

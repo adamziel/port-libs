@@ -106,6 +106,30 @@ $upstreamInlineFormattingNative = <<<'NATIVE'
 ,RawBlock (Format "html") "<!-- Comments don't show up. -->"]
 NATIVE;
 
+$upstreamCodeNative = <<<'NATIVE'
+[Header 1 ("header-with-inline-code",[],[]) [Str "Header",Space,Str "with",Space,Code ("",[],[]) "inline code"]
+,CodeBlock ("",[],[]) "Code at level 0"
+,BulletList
+ [[Para [Str "Bullet",Space,Str "item",Space,Str "with",Space,Code ("",[],[]) "inline code"]
+  ,CodeBlock ("",[],[]) "Code block at level 1"
+  ,BulletList
+   [[Para [Str "with",Space,Code ("",[],[]) "nested"]
+    ,CodeBlock ("",[],[]) "lvl2\nlvl2\nlvl2"
+    ,Header 2 ("second-heading-level-with-code",[],[]) [Str "Second",Space,Str "heading",Space,Str "level",Space,Str "with",Space,Code ("",[],[]) "code"]]]]]
+,Header 1 ("syntax-highlighting",[],[]) [Str "Syntax",Space,Str "highlighting"]
+,CodeBlock ("",["haskell"],[]) "id :: a -> a\nid x = x"
+,BulletList
+ [[Para [Str "Nested"]
+  ,CodeBlock ("",["haskell"],[]) "g :: Int -> Int\ng x = x * 3"]]
+,Header 1 ("two-column-slide",[],[]) [Str "Two",Space,Str "column",Space,Str "slide"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[("width","50%")])
+  [BulletList
+   [[Plain [Str "A",Space,Str "total",Space,Str "alternative",Space,Str "for",Space,Code ("",[],[]) "head"]]]]
+ ,Div ("",["column"],[("width","50%")])
+  [CodeBlock ("",[],[]) "safeHead :: [a] -> Maybe a\nsafeHead [] = Nothing\nsafeHead (x:_) = Just x"]]]
+NATIVE;
+
 $upstreamEndnotesNative = <<<'NATIVE'
 Pandoc (Meta {unMeta = fromList []})
 [Para [Str "Here",Space,Str "is",Space,Str "one",Space,Str "note.",Note [Para [Str "Here",Space,Str "is",Space,Str "the",Space,Str "note."]],Space,Str "And",Space,Str "one",Space,Str "more",Space,Str "note.",Note [Para [Str "And",Space,Str "another",Space,Str "note."]]]]
@@ -385,6 +409,35 @@ return [
         $t->contains('baseline="30000"', $slide);
         $t->true(!str_contains($slide, "Comments don't show up."), 'Raw HTML comments must not render as slide text');
         $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream code fixture into monospace runs' => static function (TestRunner $t) use ($upstreamCodeNative, $mediaOptions): void {
+        $document = (new NativeReader())->read($upstreamCodeNative);
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write($document));
+        $names = $package->names();
+
+        foreach (['ppt/slides/slide1.xml', 'ppt/slides/slide2.xml', 'ppt/slides/slide3.xml'] as $partName) {
+            $t->true(in_array($partName, $names, true), "Missing code fixture part {$partName}");
+        }
+
+        $slide1 = $package->read('ppt/slides/slide1.xml');
+        $slide2 = $package->read('ppt/slides/slide2.xml');
+        $slide3 = $package->read('ppt/slides/slide3.xml');
+        $t->contains('<a:t>Header with </a:t>', $slide1);
+        $t->contains('<a:latin typeface="Courier"/></a:rPr><a:t>inline code</a:t>', $slide1);
+        $t->contains('<a:t>Code at level 0</a:t>', $slide1);
+        $t->contains('<a:t>Bullet item with </a:t>', $slide1);
+        $t->contains('<a:t>Code block at level 1</a:t>', $slide1);
+        $t->contains('<a:t>nested</a:t>', $slide1);
+        $t->contains("lvl2\nlvl2\nlvl2", $slide1);
+        $t->true(substr_count($slide1, 'typeface="Courier"') >= 6, 'Expected Courier runs for title, code blocks, and list inline code');
+        $t->contains('id :: a -&gt; a', $slide2);
+        $t->contains('g :: Int -&gt; Int', $slide2);
+        $t->true(substr_count($slide2, 'typeface="Courier"') >= 2, 'Expected Courier runs for syntax-highlight code fixture content');
+        $t->contains('<a:t>A total alternative for </a:t>', $slide3);
+        $t->contains('<a:latin typeface="Courier"/></a:rPr><a:t>head</a:t>', $slide3);
+        $t->contains('safeHead :: [a] -&gt; Maybe a', $slide3);
+        $t->contains('<Slides>3</Slides>', $package->read('docProps/app.xml'));
     },
 
     'maps upstream inline notes into a public endnotes slide' => static function (TestRunner $t) use ($upstreamEndnotesNative, $mediaOptions): void {
