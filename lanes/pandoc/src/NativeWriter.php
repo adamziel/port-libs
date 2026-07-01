@@ -150,6 +150,10 @@ final class NativeWriter
 
     private function hasJsonNativeProvenance(AstNode $node): bool
     {
+        if ($node->type === 'note' && $this->sourceNoteLabel($node) !== null) {
+            return true;
+        }
+
         foreach ($node->attrs as $attr => $value) {
             if (in_array($attr, self::NATIVE_COMPARISON_PROVENANCE_ATTRS, true) && $value !== null) {
                 return true;
@@ -166,6 +170,16 @@ final class NativeWriter
         }
 
         return false;
+    }
+
+    private function sourceNoteLabel(AstNode $node): ?string
+    {
+        $label = trim((string) $node->attr('label', ''));
+        if ($label === '' || preg_match('/[\]\s]/u', $label) === 1) {
+            return null;
+        }
+
+        return $label;
     }
 
     private function valueHasJsonNativeProvenance(mixed $value): bool
