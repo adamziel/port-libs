@@ -16227,6 +16227,9 @@ final class XmlHtmlDom
         if ($nameAttribute === 'referrer') {
             $summary += self::metaReferrerPolicySummary($content);
         }
+        if ($nameAttribute === 'theme-color') {
+            $summary += self::metaThemeColorSummary($content, self::attributeOrNull($element, 'media'));
+        }
         if ($nameAttribute === 'viewport') {
             $summary += self::metaViewportSummary($content);
         }
@@ -16747,6 +16750,125 @@ final class XmlHtmlDom
             ))),
             'metaReferrerValid' => $issues === [],
         ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function metaThemeColorSummary(?string $content, ?string $media): array
+    {
+        $color = null;
+        $kind = null;
+        $contentValid = false;
+        $contentState = 'missing';
+        $issues = [];
+
+        if ($content === null) {
+            $issues[] = ['code' => 'missing-meta-theme-color-content'];
+        } elseif (trim($content) === '') {
+            $contentState = 'empty';
+            $issues[] = ['code' => 'empty-meta-theme-color-content'];
+        } else {
+            $normalized = self::normalizeReviewableHtmlMetadataStyleValue($content);
+            if ($normalized === null) {
+                $contentState = 'unsafe-style-token';
+                $issues[] = ['code' => 'unsafe-meta-theme-color-content'];
+            } else {
+                $kind = self::metaThemeColorKind($normalized);
+                if ($kind === null) {
+                    $contentState = 'invalid-color';
+                    $issues[] = [
+                        'code' => 'invalid-meta-theme-color-content',
+                        'content' => $normalized,
+                    ];
+                } else {
+                    $contentState = 'safe-color';
+                    $contentValid = true;
+                    $color = $kind === 'named' ? strtolower($normalized) : $normalized;
+                }
+            }
+        }
+
+        $normalizedMedia = null;
+        $mediaValid = null;
+        if ($media !== null) {
+            if (trim($media) === '') {
+                $mediaValid = false;
+                $issues[] = ['code' => 'empty-meta-theme-color-media'];
+            } else {
+                $normalizedMedia = self::normalizeReviewableHtmlMetadataStyleValue($media);
+                $mediaValid = $normalizedMedia !== null;
+                if ($normalizedMedia === null) {
+                    $issues[] = ['code' => 'unsafe-meta-theme-color-media'];
+                }
+            }
+        }
+
+        return [
+            'metaThemeColorReviewPolicy' => 'meta-theme-color-review',
+            'metaThemeColorRaw' => $content,
+            'metaThemeColor' => $color,
+            'metaThemeColorKind' => $kind,
+            'metaThemeColorContentState' => $contentState,
+            'metaThemeColorContentValid' => $contentValid,
+            'metaThemeColorMediaRaw' => $media,
+            'metaThemeColorMedia' => $normalizedMedia,
+            'metaThemeColorMediaPresent' => $media !== null,
+            'metaThemeColorMediaValid' => $mediaValid,
+            'metaThemeColorRenderable' => $contentValid,
+            'metaThemeColorReviewOnlyNoCssEvaluation' => true,
+            'metaThemeColorIssues' => $issues,
+            'metaThemeColorIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'metaThemeColorValid' => $issues === [],
+        ];
+    }
+
+    private static function metaThemeColorKind(string $value): ?string
+    {
+        if (preg_match('/^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{4}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/', $value) === 1) {
+            return 'hex';
+        }
+        if (preg_match('/^(?:rgb|rgba|hsl|hsla)\([A-Za-z0-9#.,%+\-\/ ]+\)$/i', $value) === 1) {
+            return 'functional';
+        }
+        if (preg_match('/^[A-Za-z][A-Za-z0-9-]*$/', $value) === 1) {
+            return 'named';
+        }
+
+        return null;
+    }
+
+    private static function normalizeReviewableHtmlMetadataStyleValue(string $value): ?string
+    {
+        $value = trim(str_replace("\0", '', $value));
+        if ($value === '' || strlen($value) > 256 || str_contains($value, '/*') || str_contains($value, '*/')) {
+            return null;
+        }
+
+        $decoded = self::decodeStyleUrlCssEscapes($value);
+        if ($decoded === null) {
+            return null;
+        }
+
+        $lowerCompact = strtolower(preg_replace('/[\x00-\x20]+/', '', $decoded) ?? $decoded);
+        foreach (['url(', 'expression(', '@import', 'javascript:', 'vbscript:', 'data:', '-moz-binding'] as $blockedToken) {
+            if (str_contains($lowerCompact, $blockedToken)) {
+                return null;
+            }
+        }
+        if (preg_match('/[<>{}`]/', $decoded) === 1) {
+            return null;
+        }
+
+        $decoded = preg_replace('/[\t\r\n\f ]+/u', ' ', $decoded) ?? $decoded;
+        $decoded = preg_replace('/\s*,\s*/u', ', ', $decoded) ?? $decoded;
+        $decoded = preg_replace('/\(\s+/u', '(', $decoded) ?? $decoded;
+        $decoded = preg_replace('/\s+\)/u', ')', $decoded) ?? $decoded;
+
+        return trim($decoded);
     }
 
     /**
