@@ -358,7 +358,14 @@ return [
             'certificateCount' => 2,
             'packageStorageEntryCount' => 2,
             'inputVariableCount' => 1,
+            'safeInputVariableCount' => 1,
             'unsafeInputVariableCount' => 0,
+            'distinctInputVariableNameCount' => 1,
+            'duplicateInputVariableNameCount' => 0,
+            'inputVariableOverrideCount' => 0,
+            'selectedInputVariableCount' => 1,
+            'selectedInputVariables' => ['audience'],
+            'overriddenInputVariables' => [],
             'sidecarOutputCount' => 2,
             'dependencyOutputPresent' => true,
             'timingsOutputPresent' => true,
@@ -5570,14 +5577,28 @@ return [
         $t->contains('typst-boundary-input-overrides:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-input-variable-policy:review', implode(',', $plan['diagnostics']));
         $t->contains('typst-input-variable-overridden:1', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-inputs:3', implode(',', $plan['diagnostics']));
+        $t->contains('typst-boundary-summary-input-overrides:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-overrides:1', implode(',', $plan['diagnostics']));
         $t->contains('typst-boundary-issues:2', implode(',', $plan['diagnostics']));
+        $t->same(3, $plan['typstBoundarySummary']['inputVariableCount']);
+        $t->same(3, $plan['typstBoundarySummary']['safeInputVariableCount']);
+        $t->same(0, $plan['typstBoundarySummary']['unsafeInputVariableCount']);
+        $t->same(2, $plan['typstBoundarySummary']['distinctInputVariableNameCount']);
+        $t->same(1, $plan['typstBoundarySummary']['duplicateInputVariableNameCount']);
+        $t->same(1, $plan['typstBoundarySummary']['inputVariableOverrideCount']);
+        $t->same(2, $plan['typstBoundarySummary']['selectedInputVariableCount']);
+        $t->same(['audience', 'mode'], $plan['typstBoundarySummary']['selectedInputVariables']);
+        $t->same(['audience'], $plan['typstBoundarySummary']['overriddenInputVariables']);
         $t->same(true, $result['ok']);
         $t->same($expected, $result['typstBoundaryProvenance']);
         $t->same($expected, $result['artifactProvenanceReview']['typstBoundaryProvenance']);
+        $t->same($plan['typstBoundarySummary'], $result['typstBoundarySummary']);
+        $t->same($plan['typstBoundarySummary'], $result['artifactProvenanceReview']['typstBoundarySummary']);
         $t->same('review', $result['artifactProvenanceReview']['reviewStatus']);
         $t->contains('typst-boundary-provenance:review', implode(',', $result['artifactProvenanceReview']['issues']));
         $t->same($expected, $sequence['finalTypstBoundaryProvenance']);
+        $t->same($plan['typstBoundarySummary'], $sequence['finalTypstBoundarySummary']);
     },
 
     'plans missing typst boundary option values as review provenance without executing' => static function (TestRunner $t) use ($document): void {

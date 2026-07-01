@@ -676,6 +676,12 @@ final class PdfEngineHandoff
             if (($typstBoundarySummary['outputFormatEntryCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-output-formats:' . $typstBoundarySummary['outputFormatEntryCount'];
             }
+            if (($typstBoundarySummary['inputVariableCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-inputs:' . $typstBoundarySummary['inputVariableCount'];
+            }
+            if (($typstBoundarySummary['duplicateInputVariableNameCount'] ?? 0) > 0) {
+                $diagnostics[] = 'typst-boundary-summary-input-overrides:' . $typstBoundarySummary['duplicateInputVariableNameCount'];
+            }
             if (($typstBoundarySummary['diagnosticOutputControlCount'] ?? 0) > 0) {
                 $diagnostics[] = 'typst-boundary-summary-diagnostics:' . $typstBoundarySummary['diagnosticOutputControlCount'];
             }
@@ -9202,12 +9208,43 @@ final class PdfEngineHandoff
         }
 
         $inputVariables = is_array($provenance['inputVariables'] ?? null) ? $provenance['inputVariables'] : [];
+        $inputVariablePolicy = is_array($provenance['inputVariablePolicy'] ?? null) ? $provenance['inputVariablePolicy'] : [];
+        $inputVariableOverrides = is_array($provenance['inputVariableOverrides'] ?? null) ? $provenance['inputVariableOverrides'] : [];
+        $inputVariableNames = [];
+        $safeInputVariableNames = [];
+        $safeInputVariableCount = 0;
         $unsafeInputVariableCount = 0;
         foreach ($inputVariables as $inputVariable) {
             if (!is_array($inputVariable) || ($inputVariable['safe'] ?? false) !== true) {
                 ++$unsafeInputVariableCount;
+            } else {
+                ++$safeInputVariableCount;
+            }
+            if (is_array($inputVariable) && is_string($inputVariable['name'] ?? null) && $inputVariable['name'] !== '') {
+                $inputVariableNames[] = $inputVariable['name'];
+                if (($inputVariable['safe'] ?? false) === true) {
+                    $safeInputVariableNames[] = $inputVariable['name'];
+                }
             }
         }
+        $inputVariableNames = array_values(array_unique($inputVariableNames));
+        sort($inputVariableNames);
+        $safeInputVariableNames = array_values(array_unique($safeInputVariableNames));
+        sort($safeInputVariableNames);
+        $selectedInputVariables = array_values(array_filter(
+            array_keys(is_array($inputVariablePolicy['selectedByName'] ?? null) ? $inputVariablePolicy['selectedByName'] : []),
+            static fn (mixed $name): bool => is_string($name) && $name !== ''
+        ));
+        sort($selectedInputVariables);
+        if ($selectedInputVariables === [] && $inputVariablePolicy === []) {
+            $selectedInputVariables = $safeInputVariableNames;
+        }
+        $overriddenInputVariables = array_values(array_filter(
+            is_array($inputVariablePolicy['overriddenInputNames'] ?? null) ? $inputVariablePolicy['overriddenInputNames'] : [],
+            static fn (mixed $name): bool => is_string($name) && $name !== ''
+        ));
+        $overriddenInputVariables = array_values(array_unique($overriddenInputVariables));
+        sort($overriddenInputVariables);
 
         $dependencyOutputPresent = is_array($provenance['dependencyOutput']['file'] ?? null);
         $timingsOutputPresent = is_array($provenance['timingsOutput'] ?? null);
@@ -9338,7 +9375,20 @@ final class PdfEngineHandoff
                 ? $provenance['packageStoragePolicy']['storageEntryCount']
                 : (int) is_array($provenance['packagePath'] ?? null) + (int) is_array($provenance['packageCache'] ?? null),
             'inputVariableCount' => count($inputVariables),
+            'safeInputVariableCount' => is_int($inputVariablePolicy['safeInputVariableCount'] ?? null)
+                ? $inputVariablePolicy['safeInputVariableCount']
+                : $safeInputVariableCount,
             'unsafeInputVariableCount' => $unsafeInputVariableCount,
+            'distinctInputVariableNameCount' => is_int($inputVariablePolicy['distinctInputNameCount'] ?? null)
+                ? $inputVariablePolicy['distinctInputNameCount']
+                : count($inputVariableNames),
+            'duplicateInputVariableNameCount' => is_int($inputVariablePolicy['duplicateInputNameCount'] ?? null)
+                ? $inputVariablePolicy['duplicateInputNameCount']
+                : count($overriddenInputVariables),
+            'inputVariableOverrideCount' => count($inputVariableOverrides),
+            'selectedInputVariableCount' => count($selectedInputVariables),
+            'selectedInputVariables' => $selectedInputVariables,
+            'overriddenInputVariables' => $overriddenInputVariables,
             'sidecarOutputCount' => (int) $dependencyOutputPresent + (int) $timingsOutputPresent,
             'dependencyOutputPresent' => $dependencyOutputPresent,
             'timingsOutputPresent' => $timingsOutputPresent,
