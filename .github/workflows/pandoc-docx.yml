@@ -56,6 +56,7 @@ jobs:
           php -l lanes/pandoc/src/DocxNativeComparisonSmokeHarness.php
           php -l lanes/pandoc/src/DocxParityCorpusAudit.php
           php -l lanes/pandoc/src/DocxUpstreamCacheManifest.php
+          php -l lanes/pandoc/src/DocxUpstreamFocusedReaderEvidence.php
           php -l lanes/pandoc/src/DocxUpstreamRunnerPlan.php
           php -l lanes/pandoc/src/DocxWriter.php
           php -l lanes/pandoc/src/DocxWriterGoldenManifest.php
@@ -71,12 +72,14 @@ jobs:
           php -l lanes/pandoc/tests/DocxParityEvidenceStatusTest.php
           php -l lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php
           php -l lanes/pandoc/tests/DocxUpstreamCacheManifestTest.php
+          php -l lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php
           php -l lanes/pandoc/tests/DocxUpstreamRunnerPlanTest.php
           php -l lanes/pandoc/tests/DocxWriterTest.php
           php -l lanes/pandoc/tests/MediaBagTest.php
           php -l lanes/pandoc/tests/UpstreamRunnerDependencyAuditTest.php
           php -l lanes/pandoc/tests/ZipPackageTest.php
           php -l tools/pandoc-docx-cache-manifest.php
+          php -l tools/pandoc-docx-focused-reader-evidence.php
           php -l tools/pandoc-docx-upstream-runner-plan.php
           php -l tools/pandoc-docx-native-ast.php
           php -l tools/pandoc-docx-native-smoke.php
@@ -84,7 +87,7 @@ jobs:
           php -l tools/pandoc-docx-writer-golden-audit.php
 
       - name: Validate DOCX parity status metadata
-        run: jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json lanes/pandoc/UPSTREAM_DOCX_HASKELL_INVENTORY.json lanes/pandoc/lane-status.json porting-summary.json
+        run: jq empty lanes/pandoc/UPSTREAM_TEST_MANIFEST.json lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json lanes/pandoc/UPSTREAM_DOCX_HASKELL_INVENTORY.json lanes/pandoc/UPSTREAM_DOCX_HASKELL_FOCUSED_READER_EVIDENCE.json lanes/pandoc/lane-status.json porting-summary.json
 
       - name: Restore pinned Pandoc DOCX upstream cache
         id: pandoc-docx-upstream-cache
@@ -133,6 +136,15 @@ jobs:
 
       - name: Run optional upstream DOCX cache manifest audit
         run: php tools/pandoc-docx-cache-manifest.php --json
+
+      - name: Require focused upstream DOCX reader evidence
+        run: |
+          php tools/pandoc-docx-focused-reader-evidence.php \
+            --json \
+            --docx-dir .upstream-cache/pandoc-current/test/docx \
+            --require-covered 30 \
+            --require-targeted-checks 26 \
+            --require-no-targeted-failures
 
       - name: Run optional upstream DOCX runner preflight plan
         run: |
@@ -350,6 +362,7 @@ jobs:
           php tools/run-tests.php \
             lanes/pandoc/tests/DocxParityEvidenceStatusTest.php \
             lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php \
+            lanes/pandoc/tests/DocxUpstreamFocusedReaderEvidenceTest.php \
             lanes/pandoc/tests/DocxUpstreamCacheManifestTest.php \
             lanes/pandoc/tests/DocxUpstreamRunnerPlanTest.php \
             lanes/pandoc/tests/UpstreamRunnerDependencyAuditTest.php \
@@ -371,7 +384,7 @@ jobs:
             echo ""
             echo "- Workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo "- Runner evidence artifact: pandoc-docx-runner-evidence"
-            echo "- Focused gates: cache manifest, runner plan, native smoke, AST parity, parser audit, writer golden audit, DOCX tests"
+            echo "- Focused gates: cache manifest, focused reader evidence, runner plan, native smoke, AST parity, parser audit, writer golden audit, DOCX tests"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish DOCX parity commit status

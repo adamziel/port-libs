@@ -2954,6 +2954,9 @@ final class DocxReader
             $provider = 'zotero';
             $type = 'csl-citation';
             $payload = trim(substr($rawTail, strlen('ZOTERO_ITEM CSL_CITATION')));
+        } elseif (str_starts_with($upperTail, 'CSL_CITATION')) {
+            $type = 'csl-citation';
+            $payload = trim(substr($rawTail, strlen('CSL_CITATION')));
         } elseif (str_starts_with($upperTail, 'ZOTERO_BIBL')) {
             $provider = 'zotero';
             $type = 'csl-bibliography';
@@ -2969,25 +2972,23 @@ final class DocxReader
             $type = 'endnote-reference-list';
         }
 
-        $attrs = [
-            'data-docx-field' => 'addin',
-            'data-docx-field-instruction' => $instruction,
-            'data-docx-addin-type' => $type,
-            'data-docx-addin-provider' => $provider,
-        ];
+        $payloadAttributes = [];
 
         if ($payload !== '') {
             $payloadKind = str_starts_with($payload, '{') ? 'json' : (str_starts_with($payload, '<') ? 'xml' : 'text');
-            $attrs['data-docx-addin-payload-kind'] = $payloadKind;
-            $attrs['data-docx-addin-payload-bytes'] = (string) strlen($payload);
-            $attrs['data-docx-addin-payload-sha256'] = hash('sha256', $payload);
+            $payloadAttributes['data-docx-addin-payload-kind'] = $payloadKind;
+            $payloadAttributes['data-docx-addin-payload-bytes'] = (string) strlen($payload);
+            $payloadAttributes['data-docx-addin-payload-sha256'] = hash('sha256', $payload);
             if ($payloadKind === 'json') {
                 $decoded = json_decode($payload, true);
-                $attrs['data-docx-addin-csl-json-valid'] = is_array($decoded) ? 'true' : 'false';
+                $payloadAttributes['data-docx-addin-csl-json-valid'] = is_array($decoded) ? 'true' : 'false';
                 if (is_array($decoded)) {
+                    if ($provider === 'unknown' && $type === 'csl-citation' && isset($decoded['mendeley'])) {
+                        $provider = 'mendeley';
+                    }
                     $citationId = (string) ($decoded['citationID'] ?? '');
                     if ($citationId !== '') {
-                        $attrs['data-docx-addin-citation-id'] = $citationId;
+                        $payloadAttributes['data-docx-addin-citation-id'] = $citationId;
                     }
                     $items = is_array($decoded['citationItems'] ?? null) ? $decoded['citationItems'] : [];
                     $ids = [];
@@ -2996,13 +2997,20 @@ final class DocxReader
                             $ids[] = (string) $item['id'];
                         }
                     }
-                    $attrs['data-docx-addin-citation-item-count'] = (string) count($items);
+                    $payloadAttributes['data-docx-addin-citation-item-count'] = (string) count($items);
                     if ($ids !== []) {
-                        $attrs['data-docx-addin-citation-item-ids'] = implode(',', $ids);
+                        $payloadAttributes['data-docx-addin-citation-item-ids'] = implode(',', $ids);
                     }
                 }
             }
         }
+
+        $attrs = array_replace([
+            'data-docx-field' => 'addin',
+            'data-docx-field-instruction' => $instruction,
+            'data-docx-addin-type' => $type,
+            'data-docx-addin-provider' => $provider,
+        ], $payloadAttributes);
 
         return new AstNode('span', [
             'classes' => [

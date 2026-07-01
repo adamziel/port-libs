@@ -5,7 +5,7 @@
   "status": "reported-upstream-docx-haskell-inventory-local-gate-map",
   "upstream": {
     "name": "jgm/pandoc",
-    "source": "/Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current",
+    "source": ".upstream-cache/pandoc-current",
     "commit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
     "sourceFiles": [
       "test/test-pandoc.hs",
@@ -57,7 +57,7 @@
     "writerGoldenPackageGate": {
       "status": "generated-compared-and-matched-all-writer-golden-cases",
       "evidenceKind": "writer-golden-package-generated-stable-comparison",
-      "tool": "tools/pandoc-docx-writer-golden-audit.php --json --docx-dir /Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx --generate-supported-dir /tmp/pandoc-docx-writer-golden-r31-status-truth --require-generated-stable-matches 38",
+      "tool": "tools/pandoc-docx-writer-golden-audit.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --generate-supported-dir .port-libs/pandoc-docx-writer-golden/status-truth --require-generated-stable-matches 38",
       "expectedGoldenCaseCount": 38,
       "generatedPackageCount": 38,
       "comparedPackageCount": 38,

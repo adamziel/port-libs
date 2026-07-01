@@ -45,6 +45,7 @@ return [
         $status = $readJson('lanes/pandoc/lane-status.json');
         $cacheManifest = $readJson('lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json');
         $haskellInventory = $readJson('lanes/pandoc/UPSTREAM_DOCX_HASKELL_INVENTORY.json');
+        $focusedReaderEvidence = $readJson('lanes/pandoc/UPSTREAM_DOCX_HASKELL_FOCUSED_READER_EVIDENCE.json');
         $pandocStatus = $readText('PANDOC_STATUS.md');
         $workflow = $readText('.github/workflows/pandoc-docx.yml');
 
@@ -121,6 +122,29 @@ return [
         $t->same('requires-7-direct-hunit-uncovered-cases-preserved', $manifestHaskellInventory['writer']['gateStatus'] ?? null);
         $t->contains('36 reader uncovered cases and 7 writer direct HUnit uncovered cases', (string) ($manifestHaskellInventory['claim'] ?? ''));
 
+        $manifestFocusedReader = $manifestAudit['focusedReaderEvidence'] ?? null;
+        $statusFocusedReader = $statusAudit['focusedReaderEvidence'] ?? null;
+        $t->true(is_array($manifestFocusedReader), 'UPSTREAM_TEST_MANIFEST.json must carry DOCX focused reader evidence gates');
+        $t->same($manifestFocusedReader, $statusFocusedReader);
+        $t->same('lanes/pandoc/UPSTREAM_DOCX_HASKELL_FOCUSED_READER_EVIDENCE.json', $manifestFocusedReader['reportPath'] ?? null);
+        $t->same($focusedReaderEvidence['schemaVersion'] ?? null, $manifestFocusedReader['schemaVersion'] ?? null);
+        $t->same($focusedReaderEvidence['status'] ?? null, $manifestFocusedReader['status'] ?? null);
+        $t->same($focusedReaderEvidence['evidenceKind'] ?? null, $manifestFocusedReader['evidenceKind'] ?? null);
+        $t->same($focusedReaderEvidence['upstream']['commit'] ?? null, $manifestFocusedReader['upstreamCommit'] ?? null);
+        $t->same(36, $manifestFocusedReader['denominatorCaseRows'] ?? null);
+        $t->same(30, $manifestFocusedReader['coveredCaseCount'] ?? null);
+        $t->same(6, $manifestFocusedReader['remainingOpenCaseCount'] ?? null);
+        $t->same('completed-targeted-docx-reader-checks', $manifestFocusedReader['targetedHydratedCacheStatus'] ?? null);
+        $t->same(26, $manifestFocusedReader['passedTargetedCaseCount'] ?? null);
+        $t->same(0, $manifestFocusedReader['failedTargetedCaseCount'] ?? null);
+        $t->same(0, $manifestFocusedReader['skippedTargetedCaseCount'] ?? null);
+        $t->same(4, $manifestFocusedReader['mappedOnlyCaseCount'] ?? null);
+        $t->same('valid-denominator-map', $manifestFocusedReader['mappingValidationStatus'] ?? null);
+        $t->same('requires-30-covered-26-targeted-and-zero-targeted-failures', $manifestFocusedReader['gateStatus'] ?? null);
+        $t->contains('30 covered, 6 remaining open', (string) ($manifestFocusedReader['claim'] ?? ''));
+        $t->contains('26 passed / 0 failed / 4 mapped-only', (string) ($manifestFocusedReader['claim'] ?? ''));
+        $t->contains('not an upstream Haskell/Cabal/Tasty runner result', (string) ($manifestFocusedReader['claim'] ?? ''));
+
         $localNativeFixtures = $countTrackedFiles(['lanes/pandoc/fixtures/upstream-native-docx-*.native']);
         $localCurrentNativeFixtures = $countTrackedFiles(['lanes/pandoc/fixtures/upstream-current-docx/*.native']);
         $localDocxPackageFixtures = $countTrackedFiles(['lanes/pandoc/**/*.docx', 'lanes/pandoc/*.docx']);
@@ -154,7 +178,7 @@ return [
         $t->same(true, $manifestAudit['upstreamDocxGoldenPackageRoundTripExecuted'] ?? null);
         $t->same('writer-golden-package-generated-stable-comparison', $manifestAudit['writerGoldenEvidenceKind'] ?? null);
         $t->same($manifestAudit['writerGoldenEvidenceKind'] ?? null, $statusAudit['writerGoldenEvidenceKind'] ?? null);
-        $t->same('tools/pandoc-docx-writer-golden-audit.php --json --docx-dir /Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx --generate-supported-dir /tmp/pandoc-docx-writer-golden-r31-status-truth --require-generated-stable-matches 38', $manifestAudit['writerGoldenPackageManifestTool'] ?? null);
+        $t->same('tools/pandoc-docx-writer-golden-audit.php --json --docx-dir .upstream-cache/pandoc-current/test/docx --generate-supported-dir .port-libs/pandoc-docx-writer-golden/status-truth --require-generated-stable-matches 38', $manifestAudit['writerGoldenPackageManifestTool'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageInventory']['goldenPackageCount'] ?? null);
         $t->same($manifestAudit['writerGoldenPackageInventory'], $statusAudit['writerGoldenPackageInventory'] ?? null);
         $t->same([
@@ -172,10 +196,10 @@ return [
         $t->same($manifestAudit['docxWriterImplementation'], $statusAudit['docxWriterImplementation'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageGeneration']['run'] ?? null);
         $t->same('generated-all-writer-golden-cases', $manifestAudit['writerGoldenPackageGeneration']['status'] ?? null);
-        $t->same('/Users/admin/port-libs-pandoc-docx-parity/.upstream-cache/pandoc-current/test/docx', $manifestAudit['writerGoldenPackageGeneration']['sourceDirectory'] ?? null);
+        $t->same('.upstream-cache/pandoc-current/test/docx', $manifestAudit['writerGoldenPackageGeneration']['sourceDirectory'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageGeneration']['sourceDirectoryPresent'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageGeneration']['outputDirectoryConfigured'] ?? null);
-        $t->same('/tmp/pandoc-docx-writer-golden-r31-status-truth', $manifestAudit['writerGoldenPackageGeneration']['outputDirectory'] ?? null);
+        $t->same('.port-libs/pandoc-docx-writer-golden/status-truth', $manifestAudit['writerGoldenPackageGeneration']['outputDirectory'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageGeneration']['outputDirectoryPresent'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageGeneration']['expectedGoldenCaseCount'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageGeneration']['attemptedCaseCount'] ?? null);
@@ -189,7 +213,7 @@ return [
         $t->same(true, $manifestAudit['writerGoldenPackageComparison']['run'] ?? null);
         $t->same('matched-stable-package-semantics', $manifestAudit['writerGoldenPackageComparison']['status'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageComparison']['generatedDirectoryConfigured'] ?? null);
-        $t->same('/tmp/pandoc-docx-writer-golden-r31-status-truth', $manifestAudit['writerGoldenPackageComparison']['generatedDirectory'] ?? null);
+        $t->same('.port-libs/pandoc-docx-writer-golden/status-truth', $manifestAudit['writerGoldenPackageComparison']['generatedDirectory'] ?? null);
         $t->same(true, $manifestAudit['writerGoldenPackageComparison']['generatedDirectoryPresent'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageComparison']['expectedGoldenPackageCount'] ?? null);
         $t->same(38, $manifestAudit['writerGoldenPackageComparison']['generatedPackageCount'] ?? null);
@@ -240,7 +264,7 @@ return [
         $statusFocusedCi = $statusAudit['focusedCiEvidenceWiring'] ?? null;
         $t->true(is_array($focusedCi), 'DOCX parity evidence must record focused CI wiring');
         $t->same($focusedCi, $statusFocusedCi);
-        $t->same('focused-ci-evidence-wired-generated-writer-golden-38-of-38-and-haskell-inventory-gated', $focusedCi['status'] ?? null);
+        $t->same('focused-ci-evidence-wired-generated-writer-golden-38-of-38-haskell-inventory-and-focused-reader-gated', $focusedCi['status'] ?? null);
         $t->same('php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php', $focusedCi['commands']['writerCoreTest'] ?? null);
         $t->same('php tools/run-tests.php lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php', $focusedCi['commands']['haskellInventoryStatusTest'] ?? null);
         $t->same('php tools/pandoc-docx-writer-golden-audit.php --json --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated --require-generated-stable-matches 38', $focusedCi['commands']['writerGoldenAudit'] ?? null);
