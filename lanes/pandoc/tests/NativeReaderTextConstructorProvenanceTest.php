@@ -93,6 +93,59 @@ NATIVE;
             (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument)
         );
     },
+    'preserves textual native figure constructor provenance' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ Figure ( "fig-review" , [ "figure" ] , [ ( "data-kind" , "native" ) ] ) (Caption (Just (ShortCaption [ Str "Short" ])) [ Plain [ Str "Long", Space, Str "caption" ] ]) [ Plain [ Image ( "" , [  ] , [  ] ) [ Str "Alt" ] ( "media/fig.png" , "fig:" ) ] ] ]
+NATIVE;
+        $figureAttr = ['fig-review', ['figure'], [['data-kind', 'native']]];
+        $shortInlinesNative = [
+            ['t' => 'Str', 'c' => 'Short'],
+        ];
+        $shortNative = ['t' => 'ShortCaption', 'c' => [$shortInlinesNative]];
+        $captionNative = ['t' => 'Caption', 'c' => [
+            ['t' => 'Just', 'c' => $shortNative],
+            [['t' => 'Plain', 'c' => [
+                ['t' => 'Str', 'c' => 'Long'],
+                ['t' => 'Space'],
+                ['t' => 'Str', 'c' => 'caption'],
+            ]]],
+        ]];
+        $imageNative = ['t' => 'Image', 'c' => [
+            ['', [], []],
+            [['t' => 'Str', 'c' => 'Alt']],
+            ['media/fig.png', 'fig:'],
+        ]];
+        $figureNative = ['t' => 'Figure', 'c' => [
+            $figureAttr,
+            $captionNative,
+            [['t' => 'Plain', 'c' => [$imageNative]]],
+        ]];
+
+        $nativeDocument = (new NativeReader())->read($native);
+        $figure = $nativeDocument->children[0];
+        $jsonDocument = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], $nativeDocument->children);
+        $jsonPacket = (new PandocJsonWriter())->toArray($jsonDocument);
+        $nativePacket = json_decode((new NativeWriter())->write($jsonDocument), true, 512, JSON_THROW_ON_ERROR);
+
+        $t->same('figure', $figure->type);
+        $t->same('Figure', $figure->attr('constructor'));
+        $t->same($figureAttr, $figure->attr('attrNative'));
+        $t->same('Caption', $figure->attr('captionConstructor'));
+        $t->same($captionNative, $figure->attr('captionNative'));
+        $t->same('Just', $figure->attr('shortCaptionMaybeConstructor'));
+        $t->same(['t' => 'Just', 'c' => $shortNative], $figure->attr('shortCaptionMaybeNative'));
+        $t->same('ShortCaption', $figure->attr('shortCaptionConstructor'));
+        $t->same($shortNative, $figure->attr('shortCaptionNative'));
+        $t->same('Long caption', $figure->attr('caption'));
+        $t->same('image', $figure->children[0]->type);
+        $t->same($imageNative, $figure->children[0]->attr('native'));
+        $t->same($figureNative, $figure->attr('native'));
+        $t->same([$figureNative], $jsonPacket['blocks']);
+        $t->same([$figureNative], $nativePacket['blocks']);
+    },
     'preserves textual native raw format constructor provenance' => static function (TestRunner $t): void {
         $native = <<<'NATIVE'
 [ RawBlock (Format "markdown+raw_tex") "$x$"

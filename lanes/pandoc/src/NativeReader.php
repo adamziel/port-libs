@@ -987,10 +987,28 @@ final class NativeReader
 
     private function parseFigure(): AstNode
     {
-        $attrs = $this->parseAttrTuple();
-        $attrs = array_replace($attrs, $this->parseCaptionAttrs());
+        [$attrs, $attrNative] = $this->parseAttrTuplePayload();
+        [$captionAttrs, $captionNative] = $this->parseCaptionAttrsPayload(true);
+        $attrs = array_replace($attrs, $captionAttrs);
+        $blocks = $this->parseBlockList();
+        $blockNative = $this->nativeBlockListPayload($blocks);
+        if ($captionNative !== null && $blockNative !== null) {
+            $attrs['constructor'] = 'Figure';
+            $attrs['native'] = ['t' => 'Figure', 'c' => [$attrNative, $captionNative, $blockNative]];
+        } else {
+            unset(
+                $attrs['attrConstructor'],
+                $attrs['attrNative'],
+                $attrs['captionConstructor'],
+                $attrs['captionNative'],
+                $attrs['shortCaptionConstructor'],
+                $attrs['shortCaptionNative'],
+                $attrs['shortCaptionMaybeConstructor'],
+                $attrs['shortCaptionMaybeNative'],
+            );
+        }
 
-        return new AstNode('figure', $attrs, $this->figureChildrenFromNativeBlocks($this->parseBlockList()));
+        return new AstNode('figure', $attrs, $this->figureChildrenFromNativeBlocks($blocks));
     }
 
     private function parseTable(): AstNode
@@ -1498,21 +1516,45 @@ final class NativeReader
      */
     private function parseCaptionAttrs(): array
     {
+        return $this->parseCaptionAttrsPayload(false)[0];
+    }
+
+    /**
+     * @return array{0:array<string, mixed>, 1:array<string, mixed>|null}
+     */
+    private function parseCaptionAttrsPayload(bool $captureNative): array
+    {
         $this->expectSymbol('(');
         $this->expectIdentifier('Caption');
         $attrs = [];
+        $captionCanReuseNative = true;
+        $shortCaptionMaybeNative = ['t' => 'Nothing'];
 
         if ($this->acceptIdentifier('Nothing')) {
-            // No short caption.
+            if ($captureNative) {
+                $attrs['shortCaptionMaybeConstructor'] = 'Nothing';
+                $attrs['shortCaptionMaybeNative'] = $shortCaptionMaybeNative;
+            }
         } else {
             $this->expectSymbol('(');
             $this->expectIdentifier('Just');
-            $attrs['shortCaptionInlines'] = $this->parseShortCaptionInlines();
+            [$shortCaptionInlines, $shortCaptionNative, $shortCaptionAttrs, $shortCaptionCanReuseNative] = $this->parseShortCaptionInlinesPayload();
             $this->expectSymbol(')');
+            if ($captureNative) {
+                $attrs = array_replace($attrs, $shortCaptionAttrs);
+            }
+            $attrs['shortCaptionInlines'] = $shortCaptionInlines;
             $attrs['shortCaption'] = $this->plainInlineText($attrs['shortCaptionInlines']);
+            if ($captureNative && $shortCaptionNative !== null) {
+                $shortCaptionMaybeNative = ['t' => 'Just', 'c' => $shortCaptionNative];
+                $attrs['shortCaptionMaybeConstructor'] = 'Just';
+                $attrs['shortCaptionMaybeNative'] = $shortCaptionMaybeNative;
+            }
+            $captionCanReuseNative = $shortCaptionCanReuseNative && $shortCaptionNative !== null;
         }
 
         $captionBlocks = $this->parseBlockList();
+        $captionBlocksNative = $this->nativeBlockListPayload($captionBlocks);
         if ($captionBlocks !== []) {
             $attrs['captionBlocks'] = $captionBlocks;
             $attrs['caption'] = $this->plainBlockText($captionBlocks);
@@ -1523,7 +1565,14 @@ final class NativeReader
         }
         $this->expectSymbol(')');
 
-        return $attrs;
+        $captionNative = null;
+        if ($captureNative && $captionCanReuseNative && $captionBlocksNative !== null) {
+            $captionNative = ['t' => 'Caption', 'c' => [$shortCaptionMaybeNative, $captionBlocksNative]];
+            $attrs['captionConstructor'] = 'Caption';
+            $attrs['captionNative'] = $captionNative;
+        }
+
+        return [$attrs, $captionNative];
     }
 
     /**
@@ -1531,15 +1580,34 @@ final class NativeReader
      */
     private function parseShortCaptionInlines(): array
     {
+        return $this->parseShortCaptionInlinesPayload()[0];
+    }
+
+    /**
+     * @return array{0:list<AstNode>, 1:mixed, 2:array<string, mixed>, 3:bool}
+     */
+    private function parseShortCaptionInlinesPayload(): array
+    {
         if (!$this->acceptSymbol('(')) {
-            return $this->parseInlineList();
+            $inlines = $this->parseInlineList();
+
+            return [$inlines, $this->nativeInlineListPayload($inlines), [], false];
         }
 
         $this->expectIdentifier('ShortCaption');
         $inlines = $this->parseInlineList();
         $this->expectSymbol(')');
+        $inlineNative = $this->nativeInlineListPayload($inlines);
+        if ($inlineNative === null) {
+            return [$inlines, null, [], false];
+        }
 
-        return $inlines;
+        $native = ['t' => 'ShortCaption', 'c' => [$inlineNative]];
+
+        return [$inlines, $native, [
+            'shortCaptionConstructor' => 'ShortCaption',
+            'shortCaptionNative' => $native,
+        ], true];
     }
 
     /**
