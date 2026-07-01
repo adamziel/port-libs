@@ -7306,6 +7306,39 @@ return [
         $t->throws(RuntimeException::class, static fn (): AstNode => (new PptxReader())->read($bytes));
     },
 
+    'rejects pptx packages without root relationships like upstream' => static function (TestRunner $t): void {
+        $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-no-root-rels-');
+        if ($path === false) {
+            throw new RuntimeException('Unable to create temporary PPTX path');
+        }
+        $zip = new ZipArchive();
+        if ($zip->open($path, ZipArchive::OVERWRITE) !== true) {
+            @unlink($path);
+            throw new RuntimeException('Unable to create temporary PPTX package');
+        }
+        $zip->addFromString('ppt/presentation.xml', '<?xml version="1.0"?><p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"/>');
+        $zip->close();
+
+        try {
+            $bytes = file_get_contents($path);
+            if (!is_string($bytes)) {
+                throw new RuntimeException('Unable to read temporary PPTX package');
+            }
+        } finally {
+            @unlink($path);
+        }
+
+        try {
+            (new PptxReader())->read($bytes);
+        } catch (RuntimeException $exception) {
+            $t->same('Missing _rels/.rels', $exception->getMessage());
+
+            return;
+        }
+
+        throw new RuntimeException('Expected missing root relationships to reject the PPTX package');
+    },
+
     'rejects pptx root officeDocument relationships without Target like upstream' => static function (TestRunner $t): void {
         $path = tempnam(sys_get_temp_dir(), 'pandoc-pptx-missing-target-');
         if ($path === false) {
