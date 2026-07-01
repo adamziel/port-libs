@@ -215,6 +215,69 @@ return [
         $t->true(!str_contains($encodedSummary, str_repeat('H', 32)));
     },
 
+    'summarizes raw ODT central directory name byte length buckets before package instantiation' => static function (TestRunner $t) use ($buildOdtZipBytesWithCentralDirectoryRatioBuckets): void {
+        $summary = OpenDocumentPackage::rawImportPreflight(
+            $buildOdtZipBytesWithCentralDirectoryRatioBuckets()
+        );
+
+        $indexByBucket = [];
+        foreach ($summary['rawCentralDirectoryNameByteLengthBucketSummaries'] as $bucketSummary) {
+            $indexByBucket[$bucketSummary['rawCentralDirectoryNameByteLengthBucket']] = $bucketSummary;
+        }
+
+        $expectedNames = [
+            'mimetype',
+            'META-INF/manifest.xml',
+            'content.xml',
+            'Pictures/empty.bin',
+            'Pictures/high.bin',
+            'Payloads/zero-compressed.bin',
+        ];
+        $expectedRawNameBytes = array_sum(array_map('strlen', $expectedNames));
+
+        $t->same(3, $summary['rawCentralDirectoryNameByteLengthBucketSummaryCount']);
+        $t->same(['up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes'], $summary['rawCentralDirectoryNameByteLengthBuckets']);
+        $t->same([
+            'up-to-8-bytes' => 1,
+            '9-to-16-bytes' => 1,
+            '17-to-32-bytes' => 4,
+        ], $summary['rawCentralDirectoryNameByteLengthBucketCounts']);
+        $t->same(6, $summary['rawCentralDirectoryNameByteLengthEntryCount']);
+        $t->same($expectedRawNameBytes, $summary['rawCentralDirectoryNameByteLengthRawBytes']);
+        $t->same($expectedRawNameBytes, $summary['rawCentralDirectoryNameByteLengthDecodedBytes']);
+        $t->same(0, $summary['rawCentralDirectoryNameByteLengthDecodedNameDiffersFromRawNameCount']);
+        $t->same('odf-raw-central-directory-name-byte-length-metadata-only', $summary['rawCentralDirectoryNameByteLengthByteExposurePolicy']);
+        $t->same(false, $summary['rawCentralDirectoryNameByteLengthCanExposeBytes']);
+
+        $t->same(['mimetype'], $indexByBucket['up-to-8-bytes']['entryNames']);
+        $t->same(['content.xml'], $indexByBucket['9-to-16-bytes']['entryNames']);
+        $t->same([
+            'META-INF/manifest.xml',
+            'Payloads/zero-compressed.bin',
+            'Pictures/empty.bin',
+            'Pictures/high.bin',
+        ], $indexByBucket['17-to-32-bytes']['entryNames']);
+        $t->same(8, $indexByBucket['up-to-8-bytes']['rawNameBytes']);
+        $t->same(strlen('content.xml'), $indexByBucket['9-to-16-bytes']['rawNameBytes']);
+        $t->same(
+            strlen('META-INF/manifest.xml')
+                + strlen('Payloads/zero-compressed.bin')
+                + strlen('Pictures/empty.bin')
+                + strlen('Pictures/high.bin'),
+            $indexByBucket['17-to-32-bytes']['rawNameBytes']
+        );
+        $t->same(0, $indexByBucket['17-to-32-bytes']['decodedNameDiffersFromRawNameCount']);
+        $t->same(['/'], $indexByBucket['9-to-16-bytes']['directoryRoots']);
+        $t->same(['META-INF/', 'Payloads/', 'Pictures/'], $indexByBucket['17-to-32-bytes']['directoryRoots']);
+        $t->same(['stored'], $indexByBucket['up-to-8-bytes']['compressionMethodNames']);
+        $t->same(['stored'], $indexByBucket['9-to-16-bytes']['compressionMethodNames']);
+        $t->same(['deflated', 'stored', 'unsupported'], $indexByBucket['17-to-32-bytes']['compressionMethodNames']);
+        $t->same('Payloads/zero-compressed.bin', $indexByBucket['17-to-32-bytes']['longestRawNameEntryName']);
+        $t->same(strlen('Payloads/zero-compressed.bin'), $indexByBucket['17-to-32-bytes']['longestRawNameByteLength']);
+        $encodedSummary = json_encode($summary['rawCentralDirectoryNameByteLengthBucketSummaries'], JSON_THROW_ON_ERROR);
+        $t->true(!str_contains($encodedSummary, str_repeat('H', 32)));
+    },
+
     'preflights ZIP64 EOCD ODT packages before bounded package instantiation' => static function (TestRunner $t) use ($buildOdtZipBytes, $addZip64EndOfCentralDirectory): void {
         $summary = OpenDocumentPackage::rawImportPreflight(
             $addZip64EndOfCentralDirectory($buildOdtZipBytes())

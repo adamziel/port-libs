@@ -162,6 +162,7 @@ final class OpenDocumentPackage
             ? $zipPreflight['zip64EndOfCentralDirectory']
             : null;
         $rawCentralDirectoryExpansionRatio = self::rawCentralDirectoryExpansionRatioBucketPreflight($zipPreflight);
+        $rawCentralDirectoryNameByteLength = self::rawCentralDirectoryNameByteLengthBucketPreflight($zipPreflight);
         $diagnostics = [];
         $addDiagnostic = static function (string $diagnostic) use (&$diagnostics): void {
             if (!in_array($diagnostic, $diagnostics, true)) {
@@ -247,11 +248,156 @@ final class OpenDocumentPackage
             'rawCentralDirectoryExpansionRatioEntryCount' => $rawCentralDirectoryExpansionRatio['entryCount'],
             'rawCentralDirectoryExpansionRatioByteExposurePolicy' => 'odf-raw-central-directory-expansion-ratio-metadata-only',
             'rawCentralDirectoryExpansionRatioCanExposeBytes' => false,
+            'rawCentralDirectoryNameByteLengthBucketSummaryCount' => $rawCentralDirectoryNameByteLength['summaryCount'],
+            'rawCentralDirectoryNameByteLengthBuckets' => $rawCentralDirectoryNameByteLength['buckets'],
+            'rawCentralDirectoryNameByteLengthBucketCounts' => $rawCentralDirectoryNameByteLength['bucketCounts'],
+            'rawCentralDirectoryNameByteLengthBucketSummaries' => $rawCentralDirectoryNameByteLength['summaries'],
+            'rawCentralDirectoryNameByteLengthEntryCount' => $rawCentralDirectoryNameByteLength['entryCount'],
+            'rawCentralDirectoryNameByteLengthRawBytes' => $rawCentralDirectoryNameByteLength['rawNameBytes'],
+            'rawCentralDirectoryNameByteLengthDecodedBytes' => $rawCentralDirectoryNameByteLength['decodedNameBytes'],
+            'rawCentralDirectoryNameByteLengthDecodedNameDiffersFromRawNameCount' => $rawCentralDirectoryNameByteLength['decodedNameDiffersFromRawNameCount'],
+            'rawCentralDirectoryNameByteLengthByteExposurePolicy' => 'odf-raw-central-directory-name-byte-length-metadata-only',
+            'rawCentralDirectoryNameByteLengthCanExposeBytes' => false,
             'zipRawStrictImport' => $zipPreflight,
             'diagnosticCount' => count($diagnostics),
             'diagnostics' => $diagnostics,
             'byteExposurePolicy' => 'odf-raw-package-import-metadata-only',
             'canExposeBytes' => false,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $zipPreflight
+     * @return array{
+     *     summaryCount:int,
+     *     buckets:list<string>,
+     *     bucketCounts:array<string, int>,
+     *     summaries:list<array<string, mixed>>,
+     *     entryCount:int,
+     *     rawNameBytes:int,
+     *     decodedNameBytes:int,
+     *     decodedNameDiffersFromRawNameCount:int
+     * }
+     */
+    private static function rawCentralDirectoryNameByteLengthBucketPreflight(array $zipPreflight): array
+    {
+        $centralDirectory = is_array($zipPreflight['centralDirectorySize'] ?? null)
+            ? $zipPreflight['centralDirectorySize']
+            : [];
+        $entries = is_array($centralDirectory['entries'] ?? null) ? $centralDirectory['entries'] : [];
+        $summaries = [];
+        $entryCount = 0;
+        $rawNameBytes = 0;
+        $decodedNameBytes = 0;
+        $decodedNameDiffersFromRawNameCount = 0;
+
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $rawName = is_string($entry['rawName'] ?? null) ? $entry['rawName'] : $name;
+            $rawLength = strlen($rawName);
+            $decodedLength = strlen($name);
+            $bucket = self::packagePathByteLengthBucket($rawLength);
+            $bucketKey = $bucket['packagePathByteLengthBucket'];
+            if (!isset($summaries[$bucketKey])) {
+                $summaries[$bucketKey] = [
+                    'rawCentralDirectoryNameByteLengthBucket' => $bucketKey,
+                    'minRawCentralDirectoryNameByteLength' => $bucket['minPackagePathByteLength'],
+                    'maxRawCentralDirectoryNameByteLength' => $bucket['maxPackagePathByteLength'],
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'rawNameBytes' => 0,
+                    'decodedNameBytes' => 0,
+                    'centralDirectoryRecordBytes' => 0,
+                    'decodedNameDiffersFromRawNameCount' => 0,
+                    'directoryRoots' => [],
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                    'longestRawNameEntryName' => null,
+                    'longestRawNameByteLength' => 0,
+                ];
+            }
+
+            ++$entryCount;
+            ++$summaries[$bucketKey]['entryCount'];
+            $summaries[$bucketKey]['rawNameBytes'] += $rawLength;
+            $summaries[$bucketKey]['decodedNameBytes'] += $decodedLength;
+            $rawNameBytes += $rawLength;
+            $decodedNameBytes += $decodedLength;
+            $recordOffset = is_int($entry['centralDirectoryOffset'] ?? null) ? $entry['centralDirectoryOffset'] : null;
+            $recordEnd = is_int($entry['recordEnd'] ?? null) ? $entry['recordEnd'] : null;
+            if ($recordOffset !== null && $recordEnd !== null && $recordEnd >= $recordOffset) {
+                $summaries[$bucketKey]['centralDirectoryRecordBytes'] += $recordEnd - $recordOffset;
+            }
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$bucketKey]['directoryEntryCount'];
+            } else {
+                ++$summaries[$bucketKey]['fileEntryCount'];
+            }
+            if ($rawName !== $name) {
+                ++$summaries[$bucketKey]['decodedNameDiffersFromRawNameCount'];
+                ++$decodedNameDiffersFromRawNameCount;
+            }
+            $summaries[$bucketKey]['entryNames'][] = $name;
+
+            $directoryRoot = self::packageDirectoryRoot($name);
+            if (!in_array($directoryRoot, $summaries[$bucketKey]['directoryRoots'], true)) {
+                $summaries[$bucketKey]['directoryRoots'][] = $directoryRoot;
+            }
+            $compressionMethodName = is_string($entry['compressionMethodName'] ?? null)
+                ? $entry['compressionMethodName']
+                : '';
+            if ($compressionMethodName !== '' && !in_array($compressionMethodName, $summaries[$bucketKey]['compressionMethodNames'], true)) {
+                $summaries[$bucketKey]['compressionMethodNames'][] = $compressionMethodName;
+            }
+            if (
+                $rawLength > $summaries[$bucketKey]['longestRawNameByteLength']
+                || (
+                    $rawLength === $summaries[$bucketKey]['longestRawNameByteLength']
+                    && (
+                        $summaries[$bucketKey]['longestRawNameEntryName'] === null
+                        || strcmp($name, (string) $summaries[$bucketKey]['longestRawNameEntryName']) < 0
+                    )
+                )
+            ) {
+                $summaries[$bucketKey]['longestRawNameEntryName'] = $name;
+                $summaries[$bucketKey]['longestRawNameByteLength'] = $rawLength;
+            }
+        }
+
+        foreach ($summaries as &$summary) {
+            sort($summary['directoryRoots'], SORT_STRING);
+            sort($summary['compressionMethodNames'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        $ordered = [];
+        $bucketCounts = [];
+        foreach (['up-to-8-bytes', '9-to-16-bytes', '17-to-32-bytes', '33-to-64-bytes', 'over-64-bytes'] as $bucket) {
+            if (isset($summaries[$bucket])) {
+                $ordered[] = $summaries[$bucket];
+                $bucketCounts[$bucket] = $summaries[$bucket]['entryCount'];
+            }
+        }
+
+        return [
+            'summaryCount' => count($ordered),
+            'buckets' => array_keys($bucketCounts),
+            'bucketCounts' => $bucketCounts,
+            'summaries' => $ordered,
+            'entryCount' => $entryCount,
+            'rawNameBytes' => $rawNameBytes,
+            'decodedNameBytes' => $decodedNameBytes,
+            'decodedNameDiffersFromRawNameCount' => $decodedNameDiffersFromRawNameCount,
         ];
     }
 

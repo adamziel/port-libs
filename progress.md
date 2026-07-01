@@ -15,5 +15,5 @@
 
 | Area | Format | Verdict | Local mapped cases | Upstream cases | Remaining critical gaps |
 | --- | --- | --- | ---: | ---: | --- |
-| ODF/ODT/OpenDocument | `odt` | ship-ready | 95 | 20 | 0 critical gaps |
+| ODF/ODT/OpenDocument | `odt` | ship-ready | 98 | 20 | 0 critical gaps |
 | Ship verdict | Shippable for native PHP ODT package import |  |  |  |  |

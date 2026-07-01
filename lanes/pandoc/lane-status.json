@@ -18,10 +18,10 @@
         "verdict": "ship-ready",
         "upstreamFormatCases": 20,
         "upstreamFormatAssertions": 575,
-        "localMappedCases": 97,
-        "localFocusedAssertions": 2108,
-        "caseCoveragePercent": 480,
-        "assertionCoveragePercent": 356.9,
+        "localMappedCases": 98,
+        "localFocusedAssertions": 2132,
+        "caseCoveragePercent": 490,
+        "assertionCoveragePercent": 370.8,
         "remainingCriticalGaps": [],
         "uncoveredUpstreamCriticalTests": [],
         "localFocusedTestFiles": [
@@ -33,6 +33,7 @@
             "lanes/pandoc/tests/OdfReaderZipTimestampProvenanceTest.php",
             "lanes/pandoc/tests/OdfZipTimestampSourcesTest.php",
             "lanes/pandoc/tests/OdtReaderTest.php",
+            "lanes/pandoc/tests/OpenDocumentPackageRawImportPreflightTest.php",
             "lanes/pandoc/tests/OpenDocumentPackageTest.php",
             "lanes/pandoc/tests/OpenDocumentReaderTest.php"
         ],
