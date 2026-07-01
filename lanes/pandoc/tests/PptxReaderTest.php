@@ -634,6 +634,14 @@ return [
         $t->same(1, $review['upstreamEvidence']['denominator'] ?? null);
         $t->same(['test/pptx-reader/basic.pptx', 'test/pptx-reader/basic.native'], $review['upstreamEvidence']['fixtures'] ?? null);
         $t->same(5, $review['slideCount'] ?? null);
+        $t->same([
+            'cx' => 12192000,
+            'cy' => 6858000,
+            'width' => 13,
+            'height' => 7,
+            'emusPerInch' => 914400,
+            'source' => 'presentation',
+        ], $review['slideSize'] ?? null);
         $t->same('Ada Reviewer', $review['commentAuthors']['0']['name'] ?? null);
         $t->same(1, $review['slides'][4]['commentCount'] ?? null);
         $t->same('Review this clip', $review['slides'][4]['comments'][0]['text'] ?? null);
@@ -858,6 +866,14 @@ return [
         $t->same('rIdImage', $review['slides'][0]['imageIssues'][0]['relationshipId'] ?? null);
         $t->same('../media/missing.png', $review['slides'][0]['imageIssues'][0]['target'] ?? null);
         $t->same('ppt/media/missing.png', $review['slides'][0]['imageIssues'][0]['partName'] ?? null);
+        $t->same([
+            'cx' => 9144000,
+            'cy' => 6858000,
+            'width' => 10,
+            'height' => 7,
+            'emusPerInch' => 914400,
+            'source' => 'default',
+        ], $review['slideSize'] ?? null);
     },
 
     'reads pptx bytes through the converter input path' => static function (TestRunner $t) use ($buildPptxPackage): void {

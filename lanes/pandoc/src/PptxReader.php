@@ -10,6 +10,9 @@ final class PptxReader
     private const RELATIONSHIP_NAMESPACE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
     private const COMMENT_AUTHORS_PART = '/ppt/commentAuthors.xml';
     private const MAX_XML_PART_BYTES = 8_388_608;
+    private const EMUS_PER_INCH = 914_400;
+    private const DEFAULT_SLIDE_WIDTH_EMU = 9_144_000;
+    private const DEFAULT_SLIDE_HEIGHT_EMU = 6_858_000;
 
     public function read(string $bytes): AstNode
     {
@@ -25,6 +28,7 @@ final class PptxReader
         $presentationPart = OpcPackagePath::stripQueryAndFragment($rootRelationships->resolveTarget($presentationRelationship));
         $presentation = $this->loadPackageXml($package, $presentationPart, 'PPTX presentation');
         $slides = $this->parsePresentationSlides($presentation);
+        $slideSize = $this->presentationSlideSize($presentation);
         $presentationRelationships = $this->relationshipsOrEmpty($package, $presentationPart);
         $tableStyles = $this->presentationTableStyles($package, $presentationRelationships);
         $commentAuthors = $this->commentAuthors($package);
@@ -80,6 +84,7 @@ final class PptxReader
                 'entryCount' => count($package->names()),
                 'presentationPart' => ltrim($presentationPart, '/'),
                 'slideCount' => count($slides),
+                'slideSize' => $slideSize,
                 'slides' => $slideReviews,
                 'commentAuthors' => $commentAuthors,
                 'tableStyles' => $tableStyles,
@@ -156,6 +161,41 @@ final class PptxReader
         }
 
         return $slides;
+    }
+
+    /**
+     * @return array{cx:int, cy:int, width:int, height:int, emusPerInch:int, source:string}
+     */
+    private function presentationSlideSize(\DOMDocument $document): array
+    {
+        $root = XmlHtmlDom::rootElement($document, 'presentation');
+        if (!$root instanceof \DOMElement) {
+            throw new \RuntimeException('PPTX presentation XML must have a presentation root');
+        }
+
+        $sizeElement = $this->firstChildElement($root, 'sldSz');
+        $source = 'default';
+        $widthEmu = self::DEFAULT_SLIDE_WIDTH_EMU;
+        $heightEmu = self::DEFAULT_SLIDE_HEIGHT_EMU;
+        if ($sizeElement instanceof \DOMElement) {
+            $source = 'presentation';
+            $widthEmu = $this->presentationSizeAttribute($sizeElement, 'cx');
+            $heightEmu = $this->presentationSizeAttribute($sizeElement, 'cy');
+        }
+
+        return [
+            'cx' => $widthEmu,
+            'cy' => $heightEmu,
+            'width' => intdiv($widthEmu, self::EMUS_PER_INCH),
+            'height' => intdiv($heightEmu, self::EMUS_PER_INCH),
+            'emusPerInch' => self::EMUS_PER_INCH,
+            'source' => $source,
+        ];
+    }
+
+    private function presentationSizeAttribute(\DOMElement $element, string $name): int
+    {
+        return $this->integerAttribute($element, $name) ?? 0;
     }
 
     /**

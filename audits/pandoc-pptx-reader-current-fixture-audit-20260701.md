@@ -23,13 +23,15 @@ Scope: native PHP `PortLibs\Pandoc\PptxReader` coverage for the upstream Pandoc 
 
 The focused reader suite also locks a missing-image relationship case against the upstream visible-content behavior: an image relationship whose internal package part is absent no longer emits a visible `image` node. The reader records `missing-image-part` with relationship id, target, and package part name in slide review metadata so the omission remains auditable.
 
+The reader now also exposes upstream-style presentation slide-size metadata from `p:sldSz`, including the raw EMU dimensions and the same integer `EMU / 914400` width/height values used by upstream's intermediate parser. Presentations without `p:sldSz` receive the upstream default `9144000 x 6858000` EMU size.
+
 Latest focused verification:
 
 - `php -l lanes/pandoc/src/PptxReader.php`
 - `php -l lanes/pandoc/tests/PptxReaderTest.php`
 - `php -l lanes/pandoc/src/PandocFormatRegistry.php`
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `155` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1012` assertions, `0` failures.
-- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1445` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php`: `157` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php`: `1014` assertions, `0` failures.
+- `php tools/run-tests.php lanes/pandoc/tests/PptxReaderTest.php lanes/pandoc/tests/PptxWriterTest.php lanes/pandoc/tests/PandocFormatRegistryTest.php lanes/pandoc/tests/RichPackageUnsupportedFormatRegistryTest.php lanes/pandoc/tests/DocxWriterTest.php`: `1447` assertions, `0` failures.
 
 This closes the current upstream PPTX reader golden fixture content gate. It does not claim full PPTX writer parity or full PowerPoint package round-trip parity.
