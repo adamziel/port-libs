@@ -45,6 +45,7 @@ $parts = [
 return [
     'carries ODT ZIP name policy provenance through compact and rich package review' => static function (TestRunner $t) use ($parts): void {
         $package = ZipPackage::fromParts($parts, 'odt name policy package');
+        $packageManifest = $package->packageManifestPreflight();
         $compactSummary = OpenDocumentPackage::fromPackage($package)->summarize();
         $compactInventory = $compactSummary['packageInventory'];
         $compactIdentity = $compactSummary['packageIdentity'];
@@ -79,6 +80,16 @@ return [
         $t->same('Pictures/Review.PNG', $caseEntries[1]['name']);
         $t->same(['case-insensitive-name-collision'], $caseEntries[0]['issues']);
         $t->same(['case-insensitive-name-collision'], $caseEntries[1]['issues']);
+        $t->same(1, $packageManifest['caseInsensitiveNameCollisionGroupCount']);
+        $t->same(2, $packageManifest['caseInsensitiveNameCollisionEntryCount']);
+        $t->same(true, $packageManifest['hasCaseInsensitiveNameCollisions']);
+        $t->same($richPolicy['caseInsensitiveNameCollisionGroups'], $packageManifest['caseInsensitiveNameCollisionGroups']);
+        $t->same('Pictures/review.png', $packageManifest['caseInsensitiveNameCollisionEntries'][0]['name']);
+        $t->same(['Pictures/review.png', 'Pictures/Review.PNG'], $packageManifest['caseInsensitiveNameCollisionEntries'][0]['caseInsensitiveEquivalentEntryNames']);
+        $t->same(['case-insensitive-name-collision'], $packageManifest['caseInsensitiveNameCollisionEntries'][0]['caseInsensitiveNameCollisionIssues']);
+        $t->same('Pictures/Review.PNG', $packageManifest['caseInsensitiveNameCollisionEntries'][1]['name']);
+        $t->same(['Pictures/review.png', 'Pictures/Review.PNG'], $packageManifest['caseInsensitiveNameCollisionEntries'][1]['caseInsensitiveEquivalentEntryNames']);
+        $t->same(['case-insensitive-name-collision'], $packageManifest['caseInsensitiveNameCollisionEntries'][1]['caseInsensitiveNameCollisionIssues']);
 
         $t->same(0, $richPolicy['rawNameCollisionGroupCount']);
         $t->same(0, $richPolicy['rawNameCollisionEntryCount']);
@@ -117,6 +128,11 @@ return [
             $t->same(1, $handoff['zipNameHygieneLeadingOrTrailingWhitespaceEntryCount']);
             $t->same(1, $handoff['zipNameHygieneTrailingDotSegmentEntryCount']);
             $t->same(1, $handoff['zipNameHygieneWindowsReservedNameEntryCount']);
+            $t->same($packageManifest['caseInsensitiveNameCollisionGroupCount'], $handoff['zipPackageManifestCaseInsensitiveNameCollisionGroupCount']);
+            $t->same($packageManifest['caseInsensitiveNameCollisionEntryCount'], $handoff['zipPackageManifestCaseInsensitiveNameCollisionEntryCount']);
+            $t->same($packageManifest['hasCaseInsensitiveNameCollisions'], $handoff['zipPackageManifestHasCaseInsensitiveNameCollisions']);
+            $t->same($packageManifest['caseInsensitiveNameCollisionGroups'], $handoff['zipPackageManifestCaseInsensitiveNameCollisionGroups']);
+            $t->same($packageManifest['caseInsensitiveNameCollisionEntries'], $handoff['zipPackageManifestCaseInsensitiveNameCollisionEntries']);
         }
     },
 ];
