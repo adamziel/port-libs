@@ -347,6 +347,43 @@ return [
         $t->same(false, $summary['directReaderParityClaimed']);
         $t->same(false, $summary['directWriterParityClaimed']);
     },
+    'summarizes roff manual extension directions without converter parity claims' => static function (TestRunner $t): void {
+        $summary = PandocFormatRegistry::roffManualExtensionDirectionSummary();
+        $packet = PandocFormatRegistry::roffManualFormatReviewPacket();
+
+        $t->same($summary, PandocFormatRegistry::roffExtensionDirectionSummary());
+        $t->same($summary, $packet['extensionDirectionSummary']);
+        $t->same(4, $summary['extensionCount']);
+        $t->same(['.ms', '.roff', '.[1-9]', '.[1-9][a-z]+'], $summary['extensions']);
+        $t->same([
+            'man' => ['.[1-9]', '.[1-9][a-z]+'],
+            'ms' => ['.ms', '.roff'],
+        ], $summary['formatBuckets']);
+        $t->same([
+            'input-output' => ['.[1-9]', '.[1-9][a-z]+'],
+            'input-only' => [],
+            'output-only' => ['.ms', '.roff'],
+        ], $summary['directionBuckets']);
+        $t->same([
+            'not-applicable' => ['.ms', '.roff'],
+            'unsupported' => ['.[1-9]', '.[1-9][a-z]+'],
+        ], $summary['inputStatusBuckets']);
+        $t->same(['unsupported' => ['.ms', '.roff', '.[1-9]', '.[1-9][a-z]+']], $summary['outputStatusBuckets']);
+        $t->same([
+            'generic-roff-source' => ['.roff'],
+            'manual-section' => ['.[1-9]'],
+            'manual-section-suffix' => ['.[1-9][a-z]+'],
+            'ms-macro-package' => ['.ms'],
+        ], $summary['kindBuckets']);
+        $t->same(['.[1-9]', '.[1-9][a-z]+'], $summary['manualSectionExtensionPatterns']);
+        $t->same(['.ms', '.roff'], $summary['literalExtensionPatterns']);
+        $t->same(['.[1-9]', '.[1-9][a-z]+'], $summary['unsupportedInputExtensions']);
+        $t->same(2, $summary['unsupportedInputExtensionCount']);
+        $t->same(['.ms', '.roff', '.[1-9]', '.[1-9][a-z]+'], $summary['unsupportedOutputExtensions']);
+        $t->same(4, $summary['unsupportedOutputExtensionCount']);
+        $t->same(false, $summary['directParityClaimed']);
+        $t->same('unsupported', $summary['reviewStatus']);
+    },
     'classifies roff manual extension evidence without converter parity' => static function (TestRunner $t): void {
         $metadata = PandocFormatRegistry::roffManualExtensionPatternMetadata();
 

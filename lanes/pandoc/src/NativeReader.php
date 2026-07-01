@@ -1277,20 +1277,31 @@ final class NativeReader
         }
 
         $display = $this->parseInlineList();
-        $sourceText = $this->plainInlineText($display);
+        $displayText = $this->plainInlineText($display);
+        $recordsNative = $this->citationRecordNatives($citations);
+        $displayNative = $this->nativeInlineListPayload($display);
+        $wrapperAttrs = [];
+        if ($recordsNative !== null) {
+            $wrapperAttrs['citationRecordsNative'] = $recordsNative;
+        }
+        if ($recordsNative !== null && $displayNative !== null) {
+            $wrapperAttrs['constructor'] = 'Cite';
+            $wrapperAttrs['native'] = ['t' => 'Cite', 'c' => [$recordsNative, $displayNative]];
+        }
 
         if (count($citations) === 1) {
-            $attrs = $citations[0]->attrs;
-            if ($sourceText !== '') {
-                $attrs['text'] = $sourceText;
+            $citation = $citations[0];
+            $attrs = array_replace($citation->attrs, $wrapperAttrs);
+            if ($displayText !== '') {
+                $attrs['text'] = $displayText;
             }
 
             return new AstNode('citation', $attrs, $display);
         }
 
-        $attrs = [];
-        if ($sourceText !== '') {
-            $attrs['text'] = $sourceText;
+        $attrs = $wrapperAttrs;
+        if ($displayText !== '') {
+            $attrs['text'] = $displayText;
         }
         if ($display !== []) {
             $attrs['citationSourceInlines'] = $display;
@@ -1330,30 +1341,65 @@ final class NativeReader
         $noteNum = (int) ($fields['citationNoteNum'] ?? 1);
         $hash = (int) ($fields['citationHash'] ?? 0);
         $text = $this->citationRecordSourceText($id, $mode, $prefix, $suffix);
+        $prefixNative = $this->nativeInlineListPayload($prefix);
+        $suffixNative = $this->nativeInlineListPayload($suffix);
+        $modeNative = ['t' => $modeConstructor];
+        $recordNative = [
+            'citationId' => $id,
+            'citationPrefix' => $prefixNative ?? [],
+            'citationSuffix' => $suffixNative ?? [],
+            'citationMode' => $modeNative,
+            'citationNoteNum' => $noteNum,
+            'citationHash' => $hash,
+        ];
 
         $attrs = [
             'id' => $id,
             'text' => $text,
             'mode' => $mode,
             'citationModeConstructor' => $modeConstructor,
-            'citationModeNative' => ['t' => $modeConstructor],
+            'citationModeNative' => $modeNative,
             'citationNoteNum' => $noteNum,
             'citationHash' => $hash,
             'noteNum' => $noteNum,
             'hash' => $hash,
+            'citationConstructor' => 'Citation',
+            'citationNative' => $recordNative,
         ];
         if ($prefix !== []) {
             $attrs['prefix'] = $prefix;
-            $attrs['citationPrefixNative'] = $prefix;
+        }
+        if ($prefixNative !== null && ($prefix !== [] || $prefixNative !== [])) {
+            $attrs['citationPrefixNative'] = $prefixNative;
         }
         if ($suffix !== []) {
             $attrs['suffix'] = $suffix;
-            $attrs['citationSuffixNative'] = $suffix;
+        }
+        if ($suffixNative !== null && ($suffix !== [] || $suffixNative !== [])) {
+            $attrs['citationSuffixNative'] = $suffixNative;
         }
 
         return new AstNode('citation', $attrs, [
             new AstNode('text', ['text' => $text]),
         ]);
+    }
+
+    /**
+     * @param list<AstNode> $citations
+     * @return list<array<string, mixed>>|null
+     */
+    private function citationRecordNatives(array $citations): ?array
+    {
+        $records = [];
+        foreach ($citations as $citation) {
+            $native = $citation->attr('citationNative');
+            if (!is_array($native) || array_is_list($native)) {
+                return null;
+            }
+            $records[] = $native;
+        }
+
+        return $records;
     }
 
     /**
@@ -1478,10 +1524,7 @@ final class NativeReader
         $this->expectSymbol(')');
 
         $native = [$id, $classes, $attributePairs];
-        $attrs = [
-            'attrConstructor' => 'Attr',
-            'attrNative' => $native,
-        ];
+        $attrs = [];
         if ($id !== '') {
             $attrs['id'] = $id;
         }
@@ -1490,6 +1533,10 @@ final class NativeReader
         }
         if ($attributes !== []) {
             $attrs['attributes'] = $attributes;
+        }
+        if ($id !== '' || $classes !== [] || $attributePairs !== []) {
+            $attrs['attrConstructor'] = 'Attr';
+            $attrs['attrNative'] = [$id, $classes, $attributePairs];
         }
 
         return [$attrs, $native];

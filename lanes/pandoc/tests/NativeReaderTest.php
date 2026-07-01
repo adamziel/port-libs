@@ -98,6 +98,40 @@ return [
         $t->same($native['blocks'], $roundTrip['blocks']);
         $t->same($native, $roundTrip);
     },
+    'preserves textual native attr tuple sidecars through json writer handoff' => static function (TestRunner $t): void {
+        $native = <<<'NATIVE'
+[ CodeBlock ( "snippet-1" , [ "php" , "review" ] , [ ( "data-source" , "native-text" ) , ( "data-role" , "sample" ) ] ) "echo 1;\n" ]
+NATIVE;
+
+        $nativeDocument = (new NativeReader())->read($native);
+        $codeBlock = $nativeDocument->children[0] ?? new AstNode('missing');
+        $document = new AstNode('document', [
+            'pandocApiVersion' => [1, 23, 1],
+            'meta' => [],
+        ], [$codeBlock]);
+        $attrNative = ['snippet-1', ['php', 'review'], [['data-source', 'native-text'], ['data-role', 'sample']]];
+
+        $t->same('code_block', $codeBlock->type);
+        $t->same('snippet-1', $codeBlock->attr('id'));
+        $t->same(['php', 'review'], $codeBlock->attr('classes'));
+        $t->same(['data-source' => 'native-text', 'data-role' => 'sample'], $codeBlock->attr('attributes'));
+        $t->same('Attr', $codeBlock->attr('attrConstructor'));
+        $t->same($attrNative, $codeBlock->attr('attrNative'));
+
+        $nativePacket = json_decode((new NativeWriter())->write($document), true, 512, JSON_THROW_ON_ERROR);
+        $editedDocument = new AstNode('document', $document->attrs, [
+            new AstNode('code_block', array_replace($codeBlock->attrs, ['id' => 'snippet-2']), $codeBlock->children),
+        ]);
+        $editedPacket = json_decode((new NativeWriter())->write($editedDocument), true, 512, JSON_THROW_ON_ERROR);
+        $blocksOnly = (new NativeWriter(['blocksOnly' => true]))->write($nativeDocument);
+
+        $t->same($attrNative, $nativePacket['blocks'][0]['c'][0]);
+        $t->same("echo 1;\n", $nativePacket['blocks'][0]['c'][1]);
+        $t->same(['snippet-2', ['php', 'review'], [['data-source', 'native-text'], ['data-role', 'sample']]], $editedPacket['blocks'][0]['c'][0]);
+        $t->contains('CodeBlock ( "snippet-1" , [ "php" , "review" ]', $blocksOnly);
+        $t->contains('( "data-source" , "native-text" )', $blocksOnly);
+        $t->contains('( "data-role" , "sample" )', $blocksOnly);
+    },
     'writes shared metadata values as pandoc native meta constructors' => static function (TestRunner $t): void {
         $document = new AstNode('document', [
             'pandocApiVersion' => [1, 23, 1],

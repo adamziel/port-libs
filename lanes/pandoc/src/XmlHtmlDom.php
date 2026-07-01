@@ -30529,12 +30529,15 @@ final class XmlHtmlDom
             'srcset' => $srcset,
             'srcsetCandidates' => self::srcsetCandidateSummaries($srcset),
             'sizes' => self::attributeOrNull($image, 'sizes'),
+            'width' => self::attributeOrNull($image, 'width'),
+            'height' => self::attributeOrNull($image, 'height'),
             'loading' => self::attributeOrNull($image, 'loading'),
             'decoding' => self::attributeOrNull($image, 'decoding'),
             'crossorigin' => self::attributeOrNull($image, 'crossorigin'),
             'referrerpolicy' => self::attributeOrNull($image, 'referrerpolicy'),
             'fetchpriority' => self::attributeOrNull($image, 'fetchpriority'),
         ];
+        $summary += self::imageDimensionReviewSummary($image);
         $summary += self::imageLoadingReviewSummary($image);
         $summary += self::srcsetResourceReviewSummary($srcset, 'srcset');
 
@@ -30550,6 +30553,122 @@ final class XmlHtmlDom
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function imageDimensionReviewSummary(\DOMElement $image): array
+    {
+        $widthRaw = self::attributeOrNull($image, 'width');
+        $width = $widthRaw === null ? null : self::mediaDimensionState($widthRaw);
+        $heightRaw = self::attributeOrNull($image, 'height');
+        $height = $heightRaw === null ? null : self::mediaDimensionState($heightRaw);
+        $issues = [];
+
+        if ($widthRaw !== null && $width === null) {
+            $issues[] = ['code' => 'invalid-image-width', 'value' => $widthRaw];
+        }
+        if ($heightRaw !== null && $height === null) {
+            $issues[] = ['code' => 'invalid-image-height', 'value' => $heightRaw];
+        }
+        if (($widthRaw === null) !== ($heightRaw === null)) {
+            $issues[] = [
+                'code' => 'partial-image-dimensions',
+                'missing' => $widthRaw === null ? 'width' : 'height',
+            ];
+        }
+        if ($width === '0') {
+            $issues[] = ['code' => 'zero-image-width'];
+        }
+        if ($height === '0') {
+            $issues[] = ['code' => 'zero-image-height'];
+        }
+
+        $ratio = self::imageDimensionRatioSummary($width, $height);
+
+        return [
+            'imageDimensionReviewPolicy' => 'html-image-dimension-attribute-review',
+            'imageDimensionReviewOnlyNoFetch' => true,
+            'imageWidthRaw' => $widthRaw,
+            'imageWidth' => $width,
+            'imageWidthValid' => $widthRaw === null ? null : $width !== null,
+            'imageHeightRaw' => $heightRaw,
+            'imageHeight' => $height,
+            'imageHeightValid' => $heightRaw === null ? null : $height !== null,
+            'imageDimensionPairState' => self::imageDimensionPairState($widthRaw, $width, $heightRaw, $height),
+            'imageDimensionAspectRatio' => $ratio['ratio'],
+            'imageDimensionAspectRatioWidth' => $ratio['width'],
+            'imageDimensionAspectRatioHeight' => $ratio['height'],
+            'imageDimensionAspectRatioAvailable' => $ratio['ratio'] !== null,
+            'imageDimensionIssues' => $issues,
+            'imageDimensionIssueCodes' => array_values(array_unique(array_map(
+                static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+                $issues
+            ))),
+            'imageDimensionIssueCount' => count($issues),
+            'imageDimensionValid' => $issues === [],
+        ];
+    }
+
+    private static function imageDimensionPairState(?string $widthRaw, ?string $width, ?string $heightRaw, ?string $height): string
+    {
+        if ($widthRaw === null && $heightRaw === null) {
+            return 'missing';
+        }
+        if ($width === null || $height === null) {
+            return $widthRaw === null || $heightRaw === null ? 'partial' : 'invalid';
+        }
+
+        return 'complete';
+    }
+
+    /**
+     * @return array{ratio:?string, width:?int, height:?int}
+     */
+    private static function imageDimensionRatioSummary(?string $width, ?string $height): array
+    {
+        $widthValue = $width === null ? null : self::boundedPositiveIntegerString($width);
+        $heightValue = $height === null ? null : self::boundedPositiveIntegerString($height);
+        if ($widthValue === null || $heightValue === null) {
+            return ['ratio' => null, 'width' => null, 'height' => null];
+        }
+
+        $divisor = self::greatestCommonDivisor($widthValue, $heightValue);
+        $ratioWidth = intdiv($widthValue, $divisor);
+        $ratioHeight = intdiv($heightValue, $divisor);
+
+        return [
+            'ratio' => $ratioWidth . ':' . $ratioHeight,
+            'width' => $ratioWidth,
+            'height' => $ratioHeight,
+        ];
+    }
+
+    private static function boundedPositiveIntegerString(string $value): ?int
+    {
+        if ($value === '' || $value === '0' || preg_match('/^[0-9]+$/', $value) !== 1) {
+            return null;
+        }
+
+        $max = (string) PHP_INT_MAX;
+        $normalized = ltrim($value, '0');
+        if (strlen($normalized) > strlen($max) || (strlen($normalized) === strlen($max) && strcmp($normalized, $max) > 0)) {
+            return null;
+        }
+
+        return (int) $normalized;
+    }
+
+    private static function greatestCommonDivisor(int $left, int $right): int
+    {
+        while ($right !== 0) {
+            $remainder = $left % $right;
+            $left = $right;
+            $right = $remainder;
+        }
+
+        return max(1, $left);
     }
 
     /**
