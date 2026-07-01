@@ -16561,6 +16561,7 @@ final class DocxOpenXmlReader
             static fn (string $baseNameStem): bool => ($relationshipTargetBaseNameStemCounts[$baseNameStem] ?? 0) > 1,
         ));
         $duplicateRelationshipTargetParts = $this->duplicateRelationshipTargetPartSummary($relationshipParts);
+        $relationshipTargetCaseFoldParts = $this->relationshipTargetCaseFoldPartSummary($relationshipTargets);
         ksort($relationshipTargetPathDepthCounts, SORT_NUMERIC);
         ksort($relationshipTargetPathDepths, SORT_NUMERIC);
         foreach ($relationshipTargetPathDepths as &$targetPathDepthSummary) {
@@ -17093,6 +17094,12 @@ final class DocxOpenXmlReader
             'duplicateRelationshipTargetPartRelationshipCount' => $duplicateRelationshipTargetParts['relationshipCount'],
             'duplicateRelationshipTargetParts' => $duplicateRelationshipTargetParts['targetParts'],
             'duplicateRelationshipTargetPartGroups' => $duplicateRelationshipTargetParts['groups'],
+            'relationshipTargetCaseFoldPartCount' => $relationshipTargetCaseFoldParts['caseFoldPartCount'],
+            'duplicateRelationshipTargetCaseFoldPartCount' => $relationshipTargetCaseFoldParts['duplicateGroupCount'],
+            'duplicateRelationshipTargetCaseFoldPartRelationshipCount' => $relationshipTargetCaseFoldParts['duplicateRelationshipCount'],
+            'duplicateRelationshipTargetCaseFoldPartTargetCount' => $relationshipTargetCaseFoldParts['duplicateTargetPartCount'],
+            'duplicateRelationshipTargetCaseFoldParts' => $relationshipTargetCaseFoldParts['duplicateCaseFoldParts'],
+            'duplicateRelationshipTargetCaseFoldPartGroups' => $relationshipTargetCaseFoldParts['duplicateGroups'],
             'relationshipTargetBaseNameStems' => array_values($relationshipTargetBaseNameStems),
             'relationshipTargetPathDepthCount' => count($relationshipTargetPathDepths),
             'relationshipTargetPathDepthCounts' => $relationshipTargetPathDepthCounts,
@@ -17429,6 +17436,194 @@ final class DocxOpenXmlReader
             'relationshipCount' => $relationshipCount,
             'targetParts' => array_keys($duplicates),
             'groups' => array_values($duplicates),
+        ];
+    }
+
+    /**
+     * @param list<array<string, mixed>> $relationshipTargets
+     * @return array{caseFoldPartCount:int, duplicateGroupCount:int, duplicateRelationshipCount:int, duplicateTargetPartCount:int, duplicateCaseFoldParts:list<string>, duplicateGroups:list<array<string, mixed>>}
+     */
+    private function relationshipTargetCaseFoldPartSummary(array $relationshipTargets): array
+    {
+        $groups = [];
+        foreach ($relationshipTargets as $target) {
+            $targetPart = is_string($target['targetPart'] ?? null) ? $target['targetPart'] : '';
+            if ($targetPart === '') {
+                continue;
+            }
+
+            $caseFoldTargetPart = $this->packagePartCaseFoldKey($targetPart);
+            if (!isset($groups[$caseFoldTargetPart])) {
+                $groups[$caseFoldTargetPart] = [
+                    'caseFoldTargetPart' => $caseFoldTargetPart,
+                    'relationshipCount' => 0,
+                    'targetPartVariantCount' => 0,
+                    'existingTargetCount' => 0,
+                    'missingTargetCount' => 0,
+                    'existingTargetPartByteLength' => 0,
+                    'targetPartCounts' => [],
+                    'contentTypeBaseCounts' => [],
+                    'contentTypeSourceCounts' => [],
+                    'relationshipTypeCounts' => [],
+                    'targetRoleCounts' => [],
+                    'sourceParts' => [],
+                    'relationshipParts' => [],
+                    'relationshipIds' => [],
+                    'relationshipTypes' => [],
+                    'contentTypes' => [],
+                    'targetParts' => [],
+                    'existingTargetParts' => [],
+                    'missingTargetParts' => [],
+                    'largestExistingTargetPart' => null,
+                    '_seenExistingTargetParts' => [],
+                ];
+            }
+
+            ++$groups[$caseFoldTargetPart]['relationshipCount'];
+            $groups[$caseFoldTargetPart]['targetPartCounts'][$targetPart] =
+                ($groups[$caseFoldTargetPart]['targetPartCounts'][$targetPart] ?? 0) + 1;
+            $this->appendUniqueString($groups[$caseFoldTargetPart]['targetParts'], $targetPart);
+
+            $targetExists = ($target['targetExists'] ?? false) === true;
+            if ($targetExists) {
+                ++$groups[$caseFoldTargetPart]['existingTargetCount'];
+                $this->appendUniqueString($groups[$caseFoldTargetPart]['existingTargetParts'], $targetPart);
+            } else {
+                ++$groups[$caseFoldTargetPart]['missingTargetCount'];
+                $this->appendUniqueString($groups[$caseFoldTargetPart]['missingTargetParts'], $targetPart);
+            }
+
+            $targetContentTypeBase = is_string($target['targetContentTypeBase'] ?? null)
+                ? $target['targetContentTypeBase']
+                : '';
+            $targetContentTypeBaseKey = $targetContentTypeBase === '' ? '(missing)' : $targetContentTypeBase;
+            $groups[$caseFoldTargetPart]['contentTypeBaseCounts'][$targetContentTypeBaseKey] =
+                ($groups[$caseFoldTargetPart]['contentTypeBaseCounts'][$targetContentTypeBaseKey] ?? 0) + 1;
+
+            $targetContentTypeSource = is_string($target['targetContentTypeSource'] ?? null)
+                ? $target['targetContentTypeSource']
+                : 'missing';
+            if ($targetContentTypeSource === '') {
+                $targetContentTypeSource = 'missing';
+            }
+            $groups[$caseFoldTargetPart]['contentTypeSourceCounts'][$targetContentTypeSource] =
+                ($groups[$caseFoldTargetPart]['contentTypeSourceCounts'][$targetContentTypeSource] ?? 0) + 1;
+
+            $relationshipType = is_string($target['relationshipType'] ?? null) ? $target['relationshipType'] : '';
+            $relationshipTypeKey = is_string($target['relationshipTypeKey'] ?? null)
+                ? $target['relationshipTypeKey']
+                : ($relationshipType === '' ? '(missing-type)' : $relationshipType);
+            $groups[$caseFoldTargetPart]['relationshipTypeCounts'][$relationshipTypeKey] =
+                ($groups[$caseFoldTargetPart]['relationshipTypeCounts'][$relationshipTypeKey] ?? 0) + 1;
+
+            $targetRoles = is_array($target['targetRoles'] ?? null)
+                ? array_values(array_filter(
+                    array_map('strval', $target['targetRoles']),
+                    static fn (string $role): bool => $role !== '',
+                ))
+                : [];
+            foreach ($targetRoles as $targetRole) {
+                $groups[$caseFoldTargetPart]['targetRoleCounts'][$targetRole] =
+                    ($groups[$caseFoldTargetPart]['targetRoleCounts'][$targetRole] ?? 0) + 1;
+            }
+
+            $targetContentType = is_string($target['targetContentType'] ?? null) ? $target['targetContentType'] : '';
+            $this->appendUniqueString(
+                $groups[$caseFoldTargetPart]['sourceParts'],
+                is_string($target['sourcePart'] ?? null) ? $target['sourcePart'] : null,
+            );
+            $this->appendUniqueString(
+                $groups[$caseFoldTargetPart]['relationshipParts'],
+                is_string($target['relationshipsPart'] ?? null) ? $target['relationshipsPart'] : null,
+            );
+            $this->appendUniqueString(
+                $groups[$caseFoldTargetPart]['relationshipIds'],
+                is_string($target['relationshipId'] ?? null) ? $target['relationshipId'] : null,
+            );
+            $this->appendUniqueString($groups[$caseFoldTargetPart]['relationshipTypes'], $relationshipType);
+            $this->appendUniqueString($groups[$caseFoldTargetPart]['contentTypes'], $targetContentType);
+
+            if (
+                $targetExists
+                && is_int($target['targetBytes'] ?? null)
+                && !isset($groups[$caseFoldTargetPart]['_seenExistingTargetParts'][$targetPart])
+            ) {
+                $groups[$caseFoldTargetPart]['_seenExistingTargetParts'][$targetPart] = true;
+                $targetBytes = (int) $target['targetBytes'];
+                $targetSummary = [
+                    'targetPart' => $targetPart,
+                    'targetDirectory' => is_string($target['targetDirectory'] ?? null)
+                        ? $target['targetDirectory']
+                        : $this->packagePartDirectory($targetPart),
+                    'targetBaseName' => is_string($target['targetBaseName'] ?? null)
+                        ? $target['targetBaseName']
+                        : $this->packagePartBaseName($targetPart),
+                    'targetPathDepth' => is_int($target['targetPathDepth'] ?? null)
+                        ? (int) $target['targetPathDepth']
+                        : count($this->packagePartPathSegments($targetPart)),
+                    'targetPartExtension' => is_string($target['targetPartExtension'] ?? null)
+                        ? $target['targetPartExtension']
+                        : $this->packagePartExtension($targetPart),
+                    'targetBytes' => $targetBytes,
+                    'targetCrc32' => is_string($target['targetCrc32'] ?? null) ? $target['targetCrc32'] : null,
+                    'targetSha256' => is_string($target['targetSha256'] ?? null) ? $target['targetSha256'] : null,
+                    'targetContentType' => $targetContentType,
+                    'targetContentTypeBase' => $targetContentTypeBase,
+                    'targetContentTypeSource' => $targetContentTypeSource,
+                    'targetRoles' => $targetRoles,
+                ];
+                $groups[$caseFoldTargetPart]['existingTargetPartByteLength'] += $targetBytes;
+                $largestTargetPart = $groups[$caseFoldTargetPart]['largestExistingTargetPart'];
+                if (
+                    !is_array($largestTargetPart)
+                    || $targetBytes > (int) ($largestTargetPart['targetBytes'] ?? 0)
+                    || (
+                        $targetBytes === (int) ($largestTargetPart['targetBytes'] ?? 0)
+                        && strcmp($targetPart, (string) ($largestTargetPart['targetPart'] ?? '')) < 0
+                    )
+                ) {
+                    $groups[$caseFoldTargetPart]['largestExistingTargetPart'] = $targetSummary;
+                }
+            }
+        }
+
+        ksort($groups, SORT_STRING);
+        $duplicates = [];
+        $duplicateRelationshipCount = 0;
+        $duplicateTargetPartCount = 0;
+        foreach ($groups as $caseFoldTargetPart => $group) {
+            ksort($group['targetPartCounts'], SORT_STRING);
+            ksort($group['contentTypeBaseCounts'], SORT_STRING);
+            ksort($group['contentTypeSourceCounts'], SORT_STRING);
+            ksort($group['relationshipTypeCounts'], SORT_STRING);
+            ksort($group['targetRoleCounts'], SORT_STRING);
+            sort($group['sourceParts'], SORT_STRING);
+            sort($group['relationshipParts'], SORT_STRING);
+            sort($group['relationshipIds'], SORT_STRING);
+            sort($group['relationshipTypes'], SORT_STRING);
+            sort($group['contentTypes'], SORT_STRING);
+            sort($group['targetParts'], SORT_STRING);
+            sort($group['existingTargetParts'], SORT_STRING);
+            sort($group['missingTargetParts'], SORT_STRING);
+            $group['targetPartVariantCount'] = count($group['targetPartCounts']);
+            unset($group['_seenExistingTargetParts']);
+
+            if ($group['targetPartVariantCount'] < 2) {
+                continue;
+            }
+
+            $duplicates[$caseFoldTargetPart] = $group;
+            $duplicateRelationshipCount += (int) $group['relationshipCount'];
+            $duplicateTargetPartCount += (int) $group['targetPartVariantCount'];
+        }
+
+        return [
+            'caseFoldPartCount' => count($groups),
+            'duplicateGroupCount' => count($duplicates),
+            'duplicateRelationshipCount' => $duplicateRelationshipCount,
+            'duplicateTargetPartCount' => $duplicateTargetPartCount,
+            'duplicateCaseFoldParts' => array_keys($duplicates),
+            'duplicateGroups' => array_values($duplicates),
         ];
     }
 
