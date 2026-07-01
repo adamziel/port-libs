@@ -159,6 +159,37 @@
                 }
             }
         },
+        "haskellInventory": {
+            "reportPath": "lanes/pandoc/UPSTREAM_DOCX_HASKELL_INVENTORY.json",
+            "tool": "manual-docx-haskell-inventory-map",
+            "schemaVersion": 1,
+            "status": "checked-docx-haskell-inventory-denominator-gates",
+            "evidenceKind": "static-upstream-haskell-docx-inventory-to-local-gate-map",
+            "upstreamCommit": "612e143fbe6d735b612c4800d21e61b7d44e4dca",
+            "reader": {
+                "sourceFile": "test/Tests/Readers/Docx.hs",
+                "entryPoint": "Tests.Readers.Docx.tests",
+                "totalStaticCases": 103,
+                "localParserAcceptanceGateCases": 74,
+                "strictDefaultSameStemCasesCoveredByLocal74Gate": 67,
+                "casesNotCoveredByLocal74GateSemantics": 36,
+                "notCoveredCaseCount": 36,
+                "gateStatus": "requires-36-reader-uncovered-cases-preserved"
+            },
+            "writer": {
+                "sourceFile": "test/Tests/Writers/Docx.hs",
+                "entryPoint": "Tests.Writers.Docx.tests",
+                "totalStaticCases": 45,
+                "writerGoldenDocxTestCases": 38,
+                "directHunitTestCases": 7,
+                "writerGoldenCasesGeneratedAndComparedByLocal38Gate": 38,
+                "writerGoldenCasesMatchingStableSemantics": 38,
+                "casesNotCoveredByLocal38Gate": 7,
+                "notCoveredCaseCount": 7,
+                "gateStatus": "requires-7-direct-hunit-uncovered-cases-preserved"
+            },
+            "claim": "Status metadata mirrors the checked Haskell inventory denominator gates; dropping 36 reader uncovered cases and 7 writer direct HUnit uncovered cases must fail focused status tests before coverage can be overclaimed."
+        },
         "defensibleClaim": "bounded DOCX/OpenXML package provenance, selected upstream Native fixture slices, and three current-upstream DOCX drift fixtures",
         "optionalUpstreamCacheManifest": {
             "reportPath": "lanes/pandoc/UPSTREAM_DOCX_CACHE_MANIFEST.json",
@@ -398,7 +429,7 @@
         },
         "focusedCiEvidenceWiring": {
             "schemaVersion": 1,
-            "status": "focused-ci-evidence-wired-generated-writer-golden-38-of-38-gated",
+            "status": "focused-ci-evidence-wired-generated-writer-golden-38-of-38-and-haskell-inventory-gated",
             "workflow": ".github/workflows/pandoc-docx.yml",
             "updatedAt": "2026-06-30",
             "commands": {
@@ -406,6 +437,7 @@
                 "resultArtifactGate": "php tools/pandoc-docx-upstream-runner-plan.php --json --validate-result-artifacts --artifact-root .port-libs/pandoc-runner/artifacts/docx-targeted-run --log-root .port-libs/pandoc-runner/logs",
                 "parserRegressionGuard": "php tools/pandoc-docx-parity-audit.php --json --fail-on-regression",
                 "cacheManifest": "php tools/pandoc-docx-cache-manifest.php --json",
+                "haskellInventoryStatusTest": "php tools/run-tests.php lanes/pandoc/tests/DocxUpstreamHaskellInventoryTest.php",
                 "writerCoreTest": "php tools/run-tests.php lanes/pandoc/tests/DocxWriterTest.php",
                 "writerGoldenAudit": "php tools/pandoc-docx-writer-golden-audit.php --json --generate-supported-dir .port-libs/pandoc-docx-writer-golden/generated --require-generated-stable-matches 38"
             },
@@ -429,7 +461,7 @@
                 "recordedWriterGoldenMatchedPackageCount": 38,
                 "recordedWriterGoldenMismatchedPackageCount": 0
             },
-            "claim": "Focused CI/status wiring only; CI now lints DocxWriter.php, runs DocxWriterTest.php, and invokes the optional writer-golden audit with --generate-supported-dir and --require-generated-stable-matches 38 when the upstream cache is hydrated. The checked-in generated comparison evidence is guarded as 38 generated / 38 compared / 38 matched / 0 mismatched stable package semantics; this is not an upstream Haskell/Cabal/Tasty runner result.",
+            "claim": "Focused CI/status wiring only; CI now lints DocxWriter.php, runs DocxUpstreamHaskellInventoryTest.php and DocxWriterTest.php, and invokes the optional writer-golden audit with --generate-supported-dir and --require-generated-stable-matches 38 when the upstream cache is hydrated. The checked-in Haskell inventory keeps 36 reader uncovered cases and 7 writer direct HUnit uncovered cases explicit; the checked-in generated comparison evidence is guarded as 38 generated / 38 compared / 38 matched / 0 mismatched stable package semantics. This is not an upstream Haskell/Cabal/Tasty runner result.",
             "ciHydratedWriterGoldenGateStatus": "requires-38-generated-stable-matches"
         }
     },
