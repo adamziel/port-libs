@@ -18605,11 +18605,57 @@ final class XmlHtmlDom
                 $summary['textDirectionImplicitDefault'] = true;
             } else {
                 $direction = strtolower(trim($element->getAttribute('dir')));
-                $summary['textDirection'] = in_array($direction, ['auto', 'ltr', 'rtl'], true) ? $direction : null;
+                $directions = $name === 'bdo' ? ['ltr', 'rtl'] : ['auto', 'ltr', 'rtl'];
+                $summary['textDirection'] = in_array($direction, $directions, true) ? $direction : null;
             }
+            $summary += self::bidiTextReviewSummary($element, $name);
         }
 
         return $summary;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function bidiTextReviewSummary(\DOMElement $element, string $name): array
+    {
+        $raw = self::attributeOrNull($element, 'dir');
+        $normalized = $raw === null ? null : strtolower(trim($raw));
+        $allowed = $name === 'bdo' ? ['ltr', 'rtl'] : ['auto', 'ltr', 'rtl'];
+        $direction = $normalized !== null && in_array($normalized, $allowed, true) ? $normalized : null;
+        $source = $raw === null ? 'missing' : 'dir-attribute';
+        $issues = [];
+
+        if ($name === 'bdi' && $raw === null) {
+            $direction = 'auto';
+            $source = 'implicit-bdi-auto';
+        } elseif ($name === 'bdo' && $raw === null) {
+            $issues[] = ['code' => 'missing-bdo-dir'];
+        } elseif ($raw !== null && $direction === null) {
+            $issues[] = [
+                'code' => $name === 'bdo' ? 'invalid-bdo-dir' : 'invalid-bidi-dir',
+                'dirRaw' => $raw,
+            ];
+        }
+
+        return [
+            'bidiTextReviewPolicy' => 'html-bidi-text-direction-review',
+            'bidiElement' => $name,
+            'bidiMode' => $name === 'bdo' ? 'override' : 'isolate',
+            'bidiText' => self::normalizedText($element),
+            'bidiDirectionRaw' => $raw,
+            'bidiDirection' => $direction,
+            'bidiDirectionSource' => $source,
+            'bidiDirectionDefaulted' => $name === 'bdi' && $raw === null,
+            'bidiDirectionValid' => $issues === [],
+            'bidiAllowedDirections' => $allowed,
+            'bidiIssueCodes' => array_map(
+                static fn (array $issue): string => (string) $issue['code'],
+                $issues
+            ),
+            'bidiIssueCount' => count($issues),
+            'bidiIssues' => $issues,
+        ];
     }
 
     /**
