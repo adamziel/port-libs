@@ -12696,6 +12696,90 @@ final class ZipPackage
     }
 
     /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function packageManifestDirectoryDepthSummaries(array $entries): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            $name = is_string($entry['name'] ?? null) ? $entry['name'] : '';
+            if ($name === '') {
+                continue;
+            }
+
+            $directoryDepth = is_int($entry['directoryDepth'] ?? null)
+                ? $entry['directoryDepth']
+                : max(0, self::entryHandoffPathDepth($name) - 1);
+            if (!isset($summaries[$directoryDepth])) {
+                $summaries[$directoryDepth] = [
+                    'directoryDepth' => $directoryDepth,
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'localRecordBytes' => 0,
+                    'sourceRecordBytes' => 0,
+                    'dataDescriptorEntryCount' => 0,
+                    'dataDescriptorBytes' => 0,
+                    'directoryRootCounts' => [],
+                    'packagePartExtensionKeyCounts' => [],
+                    'entryNames' => [],
+                ];
+            }
+
+            ++$summaries[$directoryDepth]['entryCount'];
+            if (($entry['isDirectory'] ?? false) === true) {
+                ++$summaries[$directoryDepth]['directoryEntryCount'];
+            } else {
+                ++$summaries[$directoryDepth]['fileEntryCount'];
+            }
+
+            $summaries[$directoryDepth]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$directoryDepth]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            $summaries[$directoryDepth]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+            $summaries[$directoryDepth]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            $dataDescriptorBytes = (int) ($entry['dataDescriptorBytes'] ?? 0);
+            if ($dataDescriptorBytes > 0) {
+                ++$summaries[$directoryDepth]['dataDescriptorEntryCount'];
+                $summaries[$directoryDepth]['dataDescriptorBytes'] += $dataDescriptorBytes;
+            }
+
+            $directoryRoot = is_string($entry['directoryRoot'] ?? null) && $entry['directoryRoot'] !== ''
+                ? $entry['directoryRoot']
+                : self::entryHandoffDirectoryRoot($name);
+            $extensionKey = is_string($entry['packagePartExtensionKey'] ?? null) && $entry['packagePartExtensionKey'] !== ''
+                ? $entry['packagePartExtensionKey']
+                : (
+                    (($entry['isDirectory'] ?? false) === true)
+                        ? '(directory)'
+                        : (
+                            is_string($entry['entryExtensionKey'] ?? null) && $entry['entryExtensionKey'] !== ''
+                                ? $entry['entryExtensionKey']
+                                : '(none)'
+                        )
+                );
+            $summaries[$directoryDepth]['directoryRootCounts'][$directoryRoot] =
+                ($summaries[$directoryDepth]['directoryRootCounts'][$directoryRoot] ?? 0) + 1;
+            $summaries[$directoryDepth]['packagePartExtensionKeyCounts'][$extensionKey] =
+                ($summaries[$directoryDepth]['packagePartExtensionKeyCounts'][$extensionKey] ?? 0) + 1;
+            $summaries[$directoryDepth]['entryNames'][] = $name;
+        }
+
+        foreach ($summaries as &$summary) {
+            ksort($summary['directoryRootCounts'], SORT_STRING);
+            ksort($summary['packagePartExtensionKeyCounts'], SORT_STRING);
+            sort($summary['entryNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        ksort($summaries, SORT_NUMERIC);
+
+        return array_values($summaries);
+    }
+
+    /**
      * @param list<array<string, mixed>> $pathDepthSummaries
      */
     private static function entryHandoffMaxPathDepth(array $pathDepthSummaries): int
@@ -19823,6 +19907,7 @@ final class ZipPackage
                 self::appendUniqueIssue($sourceByteSpanIssues, $issue);
             }
             $entryExtension = self::entryHandoffExtension($entry->name, $isDirectory);
+            $pathDepth = self::entryHandoffPathDepth($entry->name);
             $summary = [
                 'name' => $entry->name,
                 'isDirectory' => $isDirectory,
@@ -19838,7 +19923,8 @@ final class ZipPackage
                 'caseFoldName' => self::caseFoldZipEntryName($entry->name),
                 'caseFoldLeafName' => self::entryHandoffCaseFoldLeafName($entry->name),
                 'pathSegments' => self::entryHandoffPathSegments($entry->name),
-                'pathDepth' => self::entryHandoffPathDepth($entry->name),
+                'pathDepth' => $pathDepth,
+                'directoryDepth' => max(0, $pathDepth - 1),
                 'pathPrefixes' => self::entryHandoffPathPrefixes($entry->name),
                 'packagePartKind' => self::entryHandoffPackagePartKind($entry->name, $isDirectory),
                 'compressionMethod' => $entry->compressionMethod,
@@ -19892,6 +19978,14 @@ final class ZipPackage
             $pathSegmentOccurrenceCount += (int) $summary['occurrenceCount'];
         }
         $pathDepthSummaries = self::entryHandoffPathDepthSummaries($entries);
+        $directoryDepthSummaries = self::packageManifestDirectoryDepthSummaries($entries);
+        $directoryDepths = [];
+        $directoryDepthEntryCounts = [];
+        foreach ($directoryDepthSummaries as $summary) {
+            $directoryDepth = (int) $summary['directoryDepth'];
+            $directoryDepths[] = $directoryDepth;
+            $directoryDepthEntryCounts[$directoryDepth] = (int) $summary['entryCount'];
+        }
         $pathPrefixSummaries = self::entryHandoffPathPrefixSummaries($entries);
         $leafNameSummaries = self::entryHandoffLeafNameSummaries($entries);
         $sharedLeafNameSummaries = self::entryHandoffSharedLeafNameSummaries($leafNameSummaries);
@@ -19946,6 +20040,9 @@ final class ZipPackage
             'pathSegmentEntryCounts' => $pathSegmentEntryCounts,
             'pathDepthBucketCount' => count($pathDepthSummaries),
             'maxPathDepth' => self::entryHandoffMaxPathDepth($pathDepthSummaries),
+            'directoryDepthSummaryCount' => count($directoryDepthSummaries),
+            'directoryDepths' => $directoryDepths,
+            'directoryDepthEntryCounts' => $directoryDepthEntryCounts,
             'pathPrefixCount' => count($pathPrefixSummaries),
             'unknownExpansionRatioEntryCount' => $unknownExpansionRatioEntryCount,
             'hasUnknownExpansionRatioEntries' => $unknownExpansionRatioEntryCount > 0,
@@ -19978,6 +20075,7 @@ final class ZipPackage
             'entryExtensionSummaries' => $entryExtensionSummaries,
             'pathSegmentSummaries' => $pathSegmentSummaries,
             'pathDepthSummaries' => $pathDepthSummaries,
+            'directoryDepthSummaries' => $directoryDepthSummaries,
             'pathPrefixSummaries' => $pathPrefixSummaries,
             'expansionRatioBucketSummaries' => $expansionRatioBucketSummaries,
             'leafNameSummaries' => $leafNameSummaries,
