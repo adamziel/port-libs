@@ -122,10 +122,12 @@ final class PdfEngineHandoff
      *     engineFamily: string,
      *     intermediateFormat: string,
      *     sourceFile: string,
+     *     sourceInput: array<string, mixed>,
      *     outputFile: string,
      *     argv: list<string>,
      *     engineOptions: list<string>,
      *     engineEnvironment: array<string, string>,
+     *     typstOutputFormatPolicy: array<string, mixed>,
      *     sourceBytes: string|null,
      *     sourceSha256: string|null,
      *     templateFile: string|null,
@@ -141,9 +143,13 @@ final class PdfEngineHandoff
      *     engineLogFile: string|null,
      *     engineArtifactStem: string,
      *     engineDependencyFile: string|null,
+     *     engineBoundaryRoot: string|null,
      *     expectedEngineArtifacts: list<string>,
      *     typstImportPathPolicy: array<string, mixed>,
      *     typstBoundaryProvenance: array<string, mixed>,
+     *     typstBoundarySummary: array<string, mixed>,
+     *     typstBoundaryMatrix: array<string, mixed>,
+     *     handoffInputProvenance: array<string, mixed>,
      *     metadata: array<string, mixed>,
      *     diagnostics: list<string>
      * }
@@ -176,6 +182,7 @@ final class PdfEngineHandoff
         $sourceBytes = array_key_exists('source', $options)
             ? $this->requireString($options['source'], 'PDF intermediate source')
             : $this->renderIntermediateSource($document, $profile['intermediate']);
+        $sourceSha256 = is_string($sourceBytes) ? hash('sha256', $sourceBytes) : null;
         $templateFile = array_key_exists('templatePath', $options)
             ? $this->normalizeRelativePath($this->requireString($options['templatePath'], 'PDF template path'), 'PDF template path')
             : null;
@@ -222,6 +229,28 @@ final class PdfEngineHandoff
             $expectedEngineArtifacts[] = $sourceMapFile;
         }
         $engineLogFile = $this->firstEngineLogFile($expectedEngineArtifacts);
+        $handoffInputProvenance = $this->handoffInputProvenanceFor(
+            $engine,
+            $profile['family'],
+            $profile['intermediate'],
+            $sourceFile,
+            $sourceInput,
+            is_string($sourceBytes) ? strlen($sourceBytes) : null,
+            $sourceSha256,
+            $templateFile,
+            $includeInHeaderFiles,
+            $resourcePaths,
+            $resourceInventory,
+            $templateVariables,
+            $writerArguments,
+            $sourceArtifacts,
+            $expectedEngineArtifacts,
+            $engineDependencyFile,
+            $engineBoundaryRoot,
+            $typstBoundarySummary,
+            $typstBoundaryMatrix,
+            $typstOutputFormatPolicy
+        );
 
         $diagnostics = ['pdf-engine-not-executed'];
         if ($sourceBytes === null) {
@@ -259,6 +288,7 @@ final class PdfEngineHandoff
         if ($variables !== []) {
             $diagnostics[] = 'pdf-template-variables:' . count($this->flattenVariableArguments($variables));
         }
+        $diagnostics[] = 'pdf-handoff-input-provenance:' . $handoffInputProvenance['reviewStatus'];
         if ($typstOutputFormatPolicy !== []) {
             $diagnostics[] = 'typst-output-format-policy:' . $typstOutputFormatPolicy['reviewStatus'];
             if ($typstOutputFormatPolicy['explicitFormat'] !== null) {
@@ -653,7 +683,7 @@ final class PdfEngineHandoff
             'engineEnvironment' => $engineEnvironment,
             'typstOutputFormatPolicy' => $typstOutputFormatPolicy,
             'sourceBytes' => $sourceBytes,
-            'sourceSha256' => $sourceBytes === null ? null : hash('sha256', $sourceBytes),
+            'sourceSha256' => $sourceSha256,
             'templateFile' => $templateFile,
             'includeInHeaderFiles' => $includeInHeaderFiles,
             'resourcePaths' => $resourcePaths,
@@ -673,6 +703,7 @@ final class PdfEngineHandoff
             'typstBoundaryProvenance' => $typstBoundaryProvenance,
             'typstBoundarySummary' => $typstBoundarySummary,
             'typstBoundaryMatrix' => $typstBoundaryMatrix,
+            'handoffInputProvenance' => $handoffInputProvenance,
             'metadata' => $metadata,
             'diagnostics' => $diagnostics,
         ];
@@ -692,6 +723,8 @@ final class PdfEngineHandoff
      *     exitCode: int,
      *     bytes: int,
      *     sourceSha256: string|null,
+     *     sourceInput: array<string, mixed>,
+     *     handoffInputProvenance: array<string, mixed>,
      *     sourceArtifactsSha256: array<string, string>,
      *     resourceArtifactsSha256: array<string, string>,
      *     missingResourceFiles: list<string>,
@@ -734,7 +767,7 @@ final class PdfEngineHandoff
      *     bibliographyErrors: list<string>,
      *     bibliographyNeeded: bool,
      *     rerunNeeded: bool,
-     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstPackageDependencyPolicy:array<string, mixed>, typstImportPathPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, typstDependencyEdgePackageProvenance:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>, packageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>}>, issues:list<string>},
+     *     artifactProvenanceReview: array{reviewStatus:string, engine:string, sourceFile:string, outputFile:string, engineArtifactStem:string, engineBoundaryRoot:string|null, engineBoundaryViolations:list<string>, sourceInput:array<string, mixed>, handoffInputProvenance:array<string, mixed>, sourceSha256:string|null, pdfSha256:string|null, expectedEngineArtifacts:list<string>, missingExpectedEngineArtifacts:list<string>, producedEngineArtifactsSha256:array<string, string>, engineLogFiles:list<string>, engineWarnings:list<string>, typstWarningProvenance:list<array<string, mixed>>, engineErrors:list<string>, bibliographyLogFiles:list<string>, bibliographyWarnings:list<string>, bibliographyErrors:list<string>, bibliographyNeeded:bool, rerunNeeded:bool, typstDependencyOutputPolicy:array{reviewStatus:string, declaredOutputFile:string, dependencyOutputFiles:list<string>, declaredOutputPresent:bool, extraOutputFiles:list<string>, issues:list<string>}|array{}, typstExternalDependencyPolicy:array<string, mixed>, typstPackageDependencyPolicy:array<string, mixed>, typstImportPathPolicy:array<string, mixed>, typstBoundaryProvenance:array<string, mixed>, typstReadBoundaryPolicy:array{reviewStatus:string, root:string, sourceFile:string, inputFiles:list<string>, insideRootFiles:list<string>, outsideRootFiles:list<string>, issues:list<string>}|array{}, typstPackageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>, engineDependencyEdges:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>}>, typstDependencyEdgePackageProvenance:list<array{artifact:string, outputFiles:list<string>, inputFiles:list<string>, externalInputFiles:list<string>, packageDependencies:list<array{input:string, reference:string, namespace:string, package:string, version:string, subpath:string|null, sourceClass:string}>}>, issues:list<string>},
      *     declaredOutputFile: string|null,
      *     declaredOutputPages: int|null,
      *     declaredOutputBytes: int|null,
@@ -942,6 +975,7 @@ final class PdfEngineHandoff
         $this->appendTypstImportPathPolicyDiagnostics($diagnostics, $typstImportPathPolicy);
         $sourceSha256 = null;
         $sourceArtifactsSha256 = [];
+        $missingSourceArtifacts = [];
         $resourceArtifactsSha256 = [];
         $missingResourceFiles = [];
         $producedArtifactsSha256 = [];
@@ -989,6 +1023,7 @@ final class PdfEngineHandoff
 
         foreach ($this->normalizePlanStringList($plan['sourceArtifacts'] ?? [], 'PDF source artifact') as $artifactPath) {
             if (!array_key_exists($artifactPath, $files)) {
+                $missingSourceArtifacts[] = $artifactPath;
                 if ($reason === null) {
                     $status = 'failed';
                     $reason = 'missing-source-artifact';
@@ -5041,6 +5076,14 @@ final class PdfEngineHandoff
 
         $missingExpectedEngineArtifacts = array_values(array_diff($expectedEngineArtifacts, array_keys($producedArtifactsSha256)));
         sort($missingExpectedEngineArtifacts);
+        $handoffInputProvenance = $this->runtimeHandoffInputProvenanceFor(
+            is_array($plan['handoffInputProvenance'] ?? null) ? $plan['handoffInputProvenance'] : [],
+            $sourceSha256,
+            $sourceArtifactsSha256,
+            $missingSourceArtifacts,
+            $resourceArtifactsSha256,
+            $missingResourceFiles
+        );
         $artifactProvenanceIssues = [];
         if ($missingProgram['missing']) {
             $artifactProvenanceIssues[] = 'engine-program-missing:' . $missingProgram['program'];
@@ -5123,6 +5166,7 @@ final class PdfEngineHandoff
             'engineBoundaryRoot' => $engineBoundaryRoot,
             'engineBoundaryViolations' => $engineBoundaryViolations,
             'sourceInput' => $sourceInput,
+            'handoffInputProvenance' => $handoffInputProvenance,
             'sourceSha256' => $sourceSha256,
             'pdfSha256' => is_string($pdfBytes) ? hash('sha256', $pdfBytes) : null,
             'expectedEngineArtifacts' => $expectedEngineArtifacts,
@@ -5165,6 +5209,7 @@ final class PdfEngineHandoff
             'bytes' => is_string($pdfBytes) ? strlen($pdfBytes) : 0,
             'sourceSha256' => $sourceSha256,
             'sourceInput' => $sourceInput,
+            'handoffInputProvenance' => $handoffInputProvenance,
             'sourceArtifactsSha256' => $sourceArtifactsSha256,
             'resourceArtifactsSha256' => $resourceArtifactsSha256,
             'missingResourceFiles' => $missingResourceFiles,
@@ -6028,6 +6073,150 @@ final class PdfEngineHandoff
         }
 
         return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $sourceInput
+     * @param list<string> $includeInHeaderFiles
+     * @param list<string> $resourcePaths
+     * @param array{files:list<string>, manifest:list<array{path:string, kind:string, sources:list<string>, title:string|null, alt:string|null}>, remote:list<string>, skipped:list<string>} $resourceInventory
+     * @param array<string, mixed> $templateVariables
+     * @param list<string> $writerArguments
+     * @param list<string> $sourceArtifacts
+     * @param list<string> $expectedEngineArtifacts
+     * @param array<string, mixed> $typstBoundarySummary
+     * @param array<string, mixed> $typstBoundaryMatrix
+     * @param array<string, mixed> $typstOutputFormatPolicy
+     * @return array<string, mixed>
+     */
+    private function handoffInputProvenanceFor(
+        string $engine,
+        string $engineFamily,
+        string $intermediateFormat,
+        string $sourceFile,
+        array $sourceInput,
+        ?int $sourceByteLength,
+        ?string $sourceSha256,
+        ?string $templateFile,
+        array $includeInHeaderFiles,
+        array $resourcePaths,
+        array $resourceInventory,
+        array $templateVariables,
+        array $writerArguments,
+        array $sourceArtifacts,
+        array $expectedEngineArtifacts,
+        ?string $engineDependencyFile,
+        ?string $engineBoundaryRoot,
+        array $typstBoundarySummary,
+        array $typstBoundaryMatrix,
+        array $typstOutputFormatPolicy
+    ): array {
+        $issues = [];
+        $this->appendHandoffInputReviewIssue($issues, 'source-input', $sourceInput);
+        $this->appendHandoffInputReviewIssue($issues, 'typst-boundary-summary', $typstBoundarySummary);
+        $this->appendHandoffInputReviewIssue($issues, 'typst-boundary-matrix', $typstBoundaryMatrix);
+        $this->appendHandoffInputReviewIssue($issues, 'typst-output-format-policy', $typstOutputFormatPolicy);
+
+        return [
+            'reviewStatus' => $issues === [] ? 'ok' : 'review',
+            'issues' => $issues,
+            'engine' => $engine,
+            'engineFamily' => $engineFamily,
+            'intermediateFormat' => $intermediateFormat,
+            'sourceFile' => $sourceFile,
+            'sourceInput' => $sourceInput,
+            'sourceByteLength' => $sourceByteLength,
+            'sourceSha256' => $sourceSha256,
+            'templateFile' => $templateFile,
+            'includeInHeaderFiles' => array_values($includeInHeaderFiles),
+            'includeInHeaderCount' => count($includeInHeaderFiles),
+            'sourceArtifacts' => array_values($sourceArtifacts),
+            'sourceArtifactCount' => count($sourceArtifacts),
+            'resourcePaths' => array_values($resourcePaths),
+            'resourcePathCount' => count($resourcePaths),
+            'resourceFiles' => array_values($resourceInventory['files']),
+            'resourceFileCount' => count($resourceInventory['files']),
+            'resourceFileManifest' => array_values($resourceInventory['manifest']),
+            'remoteResourceReferences' => array_values($resourceInventory['remote']),
+            'remoteResourceReferenceCount' => count($resourceInventory['remote']),
+            'skippedResourceReferences' => array_values($resourceInventory['skipped']),
+            'skippedResourceReferenceCount' => count($resourceInventory['skipped']),
+            'templateVariableNames' => array_keys($templateVariables),
+            'templateVariableCount' => count($templateVariables),
+            'writerArgumentCount' => count($writerArguments),
+            'expectedEngineArtifacts' => array_values($expectedEngineArtifacts),
+            'expectedEngineArtifactCount' => count($expectedEngineArtifacts),
+            'engineDependencyFile' => $engineDependencyFile,
+            'engineBoundaryRoot' => $engineBoundaryRoot,
+            'typstBoundaryReviewStatus' => $this->reviewStatusOf($typstBoundarySummary),
+            'typstBoundaryIssueCount' => is_int($typstBoundarySummary['issueCount'] ?? null) ? $typstBoundarySummary['issueCount'] : $this->listCount($typstBoundarySummary['issues'] ?? []),
+            'typstBoundaryMatrixReviewStatus' => $this->reviewStatusOf($typstBoundaryMatrix),
+            'typstBoundaryMatrixIssueCount' => is_int($typstBoundaryMatrix['issueCount'] ?? null) ? $typstBoundaryMatrix['issueCount'] : $this->listCount($typstBoundaryMatrix['issues'] ?? []),
+            'typstOutputFormatReviewStatus' => $this->reviewStatusOf($typstOutputFormatPolicy),
+            'typstOutputFormatIssueCount' => $this->listCount($typstOutputFormatPolicy['issues'] ?? []),
+        ];
+    }
+
+    /**
+     * @param list<string> $issues
+     * @param array<string, mixed> $policy
+     */
+    private function appendHandoffInputReviewIssue(array &$issues, string $prefix, array $policy): void
+    {
+        $status = $this->reviewStatusOf($policy);
+        if ($status !== null && $status !== 'ok') {
+            $issues[] = $prefix . ':' . $status;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $policy
+     */
+    private function reviewStatusOf(array $policy): ?string
+    {
+        return is_string($policy['reviewStatus'] ?? null) ? $policy['reviewStatus'] : null;
+    }
+
+    private function listCount(mixed $value): int
+    {
+        return is_array($value) ? count($value) : 0;
+    }
+
+    /**
+     * @param array<string, mixed> $provenance
+     * @param array<string, string> $sourceArtifactsSha256
+     * @param list<string> $missingSourceArtifacts
+     * @param array<string, string> $resourceArtifactsSha256
+     * @param list<string> $missingResourceFiles
+     * @return array<string, mixed>
+     */
+    private function runtimeHandoffInputProvenanceFor(
+        array $provenance,
+        ?string $sourceSha256,
+        array $sourceArtifactsSha256,
+        array $missingSourceArtifacts,
+        array $resourceArtifactsSha256,
+        array $missingResourceFiles
+    ): array {
+        $validationIssues = [];
+        foreach ($missingSourceArtifacts as $path) {
+            $validationIssues[] = 'missing-source-artifact:' . $path;
+        }
+        foreach ($missingResourceFiles as $path) {
+            $validationIssues[] = 'missing-resource-file:' . $path;
+        }
+
+        $provenance['sourceSha256'] = $sourceSha256;
+        $provenance['sourceArtifactsSha256'] = $sourceArtifactsSha256;
+        $provenance['validatedSourceArtifactCount'] = count($sourceArtifactsSha256);
+        $provenance['missingSourceArtifacts'] = array_values($missingSourceArtifacts);
+        $provenance['resourceArtifactsSha256'] = $resourceArtifactsSha256;
+        $provenance['validatedResourceFileCount'] = count($resourceArtifactsSha256);
+        $provenance['missingResourceFiles'] = array_values($missingResourceFiles);
+        $provenance['validationStatus'] = $validationIssues === [] ? 'ok' : 'failed';
+        $provenance['validationIssues'] = $validationIssues;
+
+        return $provenance;
     }
 
     private function renderIntermediateSource(AstNode $document, string $intermediateFormat): ?string
