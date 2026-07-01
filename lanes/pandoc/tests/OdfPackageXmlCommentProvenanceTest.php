@@ -104,39 +104,55 @@ XML;
             $t->same(3, $inventory['packagePartXmlCommentPartCount'], "{$label} comment part count");
             $t->same(4, $inventory['packagePartXmlCommentCount'], "{$label} comment count");
             $t->same($expectedByteLength, $inventory['packagePartXmlCommentByteLength'], "{$label} comment byte length");
+            $t->same(1, $inventory['packagePartXmlCommentByteLengthBucketCount'], "{$label} comment byte bucket count");
+            $t->same(['medium' => 4], $inventory['packagePartXmlCommentByteLengthBucketCounts'], "{$label} comment byte bucket counts");
+            $t->same(['medium'], $inventory['packagePartXmlCommentByteLengthBuckets'], "{$label} comment byte buckets");
+            $t->same($expectedPartNames, $inventory['packagePartXmlCommentByteLengthBucketPartNames']['medium'], "{$label} comment medium bucket parts");
             $t->same([0 => 1, 1 => 1, 2 => 2], $inventory['packagePartXmlCommentParentDepthCounts'], "{$label} comment parent depth counts");
             $t->same($expectedPartNames, $inventory['packagePartXmlCommentPartNames'], "{$label} comment part names");
             $t->same(false, $inventory['packagePartXmlCommentsTruncated'], "{$label} comment summary not truncated");
 
             $t->same(2, $reviewPart['xmlCommentCount'], "{$label} review comment count");
             $t->same(strlen($reviewPrologComment) + strlen($reviewInnerComment), $reviewPart['xmlCommentByteLength'], "{$label} review byte length");
+            $t->same(['medium' => 2], $reviewPart['xmlCommentByteLengthBucketCounts'], "{$label} review byte bucket counts");
+            $t->same(['medium'], $reviewPart['xmlCommentByteLengthBuckets'], "{$label} review byte buckets");
             $t->same([0 => 1, 2 => 1], $reviewPart['xmlCommentParentDepthCounts'], "{$label} review parent depth counts");
             $t->same(false, $reviewPart['xmlCommentsTruncated'], "{$label} review comments not truncated");
             $t->same('/', $reviewPart['xmlComments'][0]['parentPath'], "{$label} review prolog parent path");
             $t->same(0, $reviewPart['xmlComments'][0]['parentDepth'], "{$label} review prolog parent depth");
             $t->same(strlen($reviewPrologComment), $reviewPart['xmlComments'][0]['byteLength'], "{$label} review prolog length");
+            $t->same('medium', $reviewPart['xmlComments'][0]['byteLengthBucket'], "{$label} review prolog byte bucket");
             $t->same(sprintf('%08x', crc32($reviewPrologComment)), $reviewPart['xmlComments'][0]['crc32'], "{$label} review prolog crc32");
             $t->same(hash('sha256', $reviewPrologComment), $reviewPart['xmlComments'][0]['sha256'], "{$label} review prolog sha256");
             $t->same('/review:packet/review:value', $reviewPart['xmlComments'][1]['parentPath'], "{$label} review inner parent path");
             $t->same(2, $reviewPart['xmlComments'][1]['parentDepth'], "{$label} review inner parent depth");
+            $t->same('medium', $reviewPart['xmlComments'][1]['byteLengthBucket'], "{$label} review inner byte bucket");
             $t->same(hash('sha256', $reviewInnerComment), $reviewPart['xmlComments'][1]['sha256'], "{$label} review inner sha256");
 
             $t->same(1, $auditPart['xmlCommentCount'], "{$label} audit comment count");
+            $t->same(['medium' => 1], $auditPart['xmlCommentByteLengthBucketCounts'], "{$label} audit byte bucket counts");
             $t->same([2 => 1], $auditPart['xmlCommentParentDepthCounts'], "{$label} audit parent depth counts");
             $t->same('/audit:state/audit:item', $auditPart['xmlComments'][0]['parentPath'], "{$label} audit parent path");
             $t->same(2, $auditPart['xmlComments'][0]['parentDepth'], "{$label} audit parent depth");
+            $t->same('medium', $auditPart['xmlComments'][0]['byteLengthBucket'], "{$label} audit byte bucket");
             $t->same(hash('sha256', $auditComment), $auditPart['xmlComments'][0]['sha256'], "{$label} audit sha256");
 
             $t->same(1, $loosePart['xmlCommentCount'], "{$label} loose comment count");
+            $t->same(['medium' => 1], $loosePart['xmlCommentByteLengthBucketCounts'], "{$label} loose byte bucket counts");
             $t->same([1 => 1], $loosePart['xmlCommentParentDepthCounts'], "{$label} loose parent depth counts");
             $t->same('/loose:packet', $loosePart['xmlComments'][0]['parentPath'], "{$label} loose parent path");
             $t->same(1, $loosePart['xmlComments'][0]['parentDepth'], "{$label} loose parent depth");
+            $t->same('medium', $loosePart['xmlComments'][0]['byteLengthBucket'], "{$label} loose byte bucket");
             $t->same(hash('sha256', $looseComment), $loosePart['xmlComments'][0]['sha256'], "{$label} loose sha256");
 
             $t->same('/', $commentsByPartAndPath['META-INF/comment-review.xml /']['parentPath'], "{$label} summary review prolog path");
+            $t->same('medium', $commentsByPartAndPath['META-INF/comment-review.xml /']['byteLengthBucket'], "{$label} summary review prolog byte bucket");
             $t->same('/review:packet/review:value', $commentsByPartAndPath['META-INF/comment-review.xml /review:packet/review:value']['parentPath'], "{$label} summary review inner path");
+            $t->same('medium', $commentsByPartAndPath['META-INF/comment-review.xml /review:packet/review:value']['byteLengthBucket'], "{$label} summary review inner byte bucket");
             $t->same('/audit:state/audit:item', $commentsByPartAndPath['META-INF/audit-comments.xml /audit:state/audit:item']['parentPath'], "{$label} summary audit path");
+            $t->same('medium', $commentsByPartAndPath['META-INF/audit-comments.xml /audit:state/audit:item']['byteLengthBucket'], "{$label} summary audit byte bucket");
             $t->same('/loose:packet', $commentsByPartAndPath['META-INF/loose-comment.xml /loose:packet']['parentPath'], "{$label} summary loose path");
+            $t->same('medium', $commentsByPartAndPath['META-INF/loose-comment.xml /loose:packet']['byteLengthBucket'], "{$label} summary loose byte bucket");
 
             $t->true(!isset($reviewPart['xmlComments'][0]['text']), "{$label} raw XML comment text should not be exposed");
             $encodedComments = json_encode([
