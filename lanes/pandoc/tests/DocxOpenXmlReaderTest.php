@@ -19075,6 +19075,7 @@ XML;
   <Template>Review.dotm</Template>
   <Manager>Migration Lead</Manager>
   <Company>WordPress Migration Desk</Company>
+  <PresentationFormat>Review handoff deck</PresentationFormat>
   <Pages>12</Pages>
   <Words>3456</Words>
   <Characters>12000</Characters>
@@ -19082,6 +19083,11 @@ XML;
   <Lines>123</Lines>
   <Paragraphs>48</Paragraphs>
   <DocSecurity>4</DocSecurity>
+  <Slides>7</Slides>
+  <Notes>3</Notes>
+  <TotalTime>95</TotalTime>
+  <HiddenSlides>1</HiddenSlides>
+  <MMClips>2</MMClips>
   <Application>Microsoft Word</Application>
   <AppVersion>16.0000</AppVersion>
   <HyperlinkBase>https://example.test/review/</HyperlinkBase>
@@ -19137,6 +19143,7 @@ XML;
         $t->same('Review.dotm', $extended['template']);
         $t->same('Migration Lead', $extended['manager']);
         $t->same('WordPress Migration Desk', $extended['company']);
+        $t->same('Review handoff deck', $extended['presentationFormat']);
         $t->same(12, $extended['pages']);
         $t->same(3456, $extended['words']);
         $t->same(12000, $extended['characters']);
@@ -19144,6 +19151,11 @@ XML;
         $t->same(123, $extended['lines']);
         $t->same(48, $extended['paragraphs']);
         $t->same(4, $extended['docSecurity']);
+        $t->same(7, $extended['slides']);
+        $t->same(3, $extended['notes']);
+        $t->same(95, $extended['totalTime']);
+        $t->same(1, $extended['hiddenSlides']);
+        $t->same(2, $extended['mmClips']);
         $t->same('Microsoft Word', $extended['application']);
         $t->same('16.0000', $extended['appVersion']);
         $t->same('https://example.test/review/', $extended['hyperlinkBase']);
@@ -19184,6 +19196,8 @@ XML;
         $t->same('lpstr', $summary['extendedPropertiesTitlesOfPartsVectorBaseType']);
         $t->same(0, $summary['extendedPropertiesTitlesOfPartsVectorIssueCount']);
         $t->same('Microsoft Word', $meta['docxExtendedProperties']['application']);
+        $t->same('Review handoff deck', $meta['docxExtendedProperties']['presentationFormat']);
+        $t->same(95, $meta['docxExtendedProperties']['totalTime']);
 
         $t->same('docProps/custom.xml', $docx['customPropertiesPart']);
         $t->same('rCustom', $docx['customPropertiesRelationship']['id']);
