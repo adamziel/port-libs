@@ -16397,6 +16397,10 @@ final class XmlHtmlDom
                 ];
             }
         }
+        $issueCodes = array_values(array_unique(array_map(
+            static fn (array $issue): string => (string) ($issue['code'] ?? ''),
+            $issues
+        )));
 
         return [
             'scriptAttributionSrcReviewPolicy' => 'script-attributionsrc-provenance-review',
@@ -16409,6 +16413,9 @@ final class XmlHtmlDom
             'unsafeScriptAttributionSrcUrls' => $unsafeUrls,
             'nonHttpScriptAttributionSrcUrls' => $nonHttpUrls,
             'scriptAttributionSrcIssues' => $issues,
+            'scriptAttributionSrcIssueCodes' => $issueCodes,
+            'scriptAttributionSrcIssueCount' => count($issues),
+            'scriptAttributionSrcValid' => $issues === [],
         ];
     }
 
