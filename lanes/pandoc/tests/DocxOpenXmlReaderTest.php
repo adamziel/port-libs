@@ -11561,6 +11561,106 @@ XML;
         $t->same('image/png', $suffixTargets[4]['contentType']);
         $t->same(true, $suffixTargets[4]['exists']);
     },
+    'summarizes docx relationship target query parameters for review handoff' => static function (TestRunner $t): void {
+        $parts = docx_openxml_reader_fixture_parts();
+        $parts['_rels/.rels'] = str_replace(
+            'Target="word/document.xml"',
+            'Target="word/document.xml?doc=main&amp;review=1#body"',
+            $parts['_rels/.rels']
+        );
+        $parts['word/_rels/document.xml.rels'] = str_replace(
+            '</Relationships>',
+            '  <Relationship Id="rQueryCustomXml" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml" Target="../customXml/item1.xml?slot=package&amp;slot=review&amp;empty=&amp;encoded=a%20b&amp;flag#payload"/>' . "\n" .
+            '  <Relationship Id="rRemoteTemplate" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/attachedTemplate" Target="https://example.test/templates/review.dotx?version=2026&amp;slot=remote#template" TargetMode="External"/>' . "\n" .
+            '</Relationships>',
+            $parts['word/_rels/document.xml.rels']
+        );
+        $parts['word/header1.xml'] = '<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>Header</w:t></w:r></w:p></w:hdr>';
+        $parts['word/_rels/header1.xml.rels'] = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rHeaderImage" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/header.png?slot=header&amp;density=2#logo"/>
+</Relationships>
+XML;
+        $parts['customXml/item1.xml'] = '<review/>';
+        $parts['word/media/header.png'] = 'header png bytes';
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $package = $document->attr('docx')['packageProvenance'];
+        $summary = $package['summary'];
+        $custom = $package['relationshipParts']['word/_rels/document.xml.rels']['relationships']['rQueryCustomXml'];
+        $queryTargets = $summary['relationshipTargetsWithQueryParameters'];
+        $queryParametersByName = array_column($summary['relationshipTargetQueryParameters'], null, 'name');
+
+        $t->same(5, $custom['targetQueryParameterCount']);
+        $t->same(['slot', 'empty', 'encoded', 'flag'], $custom['targetQueryParameterNames']);
+        $t->same(['package', 'review'], $custom['targetQueryParameterMap']['slot']);
+        $t->same([''], $custom['targetQueryParameterMap']['empty']);
+        $t->same([null], $custom['targetQueryParameterMap']['flag']);
+        $t->same('slot=package', $custom['targetQueryParameters'][0]['raw']);
+        $t->same('package', $custom['targetQueryParameters'][0]['value']);
+        $t->same('', $custom['targetQueryParameters'][2]['value']);
+        $t->same('(empty)', $custom['targetQueryParameters'][2]['valueKey']);
+        $t->same('a b', $custom['targetQueryParameters'][3]['value']);
+        $t->same(null, $custom['targetQueryParameters'][4]['value']);
+        $t->same('(missing)', $custom['targetQueryParameters'][4]['valueKey']);
+        $t->same(false, $custom['targetQueryParameters'][4]['hasValue']);
+
+        $t->same(12, $summary['relationshipTargetQueryParameterCount']);
+        $t->same(5, $summary['relationshipTargetQueryParameterRelationshipCount']);
+        $t->same(9, $summary['relationshipTargetQueryParameterNameCount']);
+        $t->same([
+            'density' => 1,
+            'doc' => 1,
+            'empty' => 1,
+            'encoded' => 1,
+            'flag' => 1,
+            'post' => 1,
+            'review' => 1,
+            'slot' => 4,
+            'version' => 1,
+        ], $summary['relationshipTargetQueryParameterNameCounts']);
+        $t->same([
+            'density' => ['2' => 1],
+            'doc' => ['main' => 1],
+            'empty' => ['(empty)' => 1],
+            'encoded' => ['a b' => 1],
+            'flag' => ['(missing)' => 1],
+            'post' => ['42' => 1],
+            'review' => ['1' => 1],
+            'slot' => [
+                'header' => 1,
+                'package' => 1,
+                'remote' => 1,
+                'review' => 1,
+            ],
+            'version' => ['2026' => 1],
+        ], $summary['relationshipTargetQueryParameterValueCounts']);
+        $t->same([
+            '_rels/.rels',
+            'word/_rels/document.xml.rels',
+            'word/_rels/header1.xml.rels',
+        ], $summary['relationshipPartsWithTargetQueryParameters']);
+        $t->same([
+            'rDoc',
+            'rLink',
+            'rQueryCustomXml',
+            'rRemoteTemplate',
+            'rHeaderImage',
+        ], array_column($queryTargets, 'id'));
+
+        $slot = $queryParametersByName['slot'];
+        $t->same(4, $slot['occurrenceCount']);
+        $t->same(3, $slot['relationshipCount']);
+        $t->same(2, $slot['internalRelationshipCount']);
+        $t->same(1, $slot['externalRelationshipCount']);
+        $t->same(['header' => 1, 'package' => 1, 'remote' => 1, 'review' => 1], $slot['valueCounts']);
+        $t->same(['customXml/item1.xml', 'word/media/header.png'], $slot['targetParts']);
+
+        $t->same(1, $queryParametersByName['flag']['occurrenceCount']);
+        $t->same(['(missing)' => 1], $queryParametersByName['flag']['valueCounts']);
+        $t->same(['customXml/item1.xml'], $queryParametersByName['flag']['targetParts']);
+    },
     'preserves duplicate docx relationship ids for package review handoff' => static function (TestRunner $t): void {
         $parts = docx_openxml_reader_fixture_parts();
         $parts['word/_rels/document.xml.rels'] = str_replace(
