@@ -730,6 +730,11 @@ XML,
         $summary = $package['summary'];
         $zipPackage = $package['zipPackage'];
         $sourceRecords = $zipPackage['sourceRecords'];
+        $manifest = $zipPackage['packageManifest'];
+        $manifestHostSummariesById = [];
+        foreach ($manifest['creatorHostSystemSummaries'] as $hostSummary) {
+            $manifestHostSummariesById[$hostSummary['madeByHostSystem']] = $hostSummary;
+        }
         $documentEntry = $zipPackage['byPackagePath']['word/document.xml'];
         $mediaEntry = $zipPackage['byPackagePath']['word/media/review.png'];
         $coreEntry = $zipPackage['byPackagePath']['docProps/core.xml'];
@@ -794,6 +799,41 @@ XML,
         $t->same($sourceRecords['unknownCreatorHostSystemEntries'], $summary['zipSourceUnknownCreatorHostSystemEntries']);
         $t->same($sourceRecords['creatorVersionBelowNeededEntries'], $summary['zipSourceCreatorVersionBelowNeededEntries']);
         $t->same($sourceRecords['creatorVersionEntries'], $summary['zipSourceCreatorVersionEntries']);
+        $t->same(2, $manifest['creatorHostSystemSummaryCount']);
+        $t->same($sourceRecordCount, $manifest['knownCreatorHostSystemEntryCount']);
+        $t->same(0, $manifest['unknownCreatorHostSystemEntryCount']);
+        $t->same($sourceRecordCount, $manifest['creatorVersionMeetsNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededEntryCount']);
+        $t->same($sourceRecordCount, $manifest['creatorVersionEqualNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionAboveNeededEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededKnownHostEntryCount']);
+        $t->same(0, $manifest['creatorVersionBelowNeededUnknownHostEntryCount']);
+        $t->same(false, $manifest['hasUnknownCreatorHostSystems']);
+        $t->same(false, $manifest['hasCreatorVersionBelowNeededEntries']);
+        $t->same([
+            'below-needed' => 0,
+            'equals-needed' => $sourceRecordCount,
+            'above-needed' => 0,
+        ], $manifest['creatorVersionComparisonCounts']);
+        $t->same($sourceRecordCount - 1, $manifestHostSummariesById[3]['entryCount']);
+        $t->same('unix', $manifestHostSummariesById[3]['madeByHostSystemName']);
+        $t->same(['docProps/core.xml'], $manifestHostSummariesById[10]['entryNames']);
+        $t->same('windows-ntfs', $manifestHostSummariesById[10]['madeByHostSystemName']);
+        $t->same($manifest['creatorHostSystemSummaryCount'], $summary['zipPackageManifestCreatorHostSystemSummaryCount']);
+        $t->same($manifest['knownCreatorHostSystemEntryCount'], $summary['zipPackageManifestKnownCreatorHostSystemEntryCount']);
+        $t->same($manifest['unknownCreatorHostSystemEntryCount'], $summary['zipPackageManifestUnknownCreatorHostSystemEntryCount']);
+        $t->same($manifest['creatorVersionMeetsNeededEntryCount'], $summary['zipPackageManifestCreatorVersionMeetsNeededEntryCount']);
+        $t->same($manifest['creatorVersionBelowNeededEntryCount'], $summary['zipPackageManifestCreatorVersionBelowNeededEntryCount']);
+        $t->same($manifest['creatorVersionEqualNeededEntryCount'], $summary['zipPackageManifestCreatorVersionEqualNeededEntryCount']);
+        $t->same($manifest['creatorVersionAboveNeededEntryCount'], $summary['zipPackageManifestCreatorVersionAboveNeededEntryCount']);
+        $t->same($manifest['creatorVersionBelowNeededKnownHostEntryCount'], $summary['zipPackageManifestCreatorVersionBelowNeededKnownHostEntryCount']);
+        $t->same($manifest['creatorVersionBelowNeededUnknownHostEntryCount'], $summary['zipPackageManifestCreatorVersionBelowNeededUnknownHostEntryCount']);
+        $t->same($manifest['hasUnknownCreatorHostSystems'], $summary['zipPackageManifestHasUnknownCreatorHostSystems']);
+        $t->same($manifest['hasCreatorVersionBelowNeededEntries'], $summary['zipPackageManifestHasCreatorVersionBelowNeededEntries']);
+        $t->same($manifest['creatorVersionComparisonCounts'], $summary['zipPackageManifestCreatorVersionComparisonCounts']);
+        $t->same($manifest['creatorHostSystemSummaries'], $summary['zipPackageManifestCreatorHostSystemSummaries']);
+        $t->same($manifest['unknownCreatorHostSystemEntries'], $summary['zipPackageManifestUnknownCreatorHostSystemEntries']);
+        $t->same($manifest['creatorVersionBelowNeededEntries'], $summary['zipPackageManifestCreatorVersionBelowNeededEntries']);
 
         $t->same(3, $documentEntry['madeByHostSystem']);
         $t->same('unix', $documentEntry['madeByHostSystemName']);
