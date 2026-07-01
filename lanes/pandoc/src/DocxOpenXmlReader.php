@@ -310,6 +310,11 @@ final class DocxOpenXmlReader
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipMissingContentTypeTargetCount'] = $packageRootResources['targetRelationshipMissingContentTypeTargetCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipIssueCount'] = $packageRootResources['targetRelationshipIssueCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetRelationshipIssueCodes'] = $packageRootResources['targetRelationshipIssueCodes'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetQueryParameterCount'] = $packageRootResources['targetQueryParameterCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetQueryParameterRelationshipCount'] = $packageRootResources['targetQueryParameterRelationshipCount'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetQueryParameterNames'] = $packageRootResources['targetQueryParameterNames'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetQueryParameterNameCounts'] = $packageRootResources['targetQueryParameterNameCounts'];
+        $packageProvenance['summary']['packageRootRelationshipResourceTargetQueryParameterValueCounts'] = $packageRootResources['targetQueryParameterValueCounts'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCount'] = $packageRootResources['issueCount'];
         $packageProvenance['summary']['packageRootRelationshipResourceIssueCodes'] = $packageRootResources['issueCodes'];
         $packageProvenance['summary']['packageRootRelationshipResourceTargetDirectoryCounts'] = $packageRootResources['targetDirectoryCounts'];
@@ -33397,6 +33402,12 @@ final class DocxOpenXmlReader
         $targetRelationshipContentTypes = [];
         $targetRelationshipContentTypeBases = [];
         $targetRelationshipIssueCodes = [];
+        $targetQueryParameterCount = 0;
+        $targetQueryParameterRelationshipCount = 0;
+        $targetQueryParameterNames = [];
+        $targetQueryParameterNameCounts = [];
+        $targetQueryParameterValueCounts = [];
+        $targetRelationshipsWithQueryParameters = [];
         $issueCodes = [];
 
         foreach ($rootRelationships as $relationship) {
@@ -33493,6 +33504,51 @@ final class DocxOpenXmlReader
             foreach ($issues as $issue) {
                 $issueCodes[$issue] = true;
             }
+            $summaryTargetQueryParameters = is_array($summary['targetQueryParameters'] ?? null)
+                ? $summary['targetQueryParameters']
+                : [];
+            $summaryTargetQueryParameterNames = is_array($summary['targetQueryParameterNames'] ?? null)
+                ? $summary['targetQueryParameterNames']
+                : [];
+            $summaryTargetQueryParameterMap = is_array($summary['targetQueryParameterMap'] ?? null)
+                ? $summary['targetQueryParameterMap']
+                : [];
+            if ($summaryTargetQueryParameters !== []) {
+                ++$targetQueryParameterRelationshipCount;
+                $targetQueryParameterCount += count($summaryTargetQueryParameters);
+                foreach ($summaryTargetQueryParameterNames as $parameterName) {
+                    $this->appendUniqueString($targetQueryParameterNames, is_string($parameterName) ? $parameterName : null);
+                }
+                foreach ($summaryTargetQueryParameters as $parameter) {
+                    if (!is_array($parameter)) {
+                        continue;
+                    }
+
+                    $parameterName = is_string($parameter['name'] ?? null) ? $parameter['name'] : '';
+                    if ($parameterName === '') {
+                        continue;
+                    }
+
+                    $valueKey = is_string($parameter['valueKey'] ?? null) ? $parameter['valueKey'] : '(missing)';
+                    $targetQueryParameterNameCounts[$parameterName] = ($targetQueryParameterNameCounts[$parameterName] ?? 0) + 1;
+                    $targetQueryParameterValueCounts[$parameterName][$valueKey] =
+                        ($targetQueryParameterValueCounts[$parameterName][$valueKey] ?? 0) + 1;
+                }
+                $targetRelationshipsWithQueryParameters[] = [
+                    'id' => $summary['id'],
+                    'type' => $summary['type'],
+                    'target' => $summary['target'],
+                    'resolvedTarget' => $summary['resolvedTarget'],
+                    'targetPart' => $targetPart,
+                    'targetQuery' => $summary['targetQuery'],
+                    'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+                    'targetQueryParameterCount' => count($summaryTargetQueryParameters),
+                    'targetQueryParameterNames' => $summaryTargetQueryParameterNames,
+                    'external' => $external,
+                    'exists' => $exists,
+                    'relationshipsPart' => '_rels/.rels',
+                ];
+            }
 
             $item = [
                 'source' => '/',
@@ -33506,6 +33562,10 @@ final class DocxOpenXmlReader
                 'targetQuery' => $summary['targetQuery'],
                 'targetFragment' => $summary['targetFragment'],
                 'targetReferenceSuffix' => $summary['targetReferenceSuffix'],
+                'targetQueryParameterCount' => count($summaryTargetQueryParameters),
+                'targetQueryParameters' => $summaryTargetQueryParameters,
+                'targetQueryParameterNames' => $summaryTargetQueryParameterNames,
+                'targetQueryParameterMap' => $summaryTargetQueryParameterMap,
                 'targetParentTraversalCount' => $summary['targetParentTraversalCount'],
                 'targetHasParentTraversal' => $summary['targetHasParentTraversal'],
                 'targetStartsAtPackageRoot' => $summary['targetStartsAtPackageRoot'],
@@ -33606,6 +33666,12 @@ final class DocxOpenXmlReader
             }
         }
 
+        ksort($targetQueryParameterNameCounts, SORT_STRING);
+        ksort($targetQueryParameterValueCounts, SORT_STRING);
+        foreach ($targetQueryParameterValueCounts as &$valueCounts) {
+            ksort($valueCounts, SORT_STRING);
+        }
+        unset($valueCounts);
         ksort($issueCodes, SORT_STRING);
         ksort($targetRelationshipIssueCodes, SORT_STRING);
         $targetLookup = $this->packageRootRelationshipTargetLookupMaps($items);
@@ -33690,6 +33756,12 @@ final class DocxOpenXmlReader
             'targetRelationshipContentTypes' => $targetRelationshipContentTypes,
             'targetRelationshipContentTypeBases' => $targetRelationshipContentTypeBases,
             'targetRelationshipIssueCodes' => array_keys($targetRelationshipIssueCodes),
+            'targetQueryParameterCount' => $targetQueryParameterCount,
+            'targetQueryParameterRelationshipCount' => $targetQueryParameterRelationshipCount,
+            'targetQueryParameterNames' => $targetQueryParameterNames,
+            'targetQueryParameterNameCounts' => $targetQueryParameterNameCounts,
+            'targetQueryParameterValueCounts' => $targetQueryParameterValueCounts,
+            'targetRelationshipsWithQueryParameters' => $targetRelationshipsWithQueryParameters,
             'byteExposurePolicy' => 'package-root-relationship-bytes-blocked',
             'reviewPolicy' => 'package-root-relationship-metadata-only',
             'canExposeBytes' => false,

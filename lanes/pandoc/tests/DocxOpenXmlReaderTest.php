@@ -12230,7 +12230,7 @@ XML;
         );
         $parts['_rels/.rels'] = str_replace(
             '</Relationships>',
-            '  <Relationship Id="rPackageAudit" Type="' . $resourceType . '" Target="docProps/review-audit.xml?slot=root#review"/>' . "\n" .
+            '  <Relationship Id="rPackageAudit" Type="' . $resourceType . '" Target="docProps/review-audit.xml?slot=root&amp;slot=review&amp;empty=&amp;flag#review"/>' . "\n" .
             '  <Relationship Id="rPackageSidecar" Type="' . $resourceType . '" Target="docProps/sidecar-audit.xml"/>' . "\n" .
             '  <Relationship Id="rMissingPackageAudit" Type="' . $resourceType . '" Target="docProps/missing-audit.xml"/>' . "\n" .
             '  <Relationship Id="rExternalPackageAudit" Type="' . $resourceType . '" Target="file:///C:/review/root-audit.xml?remote=1#payload" TargetMode="External"/>' . "\n" .
@@ -12294,15 +12294,38 @@ XML;
         $t->same(['javascript:alert(1)'], $resources['targetRelationshipUnsafeExternalTargets']);
         $t->same(['image/png'], $resources['targetRelationshipContentTypes']);
         $t->same(['image/png'], $resources['targetRelationshipContentTypeBases']);
+        $t->same(5, $resources['targetQueryParameterCount']);
+        $t->same(2, $resources['targetQueryParameterRelationshipCount']);
+        $t->same(['slot', 'empty', 'flag', 'remote'], $resources['targetQueryParameterNames']);
+        $t->same(['empty' => 1, 'flag' => 1, 'remote' => 1, 'slot' => 2], $resources['targetQueryParameterNameCounts']);
+        $t->same([
+            'empty' => ['(empty)' => 1],
+            'flag' => ['(missing)' => 1],
+            'remote' => ['1' => 1],
+            'slot' => ['review' => 1, 'root' => 1],
+        ], $resources['targetQueryParameterValueCounts']);
+        $t->same('rPackageAudit', $resources['targetRelationshipsWithQueryParameters'][0]['id']);
+        $t->same(['slot', 'empty', 'flag'], $resources['targetRelationshipsWithQueryParameters'][0]['targetQueryParameterNames']);
         $t->same('package-root-relationship-bytes-blocked', $resources['byteExposurePolicy']);
         $t->same('package-root-relationship-metadata-only', $resources['reviewPolicy']);
         $t->same(false, $resources['canExposeBytes']);
 
-        $t->same('docProps/review-audit.xml?slot=root#review', $audit['target']);
+        $t->same('docProps/review-audit.xml?slot=root&slot=review&empty=&flag#review', $audit['target']);
         $t->same('docProps/review-audit.xml', $audit['targetPart']);
-        $t->same('slot=root', $audit['targetQuery']);
+        $t->same('slot=root&slot=review&empty=&flag', $audit['targetQuery']);
         $t->same('review', $audit['targetFragment']);
-        $t->same('?slot=root#review', $audit['targetReferenceSuffix']);
+        $t->same('?slot=root&slot=review&empty=&flag#review', $audit['targetReferenceSuffix']);
+        $t->same(4, $audit['targetQueryParameterCount']);
+        $t->same(['slot', 'empty', 'flag'], $audit['targetQueryParameterNames']);
+        $t->same(['root', 'review'], $audit['targetQueryParameterMap']['slot']);
+        $t->same([''], $audit['targetQueryParameterMap']['empty']);
+        $t->same([null], $audit['targetQueryParameterMap']['flag']);
+        $t->same('slot=root', $audit['targetQueryParameters'][0]['raw']);
+        $t->same('root', $audit['targetQueryParameters'][0]['value']);
+        $t->same('', $audit['targetQueryParameters'][2]['value']);
+        $t->same('(empty)', $audit['targetQueryParameters'][2]['valueKey']);
+        $t->same(null, $audit['targetQueryParameters'][3]['value']);
+        $t->same('(missing)', $audit['targetQueryParameters'][3]['valueKey']);
         $t->same('application/vnd.example.review+xml; profile=root-audit', $audit['contentType']);
         $t->same('application/vnd.example.review+xml', $audit['contentTypeBase']);
         $t->same(['profile' => 'root-audit'], $audit['contentTypeParameterMap']);
@@ -12397,6 +12420,11 @@ XML;
         $t->same(0, $summary['packageRootRelationshipResourceTargetRelationshipMissingContentTypeTargetCount']);
         $t->same(2, $summary['packageRootRelationshipResourceTargetRelationshipIssueCount']);
         $t->same($resources['targetRelationshipIssueCodes'], $summary['packageRootRelationshipResourceTargetRelationshipIssueCodes']);
+        $t->same(5, $summary['packageRootRelationshipResourceTargetQueryParameterCount']);
+        $t->same(2, $summary['packageRootRelationshipResourceTargetQueryParameterRelationshipCount']);
+        $t->same($resources['targetQueryParameterNames'], $summary['packageRootRelationshipResourceTargetQueryParameterNames']);
+        $t->same($resources['targetQueryParameterNameCounts'], $summary['packageRootRelationshipResourceTargetQueryParameterNameCounts']);
+        $t->same($resources['targetQueryParameterValueCounts'], $summary['packageRootRelationshipResourceTargetQueryParameterValueCounts']);
         $t->same(2, $summary['packageRootRelationshipResourceIssueCount']);
         $t->same($resources['issueCodes'], $summary['packageRootRelationshipResourceIssueCodes']);
         $t->same(4, $relationshipType['count']);
