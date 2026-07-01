@@ -555,6 +555,7 @@ XML;
 XML;
         $documentExtra = pack('vv', 0x5455, 0);
         $documentComment = 'central record review';
+        $packageComment = 'package review trail';
         $parts = [
             ['name' => '[Content_Types].xml', 'data' => $contentTypesXml, 'compressionMethod' => 0],
             ['name' => '_rels/.rels', 'data' => '<Relationships/>', 'compressionMethod' => 0],
@@ -567,7 +568,7 @@ XML;
             ],
             ['name' => 'word/media/review.png', 'data' => 'PNG', 'compressionMethod' => 0],
         ];
-        $zip = ZipPackage::build($parts);
+        $zip = ZipPackage::build($parts, $packageComment);
 
         $summary = OpcRelationshipGraph::preflightZipEntryManifest(ZipPackage::fromString($zip));
         $rawSummary = OpcRelationshipGraph::preflightZipCentralDirectoryManifest($zip);
@@ -594,6 +595,7 @@ XML;
             + strlen($documentExtra)
             + strlen($documentComment);
         $expectedCentralReviewFieldBytes = strlen($documentExtra) + strlen($documentComment);
+        $expectedPackageCommentOffset = strlen($zip) - strlen($packageComment);
 
         $t->same(true, $summary['valid']);
         $t->same(true, $rawSummary['valid']);
@@ -621,6 +623,18 @@ XML;
         $t->same($summary['hasEntryComments'], $rawSummary['hasEntryComments']);
         $t->same(true, $summary['hasCentralDirectoryReviewFields']);
         $t->same($summary['hasCentralDirectoryReviewFields'], $rawSummary['hasCentralDirectoryReviewFields']);
+        $t->same($expectedPackageCommentOffset, $summary['packageCommentOffset']);
+        $t->same($summary['packageCommentOffset'], $rawSummary['packageCommentOffset']);
+        $t->same(strlen($packageComment), $summary['packageCommentLength']);
+        $t->same($summary['packageCommentLength'], $rawSummary['packageCommentLength']);
+        $t->same(strlen($packageComment), $summary['packageCommentBytes']);
+        $t->same($summary['packageCommentBytes'], $rawSummary['packageCommentBytes']);
+        $t->same(strlen($zip), $summary['packageCommentEnd']);
+        $t->same($summary['packageCommentEnd'], $rawSummary['packageCommentEnd']);
+        $t->same(hash('sha256', $packageComment), $summary['packageCommentSha256']);
+        $t->same($summary['packageCommentSha256'], $rawSummary['packageCommentSha256']);
+        $t->same(true, $summary['hasPackageComment']);
+        $t->same($summary['hasPackageComment'], $rawSummary['hasPackageComment']);
         $t->same($documentEntry['entryIndex'], $documentEntry['centralDirectoryIndex']);
         $t->same(2, $documentEntry['centralDirectoryIndex']);
         $t->same($rawDocumentEntry['centralDirectoryOffset'], $rawDocumentEntry['centralDirectoryRecordOffset']);

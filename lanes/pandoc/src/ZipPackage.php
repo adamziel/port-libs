@@ -16993,6 +16993,7 @@ final class ZipPackage
      *     packageCommentOffset:int,
      *     packageCommentLength:int,
      *     packageCommentEnd:int,
+     *     packageCommentSha256:string,
      *     centralDirectoryVariableFieldBytes:int,
      *     centralDirectoryNameBytes:int,
      *     centralDirectoryExtraFieldBytes:int,
@@ -17183,6 +17184,7 @@ final class ZipPackage
 
         $issues = array_values(array_unique($issues));
         $packageCommentOffset = $archive['eocdOffset'] + 22;
+        $packageCommentLength = $archive['packageCommentLength'];
 
         return [
             'entryCount' => count($entries),
@@ -17192,8 +17194,9 @@ final class ZipPackage
             'centralDirectoryEnd' => $archive['centralDirectoryEnd'],
             'eocdOffset' => $archive['eocdOffset'],
             'packageCommentOffset' => $packageCommentOffset,
-            'packageCommentLength' => $archive['packageCommentLength'],
-            'packageCommentEnd' => $packageCommentOffset + $archive['packageCommentLength'],
+            'packageCommentLength' => $packageCommentLength,
+            'packageCommentEnd' => $packageCommentOffset + $packageCommentLength,
+            'packageCommentSha256' => hash('sha256', substr($bytes, $packageCommentOffset, $packageCommentLength)),
             'centralDirectoryVariableFieldBytes' => $nameBytes + $extraFieldBytes + $commentBytes,
             'centralDirectoryNameBytes' => $nameBytes,
             'centralDirectoryExtraFieldBytes' => $extraFieldBytes,
@@ -17206,7 +17209,7 @@ final class ZipPackage
             'hasCentralExtraFields' => $centralExtraFieldEntryCount > 0,
             'hasEntryComments' => $entryCommentCount > 0,
             'hasCentralDirectoryReviewFields' => $reviewFieldBytes > 0,
-            'hasPackageComment' => $archive['packageCommentLength'] > 0,
+            'hasPackageComment' => $packageCommentLength > 0,
             'largestReviewFieldEntry' => $largestReviewFieldEntry,
             'scanStoppedOffset' => $cursor,
             'hasUnexpectedCentralDirectoryTail' => $unexpectedRecordOffset !== null,
