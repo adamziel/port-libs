@@ -377,6 +377,108 @@ return [
         $t->same('1.1', $identityEntries['Pictures/hero.png']['manifestVersion']);
         $t->same('thumbnail', $identityEntries['Pictures/hero.png']['manifestPreferredViewMode']);
     },
+    'summarizes compact ODT manifest leaf names across package areas' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
+        $picturePreviewBytes = 'PIC';
+        $objectPreviewBytes = 'CHART';
+        $replacementPreviewBytes = 'REPL';
+        $extraManifestEntries = <<<'XML'
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Pictures/preview.png" manifest:size="3"/>
+  <manifest:file-entry manifest:media-type="application/vnd.oasis.opendocument.chart" manifest:full-path="Object%20Chart/"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="Object%20Chart/Pictures/preview.png" manifest:size="5"/>
+  <manifest:file-entry manifest:media-type="image/png" manifest:full-path="ObjectReplacements/preview.png" manifest:size="4"/>
+XML;
+        $manifest = str_replace('</manifest:manifest>', $extraManifestEntries . "\n" . '</manifest:manifest>', $manifestXml);
+
+        $odt = OpenDocumentPackage::fromPackage($buildOdtPackage(
+            manifest: $manifest,
+            extraParts: [
+                ['name' => 'Pictures/preview.png', 'data' => $picturePreviewBytes],
+                ['name' => 'Object Chart/', 'data' => ''],
+                ['name' => 'Object Chart/Pictures/preview.png', 'data' => $objectPreviewBytes],
+                ['name' => 'ObjectReplacements/preview.png', 'data' => $replacementPreviewBytes],
+            ]
+        ));
+        $summary = $odt->summarize();
+        $review = $summary['manifestReview'];
+        $inventory = $summary['packageInventory'];
+        $identity = $summary['packageIdentity'];
+        $reviewByPath = [];
+        foreach ($review['items'] as $item) {
+            $reviewByPath[$item['path']] = $item;
+        }
+        $reviewSharedByLeaf = [];
+        foreach ($review['sharedLeafNameSummaries'] as $item) {
+            $reviewSharedByLeaf[$item['leafName']] = $item;
+        }
+        $inventorySharedByLeaf = [];
+        foreach ($inventory['sharedLeafNameSummaries'] as $item) {
+            $inventorySharedByLeaf[$item['leafName']] = $item;
+        }
+        $identitySharedByLeaf = [];
+        foreach ($identity['sharedLeafNameSummaries'] as $item) {
+            $identitySharedByLeaf[$item['leafName']] = $item;
+        }
+
+        $t->same('Object Chart/Pictures/preview.png', $reviewByPath['Object%20Chart/Pictures/preview.png']['packagePath']);
+        $t->same('Object Chart/', $reviewByPath['Object%20Chart/Pictures/preview.png']['directoryRoot']);
+        $t->same('Object Chart/Pictures/', $reviewByPath['Object%20Chart/Pictures/preview.png']['parentDirectory']);
+        $t->same('preview.png', $reviewByPath['Object%20Chart/Pictures/preview.png']['leafName']);
+        $t->same('preview', $reviewByPath['Object%20Chart/Pictures/preview.png']['entryBaseName']);
+        $t->same('png', $reviewByPath['Object%20Chart/Pictures/preview.png']['entryExtensionKey']);
+        $t->same(3, $reviewByPath['Object%20Chart/Pictures/preview.png']['pathDepth']);
+        $t->same(true, $reviewByPath['Object%20Chart/Pictures/preview.png']['embeddedObjectPackagePart']);
+        $t->same(false, $reviewByPath['Object%20Chart/Pictures/preview.png']['canExposeBytes']);
+        $t->same('embedded-object-package-bytes-blocked', $reviewByPath['Object%20Chart/Pictures/preview.png']['byteExposurePolicy']);
+
+        $t->same(7, $review['leafNameCount']);
+        $t->same(1, $review['sharedLeafNameCount']);
+        $t->same(3, $review['sharedLeafNameEntryCount']);
+        $t->same([
+            'leafName' => 'preview.png',
+            'entryCount' => 3,
+            'fileEntryCount' => 3,
+            'directoryEntryCount' => 0,
+            'rootEntryCount' => 0,
+            'storedByteLength' => strlen($picturePreviewBytes) + strlen($objectPreviewBytes) + strlen($replacementPreviewBytes),
+            'compressedByteLength' => strlen(gzdeflate($picturePreviewBytes)) + strlen(gzdeflate($objectPreviewBytes)) + strlen(gzdeflate($replacementPreviewBytes)),
+            'entryBaseNames' => ['preview'],
+            'entryExtensionKeys' => ['png'],
+            'directoryRoots' => ['Object Chart/', 'ObjectReplacements/', 'Pictures/'],
+            'parentDirectories' => ['Object Chart/Pictures/', 'ObjectReplacements/', 'Pictures/'],
+            'manifestMediaFamilies' => ['image', 'object-replacement'],
+            'byteExposurePolicies' => [
+                'embedded-object-package-bytes-blocked',
+                'object-replacement-package-bytes-blocked',
+                'package-bytes-exposable',
+            ],
+            'roles' => [],
+            'paths' => [
+                'Object%20Chart/Pictures/preview.png',
+                'ObjectReplacements/preview.png',
+                'Pictures/preview.png',
+            ],
+            'packagePaths' => [
+                'Object Chart/Pictures/preview.png',
+                'ObjectReplacements/preview.png',
+                'Pictures/preview.png',
+            ],
+        ], $reviewSharedByLeaf['preview.png']);
+
+        $t->same(8, $inventory['leafNameCount']);
+        $t->same(1, $inventory['sharedLeafNameCount']);
+        $t->same(3, $inventory['sharedLeafNameEntryCount']);
+        $t->same($inventory['sharedLeafNameSummaries'], $identity['sharedLeafNameSummaries']);
+        $t->same($inventory['leafNameCount'], $identity['leafNameCount']);
+        $t->same($inventory['sharedLeafNameCount'], $identity['sharedLeafNameCount']);
+        $t->same($inventory['sharedLeafNameEntryCount'], $identity['sharedLeafNameEntryCount']);
+        $t->same([
+            'Object Chart/Pictures/preview.png',
+            'ObjectReplacements/preview.png',
+            'Pictures/preview.png',
+        ], $inventorySharedByLeaf['preview.png']['paths']);
+        $t->same(['embedded-object-part', 'manifest-declared', 'media-resource', 'object-replacement'], $inventorySharedByLeaf['preview.png']['roles']);
+        $t->same($inventorySharedByLeaf['preview.png'], $identitySharedByLeaf['preview.png']);
+    },
     'preserves compact ODT manifest custom file-entry attributes in review packets' => static function (TestRunner $t) use ($buildOdtPackage, $manifestXml): void {
         $manifest = str_replace(
             [
