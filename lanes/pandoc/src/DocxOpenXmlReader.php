@@ -194,6 +194,21 @@ final class DocxOpenXmlReader
             $documentRelationships,
             $sourcePackage,
         );
+        $documentPackageIdentity = $this->documentPackageIdentity($documentPart, $contentTypes);
+        $packageProvenance['documentPackageIdentity'] = $documentPackageIdentity;
+        $packageProvenance['summary']['documentPackageIdentityReviewPolicy'] = $documentPackageIdentity['reviewPolicy'];
+        $packageProvenance['summary']['documentContentType'] = $documentPackageIdentity['contentType'];
+        $packageProvenance['summary']['documentContentTypeBase'] = $documentPackageIdentity['contentTypeBase'];
+        $packageProvenance['summary']['documentContentTypeSource'] = $documentPackageIdentity['contentTypeSource'];
+        $packageProvenance['summary']['documentContentTypeHasParameters'] = $documentPackageIdentity['contentTypeHasParameters'];
+        $packageProvenance['summary']['documentContentTypeParameterCount'] = $documentPackageIdentity['contentTypeParameterCount'];
+        $packageProvenance['summary']['documentContentTypeParameterMap'] = $documentPackageIdentity['contentTypeParameterMap'];
+        $packageProvenance['summary']['documentFormatKind'] = $documentPackageIdentity['formatKind'];
+        $packageProvenance['summary']['documentTemplate'] = $documentPackageIdentity['template'];
+        $packageProvenance['summary']['documentMacroEnabled'] = $documentPackageIdentity['macroEnabled'];
+        $packageProvenance['summary']['documentContentTypeValid'] = $documentPackageIdentity['validContentType'];
+        $packageProvenance['summary']['documentContentTypeIssueCount'] = $documentPackageIdentity['issueCount'];
+        $packageProvenance['summary']['documentContentTypeIssueCodes'] = $documentPackageIdentity['issueCodes'];
         $packageThumbnails = $this->packageThumbnailProvenance($parts, $rootRelationships, $contentTypes);
         $packageProvenance['packageThumbnails'] = $packageThumbnails;
         $packageProvenance['summary']['packageThumbnailCount'] = $packageThumbnails['count'];
@@ -1300,6 +1315,7 @@ final class DocxOpenXmlReader
         $attrs = [
             'docx' => [
                 'documentPart' => $documentPart,
+                'documentPackageIdentity' => $documentPackageIdentity,
                 'corePropertiesPart' => $corePropertiesPart['partName'],
                 'contentTypes' => $contentTypes,
                 'rootRelationships' => $rootRelationships,
@@ -25308,6 +25324,49 @@ final class DocxOpenXmlReader
         }
 
         return $this->missingContentTypeResolution($extension === '' ? null : $extension);
+    }
+
+    /**
+     * @param array{defaults:array<string, string>, overrides:array<string, string>} $contentTypes
+     * @return array<string, mixed>
+     */
+    private function documentPackageIdentity(string $documentPart, array $contentTypes): array
+    {
+        $contentType = $this->contentTypeResolutionForPart($documentPart, $contentTypes);
+        $contentTypeBase = is_string($contentType['contentTypeBase'] ?? null) ? $contentType['contentTypeBase'] : '';
+        $formatKind = match ($contentTypeBase) {
+            self::CT_WORD_DOCUMENT => 'document',
+            self::CT_WORD_TEMPLATE => 'template',
+            self::CT_WORD_MACRO_ENABLED_DOCUMENT => 'macro-enabled-document',
+            self::CT_WORD_MACRO_ENABLED_TEMPLATE => 'macro-enabled-template',
+            '' => 'missing',
+            default => 'unknown',
+        };
+        $issueCodes = match ($formatKind) {
+            'missing' => ['missing-main-document-content-type'],
+            'unknown' => ['unexpected-main-document-content-type'],
+            default => [],
+        };
+
+        return [
+            'reviewPolicy' => 'docx-main-document-package-identity',
+            'partName' => $documentPart,
+            'contentType' => $contentType['contentType'],
+            'contentTypeBase' => $contentTypeBase,
+            'contentTypeSource' => $contentType['contentTypeSource'],
+            'contentTypeHasParameters' => $contentType['contentTypeHasParameters'],
+            'contentTypeParameterCount' => $contentType['contentTypeParameterCount'],
+            'contentTypeParameters' => $contentType['contentTypeParameters'],
+            'contentTypeParameterMap' => $contentType['contentTypeParameterMap'],
+            'defaultExtension' => $contentType['defaultExtension'],
+            'overridePartName' => $contentType['overridePartName'],
+            'formatKind' => $formatKind,
+            'template' => $formatKind === 'template' || $formatKind === 'macro-enabled-template',
+            'macroEnabled' => $formatKind === 'macro-enabled-document' || $formatKind === 'macro-enabled-template',
+            'validContentType' => $issueCodes === [],
+            'issueCount' => count($issueCodes),
+            'issueCodes' => $issueCodes,
+        ];
     }
 
     /**
