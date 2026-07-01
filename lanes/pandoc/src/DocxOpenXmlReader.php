@@ -18257,6 +18257,7 @@ final class DocxOpenXmlReader
         $relationshipTargetPathSegmentPositions = $this->relationshipTargetPathSegmentPositionSummary($relationshipTargets);
         $relationshipTargetPathSegmentPositionOccurrenceCount = 0;
         $relationshipTargetPathSegmentPositionCounts = [];
+        $relationshipTargetPathSegmentPositionRelationshipCounts = [];
         foreach ($relationshipTargetPathSegmentPositions as $targetPathSegmentPositionSummary) {
             $position = (string) ($targetPathSegmentPositionSummary['position'] ?? '');
             if ($position === '') {
@@ -18266,8 +18267,11 @@ final class DocxOpenXmlReader
             $occurrenceCount = (int) ($targetPathSegmentPositionSummary['occurrenceCount'] ?? 0);
             $relationshipTargetPathSegmentPositionOccurrenceCount += $occurrenceCount;
             $relationshipTargetPathSegmentPositionCounts[$position] = $occurrenceCount;
+            $relationshipTargetPathSegmentPositionRelationshipCounts[$position] =
+                (int) ($targetPathSegmentPositionSummary['relationshipCount'] ?? 0);
         }
         ksort($relationshipTargetPathSegmentPositionCounts, SORT_STRING);
+        ksort($relationshipTargetPathSegmentPositionRelationshipCounts, SORT_STRING);
         $relationshipSourceTopLevelSegments = $this->relationshipSourceTopLevelSegmentSummary($relationshipSources);
         $relationshipSourceTopLevelSegmentCounts = [];
         foreach ($relationshipSourceTopLevelSegments as $sourceTopLevelSegmentSummary) {
@@ -18903,6 +18907,7 @@ final class DocxOpenXmlReader
             'relationshipTargetPathSegmentPositionBucketCount' => count($relationshipTargetPathSegmentPositions),
             'relationshipTargetPathSegmentPositionOccurrenceCount' => $relationshipTargetPathSegmentPositionOccurrenceCount,
             'relationshipTargetPathSegmentPositionCounts' => $relationshipTargetPathSegmentPositionCounts,
+            'relationshipTargetPathSegmentPositionRelationshipCounts' => $relationshipTargetPathSegmentPositionRelationshipCounts,
             'relationshipTargetPathSegmentPositions' => $relationshipTargetPathSegmentPositions,
             'relationshipTargetNameCharacterReviewRelationshipCount' => $relationshipTargetNameCharacters['relationshipCount'],
             'relationshipTargetNameCharacterReviewTargetPartCount' => count($relationshipTargetNameCharacters['targetParts']),
