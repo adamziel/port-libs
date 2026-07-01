@@ -14396,6 +14396,7 @@ XML;
 
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
         $ordered = $document->children[2];
         $bullet = $document->children[3];
 
@@ -14407,6 +14408,9 @@ XML;
         $t->same('word/review-numbering.xml', $docx['numberingRelationship']['targetPart']);
         $t->same(true, $docx['numberingRelationship']['exists']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml', $docx['numberingRelationship']['contentType']);
+        $t->true(in_array('numbering', $package['parts']['word/review-numbering.xml']['roles'], true), 'numbering relationship inventory role missing');
+        $t->same(1, $package['summary']['roleCounts']['numbering']);
+        $t->same(1, $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering']['targetRoleCounts']['numbering']);
         $t->same('ordered_list', $ordered->type);
         $t->same(4, $ordered->attr('start'));
         $t->same('upper_alpha', $ordered->attr('style'));
@@ -14845,6 +14849,7 @@ XML;
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $meta = $document->attr('meta');
         $docx = $document->attr('docx');
+        $package = $docx['packageProvenance'];
         $heading = $document->children[0];
 
         $t->same('Relationship DOCX Batch', $meta['title']);
@@ -14865,6 +14870,9 @@ XML;
         $t->same('word/theme/review-styles.xml', $docx['stylesRelationship']['targetPart']);
         $t->same(true, $docx['stylesRelationship']['exists']);
         $t->same('application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml', $docx['stylesRelationship']['contentType']);
+        $t->true(in_array('styles', $package['parts']['word/theme/review-styles.xml']['roles'], true), 'styles relationship inventory role missing');
+        $t->same(1, $package['summary']['roleCounts']['styles']);
+        $t->same(1, $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles']['targetRoleCounts']['styles']);
         $t->same(2, $heading->attr('level'));
         $t->same('Relationship Heading', $heading->attr('docxStyleName'));
     },
@@ -19015,6 +19023,7 @@ XML;
         $document = (new DocxOpenXmlReader())->readPackage($parts);
         $docx = $document->attr('docx');
         $theme = $docx['theme'];
+        $package = $docx['packageProvenance'];
         $summary = $docx['packageProvenance']['summary'];
 
         $t->same('word/theme/review-theme.xml', $docx['themePart']);
@@ -19026,6 +19035,9 @@ XML;
         $t->same('word/theme/review-theme.xml', $docx['themeRelationship']['targetPart']);
         $t->same(true, $docx['themeRelationship']['exists']);
         $t->same('application/vnd.openxmlformats-officedocument.theme+xml', $docx['themeRelationship']['contentType']);
+        $t->true(in_array('theme', $package['parts']['word/theme/review-theme.xml']['roles'], true), 'theme relationship inventory role missing');
+        $t->same(1, $summary['roleCounts']['theme']);
+        $t->same(1, $package['relationshipTypes']['http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme']['targetRoleCounts']['theme']);
         $t->same('WordPress Review Theme', $theme['name']);
         $t->same('Review Fonts', $theme['fonts']['schemeName']);
         $t->same('Aptos Display', $theme['fonts']['majorLatin']);

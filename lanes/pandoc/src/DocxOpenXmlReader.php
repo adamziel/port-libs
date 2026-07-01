@@ -25205,7 +25205,9 @@ final class DocxOpenXmlReader
     private function relationshipTargetInventoryRole(string $relationshipType): ?string
     {
         return match ($relationshipType) {
+            self::STYLES_REL => 'styles',
             self::STYLES_WITH_EFFECTS_REL => 'styles-with-effects',
+            self::NUMBERING_REL => 'numbering',
             self::FOOTNOTES_REL => 'footnotes',
             self::ENDNOTES_REL => 'endnotes',
             self::COMMENTS_REL => 'comments',
@@ -25221,6 +25223,7 @@ final class DocxOpenXmlReader
             self::WEB_SETTINGS_REL => 'web-settings',
             self::FONT_TABLE_REL => 'font-table',
             self::FONT_REL => 'embedded-font',
+            self::THEME_REL => 'theme',
             self::HEADER_REL => 'header-part',
             self::FOOTER_REL => 'footer-part',
             self::SUBDOCUMENT_REL => 'subdocument',
