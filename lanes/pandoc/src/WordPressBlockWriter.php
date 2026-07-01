@@ -10,7 +10,7 @@ final class WordPressBlockWriter
     private array $footnotes = [];
 
     /**
-     * @param array{includeMetadata?: bool, preserveListAttributes?: bool, preserveEmptyParagraphs?: bool, taskGlyphsAsCheckboxes?: bool, markEmptyTableCells?: bool} $options
+     * @param array{includeMetadata?: bool, preserveListAttributes?: bool, preserveEmptyParagraphs?: bool, taskGlyphsAsCheckboxes?: bool, markEmptyTableCells?: bool, highlightCodeBlocks?: bool, highlightStyle?: string} $options
      */
     public function __construct(private readonly array $options = [])
     {
@@ -1323,6 +1323,18 @@ final class WordPressBlockWriter
 
     private function renderCodeBlock(AstNode $node): string
     {
+        if ((bool) ($this->options['highlightCodeBlocks'] ?? false)) {
+            $highlighted = (new SyntaxHighlighter())->highlightCodeBlock(
+                $node,
+                (string) ($this->options['highlightStyle'] ?? 'pygments')
+            );
+
+            return '<!-- wp:html -->'
+                . "\n" . '<style data-pandoc-highlight-style="' . $this->esc((string) $highlighted['style']) . '">' . (string) $highlighted['css'] . '</style>'
+                . "\n" . (string) $highlighted['html']
+                . "\n" . '<!-- /wp:html -->';
+        }
+
         return '<!-- wp:code -->'
             . "\n" . $this->renderCodeBlockHtml($node)
             . "\n" . '<!-- /wp:code -->';
@@ -1333,9 +1345,30 @@ final class WordPressBlockWriter
         $classes = $node->attr('classes', []);
         $language = is_array($classes) && isset($classes[0]) ? $this->sanitizeCodeClass((string) $classes[0]) : '';
         $codeAttrs = $language === '' ? '' : ' class="language-' . $this->esc($language) . '"';
+        $preClasses = $this->codeBlockPreClasses($classes);
         $preAttrs = $this->renderCodeBlockPreAttrs($node);
 
-        return '<pre class="wp-block-code"' . $preAttrs . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+        return '<pre class="' . $this->esc(implode(' ', $preClasses)) . '"' . $preAttrs . '><code' . $codeAttrs . '>' . $this->esc((string) $node->attr('text', '')) . '</code></pre>';
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function codeBlockPreClasses(mixed $classes): array
+    {
+        $preClasses = ['wp-block-code'];
+        if (!is_array($classes)) {
+            return $preClasses;
+        }
+
+        foreach ($classes as $class) {
+            $class = $this->sanitizeCodeClass((string) $class);
+            if ($class !== '' && !in_array($class, $preClasses, true)) {
+                $preClasses[] = $class;
+            }
+        }
+
+        return $preClasses;
     }
 
     private function renderCodeBlockPreAttrs(AstNode $node): string

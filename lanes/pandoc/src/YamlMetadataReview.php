@@ -31,6 +31,11 @@ final class YamlMetadataReview
      */
     public static function fromMarkdown(string $markdown, ?MarkdownReader $reader = null): array
     {
+        $yamlReview = self::reviewFromYamlFrontMatter($markdown);
+        if ($yamlReview !== null) {
+            return $yamlReview;
+        }
+
         $document = ($reader ?? new MarkdownReader())->read($markdown);
 
         return [
@@ -70,6 +75,777 @@ final class YamlMetadataReview
         }
 
         return $byPath;
+    }
+
+    /**
+     * @return array{
+     *     meta: array<string, mixed>,
+     *     summary: array<string, mixed>,
+     *     provenanceByPath: array<string, list<array<string, mixed>>>,
+     *     diagnosticsByPath: array<string, list<array<string, mixed>>>
+     * }|null
+     */
+    private static function reviewFromYamlFrontMatter(string $markdown): ?array
+    {
+        $lines = preg_split('/\R/u', rtrim($markdown, "\r\n")) ?: [];
+        $block = self::extractYamlFrontMatter($lines);
+        if ($block === null) {
+            return null;
+        }
+
+        $state = [
+            'anchors' => [],
+            'tagHandles' => ['!!' => 'tag:yaml.org,2002:'],
+            'tagProvenance' => [],
+            'collectionProvenance' => [],
+            'aliasProvenance' => [],
+            'diagnostics' => [],
+            'collectionCount' => 0,
+        ];
+        foreach ($block['directives'] as $directive) {
+            self::applyYamlDirective($directive, $state);
+        }
+
+        [$metadata] = self::parseYamlBlockMapping(
+            $block['yaml'],
+            0,
+            0,
+            '',
+            $state,
+            $block['startLine']
+        );
+        if ($metadata === []) {
+            return null;
+        }
+
+        $diagnosticsByPath = [];
+        foreach ($state['diagnostics'] as $diagnostic) {
+            if (is_array($diagnostic)) {
+                $diagnosticsByPath[self::pathFromEntry($diagnostic)][] = $diagnostic;
+            }
+        }
+
+        return [
+            'meta' => self::publicYamlMetadata($metadata),
+            'summary' => [
+                'reviewStatus' => $state['diagnostics'] === [] ? 'clean' : 'needs-review',
+                'tagCount' => count($state['tagProvenance']),
+                'aliasCount' => count($state['aliasProvenance']),
+                'collectionCount' => $state['collectionCount'],
+            ],
+            'provenanceByPath' => self::yamlProvenanceByPath($state),
+            'diagnosticsByPath' => $diagnosticsByPath,
+        ];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @return array{directives:list<string>, yaml:list<string>, startLine:int}|null
+     */
+    private static function extractYamlFrontMatter(array $lines): ?array
+    {
+        $count = count($lines);
+        if ($count === 0) {
+            return null;
+        }
+
+        $cursor = 0;
+        $directives = [];
+        while ($cursor < $count && self::isYamlDirective($lines[$cursor])) {
+            $directives[] = trim($lines[$cursor]);
+            $cursor++;
+        }
+
+        if (self::yamlDocumentMarker($lines[$cursor] ?? '') !== '---') {
+            return null;
+        }
+
+        $cursor++;
+        $startLine = $cursor + 1;
+        $yaml = [];
+        for (; $cursor < $count; $cursor++) {
+            if (self::yamlDocumentMarker($lines[$cursor]) !== null) {
+                return [
+                    'directives' => $directives,
+                    'yaml' => $yaml,
+                    'startLine' => $startLine,
+                ];
+            }
+
+            $yaml[] = $lines[$cursor];
+        }
+
+        return null;
+    }
+
+    private static function yamlDocumentMarker(string $line): ?string
+    {
+        $trimmed = trim($line);
+        if ($trimmed !== ltrim($line, " \t")) {
+            return null;
+        }
+
+        if (str_contains($trimmed, '#')) {
+            $trimmed = trim(strstr($trimmed, '#', true) ?: $trimmed);
+        }
+
+        return match ($trimmed) {
+            '---', '...' => $trimmed,
+            default => null,
+        };
+    }
+
+    private static function isYamlDirective(string $line): bool
+    {
+        $trimmed = trim($line);
+
+        return preg_match('/^%YAML[ \t]+\d+(?:\.\d+)?$/i', $trimmed) === 1
+            || preg_match('/^%TAG[ \t]+(!|!!|![A-Za-z0-9_.-]+!)[ \t]+\S+$/', $trimmed) === 1;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function applyYamlDirective(string $directive, array &$state): void
+    {
+        if (preg_match('/^%TAG[ \t]+(!|!!|![A-Za-z0-9_.-]+!)[ \t]+(\S+)$/', trim($directive), $m) !== 1) {
+            return;
+        }
+
+        $state['tagHandles'][$m[1]] = $m[2];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<string, mixed> $state
+     * @return array{0:array<string, mixed>, 1:int}
+     */
+    private static function parseYamlBlockMapping(
+        array $lines,
+        int $start,
+        int $indent,
+        string $path,
+        array &$state,
+        int $baseLine,
+        bool $countCollection = true
+    ): array {
+        if ($countCollection) {
+            self::noteYamlCollection($state);
+        }
+        $map = [];
+        $count = count($lines);
+        $index = $start;
+        while ($index < $count) {
+            $line = $lines[$index];
+            if (trim($line) === '' || str_starts_with(ltrim($line), '#')) {
+                $index++;
+                continue;
+            }
+
+            $lineIndent = self::yamlIndent($line);
+            if ($lineIndent < $indent) {
+                break;
+            }
+            if ($lineIndent > $indent) {
+                $index++;
+                continue;
+            }
+
+            $trimmed = trim($line);
+            if (str_starts_with($trimmed, '- ')) {
+                break;
+            }
+
+            $mapping = self::splitYamlPair($trimmed);
+            if ($mapping === null) {
+                $index++;
+                continue;
+            }
+
+            [$sourceKey, $sourceValue] = $mapping;
+            $key = self::normalizeYamlKey($sourceKey, $state);
+            $entryPath = self::yamlPathAppend($path, $key);
+            $nextIndent = self::nextYamlContentIndent($lines, $index + 1);
+            if ($sourceValue === '' && $nextIndent !== null && $nextIndent > $lineIndent) {
+                if (str_starts_with(trim($lines[self::nextYamlContentIndex($lines, $index + 1) ?? $index] ?? ''), '- ')) {
+                    [$value, $nextIndex] = self::parseYamlBlockSequence($lines, $index + 1, $nextIndent, $entryPath, $state, $baseLine);
+                } else {
+                    [$value, $nextIndex] = self::parseYamlBlockMapping($lines, $index + 1, $nextIndent, $entryPath, $state, $baseLine);
+                }
+            } else {
+                $value = self::parseYamlValue($sourceValue, $entryPath, $baseLine + $index, $state);
+                $nextIndex = $index + 1;
+            }
+
+            if ($key === '<<' && is_array($value)) {
+                $map = array_replace($value, $map);
+            } else {
+                $map[$key] = $value;
+            }
+            $index = $nextIndex;
+        }
+
+        return [$map, $index];
+    }
+
+    /**
+     * @param list<string> $lines
+     * @param array<string, mixed> $state
+     * @return array{0:list<mixed>, 1:int}
+     */
+    private static function parseYamlBlockSequence(
+        array $lines,
+        int $start,
+        int $indent,
+        string $path,
+        array &$state,
+        int $baseLine
+    ): array {
+        self::noteYamlCollection($state);
+        $items = [];
+        $count = count($lines);
+        $index = $start;
+        while ($index < $count) {
+            $line = $lines[$index];
+            if (trim($line) === '' || str_starts_with(ltrim($line), '#')) {
+                $index++;
+                continue;
+            }
+
+            $lineIndent = self::yamlIndent($line);
+            if ($lineIndent < $indent) {
+                break;
+            }
+            if ($lineIndent > $indent) {
+                $index++;
+                continue;
+            }
+
+            $trimmed = trim($line);
+            if (!str_starts_with($trimmed, '-')) {
+                break;
+            }
+
+            $source = trim(substr($trimmed, 1));
+            $itemPath = self::yamlPathAppend($path, (string) count($items));
+            $nextIndent = self::nextYamlContentIndent($lines, $index + 1);
+            $mapping = $source === '' ? null : self::splitYamlPair($source);
+            if ($mapping !== null) {
+                self::noteYamlCollection($state);
+                [$sourceKey, $sourceValue] = $mapping;
+                $key = self::normalizeYamlKey($sourceKey, $state);
+                $fieldPath = self::yamlPathAppend($itemPath, $key);
+                $item = [
+                    $key => self::parseYamlValue($sourceValue, $fieldPath, $baseLine + $index, $state),
+                ];
+                $nextIndex = $index + 1;
+                if ($nextIndent !== null && $nextIndent > $lineIndent) {
+                    [$children, $nextIndex] = self::parseYamlBlockMapping($lines, $index + 1, $nextIndent, $itemPath, $state, $baseLine, false);
+                    $item = array_replace($item, $children);
+                }
+                $items[] = $item;
+                $index = $nextIndex;
+                continue;
+            }
+
+            if ($source === '' && $nextIndent !== null && $nextIndent > $lineIndent) {
+                if (str_starts_with(trim($lines[self::nextYamlContentIndex($lines, $index + 1) ?? $index] ?? ''), '- ')) {
+                    [$value, $nextIndex] = self::parseYamlBlockSequence($lines, $index + 1, $nextIndent, $itemPath, $state, $baseLine);
+                } else {
+                    [$value, $nextIndex] = self::parseYamlBlockMapping($lines, $index + 1, $nextIndent, $itemPath, $state, $baseLine);
+                }
+                $items[] = $value;
+                $index = $nextIndex;
+                continue;
+            }
+
+            $items[] = self::parseYamlValue($source, $itemPath, $baseLine + $index, $state);
+            $index++;
+        }
+
+        return [$items, $index];
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function parseYamlValue(string $source, string $path, int $line, array &$state): mixed
+    {
+        $source = trim($source);
+        [$source, $anchor, $tags] = self::consumeYamlValueDirectives($source, $state);
+        foreach ($tags as $tag) {
+            self::recordYamlTagProvenance($tag, $path, $line, $state);
+        }
+
+        if ($source === '') {
+            $value = null;
+        } elseif (self::isYamlAlias($source)) {
+            $value = self::resolveYamlAlias(substr($source, 1), $path, $line, $state);
+        } elseif ($source[0] === '{' && str_ends_with($source, '}')) {
+            $value = self::parseYamlFlowMap(substr($source, 1, -1), $path, $line, $state);
+        } elseif ($source[0] === '[' && str_ends_with($source, ']')) {
+            $value = self::parseYamlFlowSequence(substr($source, 1, -1), $path, $line, $state);
+        } else {
+            $value = self::unquoteYamlScalar($source);
+        }
+
+        if ($anchor !== null && $anchor !== '') {
+            $state['anchors'][$anchor] = self::cloneYamlValue($value);
+        }
+
+        return $value;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, mixed>
+     */
+    private static function parseYamlFlowMap(string $source, string $path, int $line, array &$state): array
+    {
+        self::noteYamlCollection($state);
+        $map = [];
+        foreach (self::splitYamlFlowItems($source) as $item) {
+            $item = trim($item);
+            if ($item === '') {
+                continue;
+            }
+
+            $explicit = str_starts_with($item, '?');
+            if ($explicit) {
+                $item = trim(substr($item, 1));
+            }
+
+            $pair = self::splitYamlPair($item);
+            if ($pair === null) {
+                $keyInfo = self::normalizeYamlFlowKey($item, $path, $line, $state);
+                $map[$keyInfo['key']] = null;
+                continue;
+            }
+
+            [$sourceKey, $sourceValue] = $pair;
+            $keyInfo = self::normalizeYamlFlowKey($sourceKey, $path, $line, $state);
+            $key = $keyInfo['key'];
+            $entryPath = self::yamlPathAppend($path, $key);
+            $value = self::parseYamlValue($sourceValue, $entryPath, $line, $state);
+            if ($key === '<<' && is_array($value)) {
+                $map = array_replace($value, $map);
+            } else {
+                $map[$key] = $value;
+            }
+        }
+
+        return $map;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return list<mixed>
+     */
+    private static function parseYamlFlowSequence(string $source, string $path, int $line, array &$state): array
+    {
+        self::noteYamlCollection($state);
+        $items = [];
+        foreach (self::splitYamlFlowItems($source) as $item) {
+            $items[] = self::parseYamlValue($item, self::yamlPathAppend($path, (string) count($items)), $line, $state);
+        }
+
+        return $items;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array{key:string}
+     */
+    private static function normalizeYamlFlowKey(string $source, string $parentPath, int $line, array &$state): array
+    {
+        $original = trim($source);
+        [$clean, , $tags] = self::consumeYamlValueDirectives($original, $state);
+        $key = self::normalizeYamlExplicitKeySource($clean);
+        $entryPath = self::yamlPathAppend($parentPath, $key);
+        foreach ($tags as $tag) {
+            self::recordYamlTagProvenance($tag, $entryPath, $line, $state);
+        }
+
+        if (self::isYamlFlowCollectionSource($clean)) {
+            self::recordYamlCollectionProvenance(
+                $entryPath,
+                $clean[0] === '[' ? 'sequence' : 'mapping',
+                'flow',
+                $original,
+                self::normalizeYamlCollectionSource($clean),
+                $line,
+                $state
+            );
+        }
+
+        return ['key' => $key];
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array{0:string, 1:string|null, 2:list<string>}
+     */
+    private static function consumeYamlValueDirectives(string $source, array $state): array
+    {
+        $source = trim($source);
+        $anchor = null;
+        $tags = [];
+        while ($source !== '') {
+            if (preg_match('/^&([A-Za-z0-9_.:-]+)(?=$|[ \t])/', $source, $m) === 1) {
+                $anchor = $m[1];
+                $source = ltrim(substr($source, strlen($m[0])));
+                continue;
+            }
+
+            if (preg_match('/^!<([^>]+)>/', $source, $m) === 1) {
+                $tags[] = $m[1];
+                $source = ltrim(substr($source, strlen($m[0])));
+                continue;
+            }
+
+            if (preg_match('/^(![A-Za-z0-9_.-]+!)([^ \t\[\]\{\},:]+)/', $source, $m) === 1) {
+                $tags[] = (string) (($state['tagHandles'][$m[1]] ?? $m[1]) . $m[2]);
+                $source = ltrim(substr($source, strlen($m[0])));
+                continue;
+            }
+
+            if (preg_match('/^!!([A-Za-z0-9_.:-]+)(?=$|[ \t])/', $source, $m) === 1) {
+                $tags[] = 'tag:yaml.org,2002:' . $m[1];
+                $source = ltrim(substr($source, strlen($m[0])));
+                continue;
+            }
+
+            if (preg_match('/^!([A-Za-z0-9_.:-]+)(?=$|[ \t])/', $source, $m) === 1) {
+                $tags[] = '!' . $m[1];
+                $source = ltrim(substr($source, strlen($m[0])));
+                continue;
+            }
+
+            break;
+        }
+
+        return [$source, $anchor, $tags];
+    }
+
+    /**
+     * @return array{0:string, 1:string}|null
+     */
+    private static function splitYamlPair(string $source): ?array
+    {
+        $length = strlen($source);
+        $depth = 0;
+        $quote = null;
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $source[$offset];
+            if ($quote !== null) {
+                if ($char === $quote && ($quote === "'" || $offset === 0 || $source[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+            if ($char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($char === ':' && $depth === 0) {
+                return [
+                    trim(substr($source, 0, $offset)),
+                    ltrim(substr($source, $offset + 1)),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function splitYamlFlowItems(string $source): array
+    {
+        $items = [];
+        $start = 0;
+        $depth = 0;
+        $quote = null;
+        $length = strlen($source);
+        for ($offset = 0; $offset < $length; $offset++) {
+            $char = $source[$offset];
+            if ($quote !== null) {
+                if ($char === $quote && ($quote === "'" || $offset === 0 || $source[$offset - 1] !== '\\')) {
+                    $quote = null;
+                }
+                continue;
+            }
+
+            if ($char === '"' || $char === "'") {
+                $quote = $char;
+                continue;
+            }
+            if ($char === '[' || $char === '{') {
+                $depth++;
+                continue;
+            }
+            if ($char === ']' || $char === '}') {
+                $depth = max(0, $depth - 1);
+                continue;
+            }
+            if ($char === ',' && $depth === 0) {
+                $items[] = trim(substr($source, $start, $offset - $start));
+                $start = $offset + 1;
+            }
+        }
+        $items[] = trim(substr($source, $start));
+
+        return array_values(array_filter($items, static fn (string $item): bool => $item !== ''));
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function normalizeYamlKey(string $source, array $state): string
+    {
+        [$clean] = self::consumeYamlValueDirectives(trim($source), $state);
+
+        return self::normalizeYamlExplicitKeySource($clean);
+    }
+
+    private static function normalizeYamlExplicitKeySource(string $source): string
+    {
+        $source = trim($source);
+        if (self::isYamlFlowCollectionSource($source)) {
+            return self::normalizeYamlCollectionSource($source);
+        }
+
+        return self::unquoteYamlScalar($source);
+    }
+
+    private static function isYamlFlowCollectionSource(string $source): bool
+    {
+        return ($source[0] ?? '') === '[' && str_ends_with($source, ']')
+            || ($source[0] ?? '') === '{' && str_ends_with($source, '}');
+    }
+
+    private static function normalizeYamlCollectionSource(string $source): string
+    {
+        $source = trim($source);
+        if (($source[0] ?? '') === '[' && str_ends_with($source, ']')) {
+            $items = array_map(
+                static fn (string $item): string => self::unquoteYamlScalar(trim($item)),
+                self::splitYamlFlowItems(substr($source, 1, -1))
+            );
+
+            return '[' . implode(', ', $items) . ']';
+        }
+
+        if (($source[0] ?? '') === '{' && str_ends_with($source, '}')) {
+            return '{' . trim(substr($source, 1, -1)) . '}';
+        }
+
+        return $source;
+    }
+
+    private static function unquoteYamlScalar(string $source): string
+    {
+        $source = trim($source);
+        if (strlen($source) >= 2 && $source[0] === "'" && str_ends_with($source, "'")) {
+            return str_replace("''", "'", substr($source, 1, -1));
+        }
+        if (strlen($source) >= 2 && $source[0] === '"' && str_ends_with($source, '"')) {
+            return stripcslashes(substr($source, 1, -1));
+        }
+
+        return $source;
+    }
+
+    private static function isYamlAlias(string $source): bool
+    {
+        return preg_match('/^\*[^\s\[\]\{\},]+$/', trim($source)) === 1;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function resolveYamlAlias(string $anchor, string $path, int $line, array &$state): mixed
+    {
+        $resolved = array_key_exists($anchor, $state['anchors']);
+        $state['aliasProvenance'][] = [
+            'type' => 'yaml-alias',
+            'path' => $path,
+            'alias' => '*' . $anchor,
+            'anchor' => $anchor,
+            'resolved' => $resolved ? 'true' : 'false',
+            'sourceLine' => (string) $line,
+        ];
+
+        return $resolved ? self::cloneYamlValue($state['anchors'][$anchor]) : '*' . $anchor;
+    }
+
+    private static function cloneYamlValue(mixed $value): mixed
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        $copy = [];
+        foreach ($value as $key => $item) {
+            $copy[$key] = self::cloneYamlValue($item);
+        }
+
+        return $copy;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function noteYamlCollection(array &$state): void
+    {
+        $state['collectionCount']++;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function recordYamlCollectionProvenance(
+        string $path,
+        string $kind,
+        string $style,
+        string $source,
+        string $collectionSource,
+        int $line,
+        array &$state
+    ): void {
+        self::noteYamlCollection($state);
+        $state['collectionProvenance'][] = [
+            'type' => 'yaml-explicit-key-collection',
+            'path' => $path,
+            'kind' => $kind,
+            'style' => $style,
+            'source' => $source,
+            'collectionSource' => $collectionSource,
+            'sourceLine' => (string) $line,
+        ];
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     */
+    private static function recordYamlTagProvenance(string $tag, string $path, int $line, array &$state): void
+    {
+        $normalized = self::normalizeYamlTag($tag);
+        if ($normalized === '' || str_starts_with($normalized, 'tag:yaml.org,2002:')) {
+            return;
+        }
+
+        $state['tagProvenance'][] = [
+            'type' => 'yaml-tag',
+            'path' => $path,
+            'tag' => str_starts_with($tag, '!') ? $tag : '!<' . $tag . '>',
+            'normalizedTag' => $normalized,
+            'kind' => str_starts_with($tag, '!') ? 'local' : 'verbatim',
+            'sourceLine' => (string) $line,
+        ];
+    }
+
+    private static function normalizeYamlTag(string $tag): string
+    {
+        if (str_starts_with($tag, 'tag:')) {
+            return $tag;
+        }
+        if (str_starts_with($tag, '!')) {
+            return substr($tag, 1);
+        }
+
+        return $tag;
+    }
+
+    /**
+     * @param array<string, mixed> $state
+     * @return array<string, list<array<string, mixed>>>
+     */
+    private static function yamlProvenanceByPath(array $state): array
+    {
+        $byPath = [];
+        foreach ([
+            'tagProvenance' => ['tag', 'yamlMetadataTagProvenance'],
+            'collectionProvenance' => ['collection', 'yamlMetadataCollectionProvenance'],
+            'aliasProvenance' => ['alias', 'yamlMetadataAliasProvenance'],
+        ] as $stateKey => [$category, $attribute]) {
+            foreach ($state[$stateKey] as $entry) {
+                if (!is_array($entry)) {
+                    continue;
+                }
+                $entry['category'] = $category;
+                $entry['attribute'] = $attribute;
+                $byPath[self::pathFromEntry($entry)][] = $entry;
+            }
+        }
+
+        return $byPath;
+    }
+
+    /**
+     * @param array<string, mixed> $metadata
+     * @return array<string, mixed>
+     */
+    private static function publicYamlMetadata(array $metadata): array
+    {
+        $public = [];
+        foreach ($metadata as $key => $value) {
+            $field = (string) $key;
+            if ($field === '' || str_ends_with($field, '_')) {
+                continue;
+            }
+
+            $public[$field] = $value;
+        }
+
+        return $public;
+    }
+
+    private static function yamlIndent(string $line): int
+    {
+        return strlen($line) - strlen(ltrim($line, ' '));
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private static function nextYamlContentIndex(array $lines, int $start): ?int
+    {
+        $count = count($lines);
+        for ($index = $start; $index < $count; $index++) {
+            if (trim($lines[$index]) !== '' && !str_starts_with(ltrim($lines[$index]), '#')) {
+                return $index;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<string> $lines
+     */
+    private static function nextYamlContentIndent(array $lines, int $start): ?int
+    {
+        $index = self::nextYamlContentIndex($lines, $start);
+
+        return $index === null ? null : self::yamlIndent($lines[$index]);
+    }
+
+    private static function yamlPathAppend(string $path, string $segment): string
+    {
+        $escaped = str_replace(['~', '/'], ['~0', '~1'], $segment);
+
+        return $path === '' ? '/' . $escaped : $path . '/' . $escaped;
     }
 
     /**

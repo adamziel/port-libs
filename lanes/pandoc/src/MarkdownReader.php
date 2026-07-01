@@ -133,6 +133,11 @@ final class MarkdownReader
     {
     }
 
+    private function tableWithReviewPacket(AstNode $table): AstNode
+    {
+        return TableGeometry::withReviewPacket($table);
+    }
+
     public function read(string $markdown): AstNode
     {
         $blocks = [];
@@ -1749,10 +1754,10 @@ final class MarkdownReader
             $attrs['shortCaptionInlines'] = $this->parseInlines($shortCaption);
         }
 
-        return new AstNode('table', $attrs, [
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, [
             new AstNode('table_head'),
             new AstNode('table_body', [], $bodyRows),
-        ]);
+        ]));
     }
 
     /**
@@ -1944,7 +1949,7 @@ final class MarkdownReader
             $children[] = new AstNode('table_foot', [], $footRows);
         }
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -4660,7 +4665,7 @@ final class MarkdownReader
             $children[] = new AstNode('table_foot', $footAttrs, $footRows);
         }
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -4748,7 +4753,7 @@ final class MarkdownReader
                 if ($cell->type !== 'table_cell' || $cell->attr('header') !== true) {
                     break;
                 }
-                $count++;
+                $count += max(1, (int) $cell->attr('colspan', 1));
             }
 
             $minimum = $minimum === null ? $count : min($minimum, $count);
@@ -4846,7 +4851,13 @@ final class MarkdownReader
             $attrs['colspan'] = $colspan;
         }
 
-        $rowspan = $this->positiveHtmlSpan($cell->getAttribute('rowspan'));
+        $rawRowspan = trim($cell->getAttribute('rowspan'));
+        $rowspan = $rawRowspan === '0' ? 0 : $this->positiveHtmlSpan($rawRowspan);
+        if ($rowspan === 0) {
+            $attrs['rowspanToEnd'] = true;
+            $attrs['sourceRowspanAttribute'] = 0;
+            $attrs['sourceRowspanMode'] = 'to-section-end';
+        }
         if ($rowspan > 1) {
             $attrs['rowspan'] = $rowspan;
         }
@@ -7490,7 +7501,7 @@ final class MarkdownReader
             $attrs['widths'] = $widths;
         }
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -7532,7 +7543,7 @@ final class MarkdownReader
             $attrs['widths'] = $widths;
         }
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
@@ -7682,7 +7693,7 @@ final class MarkdownReader
 
         $index = $cursor - 1;
 
-        return new AstNode('table', $attrs, $children);
+        return $this->tableWithReviewPacket(new AstNode('table', $attrs, $children));
     }
 
     /**
