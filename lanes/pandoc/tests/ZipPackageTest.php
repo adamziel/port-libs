@@ -805,6 +805,7 @@ return [
         }, $expectedEntries);
         $expectedHash = hash('sha256', json_encode([
             'manifestVersion' => 'zip-package-manifest-v1',
+            'packageSource' => $manifest['packageSource'],
             'centralDirectoryOrderNames' => $expectedCentralOrder,
             'localHeaderOrderNames' => $expectedLocalOrder,
             'entries' => $expectedEntries,
@@ -813,10 +814,14 @@ return [
         $t->same('zip-package-manifest-v1', $manifest['manifestVersion']);
         $t->same($expectedHash, $manifest['manifestSha256']);
         $t->same(3, $manifest['entryCount']);
+        $t->same(strlen($zip), $manifest['archiveLength']);
+        $t->same(hash('sha256', $zip), $manifest['archiveSha256']);
         $t->same(2, $manifest['fileEntryCount']);
         $t->same(1, $manifest['directoryEntryCount']);
         $t->same(strlen(gzdeflate($contentXhtml)) + strlen($mimetype), $manifest['compressedBytes']);
         $t->same(strlen($contentXhtml) + strlen($mimetype), $manifest['uncompressedBytes']);
+        $t->same($manifest['archiveLength'], $manifest['packageSource']['archiveLength']);
+        $t->same($manifest['archiveSha256'], $manifest['packageSource']['archiveSha256']);
         $t->same(2, $manifest['storedEntryCount']);
         $t->same(1, $manifest['deflatedEntryCount']);
         $t->same(0, $manifest['unsupportedCompressionMethodCount']);
@@ -847,6 +852,92 @@ return [
         $t->same($manifest, $strict['packageManifest']);
         $t->same($manifest, $raw['packageManifest']);
         $t->same($manifest, $raw['strictImport']['packageManifest']);
+    },
+
+    'preflights zip package manifest package source record hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
+        $documentXml = '<w:document><w:body><w:p>manifest package source</w:p></w:body></w:document>';
+        $mediaBytes = "manifest media package source bytes\n";
+        $packageComment = "package manifest comment PK\x05\x06 review";
+        $zip = $buildZipPackage([
+            [
+                'name' => 'word/document.xml',
+                'data' => $documentXml,
+                'method' => 8,
+            ],
+            [
+                'name' => 'word/media/review.txt',
+                'data' => $mediaBytes,
+                'method' => 0,
+            ],
+        ], $packageComment);
+
+        $package = ZipPackage::fromString($zip);
+        $manifest = $package->packageManifestPreflight();
+        $layout = ZipPackage::packageByteLayoutPreflight($zip);
+        $raw = ZipPackage::rawStrictImportPreflight($zip, 2048, 100.0, 2048);
+        $strict = $package->strictImportPreflight(2048, 100.0, 2048);
+        $source = $manifest['packageSource'];
+        $manifestEntries = array_map(
+            static fn (array $entry): array => [
+                'name' => $entry['name'],
+                'isDirectory' => $entry['isDirectory'],
+                'centralDirectoryIndex' => $entry['centralDirectoryIndex'],
+                'localHeaderOrder' => $entry['localHeaderOrder'],
+                'compressionMethod' => $entry['compressionMethod'],
+                'crc32Hex' => $entry['crc32Hex'],
+                'compressedSize' => $entry['compressedSize'],
+                'uncompressedSize' => $entry['uncompressedSize'],
+                'localHeaderSha256' => $entry['localHeaderSha256'],
+                'localRecordBytes' => $entry['localRecordBytes'],
+                'localRecordSha256' => $entry['localRecordSha256'],
+                'compressedDataSha256' => $entry['compressedDataSha256'],
+                'usesDataDescriptor' => $entry['usesDataDescriptor'],
+                'dataDescriptorBytes' => $entry['dataDescriptorBytes'],
+                'dataDescriptorSha256' => $entry['dataDescriptorSha256'],
+                'centralDirectoryRecordSha256' => $entry['centralDirectoryRecordSha256'],
+            ],
+            $manifest['entries']
+        );
+        $expectedManifestHash = hash('sha256', json_encode([
+            'manifestVersion' => 'zip-package-manifest-v1',
+            'packageSource' => $source,
+            'centralDirectoryOrderNames' => $manifest['centralDirectoryOrderNames'],
+            'localHeaderOrderNames' => $manifest['localHeaderOrderNames'],
+            'entries' => $manifestEntries,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+
+        $t->same(strlen($zip), $source['archiveLength']);
+        $t->same(hash('sha256', $zip), $source['archiveSha256']);
+        $t->same($layout['centralDirectoryOffset'], $source['centralDirectoryOffset']);
+        $t->same($layout['centralDirectoryBytes'], $source['centralDirectoryBytes']);
+        $t->same($layout['centralDirectoryEnd'], $source['centralDirectoryEnd']);
+        $t->same(
+            hash('sha256', substr($zip, $source['centralDirectoryOffset'], $source['centralDirectoryBytes'])),
+            $source['centralDirectorySha256']
+        );
+        $t->same(null, $source['centralDirectoryToEocdGapOffset']);
+        $t->same(0, $source['centralDirectoryToEocdGapBytes']);
+        $t->same(null, $source['centralDirectoryToEocdGapSha256']);
+        $t->same($layout['eocdOffset'], $source['endOfCentralDirectoryOffset']);
+        $t->same($layout['endOfCentralDirectoryBytes'], $source['endOfCentralDirectoryBytes']);
+        $t->same(strlen($zip), $source['endOfCentralDirectoryEnd']);
+        $t->same(
+            hash('sha256', substr($zip, $source['endOfCentralDirectoryOffset'], $source['endOfCentralDirectoryBytes'])),
+            $source['endOfCentralDirectorySha256']
+        );
+        $t->same($layout['packageCommentOffset'], $source['packageCommentOffset']);
+        $t->same(strlen($packageComment), $source['packageCommentBytes']);
+        $t->same(hash('sha256', $packageComment), $source['packageCommentSha256']);
+        $t->same(true, $source['hasPackageComment']);
+        $t->same($source['archiveLength'], $manifest['archiveLength']);
+        $t->same($source['archiveSha256'], $manifest['archiveSha256']);
+        $t->same($source['centralDirectorySha256'], $manifest['centralDirectorySha256']);
+        $t->same($source['endOfCentralDirectorySha256'], $manifest['endOfCentralDirectorySha256']);
+        $t->same($source['packageCommentSha256'], $manifest['packageCommentSha256']);
+        $t->same($expectedManifestHash, $manifest['manifestSha256']);
+        $t->same($manifest, $raw['packageManifest']);
+        $t->same($manifest, $raw['strictImport']['packageManifest']);
+        $t->same($manifest, $strict['packageManifest']);
     },
 
     'preflights zip package manifest compressed payload hashes for package handoff' => static function (TestRunner $t) use ($buildZipPackage): void {
@@ -5201,6 +5292,7 @@ return [
         $signedZip = $buildCentralDirectorySignaturePackage();
         $expectedHash = hash('sha256', 'central-signature');
         $package = ZipPackage::fromString($signedZip);
+        $manifest = $package->packageManifestPreflight();
         $instanceSignature = $package->centralDirectorySignaturePreflight();
         $rawSignature = ZipPackage::centralDirectorySignaturePolicyPreflight($signedZip);
         $rawStrict = ZipPackage::rawStrictImportPreflight($signedZip, 2048, 100.0, 2048);
@@ -5214,6 +5306,16 @@ return [
         $t->same($expectedHash, $instanceSignature['signatureSha256']);
         $t->same($expectedHash, $rawSignature['signatureSha256']);
         $t->same($expectedHash, $rawStrict['centralDirectorySignature']['signatureSha256']);
+        $t->same($rawSignature['offset'], $manifest['centralDirectoryToEocdGapOffset']);
+        $t->same($rawSignature['signatureLength'] + 6, $manifest['centralDirectoryToEocdGapBytes']);
+        $t->same(
+            hash(
+                'sha256',
+                substr($signedZip, $rawSignature['offset'], $rawSignature['signatureLength'] + 6)
+            ),
+            $manifest['centralDirectoryToEocdGapSha256']
+        );
+        $t->same($manifest, $rawStrict['packageManifest']);
         $t->same(strlen('central-signature'), $rawSignature['signatureLength']);
         $t->same('not-performed-native-bounded-reader', $rawSignature['cryptographicVerification']);
         $t->same(null, $unsignedPackage->centralDirectorySignaturePreflight()['signatureSha256']);

@@ -12968,6 +12968,48 @@ final class ZipPackage
      */
     public function packageManifestPreflight(): array
     {
+        $archive = self::endOfCentralDirectoryPreflight($this->bytes);
+        $archiveLength = strlen($this->bytes);
+        $centralDirectoryOffset = $archive['centralDirectoryOffset'];
+        $centralDirectoryBytes = $archive['centralDirectorySize'];
+        $centralDirectoryEnd = $archive['centralDirectoryEnd'];
+        $centralDirectoryToEocdGapBytes = max(0, $archive['eocdOffset'] - $centralDirectoryEnd);
+        $centralDirectoryToEocdGapOffset = $centralDirectoryToEocdGapBytes > 0 ? $centralDirectoryEnd : null;
+        $centralDirectoryToEocdGapSha256 = $centralDirectoryToEocdGapBytes > 0
+            ? hash('sha256', substr($this->bytes, $centralDirectoryEnd, $centralDirectoryToEocdGapBytes))
+            : null;
+        $endOfCentralDirectoryBytes = 22 + $archive['packageCommentLength'];
+        $endOfCentralDirectoryEnd = $archive['eocdOffset'] + $endOfCentralDirectoryBytes;
+        $packageCommentOffset = $archive['eocdOffset'] + 22;
+        $packageCommentBytes = $archive['packageCommentLength'];
+        $packageCommentSha256 = $packageCommentBytes > 0
+            ? hash('sha256', substr($this->bytes, $packageCommentOffset, $packageCommentBytes))
+            : null;
+        $packageSource = [
+            'archiveLength' => $archiveLength,
+            'archiveSha256' => hash('sha256', $this->bytes),
+            'centralDirectoryOffset' => $centralDirectoryOffset,
+            'centralDirectoryBytes' => $centralDirectoryBytes,
+            'centralDirectoryEnd' => $centralDirectoryEnd,
+            'centralDirectorySha256' => hash(
+                'sha256',
+                substr($this->bytes, $centralDirectoryOffset, $centralDirectoryBytes)
+            ),
+            'centralDirectoryToEocdGapOffset' => $centralDirectoryToEocdGapOffset,
+            'centralDirectoryToEocdGapBytes' => $centralDirectoryToEocdGapBytes,
+            'centralDirectoryToEocdGapSha256' => $centralDirectoryToEocdGapSha256,
+            'endOfCentralDirectoryOffset' => $archive['eocdOffset'],
+            'endOfCentralDirectoryBytes' => $endOfCentralDirectoryBytes,
+            'endOfCentralDirectoryEnd' => $endOfCentralDirectoryEnd,
+            'endOfCentralDirectorySha256' => hash(
+                'sha256',
+                substr($this->bytes, $archive['eocdOffset'], $endOfCentralDirectoryBytes)
+            ),
+            'packageCommentOffset' => $packageCommentOffset,
+            'packageCommentBytes' => $packageCommentBytes,
+            'packageCommentSha256' => $packageCommentSha256,
+            'hasPackageComment' => $packageCommentBytes > 0,
+        ];
         $localEntries = $this->localEntries();
         $localOrderByName = [];
         foreach ($localEntries as $localHeaderOrder => $entry) {
@@ -13113,6 +13155,7 @@ final class ZipPackage
         $localHeaderOrderNames = $this->localNames();
         $manifestPayload = [
             'manifestVersion' => 'zip-package-manifest-v1',
+            'packageSource' => $packageSource,
             'centralDirectoryOrderNames' => $centralDirectoryOrderNames,
             'localHeaderOrderNames' => $localHeaderOrderNames,
             'entries' => $manifestEntries,
@@ -13126,11 +13169,29 @@ final class ZipPackage
             'manifestVersion' => 'zip-package-manifest-v1',
             'manifestSha256' => hash('sha256', $manifestJson),
             'entryCount' => count($this->entries),
+            'archiveLength' => $packageSource['archiveLength'],
+            'archiveSha256' => $packageSource['archiveSha256'],
             'fileEntryCount' => $fileEntryCount,
             'directoryEntryCount' => $directoryEntryCount,
             'compressedBytes' => $compressedBytes,
             'uncompressedBytes' => $uncompressedBytes,
             'localRecordBytes' => $localRecordBytes,
+            'centralDirectoryOffset' => $packageSource['centralDirectoryOffset'],
+            'centralDirectoryBytes' => $packageSource['centralDirectoryBytes'],
+            'centralDirectoryEnd' => $packageSource['centralDirectoryEnd'],
+            'centralDirectorySha256' => $packageSource['centralDirectorySha256'],
+            'centralDirectoryToEocdGapOffset' => $packageSource['centralDirectoryToEocdGapOffset'],
+            'centralDirectoryToEocdGapBytes' => $packageSource['centralDirectoryToEocdGapBytes'],
+            'centralDirectoryToEocdGapSha256' => $packageSource['centralDirectoryToEocdGapSha256'],
+            'endOfCentralDirectoryOffset' => $packageSource['endOfCentralDirectoryOffset'],
+            'endOfCentralDirectoryBytes' => $packageSource['endOfCentralDirectoryBytes'],
+            'endOfCentralDirectoryEnd' => $packageSource['endOfCentralDirectoryEnd'],
+            'endOfCentralDirectorySha256' => $packageSource['endOfCentralDirectorySha256'],
+            'packageCommentOffset' => $packageSource['packageCommentOffset'],
+            'packageCommentBytes' => $packageSource['packageCommentBytes'],
+            'packageCommentSha256' => $packageSource['packageCommentSha256'],
+            'hasPackageComment' => $packageSource['hasPackageComment'],
+            'packageSource' => $packageSource,
             'dataDescriptorEntryCount' => $dataDescriptorEntryCount,
             'dataDescriptorBytes' => $dataDescriptorBytes,
             'storedEntryCount' => $storedEntryCount,
