@@ -1677,8 +1677,9 @@ BIB;
 }
 BIB;
 
-        $item = (new BibtexCslProcessor())->cslItems($source)['extent-handoff'];
-        $bibliography = (new BibtexCslProcessor())->renderBibliographyText($item);
+        $processor = new BibtexCslProcessor();
+        $item = $processor->cslItems($source)['extent-handoff'];
+        $bibliography = $processor->renderBibliographyText($item);
 
         $t->same('chapter', $item['type']);
         $t->same('2', $item['volume']);
@@ -1686,7 +1687,17 @@ BIB;
         $t->same('7', $item['chapter-number']);
         $t->same('101-120', $item['page']);
         $t->same('320', $item['number-of-pages']);
-        $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120.', $bibliography);
+        $t->same('Casey Chapter. Extent Review Chapter. Migration Extent Handbook 2. 2026. 101-120. Number of volumes: 4. Chapter number: 7. Number of pages: 320.', $bibliography);
+
+        $document = (new MarkdownReader())->read('Extent source @extent-handoff keeps compact extent metadata visible.');
+        $handoff = $processor->citationHandoff($document, $source);
+        $blocks = (new WordPressBlockWriter())->write(new AstNode('document', [], [$handoff['bibliography']]));
+
+        $t->same(['extent-handoff'], $handoff['citedKeys']);
+        $t->same('4', $handoff['items'][0]['number-of-volumes']);
+        $t->same('7', $handoff['bibliography']->children[0]->attr('cslItem')['chapter-number'] ?? null);
+        $t->same('320', $handoff['bibliography']->children[0]->attr('cslItem')['number-of-pages'] ?? null);
+        $t->contains('Number of volumes: 4. Chapter number: 7. Number of pages: 320.', $blocks);
     },
     'carries legacy biblatex journal abbreviation and article number metadata' => static function (TestRunner $t): void {
         $source = <<<'BIB'

@@ -365,6 +365,9 @@ final class BibtexCslProcessor
         foreach ([
             'pagination' => 'Pagination',
             'book-pagination' => 'Book pagination',
+            'number-of-volumes' => 'Number of volumes',
+            'chapter-number' => 'Chapter number',
+            'number-of-pages' => 'Number of pages',
             'part' => 'Part',
             'printing-number' => 'Printing number',
             'supplement-number' => 'Supplement number',
