@@ -11830,6 +11830,11 @@ final class ZipPackage
      *     hasUnexpectedCentralDirectoryTail:bool,
      *     unexpectedRecordOffset:?int,
      *     unexpectedRecordSignatureHex:?string,
+     *     versionMadeBySummaryCount:int,
+     *     versionMadeByValues:list<int>,
+     *     versionMadeByHexes:list<string>,
+     *     hasMultipleVersionMadeByValues:bool,
+     *     versionMadeBySummaries:list<array<string, mixed>>,
      *     isSupportedByBoundedReader:bool,
      *     issues:list<string>,
      *     entries:list<array<string, mixed>>
@@ -11993,6 +11998,15 @@ final class ZipPackage
         }
 
         $issues = array_values(array_unique($issues));
+        $versionMadeBySummaries = self::versionMadeBySummaries($entries, false);
+        $versionMadeByValues = array_map(
+            static fn (array $summary): int => (int) $summary['versionMadeBy'],
+            $versionMadeBySummaries
+        );
+        $versionMadeByHexes = array_map(
+            static fn (array $summary): string => (string) $summary['versionMadeByHex'],
+            $versionMadeBySummaries
+        );
 
         return [
             'entryCount' => count($entries),
@@ -12007,6 +12021,11 @@ final class ZipPackage
             'hasUnexpectedCentralDirectoryTail' => $unexpectedRecordOffset !== null,
             'unexpectedRecordOffset' => $unexpectedRecordOffset,
             'unexpectedRecordSignatureHex' => $unexpectedRecordSignatureHex,
+            'versionMadeBySummaryCount' => count($versionMadeBySummaries),
+            'versionMadeByValues' => $versionMadeByValues,
+            'versionMadeByHexes' => $versionMadeByHexes,
+            'hasMultipleVersionMadeByValues' => count($versionMadeBySummaries) > 1,
+            'versionMadeBySummaries' => $versionMadeBySummaries,
             'isSupportedByBoundedReader' => $issues === [],
             'issues' => $issues,
             'entries' => $entries,
@@ -15690,6 +15709,15 @@ final class ZipPackage
         sort($minimumVersionNeededToExtractVersions, SORT_NUMERIC);
         ksort($creatorHostSystemSummaries, SORT_NUMERIC);
         $creatorHostSystemSummaries = array_values($creatorHostSystemSummaries);
+        $versionMadeBySummaries = self::versionMadeBySummaries($entries, true);
+        $versionMadeByValues = array_map(
+            static fn (array $summary): int => (int) $summary['versionMadeBy'],
+            $versionMadeBySummaries
+        );
+        $versionMadeByHexes = array_map(
+            static fn (array $summary): string => (string) $summary['versionMadeByHex'],
+            $versionMadeBySummaries
+        );
         $directoryRootSummaries = self::packageManifestDirectoryRootSummaries($entries);
         $directoryRoots = array_map(
             static fn (array $summary): string => (string) $summary['directoryRoot'],
@@ -15931,6 +15959,11 @@ final class ZipPackage
             'maxVersionNeededToExtract' => $maxVersionNeededToExtract,
             'maxMinimumVersionNeededToExtract' => $maxMinimumVersionNeededToExtract,
             'versionNeededToExtractSummaries' => $versionNeededToExtractSummaries,
+            'versionMadeBySummaryCount' => count($versionMadeBySummaries),
+            'versionMadeByValues' => $versionMadeByValues,
+            'versionMadeByHexes' => $versionMadeByHexes,
+            'hasMultipleVersionMadeByValues' => count($versionMadeBySummaries) > 1,
+            'versionMadeBySummaries' => $versionMadeBySummaries,
             'creatorHostSystemSummaryCount' => count($creatorHostSystemSummaries),
             'knownCreatorHostSystemEntryCount' => count($this->entries) - count($unknownCreatorHostSystemEntries),
             'unknownCreatorHostSystemEntryCount' => count($unknownCreatorHostSystemEntries),
@@ -16129,6 +16162,11 @@ final class ZipPackage
             'maxMinimumVersionNeededToExtract' => $maxMinimumVersionNeededToExtract,
             'hasMultipleVersionNeededToExtractVersions' => count($versionNeededToExtractSummaries) > 1,
             'versionNeededToExtractSummaries' => $versionNeededToExtractSummaries,
+            'versionMadeBySummaryCount' => count($versionMadeBySummaries),
+            'versionMadeByValues' => $versionMadeByValues,
+            'versionMadeByHexes' => $versionMadeByHexes,
+            'hasMultipleVersionMadeByValues' => count($versionMadeBySummaries) > 1,
+            'versionMadeBySummaries' => $versionMadeBySummaries,
             'crc32SummaryCount' => count($crc32Summaries),
             'crc32Summaries' => $crc32Summaries,
             'duplicateCrc32HexCount' => count($duplicateCrc32Summaries),
@@ -16669,6 +16707,97 @@ final class ZipPackage
         }
 
         return $summaries;
+    }
+
+    /**
+     * @param list<array<string, mixed>> $entries
+     * @return list<array<string, mixed>>
+     */
+    private static function versionMadeBySummaries(array $entries, bool $includeRecordByteTotals): array
+    {
+        $summaries = [];
+        foreach ($entries as $entry) {
+            if (!is_int($entry['versionMadeBy'] ?? null)) {
+                continue;
+            }
+
+            $versionMadeBy = (int) $entry['versionMadeBy'];
+            $madeByHostSystem = is_int($entry['madeByHostSystem'] ?? null)
+                ? (int) $entry['madeByHostSystem']
+                : (
+                    is_int($entry['creatorHostSystem'] ?? null)
+                        ? (int) $entry['creatorHostSystem']
+                        : (($versionMadeBy >> 8) & 0xff)
+                );
+            $madeByVersion = is_int($entry['madeByVersion'] ?? null)
+                ? (int) $entry['madeByVersion']
+                : (
+                    is_int($entry['creatorVersion'] ?? null)
+                        ? (int) $entry['creatorVersion']
+                        : ($versionMadeBy & 0xff)
+                );
+            $key = (string) $versionMadeBy;
+
+            if (!isset($summaries[$key])) {
+                $summary = [
+                    'versionMadeBy' => $versionMadeBy,
+                    'versionMadeByHex' => sprintf('%04x', $versionMadeBy),
+                    'madeByHostSystem' => $madeByHostSystem,
+                    'madeByHostSystemName' => self::creatorHostSystemName($madeByHostSystem),
+                    'madeByVersion' => $madeByVersion,
+                    'creatorHostSystemIsKnown' => self::isKnownCreatorHostSystem($madeByHostSystem),
+                    'entryCount' => 0,
+                    'fileEntryCount' => 0,
+                    'directoryEntryCount' => 0,
+                    'compressedBytes' => 0,
+                    'uncompressedBytes' => 0,
+                    'compressionMethodNames' => [],
+                    'entryNames' => [],
+                ];
+
+                if ($includeRecordByteTotals) {
+                    $summary['localRecordBytes'] = 0;
+                    $summary['sourceRecordBytes'] = 0;
+                }
+
+                $summaries[$key] = $summary;
+            }
+
+            $isDirectory = is_bool($entry['isDirectory'] ?? null)
+                ? (bool) $entry['isDirectory']
+                : (is_string($entry['name'] ?? null) && str_ends_with((string) $entry['name'], '/'));
+
+            $summaries[$key]['entryCount']++;
+            if ($isDirectory) {
+                $summaries[$key]['directoryEntryCount']++;
+            } else {
+                $summaries[$key]['fileEntryCount']++;
+            }
+
+            $summaries[$key]['compressedBytes'] += (int) ($entry['compressedSize'] ?? 0);
+            $summaries[$key]['uncompressedBytes'] += (int) ($entry['uncompressedSize'] ?? 0);
+            if ($includeRecordByteTotals) {
+                $summaries[$key]['localRecordBytes'] += (int) ($entry['localRecordBytes'] ?? 0);
+                $summaries[$key]['sourceRecordBytes'] += (int) ($entry['sourceRecordBytes'] ?? 0);
+            }
+
+            foreach ([
+                'compressionMethodNames' => (string) ($entry['compressionMethodName'] ?? ''),
+                'entryNames' => (string) ($entry['name'] ?? ''),
+            ] as $field => $value) {
+                if ($value !== '' && !in_array($value, $summaries[$key][$field], true)) {
+                    $summaries[$key][$field][] = $value;
+                }
+            }
+        }
+
+        ksort($summaries, SORT_NUMERIC);
+        foreach ($summaries as &$summary) {
+            sort($summary['compressionMethodNames'], SORT_STRING);
+        }
+        unset($summary);
+
+        return array_values($summaries);
     }
 
     /**
