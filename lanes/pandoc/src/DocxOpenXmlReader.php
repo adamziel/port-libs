@@ -11151,6 +11151,37 @@ final class DocxOpenXmlReader
         $summary['zipPackageManifestArchiveSha256'] = is_string($zipPackageManifest['archiveSha256'] ?? null)
             ? $zipPackageManifest['archiveSha256']
             : null;
+        $summary['zipPackageManifestCentralDirectoryOffset'] = is_int($zipPackageManifest['centralDirectoryOffset'] ?? null)
+            ? $zipPackageManifest['centralDirectoryOffset']
+            : null;
+        $summary['zipPackageManifestCentralDirectoryEnd'] = is_int($zipPackageManifest['centralDirectoryEnd'] ?? null)
+            ? $zipPackageManifest['centralDirectoryEnd']
+            : null;
+        $summary['zipPackageManifestCentralDirectoryToEocdGapOffset'] = is_int($zipPackageManifest['centralDirectoryToEocdGapOffset'] ?? null)
+            ? $zipPackageManifest['centralDirectoryToEocdGapOffset']
+            : null;
+        $summary['zipPackageManifestCentralDirectoryToEocdGapBytes'] = (int) ($zipPackageManifest['centralDirectoryToEocdGapBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectoryToEocdGapSha256'] = is_string($zipPackageManifest['centralDirectoryToEocdGapSha256'] ?? null)
+            ? $zipPackageManifest['centralDirectoryToEocdGapSha256']
+            : null;
+        $summary['zipPackageManifestEndOfCentralDirectoryOffset'] = is_int($zipPackageManifest['endOfCentralDirectoryOffset'] ?? null)
+            ? $zipPackageManifest['endOfCentralDirectoryOffset']
+            : null;
+        $summary['zipPackageManifestEndOfCentralDirectoryEnd'] = is_int($zipPackageManifest['endOfCentralDirectoryEnd'] ?? null)
+            ? $zipPackageManifest['endOfCentralDirectoryEnd']
+            : null;
+        $summary['zipPackageManifestPackageCommentOffset'] = is_int($zipPackageManifest['packageCommentOffset'] ?? null)
+            ? $zipPackageManifest['packageCommentOffset']
+            : null;
+        $summary['zipPackageManifestHasPackageComment'] = ($zipPackageManifest['hasPackageComment'] ?? false) === true;
+        $summary['zipPackageManifestHasCentralDirectorySignature'] = ($zipPackageManifest['hasCentralDirectorySignature'] ?? false) === true;
+        $summary['zipPackageManifestCentralDirectorySignatureOffset'] = is_int($zipPackageManifest['centralDirectorySignatureOffset'] ?? null)
+            ? $zipPackageManifest['centralDirectorySignatureOffset']
+            : null;
+        $summary['zipPackageManifestCentralDirectorySignatureBytes'] = (int) ($zipPackageManifest['centralDirectorySignatureBytes'] ?? 0);
+        $summary['zipPackageManifestCentralDirectorySignatureSha256'] = is_string($zipPackageManifest['centralDirectorySignatureSha256'] ?? null)
+            ? $zipPackageManifest['centralDirectorySignatureSha256']
+            : null;
         $summary['zipPackageManifestFileEntryCount'] = (int) ($zipPackageManifest['fileEntryCount'] ?? 0);
         $summary['zipPackageManifestDirectoryEntryCount'] = (int) ($zipPackageManifest['directoryEntryCount'] ?? 0);
         $summary['zipPackageManifestCompressedBytes'] = (int) ($zipPackageManifest['compressedBytes'] ?? 0);
@@ -11704,6 +11735,29 @@ final class DocxOpenXmlReader
         return [
             'manifestVersion' => null,
             'manifestSha256' => null,
+            'packageSource' => [],
+            'archiveBytes' => 0,
+            'archiveLength' => 0,
+            'archiveSha256' => null,
+            'centralDirectoryOffset' => null,
+            'centralDirectoryBytes' => 0,
+            'centralDirectoryEnd' => null,
+            'centralDirectorySha256' => null,
+            'centralDirectoryToEocdGapOffset' => null,
+            'centralDirectoryToEocdGapBytes' => 0,
+            'centralDirectoryToEocdGapSha256' => null,
+            'endOfCentralDirectoryOffset' => null,
+            'endOfCentralDirectoryBytes' => 0,
+            'endOfCentralDirectoryEnd' => null,
+            'endOfCentralDirectorySha256' => null,
+            'packageCommentOffset' => null,
+            'packageCommentBytes' => 0,
+            'packageCommentSha256' => null,
+            'hasPackageComment' => false,
+            'hasCentralDirectorySignature' => false,
+            'centralDirectorySignatureOffset' => null,
+            'centralDirectorySignatureBytes' => 0,
+            'centralDirectorySignatureSha256' => null,
             'entryCount' => 0,
             'fileEntryCount' => 0,
             'directoryEntryCount' => 0,
