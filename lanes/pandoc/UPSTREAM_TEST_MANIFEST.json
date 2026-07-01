@@ -14,6 +14,8 @@
     "docxPackageCaseFoldPathSegmentAssertions": 57,
     "mappedDocxPackageCaseFoldPathSegmentPositionCases": 1,
     "docxPackageCaseFoldPathSegmentPositionAssertions": 69,
+    "mappedDocxRelationshipTargetCaseFoldPathSegmentPositionCases": 1,
+    "docxRelationshipTargetCaseFoldPathSegmentPositionAssertions": 98,
     "mappedDocxPackageCaseFoldTopLevelSegmentCases": 1,
     "docxPackageCaseFoldTopLevelSegmentAssertions": 50,
     "mappedDocxContentTypeDefaultDeclarationParameterRollupCases": 1,
