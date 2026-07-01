@@ -746,6 +746,30 @@ final class PptxWriter
         $shapes = [];
         foreach ($columns as $index => $column) {
             [$x, $y, $cx, $cy] = $rects[$index];
+            $figure = $this->figureFromSingleFigureColumn($column->children);
+            if ($figure !== null) {
+                $pictureCy = min($cy, 3048000);
+                $picture = $this->pictureShapeXmlAtRect($figure['image'], $shapeId++, $x, $y, $cx, $pictureCy, $relationships);
+                if ($picture !== null) {
+                    $shapes[] = $picture;
+                }
+                if ($figure['captionInlines'] !== []) {
+                    [$captionX, $captionY, $captionCx, $captionCy] = $this->columnCaptionRect($x, $y, $cx, $cy, $pictureCy);
+                    $shapes[] = $this->textShapeXml(
+                        $shapeId++,
+                        'Caption',
+                        [$this->paragraphXml($figure['captionInlines'], [], $relationships)],
+                        $captionX,
+                        $captionY,
+                        $captionCx,
+                        $captionCy,
+                        null,
+                        $index + 1
+                    );
+                }
+                continue;
+            }
+
             $image = $this->imageFromSingleImageColumn($column->children);
             if ($image !== null) {
                 $picture = $this->pictureShapeXmlAtRect($image, $shapeId++, $x, $y, $cx, min($cy, 3048000), $relationships);
@@ -834,6 +858,47 @@ final class PptxWriter
 
     /**
      * @param list<AstNode> $blocks
+     * @return array{image:AstNode, captionInlines:list<AstNode>}|null
+     */
+    private function figureFromSingleFigureColumn(array $blocks): ?array
+    {
+        if (count($blocks) !== 1 || $blocks[0]->type !== 'figure') {
+            return null;
+        }
+        $image = $this->firstImageInBlocks($blocks[0]->children);
+        if ($image === null) {
+            return null;
+        }
+        $captionInlines = $blocks[0]->attr('captionInlines', []);
+
+        return [
+            'image' => $image,
+            'captionInlines' => is_array($captionInlines)
+                ? array_values(array_filter($captionInlines, static fn (mixed $inline): bool => $inline instanceof AstNode))
+                : [],
+        ];
+    }
+
+    /**
+     * @param list<AstNode> $blocks
+     */
+    private function firstImageInBlocks(array $blocks): ?AstNode
+    {
+        foreach ($blocks as $block) {
+            if ($block->type === 'image') {
+                return $block;
+            }
+            $image = $this->firstImageInBlocks($block->children);
+            if ($image !== null) {
+                return $image;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param list<AstNode> $blocks
      * @param list<array{id:string, type:string, target:string, targetMode?:string}> $relationships
      * @return list<string>
      */
@@ -910,6 +975,17 @@ final class PptxWriter
         }
 
         return $rects;
+    }
+
+    /**
+     * @return array{0:int,1:int,2:int,3:int}
+     */
+    private function columnCaptionRect(int $x, int $y, int $cx, int $cy, int $pictureCy): array
+    {
+        $captionY = $y + $pictureCy + 152400;
+        $bottom = $y + $cy;
+
+        return [$x, $captionY, $cx, max(304800, min(609600, $bottom - $captionY))];
     }
 
     /**

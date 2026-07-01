@@ -305,6 +305,22 @@ $upstreamTwoColumnTextImageNative = <<<'NATIVE'
   [Para [Image ("",[],[]) [Str "an",Space,Str "image"] ("lalune.jpg","fig:")]]]]
 NATIVE;
 
+$upstreamSingleColumnTextNative = <<<'NATIVE'
+[Header 1 ("single-column",[],[]) [Str "Single",Space,Str "column"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[])
+  [Para [Str "One",Space,Str "paragraph."]
+  ,Para [Str "Another",Space,Str "paragraph."]]]]
+NATIVE;
+
+$upstreamSingleColumnImageNative = <<<'NATIVE'
+[Header 1 ("single-column",[],[]) [Str "Single",Space,Str "column"]
+,Div ("",["columns"],[])
+ [Div ("",["column"],[])
+  [Figure ("",[],[]) (Caption Nothing [Plain [Str "an",Space,Str "image"]])
+   [Plain [Image ("",[],[]) [Str "an",Space,Str "image"] ("lalune.jpg","")]]]]]
+NATIVE;
+
 $upstreamSlideLevelZeroNative = <<<'NATIVE'
 [Header 1 ("hello",[],[]) [Str "Hello"]
 ,Para [Image ("",[],[]) [Str "An",Space,Str "image"] ("lalune.jpg","fig:")]]
@@ -1041,6 +1057,41 @@ return [
         $t->contains('<p:pic>', $slide2);
         $t->true(strpos($slide2, 'idx="1"') < strpos($slide2, '<p:pic>'), 'Slide 2 should keep text in the left column before the right-column image');
         $t->contains('<Slides>2</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream single-column text layout into one content placeholder' => static function (TestRunner $t) use ($upstreamSingleColumnTextNative, $mediaOptions): void {
+        $package = ZipPackage::fromString((new PptxWriter($mediaOptions))->write((new NativeReader())->read($upstreamSingleColumnTextNative)));
+
+        $t->true(!in_array('ppt/slides/slide2.xml', $package->names(), true), 'Single-column text fixture should produce one slide');
+
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Single column</a:t>', $slide);
+        $t->contains('idx="1"', $slide);
+        $t->true(!str_contains($slide, 'idx="2"'), 'Single-column text fixture must not emit a second column placeholder');
+        $t->same(2, substr_count($slide, '<p:sp>'));
+        $t->true(preg_match('/idx="1".*<a:t>One paragraph\\.<\\/a:t>.*<a:t>Another paragraph\\.<\\/a:t>/s', $slide) === 1, 'Single-column paragraphs should share one placeholder');
+        $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
+    },
+
+    'maps upstream single-column figure layout into picture and caption' => static function (TestRunner $t) use ($upstreamSingleColumnImageNative, $mediaOptions): void {
+        $imageOptions = array_replace($mediaOptions, [
+            'mediaResources' => [
+                'lalune.jpg' => ['data' => "\xff\xd8moon", 'mimeType' => 'image/jpeg'],
+            ],
+        ]);
+        $package = ZipPackage::fromString((new PptxWriter($imageOptions))->write((new NativeReader())->read($upstreamSingleColumnImageNative)));
+        $names = $package->names();
+
+        $t->true(in_array('ppt/media/image1.jpg', $names, true), 'Expected packed single-column figure image');
+        $t->true(!in_array('ppt/slides/slide2.xml', $names, true), 'Single-column image fixture should produce one slide');
+
+        $slide = $package->read('ppt/slides/slide1.xml');
+        $t->contains('<a:t>Single column</a:t>', $slide);
+        $t->contains('<p:pic>', $slide);
+        $t->contains('idx="1"', $slide);
+        $t->contains('<a:t>an image</a:t>', $slide);
+        $t->true(strpos($slide, '<p:pic>') < strrpos($slide, '<a:t>an image</a:t>'), 'Figure caption should render after the column picture');
+        $t->contains('<Slides>1</Slides>', $package->read('docProps/app.xml'));
     },
 
     'uses the first heading as the slide title when slide level is zero' => static function (TestRunner $t) use ($upstreamSlideLevelZeroNative, $mediaOptions): void {
