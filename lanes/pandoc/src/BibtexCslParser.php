@@ -896,6 +896,14 @@ final class BibtexCslParser
             'reprint-date-addon' => self::firstField($fields, ['reprintdateaddon', 'reprintdate-addon', 'reprint-date-addon', 'reprintdateaddendum', 'reprint-date-addendum']),
             'event-date-addon' => self::firstField($fields, ['eventdateaddon', 'eventdate-addon', 'event-date-addon']),
             'accessed-date-addon' => self::firstField($fields, ['urldateaddon', 'urldate-addon', 'url-date-addon', 'accesseddateaddon', 'accessed-date-addon']),
+            'xdata' => self::firstField($fields, ['xdata']),
+            'entryset' => self::firstField($fields, ['entryset', 'entry-set']),
+            'related' => self::firstField($fields, ['related', 'related-keys', 'relatedkeys']),
+            'related-type' => self::firstField($fields, ['relatedtype', 'related-type']),
+            'related-string' => self::firstField($fields, ['relatedstring', 'related-string']),
+            'related-options' => self::firstField($fields, ['relatedoptions', 'related-options']),
+            'crossref' => self::firstField($fields, ['crossref']),
+            'xref' => self::firstField($fields, ['xref']),
             'rawBibtex' => [
                 'type' => $type,
                 'key' => $key,
@@ -1275,9 +1283,14 @@ final class BibtexCslParser
     {
         $xdata = self::biblatexKeyList($fields['xdata'] ?? '');
         if ($xdata !== []) {
-            $item['xdataKeys'] = $xdata;
-            $item['xdataItems'] = self::referencedXdataEntrySummaries($xdata, $entriesByKey);
+            $xdataItems = self::referencedXdataEntrySummaries($xdata, $entriesByKey);
             $missing = self::missingXdataReferenceKeys($xdata, $entriesByKey);
+            $item['xdataKeys'] = $xdata;
+            $item['xdataItems'] = $xdataItems;
+            $summary = self::summarizedReferenceValues($xdataItems, $missing, $xdata);
+            if ($summary !== '') {
+                $item['xdataSummary'] = $summary;
+            }
             if ($missing !== []) {
                 $item['missingXdataKeys'] = $missing;
             }
@@ -1285,9 +1298,14 @@ final class BibtexCslParser
 
         $entrySet = self::biblatexKeyList($fields['entryset'] ?? '');
         if ($entrySet !== []) {
-            $item['entrySet'] = $entrySet;
-            $item['entrySetItems'] = self::referencedEntrySummaries($entrySet, $entriesByKey);
+            $entrySetItems = self::referencedEntrySummaries($entrySet, $entriesByKey);
             $missing = self::missingReferenceKeys($entrySet, $entriesByKey);
+            $item['entrySet'] = $entrySet;
+            $item['entrySetItems'] = $entrySetItems;
+            $summary = self::summarizedReferenceValues($entrySetItems, $missing, $entrySet);
+            if ($summary !== '') {
+                $item['entrySetSummary'] = $summary;
+            }
             if ($missing !== []) {
                 $item['missingEntrySetKeys'] = $missing;
             }
@@ -1295,9 +1313,10 @@ final class BibtexCslParser
 
         $related = self::biblatexKeyList(self::firstRawField($fields, ['related', 'related-keys', 'relatedkeys']));
         if ($related !== []) {
-            $item['relatedKeys'] = $related;
-            $item['relatedItems'] = self::referencedEntrySummaries($related, $entriesByKey);
+            $relatedItems = self::referencedEntrySummaries($related, $entriesByKey);
             $missing = self::missingReferenceKeys($related, $entriesByKey);
+            $item['relatedKeys'] = $related;
+            $item['relatedItems'] = $relatedItems;
             if ($missing !== []) {
                 $item['missingRelatedKeys'] = $missing;
             }
@@ -1315,14 +1334,31 @@ final class BibtexCslParser
             $relatedOptions = self::biblatexOptionList(self::firstRawField($fields, ['relatedoptions', 'related-options']));
             if ($relatedOptions !== []) {
                 $item['related-options'] = $relatedOptions;
+                $item['relatedOptions'] = $relatedOptions;
+            }
+
+            $summary = self::biblatexRelatedSummary(
+                $relatedItems,
+                $missing,
+                (string) ($item['relatedType'] ?? ''),
+                (string) ($item['relatedString'] ?? '')
+            );
+            if ($summary !== '') {
+                $item['relatedSummary'] = $summary;
+                $item['related-summary'] = $summary;
             }
         }
 
         $crossref = self::biblatexKeyList($fields['crossref'] ?? '');
         if ($crossref !== []) {
-            $item['crossrefKeys'] = $crossref;
-            $item['crossrefItems'] = self::referencedEntrySummaries($crossref, $entriesByKey);
+            $crossrefItems = self::referencedEntrySummaries($crossref, $entriesByKey);
             $missing = self::missingReferenceKeys($crossref, $entriesByKey);
+            $item['crossrefKeys'] = $crossref;
+            $item['crossrefItems'] = $crossrefItems;
+            $summary = self::summarizedReferenceValues($crossrefItems, $missing, $crossref);
+            if ($summary !== '') {
+                $item['crossrefSummary'] = $summary;
+            }
             if ($missing !== []) {
                 $item['missingCrossrefKeys'] = $missing;
             }
@@ -1330,9 +1366,15 @@ final class BibtexCslParser
 
         $xref = self::biblatexKeyList($fields['xref'] ?? '');
         if ($xref !== []) {
-            $item['xrefKeys'] = $xref;
-            $item['xrefItems'] = self::referencedEntrySummaries($xref, $entriesByKey);
+            $xrefItems = self::referencedEntrySummaries($xref, $entriesByKey);
             $missing = self::missingReferenceKeys($xref, $entriesByKey);
+            $item['xrefKeys'] = $xref;
+            $item['xrefItems'] = $xrefItems;
+            $summary = self::summarizedReferenceValues($xrefItems, $missing, $xref);
+            if ($summary !== '') {
+                $item['xrefSummary'] = 'Xref: ' . $summary;
+                $item['xref-summary'] = 'Xref: ' . $summary;
+            }
             if ($missing !== []) {
                 $item['missingXrefKeys'] = $missing;
             }
@@ -1416,6 +1458,110 @@ final class BibtexCslParser
             $keys,
             static fn (string $key): bool => !isset($entriesByKey[$key]) || strtolower($entriesByKey[$key]['type']) !== 'xdata'
         ));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $missing
+     * @param list<string> $fallbackKeys
+     */
+    private static function summarizedReferenceValues(array $items, array $missing, array $fallbackKeys = []): string
+    {
+        $values = [];
+        foreach ($items as $item) {
+            $display = self::referenceItemDisplay($item);
+            if ($display !== '') {
+                $values[] = $display;
+            }
+        }
+
+        foreach ($missing as $key) {
+            $key = trim($key);
+            if ($key !== '') {
+                $values[] = 'missing: ' . $key;
+            }
+        }
+
+        if ($values === []) {
+            $values = array_values(array_filter(
+                array_map(static fn (string $key): string => trim($key), $fallbackKeys),
+                static fn (string $key): bool => $key !== ''
+            ));
+        }
+
+        return implode('; ', $values);
+    }
+
+    /**
+     * @param list<array<string, mixed>> $items
+     * @param list<string> $missing
+     */
+    private static function biblatexRelatedSummary(array $items, array $missing, string $type, string $label): string
+    {
+        $values = self::summarizedReferenceValues($items, $missing);
+        if ($values === '') {
+            return '';
+        }
+
+        $type = trim($type);
+        $label = trim($label);
+        $hasExplicitLabel = $label !== '';
+        if (!$hasExplicitLabel) {
+            $label = self::defaultBiblatexRelatedTypeLabel($type);
+        }
+        if ($type !== '' && ($hasExplicitLabel || $label === 'Related source')) {
+            $label .= ' (' . $type . ')';
+        }
+
+        return $label . ': ' . $values;
+    }
+
+    private static function defaultBiblatexRelatedTypeLabel(string $type): string
+    {
+        return match (strtolower(str_replace('_', '-', trim($type)))) {
+            'license' => 'License',
+            default => 'Related source',
+        };
+    }
+
+    /**
+     * @param array<string, mixed> $item
+     */
+    private static function referenceItemDisplay(array $item): string
+    {
+        $label = trim((string) ($item['title'] ?? ''));
+        if ($label === '') {
+            $label = trim((string) ($item['id'] ?? ''));
+        }
+        if ($label === '') {
+            return '';
+        }
+
+        $date = self::referenceDateLabel($item['issued'] ?? null);
+
+        return $date === '' ? $label : $label . ' (' . $date . ')';
+    }
+
+    private static function referenceDateLabel(mixed $issued): string
+    {
+        if (!is_array($issued)) {
+            return '';
+        }
+
+        $dateParts = $issued['date-parts'] ?? null;
+        if (!is_array($dateParts) || !isset($dateParts[0]) || !is_array($dateParts[0])) {
+            return '';
+        }
+
+        $parts = array_values(array_filter(
+            array_map(
+                static fn (mixed $part): string => is_int($part) || is_string($part) ? trim((string) $part) : '',
+                $dateParts[0]
+            ),
+            static fn (string $part): bool => $part !== ''
+        ));
+
+        return implode('-', $parts);
     }
 
     private static function cslType(string $type): string
@@ -1678,10 +1824,15 @@ final class BibtexCslParser
             return [];
         }
 
+        $parts = [];
+        foreach (self::splitTopLevel($value, ',') as $part) {
+            array_push($parts, ...self::splitTopLevel($part, ';'));
+        }
+
         return array_values(array_filter(
             array_map(
                 static fn (string $option): string => self::cleanBibtexText($option),
-                self::splitTopLevel($value, ',')
+                $parts
             ),
             static fn (string $option): bool => $option !== ''
         ));

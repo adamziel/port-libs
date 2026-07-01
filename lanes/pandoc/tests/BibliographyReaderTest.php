@@ -604,6 +604,81 @@ BIB;
         $t->same(false, str_contains($reviewJson, 'Private Publisher'));
         $t->same(false, str_contains($reviewJson, 'Private Related Title'));
     },
+    'carries biblatex relation summaries through the registered reader path' => static function (TestRunner $t): void {
+        $biblatex = <<<'BIB'
+@book{registered-relation,
+  author         = {Ng, Nia},
+  title          = {Registered Relation Manual},
+  date           = {2026},
+  xdata          = {relation-defaults, missing-xdata},
+  entryset       = {set-child, missing-set},
+  related        = {source-appendix, missing-related, source-license},
+  relatedtype    = {updated-by},
+  relatedstring  = {Updated source},
+  relatedoptions = {dataonly; skipbib},
+  crossref       = {source-proceedings},
+  xref           = {source-proceedings}
+}
+
+@xdata{relation-defaults,
+  publisher = {Defaults Desk}
+}
+
+@book{set-child,
+  options = {dataonly},
+  title   = {Set Child Packet},
+  date    = {2022}
+}
+
+@book{source-appendix,
+  options = {dataonly},
+  title   = {Source Appendix Packet},
+  date    = {2024}
+}
+
+@online{source-license,
+  options = {dataonly},
+  title   = {Source License Snapshot},
+  date    = {2025},
+  url     = {https://example.test/source-license}
+}
+
+@proceedings{source-proceedings,
+  options = {dataonly},
+  title   = {Source Proceedings},
+  date    = {2023}
+}
+BIB;
+
+        $document = (new BibliographyReader('biblatex'))->read($biblatex);
+        $item = $document->attr('cslItems')[0] ?? [];
+        $blocks = PandocConverter::write($document, 'blocks');
+
+        $t->same(['registered-relation'], $document->attr('cslItemIds'));
+        $t->same('relation-defaults, missing-xdata', $item['xdata'] ?? null);
+        $t->same(['relation-defaults', 'missing-xdata'], $item['xdataKeys'] ?? null);
+        $t->same('relation-defaults; missing: missing-xdata', $item['xdataSummary'] ?? null);
+        $t->same('set-child, missing-set', $item['entryset'] ?? null);
+        $t->same(['set-child', 'missing-set'], $item['entrySet'] ?? null);
+        $t->same('Set Child Packet (2022); missing: missing-set', $item['entrySetSummary'] ?? null);
+        $t->same('source-appendix, missing-related, source-license', $item['related'] ?? null);
+        $t->same('updated-by', $item['related-type'] ?? null);
+        $t->same('Updated source', $item['related-string'] ?? null);
+        $t->same(['dataonly', 'skipbib'], $item['relatedOptions'] ?? null);
+        $t->same('Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related', $item['relatedSummary'] ?? null);
+        $t->same('source-proceedings', $item['crossref'] ?? null);
+        $t->same('Source Proceedings (2023)', $item['crossrefSummary'] ?? null);
+        $t->same('source-proceedings', $item['xref'] ?? null);
+        $t->same('Xref: Source Proceedings (2023)', $item['xrefSummary'] ?? null);
+
+        $t->contains('Registered Relation Manual. Defaults Desk, 2026.', $blocks);
+        $t->contains('Entry set: Set Child Packet (2022); missing: missing-set.', $blocks);
+        $t->contains('Xdata packets: relation-defaults; missing: missing-xdata.', $blocks);
+        $t->contains('Updated source (updated-by): Source Appendix Packet (2024); Source License Snapshot (2025); missing: missing-related.', $blocks);
+        $t->contains('Related options: dataonly; skipbib.', $blocks);
+        $t->contains('Crossref: Source Proceedings (2023).', $blocks);
+        $t->contains('Xref: Source Proceedings (2023).', $blocks);
+    },
     'honors biblatex skip bibliography options in the reader bibliography path' => static function (TestRunner $t): void {
         $biblatex = <<<'BIB'
 @book{visible-entry,
