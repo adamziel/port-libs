@@ -911,6 +911,176 @@ return [
         $t->same('casefold-path-collision-disambiguated', explode(',', $roundTrip->children[0]->children[8]->attr('attributes')['data-pandoc-media-path-repair'])[1]);
     },
 
+    'reports media bag resource mappings in document order' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $heroBytes = "hero image bytes\n";
+        $packetBytes = "%PDF review packet bytes\n";
+        $encodedBytes = "encoded review figure bytes\n";
+        $canonicalBytes = "canonical source bytes\n";
+        $variantSource = 'assets/hero.png?variant=thumbnail#xywh=10,10,20,20';
+        $encodedSource = 'assets/review%20figure.png';
+        $canonicalSource = 'assets/drafts/../canonical.png';
+        $bag->insertMedia('assets/hero.png', 'image/png', $heroBytes);
+        $bag->insertMedia('downloads/review.pdf', 'application/pdf', $packetBytes);
+        $bag->insertMedia('assets/review figure.png', 'image/png', $encodedBytes);
+        $bag->insertMedia('assets/canonical.png', 'image/png', $canonicalBytes);
+
+        $document = new AstNode('document', [], [
+            new AstNode('paragraph', [], [
+                new AstNode('image', [
+                    'url' => 'assets/hero.png',
+                    'title' => 'Hero image',
+                ], [new AstNode('text', ['text' => 'Hero image'])]),
+                new AstNode('space'),
+                new AstNode('link', [
+                    'url' => 'downloads/review.pdf',
+                    'title' => 'Review packet',
+                ], [new AstNode('text', ['text' => 'packet'])]),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'url' => $variantSource,
+                    'title' => 'Thumbnail crop',
+                ], [new AstNode('text', ['text' => 'Thumbnail crop'])]),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'url' => $encodedSource,
+                    'title' => 'Encoded review figure',
+                ], [new AstNode('text', ['text' => 'Encoded review figure'])]),
+                new AstNode('space'),
+                new AstNode('image', [
+                    'url' => $canonicalSource,
+                    'title' => 'Canonical source',
+                ], [new AstNode('text', ['text' => 'Canonical source'])]),
+            ]),
+        ]);
+
+        $resourceMap = $bag->resourceMap($document, 'media//review');
+
+        $t->same(5, count($resourceMap));
+        $t->same([0, 1, 2, 3, 4], array_column($resourceMap, 'occurrence'));
+        $t->same(['image', 'link', 'image', 'image', 'image'], array_column($resourceMap, 'nodeType'));
+        $t->same('assets/hero.png', $resourceMap[0]['source']);
+        $t->same('assets/hero.png', $resourceMap[0]['sourceLookupKey']);
+        $t->same('exact', $resourceMap[0]['sourceLookupRepair']);
+        $t->same('assets/hero.png', $resourceMap[0]['canonicalSource']);
+        $t->same('media/review/assets/hero.png', $resourceMap[0]['mappedUrl']);
+        $t->same('media/review/assets/hero.png', $resourceMap[0]['path']);
+        $t->same('assets/hero.png', $resourceMap[0]['mediaPath']);
+        $t->same('image/png', $resourceMap[0]['mimeType']);
+        $t->same((string) strlen($heroBytes), (string) $resourceMap[0]['byteLength']);
+        $t->same(sha1($heroBytes), $resourceMap[0]['sha1']);
+        $t->same('downloads/review.pdf', $resourceMap[1]['source']);
+        $t->same('downloads/review.pdf', $resourceMap[1]['sourceLookupKey']);
+        $t->same('exact', $resourceMap[1]['sourceLookupRepair']);
+        $t->same('application/pdf', $resourceMap[1]['mimeType']);
+        $t->same('media/review/downloads/review.pdf', $resourceMap[1]['mappedUrl']);
+        $t->same($variantSource, $resourceMap[2]['source']);
+        $t->same('assets/hero.png', $resourceMap[2]['sourceLookupKey']);
+        $t->same('path-only', $resourceMap[2]['sourceLookupRepair']);
+        $t->same('assets/hero.png', $resourceMap[2]['canonicalSource']);
+        $t->same('media/review/assets/hero.png', $resourceMap[2]['mappedUrl']);
+        $t->same('safe-relative-path', $resourceMap[2]['extractionPathRepairSummary']);
+        $t->same('none', $resourceMap[2]['pathCollision']);
+        $t->same($encodedSource, $resourceMap[3]['source']);
+        $t->same('assets/review figure.png', $resourceMap[3]['sourceLookupKey']);
+        $t->same('percent-decoded', $resourceMap[3]['sourceLookupRepair']);
+        $t->same('assets/review figure.png', $resourceMap[3]['canonicalSource']);
+        $t->same('media/review/assets/review figure.png', $resourceMap[3]['mappedUrl']);
+        $t->same('image/png', $resourceMap[3]['mimeType']);
+        $t->same(sha1($encodedBytes), $resourceMap[3]['sha1']);
+        $t->same($canonicalSource, $resourceMap[4]['source']);
+        $t->same('assets/canonical.png', $resourceMap[4]['sourceLookupKey']);
+        $t->same('canonical', $resourceMap[4]['sourceLookupRepair']);
+        $t->same('assets/canonical.png', $resourceMap[4]['canonicalSource']);
+        $t->same('media/review/assets/canonical.png', $resourceMap[4]['mappedUrl']);
+        $t->same(sha1($canonicalBytes), $resourceMap[4]['sha1']);
+        $t->same('assets/hero.png', $document->children[0]->children[0]->attr('url'));
+
+        $extracted = $bag->extractMedia($document, 'media/review');
+        $mappedParagraph = $extracted['document']->children[0];
+        $variantAttributes = $mappedParagraph->children[4]->attr('attributes');
+        $encodedAttributes = $mappedParagraph->children[6]->attr('attributes');
+        $canonicalAttributes = $mappedParagraph->children[8]->attr('attributes');
+
+        $t->same($resourceMap, $extracted['resourceMap']);
+        $t->same('media/review/assets/hero.png', $mappedParagraph->children[0]->attr('url'));
+        $t->same('media/review/downloads/review.pdf', $mappedParagraph->children[2]->attr('url'));
+        $t->same('media/review/assets/hero.png', $mappedParagraph->children[4]->attr('url'));
+        $t->same('media/review/assets/review figure.png', $mappedParagraph->children[6]->attr('url'));
+        $t->same('media/review/assets/canonical.png', $mappedParagraph->children[8]->attr('url'));
+        $t->same('assets/hero.png', $variantAttributes['data-pandoc-media-source-lookup-key']);
+        $t->same('path-only', $variantAttributes['data-pandoc-media-source-lookup-repair']);
+        $t->same('assets/review figure.png', $encodedAttributes['data-pandoc-media-source-lookup-key']);
+        $t->same('percent-decoded', $encodedAttributes['data-pandoc-media-source-lookup-repair']);
+        $t->same('assets/canonical.png', $canonicalAttributes['data-pandoc-media-source-lookup-key']);
+        $t->same('canonical', $canonicalAttributes['data-pandoc-media-source-lookup-repair']);
+        $t->same([
+            'media-resource-mapped:assets/hero.png',
+            'media-resource-link-mapped:downloads/review.pdf',
+            'media-resource-mapped:' . $variantSource,
+            'media-resource-mapped:' . $encodedSource,
+            'media-resource-mapped:' . $canonicalSource,
+        ], $extracted['diagnostics']);
+    },
+
+    'annotates missing media placeholders with source lookup provenance' => static function (TestRunner $t): void {
+        $bag = new MediaBag();
+        $relativeSource = 'figures/review%20draft.svg?cache=1#crop';
+        $unsafeSource = 'unsafe/%2e%2e/escape.png';
+        $remoteSource = 'https://cdn.example.test/media/missing.webp?cache=1#hero';
+        $image = static fn (string $url, string $title): AstNode => new AstNode('paragraph', [], [
+            new AstNode('image', [
+                'url' => $url,
+                'title' => $title,
+            ], [new AstNode('text', ['text' => $title])]),
+        ]);
+
+        $document = new AstNode('document', [], [
+            $image($relativeSource, 'Relative missing image'),
+            $image($unsafeSource, 'Unsafe missing image'),
+            $image($remoteSource, 'Remote missing image'),
+        ]);
+
+        $filled = $bag->fillDocument($document, []);
+        $relativeAttrs = $filled['document']->children[0]->children[0]->attr('attributes');
+        $unsafeAttrs = $filled['document']->children[1]->children[0]->attr('attributes');
+        $remoteAttrs = $filled['document']->children[2]->children[0]->attr('attributes');
+
+        $t->same([
+            'media-resource-missing:' . $relativeSource,
+            'media-resource-missing:' . $unsafeSource,
+            'media-resource-missing:' . $remoteSource,
+        ], $filled['diagnostics']);
+        $t->same('span', $filled['document']->children[0]->children[0]->type);
+        $t->same('relative-url', $relativeAttrs['original-image-source-kind']);
+        $t->same($relativeSource, $relativeAttrs['original-image-canonical-src']);
+        $t->same('figures/review draft.svg?cache=1#crop', $relativeAttrs['original-image-source-path']);
+        $t->same('image/svg+xml', $relativeAttrs['original-image-inferred-type']);
+        $t->same('3', $relativeAttrs['original-image-lookup-count']);
+        $t->same('exact,path-only,percent-decoded', $relativeAttrs['original-image-lookup-repairs']);
+        $t->same('safe-relative', $relativeAttrs['original-image-percent-decode']);
+        $t->same('figures/review%20draft.svg', $relativeAttrs['original-image-path-only-src']);
+        $t->same('figures/review draft.svg', $relativeAttrs['original-image-decoded-src']);
+
+        $t->same('unsafe-relative-path', $unsafeAttrs['original-image-source-kind']);
+        $t->same('unsafe/../escape.png', $unsafeAttrs['original-image-source-path']);
+        $t->same('image/png', $unsafeAttrs['original-image-inferred-type']);
+        $t->same('1', $unsafeAttrs['original-image-lookup-count']);
+        $t->same('exact', $unsafeAttrs['original-image-lookup-repairs']);
+        $t->same('unsafe-relative', $unsafeAttrs['original-image-percent-decode']);
+        $t->true(!array_key_exists('original-image-decoded-src', $unsafeAttrs), 'Unsafe percent-decoded paths should not be advertised as lookup keys');
+
+        $t->same('uri', $remoteAttrs['original-image-source-kind']);
+        $t->same($remoteSource, $remoteAttrs['original-image-canonical-src']);
+        $t->same('/media/missing.webp', $remoteAttrs['original-image-source-path']);
+        $t->same('image/webp', $remoteAttrs['original-image-inferred-type']);
+        $t->same('2', $remoteAttrs['original-image-lookup-count']);
+        $t->same('exact,path-only', $remoteAttrs['original-image-lookup-repairs']);
+        $t->same('none', $remoteAttrs['original-image-percent-decode']);
+        $t->same('https://cdn.example.test/media/missing.webp', $remoteAttrs['original-image-path-only-src']);
+        $t->same([], $bag->directory());
+    },
+
     'keeps malformed inline media resources as bounded review placeholders' => static function (TestRunner $t): void {
         $bag = new MediaBag();
         $badDataUri = 'data:image/png;base64,not valid base64 %%';
