@@ -108,4 +108,80 @@ XML,
         $t->same(false, $inventory['word/media/Review.PNG']['directoryNameHasUppercase']);
         $t->same(false, in_array('word/media/Review.PNG', $summary['partDirectoryNameCharacterFlagPartNames']['uppercase'], true));
     },
+    'summarizes DOCX package part directory name character aggregate metadata' => static function (TestRunner $t): void {
+        $relationshipPart = 'word/UpperDir/_rels/source.xml.rels';
+        $payloadPart = 'word/UpperDir/payload.bin';
+        $sourcePart = 'word/UpperDir/source.xml';
+        $parts = [
+            '[Content_Types].xml' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Default Extension="bin" ContentType="application/octet-stream; profile=&quot;review&quot;"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>
+XML,
+            '_rels/.rels' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rDocument" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+XML,
+            'word/document.xml' => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    <w:p><w:r><w:t>Package part directory aggregate review.</w:t></w:r></w:p>
+  </w:body>
+</w:document>
+XML,
+            $sourcePart => '<source/>',
+            $payloadPart => str_repeat('B', 41),
+            $relationshipPart => <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"/>
+XML,
+        ];
+
+        $document = (new DocxOpenXmlReader())->readPackage($parts);
+        $summary = $document->attr('docx')['packageProvenance']['summary'];
+        $byDirectory = [];
+        foreach ($summary['partDirectoryNameCharacterReviewDirectories'] as $directory) {
+            $byDirectory[$directory['directory']] = $directory;
+        }
+
+        $expectedPartNames = [$relationshipPart, $payloadPart, $sourcePart];
+        sort($expectedPartNames, SORT_STRING);
+
+        $t->same(2, $summary['partDirectoryNameCharacterReviewDirectoryCount']);
+        $t->same(3, $summary['partDirectoryNameCharacterReviewPartCount']);
+        $t->same(3, $summary['partDirectoryNameUppercasePartCount']);
+        $t->same(['uppercase' => 3], $summary['partDirectoryNameCharacterFlagPartCounts']);
+        $t->same(['word/UpperDir', 'word/UpperDir/_rels'], $summary['partDirectoryNameCharacterReviewDirectoryNames']);
+        $t->same($expectedPartNames, $summary['partDirectoryNameCharacterFlagPartNames']['uppercase']);
+
+        $upper = $byDirectory['word/UpperDir'];
+        $t->same(2, $upper['directoryDepth']);
+        $t->same(2, $upper['partCount']);
+        $t->same(0, $upper['relationshipPartCount']);
+        $t->same(1, $upper['parameterizedPartCount']);
+        $t->same([], $upper['relationshipParts']);
+        $t->same(['application/octet-stream' => 1, 'application/xml' => 1], $upper['contentTypeBaseCounts']);
+        $t->same(['default' => 2], $upper['contentTypeSourceCounts']);
+        $t->same('payload.bin', $upper['largestPart']['baseName']);
+        $t->same(2, $upper['largestPart']['directoryDepth']);
+        $t->same('application/octet-stream', $upper['largestPart']['contentTypeBase']);
+        $t->same(true, $upper['largestPart']['contentTypeHasParameters']);
+        $t->same(1, $upper['largestPart']['contentTypeParameterCount']);
+
+        $relationships = $byDirectory['word/UpperDir/_rels'];
+        $t->same(3, $relationships['directoryDepth']);
+        $t->same(1, $relationships['partCount']);
+        $t->same(1, $relationships['relationshipPartCount']);
+        $t->same([$relationshipPart], $relationships['relationshipParts']);
+        $t->same(['rels' => 1], $relationships['partExtensionCounts']);
+        $t->same(['application/vnd.openxmlformats-package.relationships+xml' => 1], $relationships['contentTypeBaseCounts']);
+        $t->same($relationshipPart, $relationships['largestPart']['partName']);
+    },
 ];

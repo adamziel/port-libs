@@ -34943,6 +34943,9 @@ final class DocxOpenXmlReader
                 ? (string) $part['partExtension']
                 : $this->packagePartExtension($partName);
             $partExtensionKey = ($partExtension === null || $partExtension === '') ? '(none)' : $partExtension;
+            $directoryDepth = is_int($part['directoryDepth'] ?? null)
+                ? (int) $part['directoryDepth']
+                : $this->packagePartDirectoryDepth($directory);
             $contentType = is_string($part['contentType'] ?? null) ? $part['contentType'] : '';
             $contentTypeBase = is_string($part['contentTypeBase'] ?? null) ? $part['contentTypeBase'] : '';
             $contentTypeBaseKey = $contentTypeBase === '' ? '(missing)' : $contentTypeBase;
@@ -34952,6 +34955,13 @@ final class DocxOpenXmlReader
             if ($contentTypeSource === '') {
                 $contentTypeSource = 'missing';
             }
+            $contentTypeParameterCount = (int) ($part['contentTypeParameterCount'] ?? 0);
+            $contentTypeParameterMap = is_array($part['contentTypeParameterMap'] ?? null)
+                ? $part['contentTypeParameterMap']
+                : [];
+            $contentTypeHasParameters = ($part['contentTypeHasParameters'] ?? false) === true
+                || $contentTypeParameterCount > 0
+                || $contentTypeParameterMap !== [];
             $roles = array_values(array_filter(
                 array_map('strval', $part['roles'] ?? []),
                 static fn (string $role): bool => $role !== '',
@@ -34960,9 +34970,7 @@ final class DocxOpenXmlReader
             if (!isset($directories[$directory])) {
                 $directories[$directory] = [
                     'directory' => $directory,
-                    'directoryDepth' => is_int($part['directoryDepth'] ?? null)
-                        ? (int) $part['directoryDepth']
-                        : $this->packagePartDirectoryDepth($directory),
+                    'directoryDepth' => $directoryDepth,
                     'partCount' => 0,
                     'byteLength' => 0,
                     'relationshipPartCount' => 0,
@@ -34977,6 +34985,7 @@ final class DocxOpenXmlReader
                     'roleCounts' => [],
                     'contentTypes' => [],
                     'partNames' => [],
+                    'relationshipParts' => [],
                     'largestPart' => null,
                     'reviewPolicy' => 'package-part-directory-name-character-metadata-only',
                 ];
@@ -34988,11 +34997,12 @@ final class DocxOpenXmlReader
 
             if (($part['isRelationshipPart'] ?? false) === true) {
                 ++$directories[$directory]['relationshipPartCount'];
+                $this->appendUniqueString($directories[$directory]['relationshipParts'], $partName);
             }
             if ($contentTypeSource === 'missing') {
                 ++$directories[$directory]['missingContentTypePartCount'];
             }
-            if (($part['contentTypeHasParameters'] ?? false) === true) {
+            if ($contentTypeHasParameters) {
                 ++$directories[$directory]['parameterizedPartCount'];
             }
 
@@ -35022,6 +35032,7 @@ final class DocxOpenXmlReader
             $partSummary = [
                 'partName' => $partName,
                 'directory' => $directory,
+                'directoryDepth' => $directoryDepth,
                 'baseName' => $baseName,
                 'partExtension' => $partExtension,
                 'bytes' => $bytes,
@@ -35030,6 +35041,8 @@ final class DocxOpenXmlReader
                 'contentType' => $contentType,
                 'contentTypeBase' => $contentTypeBase,
                 'contentTypeSource' => $contentTypeSource,
+                'contentTypeHasParameters' => $contentTypeHasParameters,
+                'contentTypeParameterCount' => $contentTypeParameterCount,
                 'roles' => $roles,
             ];
             $largestPart = $directories[$directory]['largestPart'];
@@ -35071,6 +35084,7 @@ final class DocxOpenXmlReader
             sort($directory['flags'], SORT_STRING);
             sort($directory['contentTypes'], SORT_STRING);
             sort($directory['partNames'], SORT_STRING);
+            sort($directory['relationshipParts'], SORT_STRING);
         }
         unset($directory);
 
